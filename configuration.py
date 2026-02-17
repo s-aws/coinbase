@@ -61,6 +61,9 @@ def format_based_on_reference(value_to_format, reference_float):
     """
     Formats a float to match the number of decimal places of a reference float.
     """
+
+    result = "0"
+
     try:
         result = f"{value_to_format:.{len(str(reference_float).rsplit('.', maxsplit=1)[-1]) \
             if '.' in str(reference_float) else 0}f}"
@@ -127,14 +130,14 @@ class OrderBook():
         }
     }
 
-    def calculate_new_order_move(self, order_id):
+    def calculate_new_order_move(self, order_id) -> dict:
         """ Return the new order after calculations """
 
         order = self.order.get(order_id)
 
         if not order:
             print(f"ORDER NOT FOUND {order_id}")
-            return
+            return {}
 
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
@@ -160,7 +163,7 @@ class OrderBook():
             order_float_price = float(order["avg_price"])
         else:
             print(f"UNKNOWN PRICE FROM ORDER {order}")
-            return
+            return {}
 
         # get the two different ways to calculate fee amount
 
