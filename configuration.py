@@ -1,0 +1,217 @@
+""" Configuration """
+
+from os import getenv
+from coinbase.rest import RESTClient
+
+API_KEY = getenv("COINBASE_API_KEY")
+API_SECRET = getenv("COINBASE_API_SECRET")
+
+REST_CLIENT = RESTClient(
+    api_key = API_KEY,
+    api_secret = API_SECRET)
+
+ORDER_SIDE_SWITCH = {
+    "BUY": "SELL",
+    "SELL": "BUY"
+}
+
+ORDER_POST_ONLY = { # allow this to be based on side
+    "BUY": False, # set both to True when testing to keep accidental orders to a min
+    "SELL": False
+}
+
+ORDER_DIRECTION = { # ensure the direction is correct (away from last fill)
+    "SELL": 1, # price gets larger
+    "BUY": -1 # price gets smaller
+    # unless it's backwards day
+}
+
+DERIVATIVES_PRODUCT_IDS = [
+    "BIP-20DEC30-CDE",
+    "ETP-20DEC30-CDE",
+    "XPP-20DEC30-CDE",
+    "SLP-20DEC30-CDE",
+    "ADP-20DEC30-CDE",
+    "DOP-20DEC30-CDE",
+    "BCP-20DEC30-CDE",
+    "SUP-20DEC30-CDE",
+    "AVP-20DEC30-CDE",
+    "XLP-20DEC30-CDE",
+    "LNP-20DEC30-CDE",
+    "LCP-20DEC30-CDE",
+    "POP-20DEC30-CDE",
+    "HEP-20DEC30-CDE"
+]
+
+SPOT_PRODUCT_IDS = [
+    "DOT-BTC",
+    "NCT-USDC",
+    "BTC-USDC",
+    "LTC-USDC",
+    "ETH-USDC",
+    "MON-USDC",
+    "ZKP-USDC",
+    "WET-USDC",
+    "XPL-USDC",
+    "DOGE-USDC",
+    "SENT-USDC"
+]
+
+def format_based_on_reference(value_to_format, reference_float):
+    """
+    Formats a float to match the number of decimal places of a reference float.
+    """
+    try:
+        result = f"{value_to_format:.{len(str(reference_float).rsplit('.', maxsplit=1)[-1]) \
+            if '.' in str(reference_float) else 0}f}"
+    except Exception as e:
+        print(e)
+    return result
+
+def rest_get_account_wallets() -> dict:
+    """ Create a dictionary in the format
+    { "currency1": {}, "currency2": {} } """
+
+    accounts_list = REST_CLIENT.get_accounts()["accounts"]
+
+    account_wallets = {
+        item["currency"]: item for item in accounts_list if item["deleted_at"] is None
+    }
+
+    return account_wallets
+
+def rest_get_products() -> dict:
+    """ Create a dictionary in the format
+    { "currency1": {}, "currency2": {} } """
+
+    products_list = [
+        REST_CLIENT.get_product(product_id) for
+            product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS]
+
+    products = {
+        item["product_id"]: item for item in products_list if item["trading_disabled"] is False
+    }
+
+    return products
+
+class OrderBook():
+    """ Container for Order tracking """
+    transaction_summary = REST_CLIENT.get_transaction_summary() # includes fees
+
+    replace = {
+        "CANCELLED": False,
+        "FILLED": True
+    }
+
+    cancelled = {}
+    filled = {}
+    order = {}
+    price = {}
+    product = rest_get_products()
+    active = {
+        # "MON-USDC": {
+        #     "0.021430": ["69cd5aeb-3d4e-41e6-8b2d-2cb5b24007ec"],
+        #     "0.021410": ["d9cd5aeb-3d4e-41e6-8b2d-2cb5b24007af"],
+        #     "0.021530": ["39cd5aeb-3d4e-41e6-8b2d-2cb5b2400700"],
+        # } # sample
+    }
+
+    fee = {
+        "SPOT": {
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 18,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 18
+        },
+        "FUTURE": { # does not include 0.15 per contract fee so we use the highest fee for calc
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 22,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 22
+        }
+    }
+
+    def calculate_new_order_move(self, order_id):
+        """ Return the new order after calculations """
+
+        order = self.order.get(order_id)
+
+        if not order:
+            print(f"ORDER NOT FOUND {order_id}")
+            return
+
+        order_product_id = order["product_id"]
+        order_product_type = order["product_type"]
+        order_status = order["status"]
+        order_side = order["order_side"]
+        order_size = float(
+            order["leaves_quantity"] if float(order["leaves_quantity"]) > 0
+                else order["cumulative_quantity"])
+
+        base_increment = ORDERBOOK.product[order_product_id]["base_increment"]
+        quote_increment = ORDERBOOK.product[order_product_id]["quote_increment"]
+        price_increment = self.product[order_product_id]["price_increment"]
+
+        if order_status == "FILLED":
+            order_side = ORDER_SIDE_SWITCH[order["order_side"]]
+
+        if order_status == "CANCELLED":
+            order_size = float(order["leaves_quantity"])
+
+        if order.get("limit_price"):
+            order_float_price = float(order["limit_price"])
+        elif order.get("avg_price") != "0":
+            order_float_price = float(order["avg_price"])
+        else:
+            print(f"UNKNOWN PRICE FROM ORDER {order}")
+            return
+
+        # get the two different ways to calculate fee amount
+
+        minimum_move_amount = float(price_increment)
+        fee_move_calculated_from_pct = order_float_price * self.fee[order_product_type][order_side]
+
+        order_move_amount = minimum_move_amount if (
+            minimum_move_amount > fee_move_calculated_from_pct) else fee_move_calculated_from_pct
+
+        # set direction here
+        order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
+
+        # finalize floats
+        order_new_price = order_float_price + order_move_difference
+
+        order_new_price = float(format_based_on_reference(
+            order_new_price,
+            quote_increment))
+
+        order_new_size = float(format_based_on_reference(
+            order_size,
+            base_increment))
+
+        price_increment_len = len(price_increment)-2 if (
+            len(price_increment) > 3) else 1
+
+        base_increment_len = len(base_increment)-2 if (
+            len(base_increment) > 3) else 1
+
+        order_new_price -= order_new_price % float(price_increment)
+
+        return {
+            "product_id": order_product_id,
+            "side": order_side,
+            "order_base_size": f"{order_new_size:.{base_increment_len}f}",
+            "order_price_difference": f"{abs(order_move_difference):.{price_increment_len}f}",
+            "start_price": f"{order_new_price:.{price_increment_len}f}"
+        }
+
+class Subscription():
+    """ Websocket connection details """
+
+    product_ids = DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS
+    derivatives_product_ids = DERIVATIVES_PRODUCT_IDS
+
+    channels = [
+        "heartbeats",
+        "user",
+        "ticker",
+        # "level2",
+        # "market_trades"
+    ]
+
+ORDERBOOK = OrderBook()
