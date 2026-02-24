@@ -124,10 +124,22 @@ if __name__ == "__main__":
     #     delay_in_secs=0,
     #     product_id="BIP-20DEC30-CDE",
     #     side="SELL",
-    #     order_base_size=10,
-    #     order_price_difference=250,
-    #     start_price=2,
-    #     max_order_count=20
+    #     order_base_size=1,
+    #     order_price_difference=30,
+    #     start_price=63300,
+    #     max_order_count=100
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
+
+    # orders = create_limit_order_span(
+    #     delay_in_secs=0,
+    #     product_id="BIP-20DEC30-CDE",
+    #     side="SELL",
+    #     order_base_size=3,
+    #     order_price_difference=50,
+    #     start_price=64500,
+    #     max_order_count=100
     # )
     # print(f"Count: {len(orders)}")
     # print(orders[-1])
@@ -135,36 +147,15 @@ if __name__ == "__main__":
     orders = create_limit_order_span(
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
-        side="SELL",
-        order_base_size=10,
-        order_price_difference=250,
-        start_price=67840,
-        max_order_count=20
-    )
-    print(f"Count: {len(orders)}")
-    print(orders[-1])
-
-    orders = create_limit_order_span(
-        delay_in_secs=0,
-        product_id="BIP-20DEC30-CDE",
         side="BUY",
-        order_base_size=10,
-        order_price_difference=200,
-        start_price=66840,
-        max_order_count=20
+        order_base_size=3,
+        order_price_difference=55,
+        start_price=63880,
+        max_order_count=33
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
 
-    # orders = create_limit_order_span(
-    #     delay_in_secs=0,
-    #     product_id="SENT-USDC",
-    #     side="SELL",
-    #     order_base_size=500,
-    #     order_price_difference=0.00017,
-    #     start_price=0.05970,
-    #     max_order_count=800
-    # )
 
     # orders = create_limit_order_span(
     #     delay_in_secs=0,
@@ -175,6 +166,19 @@ if __name__ == "__main__":
     #     start_price=0.02560,
     #     max_order_count=200
     # )
+
+    # orders = create_limit_order_span(
+    #     delay_in_secs=0,
+    #     product_id="BTC-USDC",
+    #     side="BUY",
+    #     order_base_size=0.01,
+    #     order_price_difference=25,
+    #     start_price=67000,
+    #     max_order_count=30
+    # )
+
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
 
     # print(f"Count: {len(orders)}")
     # print(orders[-1])
