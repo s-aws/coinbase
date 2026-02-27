@@ -120,41 +120,41 @@ if __name__ == "__main__":
     # )
 
     # BTC
-    # orders = create_limit_order_span(
-    #     delay_in_secs=0,
-    #     product_id="BIP-20DEC30-CDE",
-    #     side="SELL",
-    #     order_base_size=1,
-    #     order_price_difference=30,
-    #     start_price=63300,
-    #     max_order_count=100
-    # )
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
-
     orders = create_limit_order_span(
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
         side="SELL",
-        order_base_size=10,
-        order_price_difference=200,
-        start_price=65200,
-        max_order_count=20
+        order_base_size=20,
+        order_price_difference=500,
+        start_price=67600,
+        max_order_count=15
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
 
-    orders = create_limit_order_span(
-        delay_in_secs=0,
-        product_id="BIP-20DEC30-CDE",
-        side="BUY",
-        order_base_size=10,
-        order_price_difference=200,
-        start_price=64200,
-        max_order_count=10
-    )
-    print(f"Count: {len(orders)}")
-    print(orders[-1])
+    # orders = create_limit_order_span(
+    #     delay_in_secs=0,
+    #     product_id="BIP-20DEC30-CDE",
+    #     side="BUY",
+    #     order_base_size=5,
+    #     order_price_difference=200,
+    #     start_price=65100,
+    #     max_order_count=7
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
+
+    # orders = create_limit_order_span(
+    #     delay_in_secs=0,
+    #     product_id="BIP-20DEC30-CDE",
+    #     side="BUY",
+    #     order_base_size=10,
+    #     order_price_difference=100,
+    #     start_price=66800,
+    #     max_order_count=20
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
 
 
     # orders = create_limit_order_span(
@@ -172,9 +172,10 @@ if __name__ == "__main__":
     #     product_id="BTC-USDC",
     #     side="BUY",
     #     order_base_size=0.01,
-    #     order_price_difference=25,
-    #     start_price=67000,
-    #     max_order_count=30
+    #     order_price_difference=50,
+    #     start_price=68860,
+    #     max_order_count=10,
+    #     post_only=True
     # )
 
     # print(f"Count: {len(orders)}")
