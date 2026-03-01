@@ -120,17 +120,17 @@ if __name__ == "__main__":
     # )
 
     # BTC
-    orders = create_limit_order_span(
-        delay_in_secs=0,
-        product_id="BIP-20DEC30-CDE",
-        side="SELL",
-        order_base_size=2,
-        order_price_difference=50,
-        start_price=67000,
-        max_order_count=100
-    )
-    print(f"Count: {len(orders)}")
-    print(orders[-1])
+    # orders = create_limit_order_span(
+    #     delay_in_secs=0,
+    #     product_id="BIP-20DEC30-CDE",
+    #     side="SELL",
+    #     order_base_size=2,
+    #     order_price_difference=50,
+    #     start_price=67000,
+    #     max_order_count=100
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
 
     orders = create_limit_order_span(
         delay_in_secs=0,
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         side="BUY",
         order_base_size=2,
         order_price_difference=200,
-        start_price=65000,
+        start_price=66000,
         max_order_count=200
     )
     print(f"Count: {len(orders)}")
