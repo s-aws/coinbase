@@ -124,10 +124,22 @@ if __name__ == "__main__":
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
         side="SELL",
-        order_base_size=20,
-        order_price_difference=500,
-        start_price=67600,
-        max_order_count=15
+        order_base_size=2,
+        order_price_difference=50,
+        start_price=67000,
+        max_order_count=100
+    )
+    print(f"Count: {len(orders)}")
+    print(orders[-1])
+
+    orders = create_limit_order_span(
+        delay_in_secs=0,
+        product_id="BIP-20DEC30-CDE",
+        side="BUY",
+        order_base_size=2,
+        order_price_difference=200,
+        start_price=65000,
+        max_order_count=200
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
@@ -137,21 +149,9 @@ if __name__ == "__main__":
     #     product_id="BIP-20DEC30-CDE",
     #     side="BUY",
     #     order_base_size=5,
-    #     order_price_difference=200,
-    #     start_price=65100,
-    #     max_order_count=7
-    # )
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
-
-    # orders = create_limit_order_span(
-    #     delay_in_secs=0,
-    #     product_id="BIP-20DEC30-CDE",
-    #     side="BUY",
-    #     order_base_size=10,
     #     order_price_difference=100,
-    #     start_price=66800,
-    #     max_order_count=20
+    #     start_price=66000,
+    #     max_order_count=26
     # )
     # print(f"Count: {len(orders)}")
     # print(orders[-1])
@@ -172,9 +172,9 @@ if __name__ == "__main__":
     #     product_id="BTC-USDC",
     #     side="BUY",
     #     order_base_size=0.01,
-    #     order_price_difference=50,
-    #     start_price=68860,
-    #     max_order_count=10,
+    #     order_price_difference=70,
+    #     start_price=67000,
+    #     max_order_count=100,
     #     post_only=True
     # )
 
