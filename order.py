@@ -126,7 +126,7 @@ if __name__ == "__main__":
         side="SELL",
         order_base_size=10,
         order_price_difference=1000,
-        start_price=70500,
+        start_price=69900,
         max_order_count=20
     )
     print(f"Count: {len(orders)}")
@@ -139,7 +139,7 @@ if __name__ == "__main__":
         order_base_size=10,
         order_price_difference=1000,
         start_price=65000,
-        max_order_count=10
+        max_order_count=20
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
