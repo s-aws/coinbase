@@ -125,8 +125,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": { # does not include 0.15 per contract fee so we use the highest fee for calc
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 37,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 37
         }
     }
 
