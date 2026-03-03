@@ -136,7 +136,7 @@ if __name__ == "__main__":
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
         side="BUY",
-        order_base_size=2,
+        order_base_size=3,
         order_price_difference=30,
         start_price=67000,
         max_order_count=100
