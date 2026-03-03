@@ -124,10 +124,10 @@ if __name__ == "__main__":
     #     delay_in_secs=0,
     #     product_id="BIP-20DEC30-CDE",
     #     side="SELL",
-    #     order_base_size=10,
-    #     order_price_difference=100,
-    #     start_price=69000,
-    #     max_order_count=10
+    #     order_base_size=2,
+    #     order_price_difference=25,
+    #     start_price=67700,
+    #     max_order_count=100
     # )
     # print(f"Count: {len(orders)}")
     # print(orders[-1])
@@ -138,36 +138,11 @@ if __name__ == "__main__":
         side="BUY",
         order_base_size=2,
         order_price_difference=25,
-        start_price=66000,
-        max_order_count=300
+        start_price=67000,
+        max_order_count=100
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
-
-    # orders = create_limit_order_span(
-    #     delay_in_secs=0,
-    #     product_id="BIP-20DEC30-CDE",
-    #     side="BUY",
-    #     order_base_size=10,
-    #     order_price_difference=100,
-    #     start_price=65450,
-    #     max_order_count=10
-    # )
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
-
-    # orders = create_limit_order_span(
-    #     delay_in_secs=0,
-    #     product_id="BIP-20DEC30-CDE",
-    #     side="BUY",
-    #     order_base_size=10,
-    #     order_price_difference=100,
-    #     start_price=66000,
-    #     max_order_count=26
-    # )
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
-
 
     # orders = create_limit_order_span(
     #     delay_in_secs=0,
