@@ -125,8 +125,8 @@ if __name__ == "__main__":
         product_id="BIP-20DEC30-CDE",
         side="SELL",
         order_base_size=2,
-        order_price_difference=150,
-        start_price=68900,
+        order_price_difference=125,
+        start_price=70000,
         max_order_count=50
     )
     print(f"Count: {len(orders)}")
@@ -137,9 +137,9 @@ if __name__ == "__main__":
         product_id="BIP-20DEC30-CDE",
         side="BUY",
         order_base_size=3,
-        order_price_difference=50,
-        start_price=67000,
-        max_order_count=111
+        order_price_difference=25,
+        start_price=65000,
+        max_order_count=100
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
