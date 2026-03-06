@@ -12,7 +12,7 @@ def create_limit_order_span(
         order_base_size: float=1,
         order_price_difference: float=0.00001,
         start_price: float=0.00992,
-        post_only: bool=False) -> dict:
+        post_only: bool=False) -> list:
     """ Create a series of limit orders """
 
     results = []
