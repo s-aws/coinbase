@@ -4,17 +4,17 @@ from order import create_limit_order_span
 if __name__ == "__main__":
     ##################### PERP
     # BTC
-    orders = create_limit_order_span( #size=2, diff=25, count=100, 
-        delay_in_secs=0,
-        product_id="BIP-20DEC30-CDE",
-        side="SELL",
-        order_base_size=10,
-        order_price_difference=100,
-        start_price=71000,
-        max_order_count=10
-    )
-    print(f"Count: {len(orders)}")
-    print(orders[-1])
+    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
+    #     delay_in_secs=0,
+    #     product_id="BIP-20DEC30-CDE",
+    #     side="SELL",
+    #     order_base_size=10,
+    #     order_price_difference=100,
+    #     start_price=71000,
+    #     max_order_count=10
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
 
     # orders = create_limit_order_span( #size=2, diff=25, count=100, 
     #     delay_in_secs=0,
@@ -30,16 +30,16 @@ if __name__ == "__main__":
 
     ##################### SPOT
 
-    # orders = create_limit_order_span(
-    #     delay_in_secs=0,
-    #     product_id="BTC-USDC",
-    #     side="BUY",
-    #     order_base_size=0.001,
-    #     order_price_difference=20,
-    #     start_price=72800,
-    #     max_order_count=100,
-    #     post_only=True
-    # )
+    orders = create_limit_order_span(
+        delay_in_secs=0,
+        product_id="BTC-USDC",
+        side="BUY",
+        order_base_size=0.001,
+        order_price_difference=100,
+        start_price=71200,
+        max_order_count=10,
+        post_only=True
+    )
 
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
+    print(f"Count: {len(orders)}")
+    print(orders[-1])
