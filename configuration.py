@@ -106,7 +106,7 @@ class OrderBook():
     """ Container for Order tracking """
     transaction_summary = REST_CLIENT.get_transaction_summary() # includes fees
 
-    replace = {
+    should_replace = {
         "CANCELLED": False,
         "FILLED": True
     }

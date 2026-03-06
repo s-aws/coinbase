@@ -58,7 +58,7 @@ def __on_message__(msg):
                                 # print(order)
 
                             elif order["status"] == "CANCELLED":
-                                if ORDERBOOK.replace[order["status"]] is not True:
+                                if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
 
                                 if not ORDERBOOK.cancelled.get(order["client_order_id"]):
@@ -105,7 +105,7 @@ def __on_message__(msg):
                                 ORDERBOOK.order[order["client_order_id"]] = order
 
                             elif order["status"] == "FILLED":
-                                if ORDERBOOK.replace[order["status"]] is not True:
+                                if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
                                 if not ORDERBOOK.filled.get(order["client_order_id"]):
                                     #and order["order_side"] == "BUY": # temp restriction for replacement
