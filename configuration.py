@@ -107,7 +107,7 @@ class OrderBook():
     transaction_summary = REST_CLIENT.get_transaction_summary() # includes fees
 
     should_replace = {
-        "CANCELLED": False,
+        "CANCELLED": True,
         "FILLED": True
     }
 
