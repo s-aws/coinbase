@@ -124,9 +124,9 @@ class OrderBook():
         # } # sample
     }
 
-    # we previously used `fee` as the "safety buffer" but now we use the actual fee from filled order to determine the move amount,
+    # we previously used `profit` (was `fee`) as the "safety buffer" but now we use the actual fee from filled order to determine the move amount,
     # so this is more of a profit multiplier
-    fee = {
+    profit = {
         "SPOT": { 
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 5,
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
@@ -146,6 +146,7 @@ class OrderBook():
             print(f"ORDER NOT FOUND {order_id}")
             return {}
 
+        order_fee = float(order.get("fee_amount", "0"))
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
         order_status = order["status"]
@@ -175,7 +176,8 @@ class OrderBook():
         # get the two different ways to calculate fee amount
 
         minimum_move_amount = float(price_increment)
-        fee_move_calculated_from_pct = order_float_price * self.fee[order_product_type][order_side]
+        fee_move_calculated_from_pct = (order_fee * ORDER_DIRECTION[order_side]
+            ) + order_float_price * self.profit[order_product_type][order_side]
 
         order_move_amount = minimum_move_amount if (
             minimum_move_amount > fee_move_calculated_from_pct) else fee_move_calculated_from_pct
