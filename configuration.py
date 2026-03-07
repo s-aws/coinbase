@@ -146,7 +146,7 @@ class OrderBook():
             print(f"ORDER NOT FOUND {order_id}")
             return {}
 
-        order_fee = float(order.get("fee_amount", "0"))
+        order_fee = float(order.get("total_fees", "0"))
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
         order_status = order["status"]
@@ -176,12 +176,13 @@ class OrderBook():
         # get the two different ways to calculate move amount
 
         minimum_move_amount = float(price_increment)
-        fee_move_calculated_from_pct = order_fee + (
-            order_float_price * self.profit[order_product_type][order_side])
-
+        fee_move_calculated_from_pct = (order_fee / order_size /order_float_price * 3) if order_fee > 0 else 0
+        print(f"order_fee: {order_fee} order_size: {order_size} order_float_price: {order_float_price} fee_move_calculated_from_pct: {fee_move_calculated_from_pct}")
+        fee_move_calculated_from_pct += order_float_price * self.profit[order_product_type][order_side]
+        print(f"fee_move_calculated_from_pct after profit multiplier: {fee_move_calculated_from_pct}")
         order_move_amount = fee_move_calculated_from_pct if (
             minimum_move_amount < fee_move_calculated_from_pct) else minimum_move_amount 
-
+        print(f"order_move_amount: {order_move_amount}")
         # set direction here
         order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
 
