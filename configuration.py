@@ -124,8 +124,6 @@ class OrderBook():
         # } # sample
     }
 
-    # we previously used `profit` (was `fee`) as the "safety buffer" but now we use the actual fee from filled order to determine the move amount,
-    # so this is more of a profit multiplier. Cancelled orders will still use this profit multiplier to determine the move amount since they won't have accurate fee info
     profit = {
         "SPOT": { 
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 5,
@@ -176,23 +174,21 @@ class OrderBook():
         # get the two different ways to calculate move amount
 
         minimum_move_amount = float(price_increment)
-        fee_move_calculated_from_pct = (order_fee / order_size /order_float_price * 3) if order_fee > 0 else 0
-        print(f"order_fee: {order_fee} order_size: {order_size} order_float_price: {order_float_price} fee_move_calculated_from_pct: {fee_move_calculated_from_pct}")
-        fee_move_calculated_from_pct += order_float_price * self.profit[order_product_type][order_side]
+        fee_move_calculated_from_pct = order_float_price * self.profit[order_product_type][order_side]
         print(f"fee_move_calculated_from_pct after profit multiplier: {fee_move_calculated_from_pct}")
         order_move_amount = fee_move_calculated_from_pct if (
             minimum_move_amount < fee_move_calculated_from_pct) else minimum_move_amount 
         print(f"order_move_amount: {order_move_amount}")
         # set direction here
         order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
-
+        print(f"order_move_difference: {order_move_difference}")
         # finalize floats
         order_new_price = order_float_price + order_move_difference
-
+        print(f"order_new_price before formatting: {order_new_price}")
         order_new_price = float(format_based_on_reference(
             order_new_price,
             quote_increment))
-
+        print(f"order_new_price after formatting: {order_new_price}")
         order_new_size = float(format_based_on_reference(
             order_size,
             base_increment))
