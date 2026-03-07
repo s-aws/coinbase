@@ -74,3 +74,6 @@ def create_limit_order_span(
 
 
     return results
+
+if __name__ == "__main__":
+    print(REST_CLIENT.get_fills().to_dict())

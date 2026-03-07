@@ -114,9 +114,9 @@ def __on_message__(msg):
                                 ORDERBOOK.order[order['client_order_id']] = order
 
                             elif order["status"] == "FILLED":
-                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] += float(order.get("total_fees", "0"))
                                 if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
+                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] += float(order.get("total_fees", "0"))
                                 if not ORDERBOOK.filled.get(order["client_order_id"]):
                                     #and order["order_side"] == "BUY": # temp restriction for replacement
                                     # print(f"ORDER FILLED: {order['client_order_id']}")
