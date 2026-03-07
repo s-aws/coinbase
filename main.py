@@ -4,7 +4,7 @@ from datetime import datetime, date, UTC
 
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
-from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY, SESSION_FEE
+from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY
 
 from order import create_limit_order_span
 
@@ -48,9 +48,6 @@ def __on_message__(msg):
                     if event["type"] == "update":
                         for order in event["orders"]:
 
-                            if date.today().strftime("%Y-%m-%d") not in SESSION_FEE:
-                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] = 0.0
-
                             ORDERBOOK.order[order["client_order_id"]] = order
 
                             if order["status"] == "SNAPSHOT":
@@ -62,7 +59,6 @@ def __on_message__(msg):
                                 # print(order)
 
                             elif order["status"] == "CANCELLED":
-                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] += float(order.get("total_fees", "0"))
                                 if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
 
@@ -93,9 +89,6 @@ def __on_message__(msg):
                                             f"{order_template['product_id']} " \
                                             f"{order_template['order_base_size']} @ {order_template['start_price']}")
 
-                                    if order.get("total_fees"):
-                                        print(f"SESSION_FEE: {SESSION_FEE}")
-
                             elif order["status"] == "PENDING":
                                 pass
                                 # print(order)
@@ -116,7 +109,7 @@ def __on_message__(msg):
                             elif order["status"] == "FILLED":
                                 if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
-                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] += float(order.get("total_fees", "0"))
+
                                 if not ORDERBOOK.filled.get(order["client_order_id"]):
                                     #and order["order_side"] == "BUY": # temp restriction for replacement
                                     # print(f"ORDER FILLED: {order['client_order_id']}")
@@ -143,9 +136,6 @@ def __on_message__(msg):
                                             f"{order_template['side']}:"\
                                             f"{order_template['product_id']} " \
                                             f"{order_template['order_base_size']} @ {order_template['start_price']}")
-
-                                    if order.get("total_fees"):
-                                        print(f"SESSION_FEE: {SESSION_FEE}")
 
                             else:
                                 print(f"UNRECOGNIZED STATUS {order['status']}")
