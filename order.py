@@ -63,7 +63,7 @@ def create_limit_order_span(
             else:
                 break
 
-        price = float(start_price) + (order_price_difference * ORDER_DIRECTION[side])
+        price = float(start_price) + (order_price_difference * ORDER_DIRECTION[side] * order_count)
 
         # make price pretty (perpetual requirement)
         price = price - (price % float(ORDERBOOK.product[product_id]["price_increment"])) + \
