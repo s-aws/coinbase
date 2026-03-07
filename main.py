@@ -61,7 +61,7 @@ def __on_message__(msg):
                                 if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
 
-                                if not ORDERBOOK.cancelled.get(order["client_order_id"]):
+                                if not ORDERBOOK.cancelled.get(order.get("client_order_id")):
                                     ORDERBOOK.cancelled[order["client_order_id"]] = True
                                     # print(f"STATUS CANCELLED: {order["cancel_reason"]}")
 
@@ -79,12 +79,14 @@ def __on_message__(msg):
                                     )
 
                                     print(f"{datetime.now(UTC)} " \
-                                            f"{order["client_order_id"]} " \
-                                            f"{order["order_side"]}:{order["product_id"]} " \
-                                            f"{order["cumulative_quantity"]} @ {order["limit_price"] or order["avg_price"]} => " \
-                                            f"{order_template["side"]}:" \
-                                            f"{order_template["product_id"]} " \
-                                            f"{order_template["order_base_size"]} @ {order_template["start_price"]}")
+                                            f"total_fees:{order.get('total_fees', 'N/A')} " \
+                                            f"avg_price:{order.get('avg_price', 'N/A')} " \
+                                            f"{order['client_order_id']} " \
+                                            f"{order['order_side']}:{order['product_id']} " \
+                                            f"{order['cumulative_quantity']} @ {order['limit_price']} => " \
+                                            f"{order_template['side']}:" \
+                                            f"{order_template['product_id']} " \
+                                            f"{order_template['order_base_size']} @ {order_template['start_price']}")
 
 
                             elif order["status"] == "PENDING":
@@ -98,18 +100,18 @@ def __on_message__(msg):
                             elif order["status"] == "OPEN":
                                 if ORDERBOOK.order.get(order["client_order_id"]):
                                     pass
-                                    #print(f"ORDER MOVED: {order["client_order_id"]}")
+                                    #print(f"ORDER MOVED: {order['lient_order_id']}")
                                 else:
                                     pass
-                                    #print(f"ORDER PLACED: {order["client_order_id"]}")
-                                ORDERBOOK.order[order["client_order_id"]] = order
+                                    #print(f"ORDER PLACED: {order['client_order_id']}")
+                                ORDERBOOK.order[order['client_order_id']] = order
 
                             elif order["status"] == "FILLED":
                                 if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
                                 if not ORDERBOOK.filled.get(order["client_order_id"]):
                                     #and order["order_side"] == "BUY": # temp restriction for replacement
-                                    # print(f"ORDER FILLED: {order["client_order_id"]}")
+                                    # print(f"ORDER FILLED: {order['client_order_id']}")
                                     ORDERBOOK.filled[order["client_order_id"]] = True
 
                                     order_template = ORDERBOOK.calculate_new_order_move(
@@ -126,16 +128,18 @@ def __on_message__(msg):
                                     )
 
                                     print(f"{datetime.now(UTC)} " \
-                                            f"{order["client_order_id"]} " \
-                                            f"{order["order_side"]}:{order["product_id"]} " \
-                                            f"{order["cumulative_quantity"]} @ {order["limit_price"] or order["avg_price"]} => " \
-                                            f"{order_template["side"]}:"\
-                                            f"{order_template["product_id"]} " \
-                                            f"{order_template["order_base_size"]} @ {order_template["start_price"]}")
+                                            f"total_fees:{order['total_fees']} " \
+                                            f"avg_price:{order['avg_price']} " \
+                                            f"{order['client_order_id']} " \
+                                            f"{order['order_side']}:{order['product_id']} " \
+                                            f"{order['cumulative_quantity']} @ {order['limit_price']} => " \
+                                            f"{order_template['side']}:"\
+                                            f"{order_template['product_id']} " \
+                                            f"{order_template['order_base_size']} @ {order_template['start_price']}")
                             else:
-                                print(f"UNRECOGNIZED STATUS {order["status"]}")
+                                print(f"UNRECOGNIZED STATUS {order['status']}")
                 else:
-                    print(f"UNRECOGNIZED CHANNEL {json_msg["channel"]}")
+                    print(f"UNRECOGNIZED CHANNEL {json_msg['channel']}")
 
 
 

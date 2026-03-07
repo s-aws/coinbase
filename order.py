@@ -58,7 +58,7 @@ def create_limit_order_span(
                 if order["error_response"]["error"] == "INSUFFICIENT_FUND": # wait
                     sleep(1)
                 else:
-                    print(f"ERROR RESPONSE UNHANDLED: {order["error_response"]["error"]}")
+                    print(f"ERROR RESPONSE UNHANDLED: {order['error_response']['error']}")
                     break
             else:
                 break
