@@ -179,8 +179,8 @@ class OrderBook():
         fee_move_calculated_from_pct = order_fee + (
             order_float_price * self.profit[order_product_type][order_side])
 
-        order_move_amount = minimum_move_amount if (
-            minimum_move_amount > fee_move_calculated_from_pct) else fee_move_calculated_from_pct
+        order_move_amount = fee_move_calculated_from_pct if (
+            minimum_move_amount < fee_move_calculated_from_pct) else minimum_move_amount 
 
         # set direction here
         order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
