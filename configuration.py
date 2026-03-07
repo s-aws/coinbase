@@ -173,11 +173,11 @@ class OrderBook():
             print(f"UNKNOWN PRICE FROM ORDER {order}")
             return {}
 
-        # get the two different ways to calculate fee amount
+        # get the two different ways to calculate move amount
 
         minimum_move_amount = float(price_increment)
-        fee_move_calculated_from_pct = (order_fee * ORDER_DIRECTION[order_side]
-            ) + order_float_price * self.profit[order_product_type][order_side]
+        fee_move_calculated_from_pct = order_fee + (
+            order_float_price * self.profit[order_product_type][order_side])
 
         order_move_amount = minimum_move_amount if (
             minimum_move_amount > fee_move_calculated_from_pct) else fee_move_calculated_from_pct
