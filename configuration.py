@@ -125,7 +125,7 @@ class OrderBook():
     }
 
     # we previously used `profit` (was `fee`) as the "safety buffer" but now we use the actual fee from filled order to determine the move amount,
-    # so this is more of a profit multiplier
+    # so this is more of a profit multiplier. Cancelled orders will still use this profit multiplier to determine the move amount since they won't have accurate fee info
     profit = {
         "SPOT": { 
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 5,
