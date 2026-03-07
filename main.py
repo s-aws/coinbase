@@ -79,10 +79,10 @@ def __on_message__(msg):
                                     )
 
                                     print(f"{datetime.now(UTC)} " \
-                                            f"total_fees:{order.get('total_fees', 'N/A')} " \
-                                            f"avg_price:{order.get('avg_price', 'N/A')} " \
                                             f"{order['client_order_id']} " \
                                             f"{order['order_side']}:{order['product_id']} " \
+                                            f"total_fees:{order.get('total_fees', 'N/A')} " \
+                                            f"avg_price:{order.get('avg_price', 'N/A')} " \
                                             f"{order['cumulative_quantity']} @ {order['limit_price']} => " \
                                             f"{order_template['side']}:" \
                                             f"{order_template['product_id']} " \
@@ -128,10 +128,10 @@ def __on_message__(msg):
                                     )
 
                                     print(f"{datetime.now(UTC)} " \
-                                            f"total_fees:{order['total_fees']} " \
-                                            f"avg_price:{order['avg_price']} " \
                                             f"{order['client_order_id']} " \
                                             f"{order['order_side']}:{order['product_id']} " \
+                                            f"total_fees:{order['total_fees']} " \
+                                            f"avg_price:{order['avg_price']} " \
                                             f"{order['cumulative_quantity']} @ {order['limit_price']} => " \
                                             f"{order_template['side']}:"\
                                             f"{order_template['product_id']} " \
