@@ -75,6 +75,7 @@ def __on_message__(msg):
                                         order_price_difference=order_template[
                                             "order_price_difference"],
                                         start_price=order_template["start_price"],
+                                        fill_fees=order.get('total_fees', '0'),
                                         post_only=ORDER_POST_ONLY[order_template["side"]]
                                     )
 
