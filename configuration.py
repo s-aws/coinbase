@@ -124,7 +124,7 @@ class OrderBook():
         # } # sample
     }
 
-    # we previously used this as the "safety buffer" but now we use the actual fee from filled orders to determine the move amount,
+    # we previously used `fee` as the "safety buffer" but now we use the actual fee from filled order to determine the move amount,
     # so this is more of a profit multiplier
     fee = {
         "SPOT": { 
