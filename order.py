@@ -12,7 +12,6 @@ def create_limit_order_span(
         order_base_size: float=1,
         order_price_difference: float=0.00001,
         start_price: float=0.00992,
-        fill_fees: float=0,
         post_only: bool=False) -> list:
     """ Create a series of limit orders """
 
@@ -25,7 +24,6 @@ def create_limit_order_span(
     order_base_size = float(order_base_size)
     order_price_difference = float(order_price_difference)
     price = float(start_price)
-    fill_fees = float(fill_fees) * 3 # this is a hack to try to account for fees when placing multiple orders in a span (since the first order will have the most accurate fee info, we can use that as a reference for the rest of the orders in the span)
 
 
     order_count = 0
@@ -65,9 +63,7 @@ def create_limit_order_span(
             else:
                 break
 
-        price = float(start_price) + (
-            fill_fees * ORDER_DIRECTION[side]) + (
-            order_price_difference * ORDER_DIRECTION[side])
+        price = float(start_price) + (order_price_difference * ORDER_DIRECTION[side])
 
         # make price pretty (perpetual requirement)
         price = price - (price % float(ORDERBOOK.product[product_id]["price_increment"])) + \
