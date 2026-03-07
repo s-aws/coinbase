@@ -82,7 +82,7 @@ def __on_message__(msg):
                                         start_price=order_template["start_price"],
                                         post_only=ORDER_POST_ONLY[order_template["side"]]
                                     )
-                                    print(f"SESSION_FEE: {SESSION_FEE}")
+
                                     print(f"{datetime.now(UTC)} " \
                                             f"{order['client_order_id']} " \
                                             f"{order['order_side']}:{order['product_id']} " \
@@ -92,6 +92,9 @@ def __on_message__(msg):
                                             f"{order_template['side']}:" \
                                             f"{order_template['product_id']} " \
                                             f"{order_template['order_base_size']} @ {order_template['start_price']}")
+
+                                    if order.get("total_fees"):
+                                        print(f"SESSION_FEE: {SESSION_FEE}")
 
                             elif order["status"] == "PENDING":
                                 pass
@@ -131,7 +134,6 @@ def __on_message__(msg):
                                         start_price=order_template["start_price"],
                                         post_only=ORDER_POST_ONLY[order_template["side"]]
                                     )
-                                    print(f"SESSION_FEE: {SESSION_FEE}")
                                     print(f"{datetime.now(UTC)} " \
                                             f"{order['client_order_id']} " \
                                             f"{order['order_side']}:{order['product_id']} " \
@@ -141,6 +143,10 @@ def __on_message__(msg):
                                             f"{order_template['side']}:"\
                                             f"{order_template['product_id']} " \
                                             f"{order_template['order_base_size']} @ {order_template['start_price']}")
+
+                                    if order.get("total_fees"):
+                                        print(f"SESSION_FEE: {SESSION_FEE}")
+
                             else:
                                 print(f"UNRECOGNIZED STATUS {order['status']}")
                 else:
