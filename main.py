@@ -1,10 +1,10 @@
 """ New Coinbase Advanced trading project """
 import json
-from datetime import datetime, UTC
+from datetime import datetime, date, UTC
 
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
-from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY
+from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY, SESSION_FEE
 
 from order import create_limit_order_span
 
@@ -47,6 +47,10 @@ def __on_message__(msg):
                     # print(event)
                     if event["type"] == "update":
                         for order in event["orders"]:
+
+                            if date.today().strftime("%Y-%m-%d") not in SESSION_FEE:
+                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] = 0.0
+
                             ORDERBOOK.order[order["client_order_id"]] = order
 
                             if order["status"] == "SNAPSHOT":
@@ -58,6 +62,7 @@ def __on_message__(msg):
                                 # print(order)
 
                             elif order["status"] == "CANCELLED":
+                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] += float(order.get("total_fees", "0"))
                                 if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
 
@@ -77,7 +82,7 @@ def __on_message__(msg):
                                         start_price=order_template["start_price"],
                                         post_only=ORDER_POST_ONLY[order_template["side"]]
                                     )
-
+                                    print(f"SESSION_FEE: {SESSION_FEE}")
                                     print(f"{datetime.now(UTC)} " \
                                             f"{order['client_order_id']} " \
                                             f"{order['order_side']}:{order['product_id']} " \
@@ -87,7 +92,6 @@ def __on_message__(msg):
                                             f"{order_template['side']}:" \
                                             f"{order_template['product_id']} " \
                                             f"{order_template['order_base_size']} @ {order_template['start_price']}")
-
 
                             elif order["status"] == "PENDING":
                                 pass
@@ -107,6 +111,7 @@ def __on_message__(msg):
                                 ORDERBOOK.order[order['client_order_id']] = order
 
                             elif order["status"] == "FILLED":
+                                SESSION_FEE[date.today().strftime("%Y-%m-%d")] += float(order.get("total_fees", "0"))
                                 if ORDERBOOK.should_replace[order["status"]] is not True:
                                     continue
                                 if not ORDERBOOK.filled.get(order["client_order_id"]):
@@ -126,7 +131,7 @@ def __on_message__(msg):
                                         start_price=order_template["start_price"],
                                         post_only=ORDER_POST_ONLY[order_template["side"]]
                                     )
-
+                                    print(f"SESSION_FEE: {SESSION_FEE}")
                                     print(f"{datetime.now(UTC)} " \
                                             f"{order['client_order_id']} " \
                                             f"{order['order_side']}:{order['product_id']} " \

@@ -10,6 +10,11 @@ REST_CLIENT = RESTClient(
     api_key = API_KEY,
     api_secret = API_SECRET)
 
+SESSION_FEE = { # sum all fees for each date
+    # date.today().strftime("%Y-%m-%d"): 0.0005, # example
+    #"2023-10-01": 0.001,
+}
+
 ORDER_SIDE_SWITCH = {
     "BUY": "SELL",
     "SELL": "BUY"
@@ -175,20 +180,20 @@ class OrderBook():
 
         minimum_move_amount = float(price_increment)
         fee_move_calculated_from_pct = order_float_price * self.profit[order_product_type][order_side]
-        print(f"fee_move_calculated_from_pct after profit multiplier: {fee_move_calculated_from_pct}")
+
         order_move_amount = fee_move_calculated_from_pct if (
             minimum_move_amount < fee_move_calculated_from_pct) else minimum_move_amount 
-        print(f"order_move_amount: {order_move_amount}")
+
         # set direction here
         order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
-        print(f"order_move_difference: {order_move_difference}")
+
         # finalize floats
         order_new_price = order_float_price + order_move_difference
-        print(f"order_new_price before formatting: {order_new_price}")
+
         order_new_price = float(format_based_on_reference(
             order_new_price,
             quote_increment))
-        print(f"order_new_price after formatting: {order_new_price}")
+
         order_new_size = float(format_based_on_reference(
             order_size,
             base_increment))
