@@ -1,6 +1,6 @@
 """ New Coinbase Advanced trading project """
 import json
-from datetime import datetime, date, UTC
+from datetime import datetime, UTC
 
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 

@@ -79,11 +79,9 @@ def format_based_on_reference(value_to_format: float, reference_float: str):
 
     result = "0"
 
-    try:
-        result = f"{value_to_format:.{len(str(reference_float).rsplit('.', maxsplit=1)[-1]) \
-            if '.' in str(reference_float) else 0}f}"
-    except Exception as e:
-        print(e)
+    result = f"{value_to_format:.{len(str(reference_float).rsplit('.', maxsplit=1)[-1]) \
+        if '.' in str(reference_float) else 0}f}"
+
     return result
 
 def rest_get_account_wallets() -> dict:
