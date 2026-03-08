@@ -25,6 +25,11 @@ ORDER_POST_ONLY = { # allow this to be based on side
     "SELL": False
 }
 
+ORDER_POSITION_SIDE = {
+    "SHORT": "SELL",
+    "LONG": "BUY"    
+}
+
 ORDER_DIRECTION = { # ensure the direction is correct (away from last fill)
     "SELL": 1, # price gets larger
     "BUY": -1 # price gets smaller
@@ -136,7 +141,7 @@ class OrderBook():
         },
         "FUTURE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 77
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7
         }
     }
 
