@@ -150,15 +150,12 @@ def __on_message__(msg):
 
 def connect_to_websocket():
     """ Connect to websocket """
-    try:
-        ws_client = WSClient(
-            verbose = True,
-            api_key = API_KEY,
-            api_secret = API_SECRET,
-            on_open = __on_open__,
-            on_message = __on_message__)
-    except Exception as e:
-        print(e)
+    ws_client = WSClient(
+        verbose = True,
+        api_key = API_KEY,
+        api_secret = API_SECRET,
+        on_open = __on_open__,
+        on_message = __on_message__)
 
     ws_client.open()
     ws_client.subscribe(

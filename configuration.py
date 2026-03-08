@@ -72,7 +72,7 @@ SPOT_PRODUCT_IDS = [
     "SENT-USDC"
 ]
 
-def format_based_on_reference(value_to_format, reference_float):
+def format_based_on_reference(value_to_format: float, reference_float: str):
     """
     Formats a float to match the number of decimal places of a reference float.
     """

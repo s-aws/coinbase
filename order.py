@@ -42,7 +42,7 @@ def create_limit_order_span(
 
             order_base_size = format_based_on_reference(
                 float(order_base_size),
-                ORDERBOOK.product[product_id]["base_min_size"])
+                ORDERBOOK.product[product_id]["base_min_size"]) # type: ignore
 
             order = REST_CLIENT.limit_order_gtc(
                 client_order_id = str(uuid.uuid4()),
