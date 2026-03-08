@@ -10,11 +10,6 @@ REST_CLIENT = RESTClient(
     api_key = API_KEY,
     api_secret = API_SECRET)
 
-SESSION_FEE = { # sum all fees for each date
-    # date.today().strftime("%Y-%m-%d"): 0.0005, # example
-    #"2023-10-01": 0.001,
-}
-
 ORDER_SIDE_SWITCH = {
     "BUY": "SELL",
     "SELL": "BUY"
