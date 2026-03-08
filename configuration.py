@@ -160,7 +160,6 @@ class OrderBook():
             print(f"ORDER NOT FOUND {order_id}")
             return {}
 
-        order_fee = float(order.get("total_fees", "0"))
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
         order_status = order["status"]

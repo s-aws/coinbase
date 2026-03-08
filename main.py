@@ -171,4 +171,3 @@ def connect_to_websocket():
 if __name__ == "__main__":
     #print(ORDERBOOK.product["BIP-20DEC30-CDE"]["price_increment"])
     connect_to_websocket()
-
