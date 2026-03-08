@@ -44,7 +44,7 @@ def __on_message__(msg):
                     # print(f"CHANNEL: {json_msg["channel"]}")
                     # print(json.dumps(event, indent=2))
 
-                elif json_msg["channel"] == "ignore user":
+                elif json_msg["channel"] == "user":
                     # function processing_user_channel goes here
                     # print(event)
                     if event["type"] == "update":
