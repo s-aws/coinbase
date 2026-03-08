@@ -9,7 +9,7 @@ if __name__ == "__main__":
         product_id="BIP-20DEC30-CDE",
         side="SELL",
         order_base_size=20,
-        order_price_difference=150,
+        order_price_difference=250,
         start_price=67000,
         max_order_count=10
     )
