@@ -4,29 +4,29 @@ from order import create_limit_order_span
 if __name__ == "__main__":
     ##################### PERP
     # BTC
-    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
-    #     delay_in_secs=0,
-    #     product_id="BIP-20DEC30-CDE",
-    #     side="SELL",
-    #     order_base_size=10,
-    #     order_price_difference=200,
-    #     start_price=67650,
-    #     max_order_count=10
-    # )
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
-
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
-        side="BUY",
+        side="SELL",
         order_base_size=10,
-        order_price_difference=115,
-        start_price=66900,
-        max_order_count=40
+        order_price_difference=200,
+        start_price=67485,
+        max_order_count=12
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
+
+    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
+    #     delay_in_secs=0,
+    #     product_id="BIP-20DEC30-CDE",
+    #     side="BUY",
+    #     order_base_size=10,
+    #     order_price_difference=115,
+    #     start_price=66900,
+    #     max_order_count=40
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
 
     ##################### SPOT
 
