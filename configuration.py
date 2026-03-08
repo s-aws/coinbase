@@ -226,7 +226,7 @@ class Subscription():
     channels = [
         "heartbeats",
         "user",
-        "ticker",
+        # "ticker",
         # "level2",
         # "market_trades"
     ]

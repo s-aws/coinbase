@@ -23,7 +23,6 @@ def __on_message__(msg):
 
         if "events" in json_msg:
             for event in json_msg["events"]:
-
                 if json_msg["channel"] == "subscriptions":
                     pass
 
@@ -31,6 +30,9 @@ def __on_message__(msg):
                     pass
 
                 elif json_msg["channel"] == "ticker": #there is a ticker AND tickers?
+                    pass
+
+                elif json_msg["channel"] == "market_trades":
                     pass
 
                 elif json_msg["channel"] == "tickers":
@@ -42,7 +44,7 @@ def __on_message__(msg):
                     # print(f"CHANNEL: {json_msg["channel"]}")
                     # print(json.dumps(event, indent=2))
 
-                elif json_msg["channel"] == "user":
+                elif json_msg["channel"] == "ignore user":
                     # function processing_user_channel goes here
                     # print(event)
                     if event["type"] == "update":
