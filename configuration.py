@@ -145,6 +145,12 @@ class OrderBook():
         }
     }
 
+    positions = {
+        "FUTURE": {
+            position["product_id"]: position
+        } for position in REST_CLIENT.list_futures_positions().to_dict()["positions"]
+    }
+
     def calculate_new_order_move(self, order_id) -> dict:
         """ Return the new order after calculations """
 
