@@ -1,10 +1,27 @@
 """ New Coinbase Advanced trading project """
 import uuid
+from random import uniform as random
 from time import sleep
 from configuration import REST_CLIENT, \
     ORDER_DIRECTION, ORDERBOOK, format_based_on_reference
 
+def generate_float(start: float, stop: float=None) -> float:
+    """ Generate a random float between two floats
+    Args:
+        start (float): The minimum value of the float to be generated.
+        stop (float): The maximum value of the float to be generated.
+        Returns:
+            float: A random float between start and stop.
+
+    If stop is missing, return `start`.
+    """
+
+    result = random(start, stop) if stop is not None else start
+
+    return result
+
 def create_limit_order_span(
+        order_base_size_range: dict=None,
         delay_in_secs: int=0,
         product_id: str="NCT-USDC",
         side: str="SELL",
@@ -21,7 +38,6 @@ def create_limit_order_span(
         max_order_count = 1
 
     delay_in_secs = int(delay_in_secs)
-    order_base_size = float(order_base_size)
     order_price_difference = float(order_price_difference)
     price = float(start_price)
 
@@ -41,7 +57,7 @@ def create_limit_order_span(
                 ORDERBOOK.product[product_id]["price_increment"])
 
             order_base_size = format_based_on_reference(
-                float(order_base_size),
+                float(generate_float(**order_base_size_range or {"start": float(order_base_size)})),
                 ORDERBOOK.product[product_id]["base_min_size"]) # type: ignore
 
             order = REST_CLIENT.limit_order_gtc(
