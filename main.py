@@ -15,8 +15,8 @@ TICKER = {}  # { "BTC-USD" : {} }
 TICKER_LOCK = threading.Lock()
 ORDERBOOK_LOCK = threading.Lock()
 
-# Tune this based on workload. Start small.
-EVENT_EXECUTOR = ThreadPoolExecutor(max_workers=8)
+MAX_WORKERS = 16
+EVENT_EXECUTOR = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 
 def __on_open__():
