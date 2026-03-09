@@ -12,11 +12,11 @@ from order import create_limit_order_span
 
 TICKER = {}  # { "BTC-USD" : {} }
 
-ticker_lock = threading.Lock()
-orderbook_lock = threading.Lock()
+TICKER_LOCK = threading.Lock()
+ORDERBOOK_LOCK = threading.Lock()
 
 # Tune this based on workload. Start small.
-event_executor = ThreadPoolExecutor(max_workers=8)
+EVENT_EXECUTOR = ThreadPoolExecutor(max_workers=8)
 
 
 def __on_open__():
@@ -41,7 +41,7 @@ def process_user_order(order):
     client_order_id = order["client_order_id"]
     status = order["status"]
 
-    with orderbook_lock:
+    with ORDERBOOK_LOCK:
         ORDERBOOK.order[client_order_id] = order
 
     if status == "SNAPSHOT":
@@ -51,7 +51,7 @@ def process_user_order(order):
         return
 
     elif status == "CANCELLED":
-        with orderbook_lock:
+        with ORDERBOOK_LOCK:
             if ORDERBOOK.should_replace[status] is not True:
                 return
 
@@ -93,12 +93,12 @@ def process_user_order(order):
         return
 
     elif status == "OPEN":
-        with orderbook_lock:
+        with ORDERBOOK_LOCK:
             ORDERBOOK.order[client_order_id] = order
         return
 
     elif status == "FILLED":
-        with orderbook_lock:
+        with ORDERBOOK_LOCK:
             if ORDERBOOK.should_replace[status] is not True:
                 return
 
@@ -161,7 +161,7 @@ def __on_message__(msg):
 
             elif channel == "tickers":
                 for tickr in event["tickers"]:
-                    with ticker_lock:
+                    with TICKER_LOCK:
                         TICKER[tickr["product_id"]] = tickr
 
             elif channel == "l2_data":
@@ -169,7 +169,7 @@ def __on_message__(msg):
 
             elif channel == "user":
                 # Offload expensive processing immediately
-                event_executor.submit(process_user_event, deepcopy(event))
+                EVENT_EXECUTOR.submit(process_user_event, deepcopy(event))
 
             else:
                 print(f"UNRECOGNIZED CHANNEL {channel}")
@@ -201,7 +201,7 @@ def connect_to_websocket():
     except WSClientConnectionClosedException as e:
         print(f"Connection Closed! {e}")
     finally:
-        event_executor.shutdown(wait=False, cancel_futures=True)
+        EVENT_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
 if __name__ == "__main__":
