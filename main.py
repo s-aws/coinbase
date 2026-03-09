@@ -2,7 +2,7 @@
 import json
 import threading
 from copy import deepcopy
-from datetime import datetime, UTC
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
@@ -21,7 +21,7 @@ EVENT_EXECUTOR = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 def __on_open__():
     """ websocket open connection trigger """
-    print(f"{datetime.now(UTC)} Connection Opened!")
+    print(f"{datetime.now()} Connection Opened!")
 
 
 def process_user_event(event):
@@ -73,7 +73,7 @@ def process_user_order(order):
         )
 
         print(
-            f"{datetime.now(UTC)} "
+            f"{datetime.now()} "
             f"{client_order_id} "
             f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
             f"{order_template['fee_move_calculated_from_pct']} "
@@ -120,7 +120,7 @@ def process_user_order(order):
         )
 
         print(
-            f"{datetime.now(UTC)} "
+            f"{datetime.now()} "
             f"{client_order_id} "
             f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
             f"{order_template['fee_move_calculated_from_pct']} "
