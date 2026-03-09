@@ -83,6 +83,8 @@ def __on_message__(msg):
 
                                     print(f"{datetime.now(UTC)} " \
                                             f"{order['client_order_id']} " \
+                                            f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): {order_template['fee_move_calculated_from_pct']} " \
+                                            f"minimum_move_amount: {order_template['minimum_move_amount']}| " \
                                             f"{order['order_side']}:{order['product_id']} " \
                                             f"total_fees:{order.get('total_fees', 'N/A')} " \
                                             f"avg_price:{order.get('avg_price', 'N/A')} " \
@@ -131,6 +133,8 @@ def __on_message__(msg):
                                     )
                                     print(f"{datetime.now(UTC)} " \
                                             f"{order['client_order_id']} " \
+                                            f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): {order_template['fee_move_calculated_from_pct']} " \
+                                            f"minimum_move_amount: {order_template['minimum_move_amount']}| " \
                                             f"{order['order_side']}:{order['product_id']} " \
                                             f"total_fees:{order['total_fees']} " \
                                             f"avg_price:{order['avg_price']} " \

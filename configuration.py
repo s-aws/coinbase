@@ -210,6 +210,7 @@ class OrderBook():
         order_new_price -= order_new_price % float(price_increment)
 
         return {
+            "profit_move_pct": self.profit[order_product_type][order_side],
             "fee_move_calculated_from_pct": fee_move_calculated_from_pct,
             "minimum_move_amount": minimum_move_amount,
             "product_id": order_product_id,
