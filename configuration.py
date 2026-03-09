@@ -133,8 +133,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 27,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 27
         }
     }
 
@@ -210,6 +210,8 @@ class OrderBook():
         order_new_price -= order_new_price % float(price_increment)
 
         return {
+            "fee_move_calculated_from_pct": fee_move_calculated_from_pct,
+            "minimum_move_amount": minimum_move_amount,
             "product_id": order_product_id,
             "side": order_side,
             "order_base_size": f"{order_new_size:.{base_increment_len}f}",
