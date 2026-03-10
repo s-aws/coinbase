@@ -63,7 +63,7 @@ def process_user_order(order):
                 ORDERBOOK.calculate_new_order_move(client_order_id)
             )
 
-        create_limit_order_span(
+        new_order = create_limit_order_span(
             product_id=order_template["product_id"],
             side=order_template["side"],
             order_base_size=order_template["order_base_size"],
@@ -72,19 +72,33 @@ def process_user_order(order):
             post_only=ORDER_POST_ONLY[order_template["side"]],
         )
 
-        print(
-            f"{datetime.now()} "
-            f"{client_order_id} "
-            f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
-            f"{order_template['fee_move_calculated_from_pct']} "
-            f"minimum_move_amount: {order_template['minimum_move_amount']}| "
-            f"{order['order_side']}:{order['product_id']} "
-            f"total_fees:{order.get('total_fees', 'N/A')} "
-            f"avg_price:{order.get('avg_price', 'N/A')} "
-            f"{order['cumulative_quantity']} @ {order['limit_price']} => "
-            f"{order_template['side']}:{order_template['product_id']} "
-            f"{order_template['order_base_size']} @ {order_template['start_price']}"
-        )
+        if new_order[0]["success"] is True:
+
+            print(
+                f"{datetime.now()} "
+                f"{client_order_id} "
+                f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"{order_template['fee_move_calculated_from_pct']} "
+                f"minimum_move_amount: {order_template['minimum_move_amount']}| "
+                f"{order['order_side']}:{order['product_id']} "
+                f"total_fees:{order.get('total_fees', 'N/A')} "
+                f"avg_price:{order.get('avg_price', 'N/A')} "
+                f"{order['cumulative_quantity']} @ {order['limit_price']} => "
+                f"{order_template['side']}:{order_template['product_id']} "
+                f"{order_template['order_base_size']} @ {order_template['start_price']}"
+            )
+        else:
+            print(
+                f"{datetime.now()} "
+                f"{client_order_id} "
+                f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"{order_template['fee_move_calculated_from_pct']} "
+                f"minimum_move_amount: {order_template['minimum_move_amount']}| "
+                f"{order['order_side']}:{order['product_id']} "
+                f"total_fees:{order.get('total_fees', 'N/A')} "
+                f"avg_price:{order.get('avg_price', 'N/A')} "
+                f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE"
+            )
 
     elif status == "PENDING":
         return
@@ -110,7 +124,7 @@ def process_user_order(order):
                 ORDERBOOK.calculate_new_order_move(client_order_id)
             )
 
-        create_limit_order_span(
+        new_order = create_limit_order_span(
             product_id=order_template["product_id"],
             side=order_template["side"],
             order_base_size=order_template["order_base_size"],
@@ -119,19 +133,31 @@ def process_user_order(order):
             post_only=ORDER_POST_ONLY[order_template["side"]],
         )
 
-        print(
-            f"{datetime.now()} "
-            f"{client_order_id} "
-            f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
-            f"{order_template['fee_move_calculated_from_pct']} "
-            f"minimum_move_amount: {order_template['minimum_move_amount']}| "
-            f"{order['order_side']}:{order['product_id']} "
-            f"total_fees:{order['total_fees']} "
-            f"avg_price:{order['avg_price']} "
-            f"{order['cumulative_quantity']} @ {order['limit_price']} => "
-            f"{order_template['side']}:{order_template['product_id']} "
-            f"{order_template['order_base_size']} @ {order_template['start_price']}"
-        )
+        if new_order[0]["success"] is True:
+            print(
+                f"{datetime.now()} "
+                f"{client_order_id} "
+                f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"{order_template['fee_move_calculated_from_pct']} "
+                f"minimum_move_amount: {order_template['minimum_move_amount']}| "
+                f"{order['order_side']}:{order['product_id']} "
+                f"total_fees:{order['total_fees']} "
+                f"avg_price:{order['avg_price']} "
+                f"{order['cumulative_quantity']} @ {order['limit_price']} => "
+                f"{order_template['side']}:{order_template['product_id']} "
+                f"{order_template['order_base_size']} @ {order_template['start_price']}"
+            )
+        else:
+            print(
+                f"{datetime.now()} "
+                f"{client_order_id} "
+                f"|fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"{order_template['fee_move_calculated_from_pct']} "
+                f"minimum_move_amount: {order_template['minimum_move_amount']}| "
+                f"{order['order_side']}:{order['product_id']} "
+                f"total_fees:{order['total_fees']} "
+                f"avg_price:{order['avg_price']} "
+                f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE")
 
     else:
         print(f"UNRECOGNIZED STATUS {status}")
