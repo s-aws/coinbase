@@ -1,23 +1,34 @@
 """ New Coinbase Advanced trading project """
 import json
 import threading
+from time import sleep
+from hashlib import sha256
+from queue import Queue
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, time
 from concurrent.futures import ThreadPoolExecutor
-
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY
 from order import create_limit_order_span
 
 TICKER = {}  # { "BTC-USD" : {} }
-
 TICKER_LOCK = threading.Lock()
 ORDERBOOK_LOCK = threading.Lock()
 
 MAX_WORKERS = 16
 EVENT_EXECUTOR = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+EVENT_QUEUE = {
+    channel: Queue() for channel in Subscription.channels
+}
 
+SEEN_EVENTS_LOCK = threading.Lock()
+SEEN_EVENTS_DEFAULT_BUCKET = 0
+MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS = 300 # how long to keep events in the seen events buckets before rotating out, adjust based on event volume and desired de-duplication window
+MAX_SEEN_EVENTS_BUCKETS = 10 # bucket 0 is the newest bucket, each additional bucket is aged. Minimum 2 buckets to ensure we have a "new" and "old" bucket to compare against when de-duplicating events. Increase buckets if you want to allow for more aged events to still be considered for de-duplication, but this will increase memory usage.
+SEEN_EVENTS = {
+    i: set() for i in range(MAX_SEEN_EVENTS_BUCKETS)
+}
 
 def __on_open__():
     """ websocket open connection trigger """
@@ -77,7 +88,7 @@ def process_user_order(order):
             print(
                 f"{datetime.now()} "
                 f"{client_order_id} "
-                f"{{order['product_id']}} "
+                f"{order['product_id']} "
                 f"{order['order_side']} "
                 f"total_fees:{order.get('total_fees', 'N/A')} "
                 f"avg_price:{order.get('avg_price', 'N/A')} "
@@ -92,7 +103,7 @@ def process_user_order(order):
             print(
                 f"{datetime.now()} "
                 f"{client_order_id} "
-                f"{{order['product_id']}} "
+                f"{order['product_id']} "
                 f"{order['order_side']} "
                 f"total_fees:{order.get('total_fees', 'N/A')} "
                 f"avg_price:{order.get('avg_price', 'N/A')} "
@@ -179,35 +190,56 @@ def __on_message__(msg):
 
         for event in json_msg["events"]:
             if channel == "subscriptions":
-                pass
+                return
 
-            elif channel == "heartbeats":
-                pass
+            event_hash = sha256(json.dumps(event).encode()).hexdigest()
+            with SEEN_EVENTS_LOCK:
+                for event_bucket in SEEN_EVENTS.values():
+                    if event_hash in event_bucket: # already processed
+                        return
+                SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET].add(event_hash)
+                EVENT_QUEUE[channel].put(deepcopy(event))
 
-            elif channel == "ticker":
-                pass
+    except KeyError as e:
+        print(f"KeyError processing message: {e}")
 
-            elif channel == "market_trades":
-                pass
+def rotate_seen_events_buckets():
+    """Rotate seen events buckets to allow for aging out old events and preventing memory bloat"""
+    while True:
+        with SEEN_EVENTS_LOCK:
+            # Rotate buckets
+            for i in range(MAX_SEEN_EVENTS_BUCKETS - 1, 0, -1):
+                SEEN_EVENTS[i] = SEEN_EVENTS[i-1]
+            SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET] = set() # reset the newest bucket
+        sleep(MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS) # rotate every N seconds
 
-            elif channel == "tickers":
-                for tickr in event["tickers"]:
+def generate_process_event_worker_func(channel):
+    """ Worker function to process events off the queue """
+    def worker():
+        while True:
+            event = EVENT_QUEUE[channel].get()
+            # Process the event based on channel
+            try:
+                if channel == "heartbeat":
+                    pass
+
+                elif channel == "ticker":
                     with TICKER_LOCK:
-                        TICKER[tickr["product_id"]] = tickr
+                        for tickr in event["tickers"]:
+                            TICKER[tickr["product_id"]] = tickr
 
-            elif channel == "l2_data":
-                pass
+                elif channel == "market_trades":
+                    pass
 
-            elif channel == "user":
-                # Offload expensive processing immediately
-                EVENT_EXECUTOR.submit(process_user_event, deepcopy(event))
+                elif channel == "l2_data":
+                    pass
 
-            else:
-                print(f"UNRECOGNIZED CHANNEL {channel}")
-
-    except Exception as e:
-        print(e)
-
+                elif channel == "user":
+                    # Offload expensive processing immediately
+                    EVENT_EXECUTOR.submit(process_user_event, event)
+            finally:
+                EVENT_QUEUE[channel].task_done()
+    return worker
 
 def connect_to_websocket():
     """ Connect to websocket """
@@ -225,6 +257,14 @@ def connect_to_websocket():
         channels=Subscription.channels,
     )
 
+    # Start a thread to rotate seen events buckets
+    threading.Thread(target=rotate_seen_events_buckets, daemon=True).start()
+
+    # Start worker threads for each channel to process events off the queue
+    for channel in Subscription.channels:
+        threading.Thread(target=generate_process_event_worker_func(channel), daemon=True).start()
+
+    # Keep the main thread alive to maintain the websocket connection and allow worker threads to process events
     try:
         while True:
             if ws_client.sleep_with_exception_check(1):
