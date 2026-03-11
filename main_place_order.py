@@ -8,10 +8,10 @@ if __name__ == "__main__":
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
         side="SELL",
-        order_base_size_range={"start": 1, "stop": 10},
-        order_price_difference=100,
-        start_price=70330,
-        max_order_count=7
+        order_base_size_range={"start": 1, "stop": 5},
+        order_price_difference=75,
+        start_price=69275,
+        max_order_count=20
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
