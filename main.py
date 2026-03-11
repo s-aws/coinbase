@@ -244,10 +244,7 @@ def generate_process_event_worker_func(channel):
                     pass
 
                 elif channel == "user":
-                    print(
-                        f"{datetime.now()} {threading.current_thread().name} "
-                        f"Offloading event to worker: {event}"
-                    )
+#                    print(f"{datetime.now()} {threading.current_thread().name} Offloading event to worker: {event}")
                     EVENT_EXECUTOR.submit(process_user_event, event)
             finally:
                 EVENT_QUEUE[channel].task_done()
@@ -274,7 +271,10 @@ def connect_to_websocket():
 
     # Start worker threads for each channel to process events off the queue
     for channel in Subscription.channels:
-        threading.Thread(target=generate_process_event_worker_func(channel), daemon=True).start()
+        threading.Thread(
+            name=f"{channel}-thread",
+            target=generate_process_event_worker_func(channel),
+            daemon=True).start()
 
     # Keep the main thread alive to maintain the websocket connection and allow worker threads to process events
     try:
