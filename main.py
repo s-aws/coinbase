@@ -32,9 +32,15 @@ SEEN_EVENTS = {
     i: set() for i in range(MAX_SEEN_EVENTS_BUCKETS)
 }
 
+WEBSOCKET_THREAD_MAXIMUM = 3
+WEBSOCKET_THREAD_NAME = "websocket_thread"
+
 def __on_open__():
     """ websocket open connection trigger """
-    print(f"{datetime.now()} Connection Opened!")
+    print(
+        f"{datetime.now()} "
+        f"{threading.current_thread().name} "
+        "Connection Opened!")
 
 
 def process_user_event(event):
@@ -268,12 +274,6 @@ def connect_to_websocket():
         channels=Subscription.channels,
     )
 
-    # Start a thread to rotate seen events buckets
-    threading.Thread(
-        name="rotate_seen_events_buckets_thread",
-        target=rotate_seen_events_buckets,
-        daemon=True).start()
-
     # Start worker threads for each channel to process events off the queue
     for channel in Subscription.channels:
         threading.Thread(
@@ -288,9 +288,23 @@ def connect_to_websocket():
                 break
     except WSClientConnectionClosedException as e:
         print(f"Connection Closed! {e}")
-    finally:
-        EVENT_EXECUTOR.shutdown(wait=False, cancel_futures=True)
-
 
 if __name__ == "__main__":
-    connect_to_websocket()
+
+    # Start a thread to rotate seen events buckets
+    threading.Thread(
+        name="rotate_seen_events_buckets_thread",
+        target=rotate_seen_events_buckets,
+        daemon=True).start()
+
+    # Start multiple websocket threads to increase chances of maintaining a connection and processing events in case of intermittent connection issues
+    for websocket in range(WEBSOCKET_THREAD_MAXIMUM):
+         threading.Thread(
+            name=f"{WEBSOCKET_THREAD_NAME}_{websocket}",
+            target=connect_to_websocket,
+            daemon=True).start()
+
+    while True:
+        sleep(1)
+        
+    # EVENT_EXECUTOR.shutdown(wait=False, cancel_futures=True)
