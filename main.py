@@ -17,7 +17,9 @@ TICKER_LOCK = threading.Lock()
 ORDERBOOK_LOCK = threading.Lock()
 
 MAX_WORKERS = 16
-EVENT_EXECUTOR = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+EVENT_EXECUTOR = ThreadPoolExecutor(
+    max_workers=MAX_WORKERS,
+    thread_name_prefix="user_event_thread")
 EVENT_QUEUE = {
     channel: Queue() for channel in Subscription.channels
 }
@@ -267,12 +269,15 @@ def connect_to_websocket():
     )
 
     # Start a thread to rotate seen events buckets
-    threading.Thread(target=rotate_seen_events_buckets, daemon=True).start()
+    threading.Thread(
+        name="rotate_seen_events_buckets_thread",
+        target=rotate_seen_events_buckets,
+        daemon=True).start()
 
     # Start worker threads for each channel to process events off the queue
     for channel in Subscription.channels:
         threading.Thread(
-            name=f"{channel}-thread",
+            name=f"{channel}_thread",
             target=generate_process_event_worker_func(channel),
             daemon=True).start()
 
