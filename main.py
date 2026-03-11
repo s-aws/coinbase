@@ -87,6 +87,7 @@ def process_user_order(order):
 
             print(
                 f"{datetime.now()} "
+                f"{threading.current_thread().name} "
                 f"{client_order_id} "
                 f"{order['product_id']} "
                 f"{order['order_side']} "
@@ -102,6 +103,7 @@ def process_user_order(order):
         else:
             print(
                 f"{datetime.now()} "
+                f"{threading.current_thread().name} "
                 f"{client_order_id} "
                 f"{order['product_id']} "
                 f"{order['order_side']} "
@@ -149,6 +151,7 @@ def process_user_order(order):
         if new_order[0]["success"] is True:
             print(
                 f"{datetime.now()} "
+                f"{threading.current_thread().name} "
                 f"{client_order_id} "
                 f"{order['order_side']} "
                 f"{order['product_id']} "
@@ -164,6 +167,7 @@ def process_user_order(order):
         else:
             print(
                 f"{datetime.now()} "
+                f"{threading.current_thread().name} "
                 f"{client_order_id} "
                 f"{order['order_side']} "
                 f"{{order['product_id']}} "
@@ -211,6 +215,11 @@ def rotate_seen_events_buckets():
             for i in range(MAX_SEEN_EVENTS_BUCKETS - 1, 0, -1):
                 SEEN_EVENTS[i] = SEEN_EVENTS[i-1]
             SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET] = set() # reset the newest bucket
+            rotated_bucket_results = {i: len(bucket) for i, bucket in SEEN_EVENTS.items()}
+            print(
+                f"{datetime.now()} {threading.current_thread().name} "
+                "Rotated seen events buckets, cleared bucket 0, "
+                f"current bucket sizes: {rotated_bucket_results}")
         sleep(MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS) # rotate every N seconds
 
 def generate_process_event_worker_func(channel):
@@ -235,7 +244,10 @@ def generate_process_event_worker_func(channel):
                     pass
 
                 elif channel == "user":
-                    # Offload expensive processing immediately
+                    print(
+                        f"{datetime.now()} {threading.current_thread().name} "
+                        f"Offloading event to worker: {event}"
+                    )
                     EVENT_EXECUTOR.submit(process_user_event, event)
             finally:
                 EVENT_QUEUE[channel].task_done()
