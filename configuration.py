@@ -150,7 +150,7 @@ class OrderBook():
 
     def calculate_new_order_move(self, order_id) -> dict:
         """ Return the new order after calculations
-            the current order is the last filled or cancelled order that we are trying to move from,
+            the current order is treated as the last filled or cancelled order that we are trying to move from,
             so we can calculate the new price based on the last price and the profit target,
             and then we can place a new order at the new price with the same size as the original order """
 
