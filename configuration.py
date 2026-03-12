@@ -123,6 +123,17 @@ class OrderBook():
     order = {}
     price = {}
     product = rest_get_products()
+    mandatory_fee_per_contract = {}
+
+    for product_id in product.keys():
+        mandatory_fee_per_contract = {
+            product_id: {
+                "mandatory_fee_per_contract": (
+                    DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(product[product_id]["future_product_details"]["contract_size"])
+                ) if product[product_id]["type"] == "FUTURE" else 0 
+            }
+        }
+
     active = {
         # "MON-USDC": {
         #     "0.021430": ["69cd5aeb-3d4e-41e6-8b2d-2cb5b24007ec"],
@@ -167,10 +178,6 @@ class OrderBook():
             print(f"ORDER NOT FOUND {order_id}")
             return {}
 
-        mandatory_fee = ( # fee of 0.15 per contract on futures close orders, converted to the quote currency amount
-            DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(self.product[order["product_id"]]["future_product_details"]["contract_size"])
-        ) if order["product_type"] == "FUTURE" else 0
-
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
         order_status = order["status"]
@@ -179,12 +186,13 @@ class OrderBook():
             order["leaves_quantity"] if float(order["leaves_quantity"]) > 0
                 else order["cumulative_quantity"])
 
+        mandatory_fee = self.mandatory_fee_per_contract[order_product_id]["mandatory_fee_per_contract"]
         base_increment = ORDERBOOK.product[order_product_id]["base_increment"]
         quote_increment = ORDERBOOK.product[order_product_id]["quote_increment"]
         price_increment = self.product[order_product_id]["price_increment"]
 
         if order_status == "FILLED":
-            order_side = ORDER_SIDE_SWITCH[order["order_side"]]
+            order_side = ORDER_SIDE_SWITCH[order_side]
 
         if order_status == "CANCELLED":
             order_size = float(order["leaves_quantity"])
