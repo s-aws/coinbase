@@ -107,7 +107,6 @@ def process_user_order(order):
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order.get('total_fees', 'N/A')} "
                 f"avg_price:{order.get('avg_price', 'N/A')} "
-                f"contract_count: {order['current_contract_count']} "
             )
         else:
             print(
@@ -122,7 +121,6 @@ def process_user_order(order):
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order.get('total_fees', 'N/A')} "
                 f"avg_price:{order.get('avg_price', 'N/A')} "
-                f"contract_count: {order['current_contract_count']} "
 
 
             )
@@ -175,7 +173,6 @@ def process_user_order(order):
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order['total_fees']} "
                 f"avg_price:{order['avg_price']} "
-                f"contract_count: {order['current_contract_count']} "
             )
         else:
             print(
@@ -190,7 +187,6 @@ def process_user_order(order):
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order['total_fees']} "
                 f"avg_price:{order['avg_price']} "
-                f"contract_count: {order['current_contract_count']} "
             )
 
     else:
