@@ -213,7 +213,7 @@ class OrderBook():
                 if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] != order_side: # an open was just filled
                     contact_count_for_fee = order_size if number_of_contracts >= order_size else order_size - number_of_contracts # default to the order size, but if we are closing more contracts than we have in the position, we only need to pay the fee on the contracts that we are closing, not the ones that are opening
                     mandatory_fee = mandatory_fee * contact_count_for_fee * ORDER_DIRECTION[order_side]
-                    print(f"Mandatory fee for this order: {mandatory_fee} based on {contact_count_for_fee} contracts being closed")
+                    # print(f"Mandatory fee for this order: {mandatory_fee} based on {contact_count_for_fee} contracts being closed")
 
                     number_of_contracts += order_size
                 else: # a close was just filled
@@ -223,7 +223,6 @@ class OrderBook():
                         self.positions[order_product_type][order_product_id]["side"] = ORDER_POSITION_SIDE[order_side] # if we flip from long to short or vice versa, we need to update the position side for fee calculation on the next move
 
                 self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
-                print(f"Updated number of contracts for {order_product_id} is {number_of_contracts}")
 
         # finalize floats
         order_new_price = order_float_price + order_move_difference + mandatory_fee
@@ -245,6 +244,7 @@ class OrderBook():
         order_new_price -= order_new_price % float(price_increment)
 
         return {
+            "current_contract_count": self.positions[order_product_type][order_product_id]["number_of_contracts"] if order_product_type == "FUTURE" else "N/A",
             "mandatory_fee": mandatory_fee,
             "profit_move_pct": self.profit[order_product_type][order_side],
             "fee_move_calculated_from_pct": fee_move_calculated_from_pct,
