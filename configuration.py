@@ -155,7 +155,11 @@ class OrderBook():
             and then we can place a new order at the new price with the same size as the original order
             
             filled orders go in the opposite direction
-            cancelled orders go in the same direction """
+            cancelled orders go in the same direction
+            
+            we currently do not take into account partial fills or partial cancellations for simplicity,
+            but this could be added in the future by calculating the move based on the filled or cancelled size
+            instead of the original order size """
 
         order = self.order.get(order_id)
 
