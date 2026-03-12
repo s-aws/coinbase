@@ -220,7 +220,7 @@ class OrderBook():
                     number_of_contracts -= order_size
                     if number_of_contracts < 0:
                         number_of_contracts = abs(number_of_contracts) # if we are closing more contracts than we have in the position, we can't have negative contracts, so we set it to 0
-                        self.positions[order_product_type][order_product_id]["side"] = ORDER_POSITION_SIDE[order_side] # if we flip from long to short or vice versa, we need to update the position side for fee calculation on the next move
+                        self.positions[order_product_type][order_product_id]["side"] = ORDER_POSITION_SIDE[ORDER_SIDE_SWITCH[order_side]] # if we flip from long to short or vice versa, we need to update the position side for fee calculation on the next move
 
                 self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
 
