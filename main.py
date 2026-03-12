@@ -26,8 +26,8 @@ EVENT_QUEUE = {
 
 SEEN_EVENTS_LOCK = threading.Lock()
 SEEN_EVENTS_DEFAULT_BUCKET = 0
-MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS = 300 # how long to keep events in the seen events buckets before rotating out, adjust based on event volume and desired de-duplication window
-MAX_SEEN_EVENTS_BUCKETS = 2 # bucket 0 is the newest bucket, each additional bucket is aged. Minimum 2 buckets to ensure we have a "new" and "old" bucket to compare against when de-duplicating events. Increase buckets if you want to allow for more aged events to still be considered for de-duplication, but this will increase memory usage.
+MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS = 60 # how long to keep events in the seen events buckets before rotating out, adjust based on event volume and desired de-duplication window
+MAX_SEEN_EVENTS_BUCKETS = 3 # bucket 0 is the newest bucket, each additional bucket is aged. Minimum 2 buckets to ensure we have a "new" and "old" bucket to compare against when de-duplicating events. Increase buckets if you want to allow for more aged events to still be considered for de-duplication, but this will increase memory usage.
 SEEN_EVENTS = {
     i: set() for i in range(MAX_SEEN_EVENTS_BUCKETS)
 }
@@ -226,8 +226,8 @@ def rotate_seen_events_buckets():
             rotated_bucket_results = {i: len(bucket) for i, bucket in SEEN_EVENTS.items()}
             print(
                 f"{datetime.now()} {threading.current_thread().name} "
-                "Rotated seen events buckets, cleared bucket 0, "
-                f"current bucket sizes: {rotated_bucket_results}")
+                "Cleared bucket index: 0, "
+                f"current bucket index: sizes: {rotated_bucket_results}")
         sleep(MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS) # rotate every N seconds
 
 def generate_process_event_worker_func(channel):
