@@ -152,7 +152,10 @@ class OrderBook():
         """ Return the new order after calculations
             the current order is treated as the last filled or cancelled order that we are trying to move from,
             so we can calculate the new price based on the last price and the profit target,
-            and then we can place a new order at the new price with the same size as the original order """
+            and then we can place a new order at the new price with the same size as the original order
+            
+            filled orders go in the opposite direction
+            cancelled orders go in the same direction """
 
         order = self.order.get(order_id)
 
