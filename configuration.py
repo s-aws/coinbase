@@ -137,8 +137,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 27,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 27
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 5,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 5
         }
     }
 
@@ -196,7 +196,7 @@ class OrderBook():
         order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
 
         # If FUTURE, include a 0.15 per contract mandatory fee on close orders
-        if order_product_type == "FUTURE":
+        if order_product_type == "FUTURE" and order_status == "FILLED":
             if self.positions[order_product_type].get(order_product_id):
                 number_of_contracts = float(self.positions[order_product_type][order_product_id]["number_of_contracts"])
 
