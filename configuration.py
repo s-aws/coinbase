@@ -133,7 +133,7 @@ class OrderBook():
 
     profit = {
         "SPOT": { 
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 5,
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
@@ -167,7 +167,10 @@ class OrderBook():
             print(f"ORDER NOT FOUND {order_id}")
             return {}
 
-        mandatory_fee = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT
+        mandatory_fee = ( # fee of 0.15 per contract on futures close orders, converted to the quote currency amount
+            DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(self.product[order["product_id"]]["future_product_details"]["contract_size"])
+        ) if order["product_type"] == "FUTURE" else 0
+
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
         order_status = order["status"]
@@ -212,7 +215,7 @@ class OrderBook():
 
                 if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] != order_side: # an open was just filled
                     contact_count_for_fee = order_size if number_of_contracts >= order_size else order_size - number_of_contracts # default to the order size, but if we are closing more contracts than we have in the position, we only need to pay the fee on the contracts that we are closing, not the ones that are opening
-                    mandatory_fee = mandatory_fee * contact_count_for_fee * ORDER_DIRECTION[order_side]
+                    mandatory_fee *= ORDER_DIRECTION[order_side]
                     # print(f"Mandatory fee for this order: {mandatory_fee} based on {contact_count_for_fee} contracts being closed")
 
                     number_of_contracts += order_size
