@@ -31,6 +31,8 @@ ORDER_DIRECTION = { # ensure the direction is correct (away from last fill)
     # unless it's backwards day
 }
 
+DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15 # this is the fee per contract that is charged on all future close orders, so we need to factor this into our move calculations to ensure we are still profitable after fees
+
 DERIVATIVES_PRODUCT_IDS = [
     "BIP-20DEC30-CDE",
     "ETP-20DEC30-CDE",
@@ -133,8 +135,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 27,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 27
         }
     }
 
@@ -153,6 +155,7 @@ class OrderBook():
             print(f"ORDER NOT FOUND {order_id}")
             return {}
 
+        mandatory_fee = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
         order_status = order["status"]
@@ -190,8 +193,16 @@ class OrderBook():
         # set direction here
         order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
 
+        # If FUTURE, include a 0.15 per contract mandatory fee on close orders
+        if order_product_type == "FUTURE":
+            number_of_contracts = float(self.positions[order_product_type][order_product_id]["number_of_contracts"])
+            if self.positions[order_product_type].get(order_product_id):
+                if self.positions[order_product_type][order_product_id] != order_side: # if the position is in the opposite direction of the order, we are closing, so we need to factor in the mandatory fee
+                    contact_count_for_fee = order_size if number_of_contracts >= order_size else order_size - number_of_contracts # default to the order size, but if we are closing more contracts than we have in the position, we only need to pay the fee on the contracts that we are closing, not the ones that are opening
+                    mandatory_fee = mandatory_fee * contact_count_for_fee * ORDER_DIRECTION[order_side]
+                    print(f"Mandatory fee for this order: {mandatory_fee} based on {contact_count_for_fee} contracts being closed")
         # finalize floats
-        order_new_price = order_float_price + order_move_difference
+        order_new_price = order_float_price + order_move_difference + mandatory_fee
 
         order_new_price = float(format_based_on_reference(
             order_new_price,
@@ -210,6 +221,7 @@ class OrderBook():
         order_new_price -= order_new_price % float(price_increment)
 
         return {
+            "mandatory_fee": mandatory_fee,
             "profit_move_pct": self.profit[order_product_type][order_side],
             "fee_move_calculated_from_pct": fee_move_calculated_from_pct,
             "minimum_move_amount": minimum_move_amount,
