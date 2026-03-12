@@ -123,16 +123,13 @@ class OrderBook():
     order = {}
     price = {}
     product = rest_get_products()
-    mandatory_fee_per_contract = {}
-
-    for product_id in product.keys():
-        mandatory_fee_per_contract = {
-            product_id: {
-                "mandatory_fee_per_contract": (
-                    DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(product[product_id]["future_product_details"]["contract_size"])
-                ) if product[product_id]["type"] == "FUTURE" else 0 
-            }
-        }
+    mandatory_fee_per_contract = {
+        product_id: {
+            "mandatory_fee_per_contract": (
+                DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.to_dict().get("future_product_details", {}).get("contract_size", 1))
+            ) if this["product_type"] == "FUTURE" else 0
+        } for product_id, this in product.items()
+    }
 
     active = {
         # "MON-USDC": {
