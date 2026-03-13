@@ -10,23 +10,23 @@ if __name__ == "__main__":
         side="SELL",
         order_base_size_range={"start": 1, "stop": 2},
         order_price_difference=250,
-        start_price=73600,
-        max_order_count=25
+        start_price=73200,
+        max_order_count=20
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
 
-    orders = create_limit_order_span( #size=2, diff=25, count=100, 
-        delay_in_secs=0,
-        product_id="BIP-20DEC30-CDE",
-        side="BUY",
-        order_base_size_range={"start": 1, "stop": 2},
-        order_price_difference=250,
-        start_price=72050,
-        max_order_count=17
-    )
-    print(f"Count: {len(orders)}")
-    print(orders[-1])
+    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
+    #     delay_in_secs=0,
+    #     product_id="BIP-20DEC30-CDE",
+    #     side="BUY",
+    #     order_base_size_range={"start": 1, "stop": 2},
+    #     order_price_difference=250,
+    #     start_price=72050,
+    #     max_order_count=17
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
 
 
     ##################### SPOT
