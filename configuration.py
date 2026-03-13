@@ -167,7 +167,7 @@ class OrderBook():
             
             we currently do not take into account partial fills or partial cancellations for simplicity,
             but this could be added in the future by calculating the move based on the filled or cancelled size
-            instead of the original order size """
+            instead of the original order size (would require two different move calculations) """
 
         order = self.order.get(order_id)
 
