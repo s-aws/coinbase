@@ -145,8 +145,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         }
     }
 
@@ -218,17 +218,16 @@ class OrderBook():
             if self.positions[order_product_type].get(order_product_id):
                 number_of_contracts = float(self.positions[order_product_type][order_product_id]["number_of_contracts"])
 
-                if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] != order_side: # an open was just filled
-                    contact_count_for_fee = order_size if number_of_contracts >= order_size else order_size - number_of_contracts # default to the order size, but if we are closing more contracts than we have in the position, we only need to pay the fee on the contracts that we are closing, not the ones that are opening
-                    mandatory_fee *= ORDER_DIRECTION[ORDER_SIDE_SWITCH[order_side]]
-                    # print(f"Mandatory fee for this order: {mandatory_fee} based on {contact_count_for_fee} contracts being closed")
-
-                    number_of_contracts += order_size # opening more contracts increases the size of the position, so we add the order size to the number of contracts in the position
-                else: # a close was just filled
+                if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] == order_side: # an open was just filled so we need to create a close order
                     number_of_contracts -= order_size # closing contracts decreases the size of the position, so we subtract the order size from the number of contracts in the position
                     if number_of_contracts < 0:
                         number_of_contracts = abs(number_of_contracts) # if we are closing more contracts than we have in the position, we can't have negative contracts, so we set it to 0
                         self.positions[order_product_type][order_product_id]["side"] = ORDER_POSITION_SIDE[ORDER_SIDE_SWITCH[order_side]] # if we flip from long to short or vice versa, we need to update the position side for fee calculation on the next move
+
+                else: # a close was just filled so we need to create an open order
+                    mandatory_fee *= ORDER_DIRECTION[ORDER_SIDE_SWITCH[order_side]]
+                    number_of_contracts += order_size # opening more contracts increases the size of the position, so we add the order size to the number of contracts in the position
+
 
                 self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
 
