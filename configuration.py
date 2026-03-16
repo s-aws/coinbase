@@ -220,14 +220,14 @@ class OrderBook():
 
                 if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] == order_side: # an open was just filled so we need to create a close order
                     number_of_contracts -= order_size # an open was just filled so we decrease the current number of contracts in the position by the order size
-                    mandatory_fee *= ORDER_DIRECTION[ORDER_SIDE_SWITCH[order_side]] # this fee is for the new order we are generating, so we flip the direction to ensure it is added to the price properly
+                    mandatory_fee *= ORDER_DIRECTION[order_side] # this fee is for the new order we are generating, so we flip the direction to ensure it is added to the price properly
                     if number_of_contracts < 0:
                         number_of_contracts = abs(number_of_contracts) # if we are closing more contracts than we have in the position, we can't have negative contracts, so we set it to 0
                         self.positions[order_product_type][order_product_id]["side"] = ORDER_POSITION_SIDE[ORDER_SIDE_SWITCH[order_side]] # if we flip from long to short or vice versa, we need to update the position side for fee calculation on the next move
 
                 else: # a close was just filled so we need to create an open order
                     number_of_contracts += order_size # a close was just filled so we increase the current number of contracts in the position by the order size
-                    mandatory_fee *= ORDER_DIRECTION[ORDER_SIDE_SWITCH[order_side]] # to keep orders from sliding in one direction due to mandatory fees on closed positions
+                    mandatory_fee *= ORDER_DIRECTION[order_side] # to keep orders from sliding in one direction due to mandatory fees on closed positions
 
                 self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
 
