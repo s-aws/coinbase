@@ -145,8 +145,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 56,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 56
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         }
     }
 
@@ -228,9 +228,15 @@ class OrderBook():
                 else: # a close was just filled so we need to create an open order
                     number_of_contracts += order_size # a close was just filled so we increase the current number of contracts in the position by the order size
                     mandatory_fee *= ORDER_DIRECTION[order_side] # to keep orders from sliding in one direction due to mandatory fees on closed positions
-
-                self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
-
+                    self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
+            else:
+                # update all positions via rest call
+                self.positions = {
+                    "FUTURE": {
+                        position["product_id"]: position
+                    } for position in REST_CLIENT.list_futures_positions().to_dict()["positions"]
+                }
+        
         # finalize floats
         order_new_price = order_float_price + order_move_difference + mandatory_fee
 
@@ -251,7 +257,7 @@ class OrderBook():
         order_new_price -= order_new_price % float(price_increment)
 
         return {
-            "current_contract_count": self.positions[order_product_type][order_product_id]["number_of_contracts"] if order_product_type == "FUTURE" else "N/A",
+            "current_contract_count": self.positions[order_product_type][order_product_id]["number_of_contracts"] if order_product_type == "FUTURE" and order_product_id in self.positions[order_product_type] else "N/A",
             "mandatory_fee": mandatory_fee,
             "profit_move_pct": self.profit[order_product_type][order_side],
             "fee_move_calculated_from_pct": fee_move_calculated_from_pct,
