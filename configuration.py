@@ -183,7 +183,6 @@ class OrderBook():
             instead of the original order size (would require two different move calculations) """
 
         order = self.order.get(order_id)
-        print(self.positions)
         if not order:
             print(f"ORDER NOT FOUND {order_id}")
             return {}
