@@ -160,8 +160,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 3,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 3
+            "BUY": 0.00085,
+            "SELL": 0.00085
         }
     }
 
@@ -226,29 +226,31 @@ class OrderBook():
         order_move_difference = order_move_amount * ORDER_DIRECTION[order_side]
 
         # If FUTURE, include a 0.15 per contract mandatory fee on close orders
-        if order_product_type == "FUTURE" and order_status == "FILLED":
-            if order_product_type not in self.positions:
-                self.positions[order_product_type] = {}
+        if order_product_type == "FUTURE":
+            if order_product_id not in self.positions[order_product_type]:
+                 # update all positions via rest call
+                self.positions[order_product_type] = get_futures_positions()
+                print(self.positions[order_product_type])
 
-            if order_product_id in self.positions[order_product_type]:
-                number_of_contracts = float(self.positions[order_product_type][order_product_id]["number_of_contracts"])
-                if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] == order_side: # an open was just filled so we need to create a close order
-                    number_of_contracts -= order_size # an open was just filled so we decrease the current number of contracts in the position by the order size
-                    mandatory_fee *= ORDER_DIRECTION[order_side] # this fee is for the new order we are generating, so we flip the direction to ensure it is added to the price properly
+            if order_status == "FILLED":
+                if order_product_type not in self.positions:
+                    self.positions[order_product_type] = {}
 
-                    if number_of_contracts < 0:
-                        number_of_contracts = abs(number_of_contracts) # if we are closing more contracts than we have in the position, we can't have negative contracts, so we set it to 0
-                        self.positions[order_product_type][order_product_id]["side"] = ORDER_POSITION_SIDE[ORDER_SIDE_SWITCH[order_side]] # if we flip from long to short or vice versa, we need to update the position side for fee calculation on the next move
+                if order_product_id in self.positions[order_product_type]:
+                    number_of_contracts = float(self.positions[order_product_type][order_product_id]["number_of_contracts"])
+                    if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] == order_side: # an open was just filled so we need to create a close order
+                        number_of_contracts -= order_size # an open was just filled so we decrease the current number of contracts in the position by the order size
+                        mandatory_fee *= ORDER_DIRECTION[order_side] # this fee is for the new order we are generating, so we flip the direction to ensure it is added to the price properly
 
-                else: # a close was just filled so we need to create an open order
-                    number_of_contracts += order_size # a close was just filled so we increase the current number of contracts in the position by the order size
-                    mandatory_fee *= ORDER_DIRECTION[order_side] # to keep orders from sliding in one direction due to mandatory fees on closed positions
-                
-                self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
+                        if number_of_contracts < 0:
+                            number_of_contracts = abs(number_of_contracts) # if we are closing more contracts than we have in the position, we can't have negative contracts, so we set it to 0
+                            self.positions[order_product_type][order_product_id]["side"] = ORDER_POSITION_SIDE[ORDER_SIDE_SWITCH[order_side]] # if we flip from long to short or vice versa, we need to update the position side for fee calculation on the next move
 
-            else:
-                # update all positions via rest call
-                self.positions = get_futures_positions()
+                    else: # a close was just filled so we need to create an open order
+                        number_of_contracts += order_size # a close was just filled so we increase the current number of contracts in the position by the order size
+                        mandatory_fee *= ORDER_DIRECTION[order_side] # to keep orders from sliding in one direction due to mandatory fees on closed positions
+                    
+                    self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
 
         # finalize floats
         order_new_price = order_float_price + order_move_difference + mandatory_fee
