@@ -109,6 +109,21 @@ def rest_get_products() -> dict:
 
     return products
 
+def get_futures_positions() -> dict:
+    """ Create a dictionary in the format
+    { "product_id1": {}, "product_id2": {} } """
+
+    futures_list = REST_CLIENT.list_futures_positions().to_dict()["positions"]
+
+    if futures_list:
+        positions = {
+            position["product_id"]: position for position in futures_list
+        }
+    else:
+        positions = {}
+
+    return positions
+
 class OrderBook():
     """ Container for Order tracking """
     transaction_summary = REST_CLIENT.get_transaction_summary() # includes fees
@@ -151,9 +166,7 @@ class OrderBook():
     }
 
     positions = {
-        "FUTURE": {
-            position["product_id"]: position
-        } for position in REST_CLIENT.list_futures_positions().to_dict()["positions"]
+        "FUTURE": get_futures_positions()
     }
 
     def calculate_new_order_move(self, order_id) -> dict:
@@ -170,7 +183,7 @@ class OrderBook():
             instead of the original order size (would require two different move calculations) """
 
         order = self.order.get(order_id)
-
+        print(self.positions)
         if not order:
             print(f"ORDER NOT FOUND {order_id}")
             return {}
@@ -215,9 +228,11 @@ class OrderBook():
 
         # If FUTURE, include a 0.15 per contract mandatory fee on close orders
         if order_product_type == "FUTURE" and order_status == "FILLED":
-            if self.positions[order_product_type].get(order_product_id):
-                number_of_contracts = float(self.positions[order_product_type][order_product_id]["number_of_contracts"])
+            if order_product_type not in self.positions:
+                self.positions[order_product_type] = {}
 
+            if order_product_id in self.positions[order_product_type]:
+                number_of_contracts = float(self.positions[order_product_type][order_product_id]["number_of_contracts"])
                 if ORDER_POSITION_SIDE[self.positions[order_product_type][order_product_id]["side"]] == order_side: # an open was just filled so we need to create a close order
                     number_of_contracts -= order_size # an open was just filled so we decrease the current number of contracts in the position by the order size
                     mandatory_fee *= ORDER_DIRECTION[order_side] # this fee is for the new order we are generating, so we flip the direction to ensure it is added to the price properly
@@ -231,12 +246,8 @@ class OrderBook():
                     self.positions[order_product_type][order_product_id]["number_of_contracts"] = str(number_of_contracts)
             else:
                 # update all positions via rest call
-                self.positions = {
-                    "FUTURE": {
-                        position["product_id"]: position
-                    } for position in REST_CLIENT.list_futures_positions().to_dict()["positions"]
-                }
-        
+                self.positions = get_futures_positions()
+
         # finalize floats
         order_new_price = order_float_price + order_move_difference + mandatory_fee
 
@@ -257,7 +268,7 @@ class OrderBook():
         order_new_price -= order_new_price % float(price_increment)
 
         return {
-            "current_contract_count": self.positions[order_product_type][order_product_id]["number_of_contracts"] if order_product_type == "FUTURE" and order_product_id in self.positions[order_product_type] else "N/A",
+            "current_contract_count": self.positions[order_product_type][order_product_id]["number_of_contracts"] if order_product_type == "FUTURE" and order_product_id in self.positions.get(order_product_type, {}) else "N/A",
             "mandatory_fee": mandatory_fee,
             "profit_move_pct": self.profit[order_product_type][order_side],
             "fee_move_calculated_from_pct": fee_move_calculated_from_pct,
