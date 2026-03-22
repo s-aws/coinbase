@@ -30,6 +30,20 @@ if __name__ == "__main__":
     print(f"Count: {len(orders)}")
     print(orders[-1])
 
+    # PAXG
+    # orders = create_limit_order_span(
+    #     delay_in_secs=0,
+    #     product_id="PAU-20DEC30-CDE",
+    #     side="BUY",
+    #     order_base_size_range={"start": 1, "stop": 1},
+    #     order_price_difference=50,
+    #     start_price=4411.5,
+    #     max_order_count=18,
+    #     post_only=True
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
+
 
     ##################### SPOT
 
@@ -46,3 +60,4 @@ if __name__ == "__main__":
 
     # print(f"Count: {len(orders)}")
     # print(orders[-1])
+
