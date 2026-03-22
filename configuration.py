@@ -157,8 +157,8 @@ class OrderBook():
 
     profit = {
         "SPOT": { 
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 4,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 4
         },
         "FUTURE": {
             "BUY": 0.05,
