@@ -8,10 +8,10 @@ if __name__ == "__main__":
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
         side="SELL",
-        order_base_size_range={"start": 5, "stop": 20},
-        order_price_difference=100,
-        start_price=70000,
-        max_order_count=10,
+        order_base_size_range={"start": 10, "stop": 10},
+        order_price_difference=55,
+        start_price=70710,
+        max_order_count=20,
         post_only=True
     )
     print(f"Count: {len(orders)}")
@@ -21,10 +21,10 @@ if __name__ == "__main__":
     #     delay_in_secs=0,
     #     product_id="BIP-20DEC30-CDE",
     #     side="BUY",
-    #     order_base_size_range={"start": 2, "stop": 5},
-    #     order_price_difference=75,
-    #     start_price=70200,
-    #     max_order_count=20,
+    #     order_base_size_range={"start": 10, "stop": 30},
+    #     order_price_difference=250,
+    #     start_price=70000,
+    #     max_order_count=10,
     #     post_only=True
     # )
     # print(f"Count: {len(orders)}")
