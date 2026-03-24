@@ -54,8 +54,7 @@ DERIVATIVES_PRODUCT_IDS = [
     "GOL-27MAR26-CDE",
     "NOL-19MAR26-CDE",
     "PT-27MAR26-CDE",
-    "CU-28APR26-CDE",
-    "PAU-20DEC30-CDE"
+    "CU-28APR26-CDE"#,"PAU-20DEC30-CDE"
 ]
 
 SPOT_PRODUCT_IDS = [
@@ -161,8 +160,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": 0.02,
-            "SELL": 0.02
+            "BUY": 0.01,
+            "SELL": 0.01
         }
     }
 
