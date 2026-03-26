@@ -36,11 +36,11 @@ if __name__ == "__main__":
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="ETP-20DEC30-CDE",
-        side="SELL",
+        side="BUY",
         order_base_size_range={"start": 1, "stop": 1},
         order_price_difference=1.5,
-        start_price=2065,
-        max_order_count=10,
+        start_price=2045,
+        max_order_count=30,
         post_only=False
     )
     print(f"Count: {len(orders)}")
