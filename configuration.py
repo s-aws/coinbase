@@ -160,8 +160,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": 0.005,
-            "SELL": 0.005
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         }
     }
 
