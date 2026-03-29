@@ -36,10 +36,10 @@ if __name__ == "__main__":
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="ETP-20DEC30-CDE",
-        side="SELL",
+        side="BUY",
         order_base_size_range={"start": 50, "stop": 100},
         order_price_difference=1.5,
-        start_price=2020,
+        start_price=2000,
         max_order_count=10,
         post_only=False
     )
