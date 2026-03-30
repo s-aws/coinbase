@@ -50,6 +50,9 @@ def process_user_event(event):
             return
 
         for order in event["orders"]:
+            if "client_order_id" not in order:
+                print(f"Missing client_order_id in order event: {order}")
+                continue
             process_user_order(order)
 
     except Exception as e:
