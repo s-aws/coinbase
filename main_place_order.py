@@ -21,10 +21,10 @@ if __name__ == "__main__":
     #     delay_in_secs=0,
     #     product_id="BIP-20DEC30-CDE",
     #     side="BUY",
-    #     order_base_size_range={"start": 25, "stop": 50},
-    #     order_price_difference=100,
-    #     start_price=65900,
-    #     max_order_count=10,
+    #     order_base_size_range={"start": 1, "stop": 3},
+    #     order_price_difference=0,
+    #     start_price=68000,
+    #     max_order_count=200,
     #     post_only=False
     # )
     # print(f"Count: {len(orders)}")
@@ -33,18 +33,18 @@ if __name__ == "__main__":
 
     # ETH
 
-    orders = create_limit_order_span( #size=2, diff=25, count=100, 
-        delay_in_secs=0,
-        product_id="ETP-20DEC30-CDE",
-        side="BUY",
-        order_base_size_range={"start": 100, "stop": 500},
-        order_price_difference=10,
-        start_price=2000,
-        max_order_count=5,
-        post_only=False
-    )
-    print(f"Count: {len(orders)}")
-    print(orders[-1])
+    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
+    #     delay_in_secs=0,
+    #     product_id="ETP-20DEC30-CDE",
+    #     side="BUY",
+    #     order_base_size_range={"start": 100, "stop": 500},
+    #     order_price_difference=10,
+    #     start_price=2000,
+    #     max_order_count=5,
+    #     post_only=False
+    # )
+    # print(f"Count: {len(orders)}")
+    # print(orders[-1])
 
     # PAXG
     # orders = create_limit_order_span(
@@ -63,17 +63,17 @@ if __name__ == "__main__":
 
     ##################### SPOT
 
-    # orders = create_limit_order_span(
-    #     delay_in_secs=0,
-    #     product_id="BTC-USDC",
-    #     side="SELL",
-    #     order_base_size_range={"start": 0.0001, "stop": 0.001},
-    #     order_price_difference=21.01,
-    #     start_price=71050.51,
-    #     max_order_count=100,
-    #     post_only=True
-    # )
+    orders = create_limit_order_span(
+        delay_in_secs=0,
+        product_id="BTC-USDC",
+        side="BUY",
+        order_base_size_range={"start": 0.001, "stop": 0.002},
+        order_price_difference=35,
+        start_price=67565,
+        max_order_count=30,
+        post_only=True
+    )
 
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
+    print(f"Count: {len(orders)}")
+    print(orders[-1])
 
