@@ -67,10 +67,10 @@ if __name__ == "__main__":
         delay_in_secs=0,
         product_id="BTC-USDC",
         side="BUY",
-        order_base_size_range={"start": 0.001, "stop": 0.002},
-        order_price_difference=35,
-        start_price=67565,
-        max_order_count=30,
+        order_base_size_range={"start": 0.0001, "stop": 0.001},
+        order_price_difference=10,
+        start_price=68000,
+        max_order_count=100,
         post_only=True
     )
 
