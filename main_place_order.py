@@ -10,7 +10,7 @@ if __name__ == "__main__":
     #     side="SELL",
     #     order_base_size_range={"start": 5, "stop": 10},
     #     order_price_difference=135,
-    #     start_price=66765,
+    #     start_price=66215,
     #     max_order_count=20,
     #     post_only=False
     # )
@@ -22,10 +22,10 @@ if __name__ == "__main__":
         product_id="BIP-20DEC30-CDE",
         side="BUY",
         order_base_size_range={"start": 10, "stop": 10},
-        order_price_difference=100,
-        start_price=67730,
+        order_price_difference=200,
+        start_price=66225,
         max_order_count=10,
-        post_only=False
+        post_only=True
     )
     print(f"Count: {len(orders)}")
     print(orders[-1])
