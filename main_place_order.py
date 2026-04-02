@@ -39,7 +39,7 @@ if __name__ == "__main__":
         side="BUY",
         order_base_size_range={"start": 10, "stop": 10},
         order_price_difference=1,
-        start_price=2135,
+        start_price=2045,
         max_order_count=100,
         post_only=True
     )
