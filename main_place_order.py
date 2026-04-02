@@ -38,9 +38,9 @@ if __name__ == "__main__":
         product_id="ETP-20DEC30-CDE",
         side="BUY",
         order_base_size_range={"start": 10, "stop": 10},
-        order_price_difference=2.5,
-        start_price=2038,
-        max_order_count=140,
+        order_price_difference=2,
+        start_price=2000,
+        max_order_count=20,
         post_only=True
     )
     print(f"Count: {len(orders)}")
