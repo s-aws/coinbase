@@ -7,10 +7,10 @@ if __name__ == "__main__":
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
-        side="BUY",
+        side="SELL",
         order_base_size_range={"start": 1, "stop": 5},
         order_price_difference=40,
-        start_price=66170,
+        start_price=70000,
         max_order_count=100,
         post_only=True
     )
