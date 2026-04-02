@@ -10,7 +10,7 @@ if __name__ == "__main__":
         side="SELL",
         order_base_size_range={"start": 1, "stop": 5},
         order_price_difference=40,
-        start_price=70000,
+        start_price=66170,
         max_order_count=100,
         post_only=True
     )
@@ -21,9 +21,9 @@ if __name__ == "__main__":
     #     delay_in_secs=0,
     #     product_id="BIP-20DEC30-CDE",
     #     side="BUY",
-    #     order_base_size_range={"start": 1, "stop": 2},
-    #     order_price_difference=20,
-    #     start_price=66645,
+    #     order_base_size_range={"start": 1, "stop": 5},
+    #     order_price_difference=40,
+    #     start_price=66170,
     #     max_order_count=100,
     #     post_only=True
     # )
