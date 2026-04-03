@@ -249,7 +249,7 @@ def generate_process_event_worker_func(channel):
                 if channel == "heartbeat":
                     pass
 
-                elif channel == "ticker":
+                if channel == "ticker":
                     with TICKER_LOCK:
                         for tickr in event["tickers"]:
                             TICKER[tickr["product_id"]] = tickr
@@ -261,6 +261,7 @@ def generate_process_event_worker_func(channel):
                     pass
 
                 elif channel == "user":
+                    # print(json.dumps(event, indent=4))
 #                    print(f"{datetime.now()} {threading.current_thread().name} Offloading event to worker: {event}")
                     EVENT_EXECUTOR.submit(process_user_event, event)
             finally:

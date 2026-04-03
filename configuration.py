@@ -8,7 +8,8 @@ API_SECRET = getenv("COINBASE_API_SECRET")
 
 REST_CLIENT = RESTClient(
     api_key = API_KEY,
-    api_secret = API_SECRET)
+    api_secret = API_SECRET,
+    rate_limit_headers = True)
 
 ORDER_SIDE_SWITCH = {
     "BUY": "SELL",
@@ -125,6 +126,20 @@ def get_futures_positions() -> dict:
 
     return positions
 
+def get_open_orders() -> dict:
+    """ Create a dictionary in the format
+    Will fail messily if order does not have a client_order_id (must have it)
+    { "order_id1": {}, "order_id2": {} } """
+
+    # OPEN
+    orders_list = REST_CLIENT.list_orders(order_status="OPEN").to_dict()["orders"]
+
+    orders = {
+        order["client_order_id"]: order for order in orders_list
+    }
+
+    return orders
+
 class OrderBook():
     """ Container for Order tracking """
     transaction_summary = REST_CLIENT.get_transaction_summary() # includes fees
@@ -161,8 +176,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": 0.005,
-            "SELL": 0.005
+            "BUY": 0.007,
+            "SELL": 0.007
         },
         "BIP-20DEC30-CDE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,

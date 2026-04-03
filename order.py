@@ -1,6 +1,7 @@
 """ New Coinbase Advanced trading project """
 import uuid
 from random import uniform as random
+from json import dumps
 from time import sleep
 from configuration import REST_CLIENT, \
     ORDER_DIRECTION, ORDERBOOK, format_based_on_reference
@@ -19,6 +20,16 @@ def generate_float(start: float, stop: float=None) -> float:
     result = random(start, stop) if stop is not None else start
 
     return result
+
+def create_order(
+        client_order_id = str(uuid.uuid4()),
+        product_id = "BIP-20DEC30-CDE",
+        side = "SELL",
+        post_only: bool=False,
+        order_configuration={}) -> dict:
+    """ Create a limit order """
+    pass
+
 
 def create_limit_order_span(
         order_base_size_range: dict=None,
@@ -70,7 +81,7 @@ def create_limit_order_span(
             ).to_dict()
 
             if order["success"] is False:
-                print(order)
+                print(dumps(order, indent=4))
                 if order["error_response"]["error"] == "INSUFFICIENT_FUND": # wait
                     sleep(1)
                 else:
