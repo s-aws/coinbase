@@ -37,9 +37,9 @@ if __name__ == "__main__":
         delay_in_secs=0,
         product_id="ETP-20DEC30-CDE",
         side="SELL",
-        order_base_size_range={"start": 2, "stop": 4},
+        order_base_size_range={"start": 1, "stop": 1},
         order_price_difference=2,
-        start_price=2084.5,
+        start_price=2094.5,
         max_order_count=1,
         post_only=True
     )
