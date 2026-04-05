@@ -132,7 +132,7 @@ def get_open_orders() -> dict:
     { "order_id1": {}, "order_id2": {} } """
 
     # OPEN
-    orders_list = REST_CLIENT.list_orders(order_status="OPEN").to_dict()["orders"]
+    orders_list = REST_CLIENT.list_orders(order_status=["OPEN"]).to_dict()["orders"]
 
     orders = {
         order["client_order_id"]: order for order in orders_list
