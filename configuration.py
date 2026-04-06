@@ -177,7 +177,7 @@ class OrderBook():
         },
         "FUTURE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 7,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 28
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 14
         },
         "BIP-20DEC30-CDE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
