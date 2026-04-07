@@ -23,8 +23,8 @@ if __name__ == "__main__":
         side="BUY",
         order_base_size_range={"start": 10, "stop": 10},
         order_price_difference=200,
-        start_price=66880,
-        max_order_count=10,
+        start_price=68250,
+        max_order_count=21,
         post_only=True
     )
     print(f"Count: {len(orders)}")
