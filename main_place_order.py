@@ -22,9 +22,9 @@ if __name__ == "__main__":
         product_id="BIT-24APR26-CDE",
         side="BUY",
         order_base_size_range={"start": 10, "stop": 10},
-        order_price_difference=250,
-        start_price=69005,
-        max_order_count=20,
+        order_price_difference=175,
+        start_price=71600,
+        max_order_count=19,
         post_only=True
     )
     print(f"Count: {len(orders)}")
