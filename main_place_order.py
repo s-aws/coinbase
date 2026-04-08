@@ -20,11 +20,11 @@ if __name__ == "__main__":
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="BIT-24APR26-CDE",
-        side="BUY",
-        order_base_size_range={"start": 10, "stop": 10},
-        order_price_difference=175,
-        start_price=71600,
-        max_order_count=19,
+        side="SELL",
+        order_base_size_range={"start": 1, "stop": 10},
+        order_price_difference=150,
+        start_price=71535,
+        max_order_count=11,
         post_only=True
     )
     print(f"Count: {len(orders)}")
