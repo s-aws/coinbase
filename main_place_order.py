@@ -1,22 +1,36 @@
 """ New Coinbase Advanced trading project """
+import json
 from order import create_limit_order_span
 
 if __name__ == "__main__":
     ##################### PERP 
 
     # BTC
-    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
-    #     delay_in_secs=0,
-    #     product_id="BIP-20DEC30-CDE",
-    #     side="BUY",
-    #     order_base_size_range={"start": 1, "stop": 5},
-    #     order_price_difference=135,
-    #     start_price=71000,
-    #     max_order_count=20,
-    #     post_only=True
-    # )
-    # print(f"Count: {len(orders)}")
-    # print(orders[-1])
+    orders = create_limit_order_span( #size=2, diff=25, count=100, 
+        delay_in_secs=0,
+        product_id="BIP-20DEC30-CDE",
+        side="SELL",
+        order_base_size_range={"start": 5, "stop": 10},
+        order_price_difference=200,
+        start_price=72295,
+        max_order_count=10,
+        post_only=True
+    )
+    print(json.dumps(orders))
+    print(f"Count: {len(orders)}")
+
+    orders = create_limit_order_span( #size=2, diff=25, count=100, 
+        delay_in_secs=0,
+        product_id="BIP-20DEC30-CDE",
+        side="BUY",
+        order_base_size_range={"start": 5, "stop": 10},
+        order_price_difference=200,
+        start_price=71800,
+        max_order_count=10,
+        post_only=True
+    )
+    print(json.dumps(orders))
+    print(f"Count: {len(orders)}")
 
     # ETH
     # orders = create_limit_order_span( #size=5, diff=1 (0.05%), count=20, 
@@ -52,15 +66,28 @@ if __name__ == "__main__":
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="BIT-24APR26-CDE",
-        side="BUY",
-        order_base_size_range={"start": 10, "stop": 10},
-        order_price_difference=250,
-        start_price=71895,
+        side="SELL",
+        order_base_size_range={"start": 5, "stop": 10},
+        order_price_difference=200,
+        start_price=72495,
         max_order_count=10,
         post_only=True
     )
     print(f"Count: {len(orders)}")
-    print(orders[-1])
+    print(json.dumps(orders))
+
+    orders = create_limit_order_span( #size=2, diff=25, count=100, 
+        delay_in_secs=0,
+        product_id="BIT-24APR26-CDE",
+        side="BUY",
+        order_base_size_range={"start": 5, "stop": 10},
+        order_price_difference=200,
+        start_price=72000,
+        max_order_count=10,
+        post_only=True
+    )
+    print(f"Count: {len(orders)}")
+    print(json.dumps(orders))
 
     ##################### SPOT #####################
 
