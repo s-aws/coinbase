@@ -52,10 +52,10 @@ if __name__ == "__main__":
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="BIT-24APR26-CDE",
-        side="SELL",
+        side="BUY",
         order_base_size_range={"start": 10, "stop": 10},
-        order_price_difference=100,
-        start_price=72570,
+        order_price_difference=200,
+        start_price=71895,
         max_order_count=10,
         post_only=True
     )
