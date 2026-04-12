@@ -11,10 +11,10 @@ if __name__ == "__main__":
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
         side="BUY",
-        order_base_size_range={"start": 2, "stop": 4},
-        order_price_difference=50,
-        start_price=71340,
-        max_order_count=129,
+        order_base_size_range={"start": 6, "stop": 6},
+        order_price_difference=200,
+        start_price=71400,
+        max_order_count=47,
         post_only=True
     )
     print(json.dumps(orders))
