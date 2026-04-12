@@ -44,10 +44,26 @@ WEBSOCKET_EVENTS = {
             "expiring_futures_positions"
         ]
     },
-    "OPEN": {},
-    "FILLED": {},
-    "CANCELLED": {},
-    "UPDATE": {}
+    "OPEN": {
+        "type": "open",
+        "orders": []
+    },
+    "FILLED": {
+        "type": "filled",
+        "orders": []
+    },
+    "CANCELLED": {
+        "type": "cancelled",
+        "orders": []
+    },
+    "UPDATE": {
+        "type": "update",
+        "orders": [],
+        "positions": [
+            "perpetual_futures_positions",
+            "expiring_futures_positions"
+        ]
+    }
 }
 
 def __on_open__():
@@ -146,8 +162,6 @@ def process_user_order(order):
                 f"total_fees:{order.get('total_fees', 'N/A')} "
                 f"avg_price:{order.get('avg_price', 'N/A')} "
                 f"current_contract_count: {order_template['current_contract_count']} "
-
-
             )
 
     elif status == "PENDING":
