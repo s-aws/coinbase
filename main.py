@@ -219,19 +219,23 @@ def process_user_order(order):
         print(f"UNRECOGNIZED STATUS {status}")
 
 def process_user_snapshot(snapshot):
-    """process the user snapshot event from the websocket / user channel"""
+    """process the user snapshot event from the websocket / user channel
+    
+    {'product_id': 'BIT-24APR26-CDE', 'side': 'Long', 'number_of_contracts': '776', 'realized_pnl': '-197.19190281971428568', 'unrealized_pnl': '-14201.408099180285714064', 'entry_price': '72955.0783632964285714'}
+    
+    """
     for _, items in snapshot["positions"].items():
         if items:
             for item in items:
                 with ORDERBOOK_LOCK:
                     ORDERBOOK.positions["FUTURE"][item["product_id"]] = {
-                        "side": item["side"],
+                        "side": item["side"].upper(),
                         "number_of_contracts": item["number_of_contracts"],
                         "realized_pnl": item["realized_pnl"],
                         "unrealized_pnl": item["unrealized_pnl"],
                         "entry_price": item["entry_price"]
                     }
-                    print(f"updated snapshot for position: {item}")
+                    print(f"updated snapshot for position: {item['product_id']} {ORDERBOOK.positions['FUTURE'][item['product_id']]}")
 
 
 def __on_message__(msg):
