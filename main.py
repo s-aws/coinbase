@@ -35,6 +35,20 @@ SEEN_EVENTS = {
 WEBSOCKET_THREAD_MAXIMUM = 3
 WEBSOCKET_THREAD_NAME = "websocket_thread"
 
+WEBSOCKET_EVENTS = {
+    "SNAPSHOT": {
+        "type": "snapshot",
+        "orders": [],
+        "positions": [
+            "perpetual_futures_positions",
+            "expiring_futures_positions"
+        ]
+    },
+    "OPEN": {},
+    "FILLED": {},
+    "CANCELLED": {}
+}
+
 def __on_open__():
     """ websocket open connection trigger """
     print(
@@ -46,14 +60,19 @@ def __on_open__():
 def process_user_event(event):
     """Heavy user-channel processing happens off the websocket thread."""
     try:
-        if event["type"] != "update":
+        if event["type"].upper() not in WEBSOCKET_EVENTS:
+            print(f"Non-update event received: {event}")
             return
 
-        for order in event["orders"]:
-            if "client_order_id" not in order:
-                print(f"Missing client_order_id in order event: {order}")
-                continue
-            process_user_order(order)
+        if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED"]:
+            for order in event["orders"]:
+                if "client_order_id" not in order:
+                    print(f"Missing client_order_id in order event: {order}")
+                    continue
+                process_user_order(order)
+
+        if "positions" in event:
+            process_user_snapshot(event)
 
     except Exception as e:
         print(f"user event processing error: {e}")
@@ -67,7 +86,7 @@ def process_user_order(order):
         ORDERBOOK.order[client_order_id] = order
 
     if status == "SNAPSHOT":
-        return
+        pass # handled in process_user_snapshot()
 
     elif status == "CANCEL_QUEUED":
         return
@@ -198,6 +217,21 @@ def process_user_order(order):
 
     else:
         print(f"UNRECOGNIZED STATUS {status}")
+
+def process_user_snapshot(snapshot):
+    """process the user snapshot event from the websocket / user channel"""
+    for _, items in snapshot["positions"].items():
+        if items:
+            for item in items:
+                with ORDERBOOK_LOCK:
+                    ORDERBOOK.positions["FUTURE"][item["product_id"]] = {
+                        "side": item["side"],
+                        "number_of_contracts": item["number_of_contracts"],
+                        "realized_pnl": item["realized_pnl"],
+                        "unrealized_pnl": item["unrealized_pnl"],
+                        "entry_price": item["entry_price"]
+                    }
+                    print(f"updated snapshot for position: {item}")
 
 
 def __on_message__(msg):
