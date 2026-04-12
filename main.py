@@ -46,7 +46,8 @@ WEBSOCKET_EVENTS = {
     },
     "OPEN": {},
     "FILLED": {},
-    "CANCELLED": {}
+    "CANCELLED": {},
+    "UPDATE": {}
 }
 
 def __on_open__():
@@ -64,7 +65,7 @@ def process_user_event(event):
             print(f"Non-update event received: {event}")
             return
 
-        if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED"]:
+        if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
             for order in event["orders"]:
                 if "client_order_id" not in order:
                     print(f"Missing client_order_id in order event: {order}")
