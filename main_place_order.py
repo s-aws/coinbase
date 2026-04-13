@@ -12,9 +12,9 @@ if __name__ == "__main__":
     #     product_id="BIP-20DEC30-CDE",
     #     side="BUY",
     #     order_base_size_range={"start": 1, "stop": 1},
-    #     order_price_difference=100,
-    #     start_price=65770,
-    #     max_order_count=50,
+    #     order_price_difference=50,
+    #     start_price=70800,
+    #     max_order_count=100,
     #     post_only=True
     # )
     # print(json.dumps(orders))
@@ -54,10 +54,10 @@ if __name__ == "__main__":
     orders = create_limit_order_span( #size=2, diff=25, count=100, 
         delay_in_secs=0,
         product_id="BIT-24APR26-CDE",
-        side="SELL",
+        side="BUY",
         order_base_size_range={"start": 1, "stop": 1},
-        order_price_difference=100,
-        start_price=71200,
+        order_price_difference=50,
+        start_price=70900,
         max_order_count=100,
         post_only=True
     )
