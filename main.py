@@ -250,7 +250,7 @@ def process_user_snapshot(snapshot):
                         "unrealized_pnl": item["unrealized_pnl"],
                         "entry_price": item["entry_price"]
                     }
-                    print(f"updated snapshot for position: {item['product_id']} {ORDERBOOK.positions['FUTURE'][item['product_id']]}")
+                    # print(f"updated snapshot for position: {item['product_id']} {ORDERBOOK.positions['FUTURE'][item['product_id']]}")
 
 
 def __on_message__(msg):
