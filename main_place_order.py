@@ -7,18 +7,18 @@ if __name__ == "__main__":
 
     # BTC
 
-    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
-    #     delay_in_secs=0,
-    #     product_id="BIP-20DEC30-CDE",
-    #     side="BUY",
-    #     order_base_size_range={"start": 1, "stop": 1},
-    #     order_price_difference=50,
-    #     start_price=70800,
-    #     max_order_count=100,
-    #     post_only=True
-    # )
-    # print(json.dumps(orders))
-    # print(f"Count: {len(orders)}")
+    orders = create_limit_order_span( #size=2, diff=25, count=100, 
+        delay_in_secs=0,
+        product_id="BIP-20DEC30-CDE",
+        side="BUY",
+        order_base_size_range={"start": 1, "stop": 1},
+        order_price_difference=50,
+        start_price=70795,
+        max_order_count=200,
+        post_only=True
+    )
+    print(json.dumps(orders))
+    print(f"Count: {len(orders)}")
 
     # ETH
     # orders = create_limit_order_span( #size=5, diff=1 (0.05%), count=20, 
@@ -57,8 +57,8 @@ if __name__ == "__main__":
         side="BUY",
         order_base_size_range={"start": 1, "stop": 1},
         order_price_difference=50,
-        start_price=70900,
-        max_order_count=100,
+        start_price=70995,
+        max_order_count=200,
         post_only=True
     )
     print(f"Count: {len(orders)}")
