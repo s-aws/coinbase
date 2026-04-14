@@ -182,7 +182,7 @@ def process_user_order(order):
             )
 
     elif status == "PENDING":
-        print(f"Order pending: {order}")
+        # print(f"Order pending: {order}")
         with ORDERBOOK_LOCK:
             ORDERBOOK.order[client_order_id] = order
 
