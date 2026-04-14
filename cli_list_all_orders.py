@@ -16,7 +16,7 @@ def main():
             print(f"  Side: {order['side']}")
             print(f"  Size: {order['size']}")
             print(f"  Price: {order['price']}")
-            print(f"  Target Movement: {order['target_movement']}")
+            print(f"  Target Movement: {order['target_movement']*100}%")
             print(f"  Status: {order['status']}")
             print("-" * 40)
     finally:
