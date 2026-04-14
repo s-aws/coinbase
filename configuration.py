@@ -150,6 +150,8 @@ class OrderBook():
         "FILLED": True
     }
 
+    parent_order_ids = {}
+    child_order_ids = {}
     cancelled = {}
     filled = {}
     order = {}
@@ -192,7 +194,7 @@ class OrderBook():
 
     db_client = None # set in main.py to avoid circular import
 
-    def calculate_new_order_move(self, order_id) -> dict:
+    def calculate_new_order_move(self, order_id, target_movement=None) -> dict:
         """ Return the new order after calculations
             the current order is treated as the last filled or cancelled order that we are trying to move from,
             so we can calculate the new price based on the last price and the profit target,
@@ -203,12 +205,17 @@ class OrderBook():
             
             we currently do not take into account partial fills or partial cancellations for simplicity,
             but this could be added in the future by calculating the move based on the filled or cancelled size
-            instead of the original order size (would require two different move calculations) """
+            instead of the original order size (would require two different move calculations)
+            
+            target is a dictionary that contains the movement and the type (percentage or absolute) that we want to move the order, this overrides the default profit target for the product
+            example: { "movement": 0.01, "type": "P" } would move the order by 1% from the last price rather than using the default profit target
+            """
 
         order = self.order.get(order_id)
         if not order:
             print(f"ORDER NOT FOUND {order_id}")
             return {}
+
 
         order_product_id = order["product_id"]
         order_product_type = order["product_type"]
@@ -241,6 +248,14 @@ class OrderBook():
 
         minimum_move_amount = float(price_increment)
         fee_move_calculated_from_pct = order_float_price * self.profit[order_product_type][order_side]
+
+        if target_movement is not None:
+            if target_movement.get("type") == "P":
+                fee_move_calculated_from_pct = order_float_price * target_movement["movement"]
+            elif target_movement.get("type") == "A":
+                fee_move_calculated_from_pct = float(target_movement["movement"])
+            else:
+                print(f"UNKNOWN TARGET MOVEMENT TYPE {target_movement} - falling back to default profit target for product")
 
         order_move_amount = fee_move_calculated_from_pct if (
             minimum_move_amount < fee_move_calculated_from_pct) else minimum_move_amount 

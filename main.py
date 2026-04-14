@@ -99,11 +99,24 @@ def process_user_event(event):
 
 
 def process_user_order(order):
-    client_order_id = order["client_order_id"]
-    status = order["status"]
+    client_order_id = order.get("client_order_id")
+    status = order.get("status")
 
     with ORDERBOOK_LOCK:
         ORDERBOOK.order[client_order_id] = order
+
+    try:
+        if client_order_id in ORDERBOOK.child_order_ids:
+            ORDERBOOK.db_client.update_order_parent_status(
+                client_order_id=client_order_id,
+                status=status)
+        elif client_order_id in ORDERBOOK.parent_order_ids:
+            ORDERBOOK.db_client.update_order_child_status(
+                client_order_id=client_order_id,
+                status=status)
+
+    except Exception as e:
+        print(f"Error updating parent order status in database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
 
     if status == "SNAPSHOT":
         pass # handled in process_user_snapshot()
@@ -120,6 +133,7 @@ def process_user_order(order):
                 return
 
             ORDERBOOK.cancelled[client_order_id] = True
+
             order_template = deepcopy(
                 ORDERBOOK.calculate_new_order_move(client_order_id)
             )
@@ -168,29 +182,25 @@ def process_user_order(order):
             )
 
     elif status == "PENDING":
-        return
+        print(f"Order pending: {order}")
+        with ORDERBOOK_LOCK:
+            ORDERBOOK.order[client_order_id] = order
 
     elif status == "FAILED":
+        print(f"Order failed: {order}")
+        with ORDERBOOK_LOCK:
+            ORDERBOOK.order.pop(client_order_id, None) # remove failed order from orderbook
+
         return
 
     elif status == "OPEN":
-        with ORDERBOOK_LOCK:
-            ORDERBOOK.order[client_order_id] = order
-        try:
-            ORDERBOOK.db_client.insert_order_parent(
-                client_order_id=client_order_id,
-                product_id=order["product_id"],
-                side=order["order_side"],
-                size=float(order["leaves_quantity"]),
-                price=float(order["limit_price"]),
-                target_movement=float(ORDERBOOK.profit[order["product_type"]][order["order_side"]]),
-                status=status)
-        except Exception as e:
-            print(f"Error inserting parent order into database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
+        pass
 
         return
 
     elif status == "FILLED":
+        is_parent = False
+
         with ORDERBOOK_LOCK:
             if ORDERBOOK.should_replace[status] is not True:
                 return
@@ -198,19 +208,43 @@ def process_user_order(order):
             if ORDERBOOK.filled.get(client_order_id):
                 return
 
-            ORDERBOOK.filled[client_order_id] = True
-            order_template = deepcopy(
-                ORDERBOOK.calculate_new_order_move(client_order_id)
-            )
+            if client_order_id not in ORDERBOOK.child_order_ids:
+                if client_order_id not in ORDERBOOK.parent_order_ids:
+                    ORDERBOOK.parent_order_ids[client_order_id] = {
+                        "orders": [],
+                        "target_movement": {
+                            "movement": ORDERBOOK.profit[order["product_type"]][order["order_side"]],
+                            "type": "P"
+                        }
+                    }
+                is_parent = True
 
-        new_order = create_limit_order_span(
-            product_id=order_template["product_id"],
-            side=order_template["side"],
-            order_base_size=order_template["order_base_size"],
-            order_price_difference=order_template["order_price_difference"],
-            start_price=order_template["start_price"],
-            post_only=ORDER_POST_ONLY[order_template["side"]],
+            ORDERBOOK.filled[client_order_id] = True
+
+        order_template_configuration = {
+            "order_id": client_order_id
+        }
+        
+        if is_parent:
+            order_template_configuration["target_movement"] = {
+                "movement": ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["movement"],
+                "type": ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["type"]
+            }
+
+        order_template = deepcopy(
+            ORDERBOOK.calculate_new_order_move(**order_template_configuration)
         )
+
+        new_order_configuration = {
+            "product_id": order_template["product_id"],
+            "side": order_template["side"],
+            "order_base_size": order_template["order_base_size"],
+            "order_price_difference": order_template["order_price_difference"],
+            "start_price": order_template["start_price"],
+            "post_only": ORDER_POST_ONLY[order_template["side"]],
+        }
+
+        new_order = create_limit_order_span(**new_order_configuration)
 
         if new_order[0]["success"] is True:
             print(
@@ -229,6 +263,52 @@ def process_user_order(order):
                 f"avg_price:{order['avg_price']} "
                 f"current_contract_count: {order_template['current_contract_count']} "
             )
+
+
+            if is_parent:
+                ORDERBOOK.parent_order_ids[client_order_id]["orders"].append(new_order[0]["client_order_id"])
+                ORDERBOOK.child_order_ids[new_order[0]["client_order_id"]] = client_order_id
+
+                ORDERBOOK.db_client.insert_order_child(
+                        client_order_id=new_order[0]["client_order_id"],
+                        product_id=new_order[0]["product_id"],
+                        side=new_order[0]["side"],
+                        size=float(new_order[0]["leaves_quantity"]),
+                        price=float(new_order[0]["limit_price"]),
+                        target_movement=float(ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["movement"]),
+                        status=new_order[0]["status"]
+                    )
+            elif client_order_id in ORDERBOOK.child_order_ids:
+                ORDERBOOK.parent_order_ids[ORDERBOOK.child_order_ids[client_order_id]]["orders"].append(new_order[0]["client_order_id"])
+                ORDERBOOK.child_order_ids[new_order[0]["client_order_id"]] = ORDERBOOK.child_order_ids[client_order_id]
+
+                ORDERBOOK.db_client.insert_order_child(
+                        client_order_id=new_order[0]["client_order_id"],
+                        product_id=new_order[0]["product_id"],
+                        side=new_order[0]["side"],
+                        size=float(new_order[0]["leaves_quantity"]),
+                        price=float(new_order[0]["limit_price"]),
+                        target_movement=float(ORDERBOOK.parent_order_ids[ORDERBOOK.child_order_ids[client_order_id]]["target_movement"]),
+                        status=new_order[0]["status"]
+                    )
+
+            else: # this is a new parent order that has not been seen before
+                ORDERBOOK.parent_order_ids[client_order_id] = {
+                    "orders": [new_order[0]["client_order_id"]],
+                    "target_movement": order_template["profit_move_calculated_from_pct"]
+                }
+
+                ORDERBOOK.db_client.insert_order_parent(
+                        client_order_id=new_order[0]["client_order_id"],
+                        product_id=new_order[0]["product_id"],
+                        side=new_order[0]["side"],
+                        size=float(new_order[0]["leaves_quantity"]),
+                        price=float(new_order[0]["limit_price"]),
+                        target_movement=float(ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]),
+                        status=new_order[0]["status"]
+                    )
+
+
         else:
             print(
                 f"{datetime.now()} "
