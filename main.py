@@ -9,6 +9,7 @@ from datetime import datetime, time
 from concurrent.futures import ThreadPoolExecutor
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
+import database.order as db
 from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY
 from order import create_limit_order_span
 
@@ -173,6 +174,18 @@ def process_user_order(order):
     elif status == "OPEN":
         with ORDERBOOK_LOCK:
             ORDERBOOK.order[client_order_id] = order
+        try:
+            db.insert_order_parent(
+                client_order_id=client_order_id,
+                product_id=order["product_id"],
+                side=order["order_side"],
+                size=float(order["leaves_quantity"]),
+                price=float(order["avg_price"]),
+                target_movement=float(ORDERBOOK.profit[order["product_type"]][order["order_side"]]),
+                status=status)
+        except Exception as e:
+            print(f"Error inserting parent order into database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
+
         return
 
     elif status == "FILLED":
