@@ -180,7 +180,7 @@ def process_user_order(order):
                 product_id=order["product_id"],
                 side=order["order_side"],
                 size=float(order["leaves_quantity"]),
-                price=float(order["avg_price"]),
+                price=float(order["limit_price"]),
                 target_movement=float(ORDERBOOK.profit[order["product_type"]][order["order_side"]]),
                 status=status)
         except Exception as e:

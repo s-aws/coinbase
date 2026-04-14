@@ -244,7 +244,3 @@ def get_child_orders(parent_client_order_id: str) -> List[Dict[str, Any]]:
     """
     query = "SELECT * FROM order_child WHERE parent_client_order_id = %s"
     return DB_CLIENT.execute_query(query, (parent_client_order_id,))
-
-if __name__ == "__main__":
-    create_order_parent_table()
-    create_order_child_table()
