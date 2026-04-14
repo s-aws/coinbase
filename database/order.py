@@ -105,7 +105,7 @@ def insert_order_child(
         side: Order side ('BUY' or 'SELL')
         size: Order size
         price: Order price
-        status: Order status (default: 'pending')
+        status: Order status (default: 'PENDING')
     
     Returns:
         Number of rows inserted (1 on success)
@@ -152,7 +152,7 @@ def insert_order_parent_batch(
         side = order.get('side')
         size = order.get('size')
         price = order.get('price')
-        status = order.get('status', 'pending')
+        status = order.get('status', 'PENDING')
         target_movement = order.get('target_movement')
         target_movement_type = order.get('target_movement_type', 'P')
         if not all([client_order_id, product_id, side, size, price, target_movement]):
@@ -193,7 +193,7 @@ def insert_order_child_batch(
         side = order.get('side')
         size = order.get('size')
         price = order.get('price')
-        status = order.get('status', 'pending')
+        status = order.get('status', 'PENDING')
         
         if not all([parent_client_order_id, child_client_order_id, product_id, side, size, price]):
             print(f"Skipping invalid order: {order}")
@@ -219,6 +219,7 @@ def get_parent_order(client_order_id: str) -> Dict[str, Any]:
     results = DB_CLIENT.execute_query(query, (client_order_id,))
     return results[0] if results else None
 
+
 def get_parent_orders() -> List[Dict[str, Any]]:
     """
     Retrieve all parent orders.
@@ -232,6 +233,7 @@ def get_parent_orders() -> List[Dict[str, Any]]:
     query = "SELECT * FROM order_parent"
     return DB_CLIENT.execute_query(query)
 
+
 def get_child_orders(parent_client_order_id: str) -> List[Dict[str, Any]]:
     """
     Retrieve all child orders for a parent order.
@@ -244,3 +246,58 @@ def get_child_orders(parent_client_order_id: str) -> List[Dict[str, Any]]:
     """
     query = "SELECT * FROM order_child WHERE parent_client_order_id = %s"
     return DB_CLIENT.execute_query(query, (parent_client_order_id,))
+
+
+def update_order_parent_status(
+    client_order_id: str,
+    status: str
+) -> int:
+    """
+    Update the status of a parent order.
+    
+    Args:
+        client_order_id: Unique client order identifier
+        status: New status value (e.g., 'PENDING', 'OPEN', 'FILLED', 'CANCELLED', 'FAILED')
+    
+    Returns:
+        Number of rows updated (0 if order not found, 1 on success)
+    """
+    query = "UPDATE order_parent SET status = %s WHERE client_order_id = %s"
+    params = (status, client_order_id)
+    
+    result = DB_CLIENT.execute_update(query, params)
+    if result > 0:
+        print(f"Parent order status updated: {client_order_id} -> {status}")
+    else:
+        print(f"No parent order found with client_order_id: {client_order_id}")
+    return result
+
+
+def update_order_parent_status_batch(
+    status_updates: List[Dict[str, str]]
+) -> int:
+    """
+    Update status for multiple parent orders at once.
+    
+    Args:
+        status_updates: List of dictionaries with keys:
+                       - client_order_id (required)
+                       - status (required)
+    
+    Returns:
+        Total number of rows updated
+    """
+    total_updated = 0
+    
+    for update in status_updates:
+        client_order_id = update.get('client_order_id')
+        status = update.get('status')
+        
+        if not all([client_order_id, status]):
+            print(f"Skipping invalid status update: {update}")
+            continue
+        
+        result = update_order_parent_status(client_order_id, status)
+        total_updated += result
+    
+    return total_updated
