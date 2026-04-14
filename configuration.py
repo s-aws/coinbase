@@ -190,6 +190,8 @@ class OrderBook():
         "FUTURE": get_futures_positions()
     }
 
+    db_client = None # set in main.py to avoid circular import
+
     def calculate_new_order_move(self, order_id) -> dict:
         """ Return the new order after calculations
             the current order is treated as the last filled or cancelled order that we are trying to move from,

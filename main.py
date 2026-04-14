@@ -9,9 +9,9 @@ from datetime import datetime, time
 from concurrent.futures import ThreadPoolExecutor
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
-import database.order as DB_CLIENT
 from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY
 from order import create_limit_order_span
+import database.order as DB_CLIENT
 
 TICKER = {}  # { "BTC-USD" : {} }
 TICKER_LOCK = threading.Lock()
@@ -66,6 +66,8 @@ WEBSOCKET_EVENTS = {
         ]
     }
 }
+
+ORDERBOOK.db_client = DB_CLIENT # set the db client in the orderbook to allow for database interactions when processing events
 
 def __on_open__():
     """ websocket open connection trigger """
@@ -175,7 +177,7 @@ def process_user_order(order):
         with ORDERBOOK_LOCK:
             ORDERBOOK.order[client_order_id] = order
         try:
-            DB_CLIENT.insert_order_parent(
+            ORDERBOOK.db_client.insert_order_parent(
                 client_order_id=client_order_id,
                 product_id=order["product_id"],
                 side=order["order_side"],
