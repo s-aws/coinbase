@@ -98,15 +98,10 @@ def process_user_event(event):
             return
 
         if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
-            processed = []
             for order in event["orders"]:
                 if "client_order_id" not in order:
                     print(f"Missing client_order_id in order event: {order}")
                     continue
-                order_hash = __hash_dict__(order)
-                if order_hash in processed:
-                    continue
-                processed.append(order_hash)
                 process_user_order(order)
 
         if "positions" in event:
