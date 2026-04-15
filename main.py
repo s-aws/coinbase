@@ -94,7 +94,7 @@ def process_user_event(event):
     """Heavy user-channel processing happens off the websocket thread."""
     try:
         if event["type"].upper() not in WEBSOCKET_EVENTS:
-            print(f"Non-update event received: {event}")
+            print(f"Ignoring userevent received: {event}")
             return
 
         if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
@@ -104,7 +104,7 @@ def process_user_event(event):
                     continue
                 process_user_order(order)
 
-        if "positions" in event:
+        elif "positions" in event:
             process_user_snapshot(event)
 
     except Exception as e:
