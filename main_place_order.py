@@ -13,8 +13,8 @@ if __name__ == "__main__":
         side="SELL",
         order_base_size_range={"start": 5, "stop": 10},
         order_price_difference=200,
-        start_price=74395,
-        max_order_count=20,
+        start_price=75000,
+        max_order_count=18,
         post_only=True
     )
     print(json.dumps(orders))
