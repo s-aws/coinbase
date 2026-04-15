@@ -389,11 +389,20 @@ def __on_message__(msg):
         json_msg = json.loads(msg)
         channel = json_msg.get("channel")
 
-        if "events" not in json_msg or channel == "subscriptions" or not channel or channel not in EVENT_QUEUE:
+        if any((
+            "events" not in json_msg,
+            channel == "subscriptions",
+            not channel,
+            channel not in EVENT_QUEUE
+        )):
             return
 
         for event in json_msg["events"]:
-            noisy_events = any(("tickers" in event, "heartbeat_counter" in event, event.get("type") == "snapshot"))
+            noisy_event = any((
+                "tickers" in event,
+                "heartbeat_counter" in event,
+                event.get("type") == "snapshot"
+            ))
 
             event_hash = __hash_dict__(event)
             with SEEN_EVENTS_LOCK:
@@ -403,7 +412,7 @@ def __on_message__(msg):
                 SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET].add(event_hash)
                 EVENT_QUEUE[channel].put(deepcopy(event))
 
-            if not noisy_events:
+            if not noisy_event:
                 print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
 
     except Exception as e:
