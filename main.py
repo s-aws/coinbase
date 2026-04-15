@@ -393,26 +393,18 @@ def __on_message__(msg):
             return
 
         for event in json_msg["events"]:
+            noisy_events = any(("tickers" in event, "heartbeat_counter" in event, event.get("type") == "snapshot"))
 
             event_hash = __hash_dict__(event)
             with SEEN_EVENTS_LOCK:
-                already_seen = False
-
-                for event_bucket in SEEN_EVENTS.values():
-                    if event_hash in event_bucket: # already processed
-                        already_seen = True
-                        break
-
-                if already_seen:
+                if any(event_hash in event_bucket for event_bucket in SEEN_EVENTS.values()): # already processed
                     continue
 
                 SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET].add(event_hash)
                 EVENT_QUEUE[channel].put(deepcopy(event))
-            if "tickers" not in event and "heartbeat_counter" not in event and event.get("type") != "snapshot":
-                print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
 
-    except KeyError as e:
-        print(f"KeyError processing message: {e}: raw: {msg}")
+            if not noisy_events:
+                print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
 
     except Exception as e:
         print(f"Exception processing message: {e}: raw: {msg}")
