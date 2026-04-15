@@ -414,6 +414,10 @@ def __on_message__(msg):
     except KeyError as e:
         print(f"KeyError processing message: {e}: raw: {msg}")
 
+    except Exception as e:
+        print(f"Exception processing message: {e}: raw: {msg}")
+
+
 def rotate_seen_events_buckets():
     """Rotate seen events buckets to allow for aging out old events and preventing memory bloat"""
     while True:
