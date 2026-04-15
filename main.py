@@ -411,8 +411,8 @@ def __on_message__(msg):
                 SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET].add(event_hash)
                 EVENT_QUEUE[channel].put(deepcopy(event))
 
-            if not noisy_event: # for debugging we output everything that isn't a noisy event (tickers / heartbeat / snapshot)
-                print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
+            # if not noisy_event: # for debugging we output everything that isn't a noisy event (tickers / heartbeat / snapshot)
+            #     print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
 
     except Exception as e:
         print(f"Exception processing message: {e}: raw: {msg}")
