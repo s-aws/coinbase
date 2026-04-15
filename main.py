@@ -120,6 +120,10 @@ def process_user_order(order):
     client_order_id = order.get("client_order_id")
     status = order.get("status")
 
+    if "outstanding_hold_amount" in order and status == "FILLED" and float(order["outstanding_hold_amount"]) > 0: # do not treat this as filled until the hold has cleared
+        print(f"{datetime.now()} {threading.current_thread().name} Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} - will not treat as FILLED until hold clears")
+        return
+
     with ORDERBOOK_LOCK:
         ORDERBOOK.order[client_order_id] = order
 
@@ -221,11 +225,6 @@ def process_user_order(order):
 
     elif status == "FILLED":
         is_parent = False
-
-        if "outstanding_hold_amount" in order and float(order["outstanding_hold_amount"]) > 0: # do not treat this as filled until the hold has cleared
-            print(f"{datetime.now()} {threading.current_thread().name} Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} - will not treat as FILLED until hold clears")
-            return
-
 
         with ORDERBOOK_LOCK:
             if ORDERBOOK.should_replace[status] is not True:
