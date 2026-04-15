@@ -69,6 +69,13 @@ WEBSOCKET_EVENTS = {
 
 ORDERBOOK.db_client = DB_CLIENT # set the db client in the orderbook to allow for database interactions when processing events
 
+def __order__limit_price_or_avg_price__(order):
+    """helper function to get the limit price of an order if it exists, otherwise return the average price"""
+    if order.get("limit_price"):
+        return float(order["limit_price"])
+    else:
+        return float(order["avg_price"])
+    
 def __on_open__():
     """ websocket open connection trigger """
     print(
@@ -228,7 +235,7 @@ def process_user_order(order):
                             product_id=order["product_id"],
                             side=order["order_side"],
                             size=float(order["cumulative_quantity"]),
-                            price=float(order["limit_price"]),
+                            price=float(__order__limit_price_or_avg_price__(order)),
                             target_movement=float(ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["movement"]),
                             status=status
                         )
@@ -287,7 +294,7 @@ def process_user_order(order):
                 new_order_product_id = new_order[0]["success_response"]["product_id"]
                 new_order_side = new_order[0]["success_response"]["side"]
                 new_order_size = new_order[0]["order_configuration"]["limit_limit_gtc"]["base_size"]
-                new_order_price = new_order[0]["order_configuration"]["limit_limit_gtc"]["limit_price"]
+                new_order_price = __order__limit_price_or_avg_price__(new_order[0]["order_configuration"]["limit_limit_gtc"])
 
                 if is_parent:
                     ORDERBOOK.parent_order_ids[client_order_id]["orders"].append(new_order_client_order_id)
