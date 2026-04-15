@@ -3,7 +3,7 @@ Order insertion functions for parent and child tables.
 """
 
 from database.database import PostgresDB
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 DB_CLIENT = PostgresDB()
 
@@ -58,7 +58,7 @@ def insert_order_parent(
     target_movement: float,
     target_movement_type: str = "P",
     status: str = "pending"
-) -> int:
+) -> Optional[int]:
     """
     Insert a parent order into the order_parent table.
     
@@ -73,17 +73,27 @@ def insert_order_parent(
         status: Order status (default: 'pending')
     
     Returns:
-        Number of rows inserted (1 on success)
+        The inserted row's ID (serial primary key) on success, None on failure
     """
     query = """
     INSERT INTO order_parent (client_order_id, product_id, side, size, price, status, target_movement, target_movement_type)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    RETURNING id
     """
     params = (client_order_id, product_id, side, size, price, status, target_movement, target_movement_type)
     
-    result = DB_CLIENT.execute_update(query, params)
-    print(f"Parent order inserted: {client_order_id}")
-    return result
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            inserted_id = results[0]['id']
+            print(f"Parent order inserted: {client_order_id} (ID: {inserted_id})")
+            return inserted_id
+        else:
+            print(f"Failed to retrieve inserted order ID for: {client_order_id}")
+            return None
+    except Exception as e:
+        print(f"Error inserting parent order: {e}")
+        return None
 
 
 def insert_order_child(
@@ -105,7 +115,7 @@ def insert_order_child(
         side: Order side ('BUY' or 'SELL')
         size: Order size
         price: Order price
-        status: Order status (default: 'PENDING')
+        status: Order status (default: 'pending')
     
     Returns:
         Number of rows inserted (1 on success)
@@ -126,7 +136,7 @@ def insert_order_child(
 
 def insert_order_parent_batch(
     orders: List[Dict[str, Any]],
-) -> int:
+) -> List[Optional[int]]:
     """
     Insert multiple parent orders at once.
     
@@ -142,9 +152,9 @@ def insert_order_parent_batch(
                 - target_movement_type (optional, default: 'P')
     
     Returns:
-        Total number of rows inserted
+        List of inserted row IDs (None for any that failed)
     """
-    total_inserted = 0
+    inserted_ids = []
     
     for order in orders:
         client_order_id = order.get('client_order_id')
@@ -152,17 +162,18 @@ def insert_order_parent_batch(
         side = order.get('side')
         size = order.get('size')
         price = order.get('price')
-        status = order.get('status', 'PENDING')
+        status = order.get('status', 'pending')
         target_movement = order.get('target_movement')
         target_movement_type = order.get('target_movement_type', 'P')
         if not all([client_order_id, product_id, side, size, price, target_movement]):
             print(f"Skipping invalid order: {order}")
+            inserted_ids.append(None)
             continue
         
-        result = insert_order_parent(client_order_id, product_id, side, size, price, status, target_movement, target_movement_type)
-        total_inserted += result
+        result = insert_order_parent(client_order_id, product_id, side, size, price, target_movement, target_movement_type, status)
+        inserted_ids.append(result)
     
-    return total_inserted
+    return inserted_ids
 
 
 def insert_order_child_batch(
@@ -193,7 +204,7 @@ def insert_order_child_batch(
         side = order.get('side')
         size = order.get('size')
         price = order.get('price')
-        status = order.get('status', 'PENDING')
+        status = order.get('status', 'pending')
         
         if not all([parent_client_order_id, client_order_id, product_id, side, size, price]):
             print(f"Skipping invalid order: {order}")
@@ -257,7 +268,7 @@ def update_order_parent_status(
     
     Args:
         client_order_id: Unique client order identifier
-        status: New status value (e.g., 'PENDING', 'OPEN', 'FILLED', 'CANCELLED', 'FAILED')
+        status: New status value (e.g., 'pending', 'open', 'filled', 'cancelled', 'failed')
     
     Returns:
         Number of rows updated (0 if order not found, 1 on success)
@@ -272,29 +283,6 @@ def update_order_parent_status(
         print(f"No parent order found with client_order_id: {client_order_id}")
     return result
 
-def update_order_child_status(
-    client_order_id: str,
-    status: str
-) -> int:
-    """
-    Update the status of a child order.
-    
-    Args:
-        client_order_id: Unique client order identifier
-        status: New status value (e.g., 'PENDING', 'OPEN', 'FILLED', 'CANCELLED', 'FAILED')
-    
-    Returns:
-        Number of rows updated (0 if order not found, 1 on success)
-    """
-    query = "UPDATE order_child SET status = %s WHERE client_order_id = %s"
-    params = (status, client_order_id)
-    
-    result = DB_CLIENT.execute_update(query, params)
-    if result > 0:
-        print(f"Child order status updated: {client_order_id} -> {status}")
-    else:
-        print(f"No child order found with client_order_id: {client_order_id}")
-    return result
 
 def update_order_parent_status_batch(
     status_updates: List[Dict[str, str]]
@@ -325,6 +313,30 @@ def update_order_parent_status_batch(
     
     return total_updated
 
+def update_order_child_status(
+    client_order_id: str,
+    status: str
+) -> int:
+    """
+    Update the status of a child order.
+    
+    Args:
+        client_order_id: Unique client order identifier
+        status: New status value (e.g., 'pending', 'open', 'filled', 'cancelled', 'failed')
+    
+    Returns:
+        Number of rows updated (0 if order not found, 1 on success)
+    """
+    query = "UPDATE order_child SET status = %s WHERE client_order_id = %s"
+    params = (status, client_order_id)
+    
+    result = DB_CLIENT.execute_update(query, params)
+    if result > 0:
+        print(f"Child order status updated: {client_order_id} -> {status}")
+    else:
+        print(f"No child order found with client_order_id: {client_order_id}")
+    return result
+
 def update_order_child_status_batch(
     status_updates: List[Dict[str, str]]
 ) -> int:
@@ -337,7 +349,7 @@ def update_order_child_status_batch(
                        - status (required)
     
     Returns:
-        Total number of rows updated
+        Number of rows updated (0 if order not found, 1 on success)
     """
     total_updated = 0
     

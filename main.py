@@ -95,7 +95,7 @@ def process_user_event(event):
             process_user_snapshot(event)
 
     except Exception as e:
-        print(f"user event processing error: {e}")
+        print(f"user event processing error: {e} event: {json.dumps(event, indent=4, skipkeys=True)}")
 
 
 def process_user_order(order):
@@ -210,6 +210,7 @@ def process_user_order(order):
 
             if client_order_id not in ORDERBOOK.child_order_ids:
                 if client_order_id not in ORDERBOOK.parent_order_ids:
+
                     ORDERBOOK.parent_order_ids[client_order_id] = {
                         "orders": [],
                         "target_movement": {
@@ -217,6 +218,19 @@ def process_user_order(order):
                             "type": "P"
                         }
                     }
+
+                    parent_id = ORDERBOOK.db_client.insert_order_parent(
+                            client_order_id=client_order_id,
+                            product_id=order["product_id"],
+                            side=order["order_side"],
+                            size=float(order["cumulative_quantity"]),
+                            price=float(order["limit_price"]),
+                            target_movement=float(ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["movement"]),
+                            status=status
+                        )
+
+                    ORDERBOOK.parent_order_ids[client_order_id]["parent_id"] = parent_id
+
                 is_parent = True
 
             ORDERBOOK.filled[client_order_id] = True
@@ -264,49 +278,42 @@ def process_user_order(order):
                 f"current_contract_count: {order_template['current_contract_count']} "
             )
 
+            with ORDERBOOK_LOCK:
+                new_order_client_order_id = new_order[0]["success_response"]["client_order_id"]
+                new_order_product_id = new_order[0]["success_response"]["product_id"]
+                new_order_side = new_order[0]["success_response"]["side"]
+                new_order_size = new_order[0]["order_configuration"]["limit_limit_gtc"]["base_size"]
+                new_order_price = new_order[0]["order_configuration"]["limit_limit_gtc"]["limit_price"]
 
-            if is_parent:
-                ORDERBOOK.parent_order_ids[client_order_id]["orders"].append(new_order[0]["client_order_id"])
-                ORDERBOOK.child_order_ids[new_order[0]["client_order_id"]] = client_order_id
+                if is_parent:
+                    ORDERBOOK.parent_order_ids[client_order_id]["orders"].append(new_order_client_order_id)
+                    ORDERBOOK.child_order_ids[new_order_client_order_id] = client_order_id
 
-                ORDERBOOK.db_client.insert_order_child(
-                        client_order_id=new_order[0]["client_order_id"],
-                        product_id=new_order[0]["product_id"],
-                        side=new_order[0]["side"],
-                        size=float(new_order[0]["leaves_quantity"]),
-                        price=float(new_order[0]["limit_price"]),
-                        target_movement=float(ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["movement"]),
-                        status=new_order[0]["status"]
-                    )
-            elif client_order_id in ORDERBOOK.child_order_ids:
-                ORDERBOOK.parent_order_ids[ORDERBOOK.child_order_ids[client_order_id]]["orders"].append(new_order[0]["client_order_id"])
-                ORDERBOOK.child_order_ids[new_order[0]["client_order_id"]] = ORDERBOOK.child_order_ids[client_order_id]
+                    ORDERBOOK.db_client.insert_order_child(
+                            parent_client_order_id=client_order_id,
+                            client_order_id=new_order_client_order_id,
+                            product_id=new_order_product_id,
+                            side=new_order_side,
+                            size=float(new_order_size),
+                            price=float(new_order_price)
+                        )
+                elif client_order_id in ORDERBOOK.child_order_ids:
+                    ORDERBOOK.parent_order_ids[ORDERBOOK.child_order_ids[client_order_id]]["orders"].append(new_order_client_order_id)
+                    ORDERBOOK.child_order_ids[new_order_client_order_id] = ORDERBOOK.child_order_ids[client_order_id]
 
-                ORDERBOOK.db_client.insert_order_child(
-                        client_order_id=new_order[0]["client_order_id"],
-                        product_id=new_order[0]["product_id"],
-                        side=new_order[0]["side"],
-                        size=float(new_order[0]["leaves_quantity"]),
-                        price=float(new_order[0]["limit_price"]),
-                        target_movement=float(ORDERBOOK.parent_order_ids[ORDERBOOK.child_order_ids[client_order_id]]["target_movement"]),
-                        status=new_order[0]["status"]
-                    )
+                    ORDERBOOK.db_client.insert_order_child(
+                            parent_client_order_id=ORDERBOOK.child_order_ids[client_order_id],
+                            client_order_id=new_order_client_order_id,
+                            product_id=new_order_product_id,
+                            side=new_order_side,
+                            size=float(new_order_size),
+                            price=float(new_order_price)
+                        )
 
-            else: # this is a new parent order that has not been seen before
-                ORDERBOOK.parent_order_ids[client_order_id] = {
-                    "orders": [new_order[0]["client_order_id"]],
-                    "target_movement": order_template["profit_move_calculated_from_pct"]
-                }
+                else: # this is a new parent order that has not been seen before
+                    print(f"WARNING: FILLED order {client_order_id} not found in parent or child order book. Order data: {order}")
 
-                ORDERBOOK.db_client.insert_order_parent(
-                        client_order_id=new_order[0]["client_order_id"],
-                        product_id=new_order[0]["product_id"],
-                        side=new_order[0]["side"],
-                        size=float(new_order[0]["leaves_quantity"]),
-                        price=float(new_order[0]["limit_price"]),
-                        target_movement=float(ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]),
-                        status=new_order[0]["status"]
-                    )
+
 
 
         else:
