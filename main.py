@@ -115,7 +115,7 @@ def process_user_order(order):
     client_order_id = order.get("client_order_id")
     status = order.get("status")
 
-    if any((
+    if all((
         status == "FILLED",
         "outstanding_hold_amount" in order,
         float(order["outstanding_hold_amount"]) > 0
