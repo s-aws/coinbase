@@ -27,7 +27,7 @@ EVENT_QUEUE = {
 
 SEEN_EVENTS_LOCK = threading.Lock()
 SEEN_EVENTS_DEFAULT_BUCKET = 0
-MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS = 10 # how long to keep events in the seen events buckets before rotating out, adjust based on event volume and desired de-duplication window
+MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS = 60 # how long to keep events in the seen events buckets before rotating out, adjust based on event volume and desired de-duplication window
 MAX_SEEN_EVENTS_BUCKETS = 3 # bucket 0 is the newest bucket, each additional bucket is aged. Minimum 2 buckets to ensure we have a "new" and "old" bucket to compare against when de-duplicating events. Increase buckets if you want to allow for more aged events to still be considered for de-duplication, but this will increase memory usage.
 SEEN_EVENTS = {
     i: set() for i in range(MAX_SEEN_EVENTS_BUCKETS)
@@ -69,6 +69,12 @@ WEBSOCKET_EVENTS = {
 
 ORDERBOOK.db_client = DB_CLIENT # set the db client in the orderbook to allow for database interactions when processing events
 
+def __hash_dict__(dictionary):
+    """return a sha256 hash of a dictionary (json serialized)"""
+    dict_string = json.dumps(dictionary, sort_keys=True)
+    return sha256(dict_string.encode()).hexdigest()
+
+
 def __order__limit_price_or_avg_price__(order):
     """helper function to get the limit price of an order if it exists, otherwise return the average price"""
     if order.get("limit_price") and float(order["limit_price"]) > 0:
@@ -97,9 +103,10 @@ def process_user_event(event):
                 if "client_order_id" not in order:
                     print(f"Missing client_order_id in order event: {order}")
                     continue
-                if order["client_order_id"] in processed:
+                order_hash = __hash_dict__(order)
+                if order_hash in processed:
                     continue
-                processed.append(order["client_order_id"])
+                processed.append(order_hash)
                 process_user_order(order)
 
         if "positions" in event:
@@ -214,6 +221,11 @@ def process_user_order(order):
 
     elif status == "FILLED":
         is_parent = False
+
+        if "outstanding_hold_amount" in order and float(order["outstanding_hold_amount"]) > 0: # do not treat this as filled until the hold has cleared
+            print(f"{datetime.now()} {threading.current_thread().name} Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} - will not treat as FILLED until hold clears")
+            return
+
 
         with ORDERBOOK_LOCK:
             if ORDERBOOK.should_replace[status] is not True:
@@ -383,15 +395,17 @@ def __on_message__(msg):
 
         for event in json_msg["events"]:
             if channel == "subscriptions":
-                return
+                continue
 
-            event_hash = sha256(json.dumps(event).encode()).hexdigest()
+            event_hash = __hash_dict__(event)
             with SEEN_EVENTS_LOCK:
                 for event_bucket in SEEN_EVENTS.values():
                     if event_hash in event_bucket: # already processed
-                        return
+                        break
                 SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET].add(event_hash)
                 EVENT_QUEUE[channel].put(deepcopy(event))
+                if "tickers" not in event and "heartbeat_counter" not in event and event.get("type") != "snapshot":
+                    print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
 
     except KeyError as e:
         print(f"KeyError processing message: {e}")
