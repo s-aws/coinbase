@@ -106,7 +106,7 @@ def process_user_order(order):
         ORDERBOOK.order[client_order_id] = order
 
     try:
-        print(f"{datetime.now()} {threading.current_thread().name} Processing user order event for client_order_id: {client_order_id} status: {status}")
+        # print(f"{datetime.now()} {threading.current_thread().name} Processing user order event for client_order_id: {client_order_id} status: {status}")
 
         if client_order_id in ORDERBOOK.child_order_ids:
             ORDERBOOK.db_client.update_order_child_status(
@@ -221,6 +221,7 @@ def process_user_order(order):
                             "type": "P"
                         }
                     }
+
                     print(f"{datetime.now()} {threading.current_thread().name} Creating parent order entry for client_order_id: {client_order_id}")
                     parent_id = ORDERBOOK.db_client.insert_order_parent(
                             client_order_id=client_order_id,
