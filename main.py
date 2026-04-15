@@ -106,17 +106,20 @@ def process_user_order(order):
         ORDERBOOK.order[client_order_id] = order
 
     try:
+        print(f"{datetime.now()} {threading.current_thread().name} Processing user order event for client_order_id: {client_order_id} status: {status}")
+
         if client_order_id in ORDERBOOK.child_order_ids:
-            ORDERBOOK.db_client.update_order_parent_status(
-                client_order_id=client_order_id,
-                status=status)
-        elif client_order_id in ORDERBOOK.parent_order_ids:
             ORDERBOOK.db_client.update_order_child_status(
                 client_order_id=client_order_id,
                 status=status)
 
+        elif client_order_id in ORDERBOOK.parent_order_ids:
+            ORDERBOOK.db_client.update_order_parent_status(
+                client_order_id=client_order_id,
+                status=status)
+
     except Exception as e:
-        print(f"Error updating parent order status in database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
+        print(f"{datetime.now()} {threading.current_thread().name} Error updating parent order status in database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
 
     if status == "SNAPSHOT":
         pass # handled in process_user_snapshot()
@@ -218,7 +221,7 @@ def process_user_order(order):
                             "type": "P"
                         }
                     }
-
+                    print(f"{datetime.now()} {threading.current_thread().name} Creating parent order entry for client_order_id: {client_order_id}")
                     parent_id = ORDERBOOK.db_client.insert_order_parent(
                             client_order_id=client_order_id,
                             product_id=order["product_id"],
@@ -289,6 +292,7 @@ def process_user_order(order):
                     ORDERBOOK.parent_order_ids[client_order_id]["orders"].append(new_order_client_order_id)
                     ORDERBOOK.child_order_ids[new_order_client_order_id] = client_order_id
 
+                    print(f"{datetime.now()} {threading.current_thread().name} Inserting child order for parent client_order_id: {client_order_id} / new child client_order_id: {new_order_client_order_id}")
                     ORDERBOOK.db_client.insert_order_child(
                             parent_client_order_id=client_order_id,
                             client_order_id=new_order_client_order_id,
@@ -301,6 +305,7 @@ def process_user_order(order):
                     ORDERBOOK.parent_order_ids[ORDERBOOK.child_order_ids[client_order_id]]["orders"].append(new_order_client_order_id)
                     ORDERBOOK.child_order_ids[new_order_client_order_id] = ORDERBOOK.child_order_ids[client_order_id]
 
+                    print(f"{datetime.now()} {threading.current_thread().name} Inserting child order for parent client_order_id: {ORDERBOOK.child_order_ids[client_order_id]} / new child client_order_id: {new_order_client_order_id}")
                     ORDERBOOK.db_client.insert_order_child(
                             parent_client_order_id=ORDERBOOK.child_order_ids[client_order_id],
                             client_order_id=new_order_client_order_id,
@@ -311,7 +316,7 @@ def process_user_order(order):
                         )
 
                 else: # this is a new parent order that has not been seen before
-                    print(f"WARNING: FILLED order {client_order_id} not found in parent or child order book. Order data: {order}")
+                    print(f"{datetime.now()} {threading.current_thread().name} WARNING: FILLED order {client_order_id} not found in parent or child order book. Order data: {order}")
 
 
 
