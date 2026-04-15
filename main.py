@@ -115,7 +115,11 @@ def process_user_order(order):
     client_order_id = order.get("client_order_id")
     status = order.get("status")
 
-    if status == "FILLED" and "outstanding_hold_amount" in order and float(order["outstanding_hold_amount"]) > 0: # do not treat this as filled until the hold has cleared
+    if any((
+        status == "FILLED",
+        "outstanding_hold_amount" in order,
+        float(order["outstanding_hold_amount"]) > 0
+    )): # do not treat this as filled until the hold has cleared
         print(f"{datetime.now()} {threading.current_thread().name} Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} - will not treat as FILLED until hold clears")
         return
 
