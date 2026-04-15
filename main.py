@@ -226,10 +226,10 @@ def process_user_order(order):
         is_parent = False
 
         with ORDERBOOK_LOCK:
-            if ORDERBOOK.should_replace[status] is not True:
-                return
-
-            if ORDERBOOK.filled.get(client_order_id):
+            if any((
+                ORDERBOOK.should_replace[status] is not True,
+                ORDERBOOK.filled.get(client_order_id)
+            )):
                 return
 
             if client_order_id not in ORDERBOOK.child_order_ids:
