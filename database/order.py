@@ -104,7 +104,7 @@ def insert_order_child(
     size: float,
     price: float,
     status: str = "pending"
-) -> int:
+) -> Optional[int]:
     """
     Insert a child order into the order_child table.
     
@@ -118,7 +118,7 @@ def insert_order_child(
         status: Order status (default: 'pending')
     
     Returns:
-        Number of rows inserted (1 on success)
+        The inserted row's ID (serial primary key) on success, None on failure
     
     Raises:
         Exception: If parent_client_order_id doesn't exist in order_parent table
@@ -126,12 +126,23 @@ def insert_order_child(
     query = """
     INSERT INTO order_child (parent_client_order_id, client_order_id, product_id, side, size, price, status)
     VALUES (%s, %s, %s, %s, %s, %s, %s)
+    RETURNING id
     """
+
     params = (parent_client_order_id, client_order_id, product_id, side, size, price, status)
-    
-    result = DB_CLIENT.execute_update(query, params)
-    print(f"Child order inserted: {client_order_id} (parent: {parent_client_order_id})")
-    return result
+
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            inserted_id = results[0]['id']
+            print(f"Child order inserted: {client_order_id} (ID: {inserted_id}, parent: {parent_client_order_id})")
+            return inserted_id
+        else:
+            print(f"Failed to retrieve inserted child order ID for: {client_order_id}")
+            return None
+    except Exception as e:
+        print(f"Error inserting child order: {e}")
+        return None
 
 
 def insert_order_parent_batch(

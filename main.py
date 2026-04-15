@@ -303,13 +303,13 @@ def process_user_order(order):
                 f"current_contract_count: {order_template['current_contract_count']} "
             )
 
-            with ORDERBOOK_LOCK:
-                new_order_client_order_id = new_order[0]["success_response"]["client_order_id"]
-                new_order_product_id = new_order[0]["success_response"]["product_id"]
-                new_order_side = new_order[0]["success_response"]["side"]
-                new_order_size = new_order[0]["order_configuration"]["limit_limit_gtc"]["base_size"]
-                new_order_price = __order__limit_price_or_avg_price__(new_order[0]["order_configuration"]["limit_limit_gtc"])
+            new_order_client_order_id = new_order[0]["success_response"]["client_order_id"]
+            new_order_product_id = new_order[0]["success_response"]["product_id"]
+            new_order_side = new_order[0]["success_response"]["side"]
+            new_order_size = new_order[0]["order_configuration"]["limit_limit_gtc"]["base_size"]
+            new_order_price = __order__limit_price_or_avg_price__(new_order[0]["order_configuration"]["limit_limit_gtc"])
 
+            with ORDERBOOK_LOCK:
                 if is_parent:
                     ORDERBOOK.parent_order_ids[client_order_id]["orders"].append(new_order_client_order_id)
                     ORDERBOOK.child_order_ids[new_order_client_order_id] = client_order_id
