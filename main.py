@@ -71,7 +71,7 @@ ORDERBOOK.db_client = DB_CLIENT # set the db client in the orderbook to allow fo
 
 def __order__limit_price_or_avg_price__(order):
     """helper function to get the limit price of an order if it exists, otherwise return the average price"""
-    if order.get("limit_price"):
+    if order.get("limit_price") and float(order["limit_price"]) > 0:
         return float(order["limit_price"])
     else:
         return float(order["avg_price"])
