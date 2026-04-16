@@ -20,6 +20,7 @@ from configuration import (
     apply_calculated_position_update,
     get_futures_positions,
 )
+
 from order import create_limit_order_span
 import database.order as DB_CLIENT
 
