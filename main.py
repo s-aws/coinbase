@@ -490,7 +490,80 @@ def connect_to_websocket():
     except WSClientConnectionClosedException as e:
         print(f"Connection Closed! {e}")
 
+def load_parent_child_order_ids():
+    """
+    Load parent and child client_order_id relationships from the database into:
+      - ORDERBOOK.parent_order_ids
+      - ORDERBOOK.child_order_ids
+
+    Expected in-memory structure:
+      ORDERBOOK.parent_order_ids = {
+          "<parent_client_order_id>": {
+              "parent_id": <db row id>,
+              "orders": [<child_client_order_id>, ...],
+              "target_movement": {
+                  "movement": <numeric>,
+                  "type": "P" or "A"
+              }
+          }
+      }
+
+      ORDERBOOK.child_order_ids = {
+          "<child_client_order_id>": "<parent_client_order_id>"
+      }
+    """
+    print(f"{datetime.now()} {threading.current_thread().name} Loading parent/child order ids from database")
+
+    try:
+        parent_orders = ORDERBOOK.db_client.get_parent_orders()
+    except Exception as e:
+        print(f"{datetime.now()} {threading.current_thread().name} Failed loading parent orders from database: {e}")
+        return
+
+    loaded_parent_count = 0
+    loaded_child_count = 0
+
+    with ORDERBOOK_LOCK:
+        ORDERBOOK.parent_order_ids.clear()
+        ORDERBOOK.child_order_ids.clear()
+
+        for parent in parent_orders:
+            parent_client_order_id = parent["client_order_id"]
+
+            ORDERBOOK.parent_order_ids[parent_client_order_id] = {
+                "parent_id": parent["id"],
+                "orders": [],
+                "target_movement": {
+                    "movement": float(parent["target_movement"]),
+                    "type": parent.get("target_movement_type", "P")
+                }
+            }
+            loaded_parent_count += 1
+
+            try:
+                child_orders = ORDERBOOK.db_client.get_child_orders(parent_client_order_id)
+            except Exception as e:
+                print(
+                    f"{datetime.now()} {threading.current_thread().name} "
+                    f"Failed loading child orders for parent {parent_client_order_id}: {e}"
+                )
+                continue
+
+            for child in child_orders:
+                child_client_order_id = child["client_order_id"]
+
+                ORDERBOOK.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+                ORDERBOOK.child_order_ids[child_client_order_id] = parent_client_order_id
+                loaded_child_count += 1
+
+    print(
+        f"{datetime.now()} {threading.current_thread().name} "
+        f"Loaded {loaded_parent_count} parent orders and {loaded_child_count} child orders into ORDERBOOK"
+    )
+
 if __name__ == "__main__":
+    
+    load_parent_child_order_ids()
 
     # Start a thread to rotate seen events buckets
     threading.Thread(
