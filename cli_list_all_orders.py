@@ -1,7 +1,16 @@
 """ List all orders from the database and print them in a readable format. """
 from database.database import PostgresDB
 
-def main():
+def main() -> None:
+    """
+    Retrieve and display all parent orders from the database.
+    
+    Queries the order_parent table and prints order details in a formatted output.
+    Displays client order ID, product, side, size, price, target movement, and status.
+    
+    Returns:
+        None
+    """
     db = PostgresDB()
     try:
         orders = db.execute_query("SELECT * FROM order_parent")

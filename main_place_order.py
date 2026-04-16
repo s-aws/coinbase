@@ -3,11 +3,18 @@ import json
 from order import create_limit_order_span
 
 if __name__ == "__main__":
+    """
+    Example script demonstrating limit order placement for various products.
+    
+    Creates sample limit orders for derivatives and spot trading pairs.
+    Includes configurable parameters for order sizing, pricing, and delays.
+    """
+
     ##################### PERP 
 
     # BTC
 
-    orders = create_limit_order_span( #size=2, diff=25, count=100, 
+    orders = create_limit_order_span(
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
         side="SELL",
@@ -21,7 +28,7 @@ if __name__ == "__main__":
     print(f"Count: {len(orders)}")
 
     # ETH
-    # orders = create_limit_order_span( #size=5, diff=1 (0.05%), count=20, 
+    # orders = create_limit_order_span(
     #     delay_in_secs=0,
     #     product_id="ETP-20DEC30-CDE",
     #     side="SELL",
@@ -35,7 +42,7 @@ if __name__ == "__main__":
     # print(orders[-1])
 
     # PAXG
-    # orders = create_limit_order_span( #size=1, diff=4.5 (0.1%), count=10,
+    # orders = create_limit_order_span(
     #     delay_in_secs=0,
     #     product_id="PAU-20DEC30-CDE",
     #     side="SELL",
@@ -51,7 +58,7 @@ if __name__ == "__main__":
     ##################### 24 APR 26 #####################
 
     # BTC
-    # orders = create_limit_order_span( #size=2, diff=25, count=100, 
+    # orders = create_limit_order_span(
     #     delay_in_secs=0,
     #     product_id="BIT-24APR26-CDE",
     #     side="BUY",
@@ -80,4 +87,3 @@ if __name__ == "__main__":
 
     # print(f"Count: {len(orders)}")
     # print(orders[-1])
-

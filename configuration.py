@@ -8,17 +8,17 @@ API_KEY = getenv("COINBASE_API_KEY")
 API_SECRET = getenv("COINBASE_API_SECRET")
 
 REST_CLIENT = RESTClient(
-    api_key = API_KEY,
-    api_secret = API_SECRET,
-    rate_limit_headers = True)
+    api_key=API_KEY,
+    api_secret=API_SECRET,
+    rate_limit_headers=True)
 
 ORDER_SIDE_SWITCH = {
     "BUY": "SELL",
     "SELL": "BUY"
 }
 
-ORDER_POST_ONLY = { # allow this to be based on side
-    "BUY": False, # set both to True when testing to keep accidental orders to a min
+ORDER_POST_ONLY = {
+    "BUY": False,
     "SELL": False
 }
 
@@ -29,13 +29,12 @@ ORDER_POSITION_SIDE = {
     "BUY": "LONG"
 }
 
-ORDER_DIRECTION = { # ensure the direction is correct (away from last fill)
-    "SELL": 1, # price gets larger
-    "BUY": -1 # price gets smaller
-    # unless it's backwards day
+ORDER_DIRECTION = {
+    "SELL": 1,
+    "BUY": -1
 }
 
-DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15 # this is the fee per contract that is charged on all future close orders, so we need to factor this into our move calculations to ensure we are still profitable after fees
+DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
 
 DERIVATIVES_PRODUCT_IDS = [
     "BIP-20DEC30-CDE",
@@ -75,26 +74,37 @@ SPOT_PRODUCT_IDS = [
     "SENT-USDC"
 ]
 
-def format_based_on_reference(value_to_format: float, reference_float: str):
+def format_based_on_reference(value_to_format: float, reference_float: str) -> str:
     """
-    Formats a float to match the number of decimal places of a reference float.
+    Format a float to match the number of decimal places of a reference float.
+    
+    Args:
+        value_to_format: The numeric value to format.
+        reference_float: A reference string representing the target format.
+    
+    Returns:
+        A formatted string representation of the value with appropriate decimal places.
     """
-
-    result = "0"
-
     result = f"{value_to_format:.{len(str(reference_float).rsplit('.', maxsplit=1)[-1]) if '.' in str(reference_float) else 0}f}"
-
     return result
 
 
 def quantize_to_increment(value: float, increment: str, direction: str = "nearest") -> float:
     """
-    Quantize value to the given increment only if needed.
-
-    direction:
-        - "down": floor to the nearest valid tick
-        - "up": ceil to the nearest valid tick
-        - "nearest": round to the nearest valid tick
+    Quantize a value to the nearest valid increment.
+    
+    Rounds, floors, or ceils a numeric value to match a specified price/size increment.
+    
+    Args:
+        value: The value to quantize.
+        increment: The increment step as a string (e.g., "0.01").
+        direction: Rounding direction - "down" (floor), "up" (ceil), or "nearest" (round).
+    
+    Returns:
+        The quantized value as a float.
+    
+    Raises:
+        ValueError: If increment is <= 0 or direction is unsupported.
     """
     increment_float = float(increment)
     if increment_float <= 0:
@@ -119,9 +129,12 @@ def quantize_to_increment(value: float, increment: str, direction: str = "neares
     raise ValueError(f"Unsupported direction: {direction}")
 
 def rest_get_account_wallets() -> dict:
-    """ Create a dictionary in the format
-    { "currency1": {}, "currency2": {} } """
-
+    """
+    Retrieve all active account wallets from Coinbase.
+    
+    Returns:
+        A dictionary mapping currency codes to wallet data dictionaries.
+    """
     accounts_list = REST_CLIENT.get_accounts()["accounts"]
 
     account_wallets = {
@@ -131,9 +144,15 @@ def rest_get_account_wallets() -> dict:
     return account_wallets
 
 def rest_get_products() -> dict:
-    """ Create a dictionary in the format
-    { "currency1": {}, "currency2": {} } """
-
+    """
+    Retrieve all trading products from Coinbase.
+    
+    Fetches product information for all configured derivatives and spot products,
+    filtering out trading-disabled products.
+    
+    Returns:
+        A dictionary mapping product IDs to product data dictionaries.
+    """
     products_list = [
         REST_CLIENT.get_product(product_id) for
             product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS]
@@ -145,9 +164,13 @@ def rest_get_products() -> dict:
     return products
 
 def get_futures_positions() -> dict:
-    """ Create a dictionary in the format
-    { "product_id1": {}, "product_id2": {} } """
-
+    """
+    Retrieve all futures positions from Coinbase.
+    
+    Returns:
+        A dictionary mapping product IDs to futures position data dictionaries.
+        Returns empty dict if no positions exist.
+    """
     futures_list = REST_CLIENT.list_futures_positions().to_dict()["positions"]
 
     if futures_list:
@@ -160,10 +183,12 @@ def get_futures_positions() -> dict:
     return positions
 
 def get_open_orders() -> dict:
-    """ Create a dictionary in the format
-    Will fail messily if order does not have a client_order_id (must have it)
-    { "order_id1": {}, "order_id2": {} } """
-
+    """
+    Retrieve all open orders from Coinbase.
+    
+    Returns:
+        A dictionary mapping client order IDs to order data dictionaries.
+    """
     orders_list = REST_CLIENT.list_orders(order_status=["OPEN"]).to_dict()["orders"]
 
     orders = {
@@ -173,8 +198,19 @@ def get_open_orders() -> dict:
     return orders
 
 
-def apply_calculated_position_update(positions, position_update):
-    """Apply a position update returned by calculate_new_order_move_from_snapshot."""
+def apply_calculated_position_update(positions: dict, position_update: dict) -> dict:
+    """
+    Apply a position update returned by calculate_new_order_move_from_snapshot.
+    
+    Updates or creates position entries in the positions dictionary with new values.
+    
+    Args:
+        positions: The positions dictionary to update.
+        position_update: The position update dict with product_type, product_id, and fields.
+    
+    Returns:
+        The updated positions dictionary.
+    """
     if not position_update:
         return positions
 
@@ -190,15 +226,22 @@ def apply_calculated_position_update(positions, position_update):
     return positions
 
 
-
-def calculate_new_order_move_from_snapshot(snapshot, order_id, target_movement=None) -> dict:
-    """Pure order-move calculation using a caller-provided snapshot.
-
-    This function does not perform REST calls and does not mutate the input snapshot.
-    It returns both the new order template and any position update that the caller may
-    optionally apply to live state after a successful placement.
+def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target_movement: dict = None) -> dict:
     """
-
+    Calculate the template for a follow-up order based on a caller-provided snapshot.
+    
+    Computes pricing, sizing, and position updates for the next order in a trading strategy
+    without making REST calls or mutating the input snapshot.
+    
+    Args:
+        snapshot: A snapshot dictionary with order, positions, product, profit, and fee data.
+        order_id: The client order ID to compute template for.
+        target_movement: Optional override for target movement (type "P" or "A" and amount).
+    
+    Returns:
+        A dictionary with computed order template (pricing, sizing) and optional position_update.
+        Returns empty dict if order not found.
+    """
     orders = snapshot.get("order", {})
     positions = deepcopy(snapshot.get("positions", {}))
     products = snapshot.get("product", {})
@@ -316,8 +359,13 @@ def calculate_new_order_move_from_snapshot(snapshot, order_id, target_movement=N
 
 
 class OrderBook():
-    """ Container for Order tracking """
-    transaction_summary = REST_CLIENT.get_transaction_summary() # includes fees
+    """
+    Container and state manager for order tracking and position management.
+    
+    Maintains in-memory state of parent/child orders, positions, profit targets,
+    and product metadata for a trading engine.
+    """
+    transaction_summary = REST_CLIENT.get_transaction_summary()
 
     should_replace = {
         "CANCELLED": True,
@@ -339,8 +387,7 @@ class OrderBook():
         } for product_id, this in product.items()
     }
 
-    active = {
-    }
+    active = {}
 
     profit = {
         "SPOT": {
@@ -361,9 +408,19 @@ class OrderBook():
         "FUTURE": get_futures_positions()
     }
 
-    db_client = None # set in main.py to avoid circular import
+    db_client = None
 
-    def calculate_new_order_move(self, order_id, target_movement=None) -> dict:
+    def calculate_new_order_move(self, order_id: str, target_movement: dict = None) -> dict:
+        """
+        Calculate a new order move using current orderbook snapshot.
+        
+        Args:
+            order_id: The client order ID to compute template for.
+            target_movement: Optional target movement override.
+        
+        Returns:
+            A dictionary with computed order template and applied position updates.
+        """
         snapshot = {
             "order": deepcopy(self.order),
             "positions": deepcopy(self.positions),
@@ -377,8 +434,12 @@ class OrderBook():
         return result
 
 class Subscription():
-    """ Websocket connection details """
-
+    """
+    Configuration for websocket connection to Coinbase.
+    
+    Defines which products and channels to subscribe to for real-time market
+    and account updates.
+    """
     product_ids = DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS
     derivatives_product_ids = DERIVATIVES_PRODUCT_IDS
 

@@ -5,7 +5,16 @@ Drop all tables from the PostgreSQL database.
 from database.database import PostgresDB
 
 
-def main():
+def main() -> None:
+    """
+    Delete all tables from the public schema in the PostgreSQL database.
+    
+    Retrieves all table names and drops them with CASCADE to handle dependencies.
+    Logs table names before deletion.
+    
+    Returns:
+        None
+    """
     db = PostgresDB()
     
     try:
