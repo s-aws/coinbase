@@ -149,6 +149,9 @@ def process_user_order(order):
         return
 
     elif status == "CANCELLED":
+        is_parent = False
+        parent_client_order_id = None
+
         with ORDERBOOK_LOCK:
             if ORDERBOOK.should_replace[status] is not True:
                 return
@@ -157,6 +160,12 @@ def process_user_order(order):
                 return
 
             ORDERBOOK.cancelled[client_order_id] = True
+
+            if client_order_id in ORDERBOOK.parent_order_ids:
+                is_parent = True
+                parent_client_order_id = client_order_id
+            elif client_order_id in ORDERBOOK.child_order_ids:
+                parent_client_order_id = ORDERBOOK.child_order_ids[client_order_id]
 
             order_template = deepcopy(
                 ORDERBOOK.calculate_new_order_move(client_order_id)
@@ -172,7 +181,6 @@ def process_user_order(order):
         )
 
         if new_order[0]["success"] is True:
-
             print(
                 f"{datetime.now()} "
                 f"{threading.current_thread().name} "
@@ -189,6 +197,39 @@ def process_user_order(order):
                 f"avg_price:{order.get('avg_price', 'N/A')} "
                 f"current_contract_count: {order_template['current_contract_count']} "
             )
+
+            new_order_client_order_id = new_order[0]["success_response"]["client_order_id"]
+            new_order_product_id = new_order[0]["success_response"]["product_id"]
+            new_order_side = new_order[0]["success_response"]["side"]
+            new_order_size = new_order[0]["order_configuration"]["limit_limit_gtc"]["base_size"]
+            new_order_price = __order__limit_price_or_avg_price__(
+                new_order[0]["order_configuration"]["limit_limit_gtc"]
+            )
+
+            if parent_client_order_id:
+                with ORDERBOOK_LOCK:
+                    ORDERBOOK.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
+                    ORDERBOOK.child_order_ids[new_order_client_order_id] = parent_client_order_id
+
+                print(
+                    f"{datetime.now()} {threading.current_thread().name} "
+                    f"Inserting child order for parent client_order_id: {parent_client_order_id} / "
+                    f"new child client_order_id: {new_order_client_order_id}"
+                )
+                ORDERBOOK.db_client.insert_order_child(
+                    parent_client_order_id=parent_client_order_id,
+                    client_order_id=new_order_client_order_id,
+                    product_id=new_order_product_id,
+                    side=new_order_side,
+                    size=float(new_order_size),
+                    price=float(new_order_price)
+                )
+            else:
+                print(
+                    f"{datetime.now()} {threading.current_thread().name} "
+                    f"WARNING: CANCELLED order {client_order_id} not found in parent or child order book. "
+                    f"Order data: {order}"
+                )
         else:
             print(
                 f"{datetime.now()} "
