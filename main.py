@@ -490,80 +490,132 @@ def connect_to_websocket():
     except WSClientConnectionClosedException as e:
         print(f"Connection Closed! {e}")
 
-def load_parent_child_order_ids():
+def build_parent_child_order_ids_snapshot():
     """
-    Load parent and child client_order_id relationships from the database into:
-      - ORDERBOOK.parent_order_ids
-      - ORDERBOOK.child_order_ids
+    Build a fresh snapshot of parent/child order relationships from the database.
 
-    Expected in-memory structure:
-      ORDERBOOK.parent_order_ids = {
-          "<parent_client_order_id>": {
-              "parent_id": <db row id>,
-              "orders": [<child_client_order_id>, ...],
-              "target_movement": {
-                  "movement": <numeric>,
-                  "type": "P" or "A"
-              }
-          }
-      }
+    Returns:
+        tuple[dict, dict]:
+            (
+                parent_order_ids,
+                child_order_ids
+            )
 
-      ORDERBOOK.child_order_ids = {
-          "<child_client_order_id>": "<parent_client_order_id>"
-      }
+    parent_order_ids shape:
+    {
+        "<parent_client_order_id>": {
+            "parent_id": <db row id>,
+            "orders": [<child_client_order_id>, ...],
+            "target_movement": {
+                "movement": <numeric>,
+                "type": "P" or "A"
+            }
+        }
+    }
+
+    child_order_ids shape:
+    {
+        "<child_client_order_id>": "<parent_client_order_id>"
+    }
     """
-    print(f"{datetime.now()} {threading.current_thread().name} Loading parent/child order ids from database")
+    parent_order_ids = {}
+    child_order_ids = {}
+
+    parent_orders = ORDERBOOK.db_client.get_parent_orders()
+
+    for parent in parent_orders:
+        parent_client_order_id = parent["client_order_id"]
+
+        parent_order_ids[parent_client_order_id] = {
+            "parent_id": parent["id"],
+            "orders": [],
+            "target_movement": {
+                "movement": float(parent["target_movement"]),
+                "type": parent.get("target_movement_type", "P")
+            }
+        }
+
+        child_orders = ORDERBOOK.db_client.get_child_orders(parent_client_order_id)
+
+        for child in child_orders:
+            child_client_order_id = child["client_order_id"]
+            parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+            child_order_ids[child_client_order_id] = parent_client_order_id
+
+    return parent_order_ids, child_order_ids
+
+
+def load_parent_child_order_ids(force_log=False):
+    """
+    Reconcile ORDERBOOK parent/child order relationships with the database.
+
+    Strategy:
+      1. Read everything from the DB without holding ORDERBOOK_LOCK.
+      2. Build a fresh in-memory snapshot.
+      3. Acquire ORDERBOOK_LOCK briefly.
+      4. Replace only if changed.
+
+    Returns:
+        bool: True if in-memory state changed, False if already in sync or if failed.
+    """
+    if force_log:
+        print(f"{datetime.now()} {threading.current_thread().name} Reconciling parent/child order ids from database")
 
     try:
-        parent_orders = ORDERBOOK.db_client.get_parent_orders()
+        new_parent_order_ids, new_child_order_ids = build_parent_child_order_ids_snapshot()
     except Exception as e:
-        print(f"{datetime.now()} {threading.current_thread().name} Failed loading parent orders from database: {e}")
-        return
+        print(f"{datetime.now()} {threading.current_thread().name} Failed building parent/child snapshot from database: {e}")
+        return False
 
-    loaded_parent_count = 0
-    loaded_child_count = 0
+    loaded_parent_count = len(new_parent_order_ids)
+    loaded_child_count = len(new_child_order_ids)
 
     with ORDERBOOK_LOCK:
-        ORDERBOOK.parent_order_ids.clear()
-        ORDERBOOK.child_order_ids.clear()
-
-        for parent in parent_orders:
-            parent_client_order_id = parent["client_order_id"]
-
-            ORDERBOOK.parent_order_ids[parent_client_order_id] = {
-                "parent_id": parent["id"],
-                "orders": [],
-                "target_movement": {
-                    "movement": float(parent["target_movement"]),
-                    "type": parent.get("target_movement_type", "P")
-                }
-            }
-            loaded_parent_count += 1
-
-            try:
-                child_orders = ORDERBOOK.db_client.get_child_orders(parent_client_order_id)
-            except Exception as e:
+        if all((
+            ORDERBOOK.parent_order_ids == new_parent_order_ids,
+            ORDERBOOK.child_order_ids == new_child_order_ids
+        )):
+            if force_log:
                 print(
                     f"{datetime.now()} {threading.current_thread().name} "
-                    f"Failed loading child orders for parent {parent_client_order_id}: {e}"
+                    f"Parent/child order ids already in sync "
+                    f"({loaded_parent_count} parents / {loaded_child_count} children)"
                 )
-                continue
+            return False
 
-            for child in child_orders:
-                child_client_order_id = child["client_order_id"]
-
-                ORDERBOOK.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
-                ORDERBOOK.child_order_ids[child_client_order_id] = parent_client_order_id
-                loaded_child_count += 1
+        ORDERBOOK.parent_order_ids = new_parent_order_ids
+        ORDERBOOK.child_order_ids = new_child_order_ids
 
     print(
         f"{datetime.now()} {threading.current_thread().name} "
-        f"Loaded {loaded_parent_count} parent orders and {loaded_child_count} child orders into ORDERBOOK"
+        f"Reconciled parent/child order ids from database "
+        f"({loaded_parent_count} parents / {loaded_child_count} children)"
     )
+    return True
+
+
+def reconcile_parent_child_order_ids_periodically(interval_seconds=30):
+    """
+    Periodically reconcile in-memory parent/child order relationships with the database.
+    """
+    while True:
+        try:
+            load_parent_child_order_ids(force_log=False)
+        except Exception as e:
+            print(f"{datetime.now()} {threading.current_thread().name} Periodic reconcile error: {e}")
+
+        sleep(interval_seconds)
 
 if __name__ == "__main__":
-    
-    load_parent_child_order_ids()
+
+    load_parent_child_order_ids(force_log=True)
+
+    threading.Thread(
+        name="parent_child_reconcile_thread",
+        target=reconcile_parent_child_order_ids_periodically,
+        kwargs={"interval_seconds": 30},
+        daemon=True
+    ).start()
 
     # Start a thread to rotate seen events buckets
     threading.Thread(
@@ -580,5 +632,5 @@ if __name__ == "__main__":
 
     while True:
         sleep(1)
-        
+       
     # EVENT_EXECUTOR.shutdown(wait=False, cancel_futures=True)
