@@ -196,6 +196,49 @@ class OrderEngine:
 
         return is_parent, parent_client_order_id
 
+    def claim_follow_up_processing(self, processed_flag_name, client_order_id):
+        """
+        Reserve a source order so only one worker can create a follow-up order for it.
+        Returns:
+            True if this caller won the claim and should continue
+            False if another worker already claimed or completed it
+        """
+        with self.orderbook_lock:
+            processed_flags = getattr(self.orderbook, processed_flag_name, None)
+            if not isinstance(processed_flags, dict):
+                return False
+
+            state = processed_flags.get(client_order_id)
+
+            if state in {"processing", "done", True}:
+                return False
+
+            processed_flags[client_order_id] = "processing"
+            return True
+
+    def release_follow_up_processing(self, processed_flag_name, client_order_id):
+        """
+        Remove a processing reservation after a failed placement so a retry can occur.
+        """
+        with self.orderbook_lock:
+            processed_flags = getattr(self.orderbook, processed_flag_name, None)
+            if not isinstance(processed_flags, dict):
+                return
+
+            if processed_flags.get(client_order_id) == "processing":
+                processed_flags.pop(client_order_id, None)
+
+    def complete_follow_up_processing(self, processed_flag_name, client_order_id):
+        """
+        Mark a source order as fully processed after a successful placement.
+        """
+        with self.orderbook_lock:
+            processed_flags = getattr(self.orderbook, processed_flag_name, None)
+            if not isinstance(processed_flags, dict):
+                return
+
+            processed_flags[client_order_id] = "done"
+
     def on_open(self):
         self.log_message("connection", "Connection Opened!")
 
@@ -360,7 +403,13 @@ class OrderEngine:
 
     def child_order_already_exists(self, parent_client_order_id, order_template):
         if not parent_client_order_id:
-            return False
+            self.log_message(
+                "warning",
+                f"Order {client_order_id} not found in parent or child order book. Order data: {source_order}"
+            )
+            if processed_flag_name:
+                self.release_follow_up_processing(processed_flag_name, client_order_id)
+            return
 
         if hasattr(self.db_client, "child_order_exists"):
             try:
@@ -392,44 +441,55 @@ class OrderEngine:
         with self.orderbook_lock:
             if self.orderbook.should_replace["CANCELLED"] is not True:
                 return
-            if self.orderbook.cancelled.get(client_order_id):
-                return
             _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
-        order_template = self.compute_order_template(client_order_id)
-        if not order_template:
-            self.log_message("warning", f"Could not compute follow-up order template for cancelled order {client_order_id}")
+        if not self.claim_follow_up_processing("cancelled", client_order_id):
             return
 
-        if self.child_order_already_exists(parent_client_order_id, order_template):
-            self.log_message("warning", f"Skipping duplicate child order for parent {parent_client_order_id}")
-            return
+        try:
+            order_template = self.compute_order_template(client_order_id)
+            if not order_template:
+                self.log_message(
+                    "warning",
+                    f"Could not compute follow-up order template for cancelled order {client_order_id}"
+                )
+                self.release_follow_up_processing("cancelled", client_order_id)
+                return
 
-        new_order = create_limit_order_span(
-            product_id=order_template["product_id"],
-            side=order_template["side"],
-            order_base_size=order_template["order_base_size"],
-            order_price_difference=order_template["order_price_difference"],
-            start_price=order_template["start_price"],
-            post_only=self.order_post_only[order_template["side"]],
-        )
+            if self.child_order_already_exists(parent_client_order_id, order_template):
+                self.log_message(
+                    "warning",
+                    f"Skipping duplicate child order for parent {parent_client_order_id}"
+                )
+                self.complete_follow_up_processing("cancelled", client_order_id)
+                return
 
-        self.record_follow_up_order(
-            order,
-            new_order,
-            order_template,
-            parent_client_order_id,
-            processed_flag_name="cancelled",
-        )
+            new_order = create_limit_order_span(
+                product_id=order_template["product_id"],
+                side=order_template["side"],
+                order_base_size=order_template["order_base_size"],
+                order_price_difference=order_template["order_price_difference"],
+                start_price=order_template["start_price"],
+                post_only=self.order_post_only[order_template["side"]],
+            )
+
+            self.record_follow_up_order(
+                order,
+                new_order,
+                order_template,
+                parent_client_order_id,
+                processed_flag_name="cancelled",
+            )
+
+        except Exception:
+            self.release_follow_up_processing("cancelled", client_order_id)
+            raise
 
     def handle_filled_order(self, order):
         client_order_id = order["client_order_id"]
 
         with self.orderbook_lock:
-            if any((
-                self.orderbook.should_replace["FILLED"] is not True,
-                self.orderbook.filled.get(client_order_id),
-            )):
+            if self.orderbook.should_replace["FILLED"] is not True:
                 return
 
             _, parent_client_order_id = self.resolve_parent_client_order_id(
@@ -439,32 +499,51 @@ class OrderEngine:
                 status="FILLED",
             )
 
-        target_movement = self.resolve_parent_target_movement(parent_client_order_id)
-        order_template = self.compute_order_template(client_order_id, target_movement=target_movement)
-        if not order_template:
-            self.log_message("warning", f"Could not compute follow-up order template for filled order {client_order_id}")
+        if not self.claim_follow_up_processing("filled", client_order_id):
             return
 
-        if self.child_order_already_exists(parent_client_order_id, order_template):
-            self.log_message("warning", f"Skipping duplicate child order for parent {parent_client_order_id}")
-            return
+        try:
+            target_movement = self.resolve_parent_target_movement(parent_client_order_id)
+            order_template = self.compute_order_template(
+                client_order_id,
+                target_movement=target_movement,
+            )
+            if not order_template:
+                self.log_message(
+                    "warning",
+                    f"Could not compute follow-up order template for filled order {client_order_id}"
+                )
+                self.release_follow_up_processing("filled", client_order_id)
+                return
 
-        new_order = create_limit_order_span(
-            product_id=order_template["product_id"],
-            side=order_template["side"],
-            order_base_size=order_template["order_base_size"],
-            order_price_difference=order_template["order_price_difference"],
-            start_price=order_template["start_price"],
-            post_only=self.order_post_only[order_template["side"]],
-        )
+            if self.child_order_already_exists(parent_client_order_id, order_template):
+                self.log_message(
+                    "warning",
+                    f"Skipping duplicate child order for parent {parent_client_order_id}"
+                )
+                self.complete_follow_up_processing("filled", client_order_id)
+                return
 
-        self.record_follow_up_order(
-            order,
-            new_order,
-            order_template,
-            parent_client_order_id,
-            processed_flag_name="filled",
-        )
+            new_order = create_limit_order_span(
+                product_id=order_template["product_id"],
+                side=order_template["side"],
+                order_base_size=order_template["order_base_size"],
+                order_price_difference=order_template["order_price_difference"],
+                start_price=order_template["start_price"],
+                post_only=self.order_post_only[order_template["side"]],
+            )
+
+            self.record_follow_up_order(
+                order,
+                new_order,
+                order_template,
+                parent_client_order_id,
+                processed_flag_name="filled",
+            )
+
+        except Exception:
+            self.release_follow_up_processing("filled", client_order_id)
+            raise
 
     def record_follow_up_order(
         self,
@@ -482,6 +561,8 @@ class OrderEngine:
                 f"{client_order_id}:{source_order['order_id']} FAILED TO PLACE "
                 f"{order_template['side']} {order_template['order_base_size']} @ {order_template['start_price']}"
             )
+            if processed_flag_name:
+                self.release_follow_up_processing(processed_flag_name, client_order_id)
             return
 
         success_response = new_order[0]["success_response"]
@@ -511,9 +592,7 @@ class OrderEngine:
             self.orderbook.child_order_ids[new_order_client_order_id] = parent_client_order_id
 
             if processed_flag_name:
-                processed_flags = getattr(self.orderbook, processed_flag_name, None)
-                if isinstance(processed_flags, dict):
-                    processed_flags[client_order_id] = True
+                self.complete_follow_up_processing(processed_flag_name, client_order_id)
 
         self.apply_position_update(order_template)
 

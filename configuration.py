@@ -86,6 +86,38 @@ def format_based_on_reference(value_to_format: float, reference_float: str):
 
     return result
 
+
+def quantize_to_increment(value: float, increment: str, direction: str = "nearest") -> float:
+    """
+    Quantize value to the given increment only if needed.
+
+    direction:
+        - "down": floor to the nearest valid tick
+        - "up": ceil to the nearest valid tick
+        - "nearest": round to the nearest valid tick
+    """
+    increment_float = float(increment)
+    if increment_float <= 0:
+        raise ValueError("increment must be greater than 0")
+
+    remainder = value % increment_float
+
+    if remainder == 0:
+        return value
+
+    if direction == "down":
+        return value - remainder
+
+    if direction == "up":
+        return value + (increment_float - remainder)
+
+    if direction == "nearest":
+        down_value = value - remainder
+        up_value = value + (increment_float - remainder)
+        return down_value if remainder < (increment_float / 2) else up_value
+
+    raise ValueError(f"Unsupported direction: {direction}")
+
 def rest_get_account_wallets() -> dict:
     """ Create a dictionary in the format
     { "currency1": {}, "currency2": {} } """
@@ -252,10 +284,15 @@ def calculate_new_order_move_from_snapshot(snapshot, order_id, target_movement=N
     order_new_price = float(format_based_on_reference(order_new_price, quote_increment))
     order_new_size = float(format_based_on_reference(order_size, base_increment))
 
+    round_direction = "up" if order_side == "SELL" else "down"
+    order_new_price = quantize_to_increment(
+        order_new_price,
+        price_increment,
+        direction=round_direction,
+    )
+
     price_increment_len = len(price_increment) - 2 if len(price_increment) > 3 else 1
     base_increment_len = len(base_increment) - 2 if len(base_increment) > 3 else 1
-
-    order_new_price -= order_new_price % float(price_increment)
 
     current_contract_count = "N/A"
     if order_product_type == "FUTURE":
