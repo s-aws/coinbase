@@ -70,6 +70,15 @@ WEBSOCKET_EVENTS = {
 ORDERBOOK.db_client = DB_CLIENT # set the db client in the orderbook to allow for database interactions when processing events
 
 LOGGING_FLAGS = {
+    "snapshot": True,
+    "open": True,
+    "filled": True,
+    "cancelled": True,
+    "update": True,
+    "user": True,
+    "ticker": False,
+
+
     "connection": True,
     "event": True,
     "order": True,
@@ -434,7 +443,7 @@ def process_user_snapshot(snapshot):
                         "unrealized_pnl": item["unrealized_pnl"],
                         "entry_price": item["entry_price"]
                     }
-                    # print(f"updated snapshot for position: {item['product_id']} {ORDERBOOK.positions['FUTURE'][item['product_id']]}")
+                    log_message("snapshot", f"updated snapshot for position: {item['product_id']} {ORDERBOOK.positions['FUTURE'][item['product_id']]}")
 
 
 def __on_message__(msg):
@@ -500,9 +509,9 @@ def generate_process_event_worker_func(channel):
 
                 if channel == "ticker":
                     with TICKER_LOCK:
+                        log_message("ticker", json.dumps(event, indent=4))
                         for tickr in event["tickers"]:
                             TICKER[tickr["product_id"]] = tickr
-
                 elif channel == "market_trades":
                     pass
 
@@ -510,8 +519,7 @@ def generate_process_event_worker_func(channel):
                     pass
 
                 elif channel == "user":
-                    # print(json.dumps(event, indent=4))
-#                    print(f"{datetime.now()} {threading.current_thread().name} Offloading event to worker: {event}")
+                    log_message("user", json.dumps(event, indent=4))
                     EVENT_EXECUTOR.submit(process_user_event, event)
             finally:
                 EVENT_QUEUE[channel].task_done()
