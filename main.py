@@ -1,4 +1,4 @@
-""" Order Engine """
+""" Main trading engine """
 
 import json
 import threading
@@ -218,10 +218,12 @@ class OrderEngine:
                     if any(event_hash in bucket for bucket in self.seen_events.values()):
                         continue
 
-                    self.seen_events[self.seen_events_default_bucket].add(event_hash)
-
                 try:
                     self.event_queue[channel].put(deepcopy(event), timeout=0.01)
+
+                    with self.seen_events_lock:
+                        self.seen_events[self.seen_events_default_bucket].add(event_hash)
+
                 except Full:
                     self.log_message("warning", f"Event queue full for channel {channel}; dropping event")
 
@@ -391,7 +393,6 @@ class OrderEngine:
                 return
             if self.orderbook.cancelled.get(client_order_id):
                 return
-            self.orderbook.cancelled[client_order_id] = True
             _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
         order_template = self.compute_order_template(client_order_id)
@@ -412,7 +413,13 @@ class OrderEngine:
             post_only=self.order_post_only[order_template["side"]],
         )
 
-        self.record_follow_up_order(order, new_order, order_template, parent_client_order_id)
+        self.record_follow_up_order(
+            order,
+            new_order,
+            order_template,
+            parent_client_order_id,
+            processed_flag_name="cancelled",
+        )
 
     def handle_filled_order(self, order):
         client_order_id = order["client_order_id"]
@@ -430,7 +437,6 @@ class OrderEngine:
                 create_parent=True,
                 status="FILLED",
             )
-            self.orderbook.filled[client_order_id] = True
 
         target_movement = self.resolve_parent_target_movement(parent_client_order_id)
         order_template = self.compute_order_template(client_order_id, target_movement=target_movement)
@@ -451,9 +457,22 @@ class OrderEngine:
             post_only=self.order_post_only[order_template["side"]],
         )
 
-        self.record_follow_up_order(order, new_order, order_template, parent_client_order_id)
+        self.record_follow_up_order(
+            order,
+            new_order,
+            order_template,
+            parent_client_order_id,
+            processed_flag_name="filled",
+        )
 
-    def record_follow_up_order(self, source_order, new_order, order_template, parent_client_order_id):
+    def record_follow_up_order(
+        self,
+        source_order,
+        new_order,
+        order_template,
+        parent_client_order_id,
+        processed_flag_name=None,
+    ):
         client_order_id = source_order["client_order_id"]
 
         if new_order[0]["success"] is not True:
@@ -489,6 +508,11 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
             self.orderbook.child_order_ids[new_order_client_order_id] = parent_client_order_id
+
+            if processed_flag_name:
+                processed_flags = getattr(self.orderbook, processed_flag_name, None)
+                if isinstance(processed_flags, dict):
+                    processed_flags[client_order_id] = True
 
         self.apply_position_update(order_template)
 
