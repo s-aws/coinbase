@@ -13,9 +13,9 @@ if __name__ == "__main__":
         side="SELL",
         order_base_size_range={"start": 10, "stop": 10},
         order_price_difference=100,
-        start_price=75600,
-        max_order_count=3,
-        post_only=True
+        start_price=74000,
+        max_order_count=1,
+        post_only=False
     )
     print(json.dumps(orders))
     print(f"Count: {len(orders)}")

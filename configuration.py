@@ -179,8 +179,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 4
         },
         "FUTURE": {
-            "BUY": 0.0051,
-            "SELL": 0.0051
+            "BUY": 0.0021,
+            "SELL": 0.0021
         },
         "BIP-20DEC30-CDE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 14,
@@ -229,6 +229,8 @@ class OrderBook():
         base_increment = ORDERBOOK.product[order_product_id]["base_increment"]
         quote_increment = ORDERBOOK.product[order_product_id]["quote_increment"]
         price_increment = self.product[order_product_id]["price_increment"]
+        minimum_move_amount = float(price_increment)
+        profit_move_pct = self.profit[order["product_type"]][order["order_side"]]
 
         if order_status == "FILLED":
             order_side = ORDER_SIDE_SWITCH[order_side]
@@ -245,17 +247,15 @@ class OrderBook():
             return {}
 
         # get the two different ways to calculate move amount
-
-        minimum_move_amount = float(price_increment)
-        fee_move_calculated_from_pct = order_float_price * self.profit[order_product_type][order_side]
-
         if target_movement is not None:
             if target_movement.get("type") == "P":
-                fee_move_calculated_from_pct = order_float_price * target_movement["movement"]
+                profit_move_pct = target_movement["movement"]
             elif target_movement.get("type") == "A":
-                fee_move_calculated_from_pct = float(target_movement["movement"])
+                minimum_move_amount = float(target_movement["movement"])
             else:
                 print(f"UNKNOWN TARGET MOVEMENT TYPE {target_movement} - falling back to default profit target for product")
+
+        fee_move_calculated_from_pct = order_float_price * profit_move_pct
 
         order_move_amount = fee_move_calculated_from_pct if (
             minimum_move_amount < fee_move_calculated_from_pct) else minimum_move_amount 
@@ -312,7 +312,7 @@ class OrderBook():
         return {
             "current_contract_count": self.positions[order_product_type][order_product_id]["number_of_contracts"] if order_product_type == "FUTURE" and order_product_id in self.positions.get(order_product_type, {}) else "N/A",
             "mandatory_fee": mandatory_fee,
-            "profit_move_pct": self.profit[order_product_type][order_side],
+            "profit_move_pct": profit_move_pct,
             "fee_move_calculated_from_pct": fee_move_calculated_from_pct,
             "minimum_move_amount": minimum_move_amount,
             "product_id": order_product_id,
