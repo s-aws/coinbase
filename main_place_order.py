@@ -12,9 +12,9 @@ if __name__ == "__main__":
         product_id="BIP-20DEC30-CDE",
         side="SELL",
         order_base_size_range={"start": 10, "stop": 10},
-        order_price_difference=150,
-        start_price=74000,
-        max_order_count=10,
+        order_price_difference=100,
+        start_price=74655,
+        max_order_count=3,
         post_only=True
     )
     print(json.dumps(orders))

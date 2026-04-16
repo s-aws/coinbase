@@ -265,10 +265,7 @@ def process_user_order(order):
         }
         
         if is_parent:
-            order_template_configuration["target_movement"] = {
-                "movement": ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["movement"],
-                "type": ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["type"]
-            }
+            order_template_configuration["target_movement"] = ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]
 
         order_template = deepcopy(
             ORDERBOOK.calculate_new_order_move(**order_template_configuration)
