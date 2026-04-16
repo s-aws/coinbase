@@ -1,242 +1,407 @@
-""" New Coinbase Advanced trading project """
+""" Order Engine """
+
 import json
 import threading
 from time import sleep
 from hashlib import sha256
-from queue import Queue
+from queue import Queue, Full
 from copy import deepcopy
-from datetime import datetime, time
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
-from configuration import Subscription, ORDERBOOK, API_KEY, API_SECRET, ORDER_POST_ONLY
+from configuration import (
+    Subscription,
+    ORDERBOOK,
+    API_KEY,
+    API_SECRET,
+    ORDER_POST_ONLY,
+    calculate_new_order_move_from_snapshot,
+    apply_calculated_position_update,
+    get_futures_positions,
+)
 from order import create_limit_order_span
 import database.order as DB_CLIENT
 
-TICKER = {}  # { "BTC-USD" : {} }
-TICKER_LOCK = threading.Lock()
-ORDERBOOK_LOCK = threading.Lock()
 
-MAX_WORKERS = 16
-EVENT_EXECUTOR = ThreadPoolExecutor(
-    max_workers=MAX_WORKERS,
-    thread_name_prefix="user_event_thread")
-EVENT_QUEUE = {
-    channel: Queue() for channel in Subscription.channels
-}
+class OrderEngine:
+    def __init__(
+        self,
+        orderbook,
+        db_client,
+        subscription,
+        api_key,
+        api_secret,
+        order_post_only,
+        websocket_thread_maximum=3,
+        max_workers=16,
+        max_rotate_seen_events_bucket_seconds=60,
+        max_seen_event_buckets=3,
+        queue_maxsize=10000,
+    ):
+        self.orderbook = orderbook
+        self.db_client = db_client
+        self.subscription = subscription
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.order_post_only = order_post_only
 
-SEEN_EVENTS_LOCK = threading.Lock()
-SEEN_EVENTS_DEFAULT_BUCKET = 0
-MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS = 60 # how long to keep events in the seen events buckets before rotating out, adjust based on event volume and desired de-duplication window
-MAX_SEEN_EVENTS_BUCKETS = 3 # bucket 0 is the newest bucket, each additional bucket is aged. Minimum 2 buckets to ensure we have a "new" and "old" bucket to compare against when de-duplicating events. Increase buckets if you want to allow for more aged events to still be considered for de-duplication, but this will increase memory usage.
-SEEN_EVENTS = {
-    i: set() for i in range(MAX_SEEN_EVENTS_BUCKETS)
-}
+        self.websocket_thread_maximum = websocket_thread_maximum
+        self.max_rotate_seen_events_bucket_seconds = max_rotate_seen_events_bucket_seconds
+        self.max_seen_event_buckets = max_seen_event_buckets
+        self.seen_events_default_bucket = 0
+        self.queue_maxsize = queue_maxsize
 
-WEBSOCKET_THREAD_MAXIMUM = 3
-WEBSOCKET_THREAD_NAME = "websocket_thread"
+        self.ticker = {}
+        self.ticker_lock = threading.Lock()
+        self.orderbook_lock = threading.Lock()
+        self.seen_events_lock = threading.Lock()
 
-WEBSOCKET_EVENTS = {
-    "SNAPSHOT": {
-        "type": "snapshot",
-        "orders": [],
-        "positions": [
-            "perpetual_futures_positions",
-            "expiring_futures_positions"
-        ]
-    },
-    "OPEN": {
-        "type": "open",
-        "orders": []
-    },
-    "FILLED": {
-        "type": "filled",
-        "orders": []
-    },
-    "CANCELLED": {
-        "type": "cancelled",
-        "orders": []
-    },
-    "UPDATE": {
-        "type": "update",
-        "orders": [],
-        "positions": [
-            "perpetual_futures_positions",
-            "expiring_futures_positions"
-        ]
-    }
-}
-
-ORDERBOOK.db_client = DB_CLIENT # set the db client in the orderbook to allow for database interactions when processing events
-
-LOGGING_FLAGS = {
-    "snapshot": True,
-    "open": True,
-    "filled": True,
-    "cancelled": True,
-    "update": True,
-    "user": True,
-    "ticker": False,
-
-
-    "connection": True,
-    "event": True,
-    "order": True,
-    "database": True,
-    "warning": True,
-    "error": True,
-    "reconcile": True,
-}
-
-
-def log_message(log_type, message):
-    """Print a formatted log message when the log type is enabled."""
-    if not LOGGING_FLAGS.get(log_type, False):
-        return
-
-    print(f"{datetime.now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
-
-
-def __hash_dict__(dictionary):
-    """return a sha256 hash of a dictionary (json serialized)"""
-    dict_string = json.dumps(dictionary, sort_keys=True)
-    return sha256(dict_string.encode()).hexdigest()
-
-
-def __order__limit_price_or_avg_price__(order):
-    """helper function to get the limit price of an order if it exists, otherwise return the average price"""
-    if order.get("limit_price") and float(order["limit_price"]) > 0:
-        return float(order["limit_price"])
-    else:
-        return float(order["avg_price"])
-    
-def resolve_parent_client_order_id(client_order_id, order=None, create_parent=False, status=None):
-    """Resolve the parent client_order_id for a known parent/child order.
-
-    Optionally creates a new parent entry in ORDERBOOK and the database when
-    create_parent is True and the order is not already tracked.
-
-    Returns:
-        tuple[bool, str | None]:
-            (
-                is_parent,
-                parent_client_order_id
-            )
-    """
-    is_parent = False
-    parent_client_order_id = None
-
-    if client_order_id in ORDERBOOK.parent_order_ids:
-        is_parent = True
-        parent_client_order_id = client_order_id
-
-    elif client_order_id in ORDERBOOK.child_order_ids:
-        parent_client_order_id = ORDERBOOK.child_order_ids[client_order_id]
-
-    elif create_parent and order is not None:
-        ORDERBOOK.parent_order_ids[client_order_id] = {
-            "orders": [],
-            "target_movement": {
-                "movement": ORDERBOOK.profit[order["product_type"]][order["order_side"]],
-                "type": "P"
-            }
-        }
-
-        log_message("order", f"Creating parent order entry for client_order_id: {client_order_id}")
-        parent_id = ORDERBOOK.db_client.insert_order_parent(
-            client_order_id=client_order_id,
-            product_id=order["product_id"],
-            side=order["order_side"],
-            size=float(order["cumulative_quantity"]),
-            price=float(__order__limit_price_or_avg_price__(order)),
-            target_movement=float(ORDERBOOK.parent_order_ids[client_order_id]["target_movement"]["movement"]),
-            status=status or order.get("status")
+        self.event_executor = ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="user_event_thread",
         )
 
-        ORDERBOOK.parent_order_ids[client_order_id]["parent_id"] = parent_id
-        is_parent = True
-        parent_client_order_id = client_order_id
+        self.event_queue = {
+            channel: Queue(maxsize=self.queue_maxsize)
+            for channel in self.subscription.channels
+        }
 
-    return is_parent, parent_client_order_id
+        self.seen_events = {
+            i: set() for i in range(self.max_seen_event_buckets)
+        }
 
+        self.logging_flags = {
+            "snapshot": False,
+            "open": True,
+            "filled": True,
+            "cancelled": True,
+            "update": True,
+            "user": False,
+            "ticker": False,
+            "connection": True,
+            "event": True,
+            "order": True,
+            "database": True,
+            "warning": True,
+            "error": True,
+            "reconcile": True,
+        }
 
-def __on_open__():
-    """ websocket open connection trigger """
-    log_message("connection", "Connection Opened!")
+        self.websocket_events = {
+            "SNAPSHOT": {
+                "type": "snapshot",
+                "orders": [],
+                "positions": [
+                    "perpetual_futures_positions",
+                    "expiring_futures_positions",
+                ],
+            },
+            "OPEN": {"type": "open", "orders": []},
+            "FILLED": {"type": "filled", "orders": []},
+            "CANCELLED": {"type": "cancelled", "orders": []},
+            "UPDATE": {
+                "type": "update",
+                "orders": [],
+                "positions": [
+                    "perpetual_futures_positions",
+                    "expiring_futures_positions",
+                ],
+            },
+        }
 
+        self.orderbook.db_client = self.db_client
 
-def process_user_event(event):
-    """Heavy user-channel processing happens off the websocket thread."""
-    try:
-        if event["type"].upper() not in WEBSOCKET_EVENTS:
-            log_message("event", f"Ignoring user event received: {event}")
+    def log_message(self, log_type, message):
+        if not self.logging_flags.get(log_type, False):
+            return
+        print(f"{datetime.now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
+
+    @staticmethod
+    def hash_dict(dictionary):
+        dict_string = json.dumps(dictionary, sort_keys=True)
+        return sha256(dict_string.encode()).hexdigest()
+
+    @staticmethod
+    def order_limit_price_or_avg_price(order):
+        if order.get("limit_price") and float(order["limit_price"]) > 0:
+            return float(order["limit_price"])
+        return float(order["avg_price"])
+
+    def get_orderbook_snapshot(self):
+        with self.orderbook_lock:
+            return {
+                "order": deepcopy(self.orderbook.order),
+                "positions": deepcopy(self.orderbook.positions),
+                "product": self.orderbook.product,
+                "profit": self.orderbook.profit,
+                "mandatory_fee_per_contract": self.orderbook.mandatory_fee_per_contract,
+                "parent_order_ids": deepcopy(self.orderbook.parent_order_ids),
+                "child_order_ids": deepcopy(self.orderbook.child_order_ids),
+            }
+
+    def refresh_positions_if_needed(self, product_id):
+        with self.orderbook_lock:
+            future_positions = self.orderbook.positions.setdefault("FUTURE", {})
+            if product_id in future_positions:
+                return
+
+        try:
+            refreshed_positions = get_futures_positions()
+        except Exception as e:
+            self.log_message("error", f"Failed to refresh futures positions for {product_id}: {e}")
             return
 
-        if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
-            for order in event["orders"]:
-                if "client_order_id" not in order:
-                    log_message("warning", f"Missing client_order_id in order event: {order}")
-                    continue
-                process_user_order(order)
+        with self.orderbook_lock:
+            self.orderbook.positions["FUTURE"] = refreshed_positions
 
-        elif "positions" in event:
-            process_user_snapshot(event)
+    def resolve_parent_client_order_id(self, client_order_id, order=None, create_parent=False, status=None):
+        is_parent = False
+        parent_client_order_id = None
 
-    except Exception as e:
-        log_message("error", f"user event processing error: {e} event: {json.dumps(event, indent=4, skipkeys=True)}")
+        if client_order_id in self.orderbook.parent_order_ids:
+            is_parent = True
+            parent_client_order_id = client_order_id
 
+        elif client_order_id in self.orderbook.child_order_ids:
+            parent_client_order_id = self.orderbook.child_order_ids[client_order_id]
 
-def process_user_order(order):
-    client_order_id = order.get("client_order_id")
-    status = order.get("status")
+        elif create_parent and order is not None:
+            self.orderbook.parent_order_ids[client_order_id] = {
+                "orders": [],
+                "target_movement": {
+                    "movement": self.orderbook.profit[order["product_type"]][order["order_side"]],
+                    "type": "P",
+                },
+            }
 
-    if all((
-        status == "FILLED",
-        "outstanding_hold_amount" in order,
-        float(order["outstanding_hold_amount"]) > 0
-    )): # do not treat this as filled until the hold has cleared
-        log_message("order", f"Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} - will not treat as FILLED until hold clears")
-        return
+            self.log_message("order", f"Creating parent order entry for client_order_id: {client_order_id}")
 
-    with ORDERBOOK_LOCK:
-        ORDERBOOK.order[client_order_id] = order
-
-    try:
-        # print(f"{datetime.now()} {threading.current_thread().name} Processing user order event for client_order_id: {client_order_id} status: {status}")
-
-        if client_order_id in ORDERBOOK.child_order_ids:
-            ORDERBOOK.db_client.update_order_child_status(
+            parent_id = self.db_client.insert_order_parent(
                 client_order_id=client_order_id,
-                status=status)
-
-        elif client_order_id in ORDERBOOK.parent_order_ids:
-            ORDERBOOK.db_client.update_order_parent_status(
-                client_order_id=client_order_id,
-                status=status)
-
-    except Exception as e:
-        log_message("error", f"Error updating parent order status in database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
-
-    if status == "SNAPSHOT":
-        pass # handled in process_user_snapshot()
-
-    elif status == "CANCEL_QUEUED":
-        return
-
-    elif status == "CANCELLED":
-        with ORDERBOOK_LOCK:
-            if ORDERBOOK.should_replace[status] is not True:
-                return
-
-            if ORDERBOOK.cancelled.get(client_order_id):
-                return
-
-            ORDERBOOK.cancelled[client_order_id] = True
-            _, parent_client_order_id = resolve_parent_client_order_id(client_order_id)
-
-            order_template = deepcopy(
-                ORDERBOOK.calculate_new_order_move(client_order_id)
+                product_id=order["product_id"],
+                side=order["order_side"],
+                size=float(order["cumulative_quantity"]),
+                price=float(self.order_limit_price_or_avg_price(order)),
+                target_movement=float(
+                    self.orderbook.parent_order_ids[client_order_id]["target_movement"]["movement"]
+                ),
+                status=status or order.get("status"),
             )
+
+            self.orderbook.parent_order_ids[client_order_id]["parent_id"] = parent_id
+            is_parent = True
+            parent_client_order_id = client_order_id
+
+        return is_parent, parent_client_order_id
+
+    def on_open(self):
+        self.log_message("connection", "Connection Opened!")
+
+    def on_message(self, msg):
+        try:
+            json_msg = json.loads(msg)
+            channel = json_msg.get("channel")
+
+            if any((
+                "events" not in json_msg,
+                channel == "subscriptions",
+                not channel,
+                channel not in self.event_queue,
+            )):
+                return
+
+            for event in json_msg["events"]:
+                event_hash = self.hash_dict(event)
+
+                with self.seen_events_lock:
+                    if any(event_hash in bucket for bucket in self.seen_events.values()):
+                        continue
+
+                    self.seen_events[self.seen_events_default_bucket].add(event_hash)
+
+                try:
+                    self.event_queue[channel].put(deepcopy(event), timeout=0.01)
+                except Full:
+                    self.log_message("warning", f"Event queue full for channel {channel}; dropping event")
+
+        except Exception as e:
+            self.log_message("error", f"Exception processing message: {e}: raw: {msg}")
+
+    def process_user_event(self, event):
+        try:
+            if event["type"].upper() not in self.websocket_events:
+                self.log_message("event", f"Ignoring user event received: {event}")
+                return
+
+            if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
+                for order in event["orders"]:
+                    if "client_order_id" not in order:
+                        self.log_message("warning", f"Missing client_order_id in order event: {order}")
+                        continue
+                    self.process_user_order(order)
+
+            elif "positions" in event:
+                self.process_user_snapshot(event)
+
+        except Exception as e:
+            self.log_message(
+                "error",
+                f"user event processing error: {e} event: {json.dumps(event, indent=4, skipkeys=True)}"
+            )
+
+    def process_user_snapshot(self, snapshot):
+        for _, items in snapshot["positions"].items():
+            if not items:
+                continue
+
+            for item in items:
+                with self.orderbook_lock:
+                    self.orderbook.positions["FUTURE"][item["product_id"]] = {
+                        "side": item["side"].upper(),
+                        "number_of_contracts": item["number_of_contracts"],
+                        "realized_pnl": item["realized_pnl"],
+                        "unrealized_pnl": item["unrealized_pnl"],
+                        "entry_price": item["entry_price"],
+                    }
+
+                self.log_message(
+                    "snapshot",
+                    f"updated snapshot for position: {item['product_id']} "
+                    f"{self.orderbook.positions['FUTURE'][item['product_id']]}"
+                )
+
+    def process_user_order(self, order):
+        client_order_id = order.get("client_order_id")
+        status = order.get("status")
+
+        if all((
+            status == "FILLED",
+            "outstanding_hold_amount" in order,
+            float(order["outstanding_hold_amount"]) > 0,
+        )):
+            self.log_message(
+                "order",
+                f"Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} "
+                "will not treat as FILLED until hold clears"
+            )
+            return
+
+        with self.orderbook_lock:
+            self.orderbook.order[client_order_id] = order
+
+        try:
+            if client_order_id in self.orderbook.child_order_ids:
+                self.db_client.update_order_child_status(
+                    client_order_id=client_order_id,
+                    status=status,
+                )
+            elif client_order_id in self.orderbook.parent_order_ids:
+                self.db_client.update_order_parent_status(
+                    client_order_id=client_order_id,
+                    status=status,
+                )
+        except Exception as e:
+            self.log_message(
+                "error",
+                f"Error updating order status in database: {e}, "
+                f"order data: {json.dumps(order, indent=4, skipkeys=True)}"
+            )
+
+        if status == "SNAPSHOT":
+            return
+        if status == "CANCEL_QUEUED":
+            return
+        if status == "PENDING":
+            return
+        if status == "FAILED":
+            self.log_message("error", f"Order failed: {order}")
+            with self.orderbook_lock:
+                self.orderbook.order.pop(client_order_id, None)
+            return
+        if status == "OPEN":
+            return
+        if status == "CANCELLED":
+            self.handle_cancelled_order(order)
+            return
+        if status == "FILLED":
+            self.handle_filled_order(order)
+            return
+
+        self.log_message("warning", f"UNRECOGNIZED STATUS {status}")
+
+    def apply_position_update(self, order_template):
+        position_update = order_template.get("position_update")
+        if not position_update:
+            return
+        with self.orderbook_lock:
+            apply_calculated_position_update(self.orderbook.positions, position_update)
+
+    def compute_order_template(self, client_order_id, target_movement=None):
+        snapshot = self.get_orderbook_snapshot()
+        order = snapshot["order"].get(client_order_id)
+        if not order:
+            return {}
+
+        if order.get("product_type") == "FUTURE":
+            product_id = order.get("product_id")
+            if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
+                self.refresh_positions_if_needed(product_id)
+                snapshot = self.get_orderbook_snapshot()
+
+        return calculate_new_order_move_from_snapshot(
+            snapshot,
+            order_id=client_order_id,
+            target_movement=target_movement,
+        )
+
+    def child_order_already_exists(self, parent_client_order_id, order_template):
+        if not parent_client_order_id:
+            return False
+
+        if hasattr(self.db_client, "child_order_exists"):
+            try:
+                return bool(self.db_client.child_order_exists(
+                    parent_client_order_id=parent_client_order_id,
+                    product_id=order_template["product_id"],
+                    side=order_template["side"],
+                    size=float(order_template["order_base_size"]),
+                    price=float(order_template["start_price"]),
+                ))
+            except TypeError:
+                try:
+                    return bool(self.db_client.child_order_exists(parent_client_order_id, order_template))
+                except Exception as e:
+                    self.log_message("warning", f"child_order_exists check failed: {e}")
+            except Exception as e:
+                self.log_message("warning", f"child_order_exists check failed: {e}")
+
+        return False
+
+    def resolve_parent_target_movement(self, parent_client_order_id):
+        with self.orderbook_lock:
+            parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
+            return deepcopy(parent.get("target_movement"))
+
+    def handle_cancelled_order(self, order):
+        client_order_id = order["client_order_id"]
+
+        with self.orderbook_lock:
+            if self.orderbook.should_replace["CANCELLED"] is not True:
+                return
+            if self.orderbook.cancelled.get(client_order_id):
+                return
+            self.orderbook.cancelled[client_order_id] = True
+            _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+
+        order_template = self.compute_order_template(client_order_id)
+        if not order_template:
+            self.log_message("warning", f"Could not compute follow-up order template for cancelled order {client_order_id}")
+            return
+
+        if self.child_order_already_exists(parent_client_order_id, order_template):
+            self.log_message("warning", f"Skipping duplicate child order for parent {parent_client_order_id}")
+            return
 
         new_order = create_limit_order_span(
             product_id=order_template["product_id"],
@@ -244,458 +409,266 @@ def process_user_order(order):
             order_base_size=order_template["order_base_size"],
             order_price_difference=order_template["order_price_difference"],
             start_price=order_template["start_price"],
-            post_only=ORDER_POST_ONLY[order_template["side"]],
+            post_only=self.order_post_only[order_template["side"]],
         )
 
-        if new_order[0]["success"] is True:
-            log_message(
-                "order",
-                f"{client_order_id}:{order['order_id']} "
-                f"{order['product_id']} "
-                f"{order['order_side']} "
-                f"{order['cumulative_quantity']} @ {order['limit_price']} => "
-                f"{order_template['side']} "
-                f"{order_template['order_base_size']} @ {order_template['start_price']} "
-                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
-                f"{order_template['fee_move_calculated_from_pct']} "
-                f"minimum_move_amount: {order_template['minimum_move_amount']} "
-                f"total_fees:{order.get('total_fees', 'N/A')} "
-                f"avg_price:{order.get('avg_price', 'N/A')} "
-                f"current_contract_count: {order_template['current_contract_count']} "
-            )
+        self.record_follow_up_order(order, new_order, order_template, parent_client_order_id)
 
-            new_order_client_order_id = new_order[0]["success_response"]["client_order_id"]
-            new_order_product_id = new_order[0]["success_response"]["product_id"]
-            new_order_side = new_order[0]["success_response"]["side"]
-            new_order_size = new_order[0]["order_configuration"]["limit_limit_gtc"]["base_size"]
-            new_order_price = __order__limit_price_or_avg_price__(
-                new_order[0]["order_configuration"]["limit_limit_gtc"]
-            )
+    def handle_filled_order(self, order):
+        client_order_id = order["client_order_id"]
 
-            if parent_client_order_id:
-                with ORDERBOOK_LOCK:
-                    ORDERBOOK.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
-                    ORDERBOOK.child_order_ids[new_order_client_order_id] = parent_client_order_id
-
-                log_message(
-                    "database",
-                    f"Inserting child order for parent client_order_id: {parent_client_order_id} / "
-                    f"new child client_order_id: {new_order_client_order_id}"
-                )
-                ORDERBOOK.db_client.insert_order_child(
-                    parent_client_order_id=parent_client_order_id,
-                    client_order_id=new_order_client_order_id,
-                    product_id=new_order_product_id,
-                    side=new_order_side,
-                    size=float(new_order_size),
-                    price=float(new_order_price)
-                )
-            else:
-                log_message(
-                    "warning",
-                    f"CANCELLED order {client_order_id} not found in parent or child order book. "
-                    f"Order data: {order}"
-                )
-        else:
-            log_message(
-                "error",
-                f"{client_order_id}:{order['order_id']} "
-                f"{order['product_id']} "
-                f"{order['order_side']} "
-                f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE "
-                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
-                f"{order_template['fee_move_calculated_from_pct']} "
-                f"minimum_move_amount: {order_template['minimum_move_amount']} "
-                f"total_fees:{order.get('total_fees', 'N/A')} "
-                f"avg_price:{order.get('avg_price', 'N/A')} "
-                f"current_contract_count: {order_template['current_contract_count']} "
-            )
-
-    elif status == "PENDING":
-        # print(f"Order pending: {order}")
-        with ORDERBOOK_LOCK:
-            ORDERBOOK.order[client_order_id] = order
-
-    elif status == "FAILED":
-        log_message("error", f"Order failed: {order}")
-        with ORDERBOOK_LOCK:
-            ORDERBOOK.order.pop(client_order_id, None) # remove failed order from orderbook
-
-        return
-
-    elif status == "OPEN":
-        pass
-
-        return
-
-    elif status == "FILLED":
-        with ORDERBOOK_LOCK:
+        with self.orderbook_lock:
             if any((
-                ORDERBOOK.should_replace[status] is not True,
-                ORDERBOOK.filled.get(client_order_id)
+                self.orderbook.should_replace["FILLED"] is not True,
+                self.orderbook.filled.get(client_order_id),
             )):
                 return
 
-            is_parent, parent_client_order_id = resolve_parent_client_order_id(
+            _, parent_client_order_id = self.resolve_parent_client_order_id(
                 client_order_id,
                 order=order,
                 create_parent=True,
-                status=status
+                status="FILLED",
             )
+            self.orderbook.filled[client_order_id] = True
 
-            ORDERBOOK.filled[client_order_id] = True
-
-        order_template_configuration = {
-            "order_id": client_order_id,
-            "target_movement": ORDERBOOK.parent_order_ids[parent_client_order_id]["target_movement"]
-        }
-
-        order_template = deepcopy(
-            ORDERBOOK.calculate_new_order_move(**order_template_configuration)
-        )
-
-        new_order_configuration = {
-            "product_id": order_template["product_id"],
-            "side": order_template["side"],
-            "order_base_size": order_template["order_base_size"],
-            "order_price_difference": order_template["order_price_difference"],
-            "start_price": order_template["start_price"],
-            "post_only": ORDER_POST_ONLY[order_template["side"]],
-        }
-
-        new_order = create_limit_order_span(**new_order_configuration)
-
-        if new_order[0]["success"] is True:
-            log_message(
-                "order",
-                f"{client_order_id}:{order['order_id']} "
-                f"{order['order_side']} "
-                f"{order['product_id']} "
-                f"{order['cumulative_quantity']} @ {order['limit_price']} => "
-                f"{order_template['side']} "
-                f"{order_template['order_base_size']} @ {order_template['start_price']} "
-                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
-                f"{order_template['fee_move_calculated_from_pct']} "
-                f"minimum_move_amount: {order_template['minimum_move_amount']} "
-                f"total_fees:{order['total_fees']} "
-                f"avg_price:{order['avg_price']} "
-                f"current_contract_count: {order_template['current_contract_count']} "
-            )
-
-            new_order_client_order_id = new_order[0]["success_response"]["client_order_id"]
-            new_order_product_id = new_order[0]["success_response"]["product_id"]
-            new_order_side = new_order[0]["success_response"]["side"]
-            new_order_size = new_order[0]["order_configuration"]["limit_limit_gtc"]["base_size"]
-            new_order_price = __order__limit_price_or_avg_price__(new_order[0]["order_configuration"]["limit_limit_gtc"])
-
-            if parent_client_order_id:
-                with ORDERBOOK_LOCK:
-                    ORDERBOOK.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
-                    ORDERBOOK.child_order_ids[new_order_client_order_id] = parent_client_order_id
-
-                log_message("database", f"Inserting child order for parent client_order_id: {parent_client_order_id} / new child client_order_id: {new_order_client_order_id}")
-                ORDERBOOK.db_client.insert_order_child(
-                        parent_client_order_id=parent_client_order_id,
-                        client_order_id=new_order_client_order_id,
-                        product_id=new_order_product_id,
-                        side=new_order_side,
-                        size=float(new_order_size),
-                        price=float(new_order_price)
-                    )
-            else:
-                log_message("warning", f"FILLED order {client_order_id} not found in parent or child order book. Order data: {order}")
-
-
-
-
-        else:
-            log_message(
-                "error",
-                f"{client_order_id}:{order['order_id']} "
-                f"{order['order_side']} "
-                f"{order['product_id']} "
-                f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE "
-                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
-                f"{order_template['fee_move_calculated_from_pct']} "
-                f"minimum_move_amount: {order_template['minimum_move_amount']} "
-                f"total_fees:{order['total_fees']} "
-                f"avg_price:{order['avg_price']} "
-                f"current_contract_count: {order_template['current_contract_count']} "
-            )
-
-    else:
-        log_message("warning", f"UNRECOGNIZED STATUS {status}")
-
-def process_user_snapshot(snapshot):
-    """process the user snapshot event from the websocket / user channel
-    
-    {'product_id': 'BIT-24APR26-CDE', 'side': 'Long', 'number_of_contracts': '776', 'realized_pnl': '-197.19190281971428568', 'unrealized_pnl': '-14201.408099180285714064', 'entry_price': '72955.0783632964285714'}
-    
-    """
-    for _, items in snapshot["positions"].items():
-        if items:
-            for item in items:
-                with ORDERBOOK_LOCK:
-                    ORDERBOOK.positions["FUTURE"][item["product_id"]] = {
-                        "side": item["side"].upper(),
-                        "number_of_contracts": item["number_of_contracts"],
-                        "realized_pnl": item["realized_pnl"],
-                        "unrealized_pnl": item["unrealized_pnl"],
-                        "entry_price": item["entry_price"]
-                    }
-                    log_message("snapshot", f"updated snapshot for position: {item['product_id']} {ORDERBOOK.positions['FUTURE'][item['product_id']]}")
-
-
-def __on_message__(msg):
-    """message trigger with deduplication against seen events to prevent re-processing the same event multiple times"""
-    try:
-        json_msg = json.loads(msg)
-        channel = json_msg.get("channel")
-
-        if any((
-            "events" not in json_msg,
-            channel == "subscriptions",
-            not channel,
-            channel not in EVENT_QUEUE
-        )):
+        target_movement = self.resolve_parent_target_movement(parent_client_order_id)
+        order_template = self.compute_order_template(client_order_id, target_movement=target_movement)
+        if not order_template:
+            self.log_message("warning", f"Could not compute follow-up order template for filled order {client_order_id}")
             return
 
-        for event in json_msg["events"]:
-            noisy_event = any((
-                "tickers" in event,
-                "heartbeat_counter" in event,
-                event.get("type") == "snapshot"
-            ))
+        if self.child_order_already_exists(parent_client_order_id, order_template):
+            self.log_message("warning", f"Skipping duplicate child order for parent {parent_client_order_id}")
+            return
 
-            event_hash = __hash_dict__(event)
-            with SEEN_EVENTS_LOCK:
-                if any(event_hash in event_bucket for event_bucket in SEEN_EVENTS.values()): # already processed
-                    continue
+        new_order = create_limit_order_span(
+            product_id=order_template["product_id"],
+            side=order_template["side"],
+            order_base_size=order_template["order_base_size"],
+            order_price_difference=order_template["order_price_difference"],
+            start_price=order_template["start_price"],
+            post_only=self.order_post_only[order_template["side"]],
+        )
 
-                SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET].add(event_hash)
-                EVENT_QUEUE[channel].put(deepcopy(event))
+        self.record_follow_up_order(order, new_order, order_template, parent_client_order_id)
 
-            # if not noisy_event: # for debugging we output everything that isn't a noisy event (tickers / heartbeat / snapshot)
-            #     print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
+    def record_follow_up_order(self, source_order, new_order, order_template, parent_client_order_id):
+        client_order_id = source_order["client_order_id"]
 
-    except Exception as e:
-        log_message("error", f"Exception processing message: {e}: raw: {msg}")
-
-
-def rotate_seen_events_buckets():
-    """Rotate seen events buckets to allow for aging out old events and preventing memory bloat"""
-    while True:
-        with SEEN_EVENTS_LOCK:
-            # Rotate buckets
-            for i in range(MAX_SEEN_EVENTS_BUCKETS - 1, 0, -1):
-                SEEN_EVENTS[i] = SEEN_EVENTS[i-1]
-            SEEN_EVENTS[SEEN_EVENTS_DEFAULT_BUCKET] = set() # reset the newest bucket
-            rotated_bucket_results = {i: len(bucket) for i, bucket in SEEN_EVENTS.items()}
-            # print(
-            #     f"{datetime.now()} {threading.current_thread().name} "
-            #     "Cleared bucket index: 0, "
-            #     f"current bucket index: sizes: {rotated_bucket_results}")
-        sleep(MAX_ROTATE_SEEN_EVENTS_BUCKETS_IN_SECONDS) # rotate every N seconds
-
-def generate_process_event_worker_func(channel):
-    """ Worker function to process events off the queue """
-    def worker():
-        while True:
-            event = EVENT_QUEUE[channel].get()
-            # Process the event based on channel
-            try:
-                if channel == "heartbeat":
-                    pass
-
-                if channel == "ticker":
-                    with TICKER_LOCK:
-                        log_message("ticker", json.dumps(event, indent=4))
-                        for tickr in event["tickers"]:
-                            TICKER[tickr["product_id"]] = tickr
-                elif channel == "market_trades":
-                    pass
-
-                elif channel == "l2_data":
-                    pass
-
-                elif channel == "user":
-                    log_message("user", json.dumps(event, indent=4))
-                    EVENT_EXECUTOR.submit(process_user_event, event)
-            finally:
-                EVENT_QUEUE[channel].task_done()
-    return worker
-
-def connect_to_websocket():
-    """ Connect to websocket """
-    ws_client = WSClient(
-        verbose=True,
-        api_key=API_KEY,
-        api_secret=API_SECRET,
-        on_open=__on_open__,
-        on_message=__on_message__,
-    )
-
-    ws_client.open()
-    ws_client.subscribe(
-        product_ids=Subscription.product_ids,
-        channels=Subscription.channels,
-    )
-
-    # Start worker threads for each channel to process events off the queue
-    for channel in Subscription.channels:
-        threading.Thread(
-            name=f"{channel}_thread",
-            target=generate_process_event_worker_func(channel),
-            daemon=True).start()
-
-    # Keep the main thread alive to maintain the websocket connection and allow worker threads to process events
-    try:
-        while True:
-            if ws_client.sleep_with_exception_check(1):
-                break
-    except WSClientConnectionClosedException as e:
-        log_message("connection", f"Connection Closed! {e}")
-
-def build_parent_child_order_ids_snapshot():
-    """
-    Build a fresh snapshot of parent/child order relationships from the database.
-
-    Returns:
-        tuple[dict, dict]:
-            (
-                parent_order_ids,
-                child_order_ids
+        if new_order[0]["success"] is not True:
+            self.log_message(
+                "error",
+                f"{client_order_id}:{source_order['order_id']} FAILED TO PLACE "
+                f"{order_template['side']} {order_template['order_base_size']} @ {order_template['start_price']}"
             )
+            return
 
-    parent_order_ids shape:
-    {
-        "<parent_client_order_id>": {
-            "parent_id": <db row id>,
-            "orders": [<child_client_order_id>, ...],
-            "target_movement": {
-                "movement": <numeric>,
-                "type": "P" or "A"
+        success_response = new_order[0]["success_response"]
+        limit_cfg = new_order[0]["order_configuration"]["limit_limit_gtc"]
+
+        new_order_client_order_id = success_response["client_order_id"]
+        new_order_product_id = success_response["product_id"]
+        new_order_side = success_response["side"]
+        new_order_size = limit_cfg["base_size"]
+        new_order_price = self.order_limit_price_or_avg_price(limit_cfg)
+
+        self.log_message(
+            "order",
+            f"{client_order_id}:{source_order['order_id']} => "
+            f"{new_order_side} {new_order_size} @ {new_order_price}"
+        )
+
+        if not parent_client_order_id:
+            self.log_message(
+                "warning",
+                f"Order {client_order_id} not found in parent or child order book. Order data: {source_order}"
+            )
+            return
+
+        with self.orderbook_lock:
+            self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
+            self.orderbook.child_order_ids[new_order_client_order_id] = parent_client_order_id
+
+        self.apply_position_update(order_template)
+
+        self.log_message(
+            "database",
+            f"Inserting child order for parent client_order_id: {parent_client_order_id} / "
+            f"new child client_order_id: {new_order_client_order_id}"
+        )
+        self.db_client.insert_order_child(
+            parent_client_order_id=parent_client_order_id,
+            client_order_id=new_order_client_order_id,
+            product_id=new_order_product_id,
+            side=new_order_side,
+            size=float(new_order_size),
+            price=float(new_order_price),
+        )
+
+    def build_parent_child_order_ids_snapshot(self):
+        parent_order_ids = {}
+        child_order_ids = {}
+
+        parent_orders = self.db_client.get_parent_orders()
+
+        for parent in parent_orders:
+            parent_client_order_id = parent["client_order_id"]
+
+            parent_order_ids[parent_client_order_id] = {
+                "parent_id": parent["id"],
+                "orders": [],
+                "target_movement": {
+                    "movement": float(parent["target_movement"]),
+                    "type": parent.get("target_movement_type", "P"),
+                },
             }
-        }
-    }
 
-    child_order_ids shape:
-    {
-        "<child_client_order_id>": "<parent_client_order_id>"
-    }
-    """
-    parent_order_ids = {}
-    child_order_ids = {}
+            child_orders = self.db_client.get_child_orders(parent_client_order_id)
+            for child in child_orders:
+                child_client_order_id = child["client_order_id"]
+                parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+                child_order_ids[child_client_order_id] = parent_client_order_id
 
-    parent_orders = ORDERBOOK.db_client.get_parent_orders()
+        return parent_order_ids, child_order_ids
 
-    for parent in parent_orders:
-        parent_client_order_id = parent["client_order_id"]
+    def load_parent_child_order_ids(self, force_log=False):
+        if force_log:
+            self.log_message("reconcile", "Reconciling parent/child order ids from database")
 
-        parent_order_ids[parent_client_order_id] = {
-            "parent_id": parent["id"],
-            "orders": [],
-            "target_movement": {
-                "movement": float(parent["target_movement"]),
-                "type": parent.get("target_movement_type", "P")
-            }
-        }
-
-        child_orders = ORDERBOOK.db_client.get_child_orders(parent_client_order_id)
-
-        for child in child_orders:
-            child_client_order_id = child["client_order_id"]
-            parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
-            child_order_ids[child_client_order_id] = parent_client_order_id
-
-    return parent_order_ids, child_order_ids
-
-
-def load_parent_child_order_ids(force_log=False):
-    """
-    Reconcile ORDERBOOK parent/child order relationships with the database.
-
-    Strategy:
-      1. Read everything from the DB without holding ORDERBOOK_LOCK.
-      2. Build a fresh in-memory snapshot.
-      3. Acquire ORDERBOOK_LOCK briefly.
-      4. Replace only if changed.
-
-    Returns:
-        bool: True if in-memory state changed, False if already in sync or if failed.
-    """
-    if force_log:
-        log_message("reconcile", "Reconciling parent/child order ids from database")
-
-    try:
-        new_parent_order_ids, new_child_order_ids = build_parent_child_order_ids_snapshot()
-    except Exception as e:
-        log_message("error", f"Failed building parent/child snapshot from database: {e}")
-        return False
-
-    loaded_parent_count = len(new_parent_order_ids)
-    loaded_child_count = len(new_child_order_ids)
-
-    with ORDERBOOK_LOCK:
-        if all((
-            ORDERBOOK.parent_order_ids == new_parent_order_ids,
-            ORDERBOOK.child_order_ids == new_child_order_ids
-        )):
-            if force_log:
-                log_message(
-                    "reconcile",
-                    f"Parent/child order ids already in sync ({loaded_parent_count} parents / {loaded_child_count} children)"
-                )
+        try:
+            new_parent_order_ids, new_child_order_ids = self.build_parent_child_order_ids_snapshot()
+        except Exception as e:
+            self.log_message("error", f"Failed building parent/child snapshot from database: {e}")
             return False
 
-        ORDERBOOK.parent_order_ids = new_parent_order_ids
-        ORDERBOOK.child_order_ids = new_child_order_ids
+        loaded_parent_count = len(new_parent_order_ids)
+        loaded_child_count = len(new_child_order_ids)
 
-    log_message(
-        "reconcile",
-        f"Reconciled parent/child order ids from database ({loaded_parent_count} parents / {loaded_child_count} children)"
-    )
-    return True
+        with self.orderbook_lock:
+            if all((
+                self.orderbook.parent_order_ids == new_parent_order_ids,
+                self.orderbook.child_order_ids == new_child_order_ids,
+            )):
+                if force_log:
+                    self.log_message(
+                        "reconcile",
+                        f"Parent/child order ids already in sync "
+                        f"({loaded_parent_count} parents / {loaded_child_count} children)"
+                    )
+                return False
 
+            self.orderbook.parent_order_ids = new_parent_order_ids
+            self.orderbook.child_order_ids = new_child_order_ids
 
-def reconcile_parent_child_order_ids_periodically(interval_seconds=30):
-    """
-    Periodically reconcile in-memory parent/child order relationships with the database.
-    """
-    while True:
+        self.log_message(
+            "reconcile",
+            f"Reconciled parent/child order ids from database "
+            f"({loaded_parent_count} parents / {loaded_child_count} children)"
+        )
+        return True
+
+    def reconcile_parent_child_order_ids_periodically(self, interval_seconds=30):
+        while True:
+            try:
+                self.load_parent_child_order_ids(force_log=False)
+            except Exception as e:
+                self.log_message("error", f"Periodic reconcile error: {e}")
+            sleep(interval_seconds)
+
+    def rotate_seen_events_buckets(self):
+        while True:
+            with self.seen_events_lock:
+                for i in range(self.max_seen_event_buckets - 1, 0, -1):
+                    self.seen_events[i] = self.seen_events[i - 1]
+                self.seen_events[self.seen_events_default_bucket] = set()
+            sleep(self.max_rotate_seen_events_bucket_seconds)
+
+    def generate_process_event_worker(self, channel):
+        def worker():
+            while True:
+                event = self.event_queue[channel].get()
+                try:
+                    if channel == "ticker":
+                        with self.ticker_lock:
+                            self.log_message("ticker", json.dumps(event, indent=4))
+                            for tickr in event["tickers"]:
+                                self.ticker[tickr["product_id"]] = tickr
+
+                    elif channel == "user":
+                        self.log_message("user", json.dumps(event, indent=4))
+                        self.event_executor.submit(self.process_user_event, event)
+
+                finally:
+                    self.event_queue[channel].task_done()
+
+        return worker
+
+    def connect_to_websocket(self):
+        ws_client = WSClient(
+            verbose=True,
+            api_key=self.api_key,
+            api_secret=self.api_secret,
+            on_open=self.on_open,
+            on_message=self.on_message,
+        )
+
+        ws_client.open()
+        ws_client.subscribe(
+            product_ids=self.subscription.product_ids,
+            channels=self.subscription.channels,
+        )
+
         try:
-            load_parent_child_order_ids(force_log=False)
-        except Exception as e:
-            log_message("error", f"Periodic reconcile error: {e}")
+            while True:
+                if ws_client.sleep_with_exception_check(1):
+                    break
+        except WSClientConnectionClosedException as e:
+            self.log_message("connection", f"Connection Closed! {e}")
 
-        sleep(interval_seconds)
+    def start_background_threads(self):
+        self.load_parent_child_order_ids(force_log=True)
+
+        threading.Thread(
+            name="parent_child_reconcile_thread",
+            target=self.reconcile_parent_child_order_ids_periodically,
+            kwargs={"interval_seconds": 30},
+            daemon=True,
+        ).start()
+
+        threading.Thread(
+            name="rotate_seen_events_buckets_thread",
+            target=self.rotate_seen_events_buckets,
+            daemon=True,
+        ).start()
+
+        for channel in self.subscription.channels:
+            threading.Thread(
+                name=f"{channel}_worker",
+                target=self.generate_process_event_worker(channel),
+                daemon=True,
+            ).start()
+
+        for websocket in range(self.websocket_thread_maximum):
+            threading.Thread(
+                name=f"websocket_thread_{websocket}",
+                target=self.connect_to_websocket,
+                daemon=True,
+            ).start()
+
+    def run_forever(self):
+        self.start_background_threads()
+        while True:
+            sleep(1)
+
 
 if __name__ == "__main__":
-
-    load_parent_child_order_ids(force_log=True)
-
-    # Start a thread to periodically reconcile the parent / child order ids from the DB so that the in-memory ORDERBOOK state stays in sync
-    threading.Thread(
-        name="parent_child_reconcile_thread",
-        target=reconcile_parent_child_order_ids_periodically,
-        kwargs={"interval_seconds": 30},
-        daemon=True
-    ).start()
-
-    # Start a thread to rotate seen events buckets
-    threading.Thread(
-        name="rotate_seen_events_buckets_thread",
-        target=rotate_seen_events_buckets,
-        daemon=True).start()
-
-    # Start multiple websocket threads to increase chances of maintaining a connection and processing events in case of intermittent connection issues
-    for websocket in range(WEBSOCKET_THREAD_MAXIMUM):
-         threading.Thread(
-            name=f"{WEBSOCKET_THREAD_NAME}_{websocket}",
-            target=connect_to_websocket,
-            daemon=True).start()
-
-    while True:
-        sleep(1)
-       
-    # EVENT_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+    engine = OrderEngine(
+        orderbook=ORDERBOOK,
+        db_client=DB_CLIENT,
+        subscription=Subscription,
+        api_key=API_KEY,
+        api_secret=API_SECRET,
+        order_post_only=ORDER_POST_ONLY,
+    )
+    engine.run_forever()
