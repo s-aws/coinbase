@@ -176,7 +176,7 @@ def process_user_order(order):
             print(
                 f"{datetime.now()} "
                 f"{threading.current_thread().name} "
-                f"{client_order_id} "
+                f"{client_order_id}:{order['order_id']} "
                 f"{order['product_id']} "
                 f"{order['order_side']} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => "
@@ -193,7 +193,7 @@ def process_user_order(order):
             print(
                 f"{datetime.now()} "
                 f"{threading.current_thread().name} "
-                f"{client_order_id} "
+                f"{client_order_id}:{order['order_id']} "
                 f"{order['product_id']} "
                 f"{order['order_side']} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE "
@@ -286,7 +286,7 @@ def process_user_order(order):
             print(
                 f"{datetime.now()} "
                 f"{threading.current_thread().name} "
-                f"{client_order_id} "
+                f"{client_order_id}:{order['order_id']} "
                 f"{order['order_side']} "
                 f"{order['product_id']} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => "
@@ -344,7 +344,7 @@ def process_user_order(order):
             print(
                 f"{datetime.now()} "
                 f"{threading.current_thread().name} "
-                f"{client_order_id} "
+                f"{client_order_id}:{order['order_id']} "
                 f"{order['order_side']} "
                 f"{{order['product_id']}} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE "
