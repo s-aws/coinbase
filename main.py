@@ -732,6 +732,7 @@ class OrderEngine:
             _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
         if not self.claim_follow_up_processing("cancelled", client_order_id):
+            self.log_message("warning", f"Could not claim follow-up processing for cancelled order {client_order_id}. {order}")
             return
 
         try:
@@ -800,6 +801,7 @@ class OrderEngine:
             )
 
         if not self.claim_follow_up_processing("filled", client_order_id):
+            self.log_message("warning", f"Could not claim follow-up processing for filled order {client_order_id}. {order}")
             return
 
         try:
