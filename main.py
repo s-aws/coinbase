@@ -610,6 +610,7 @@ if __name__ == "__main__":
 
     load_parent_child_order_ids(force_log=True)
 
+    # Start a thread to periodically reconcile the parent / child order ids from the DB so that the in-memory ORDERBOOK state stays in sync
     threading.Thread(
         name="parent_child_reconcile_thread",
         target=reconcile_parent_child_order_ids_periodically,
