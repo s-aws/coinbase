@@ -69,6 +69,25 @@ WEBSOCKET_EVENTS = {
 
 ORDERBOOK.db_client = DB_CLIENT # set the db client in the orderbook to allow for database interactions when processing events
 
+LOGGING_FLAGS = {
+    "connection": True,
+    "event": True,
+    "order": True,
+    "database": True,
+    "warning": True,
+    "error": True,
+    "reconcile": True,
+}
+
+
+def log_message(log_type, message):
+    """Print a formatted log message when the log type is enabled."""
+    if not LOGGING_FLAGS.get(log_type, False):
+        return
+
+    print(f"{datetime.now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
+
+
 def __hash_dict__(dictionary):
     """return a sha256 hash of a dictionary (json serialized)"""
     dict_string = json.dumps(dictionary, sort_keys=True)
@@ -114,7 +133,7 @@ def resolve_parent_client_order_id(client_order_id, order=None, create_parent=Fa
             }
         }
 
-        print(f"{datetime.now()} {threading.current_thread().name} Creating parent order entry for client_order_id: {client_order_id}")
+        log_message("order", f"Creating parent order entry for client_order_id: {client_order_id}")
         parent_id = ORDERBOOK.db_client.insert_order_parent(
             client_order_id=client_order_id,
             product_id=order["product_id"],
@@ -134,23 +153,20 @@ def resolve_parent_client_order_id(client_order_id, order=None, create_parent=Fa
 
 def __on_open__():
     """ websocket open connection trigger """
-    print(
-        f"{datetime.now()} "
-        f"{threading.current_thread().name} "
-        "Connection Opened!")
+    log_message("connection", "Connection Opened!")
 
 
 def process_user_event(event):
     """Heavy user-channel processing happens off the websocket thread."""
     try:
         if event["type"].upper() not in WEBSOCKET_EVENTS:
-            print(f"Ignoring user event received: {event}")
+            log_message("event", f"Ignoring user event received: {event}")
             return
 
         if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
             for order in event["orders"]:
                 if "client_order_id" not in order:
-                    print(f"Missing client_order_id in order event: {order}")
+                    log_message("warning", f"Missing client_order_id in order event: {order}")
                     continue
                 process_user_order(order)
 
@@ -158,7 +174,7 @@ def process_user_event(event):
             process_user_snapshot(event)
 
     except Exception as e:
-        print(f"user event processing error: {e} event: {json.dumps(event, indent=4, skipkeys=True)}")
+        log_message("error", f"user event processing error: {e} event: {json.dumps(event, indent=4, skipkeys=True)}")
 
 
 def process_user_order(order):
@@ -170,7 +186,7 @@ def process_user_order(order):
         "outstanding_hold_amount" in order,
         float(order["outstanding_hold_amount"]) > 0
     )): # do not treat this as filled until the hold has cleared
-        print(f"{datetime.now()} {threading.current_thread().name} Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} - will not treat as FILLED until hold clears")
+        log_message("order", f"Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} - will not treat as FILLED until hold clears")
         return
 
     with ORDERBOOK_LOCK:
@@ -190,7 +206,7 @@ def process_user_order(order):
                 status=status)
 
     except Exception as e:
-        print(f"{datetime.now()} {threading.current_thread().name} Error updating parent order status in database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
+        log_message("error", f"Error updating parent order status in database: {e}, order data: {json.dumps(order, indent=4, skipkeys=True)}")
 
     if status == "SNAPSHOT":
         pass # handled in process_user_snapshot()
@@ -223,16 +239,15 @@ def process_user_order(order):
         )
 
         if new_order[0]["success"] is True:
-            print(
-                f"{datetime.now()} "
-                f"{threading.current_thread().name} "
+            log_message(
+                "order",
                 f"{client_order_id}:{order['order_id']} "
                 f"{order['product_id']} "
                 f"{order['order_side']} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => "
                 f"{order_template['side']} "
                 f"{order_template['order_base_size']} @ {order_template['start_price']} "
-                f"\tfee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
                 f"{order_template['fee_move_calculated_from_pct']} "
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order.get('total_fees', 'N/A')} "
@@ -253,8 +268,8 @@ def process_user_order(order):
                     ORDERBOOK.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
                     ORDERBOOK.child_order_ids[new_order_client_order_id] = parent_client_order_id
 
-                print(
-                    f"{datetime.now()} {threading.current_thread().name} "
+                log_message(
+                    "database",
                     f"Inserting child order for parent client_order_id: {parent_client_order_id} / "
                     f"new child client_order_id: {new_order_client_order_id}"
                 )
@@ -267,20 +282,19 @@ def process_user_order(order):
                     price=float(new_order_price)
                 )
             else:
-                print(
-                    f"{datetime.now()} {threading.current_thread().name} "
-                    f"WARNING: CANCELLED order {client_order_id} not found in parent or child order book. "
+                log_message(
+                    "warning",
+                    f"CANCELLED order {client_order_id} not found in parent or child order book. "
                     f"Order data: {order}"
                 )
         else:
-            print(
-                f"{datetime.now()} "
-                f"{threading.current_thread().name} "
+            log_message(
+                "error",
                 f"{client_order_id}:{order['order_id']} "
                 f"{order['product_id']} "
                 f"{order['order_side']} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE "
-                f"\tfee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
                 f"{order_template['fee_move_calculated_from_pct']} "
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order.get('total_fees', 'N/A')} "
@@ -294,7 +308,7 @@ def process_user_order(order):
             ORDERBOOK.order[client_order_id] = order
 
     elif status == "FAILED":
-        print(f"Order failed: {order}")
+        log_message("error", f"Order failed: {order}")
         with ORDERBOOK_LOCK:
             ORDERBOOK.order.pop(client_order_id, None) # remove failed order from orderbook
 
@@ -343,16 +357,15 @@ def process_user_order(order):
         new_order = create_limit_order_span(**new_order_configuration)
 
         if new_order[0]["success"] is True:
-            print(
-                f"{datetime.now()} "
-                f"{threading.current_thread().name} "
+            log_message(
+                "order",
                 f"{client_order_id}:{order['order_id']} "
                 f"{order['order_side']} "
                 f"{order['product_id']} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => "
                 f"{order_template['side']} "
                 f"{order_template['order_base_size']} @ {order_template['start_price']} "
-                f"\tfee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
                 f"{order_template['fee_move_calculated_from_pct']} "
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order['total_fees']} "
@@ -371,7 +384,7 @@ def process_user_order(order):
                     ORDERBOOK.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
                     ORDERBOOK.child_order_ids[new_order_client_order_id] = parent_client_order_id
 
-                print(f"{datetime.now()} {threading.current_thread().name} Inserting child order for parent client_order_id: {parent_client_order_id} / new child client_order_id: {new_order_client_order_id}")
+                log_message("database", f"Inserting child order for parent client_order_id: {parent_client_order_id} / new child client_order_id: {new_order_client_order_id}")
                 ORDERBOOK.db_client.insert_order_child(
                         parent_client_order_id=parent_client_order_id,
                         client_order_id=new_order_client_order_id,
@@ -381,20 +394,19 @@ def process_user_order(order):
                         price=float(new_order_price)
                     )
             else:
-                print(f"{datetime.now()} {threading.current_thread().name} WARNING: FILLED order {client_order_id} not found in parent or child order book. Order data: {order}")
+                log_message("warning", f"FILLED order {client_order_id} not found in parent or child order book. Order data: {order}")
 
 
 
 
         else:
-            print(
-                f"{datetime.now()} "
-                f"{threading.current_thread().name} "
+            log_message(
+                "error",
                 f"{client_order_id}:{order['order_id']} "
                 f"{order['order_side']} "
-                f"{{order['product_id']}} "
+                f"{order['product_id']} "
                 f"{order['cumulative_quantity']} @ {order['limit_price']} => FAILED TO PLACE "
-                f"\tfee_move_calculated_from_pct({order_template['profit_move_pct']}): "
+                f"	fee_move_calculated_from_pct({order_template['profit_move_pct']}): "
                 f"{order_template['fee_move_calculated_from_pct']} "
                 f"minimum_move_amount: {order_template['minimum_move_amount']} "
                 f"total_fees:{order['total_fees']} "
@@ -403,7 +415,7 @@ def process_user_order(order):
             )
 
     else:
-        print(f"UNRECOGNIZED STATUS {status}")
+        log_message("warning", f"UNRECOGNIZED STATUS {status}")
 
 def process_user_snapshot(snapshot):
     """process the user snapshot event from the websocket / user channel
@@ -458,7 +470,7 @@ def __on_message__(msg):
             #     print(f"{datetime.now()} {threading.current_thread().name} Offloaded event to queue for channel {channel} event_hash: {event_hash}. {json.dumps(event)}")
 
     except Exception as e:
-        print(f"Exception processing message: {e}: raw: {msg}")
+        log_message("error", f"Exception processing message: {e}: raw: {msg}")
 
 
 def rotate_seen_events_buckets():
@@ -534,7 +546,7 @@ def connect_to_websocket():
             if ws_client.sleep_with_exception_check(1):
                 break
     except WSClientConnectionClosedException as e:
-        print(f"Connection Closed! {e}")
+        log_message("connection", f"Connection Closed! {e}")
 
 def build_parent_child_order_ids_snapshot():
     """
@@ -605,12 +617,12 @@ def load_parent_child_order_ids(force_log=False):
         bool: True if in-memory state changed, False if already in sync or if failed.
     """
     if force_log:
-        print(f"{datetime.now()} {threading.current_thread().name} Reconciling parent/child order ids from database")
+        log_message("reconcile", "Reconciling parent/child order ids from database")
 
     try:
         new_parent_order_ids, new_child_order_ids = build_parent_child_order_ids_snapshot()
     except Exception as e:
-        print(f"{datetime.now()} {threading.current_thread().name} Failed building parent/child snapshot from database: {e}")
+        log_message("error", f"Failed building parent/child snapshot from database: {e}")
         return False
 
     loaded_parent_count = len(new_parent_order_ids)
@@ -622,20 +634,18 @@ def load_parent_child_order_ids(force_log=False):
             ORDERBOOK.child_order_ids == new_child_order_ids
         )):
             if force_log:
-                print(
-                    f"{datetime.now()} {threading.current_thread().name} "
-                    f"Parent/child order ids already in sync "
-                    f"({loaded_parent_count} parents / {loaded_child_count} children)"
+                log_message(
+                    "reconcile",
+                    f"Parent/child order ids already in sync ({loaded_parent_count} parents / {loaded_child_count} children)"
                 )
             return False
 
         ORDERBOOK.parent_order_ids = new_parent_order_ids
         ORDERBOOK.child_order_ids = new_child_order_ids
 
-    print(
-        f"{datetime.now()} {threading.current_thread().name} "
-        f"Reconciled parent/child order ids from database "
-        f"({loaded_parent_count} parents / {loaded_child_count} children)"
+    log_message(
+        "reconcile",
+        f"Reconciled parent/child order ids from database ({loaded_parent_count} parents / {loaded_child_count} children)"
     )
     return True
 
@@ -648,7 +658,7 @@ def reconcile_parent_child_order_ids_periodically(interval_seconds=30):
         try:
             load_parent_child_order_ids(force_log=False)
         except Exception as e:
-            print(f"{datetime.now()} {threading.current_thread().name} Periodic reconcile error: {e}")
+            log_message("error", f"Periodic reconcile error: {e}")
 
         sleep(interval_seconds)
 
