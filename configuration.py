@@ -35,6 +35,7 @@ ORDER_DIRECTION = {
 }
 
 DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
+DEFAULT_MAX_ORDER_REPLACEMENT = 1
 
 DERIVATIVES_PRODUCT_IDS = [
     "BIP-20DEC30-CDE",
@@ -444,6 +445,7 @@ class OrderBook():
     }
 
     active = {}
+    default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
 
     profit = {
         "SPOT": {
@@ -451,8 +453,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": 0.002,
-            "SELL": 0.002
+            "BUY": 0.002, #float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
+            "SELL": 0.002 #float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "BIP-20DEC30-CDE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 14,

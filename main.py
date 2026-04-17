@@ -61,6 +61,7 @@ from configuration import (
     API_KEY,
     API_SECRET,
     ORDER_POST_ONLY,
+    DEFAULT_MAX_ORDER_REPLACEMENT,
     calculate_new_order_move_from_snapshot,
     apply_calculated_position_update,
     get_futures_positions,
@@ -494,6 +495,11 @@ class OrderEngine:
                     "movement": self.resolve_profit_target(order),
                     "type": "P",
                 },
+                "max_order_replacement": getattr(
+                    self.orderbook,
+                    "default_max_order_replacement",
+                    DEFAULT_MAX_ORDER_REPLACEMENT,
+                ),
             }
 
             self.log_message(
@@ -504,17 +510,24 @@ class OrderEngine:
                 ),
             )
 
-            parent_id = self.db_client.insert_order_parent(
-                client_order_id=client_order_id,
-                product_id=order["product_id"],
-                side=order["order_side"],
-                size=float(self.resolve_order_size(order)),
-                price=float(self.order_limit_price_or_avg_price(order)),
-                target_movement=float(
+            parent_insert_kwargs = {
+                "client_order_id": client_order_id,
+                "product_id": order["product_id"],
+                "side": order["order_side"],
+                "size": float(self.resolve_order_size(order)),
+                "price": float(self.order_limit_price_or_avg_price(order)),
+                "target_movement": float(
                     self.orderbook.parent_order_ids[client_order_id]["target_movement"]["movement"]
                 ),
-                status=status or order.get("status"),
-            )
+                "status": status or order.get("status"),
+                "max_order_replacement": self.orderbook.parent_order_ids[client_order_id]["max_order_replacement"],
+            }
+
+            try:
+                parent_id = self.db_client.insert_order_parent(**parent_insert_kwargs)
+            except TypeError:
+                parent_insert_kwargs.pop("max_order_replacement", None)
+                parent_id = self.db_client.insert_order_parent(**parent_insert_kwargs)
 
             self.orderbook.parent_order_ids[client_order_id]["parent_id"] = parent_id
             is_parent = True
@@ -997,6 +1010,62 @@ class OrderEngine:
             parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
             return deepcopy(parent.get("target_movement"))
 
+    def resolve_parent_max_order_replacement(self, parent_client_order_id: str) -> int:
+        """
+        Resolve the maximum number of follow-up replacements allowed for a parent order.
+
+        Args:
+            parent_client_order_id: The parent order's client ID.
+
+        Returns:
+            The configured maximum replacement count for the parent order.
+        """
+        default_value = getattr(self.orderbook, "default_max_order_replacement", DEFAULT_MAX_ORDER_REPLACEMENT)
+
+        with self.orderbook_lock:
+            parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
+            value = parent.get("max_order_replacement", default_value)
+
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            value = default_value
+
+        return value if value >= 0 else 0
+
+    def resolve_parent_replacement_count(self, parent_client_order_id: str) -> int:
+        """
+        Resolve the number of follow-up replacements already created for a parent order.
+
+        Args:
+            parent_client_order_id: The parent order's client ID.
+
+        Returns:
+            The count of child replacement orders tracked for the parent order.
+        """
+        with self.orderbook_lock:
+            parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
+            return len(parent.get("orders", []))
+
+    def can_create_follow_up_order(self, parent_client_order_id: str) -> tuple:
+        """
+        Determine whether another follow-up order may be created for a parent order.
+
+        Args:
+            parent_client_order_id: The parent order's client ID.
+
+        Returns:
+            Tuple of (allowed, details) where details includes replacement counters.
+        """
+        max_order_replacement = self.resolve_parent_max_order_replacement(parent_client_order_id)
+        replacement_count = self.resolve_parent_replacement_count(parent_client_order_id)
+
+        details = {
+            "replacement_count": replacement_count,
+            "max_order_replacement": max_order_replacement,
+        }
+        return replacement_count < max_order_replacement, details
+
     def handle_cancelled_order(self, order: dict) -> None:
         """
         Handle order replacement for a cancelled order.
@@ -1139,6 +1208,20 @@ class OrderEngine:
                 self.release_follow_up_processing("filled", client_order_id)
                 return
 
+            can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
+            if not can_replace:
+                self.log_message(
+                    "order",
+                    self.build_follow_up_log_payload(
+                        "follow_up_max_replacements_reached",
+                        source_order=order,
+                        parent_client_order_id=parent_client_order_id,
+                        details=replacement_details,
+                    ),
+                )
+                self.complete_follow_up_processing("filled", client_order_id)
+                return
+
             if self.child_order_already_exists(parent_client_order_id, order_template):
                 self.log_message(
                     "warning",
@@ -1151,6 +1234,7 @@ class OrderEngine:
                             "side": order_template["side"],
                             "price": float(order_template["start_price"]),
                         },
+                        details=replacement_details,
                     ),
                 )
                 self.complete_follow_up_processing("filled", client_order_id)
@@ -1269,6 +1353,11 @@ class OrderEngine:
                 parent_entry = {
                     "orders": [],
                     "target_movement": {},
+                    "max_order_replacement": getattr(
+                        self.orderbook,
+                        "default_max_order_replacement",
+                        DEFAULT_MAX_ORDER_REPLACEMENT,
+                    ),
                 }
                 self.orderbook.parent_order_ids[parent_client_order_id] = parent_entry
 
@@ -1329,6 +1418,14 @@ class OrderEngine:
                     "movement": float(parent["target_movement"]),
                     "type": parent.get("target_movement_type", "P"),
                 },
+                "max_order_replacement": int(parent.get(
+                    "max_order_replacement",
+                    getattr(
+                        self.orderbook,
+                        "default_max_order_replacement",
+                        DEFAULT_MAX_ORDER_REPLACEMENT,
+                    ),
+                )),
             }
 
             child_orders = self.db_client.get_child_orders(parent_client_order_id)
