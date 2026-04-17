@@ -258,104 +258,7 @@ class OrderEngine:
         return sha256(dict_string.encode()).hexdigest()
 
     @staticmethod
-    def safe_float(value, default: float = 0.0) -> float:
-        """
-        Safely coerce a value to float.
-        
-        Args:
-            value: The value to convert.
-            default: The value to return when conversion fails.
-        
-        Returns:
-            A float representation of the value or the provided default.
-        """
-        try:
-            if value in (None, ""):
-                return float(default)
-            return float(value)
-        except (TypeError, ValueError):
-            return float(default)
-
-    @staticmethod
-    def normalize_product_type(order: dict) -> str:
-        """
-        Normalize product type values received from Coinbase events.
-        
-        Args:
-            order: The order dictionary containing a product_type and/or product_id.
-        
-        Returns:
-            A normalized product type string such as SPOT or FUTURE.
-        """
-        product_type = str(order.get("product_type") or "").upper().strip()
-        if product_type:
-            return product_type
-
-        product_id = str(order.get("product_id") or "")
-        if "-" in product_id and any(ch.isdigit() for ch in product_id):
-            return "FUTURE"
-        return "SPOT"
-
-    def resolve_profit_target(self, order: dict) -> float:
-        """
-        Resolve the configured profit target for an order.
-        
-        Args:
-            order: The source order dictionary.
-        
-        Returns:
-            The configured target movement for the order side and product type.
-        """
-        product_type = self.normalize_product_type(order)
-        order_side = order["order_side"]
-
-        with self.orderbook_lock:
-            profit_config = self.orderbook.profit
-            if product_type in profit_config and order_side in profit_config[product_type]:
-                return profit_config[product_type][order_side]
-
-            if "SPOT" in profit_config and order_side in profit_config["SPOT"]:
-                self.log_message(
-                    "warning",
-                    f"Falling back to SPOT profit config for {product_type} {order_side}"
-                )
-                return profit_config["SPOT"][order_side]
-
-            if "FUTURE" in profit_config and order_side in profit_config["FUTURE"]:
-                self.log_message(
-                    "warning",
-                    f"Falling back to FUTURE profit config for {product_type} {order_side}"
-                )
-                return profit_config["FUTURE"][order_side]
-
-        raise KeyError(f"No profit config found for product_type={product_type} side={order_side}")
-
-    def resolve_order_size(self, order: dict) -> float:
-        """
-        Resolve the most appropriate order size from an order event.
-        
-        Args:
-            order: The order dictionary from Coinbase.
-        
-        Returns:
-            The best available size as a float.
-        """
-        candidate_fields = (
-            "cumulative_quantity",
-            "filled_size",
-            "base_size",
-            "size",
-            "leaves_quantity",
-        )
-
-        for field in candidate_fields:
-            size = self.safe_float(order.get(field), default=0.0)
-            if size > 0:
-                return size
-
-        return 0.0
-
-    def order_limit_price_or_avg_price(self, order: dict) -> float:
+    def order_limit_price_or_avg_price(order: dict) -> float:
         """
         Get the effective price for an order (limit price or average price).
         
@@ -365,10 +268,91 @@ class OrderEngine:
         Returns:
             The limit price if available and positive, otherwise the average price.
         """
-        limit_price = self.safe_float(order.get("limit_price"), default=0.0)
-        if limit_price > 0:
-            return limit_price
-        return self.safe_float(order.get("avg_price"), default=0.0)
+        if order.get("limit_price") and float(order["limit_price"]) > 0:
+            return float(order["limit_price"])
+        return float(order["avg_price"])
+
+    @staticmethod
+    def safe_float(value, default: float = 0.0) -> float:
+        """
+        Safely convert a value to float.
+
+        Args:
+            value: The value to convert.
+            default: The default value to return on conversion failure.
+
+        Returns:
+            Parsed float or default.
+        """
+        try:
+            if value in (None, ""):
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def normalize_product_type(self, order: dict) -> str:
+        """
+        Normalize product type from order payload and configured products.
+
+        Args:
+            order: Order payload.
+
+        Returns:
+            Normalized product type string.
+        """
+        product_type = str(order.get("product_type") or "").upper()
+        if product_type in {"SPOT", "FUTURE"}:
+            return product_type
+
+        product_id = order.get("product_id")
+        with self.orderbook_lock:
+            product = self.orderbook.product.get(product_id, {})
+
+        configured_product_type = str(product.get("product_type") or "").upper()
+        if configured_product_type in {"SPOT", "FUTURE"}:
+            return configured_product_type
+
+        if product_id and product_id.endswith("-CDE"):
+            return "FUTURE"
+        return "SPOT"
+
+    def resolve_order_size(self, order: dict) -> float:
+        """
+        Resolve order size from the best available quantity field.
+
+        Args:
+            order: Order payload.
+
+        Returns:
+            Resolved order size.
+        """
+        for field in ("cumulative_quantity", "filled_size", "base_size", "size", "leaves_quantity"):
+            value = self.safe_float(order.get(field), default=0.0)
+            if value > 0:
+                return value
+        return 0.0
+
+    def resolve_profit_target(self, order: dict) -> float:
+        """
+        Resolve profit target for an order using product-specific or product-type defaults.
+
+        Args:
+            order: Order payload.
+
+        Returns:
+            Profit movement target.
+        """
+        product_type = self.normalize_product_type(order)
+        product_id = order.get("product_id")
+        order_side = order.get("order_side")
+
+        product_profit = self.orderbook.profit.get(product_id)
+        if isinstance(product_profit, dict) and order_side in product_profit:
+            return product_profit[order_side]
+
+        type_profit = self.orderbook.profit.get(product_type, {})
+        return type_profit[order_side]
 
     def get_orderbook_snapshot(self) -> dict:
         """
@@ -451,7 +435,7 @@ class OrderEngine:
                 client_order_id=client_order_id,
                 product_id=order["product_id"],
                 side=order["order_side"],
-                size=self.resolve_order_size(order),
+                size=float(self.resolve_order_size(order)),
                 price=float(self.order_limit_price_or_avg_price(order)),
                 target_movement=float(
                     self.orderbook.parent_order_ids[client_order_id]["target_movement"]["movement"]
@@ -629,7 +613,7 @@ class OrderEngine:
 
             for item in items:
                 with self.orderbook_lock:
-                    self.orderbook.positions.setdefault("FUTURE", {})[item["product_id"]] = {
+                    self.orderbook.positions["FUTURE"][item["product_id"]] = {
                         "side": item["side"].upper(),
                         "number_of_contracts": item["number_of_contracts"],
                         "realized_pnl": item["realized_pnl"],
@@ -640,7 +624,7 @@ class OrderEngine:
                 self.log_message(
                     "snapshot",
                     f"updated snapshot for position: {item['product_id']} "
-                    f"{self.orderbook.positions.setdefault('FUTURE', {})[item['product_id']]}"
+                    f"{self.orderbook.positions['FUTURE'][item['product_id']]}"
                 )
 
     def process_user_order(self, order: dict) -> None:
@@ -659,20 +643,25 @@ class OrderEngine:
         client_order_id = order.get("client_order_id")
         status = order.get("status")
 
-        order = deepcopy(order)
-        order["product_type"] = self.normalize_product_type(order)
-        outstanding_hold_amount = self.safe_float(order.get("outstanding_hold_amount"), default=0.0)
+        normalized_order = deepcopy(order)
+        normalized_order["product_type"] = self.normalize_product_type(normalized_order)
+        outstanding_hold_amount = self.safe_float(
+            normalized_order.get("outstanding_hold_amount"),
+            default=0.0,
+        )
+
+        with self.orderbook_lock:
+            self.orderbook.order[client_order_id] = normalized_order
 
         if status == "FILLED" and outstanding_hold_amount > 0:
             self.log_message(
                 "order",
-                f"Order {client_order_id} has outstanding hold amount {order['outstanding_hold_amount']} "
+                f"Order {client_order_id} has outstanding hold amount {normalized_order.get('outstanding_hold_amount')} "
                 "will not treat as FILLED until hold clears"
             )
             return
 
-        with self.orderbook_lock:
-            self.orderbook.order[client_order_id] = order
+        order = normalized_order
 
         try:
             if client_order_id in self.orderbook.child_order_ids:
@@ -1004,11 +993,21 @@ class OrderEngine:
             return
 
         with self.orderbook_lock:
-            self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(new_order_client_order_id)
+            parent_entry = self.orderbook.parent_order_ids.get(parent_client_order_id)
+            if parent_entry is None:
+                parent_entry = {
+                    "orders": [],
+                    "target_movement": {},
+                }
+                self.orderbook.parent_order_ids[parent_client_order_id] = parent_entry
+
+            parent_entry.setdefault("orders", []).append(new_order_client_order_id)
             self.orderbook.child_order_ids[new_order_client_order_id] = parent_client_order_id
 
             if processed_flag_name:
-                self.complete_follow_up_processing(processed_flag_name, client_order_id)
+                processed_flags = getattr(self.orderbook, processed_flag_name, None)
+                if isinstance(processed_flags, dict):
+                    processed_flags[client_order_id] = "done"
 
         self.apply_position_update(order_template)
 

@@ -74,6 +74,62 @@ SPOT_PRODUCT_IDS = [
     "SENT-USDC"
 ]
 
+def safe_float(value, default: float = 0.0) -> float:
+    """Safely convert a value to float."""
+    try:
+        if value in (None, ""):
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def normalize_product_type(order: dict, products: dict = None) -> str:
+    """Normalize product type from an order payload and configured products."""
+    product_type = str(order.get("product_type") or "").upper()
+    if product_type in {"SPOT", "FUTURE"}:
+        return product_type
+
+    product_id = order.get("product_id")
+    product = (products or {}).get(product_id, {})
+    configured_product_type = str(product.get("product_type") or "").upper()
+    if configured_product_type in {"SPOT", "FUTURE"}:
+        return configured_product_type
+
+    if product_id and product_id.endswith("-CDE"):
+        return "FUTURE"
+    return "SPOT"
+
+
+def resolve_order_size(order: dict) -> float:
+    """Resolve order size from the best available quantity field."""
+    leaves_quantity = safe_float(order.get("leaves_quantity"), default=0.0)
+    cumulative_quantity = safe_float(order.get("cumulative_quantity"), default=0.0)
+    if leaves_quantity > 0:
+        return leaves_quantity
+    if cumulative_quantity > 0:
+        return cumulative_quantity
+    for field in ("filled_size", "base_size", "size"):
+        value = safe_float(order.get(field), default=0.0)
+        if value > 0:
+            return value
+    return 0.0
+
+
+def resolve_profit_move_pct(order: dict, profits: dict, products: dict) -> float:
+    """Resolve configured profit target for an order."""
+    product_id = order.get("product_id")
+    product_type = normalize_product_type(order, products=products)
+    order_side = order.get("order_side")
+
+    product_profit = profits.get(product_id)
+    if isinstance(product_profit, dict) and order_side in product_profit:
+        return product_profit[order_side]
+
+    type_profit = profits.get(product_type, {})
+    return type_profit[order_side]
+
+
 def format_based_on_reference(value_to_format: float, reference_float: str) -> str:
     """
     Format a float to match the number of decimal places of a reference float.
@@ -87,99 +143,6 @@ def format_based_on_reference(value_to_format: float, reference_float: str) -> s
     """
     result = f"{value_to_format:.{len(str(reference_float).rsplit('.', maxsplit=1)[-1]) if '.' in str(reference_float) else 0}f}"
     return result
-
-
-def safe_float(value, default: float = 0.0) -> float:
-    """
-    Safely coerce a value to float.
-
-    Args:
-        value: The value to convert.
-        default: The value to return when conversion fails.
-
-    Returns:
-        A float representation of the value or the provided default.
-    """
-    try:
-        if value in (None, ""):
-            return float(default)
-        return float(value)
-    except (TypeError, ValueError):
-        return float(default)
-
-
-def normalize_product_type(order: dict) -> str:
-    """
-    Normalize product type values received from Coinbase events.
-
-    Args:
-        order: The order dictionary containing a product_type and/or product_id.
-
-    Returns:
-        A normalized product type string such as SPOT or FUTURE.
-    """
-    product_type = str(order.get("product_type") or "").upper().strip()
-    if product_type:
-        return product_type
-
-    product_id = str(order.get("product_id") or "")
-    if "-" in product_id and any(ch.isdigit() for ch in product_id):
-        return "FUTURE"
-    return "SPOT"
-
-
-def resolve_order_size(order: dict) -> float:
-    """
-    Resolve the most appropriate order size from an order event.
-
-    Args:
-        order: The order dictionary from Coinbase.
-
-    Returns:
-        The best available size as a float.
-    """
-    leaves_quantity = safe_float(order.get("leaves_quantity"), default=0.0)
-    cumulative_quantity = safe_float(order.get("cumulative_quantity"), default=0.0)
-
-    if str(order.get("status") or "").upper() == "CANCELLED" and leaves_quantity > 0:
-        return leaves_quantity
-
-    for field in ("cumulative_quantity", "filled_size", "base_size", "size", "leaves_quantity"):
-        size = safe_float(order.get(field), default=0.0)
-        if size > 0:
-            return size
-
-    return 0.0
-
-
-def resolve_profit_move_pct(profits: dict, order: dict) -> float:
-    """
-    Resolve the configured profit target for an order.
-
-    Args:
-        profits: Profit configuration dictionary.
-        order: The source order dictionary.
-
-    Returns:
-        The configured target movement for the order side and product type.
-    """
-    product_type = normalize_product_type(order)
-    order_side = order["order_side"]
-
-    if product_type in profits and order_side in profits[product_type]:
-        return profits[product_type][order_side]
-
-    product_id = order.get("product_id")
-    if product_id in profits and order_side in profits[product_id]:
-        return profits[product_id][order_side]
-
-    if "SPOT" in profits and order_side in profits["SPOT"]:
-        return profits["SPOT"][order_side]
-
-    if "FUTURE" in profits and order_side in profits["FUTURE"]:
-        return profits["FUTURE"][order_side]
-
-    raise KeyError(f"No profit config found for product_type={product_type} side={order_side}")
 
 
 def quantize_to_increment(value: float, increment: str, direction: str = "nearest") -> float:
@@ -345,11 +308,9 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     if not order:
         return {}
 
-    order = deepcopy(order)
     order_product_id = order["product_id"]
-    order_product_type = normalize_product_type(order)
-    order["product_type"] = order_product_type
-    order_status = str(order["status"]).upper()
+    order_product_type = normalize_product_type(order, products=products)
+    order_status = order["status"]
     order_side = order["order_side"]
     order_size = resolve_order_size(order)
 
@@ -360,21 +321,19 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     base_increment = products[order_product_id]["base_increment"]
     quote_increment = products[order_product_id]["quote_increment"]
     price_increment = products[order_product_id]["price_increment"]
-    minimum_move_amount = safe_float(price_increment, default=0.0)
-    profit_move_pct = resolve_profit_move_pct(profits, order)
+    minimum_move_amount = float(price_increment)
+    profit_move_pct = resolve_profit_move_pct(order, profits, products)
 
     if order_status == "FILLED":
         order_side = ORDER_SIDE_SWITCH[order_side]
 
     if order_status == "CANCELLED":
-        order_size = safe_float(order.get("leaves_quantity"), default=order_size)
+        order_size = safe_float(order.get("leaves_quantity"), default=0.0)
 
-    limit_price = safe_float(order.get("limit_price"), default=0.0)
-    avg_price = safe_float(order.get("avg_price"), default=0.0)
-    if limit_price > 0:
-        order_float_price = limit_price
-    elif avg_price > 0:
-        order_float_price = avg_price
+    if safe_float(order.get("limit_price"), default=0.0) > 0:
+        order_float_price = safe_float(order.get("limit_price"), default=0.0)
+    elif safe_float(order.get("avg_price"), default=0.0) > 0:
+        order_float_price = safe_float(order.get("avg_price"), default=0.0)
     else:
         return {}
 
