@@ -89,6 +89,99 @@ def format_based_on_reference(value_to_format: float, reference_float: str) -> s
     return result
 
 
+def safe_float(value, default: float = 0.0) -> float:
+    """
+    Safely coerce a value to float.
+
+    Args:
+        value: The value to convert.
+        default: The value to return when conversion fails.
+
+    Returns:
+        A float representation of the value or the provided default.
+    """
+    try:
+        if value in (None, ""):
+            return float(default)
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def normalize_product_type(order: dict) -> str:
+    """
+    Normalize product type values received from Coinbase events.
+
+    Args:
+        order: The order dictionary containing a product_type and/or product_id.
+
+    Returns:
+        A normalized product type string such as SPOT or FUTURE.
+    """
+    product_type = str(order.get("product_type") or "").upper().strip()
+    if product_type:
+        return product_type
+
+    product_id = str(order.get("product_id") or "")
+    if "-" in product_id and any(ch.isdigit() for ch in product_id):
+        return "FUTURE"
+    return "SPOT"
+
+
+def resolve_order_size(order: dict) -> float:
+    """
+    Resolve the most appropriate order size from an order event.
+
+    Args:
+        order: The order dictionary from Coinbase.
+
+    Returns:
+        The best available size as a float.
+    """
+    leaves_quantity = safe_float(order.get("leaves_quantity"), default=0.0)
+    cumulative_quantity = safe_float(order.get("cumulative_quantity"), default=0.0)
+
+    if str(order.get("status") or "").upper() == "CANCELLED" and leaves_quantity > 0:
+        return leaves_quantity
+
+    for field in ("cumulative_quantity", "filled_size", "base_size", "size", "leaves_quantity"):
+        size = safe_float(order.get(field), default=0.0)
+        if size > 0:
+            return size
+
+    return 0.0
+
+
+def resolve_profit_move_pct(profits: dict, order: dict) -> float:
+    """
+    Resolve the configured profit target for an order.
+
+    Args:
+        profits: Profit configuration dictionary.
+        order: The source order dictionary.
+
+    Returns:
+        The configured target movement for the order side and product type.
+    """
+    product_type = normalize_product_type(order)
+    order_side = order["order_side"]
+
+    if product_type in profits and order_side in profits[product_type]:
+        return profits[product_type][order_side]
+
+    product_id = order.get("product_id")
+    if product_id in profits and order_side in profits[product_id]:
+        return profits[product_id][order_side]
+
+    if "SPOT" in profits and order_side in profits["SPOT"]:
+        return profits["SPOT"][order_side]
+
+    if "FUTURE" in profits and order_side in profits["FUTURE"]:
+        return profits["FUTURE"][order_side]
+
+    raise KeyError(f"No profit config found for product_type={product_type} side={order_side}")
+
+
 def quantize_to_increment(value: float, increment: str, direction: str = "nearest") -> float:
     """
     Quantize a value to the nearest valid increment.
@@ -252,32 +345,36 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     if not order:
         return {}
 
+    order = deepcopy(order)
     order_product_id = order["product_id"]
-    order_product_type = order["product_type"]
-    order_status = order["status"]
+    order_product_type = normalize_product_type(order)
+    order["product_type"] = order_product_type
+    order_status = str(order["status"]).upper()
     order_side = order["order_side"]
-    order_size = float(
-        order["leaves_quantity"] if float(order["leaves_quantity"]) > 0
-        else order["cumulative_quantity"]
-    )
+    order_size = resolve_order_size(order)
 
-    mandatory_fee = mandatory_fees[order_product_id]["mandatory_fee_per_contract"]
+    mandatory_fee = safe_float(
+        mandatory_fees.get(order_product_id, {}).get("mandatory_fee_per_contract"),
+        default=0.0,
+    )
     base_increment = products[order_product_id]["base_increment"]
     quote_increment = products[order_product_id]["quote_increment"]
     price_increment = products[order_product_id]["price_increment"]
-    minimum_move_amount = float(price_increment)
-    profit_move_pct = profits[order_product_type][order_side]
+    minimum_move_amount = safe_float(price_increment, default=0.0)
+    profit_move_pct = resolve_profit_move_pct(profits, order)
 
     if order_status == "FILLED":
         order_side = ORDER_SIDE_SWITCH[order_side]
 
     if order_status == "CANCELLED":
-        order_size = float(order["leaves_quantity"])
+        order_size = safe_float(order.get("leaves_quantity"), default=order_size)
 
-    if order.get("limit_price"):
-        order_float_price = float(order["limit_price"])
-    elif order.get("avg_price") != "0":
-        order_float_price = float(order["avg_price"])
+    limit_price = safe_float(order.get("limit_price"), default=0.0)
+    avg_price = safe_float(order.get("avg_price"), default=0.0)
+    if limit_price > 0:
+        order_float_price = limit_price
+    elif avg_price > 0:
+        order_float_price = avg_price
     else:
         return {}
 
