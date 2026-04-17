@@ -1,0 +1,27 @@
+{
+  "channel": "status",
+  "description": "Sends all products and currencies on a preset interval",
+  "requires_authentication": false,
+  "send_interval": "Preset interval when data changes",
+  "warning": "Channels close within 60-90 seconds if no updates sent. Subscribe to heartbeats to keep alive.",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "status",
+    "product_ids": [
+      "string - array of product IDs (e.g., ['ETH-USD', 'BTC-USD'])"
+    ],
+    "jwt": "optional - Bearer token"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "status",
+    "product_ids": "optional - specific products to unsubscribe from"
+  },
+  "notes": "Returns product information including status, pricing rules, and minimum/maximum order sizes on preset interval. Use status channel to validate products before placing orders.",
+  "use_case": "Get product metadata, status updates, minimum/maximum trading amounts",
+  "product_id_examples": [
+    "BTC-USD",
+    "ETH-USD",
+    "ETH-USDT"
+  ]
+}

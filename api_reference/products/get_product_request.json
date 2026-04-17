@@ -1,0 +1,18 @@
+{
+  "endpoint": "GET /api/v1/products/{product_id}",
+  "method": "GET",
+  "description": "Get details of a specific product",
+  "path_parameters": {
+    "product_id": {
+      "type": "string",
+      "description": "The product identifier (e.g., BTC-USD, ETH-USDT)",
+      "required": true
+    }
+  },
+  "authentication": "Bearer token (OAuth2)",
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns detailed information about a specific product including min/max sizes, price increments, and status"
+}

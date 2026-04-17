@@ -1,0 +1,11 @@
+{
+  "endpoint": "GET /api/v1/fees",
+  "method": "GET",
+  "description": "Get current fee schedule and volume discounts",
+  "authentication": "Bearer token (OAuth2)",
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns fee information including maker/taker rates and volume-based discounts"
+}

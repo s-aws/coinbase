@@ -1,0 +1,22 @@
+{
+  "endpoint": "GET /api/v1/portfolios",
+  "method": "GET",
+  "description": "Response structure for list portfolios",
+  "response": {
+    "portfolios": [
+      {
+        "uuid": "string - unique portfolio identifier",
+        "name": "string - portfolio name",
+        "type": "string - STANDARD, UNKNOWN",
+        "deleted": "boolean - whether portfolio is deleted",
+        "created_at": "string - ISO8601 timestamp",
+        "updated_at": "string - ISO8601 timestamp"
+      }
+    ]
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "403": "Forbidden"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "endpoint": "POST /api/v1/convert",
+  "method": "POST",
+  "description": "Convert funds between supported currencies",
+  "authentication": "Bearer token (OAuth2)",
+  "request_body": {
+    "from_account": {
+      "type": "string (UUID)",
+      "description": "Source account UUID",
+      "required": true
+    },
+    "to_account": {
+      "type": "string (UUID)",
+      "description": "Destination account UUID",
+      "required": true
+    },
+    "amount": {
+      "type": "string",
+      "description": "Amount to convert (in from_account currency)",
+      "required": true
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Performs stablecoin conversion between supported currencies at market rates"
+}

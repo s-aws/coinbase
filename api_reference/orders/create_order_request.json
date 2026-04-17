@@ -1,0 +1,72 @@
+{
+  "endpoint": "POST /api/v1/orders",
+  "method": "POST",
+  "description": "Create a new order (limit or market)",
+  "authentication": "Bearer token (OAuth2)",
+  "request_body": {
+    "client_order_id": {
+      "type": "string (UUID)",
+      "description": "Unique client-side identifier for the order",
+      "required": true
+    },
+    "product_id": {
+      "type": "string",
+      "description": "The product to trade (e.g., BTC-USD, ETH-USDT)",
+      "required": true
+    },
+    "side": {
+      "type": "string (enum)",
+      "enum": ["BUY", "SELL"],
+      "description": "Buy or sell side",
+      "required": true
+    },
+    "order_configuration": {
+      "type": "object",
+      "description": "Order type configuration",
+      "required": true,
+      "properties": {
+        "limit_order_config": {
+          "type": "object",
+          "description": "Configuration for limit orders",
+          "properties": {
+            "base_size": {
+              "type": "string",
+              "description": "Quantity to buy or sell (in base currency)"
+            },
+            "limit_price": {
+              "type": "string",
+              "description": "Price per unit (in quote currency)"
+            },
+            "post_only": {
+              "type": "boolean",
+              "description": "If true, only add liquidity (maker orders)"
+            },
+            "end_time": {
+              "type": "string",
+              "description": "ISO8601 timestamp when order expires"
+            }
+          }
+        },
+        "market_order_config": {
+          "type": "object",
+          "description": "Configuration for market orders",
+          "properties": {
+            "base_size": {
+              "type": "string",
+              "description": "Quantity to buy or sell (in base currency)"
+            },
+            "quote_size": {
+              "type": "string",
+              "description": "Amount in quote currency to spend/receive"
+            }
+          }
+        }
+      }
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Either base_size or quote_size must be provided, but not both. For limit orders, limit_price is required."
+}

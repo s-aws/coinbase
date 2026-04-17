@@ -1,0 +1,27 @@
+{
+  "channel": "ticker",
+  "description": "Real-time price updates every time a match happens with batching for cascading matches",
+  "requires_authentication": false,
+  "send_interval": "Every trade match (batched for cascading matches)",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "ticker",
+    "product_ids": [
+      "string - array of product IDs (e.g., ['ETH-USD', 'BTC-USD'])"
+    ],
+    "jwt": "optional - Bearer token"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "ticker",
+    "product_ids": "optional - specific products to unsubscribe from"
+  },
+  "notes": "Ticker channel provides real-time price and volume data with best bid/ask. High frequency updates. Use ticker_batch for reduced frequency (5-second updates).",
+  "use_case": "Real-time price tracking, bid/ask monitoring, volume analysis",
+  "product_id_examples": [
+    "BTC-USD",
+    "ETH-USD",
+    "ETH-USDT"
+  ],
+  "comparison_to_ticker_batch": "ticker: every trade match (high frequency) vs ticker_batch: every 5 seconds"
+}

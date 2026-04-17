@@ -1,0 +1,18 @@
+{
+  "endpoint": "GET /api/v1/accounts/{account_uuid}",
+  "method": "GET",
+  "description": "Get details of a specific account",
+  "path_parameters": {
+    "account_uuid": {
+      "type": "string (UUID)",
+      "description": "The unique identifier for the account",
+      "required": true
+    }
+  },
+  "authentication": "Bearer token (OAuth2)",
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns detailed account information including balance and status"
+}

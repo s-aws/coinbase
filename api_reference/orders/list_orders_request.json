@@ -1,0 +1,49 @@
+{
+  "endpoint": "GET /api/v1/orders/historical/batch",
+  "method": "GET",
+  "description": "Get a batch of historical orders with pagination",
+  "authentication": "Bearer token (OAuth2)",
+  "query_parameters": {
+    "limit": {
+      "type": "integer",
+      "description": "Number of orders per page (default 50, max 100)",
+      "required": false
+    },
+    "after": {
+      "type": "string",
+      "description": "Return orders after this order ID for pagination",
+      "required": false
+    },
+    "before": {
+      "type": "string",
+      "description": "Return orders before this order ID",
+      "required": false
+    },
+    "start_date": {
+      "type": "string",
+      "description": "Start time in ISO8601 format (inclusive)",
+      "required": false
+    },
+    "end_date": {
+      "type": "string",
+      "description": "End time in ISO8601 format (inclusive)",
+      "required": false
+    },
+    "user_native_currency": {
+      "type": "string",
+      "description": "Currency to convert values to",
+      "required": false
+    },
+    "product_type": {
+      "type": "string",
+      "enum": ["SPOT", "FUTURE"],
+      "description": "Filter by product type",
+      "required": false
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns paginated historical orders. Use 'after' cursor for next page."
+}

@@ -1,0 +1,28 @@
+{
+  "channel": "level2",
+  "description": "Order book snapshots and updates - guarantees delivery of all updates for maintaining accurate order book",
+  "requires_authentication": false,
+  "send_interval": "On every order book change",
+  "important": "Use level2 to guarantee order book sync and no missed updates",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "level2",
+    "product_ids": [
+      "string - array of product IDs (e.g., ['ETH-USD', 'BTC-USD'])"
+    ],
+    "jwt": "optional - Bearer token"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "level2",
+    "product_ids": "optional - specific products to unsubscribe from"
+  },
+  "notes": "Level2 guarantees delivery of all order book updates. First message contains full snapshot, subsequent messages are updates to apply. Use to maintain accurate order book state.",
+  "use_case": "Maintain accurate order book snapshots, track liquidity at price levels, detect support/resistance",
+  "product_id_examples": [
+    "BTC-USD",
+    "ETH-USD",
+    "ETH-USDT"
+  ],
+  "message_flow": "Initial snapshot message (type='snapshot'), followed by update messages (type='update')"
+}

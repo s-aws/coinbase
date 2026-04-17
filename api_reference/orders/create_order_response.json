@@ -1,0 +1,51 @@
+{
+  "endpoint": "POST /api/v1/orders",
+  "method": "POST",
+  "description": "Response structure for create order",
+  "response": {
+    "success": "boolean - whether order was successfully created",
+    "failure_reason": "string - reason for failure (if applicable)",
+    "order_id": "string - unique order identifier",
+    "client_order_id": "string - echoed client-provided order ID",
+    "created_at": "string - ISO8601 timestamp when order was created",
+    "completed_at": "string - ISO8601 timestamp when order completed (null if open)",
+    "side": "string - BUY or SELL",
+    "product_id": "string - product traded",
+    "order_type": "string - LIMIT or MARKET",
+    "time_in_force": "string - IOC, FOK, GTC, or GTD",
+    "status": "string - PENDING, OPEN, FILLED, CANCELLED",
+    "price_per_unit": "string - price per unit (for limit orders)",
+    "size_base": "string - size in base currency",
+    "size_quote": "string - size in quote currency",
+    "total_fees": "string - total fees for the order",
+    "number_of_fills": "integer - number of fills",
+    "filled_size": "string - total amount filled",
+    "average_filled_price": "string - weighted average fill price",
+    "fee_rate": "string - fee rate used",
+    "net_proceeds": "string - proceeds after fees",
+    "user_id": "string - user ID",
+    "profile_id": "string - profile ID",
+    "reject_reason": "string - reason for rejection (if applicable)",
+    "settled": "boolean - whether the order has settled"
+  },
+  "status_codes": {
+    "200": "Success - order created",
+    "400": "Bad Request - invalid parameters",
+    "401": "Unauthorized",
+    "403": "Forbidden",
+    "429": "Too Many Requests - rate limit exceeded"
+  },
+  "example_success": {
+    "success": true,
+    "order_id": "7c4a3d3e-e8f2-4e7a-9c1d-5a6e9f2b8c1d",
+    "client_order_id": "550e8400-e29b-41d4-a716-446655440000",
+    "created_at": "2024-01-15T10:30:45.123Z",
+    "status": "OPEN",
+    "product_id": "BTC-USD",
+    "side": "BUY",
+    "order_type": "LIMIT",
+    "price_per_unit": "42500.50",
+    "size_base": "0.25",
+    "filled_size": "0.0"
+  }
+}

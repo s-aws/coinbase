@@ -1,0 +1,19 @@
+{
+  "channel": "futures_balance_summary",
+  "description": "Real-time updates on user's futures balances and margin information - requires authentication",
+  "requires_authentication": true,
+  "send_interval": "When balance or margin values change",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "futures_balance_summary",
+    "jwt": "string - required Bearer token (JWT)"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "futures_balance_summary"
+  },
+  "notes": "Sends updates when any futures balance or margin metrics change. Essential for monitoring margin requirements and liquidation risk.",
+  "use_case": "Track futures buying power, margin levels, liquidation buffer, PnL on perpetual positions",
+  "related_channels": "User channel also contains perpetual_futures_positions data",
+  "important": "Critical for risk management - monitor liquidation_buffer_percentage to prevent liquidation"
+}

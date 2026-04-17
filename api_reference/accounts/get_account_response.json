@@ -1,0 +1,31 @@
+{
+  "endpoint": "GET /api/v1/accounts/{account_uuid}",
+  "method": "GET",
+  "description": "Response structure for get account details",
+  "response": {
+    "uuid": "string - unique account identifier",
+    "name": "string - display name of account",
+    "currency": "string - currency code (USD, BTC, ETH, etc.)",
+    "available_balance": {
+      "value": "string - decimal balance",
+      "currency": "string - currency code"
+    },
+    "hold": {
+      "value": "string - decimal amount on hold",
+      "currency": "string - currency code"
+    },
+    "default": "boolean - whether this is the default account",
+    "active": "boolean - whether the account is active",
+    "created_at": "string - ISO8601 timestamp",
+    "updated_at": "string - ISO8601 timestamp",
+    "deleted_at": "string - ISO8601 timestamp (null if active)",
+    "type": "string - account type (ACCOUNT, VAULT, WALLET)",
+    "ready": "boolean - whether account is ready for trading"
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "403": "Forbidden",
+    "404": "Account not found"
+  }
+}

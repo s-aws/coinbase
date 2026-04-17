@@ -1,0 +1,23 @@
+{
+  "endpoint": "GET /api/v1/accounts",
+  "method": "GET",
+  "description": "Get a list of all your accounts",
+  "authentication": "Bearer token (OAuth2)",
+  "query_parameters": {
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of results per page (default 50, max 250)",
+      "required": false
+    },
+    "cursor": {
+      "type": "string",
+      "description": "Pagination cursor for next page of results",
+      "required": false
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns paginated results of all trading accounts"
+}

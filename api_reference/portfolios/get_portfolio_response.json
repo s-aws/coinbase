@@ -1,0 +1,44 @@
+{
+  "endpoint": "GET /api/v1/portfolios/{portfolio_uuid}",
+  "method": "GET",
+  "description": "Response structure for get portfolio details",
+  "response": {
+    "portfolio": {
+      "uuid": "string - portfolio ID",
+      "name": "string - portfolio name",
+      "type": "string - STANDARD, UNKNOWN",
+      "deleted": "boolean",
+      "created_at": "string - ISO8601 timestamp",
+      "updated_at": "string - ISO8601 timestamp"
+    },
+    "breakdown": {
+      "portfolio_uuid": "string",
+      "total_balance": {
+        "value": "string - total portfolio value",
+        "currency": "string"
+      },
+      "liquid_balance": {
+        "value": "string - available balance",
+        "currency": "string"
+      },
+      "account_holds": {
+        "value": "string - amount on hold",
+        "currency": "string"
+      },
+      "total_cbbtc_balance": {
+        "value": "string - wrapped Bitcoin balance",
+        "currency": "string"
+      },
+      "positions": {
+        "value": "string - unrealized positions value",
+        "currency": "string"
+      }
+    }
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "403": "Forbidden",
+    "404": "Portfolio not found"
+  }
+}

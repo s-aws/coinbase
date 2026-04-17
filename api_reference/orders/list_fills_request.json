@@ -1,0 +1,48 @@
+{
+  "endpoint": "GET /api/v1/orders/historical/fills",
+  "method": "GET",
+  "description": "Get historical order fills with pagination",
+  "authentication": "Bearer token (OAuth2)",
+  "query_parameters": {
+    "limit": {
+      "type": "integer",
+      "description": "Number of fills per page (default 50, max 100)",
+      "required": false
+    },
+    "after": {
+      "type": "string",
+      "description": "Pagination cursor (trade ID)",
+      "required": false
+    },
+    "before": {
+      "type": "string",
+      "description": "Return fills before this trade ID",
+      "required": false
+    },
+    "start_date": {
+      "type": "string",
+      "description": "Start time in ISO8601 format",
+      "required": false
+    },
+    "end_date": {
+      "type": "string",
+      "description": "End time in ISO8601 format",
+      "required": false
+    },
+    "product_id": {
+      "type": "string",
+      "description": "Filter by specific product",
+      "required": false
+    },
+    "order_id": {
+      "type": "string",
+      "description": "Filter by specific order ID",
+      "required": false
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns fills (executions) for orders. Useful for tracking partial fills and multiple executions."
+}

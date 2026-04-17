@@ -1,0 +1,46 @@
+{
+  "endpoint": "GET /api/v1/products",
+  "method": "GET",
+  "description": "Response structure for list products",
+  "response": {
+    "products": [
+      {
+        "product_id": "string - unique product identifier (e.g., BTC-USD)",
+        "price": "string - current price",
+        "price_percentage_change_24h": "string - percent change in 24h",
+        "volume_24h": "string - trading volume in 24h",
+        "volume_percentage_change_24h": "string - volume change percent",
+        "base_increment": "string - minimum base currency increment",
+        "display_name": "string - human-readable name",
+        "status": "string - OPEN or CLOSED",
+        "base_currency": "string - base currency code",
+        "quote_currency": "string - quote currency code",
+        "base_min_size": "string - minimum order size",
+        "base_max_size": "string - maximum order size",
+        "quote_increment": "string - minimum quote currency increment",
+        "quote_min_size": "string - minimum quote amount",
+        "quote_max_size": "string - maximum quote amount",
+        "cancel_only": "boolean - whether only cancels are allowed",
+        "limit_only": "boolean - whether only limit orders allowed",
+        "post_only": "boolean - whether post-only orders required",
+        "product_type": "string - SPOT or FUTURE",
+        "id": "string - same as product_id",
+        "baseName": "string - base currency name",
+        "quoteName": "string - quote currency name",
+        "watchlist_symbol": "string - symbol for watchlists",
+        "fcm_trading_session_details": {
+          "open": "string - opening time",
+          "close": "string - closing time",
+          "is_close": "boolean"
+        }
+      }
+    ],
+    "sequence": "string - sequence number",
+    "has_next": "boolean - whether more results available"
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "403": "Forbidden"
+  }
+}

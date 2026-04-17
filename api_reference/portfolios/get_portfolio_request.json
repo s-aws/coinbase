@@ -1,0 +1,18 @@
+{
+  "endpoint": "GET /api/v1/portfolios/{portfolio_uuid}",
+  "method": "GET",
+  "description": "Get details of a specific portfolio including breakdowns",
+  "path_parameters": {
+    "portfolio_uuid": {
+      "type": "string (UUID)",
+      "description": "The unique portfolio identifier",
+      "required": true
+    }
+  },
+  "authentication": "Bearer token (OAuth2)",
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns portfolio details including asset breakdown and allocation information"
+}

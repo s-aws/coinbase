@@ -1,0 +1,17 @@
+{
+  "channel": "heartbeats",
+  "description": "Real-time server pings to keep all connections open",
+  "requires_authentication": false,
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "heartbeats",
+    "jwt": "optional - Bearer token for authenticated requests"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "heartbeats"
+  },
+  "notes": "Heartbeats are sent every second and include a counter to verify no messages were missed. Subscribe to heartbeats alongside other channels to ensure all subscriptions stay open when updates are sparse, especially useful for illiquid pairs.",
+  "use_case": "Keep WebSocket connections alive during periods of inactivity",
+  "recommended_frequency": "Always enabled when subscribing to other channels"
+}

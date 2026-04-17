@@ -1,0 +1,43 @@
+{
+  "endpoint": "GET /api/v1/fees",
+  "method": "GET",
+  "description": "Response structure for get fees",
+  "response": {
+    "maker_fee_rate": "string - decimal fee rate for makers (e.g., 0.001 = 0.1%)",
+    "taker_fee_rate": "string - decimal fee rate for takers",
+    "volume_30day": {
+      "value": "string - 30-day trading volume",
+      "currency": "string"
+    },
+    "fee_tier": {
+      "name": "string - fee tier name (Standard, Advanced, Pro, etc.)",
+      "maker_fee_rate": "string",
+      "taker_fee_rate": "string",
+      "pricing_tier": "string - tier identifier"
+    },
+    "perpetuals_volume_30day": {
+      "value": "string - 30-day perpetual trading volume",
+      "currency": "string"
+    },
+    "perpetuals_fee_tier": {
+      "name": "string",
+      "maker_fee_rate": "string",
+      "taker_fee_rate": "string",
+      "pricing_tier": "string"
+    },
+    "stablecoin_conversions_enabled": "boolean"
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "403": "Forbidden"
+  },
+  "example": {
+    "maker_fee_rate": "0.004",
+    "taker_fee_rate": "0.006",
+    "volume_30day": {
+      "value": "50000.00",
+      "currency": "USD"
+    }
+  }
+}

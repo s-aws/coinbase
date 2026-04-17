@@ -1,0 +1,35 @@
+{
+  "endpoint": "GET /api/v1/products/{product_id}",
+  "method": "GET",
+  "description": "Response structure for get product",
+  "response": {
+    "product_id": "string - unique product identifier",
+    "price": "string - current market price",
+    "price_percentage_change_24h": "string - 24-hour percent change",
+    "volume_24h": "string - 24-hour trading volume",
+    "volume_percentage_change_24h": "string - 24-hour volume change percent",
+    "base_increment": "string - smallest increment for base currency",
+    "display_name": "string - display name for the product",
+    "status": "string - OPEN, CLOSED, POST_ONLY, LIMIT_ONLY",
+    "base_currency": "string - base currency (e.g., BTC)",
+    "quote_currency": "string - quote currency (e.g., USD)",
+    "base_min_size": "string - minimum base currency order size",
+    "base_max_size": "string - maximum base currency order size",
+    "quote_increment": "string - smallest quote increment",
+    "quote_min_size": "string - minimum quote amount",
+    "quote_max_size": "string - maximum quote amount",
+    "cancel_only": "boolean - only cancellations allowed",
+    "limit_only": "boolean - only limit orders allowed",
+    "post_only": "boolean - post-only (maker) orders required",
+    "product_type": "string - SPOT or FUTURE",
+    "watchlist_symbol": "string - symbol identifier",
+    "mid_price": "string - midpoint between bid and ask",
+    "best_bid": "string - best bid price",
+    "best_ask": "string - best ask price"
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "404": "Product not found"
+  }
+}

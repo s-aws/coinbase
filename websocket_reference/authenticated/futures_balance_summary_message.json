@@ -1,0 +1,137 @@
+{
+  "channel": "futures_balance_summary",
+  "description": "Futures balance summary message format",
+  "message_type": "futures_balance_summary",
+  "response_structure": {
+    "channel": "string - always 'futures_balance_summary'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' (initial) or 'update' (ongoing)",
+        "fcm_balance_summary": {
+          "futures_buying_power": "string - available to trade futures",
+          "total_usd_balance": "string - total USD across accounts",
+          "cbi_usd_balance": "string - USD in spot account (Coinbase Inc.)",
+          "cfm_usd_balance": "string - USD in futures account (CFTC-regulated)",
+          "total_open_orders_hold_amount": "string - hold for open orders",
+          "unrealized_pnl": "string - current unrealized PnL on open positions",
+          "daily_realized_pnl": "string - realized PnL today",
+          "initial_margin": "string - margin required for positions",
+          "available_margin": "string - margin available for new positions",
+          "liquidation_threshold": "string - balance level triggering liquidation",
+          "liquidation_buffer_amount": "string - cushion above liquidation threshold",
+          "liquidation_buffer_percentage": "string - buffer as percentage",
+          "intraday_margin_window_measure": {
+            "margin_window_type": "string - FCM_MARGIN_WINDOW_TYPE_INTRADAY, OVERNIGHT, WEEKEND, TRANSITION",
+            "margin_level": "string - MARGIN_LEVEL_TYPE_BASE, WARNING, DANGER, LIQUIDATION",
+            "initial_margin": "string",
+            "maintenance_margin": "string",
+            "liquidation_buffer_percentage": "string",
+            "total_hold": "string",
+            "futures_buying_power": "string"
+          },
+          "overnight_margin_window_measure": {
+            "margin_window_type": "string",
+            "margin_level": "string",
+            "initial_margin": "string",
+            "maintenance_margin": "string",
+            "liquidation_buffer_percentage": "string",
+            "total_hold": "string",
+            "futures_buying_power": "string"
+          }
+        }
+      }
+    ]
+  },
+  "example": {
+    "channel": "futures_balance_summary",
+    "client_id": "",
+    "timestamp": "2023-02-09T20:33:57.609931463Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "snapshot",
+        "fcm_balance_summary": {
+          "futures_buying_power": "100.00",
+          "total_usd_balance": "200.00",
+          "cbi_usd_balance": "300.00",
+          "cfm_usd_balance": "400.00",
+          "total_open_orders_hold_amount": "500.00",
+          "unrealized_pnl": "600.00",
+          "daily_realized_pnl": "0",
+          "initial_margin": "700.00",
+          "available_margin": "800.00",
+          "liquidation_threshold": "900.00",
+          "liquidation_buffer_amount": "1000.00",
+          "liquidation_buffer_percentage": "1000",
+          "intraday_margin_window_measure": {
+            "margin_window_type": "FCM_MARGIN_WINDOW_TYPE_INTRADAY",
+            "margin_level": "MARGIN_LEVEL_TYPE_BASE",
+            "initial_margin": "100.00",
+            "maintenance_margin": "200.00",
+            "liquidation_buffer_percentage": "1000",
+            "total_hold": "100.00",
+            "futures_buying_power": "400.00"
+          },
+          "overnight_margin_window_measure": {
+            "margin_window_type": "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT",
+            "margin_level": "MARGIN_LEVEL_TYPE_BASE",
+            "initial_margin": "300.00",
+            "maintenance_margin": "200.00",
+            "liquidation_buffer_percentage": "1000",
+            "total_hold": "-30.00",
+            "futures_buying_power": "2000.00"
+          }
+        }
+      }
+    ]
+  },
+  "field_descriptions": {
+    "futures_buying_power": "Amount available to open new futures positions",
+    "total_usd_balance": "Combined USD across spot + futures accounts",
+    "cbi_usd_balance": "USD in your Coinbase Inc. spot trading account",
+    "cfm_usd_balance": "USD in CFTC-regulated futures account (not available for spot)",
+    "total_open_orders_hold_amount": "Total balance on hold for all open orders",
+    "unrealized_pnl": "Current profit/loss on open positions",
+    "daily_realized_pnl": "Profit/loss from closed positions today",
+    "initial_margin": "Margin required to open/maintain positions",
+    "available_margin": "Margin you have available for new positions",
+    "liquidation_threshold": "Balance level at which liquidation occurs",
+    "liquidation_buffer_amount": "Cushion = available_margin - liquidation_threshold",
+    "liquidation_buffer_percentage": "Buffer as percentage - 0% = liquidation imminent"
+  },
+  "margin_window_types": {
+    "INTRADAY": "Lower margin requirements for intraday positions (settles daily)",
+    "OVERNIGHT": "Higher margin for positions held overnight",
+    "WEEKEND": "Weekend margin window",
+    "TRANSITION": "Transition period margins"
+  },
+  "margin_level_types": {
+    "BASE": "Normal operation - healthy margin status",
+    "WARNING": "Approaching margin requirement - consider reducing positions",
+    "DANGER": "Significant margin pressure - reduce positions immediately",
+    "LIQUIDATION": "At or below liquidation threshold - liquidation happening"
+  },
+  "risk_management_thresholds": [
+    "Alert when liquidation_buffer_percentage < 20%",
+    "Warning when liquidation_buffer_percentage < 5%",
+    "Critical when liquidation_buffer_percentage <= 0%"
+  ],
+  "key_metrics_for_bot": {
+    "futures_buying_power": "Max size you can trade",
+    "available_margin": "Cushion available",
+    "liquidation_buffer_percentage": "Risk indicator (0-100%)",
+    "unrealized_pnl": "Current open position value",
+    "margin_level": "Health status indicator"
+  },
+  "integration_strategy": [
+    "Subscribe to track margin changes in real-time",
+    "Implement liquidation buffer monitoring",
+    "Reduce position sizing when margin pressure increases",
+    "Use margin_level to trigger risk management alerts",
+    "Track buying power to prevent overleveraging"
+  ],
+  "caution": "Monitor liquidation buffer closely - lack of attention can result in forced liquidations"
+}

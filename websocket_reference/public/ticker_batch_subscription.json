@@ -1,0 +1,27 @@
+{
+  "channel": "ticker_batch",
+  "description": "Real-time price updates every 5 seconds (batched) - lower bandwidth than ticker",
+  "requires_authentication": false,
+  "send_interval": "Every 5000 milliseconds (5 seconds) if data changed",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "ticker_batch",
+    "product_ids": [
+      "string - array of product IDs (e.g., ['ETH-USD', 'BTC-USD'])"
+    ],
+    "jwt": "optional - Bearer token"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "ticker_batch",
+    "product_ids": "optional - specific products to unsubscribe from"
+  },
+  "notes": "Same format as ticker channel but with lower frequency (5-second batching) and without best bid/ask fields. Use for bandwidth-constrained scenarios.",
+  "use_case": "Lower-frequency price tracking, reduced bandwidth requirements",
+  "product_id_examples": [
+    "BTC-USD",
+    "ETH-USD",
+    "ETH-USDT"
+  ],
+  "differences_from_ticker": "ticker_batch sends every 5 seconds instead of every trade, excludes best_bid/best_ask fields, reduced bandwidth"
+}

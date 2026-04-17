@@ -1,0 +1,36 @@
+{
+  "endpoint": "GET /api/v1/products/{product_id}/candles",
+  "method": "GET",
+  "description": "Get candle (OHLC) data for a product",
+  "path_parameters": {
+    "product_id": {
+      "type": "string",
+      "description": "The product identifier",
+      "required": true
+    }
+  },
+  "query_parameters": {
+    "start": {
+      "type": "string",
+      "description": "Start time in ISO8601 format",
+      "required": false
+    },
+    "end": {
+      "type": "string",
+      "description": "End time in ISO8601 format",
+      "required": false
+    },
+    "granularity": {
+      "type": "string",
+      "enum": ["ONE_MINUTE", "FIVE_MINUTE", "FIFTEEN_MINUTE", "THIRTY_MINUTE", "ONE_HOUR", "SIX_HOUR", "ONE_DAY"],
+      "description": "Candle time interval",
+      "required": true
+    }
+  },
+  "authentication": "Bearer token (OAuth2)",
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns OHLC (Open, High, Low, Close) candles for the specified time period and granularity"
+}

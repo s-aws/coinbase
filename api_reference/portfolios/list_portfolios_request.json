@@ -1,0 +1,23 @@
+{
+  "endpoint": "GET /api/v1/portfolios",
+  "method": "GET",
+  "description": "Get list of all portfolios",
+  "authentication": "Bearer token (OAuth2)",
+  "query_parameters": {
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of portfolios to return",
+      "required": false
+    },
+    "offset": {
+      "type": "integer",
+      "description": "Pagination offset",
+      "required": false
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns all portfolios accessible to the user, including default and custom portfolios"
+}

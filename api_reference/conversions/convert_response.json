@@ -1,0 +1,45 @@
+{
+  "endpoint": "POST /api/v1/convert",
+  "method": "POST",
+  "description": "Response structure for convert currencies",
+  "response": {
+    "id": "string - unique conversion identifier",
+    "from_account": {
+      "id": "string - account UUID",
+      "currency": "string - source currency code"
+    },
+    "to_account": {
+      "id": "string - account UUID",
+      "currency": "string - destination currency code"
+    },
+    "from_amount": {
+      "value": "string - amount debited",
+      "currency": "string"
+    },
+    "to_amount": {
+      "value": "string - amount credited",
+      "currency": "string"
+    },
+    "rate": "string - conversion rate applied",
+    "created_at": "string - ISO8601 timestamp"
+  },
+  "status_codes": {
+    "200": "Success",
+    "400": "Bad Request - invalid accounts or currencies",
+    "401": "Unauthorized",
+    "403": "Forbidden",
+    "409": "Conflict - insufficient balance"
+  },
+  "example": {
+    "id": "conversion-123",
+    "from_amount": {
+      "value": "100.00",
+      "currency": "USDC"
+    },
+    "to_amount": {
+      "value": "100.05",
+      "currency": "USDT"
+    },
+    "rate": "1.0005"
+  }
+}

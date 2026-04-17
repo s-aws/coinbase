@@ -1,0 +1,18 @@
+{
+  "endpoint": "GET /api/v1/perpetual_positions",
+  "method": "GET",
+  "description": "Get list of perpetual futures positions",
+  "authentication": "Bearer token (OAuth2)",
+  "query_parameters": {
+    "portfolio_uuid": {
+      "type": "string (UUID)",
+      "description": "Filter positions by portfolio",
+      "required": false
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns all open futures positions with profit/loss and sizing information"
+}

@@ -1,0 +1,64 @@
+{
+  "channel": "candles",
+  "description": "Candle (OHLC) message format",
+  "message_type": "candles",
+  "response_structure": {
+    "channel": "string - always 'candles'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' or 'update'",
+        "candles": [
+          {
+            "start": "string - UNIX timestamp of candle start",
+            "high": "string - highest price during 5-minute period",
+            "low": "string - lowest price during 5-minute period",
+            "open": "string - opening price of period",
+            "close": "string - closing price of period",
+            "volume": "string - base amount traded in period",
+            "product_id": "string - product identifier"
+          }
+        ]
+      }
+    ]
+  },
+  "example": {
+    "channel": "candles",
+    "client_id": "",
+    "timestamp": "2023-06-09T20:19:35.39625135Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "snapshot",
+        "candles": [
+          {
+            "start": "1688998200",
+            "high": "1867.72",
+            "low": "1865.63",
+            "open": "1867.38",
+            "close": "1866.81",
+            "volume": "0.20269406",
+            "product_id": "ETH-USD"
+          }
+        ]
+      }
+    ]
+  },
+  "field_descriptions": {
+    "start": "5-minute candle start time (UNIX timestamp in seconds)",
+    "high": "Highest price recorded during the 5-minute interval",
+    "low": "Lowest price recorded during the 5-minute interval",
+    "open": "Price of first trade in the interval",
+    "close": "Price of last trade in the interval",
+    "volume": "Total volume in base currency traded during interval",
+    "product_id": "Product this candle represents"
+  },
+  "message_types": {
+    "snapshot": "Initial candle data or complete candle for a period",
+    "update": "New candle starting or ongoing period updates"
+  },
+  "timestamp_note": "Convert UNIX timestamp to readable format with: datetime.fromtimestamp(int(start))",
+  "integration": "Parse candles for moving averages, RSI, MACD and other technical indicators"
+}

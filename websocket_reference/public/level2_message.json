@@ -1,0 +1,107 @@
+{
+  "channel": "level2",
+  "description": "Order book snapshot and update message format",
+  "message_type": "l2_data (note: channel field uses 'l2_data')",
+  "response_structure": {
+    "channel": "string - 'l2_data'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' (initial) or 'update' (ongoing)",
+        "product_id": "string - product ID",
+        "updates": [
+          {
+            "side": "string - 'bid' or 'ask'",
+            "event_time": "string - ISO8601 timestamp of price level change",
+            "price_level": "string - price at this level",
+            "new_quantity": "string - updated quantity at this level (0 = remove level)"
+          }
+        ]
+      }
+    ]
+  },
+  "example_snapshot": {
+    "channel": "l2_data",
+    "client_id": "",
+    "timestamp": "2023-02-09T20:32:50.714964855Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "snapshot",
+        "product_id": "BTC-USD",
+        "updates": [
+          {
+            "side": "bid",
+            "event_time": "1970-01-01T00:00:00Z",
+            "price_level": "21921.73",
+            "new_quantity": "0.06317902"
+          },
+          {
+            "side": "bid",
+            "event_time": "1970-01-01T00:00:00Z",
+            "price_level": "21921.30",
+            "new_quantity": "0.02"
+          },
+          {
+            "side": "ask",
+            "event_time": "1970-01-01T00:00:00Z",
+            "price_level": "21922.50",
+            "new_quantity": "0.15"
+          }
+        ]
+      }
+    ]
+  },
+  "example_update": {
+    "channel": "l2_data",
+    "timestamp": "2023-02-09T20:32:51.214964855Z",
+    "events": [
+      {
+        "type": "update",
+        "product_id": "BTC-USD",
+        "updates": [
+          {
+            "side": "bid",
+            "event_time": "2023-02-09T20:32:51.200Z",
+            "price_level": "21921.73",
+            "new_quantity": "0.10"
+          },
+          {
+            "side": "ask",
+            "event_time": "2023-02-09T20:32:51.200Z",
+            "price_level": "21922.50",
+            "new_quantity": "0.0"
+          }
+        ]
+      }
+    ]
+  },
+  "field_descriptions": {
+    "side": "bid = buy side of book, ask = sell side",
+    "price_level": "Price at which this liquidity is available",
+    "new_quantity": "Total quantity at this price. 0 = price level removed from book",
+    "event_time": "When this price level changed (for ordering updates)"
+  },
+  "important_notes": [
+    "new_quantity is total quantity at level, NOT a delta",
+    "new_quantity of '0' means remove that price level from your local order book",
+    "First message is always 'snapshot' (full book), subsequent are 'update' messages",
+    "Updates are atomic per price level - apply them in order"
+  ],
+  "processing_strategy": [
+    "1. Receive snapshot message - initialize order book with all bids and asks",
+    "2. Receive update messages - apply each update (add/update/remove price level)",
+    "3. Maintain separate data structures for bids (descending price) and asks (ascending price)",
+    "4. Track sequence_num to detect missed messages"
+  ],
+  "implementation_example": {
+    "python_structure": {
+      "bids": "dict[price_level: str, quantity: str] - sorted descending",
+      "asks": "dict[price_level: str, quantity: str] - sorted ascending"
+    },
+    "update_logic": "if new_quantity == '0': delete price_level else: bids[price_level] = new_quantity"
+  },
+  "integration": "Use to calculate midpoint price, track depth, detect large orders, analyze liquidity"
+}

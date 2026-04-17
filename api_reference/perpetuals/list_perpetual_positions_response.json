@@ -1,0 +1,38 @@
+{
+  "endpoint": "GET /api/v1/perpetual_positions",
+  "method": "GET",
+  "description": "Response structure for list perpetual positions",
+  "response": {
+    "positions": [
+      {
+        "portfolio_uuid": "string",
+        "product_id": "string - futures product (e.g., BTC-USD-PERP)",
+        "net_size": "string - net position size (long positive, short negative)",
+        "entry_vwap": "string - volume-weighted average entry price",
+        "position_direction": "string - LONG or SHORT",
+        "max_show_amount": "string",
+        "created_at": "string - ISO8601 timestamp",
+        "updated_at": "string - ISO8601 timestamp",
+        "unrealized_pnl": {
+          "value": "string - unrealized profit/loss",
+          "currency": "string"
+        },
+        "realized_pnl": {
+          "value": "string - realized profit/loss",
+          "currency": "string"
+        },
+        "margin_type": "string - CROSS or ISOLATED",
+        "margin_amt": {
+          "value": "string - margin allocated",
+          "currency": "string"
+        },
+        "leverage": "string - position leverage"
+      }
+    ]
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "403": "Forbidden"
+  }
+}

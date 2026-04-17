@@ -1,0 +1,32 @@
+{
+  "endpoint": "GET /api/v1/perpetual_orders",
+  "method": "GET",
+  "description": "Response structure for list perpetual orders",
+  "response": {
+    "orders": [
+      {
+        "id": "string - order ID",
+        "product_id": "string - futures product (e.g., BTC-USD-PERP)",
+        "side": "string - BUY or SELL",
+        "type": "string - LIMIT, MARKET, STOP_LIMIT",
+        "size": "string - order size",
+        "price": "string - limit price",
+        "stop_price": "string - stop price (for stop orders)",
+        "created_at": "string - ISO8601 timestamp",
+        "updated_at": "string - ISO8601 timestamp",
+        "status": "string - OPEN, PENDING, CANCELLED",
+        "filled_size": "string - amount filled",
+        "number_of_fills": "integer",
+        "average_fill_price": "string",
+        "post_only": "boolean",
+        "time_in_force": "string - IOC, FOK, GTC"
+      }
+    ],
+    "has_next": "boolean"
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized",
+    "403": "Forbidden"
+  }
+}

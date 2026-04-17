@@ -1,0 +1,29 @@
+{
+  "endpoint": "GET /api/v1/products",
+  "method": "GET",
+  "description": "Get list of all available products",
+  "authentication": "Bearer token (OAuth2)",
+  "query_parameters": {
+    "limit": {
+      "type": "integer",
+      "description": "Number of products per page (default 100, max 250)",
+      "required": false
+    },
+    "offset": {
+      "type": "integer",
+      "description": "Pagination offset",
+      "required": false
+    },
+    "product_type": {
+      "type": "string",
+      "enum": ["SPOT", "FUTURE"],
+      "description": "Filter by product type",
+      "required": false
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Returns all tradable products with their details"
+}

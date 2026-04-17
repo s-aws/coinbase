@@ -1,0 +1,35 @@
+{
+  "endpoint": "GET /api/v1/products/{product_id}/candles",
+  "method": "GET",
+  "description": "Response structure for get candles",
+  "response": {
+    "candles": [
+      {
+        "time": "integer - unix timestamp",
+        "low": "string - lowest price in period",
+        "high": "string - highest price in period",
+        "open": "string - opening price",
+        "close": "string - closing price",
+        "volume": "string - total volume traded"
+      }
+    ]
+  },
+  "status_codes": {
+    "200": "Success",
+    "400": "Bad Request - invalid parameters",
+    "401": "Unauthorized",
+    "404": "Product not found"
+  },
+  "example": {
+    "candles": [
+      {
+        "time": 1609459200,
+        "low": "40500.25",
+        "high": "42000.75",
+        "open": "40800.50",
+        "close": "41500.00",
+        "volume": "125.45"
+      }
+    ]
+  }
+}

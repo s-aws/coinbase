@@ -1,0 +1,31 @@
+{
+  "endpoint": "GET /api/v1/accounts",
+  "method": "GET",
+  "description": "Response structure for list accounts",
+  "response": {
+    "accounts": [
+      {
+        "uuid": "string - unique account identifier",
+        "name": "string - display name of account",
+        "currency": "string - currency code (USD, BTC, ETH, etc.)",
+        "available_balance": {
+          "value": "string - decimal balance",
+          "currency": "string - currency code"
+        },
+        "default": "boolean - whether this is the default account",
+        "active": "boolean - whether the account is active",
+        "created_at": "string - ISO8601 timestamp",
+        "updated_at": "string - ISO8601 timestamp",
+        "deleted_at": "string - ISO8601 timestamp (null if active)",
+        "type": "string - account type (ACCOUNT, VAULT, WALLET)"
+      }
+    ],
+    "sequence": "string - current sequence number for tracking state changes",
+    "has_next": "boolean - whether more results are available"
+  },
+  "status_codes": {
+    "200": "Success",
+    "401": "Unauthorized - invalid or expired token",
+    "403": "Forbidden - insufficient permissions"
+  }
+}

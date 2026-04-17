@@ -1,0 +1,18 @@
+{
+  "endpoint": "DELETE /api/v1/orders/{order_id}",
+  "method": "DELETE",
+  "description": "Cancel an open order",
+  "path_parameters": {
+    "order_id": {
+      "type": "string (UUID)",
+      "description": "The unique order identifier",
+      "required": true
+    }
+  },
+  "authentication": "Bearer token (OAuth2)",
+  "headers": {
+    "Authorization": "Bearer <access_token>",
+    "Content-Type": "application/json"
+  },
+  "notes": "Cancels an open order. Order must be in OPEN state to be cancelable."
+}

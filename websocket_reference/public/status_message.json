@@ -1,0 +1,74 @@
+{
+  "channel": "status",
+  "description": "Product and currency status message format",
+  "message_type": "status",
+  "response_structure": {
+    "channel": "string - always 'status'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' or 'update'",
+        "products": [
+          {
+            "product_type": "string - SPOT or FUTURE",
+            "id": "string - product ID",
+            "base_currency": "string - base currency code",
+            "quote_currency": "string - quote currency code",
+            "base_increment": "string - smallest base increment",
+            "quote_increment": "string - smallest quote increment",
+            "display_name": "string - display name",
+            "status": "string - online, offline, post_only, limit_only",
+            "status_message": "string - additional status details",
+            "min_market_funds": "string - minimum order amount in quote currency"
+          }
+        ]
+      }
+    ]
+  },
+  "example": {
+    "channel": "status",
+    "client_id": "",
+    "timestamp": "2023-02-09T20:29:49.753424311Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "snapshot",
+        "products": [
+          {
+            "product_type": "SPOT",
+            "id": "BTC-USD",
+            "base_currency": "BTC",
+            "quote_currency": "USD",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "display_name": "BTC/USD",
+            "status": "online",
+            "status_message": "",
+            "min_market_funds": "1"
+          }
+        ]
+      }
+    ]
+  },
+  "field_descriptions": {
+    "product_type": "SPOT for regular trading, FUTURE for perpetual/expiring contracts",
+    "id": "Unique product identifier used in all API calls",
+    "base_currency": "Currency being traded (e.g., BTC)",
+    "quote_currency": "Currency prices are quoted in (e.g., USD)",
+    "base_increment": "Minimum order size increment",
+    "quote_increment": "Minimum price increment",
+    "display_name": "Human-readable product name",
+    "status": "online (trading), post_only (maker-only), limit_only (limit orders only), offline",
+    "status_message": "Additional context about status",
+    "min_market_funds": "Minimum order value for market orders"
+  },
+  "status_values": {
+    "online": "Normal trading enabled",
+    "post_only": "Only post-only/maker orders accepted",
+    "limit_only": "Only limit orders accepted",
+    "offline": "Product unavailable for trading"
+  },
+  "integration": "Use status updates to validate products before order placement and to respect trading restrictions"
+}

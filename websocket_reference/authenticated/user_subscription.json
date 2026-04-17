@@ -1,0 +1,23 @@
+{
+  "channel": "user",
+  "description": "Real-time updates on user's orders and positions - requires authentication",
+  "requires_authentication": true,
+  "send_interval": "On order/position change",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "user",
+    "product_ids": [
+      "string - optional array of product IDs to filter. If empty, receives all products."
+    ],
+    "jwt": "string - required Bearer token (JWT)"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "user"
+  },
+  "notes": "User channel sends initial OPEN orders in batches of 50. Watch for first message with < 50 orders to know when snapshot is complete. One connection per user - close and resubscribe to change product_ids.",
+  "use_case": "Track order fills, cancellations, and position updates in real-time. Receive all order status changes.",
+  "authentication_note": "JWT token required - obtain from your API authentication endpoint",
+  "initial_snapshot": "First messages contain OPEN orders in batches of max 50. Example: 109 orders = 3 messages (50, 50, 9)",
+  "important": "This is the primary channel for tracking order lifecycle in the trading bot"
+}

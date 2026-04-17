@@ -1,0 +1,105 @@
+{
+  "channel": "market_trades",
+  "description": "Market trades message format",
+  "message_type": "market_trades",
+  "send_interval": "Batched every 250 milliseconds",
+  "response_structure": {
+    "channel": "string - always 'market_trades'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' (initial) or 'update' (ongoing)",
+        "trades": [
+          {
+            "trade_id": "string - unique trade identifier",
+            "product_id": "string - product ID",
+            "price": "string - price at which trade executed",
+            "size": "string - quantity traded in base currency",
+            "side": "string - 'BUY' or 'SELL' (maker side)",
+            "time": "string - ISO8601 timestamp when trade executed"
+          }
+        ]
+      }
+    ]
+  },
+  "example": {
+    "channel": "market_trades",
+    "client_id": "",
+    "timestamp": "2023-02-09T20:19:35.39625135Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "snapshot",
+        "trades": [
+          {
+            "trade_id": "000000000",
+            "product_id": "ETH-USD",
+            "price": "1260.01",
+            "size": "0.3",
+            "side": "BUY",
+            "time": "2019-08-14T20:42:27.265Z"
+          }
+        ]
+      }
+    ]
+  },
+  "example_update_multiple_trades": {
+    "channel": "market_trades",
+    "timestamp": "2023-02-09T20:19:35.90625135Z",
+    "events": [
+      {
+        "type": "update",
+        "trades": [
+          {
+            "trade_id": "000000001",
+            "product_id": "ETH-USD",
+            "price": "1260.50",
+            "size": "0.5",
+            "side": "SELL",
+            "time": "2019-08-14T20:42:27.500Z"
+          },
+          {
+            "trade_id": "000000002",
+            "product_id": "ETH-USD",
+            "price": "1260.75",
+            "size": "0.2",
+            "side": "BUY",
+            "time": "2019-08-14T20:42:27.750Z"
+          }
+        ]
+      }
+    ]
+  },
+  "field_descriptions": {
+    "trade_id": "Unique identifier for this trade - use to deduplicate trades",
+    "product_id": "Product this trade executed on",
+    "price": "Price per unit at which trade executed",
+    "size": "Quantity in base currency",
+    "side": "BUY or SELL from maker's perspective",
+    "time": "When the trade executed (ISO8601)"
+  },
+  "side_explanation": {
+    "BUY": "Maker placed a buy order, taker sold to them",
+    "SELL": "Maker placed a sell order, taker bought from them"
+  },
+  "batching_behavior": [
+    "snapshot message: initial set of recent trades",
+    "update messages: all trades from last 250ms (can be 1+ trades per update)"
+  ],
+  "integration_notes": [
+    "Use trade_id to avoid processing duplicate trades",
+    "Aggregate size and price to calculate VWAP (volume-weighted average price)",
+    "Track side distribution to identify market sentiment",
+    "Monitor size for large orders indicating significant market moves",
+    "Combine with candles for more complete market picture"
+  ],
+  "use_cases": [
+    "Real-time trade monitoring",
+    "Large order detection (block trades)",
+    "Market microstructure analysis",
+    "Trade-based indicators and signals",
+    "Audit trail and compliance logging"
+  ]
+}

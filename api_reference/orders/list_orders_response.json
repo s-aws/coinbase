@@ -1,0 +1,43 @@
+{
+  "endpoint": "GET /api/v1/orders/historical/batch",
+  "method": "GET",
+  "description": "Response structure for list orders",
+  "response": {
+    "orders": [
+      {
+        "order_id": "string - unique order identifier",
+        "client_order_id": "string - client-provided order ID",
+        "product_id": "string - product traded",
+        "user_id": "string - user ID",
+        "order_configuration": {
+          "limit_order_config": {
+            "base_size": "string",
+            "limit_price": "string",
+            "post_only": "boolean"
+          }
+        },
+        "side": "string - BUY or SELL",
+        "type": "string - LIMIT or MARKET",
+        "time_in_force": "string - IOC, FOK, GTC, GTD",
+        "created_at": "string - ISO8601 timestamp",
+        "stop_price": "string - stop price for stop orders (null if not applicable)",
+        "end_time": "string - end time for GTD orders",
+        "status": "string - PENDING, OPEN, FILLED, CANCELLED",
+        "number_of_fills": "integer",
+        "filled_size": "string",
+        "average_filled_price": "string",
+        "fee": "string",
+        "net_proceeds": "string",
+        "user_native_currency": "string"
+      }
+    ],
+    "sequence": "string - current sequence number",
+    "has_next": "boolean - whether more results exist"
+  },
+  "status_codes": {
+    "200": "Success",
+    "400": "Bad Request",
+    "401": "Unauthorized",
+    "403": "Forbidden"
+  }
+}

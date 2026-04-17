@@ -1,0 +1,162 @@
+{
+  "channel": "user",
+  "description": "User channel message format - orders and positions",
+  "message_type": "user",
+  "response_structure": {
+    "channel": "string - always 'user'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' (initial) or 'patch' (update)",
+        "orders": [
+          {
+            "avg_price": "string - average fill price",
+            "cancel_reason": "string - reason if cancelled",
+            "client_order_id": "string - client-provided order ID (UUID format)",
+            "completion_percentage": "string - percentage filled (0-100)",
+            "contract_expiry_type": "string - UNKNOWN_CONTRACT_EXPIRY_TYPE, EXPIRING, PERPETUAL",
+            "cumulative_quantity": "string - amount filled in base currency",
+            "filled_value": "string - total value of fills",
+            "leaves_quantity": "string - remaining quantity",
+            "limit_price": "string - limit price (0 if not limit order)",
+            "number_of_fills": "integer - count of fill events",
+            "order_id": "string - exchange order ID",
+            "order_side": "string - BUY or SELL",
+            "order_type": "string - LIMIT, MARKET, STOP_LIMIT",
+            "outstanding_hold_amount": "string - amount on hold",
+            "post_only": "string - 'true' or 'false'",
+            "product_id": "string - product ID",
+            "product_type": "string - SPOT, FUTURE, or UNKNOWN_PRODUCT_TYPE",
+            "reject_reason": "string - reason if rejected",
+            "retail_portfolio_id": "string - portfolio UUID",
+            "risk_managed_by": "string - UNKNOWN_RISK_MANAGEMENT_TYPE, MANAGED_BY_FCM, MANAGED_BY_VENUE",
+            "status": "string - PENDING, OPEN, FILLED, CANCEL_QUEUED, CANCELLED, EXPIRED, FAILED",
+            "stop_price": "string - stop price (0 if not stop order)",
+            "time_in_force": "string - GOOD_UNTIL_CANCELLED, GOOD_UNTIL_DATE_TIME, IMMEDIATE_OR_CANCEL, FILL_OR_KILL",
+            "total_fees": "string - commission paid",
+            "total_value_after_fees": "string - fill value minus fees",
+            "trigger_status": "string - UNKNOWN_TRIGGER_STATUS, INVALID_ORDER_TYPE, STOP_PENDING, STOP_TRIGGERED",
+            "creation_time": "string - ISO8601 when order placed",
+            "end_time": "string - ISO8601 when order expires (0001-01-01T00:00:00Z if none)",
+            "start_time": "string - ISO8601 when order starts (0001-01-01T00:00:00Z if none)"
+          }
+        ],
+        "positions": {
+          "perpetual_futures_positions": [
+            {
+              "product_id": "string - futures product (e.g., BTC-PERP-INTX)",
+              "portfolio_uuid": "string - portfolio UUID",
+              "vwap": "string - volume-weighted average price",
+              "entry_vwap": "string - entry price VWAP",
+              "position_side": "string - Long or Short",
+              "margin_type": "string - Cross or Isolated",
+              "net_size": "string - position size (positive=long, negative=short)",
+              "buy_order_size": "string - cumulative buy order size",
+              "sell_order_size": "string - cumulative sell order size",
+              "leverage": "string - position leverage",
+              "mark_price": "string - current mark price",
+              "liquidation_price": "string - liquidation price",
+              "im_notional": "string - initial margin notional",
+              "mm_notional": "string - maintenance margin notional",
+              "position_notional": "string - position notional value",
+              "unrealized_pnl": "string - unrealized profit/loss",
+              "aggregated_pnl": "string - total profit/loss since open"
+            }
+          ],
+          "expiring_futures_positions": [
+            {
+              "product_id": "string - expiring futures product (e.g., BTC-28JUN24-CDE)",
+              "side": "string - Long or Short",
+              "number_of_contracts": "string - contract count",
+              "realized_pnl": "string - realized profit/loss",
+              "unrealized_pnl": "string - unrealized profit/loss",
+              "entry_price": "string - average entry price"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "example_snapshot_with_orders": {
+    "channel": "user",
+    "client_id": "",
+    "timestamp": "2023-02-09T20:33:57.609931463Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "snapshot",
+        "orders": [
+          {
+            "avg_price": "50000",
+            "cancel_reason": "",
+            "client_order_id": "550e8400-e29b-41d4-a716-446655440000",
+            "completion_percentage": "100.00",
+            "contract_expiry_type": "UNKNOWN_CONTRACT_EXPIRY_TYPE",
+            "cumulative_quantity": "0.01",
+            "filled_value": "500",
+            "leaves_quantity": "0",
+            "limit_price": "50000",
+            "number_of_fills": "1",
+            "order_id": "7c4a3d3e-e8f2-4e7a-9c1d-5a6e9f2b8c1d",
+            "order_side": "BUY",
+            "order_type": "Limit",
+            "outstanding_hold_amount": "0",
+            "post_only": "false",
+            "product_id": "BTC-USD",
+            "product_type": "SPOT",
+            "reject_reason": "",
+            "retail_portfolio_id": "018c4b12-9f87-7c36-897d-28fb6a1ea88d",
+            "risk_managed_by": "UNKNOWN_RISK_MANAGEMENT_TYPE",
+            "status": "FILLED",
+            "stop_price": "",
+            "time_in_force": "GOOD_UNTIL_CANCELLED",
+            "total_fees": "2",
+            "total_value_after_fees": "502",
+            "trigger_status": "INVALID_ORDER_TYPE",
+            "creation_time": "2024-06-21T18:29:13.909347Z",
+            "end_time": "0001-01-01T00:00:00Z",
+            "start_time": "0001-01-01T00:00:00Z"
+          }
+        ],
+        "positions": {
+          "perpetual_futures_positions": [],
+          "expiring_futures_positions": []
+        }
+      }
+    ]
+  },
+  "order_status_lifecycle": {
+    "PENDING": "Order placed, not yet in book",
+    "OPEN": "Order in book, waiting for fills",
+    "FILLED": "Order 100% filled",
+    "CANCEL_QUEUED": "Cancellation requested, pending",
+    "CANCELLED": "Order cancelled",
+    "EXPIRED": "Order expired (e.g., TWAP not filled by time)",
+    "FAILED": "Order could not be placed"
+  },
+  "positions_note": "Positions fields are in beta. Empty arrays by default - contact support via Discord to enable.",
+  "message_types": {
+    "snapshot": "Initial batch of orders (first message, up to 50 orders)",
+    "patch": "Updates to orders/positions"
+  },
+  "snapshot_completion": "Watch for first message with < 50 orders to know when initial snapshot is complete",
+  "integration_with_bot": [
+    "Parse client_order_id to match with orders you placed",
+    "Track status changes to trigger follow-up orders on fills",
+    "Monitor cancel_reason and reject_reason for debugging",
+    "Use completion_percentage for progress tracking",
+    "Combine with rest API GET /api/v1/orders for full audit trail"
+  ],
+  "key_fields_for_trading_bot": {
+    "client_order_id": "Match placed orders - use as parent order ID",
+    "order_id": "Coinbase's order ID",
+    "status": "Current order state",
+    "cumulative_quantity": "Total filled amount",
+    "filled_value": "Total value of fills",
+    "total_fees": "Commission charged",
+    "number_of_fills": "How many partial fills",
+    "completion_percentage": "Overall fill %"
+  }
+}

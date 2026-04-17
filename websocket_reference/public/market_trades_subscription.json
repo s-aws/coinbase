@@ -1,0 +1,27 @@
+{
+  "channel": "market_trades",
+  "description": "Real-time market trades - all trades executed on the exchange",
+  "requires_authentication": false,
+  "send_interval": "Batched every 250 milliseconds",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "market_trades",
+    "product_ids": [
+      "string - array of product IDs (e.g., ['ETH-USD', 'BTC-USD'])"
+    ],
+    "jwt": "optional - Bearer token"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "market_trades",
+    "product_ids": "optional - specific products to unsubscribe from"
+  },
+  "notes": "Market trades represent all trades that executed, regardless of origin. Update messages can contain 1 to many trades depending on trading volume in the last 250ms.",
+  "use_case": "Track all executed trades, monitor market activity, detect large orders, build trade volume indicators",
+  "product_id_examples": [
+    "BTC-USD",
+    "ETH-USD",
+    "ETH-USDT"
+  ],
+  "batching": "Trades are batched - snapshot contains trades, update contains trades from last 250ms"
+}

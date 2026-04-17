@@ -1,0 +1,78 @@
+{
+  "channel": "ticker",
+  "description": "Ticker message format with real-time price data",
+  "message_type": "ticker",
+  "send_interval": "Every trade match (batched for cascading trades)",
+  "response_structure": {
+    "channel": "string - always 'ticker'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' or 'update'",
+        "tickers": [
+          {
+            "type": "string - always 'ticker'",
+            "product_id": "string - product ID",
+            "price": "string - last traded price",
+            "volume_24_h": "string - 24-hour trading volume",
+            "low_24_h": "string - lowest price in 24 hours",
+            "high_24_h": "string - highest price in 24 hours",
+            "low_52_w": "string - lowest price in 52 weeks",
+            "high_52_w": "string - highest price in 52 weeks",
+            "price_percent_chg_24_h": "string - 24-hour percent change",
+            "best_bid": "string - best current bid price",
+            "best_bid_quantity": "string - quantity at best bid",
+            "best_ask": "string - best current ask price",
+            "best_ask_quantity": "string - quantity at best ask"
+          }
+        ]
+      }
+    ]
+  },
+  "example": {
+    "channel": "ticker",
+    "client_id": "",
+    "timestamp": "2023-02-09T20:30:37.167359596Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "snapshot",
+        "tickers": [
+          {
+            "type": "ticker",
+            "product_id": "BTC-USD",
+            "price": "21932.98",
+            "volume_24_h": "16038.28770938",
+            "low_24_h": "21835.29",
+            "high_24_h": "23011.18",
+            "low_52_w": "15460",
+            "high_52_w": "48240",
+            "price_percent_chg_24_h": "-4.15775596190603",
+            "best_bid": "21931.98",
+            "best_bid_quantity": "8000.21",
+            "best_ask": "21933.98",
+            "best_ask_quantity": "8038.07770938"
+          }
+        ]
+      }
+    ]
+  },
+  "field_descriptions": {
+    "price": "Most recent trade price",
+    "volume_24_h": "Total volume traded in base currency over 24 hours",
+    "low_24_h": "Lowest price in 24-hour period",
+    "high_24_h": "Highest price in 24-hour period",
+    "low_52_w": "Lowest price in 52-week period",
+    "high_52_w": "Highest price in 52-week period",
+    "price_percent_chg_24_h": "Percent change in 24 hours (negative = down, positive = up)",
+    "best_bid": "Highest price buyers are willing to pay",
+    "best_bid_quantity": "Amount available at best bid",
+    "best_ask": "Lowest price sellers are willing to accept",
+    "best_ask_quantity": "Amount available at best ask"
+  },
+  "bid_ask_spread": "Difference between best_ask and best_bid indicates market liquidity",
+  "high_frequency": "High update frequency - use for real-time trading but consider rate limits on processing",
+  "integration": "Track bid/ask spread for slippage analysis, use price for mark-to-market valuations"
+}

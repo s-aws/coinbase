@@ -1,0 +1,75 @@
+{
+  "channel": "ticker_batch",
+  "description": "Ticker batch message format - lower frequency than ticker",
+  "message_type": "ticker_batch",
+  "send_interval": "Every 5 seconds if data changed",
+  "response_structure": {
+    "channel": "string - always 'ticker_batch'",
+    "client_id": "string - empty string",
+    "timestamp": "string - ISO8601 timestamp",
+    "sequence_num": "integer - message sequence number",
+    "events": [
+      {
+        "type": "string - 'snapshot' or 'update'",
+        "tickers": [
+          {
+            "type": "string - always 'ticker'",
+            "product_id": "string - product ID",
+            "price": "string - last traded price",
+            "volume_24_h": "string - 24-hour trading volume",
+            "low_24_h": "string - lowest price in 24 hours",
+            "high_24_h": "string - highest price in 24 hours",
+            "low_52_w": "string - lowest price in 52 weeks",
+            "high_52_w": "string - highest price in 52 weeks",
+            "price_percent_chg_24_h": "string - 24-hour percent change"
+          }
+        ]
+      }
+    ]
+  },
+  "fields_excluded_vs_ticker": [
+    "best_bid",
+    "best_ask",
+    "best_bid_quantity",
+    "best_ask_quantity"
+  ],
+  "example": {
+    "channel": "ticker_batch",
+    "client_id": "",
+    "timestamp": "2023-02-09T20:30:37.167359596Z",
+    "sequence_num": 0,
+    "events": [
+      {
+        "type": "update",
+        "tickers": [
+          {
+            "type": "ticker",
+            "product_id": "BTC-USD",
+            "price": "21932.98",
+            "volume_24_h": "16038.28770938",
+            "low_24_h": "21835.29",
+            "high_24_h": "23011.18",
+            "low_52_w": "15460",
+            "high_52_w": "48240",
+            "price_percent_chg_24_h": "-4.15775596190603"
+          }
+        ]
+      }
+    ]
+  },
+  "field_descriptions": {
+    "price": "Most recent trade price (as of 5-second batch)",
+    "volume_24_h": "Total volume traded in base currency over 24 hours",
+    "low_24_h": "Lowest price in 24-hour period",
+    "high_24_h": "Highest price in 24-hour period",
+    "low_52_w": "Lowest price in 52-week period",
+    "high_52_w": "Highest price in 52-week period",
+    "price_percent_chg_24_h": "Percent change in 24 hours"
+  },
+  "use_cases": [
+    "Lower bandwidth consumption for non-critical price updates",
+    "Reduced processing load on client side",
+    "Suitable for mobile apps or rate-limited environments"
+  ],
+  "integration": "Parse similar to ticker channel but expect 5-second granularity in price updates"
+}

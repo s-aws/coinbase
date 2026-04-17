@@ -1,0 +1,27 @@
+{
+  "channel": "candles",
+  "description": "Real-time updates on product candles with 5-minute granularity",
+  "requires_authentication": false,
+  "send_interval": "Every second",
+  "subscription_request": {
+    "type": "subscribe",
+    "channel": "candles",
+    "product_ids": [
+      "string - array of product IDs (e.g., ['ETH-USD', 'BTC-USD'])"
+    ],
+    "jwt": "optional - Bearer token"
+  },
+  "unsubscribe_request": {
+    "type": "unsubscribe",
+    "channel": "candles",
+    "product_ids": "optional - specific products to unsubscribe from"
+  },
+  "notes": "Candles are grouped into 5-minute buckets. Each message may contain snapshot (full candle) or update (new candle).",
+  "use_case": "Track OHLC (Open, High, Low, Close) data and trading volume for technical analysis",
+  "product_id_examples": [
+    "BTC-USD",
+    "ETH-USD",
+    "ETH-USDT",
+    "EURC-USDC"
+  ]
+}
