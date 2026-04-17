@@ -22,7 +22,7 @@ if __name__ == "__main__":
         order_price_difference=150,
         start_price=74000,
         max_order_count=10,
-        post_only=False
+        post_only=True
     )
     print(json.dumps(orders))
     print(f"Count: {len(orders)}")
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     #     order_price_difference=9.99,
     #     start_price=69320,
     #     max_order_count=100,
-    #     post_only=False
+    #     post_only=True
     # )
 
     # print(f"Count: {len(orders)}")
