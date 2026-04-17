@@ -1,5 +1,4 @@
-"""
-Main trading engine module for Coinbase Advanced API order management.
+"""Main trading engine module for Coinbase Advanced API order management.
 
 This module implements a multithreaded trading engine that:
 - Maintains a live websocket connection to Coinbase for real-time order updates
@@ -20,6 +19,21 @@ Architecture:
         * Thread-safe event queuing with deduplication using hash-based bucketing
         * Processing flags prevent duplicate follow-up order creation
         * Position updates applied atomically with order placements
+
+Example:
+    >>> from main import OrderEngine
+    >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
+    >>> import database.order as DB_CLIENT
+    >>> 
+    >>> engine = OrderEngine(
+    ...     orderbook=ORDERBOOK,
+    ...     db_client=DB_CLIENT,
+    ...     subscription=Subscription,
+    ...     api_key=API_KEY,
+    ...     api_secret=API_SECRET,
+    ...     order_post_only=ORDER_POST_ONLY
+    ... )
+    >>> engine.run_forever()  # Blocks indefinitely, runs all background threads
 """
 
 import json
@@ -49,8 +63,47 @@ import database.order as DB_CLIENT
 
 
 class OrderEngine:
-    """
-    Multithreaded trading engine for Coinbase Advanced API order management.
+    """Multithreaded trading engine for Coinbase Advanced API order management.
+    
+    Orchestrates real-time order processing, parent-child order relationship tracking,
+    and automatic follow-up order creation. Handles all threading, state management,
+    and event deduplication.
+    
+    Attributes:
+        orderbook: OrderBook instance (source-of-truth for orders/positions).
+        db_client: Database client for persisting parent/child orders.
+        subscription: Subscription config (products, channels).
+        api_key: Coinbase API key for websocket authentication.
+        api_secret: Coinbase API secret for websocket authentication.
+        order_post_only: Dict mapping side ('BUY'/'SELL') to post_only flag.
+        websocket_thread_maximum: Number of websocket connection threads.
+        max_workers: Thread pool size for event processing.
+        max_rotate_seen_events_bucket_seconds: Dedup bucket rotation interval (seconds).
+        max_seen_event_buckets: Number of rolling dedup hash buckets.
+        ticker: Dict mapping product_id to last ticker data.
+        ticker_lock: Thread lock for ticker updates.
+        orderbook_lock: Thread lock for orderbook mutations.
+        seen_events_lock: Thread lock for event deduplication buckets.
+        event_executor: ThreadPoolExecutor for user event processing.
+        event_queue: Dict mapping channel name to Queue.
+        seen_events: Dict mapping bucket index to set of event hashes.
+        logging_flags: Dict controlling which log types are emitted.
+        debug_logging_enabled: Whether to include debug fields in logs.
+        websocket_events: Event type schemas (internal reference).
+    
+    Example:
+        >>> engine = OrderEngine(
+        ...     orderbook=ORDERBOOK,
+        ...     db_client=DB_CLIENT,
+        ...     subscription=Subscription,
+        ...     api_key=API_KEY,
+        ...     api_secret=API_SECRET,
+        ...     order_post_only=ORDER_POST_ONLY,
+        ...     websocket_thread_maximum=2,
+        ...     max_workers=8
+        ... )
+        >>> engine.logging_flags['order'] = True  # Enable order logging
+        >>> engine.run_forever()  # Start all background threads and loop
     """
 
     def __init__(
@@ -67,6 +120,21 @@ class OrderEngine:
         max_seen_event_buckets=3,
         queue_maxsize=10000,
     ) -> None:
+        """Initialize the OrderEngine with configuration and state.
+        
+        Args:
+            orderbook: OrderBook instance for state tracking.
+            db_client: Database client module.
+            subscription: Subscription config object.
+            api_key: Coinbase API key.
+            api_secret: Coinbase API secret.
+            order_post_only: Dict mapping order side to post_only flag.
+            websocket_thread_maximum: Number of parallel websocket threads (default 3).
+            max_workers: Thread pool size (default 16).
+            max_rotate_seen_events_bucket_seconds: Dedup bucket rotation interval (default 60).
+            max_seen_event_buckets: Number of dedup buckets (default 3).
+            queue_maxsize: Max size for event queues (default 10000).
+        """
         self.orderbook = orderbook
         self.db_client = db_client
         self.subscription = subscription
@@ -142,6 +210,20 @@ class OrderEngine:
         self.orderbook.db_client = self.db_client
 
     def log_message(self, log_type: str, message) -> None:
+        """Log a message if the log type is enabled.
+        
+        Formats message with timestamp and thread name. Converts dicts/lists to JSON.
+        
+        Args:
+            log_type: Log category (enabled via logging_flags dict).
+            message: Message text or dict/list to log.
+        
+        Returns:
+            None
+        
+        Example:
+            >>> engine.log_message("order", {"event": "order_placed", "id": "123"})
+        """
         if not self.logging_flags.get(log_type, False):
             return
 
@@ -152,17 +234,62 @@ class OrderEngine:
 
     @staticmethod
     def hash_dict(dictionary: dict) -> str:
+        """Hash a dictionary for deduplication purposes.
+        
+        Creates a SHA256 hash of the JSON-serialized dict for event deduplication.
+        
+        Args:
+            dictionary: Dict to hash.
+        
+        Returns:
+            Hex string SHA256 hash.
+        
+        Example:
+            >>> hash1 = OrderEngine.hash_dict({'event': 'filled', 'id': '123'})
+            >>> hash2 = OrderEngine.hash_dict({'event': 'filled', 'id': '123'})
+            >>> hash1 == hash2
+            True
+        """
         dict_string = json.dumps(dictionary, sort_keys=True)
         return sha256(dict_string.encode()).hexdigest()
 
     @staticmethod
     def order_limit_price_or_avg_price(order: dict) -> float:
+        """Extract the price from an order, preferring limit_price over avg_price.
+        
+        Args:
+            order: Order dict with optional 'limit_price' and 'avg_price' fields.
+        
+        Returns:
+            The price as a float (limit_price if present and > 0, else avg_price).
+        
+        Example:
+            >>> price = OrderEngine.order_limit_price_or_avg_price(
+            ...     {'limit_price': '100.50', 'avg_price': '100.00'})
+            >>> price
+            100.5
+        """
         if order.get("limit_price") and float(order["limit_price"]) > 0:
             return float(order["limit_price"])
         return float(order["avg_price"])
 
     @staticmethod
     def safe_float(value, default: float = 0.0) -> float:
+        """Safely convert value to float with default fallback.
+        
+        Args:
+            value: Value to convert.
+            default: Default if conversion fails.
+        
+        Returns:
+            Float or default.
+        
+        Example:
+            >>> OrderEngine.safe_float('123.45')
+            123.45
+            >>> OrderEngine.safe_float(None)
+            0.0
+        """
         try:
             if value in (None, ""):
                 return default
@@ -171,6 +298,21 @@ class OrderEngine:
             return default
 
     def build_order_log_context(self, order: dict) -> dict:
+        """Build a concise log dict from order data.
+        
+        Extracts key fields for logging without dumping entire order.
+        
+        Args:
+            order: Order dict.
+        
+        Returns:
+            Dict with client_order_id, order_id, product_type, product_id, side, status, price.
+        
+        Example:
+            >>> ctx = engine.build_order_log_context({'client_order_id': 'id123', ...})
+            >>> ctx['product_id']
+            'BTC-USDC'
+        """
         if not order:
             return {}
 
@@ -191,11 +333,40 @@ class OrderEngine:
         }
 
     def build_event_log_payload(self, event: str, **kwargs) -> dict:
+        """Build a structured log payload with event name and kwargs.
+        
+        Args:
+            event: Event name.
+            **kwargs: Additional fields to include.
+        
+        Returns:
+            Dict with 'event' key plus all kwargs.
+        
+        Example:
+            >>> payload = engine.build_event_log_payload(
+            ...     'order_placed', product_id='BTC-USDC', side='BUY')
+            >>> payload['event']
+            'order_placed'
+        """
         payload = {"event": event}
         payload.update(kwargs)
         return payload
 
     def include_debug_fields(self, **kwargs) -> dict:
+        """Return kwargs dict only if debug_logging_enabled is True.
+        
+        Used to conditionally include verbose fields in logs.
+        
+        Args:
+            **kwargs: Fields to include if debugging.
+        
+        Returns:
+            kwargs if debug enabled, else {}.
+        
+        Example:
+            >>> debug_ctx = engine.include_debug_fields(raw_order={...})
+            >>> len(debug_ctx)  # 0 if debug disabled, 1 if enabled
+        """
         if not self.debug_logging_enabled:
             return {}
         return {
@@ -204,6 +375,22 @@ class OrderEngine:
         }
 
     def normalize_product_type(self, order: dict) -> str:
+        """Determine if order is SPOT or FUTURE.
+        
+        Checks order field, product metadata, and product_id suffix.
+        Thread-safe access to orderbook.
+        
+        Args:
+            order: Order dict.
+        
+        Returns:
+            'SPOT' or 'FUTURE'.
+        
+        Example:
+            >>> ptype = engine.normalize_product_type({'product_id': 'BTC-USDC'})
+            >>> ptype
+            'SPOT'
+        """
         product_type = str(order.get("product_type") or "").upper()
         if product_type in {"SPOT", "FUTURE"}:
             return product_type
@@ -221,6 +408,19 @@ class OrderEngine:
         return "SPOT"
 
     def resolve_order_size(self, order: dict) -> float:
+        """Extract order size from multiple possible fields.
+        
+        Args:
+            order: Order dict.
+        
+        Returns:
+            Order size or 0.0 if not found.
+        
+        Example:
+            >>> size = engine.resolve_order_size({'base_size': '1.5'})
+            >>> size
+            1.5
+        """
         for field in ("cumulative_quantity", "filled_size", "base_size", "size", "leaves_quantity"):
             value = self.safe_float(order.get(field), default=0.0)
             if value > 0:
@@ -228,6 +428,19 @@ class OrderEngine:
         return 0.0
 
     def resolve_profit_target(self, order: dict) -> float:
+        """Get configured profit target % for an order.
+        
+        Args:
+            order: Order dict with product_id and order_side.
+        
+        Returns:
+            Profit % (e.g., 0.004 for 0.4%).
+        
+        Example:
+            >>> profit = engine.resolve_profit_target({'product_id': 'BTC-USDC', 'order_side': 'BUY'})
+            >>> profit
+            0.004
+        """
         product_type = self.normalize_product_type(order)
         product_id = order.get("product_id")
         order_side = order.get("order_side")
@@ -240,6 +453,18 @@ class OrderEngine:
         return type_profit[order_side]
 
     def get_orderbook_snapshot(self) -> dict:
+        """Get thread-safe snapshot of orderbook state.
+        
+        Deep copies mutable state to prevent concurrent modification issues.
+        
+        Returns:
+            Dict with order, positions, product, profit, mandatory_fee_per_contract,
+            parent_order_ids, child_order_ids keys.
+        
+        Example:
+            >>> snap = engine.get_orderbook_snapshot()
+            >>> orders = snap['order']
+        """
         with self.orderbook_lock:
             return {
                 "order": deepcopy(self.orderbook.order),
@@ -252,6 +477,17 @@ class OrderEngine:
             }
 
     def refresh_positions_if_needed(self, product_id: str) -> None:
+        """Refresh futures positions from API if product_id not in cache.
+        
+        Args:
+            product_id: Product ID to check/refresh.
+        
+        Returns:
+            None
+        
+        Example:
+            >>> engine.refresh_positions_if_needed('BIP-20DEC30-CDE')
+        """
         with self.orderbook_lock:
             future_positions = self.orderbook.positions.setdefault("FUTURE", {})
             if product_id in future_positions:
@@ -267,6 +503,25 @@ class OrderEngine:
             self.orderbook.positions["FUTURE"] = refreshed_positions
 
     def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None) -> tuple:
+        """Resolve if an order is a parent or find its parent.
+        
+        Returns (is_parent: bool, parent_client_order_id: str).
+        Optionally creates a new parent entry if create_parent=True.
+        
+        Args:
+            client_order_id: The order to resolve.
+            order: Order data (required if create_parent=True).
+            create_parent: Whether to create parent entry if not found.
+            status: Order status (for parent creation).
+        
+        Returns:
+            Tuple (is_parent, parent_client_order_id).
+        
+        Example:
+            >>> is_parent, parent_id = engine.resolve_parent_client_order_id('order_123')
+            >>> if is_parent:
+            ...     print(f"This is a parent order")
+        """
         is_parent = False
         parent_client_order_id = None
 
@@ -323,6 +578,22 @@ class OrderEngine:
         return is_parent, parent_client_order_id
 
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:
+        """Atomically claim processing rights for a follow-up order.
+        
+        Prevents duplicate follow-up creation by setting processing flag.
+        Returns False if already claimed or done.
+        
+        Args:
+            processed_flag_name: Flag dict name ('filled' or 'cancelled').
+            client_order_id: Order to claim.
+        
+        Returns:
+            True if claimed, False if already in progress/done.
+        
+        Example:
+            >>> if engine.claim_follow_up_processing('filled', 'order_123'):
+            ...     # Do follow-up work
+        """
         with self.orderbook_lock:
             processed_flags = getattr(self.orderbook, processed_flag_name, None)
             if not isinstance(processed_flags, dict):
@@ -337,6 +608,15 @@ class OrderEngine:
             return True
 
     def release_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
+        """Release a processing claim (on error, before retry).
+        
+        Args:
+            processed_flag_name: Flag dict name.
+            client_order_id: Order to release.
+        
+        Returns:
+            None
+        """
         with self.orderbook_lock:
             processed_flags = getattr(self.orderbook, processed_flag_name, None)
             if not isinstance(processed_flags, dict):
@@ -346,6 +626,15 @@ class OrderEngine:
                 processed_flags.pop(client_order_id, None)
 
     def complete_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
+        """Mark follow-up processing as complete (prevents future retries).
+        
+        Args:
+            processed_flag_name: Flag dict name.
+            client_order_id: Order to complete.
+        
+        Returns:
+            None
+        """
         with self.orderbook_lock:
             processed_flags = getattr(self.orderbook, processed_flag_name, None)
             if not isinstance(processed_flags, dict):
@@ -354,6 +643,14 @@ class OrderEngine:
             processed_flags[client_order_id] = "done"
 
     def build_follow_up_order_log_context(self, order: dict) -> dict:
+        """Build log context for follow-up order operations.
+        
+        Args:
+            order: Order dict.
+        
+        Returns:
+            Log context dict.
+        """
         return self.build_order_log_context(order)
 
     def build_follow_up_log_payload(
@@ -365,6 +662,26 @@ class OrderEngine:
         attempted_new_order: dict = None,
         details: dict = None,
     ) -> dict:
+        """Build structured log payload for follow-up order events.
+        
+        Args:
+            event: Event name.
+            source_order: Original order that triggered follow-up.
+            parent_client_order_id: Parent order ID.
+            new_order: Newly placed order data.
+            attempted_new_order: Order data if placement failed.
+            details: Additional details dict.
+        
+        Returns:
+            Structured log payload dict.
+        
+        Example:
+            >>> payload = engine.build_follow_up_log_payload(
+            ...     'follow_up_order_placed',
+            ...     source_order=order,
+            ...     new_order={'client_order_id': 'new_123'}
+            ... )
+        """
         payload = {"event": event}
 
         if parent_client_order_id is not None:
@@ -385,9 +702,24 @@ class OrderEngine:
         return payload
 
     def on_open(self) -> None:
+        """Callback when websocket connection opens.
+        
+        Returns:
+            None
+        """
         self.log_message("connection", "Connection Opened!")
 
     def on_message(self, msg: str) -> None:
+        """Process incoming websocket message.
+        
+        Parses JSON, deduplicates events, and enqueues for processing.
+        
+        Args:
+            msg: Raw websocket message (JSON string).
+        
+        Returns:
+            None
+        """
         try:
             json_msg = json.loads(msg)
             channel = json_msg.get("channel")
@@ -434,6 +766,16 @@ class OrderEngine:
             )
 
     def process_user_event(self, event: dict) -> None:
+        """Process user-channel event (orders or positions).
+        
+        Dispatches to process_user_order or process_user_snapshot.
+        
+        Args:
+            event: Event dict with 'type' and 'orders'/'positions' keys.
+        
+        Returns:
+            None
+        """
         try:
             if event["type"].upper() not in self.websocket_events:
                 self.log_message(
@@ -473,6 +815,16 @@ class OrderEngine:
             )
 
     def process_user_snapshot(self, snapshot: dict) -> None:
+        """Process position snapshot from websocket.
+        
+        Updates in-memory futures positions.
+        
+        Args:
+            snapshot: Event dict with 'positions' key.
+        
+        Returns:
+            None
+        """
         for _, items in snapshot["positions"].items():
             if not items:
                 continue
@@ -497,6 +849,16 @@ class OrderEngine:
                 )
 
     def process_user_order(self, order: dict) -> None:
+        """Process order event (state transitions).
+        
+        Updates orderbook, dispatches to fill/cancel handlers, persists to DB.
+        
+        Args:
+            order: Order event dict.
+        
+        Returns:
+            None
+        """
         client_order_id = order.get("client_order_id")
         status = order.get("status")
 
@@ -582,6 +944,14 @@ class OrderEngine:
         )
 
     def apply_position_update(self, order_template: dict) -> None:
+        """Apply position update from order template to orderbook.
+        
+        Args:
+            order_template: Template dict (may have 'position_update' key).
+        
+        Returns:
+            None
+        """
         position_update = order_template.get("position_update")
         if not position_update:
             return
@@ -589,6 +959,19 @@ class OrderEngine:
             apply_calculated_position_update(self.orderbook.positions, position_update)
 
     def compute_order_template(self, client_order_id: str, target_movement: dict = None) -> dict:
+        """Compute follow-up order template for a given order.
+        
+        Args:
+            client_order_id: Order to compute template for.
+            target_movement: Optional override for profit target.
+        
+        Returns:
+            Order template dict or {} if computation fails.
+        
+        Example:
+            >>> template = engine.compute_order_template('order_123')
+            >>> print(template['start_price'])
+        """
         snapshot = self.get_orderbook_snapshot()
         order = snapshot["order"].get(client_order_id)
         if not order:
@@ -607,6 +990,22 @@ class OrderEngine:
         )
 
     def child_order_already_exists(self, parent_client_order_id: str, order_template: dict) -> bool:
+        """Check if a child order matching the template already exists.
+        
+        Queries database to prevent duplicate child orders.
+        
+        Args:
+            parent_client_order_id: Parent order ID.
+            order_template: New order template to check.
+        
+        Returns:
+            True if child order already exists, False otherwise.
+        
+        Example:
+            >>> exists = engine.child_order_already_exists('parent_123', template)
+            >>> if not exists:
+            ...     # Safe to place new order
+        """
         if not parent_client_order_id:
             self.log_message(
                 "warning",
@@ -650,11 +1049,27 @@ class OrderEngine:
         return False
 
     def resolve_parent_target_movement(self, parent_client_order_id: str) -> dict:
+        """Get configured profit target for a parent order.
+        
+        Args:
+            parent_client_order_id: Parent order ID.
+        
+        Returns:
+            Dict with 'type' and 'movement' keys, or empty dict.
+        """
         with self.orderbook_lock:
             parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
             return deepcopy(parent.get("target_movement"))
 
     def resolve_parent_replacement_state(self, parent_client_order_id: str) -> dict:
+        """Get current and max replacement counts for a parent order.
+        
+        Args:
+            parent_client_order_id: Parent order ID.
+        
+        Returns:
+            Dict with 'max_order_replacement' and 'current_order_replacement' keys.
+        """
         with self.orderbook_lock:
             parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
 
@@ -664,6 +1079,21 @@ class OrderEngine:
             }
 
     def can_create_follow_up_order(self, parent_client_order_id: str) -> tuple:
+        """Check if a follow-up order can be created for a parent.
+        
+        Compares current replacement count vs max allowed.
+        
+        Args:
+            parent_client_order_id: Parent order ID.
+        
+        Returns:
+            Tuple (can_create: bool, details: dict).
+        
+        Example:
+            >>> can_create, details = engine.can_create_follow_up_order('parent_123')
+            >>> if can_create:
+            ...     # Place follow-up order
+        """
         replacement_state = self.resolve_parent_replacement_state(parent_client_order_id)
         max_order_replacement = replacement_state["max_order_replacement"]
         current_order_replacement = replacement_state["current_order_replacement"]
@@ -675,6 +1105,14 @@ class OrderEngine:
         return current_order_replacement < max_order_replacement, details
 
     def handle_cancelled_order(self, order: dict) -> None:
+        """Handle a cancelled order by potentially creating a follow-up.
+        
+        Args:
+            order: Cancelled order dict.
+        
+        Returns:
+            None
+        """
         client_order_id = order["client_order_id"]
 
         with self.orderbook_lock:
@@ -748,6 +1186,14 @@ class OrderEngine:
             raise
 
     def handle_filled_order(self, order: dict) -> None:
+        """Handle a filled order by creating a follow-up if allowed.
+        
+        Args:
+            order: Filled order dict.
+        
+        Returns:
+            None
+        """
         client_order_id = order["client_order_id"]
 
         with self.orderbook_lock:
@@ -853,6 +1299,20 @@ class OrderEngine:
         parent_client_order_id: str,
         processed_flag_name: str = None,
     ) -> None:
+        """Record a successfully placed follow-up order.
+        
+        Updates orderbook parent/child mappings, increments counters, persists to DB.
+        
+        Args:
+            source_order: Original order that triggered follow-up.
+            new_order: API response list from create_limit_order_span.
+            order_template: Computed template used.
+            parent_client_order_id: Parent order ID.
+            processed_flag_name: Flag dict name ('filled' or 'cancelled').
+        
+        Returns:
+            None
+        """
         client_order_id = source_order["client_order_id"]
 
         if new_order[0]["success"] is not True:
@@ -970,6 +1430,11 @@ class OrderEngine:
             self.db_client.increment_order_parent_replacement_count(parent_client_order_id)
 
     def build_parent_child_order_ids_snapshot(self) -> tuple:
+        """Query database and build parent/child order mapping snapshot.
+        
+        Returns:
+            Tuple (parent_order_ids_dict, child_order_ids_dict).
+        """
         parent_order_ids = {}
         child_order_ids = {}
 
@@ -998,6 +1463,14 @@ class OrderEngine:
         return parent_order_ids, child_order_ids
 
     def load_parent_child_order_ids(self, force_log: bool = False) -> bool:
+        """Load parent/child order mappings from database into orderbook.
+        
+        Args:
+            force_log: Whether to log reconciliation event.
+        
+        Returns:
+            True if state changed, False if already in sync.
+        """
         if force_log:
             self.log_message(
                 "reconcile",
@@ -1049,6 +1522,16 @@ class OrderEngine:
         return True
 
     def reconcile_parent_child_order_ids_periodically(self, interval_seconds: int = 30) -> None:
+        """Periodically load parent/child orders from database.
+        
+        Runs in daemon thread, loops forever.
+        
+        Args:
+            interval_seconds: Sleep duration between syncs (default 30).
+        
+        Returns:
+            None (infinite loop)
+        """
         while True:
             try:
                 self.load_parent_child_order_ids(force_log=False)
@@ -1063,6 +1546,14 @@ class OrderEngine:
             sleep(interval_seconds)
 
     def rotate_seen_events_buckets(self) -> None:
+        """Periodically rotate event deduplication hash buckets.
+        
+        Runs in daemon thread, loops forever. Shifts old hashes out every
+        max_rotate_seen_events_bucket_seconds to avoid memory growth.
+        
+        Returns:
+            None (infinite loop)
+        """
         while True:
             with self.seen_events_lock:
                 for i in range(self.max_seen_event_buckets - 1, 0, -1):
@@ -1071,6 +1562,22 @@ class OrderEngine:
             sleep(self.max_rotate_seen_events_bucket_seconds)
 
     def generate_process_event_worker(self, channel: str) -> callable:
+        """Generate an event worker function for a specific channel.
+        
+        Returns a callable that processes events from the channel's queue
+        in an infinite loop.
+        
+        Args:
+            channel: Channel name ('ticker', 'user', 'heartbeats').
+        
+        Returns:
+            Callable worker function.
+        
+        Example:
+            >>> worker = engine.generate_process_event_worker('user')
+            >>> thread = threading.Thread(target=worker, daemon=True)
+            >>> thread.start()
+        """
         def worker() -> None:
             while True:
                 event = self.event_queue[channel].get()
@@ -1103,6 +1610,13 @@ class OrderEngine:
         return worker
 
     def connect_to_websocket(self) -> None:
+        """Establish and maintain websocket connection to Coinbase.
+        
+        Runs in daemon thread, loops forever. Reconnects on disconnect.
+        
+        Returns:
+            None (infinite loop)
+        """
         ws_client = WSClient(
             verbose=True,
             api_key=self.api_key,
@@ -1131,6 +1645,17 @@ class OrderEngine:
             )
 
     def start_background_threads(self) -> None:
+        """Start all background worker threads.
+        
+        Initializes parent/child order mappings, then launches:
+        - Reconciliation thread
+        - Deduplication rotation thread
+        - Channel workers (ticker, user, heartbeats)
+        - Websocket threads
+        
+        Returns:
+            None
+        """
         self.load_parent_child_order_ids(force_log=True)
 
         threading.Thread(
@@ -1161,6 +1686,17 @@ class OrderEngine:
             ).start()
 
     def run_forever(self) -> None:
+        """Start all background threads and loop forever.
+        
+        Call this to launch the trading engine. Blocks indefinitely.
+        
+        Returns:
+            None (infinite loop)
+        
+        Example:
+            >>> engine = OrderEngine(...)
+            >>> engine.run_forever()  # Starts all threads and loops
+        """
         self.start_background_threads()
         while True:
             sleep(1)
