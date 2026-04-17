@@ -447,12 +447,12 @@ class OrderBook():
 
     profit = {
         "SPOT": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 4,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 4
+            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
+            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": 0.0051,
-            "SELL": 0.0051
+            "BUY": 0.0102,
+            "SELL": 0.0102
         },
         "BIP-20DEC30-CDE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 14,
