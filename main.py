@@ -203,6 +203,7 @@ class OrderEngine:
             "error": True,
             "reconcile": True,
         }
+        self.debug_logging_enabled = False
 
         self.websocket_events = {
             "SNAPSHOT": {
@@ -228,19 +229,23 @@ class OrderEngine:
 
         self.orderbook.db_client = self.db_client
 
-    def log_message(self, log_type: str, message: str) -> None:
+    def log_message(self, log_type: str, message) -> None:
         """
         Log a message with timestamp, thread name, and message type.
-        
+
         Args:
             log_type: The type/category of the log message.
-            message: The message content to log.
-        
+            message: The message content to log. Dict/list payloads are serialized as JSON.
+
         Returns:
             None
         """
         if not self.logging_flags.get(log_type, False):
             return
+
+        if isinstance(message, (dict, list)):
+            message = json.dumps(message, sort_keys=True, default=str)
+
         print(f"{datetime.now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
 
     @staticmethod
@@ -290,6 +295,68 @@ class OrderEngine:
             return float(value)
         except (TypeError, ValueError):
             return default
+
+
+    def build_order_log_context(self, order: dict) -> dict:
+        """
+        Build a normalized structured logging payload for an order.
+
+        Args:
+            order: Order payload.
+
+        Returns:
+            Normalized order context for logs.
+        """
+        if not order:
+            return {}
+
+        price = None
+        try:
+            price = self.order_limit_price_or_avg_price(order)
+        except Exception:
+            price = None
+
+        return {
+            "client_order_id": order.get("client_order_id"),
+            "order_id": order.get("order_id"),
+            "product_type": self.normalize_product_type(order),
+            "product_id": order.get("product_id"),
+            "side": order.get("order_side") or order.get("side"),
+            "status": order.get("status"),
+            "price": price,
+        }
+
+    def build_event_log_payload(self, event: str, **kwargs) -> dict:
+        """
+        Build a structured event log payload.
+
+        Args:
+            event: Event name.
+            **kwargs: Additional structured fields.
+
+        Returns:
+            Structured log payload.
+        """
+        payload = {"event": event}
+        payload.update(kwargs)
+        return payload
+
+    def include_debug_fields(self, **kwargs) -> dict:
+        """
+        Return debug-only fields when verbose logging is enabled.
+
+        Args:
+            **kwargs: Candidate debug fields.
+
+        Returns:
+            A dictionary containing only non-empty debug fields when enabled.
+        """
+        if not self.debug_logging_enabled:
+            return {}
+        return {
+            key: value for key, value in kwargs.items()
+            if value is not None
+        }
 
     def normalize_product_type(self, order: dict) -> str:
         """
@@ -429,7 +496,13 @@ class OrderEngine:
                 },
             }
 
-            self.log_message("order", f"Creating parent order entry for client_order_id: {client_order_id}")
+            self.log_message(
+                "order",
+                self.build_event_log_payload(
+                    "parent_order_entry_created",
+                    source=self.build_order_log_context(order),
+                ),
+            )
 
             parent_id = self.db_client.insert_order_parent(
                 client_order_id=client_order_id,
@@ -511,6 +584,61 @@ class OrderEngine:
 
             processed_flags[client_order_id] = "done"
 
+
+    def build_follow_up_order_log_context(self, order: dict) -> dict:
+        """
+        Build normalized order details for follow-up order logs.
+
+        Args:
+            order: Source order payload.
+
+        Returns:
+            Structured source order context.
+        """
+        return self.build_order_log_context(order)
+
+    def build_follow_up_log_payload(
+        self,
+        event: str,
+        source_order: dict = None,
+        parent_client_order_id: str = None,
+        new_order: dict = None,
+        attempted_new_order: dict = None,
+        details: dict = None,
+    ) -> dict:
+        """
+        Build a structured JSON payload for follow-up order logs.
+
+        Args:
+            event: Event name.
+            source_order: Source order payload that triggered the follow-up.
+            parent_client_order_id: Parent client order id if known.
+            new_order: Newly placed order details if placement succeeded.
+            attempted_new_order: Attempted order details if placement failed or was skipped.
+            details: Additional metadata.
+
+        Returns:
+            Structured log payload.
+        """
+        payload = {"event": event}
+
+        if parent_client_order_id is not None:
+            payload["parent_client_order_id"] = parent_client_order_id
+
+        if source_order is not None:
+            payload["source"] = self.build_follow_up_order_log_context(source_order)
+
+        if new_order is not None:
+            payload["new"] = new_order
+
+        if attempted_new_order is not None:
+            payload["attempted_new"] = attempted_new_order
+
+        if details:
+            payload["details"] = details
+
+        return payload
+
     def on_open(self) -> None:
         """
         Callback when websocket connection is established.
@@ -559,10 +687,24 @@ class OrderEngine:
                         self.seen_events[self.seen_events_default_bucket].add(event_hash)
 
                 except Full:
-                    self.log_message("warning", f"Event queue full for channel {channel}; dropping event")
+                    self.log_message(
+                        "warning",
+                        self.build_event_log_payload(
+                            "event_queue_full",
+                            channel=channel,
+                            **self.include_debug_fields(dropped_event=event),
+                        ),
+                    )
 
         except Exception as e:
-            self.log_message("error", f"Exception processing message: {e}: raw: {msg}")
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "websocket_message_processing_exception",
+                    error=str(e),
+                    raw_message=msg,
+                ),
+            )
 
     def process_user_event(self, event: dict) -> None:
         """
@@ -576,13 +718,26 @@ class OrderEngine:
         """
         try:
             if event["type"].upper() not in self.websocket_events:
-                self.log_message("event", f"Ignoring user event received: {event}")
+                self.log_message(
+                    "event",
+                    self.build_event_log_payload(
+                        "user_event_ignored",
+                        **self.include_debug_fields(received_event=event),
+                    ),
+                )
                 return
 
             if "orders" in event and event["type"].upper() in ["OPEN", "FILLED", "CANCELLED", "UPDATE"]:
                 for order in event["orders"]:
                     if "client_order_id" not in order:
-                        self.log_message("warning", f"Missing client_order_id in order event: {order}")
+                        self.log_message(
+                            "warning",
+                            self.build_event_log_payload(
+                                "missing_client_order_id_in_order_event",
+                                source=self.build_order_log_context(order),
+                                **self.include_debug_fields(raw_order=order),
+                            ),
+                        )
                         continue
                     self.process_user_order(order)
 
@@ -592,7 +747,11 @@ class OrderEngine:
         except Exception as e:
             self.log_message(
                 "error",
-                f"user event processing error: {e} event: {json.dumps(event, indent=4, skipkeys=True)}"
+                self.build_event_log_payload(
+                    "user_event_processing_error",
+                    error=str(e),
+                    **self.include_debug_fields(received_event=event),
+                ),
             )
 
     def process_user_snapshot(self, snapshot: dict) -> None:
@@ -623,8 +782,11 @@ class OrderEngine:
 
                 self.log_message(
                     "snapshot",
-                    f"updated snapshot for position: {item['product_id']} "
-                    f"{self.orderbook.positions['FUTURE'][item['product_id']]}"
+                    self.build_event_log_payload(
+                        "futures_position_snapshot_updated",
+                        product_id=item["product_id"],
+                        position=self.orderbook.positions["FUTURE"][item["product_id"]],
+                    ),
                 )
 
     def process_user_order(self, order: dict) -> None:
@@ -656,8 +818,11 @@ class OrderEngine:
         if status == "FILLED" and outstanding_hold_amount > 0:
             self.log_message(
                 "order",
-                f"Order {client_order_id} has outstanding hold amount {normalized_order.get('outstanding_hold_amount')} "
-                "will not treat as FILLED until hold clears"
+                self.build_event_log_payload(
+                    "filled_order_waiting_for_hold_clear",
+                    source=self.build_order_log_context(normalized_order),
+                    outstanding_hold_amount=normalized_order.get("outstanding_hold_amount"),
+                ),
             )
             return
 
@@ -677,8 +842,12 @@ class OrderEngine:
         except Exception as e:
             self.log_message(
                 "error",
-                f"Error updating order status in database: {e}, "
-                f"order data: {json.dumps(order, indent=4, skipkeys=True)}"
+                self.build_event_log_payload(
+                    "database_order_status_update_failed",
+                    error=str(e),
+                    source=self.build_order_log_context(order),
+                    **self.include_debug_fields(raw_order=order),
+                ),
             )
 
         if status == "SNAPSHOT":
@@ -688,7 +857,14 @@ class OrderEngine:
         if status == "PENDING":
             return
         if status == "FAILED":
-            self.log_message("error", f"Order failed: {order}")
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "order_failed",
+                    source=self.build_order_log_context(order),
+                    **self.include_debug_fields(raw_order=order),
+                ),
+            )
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             return
@@ -701,7 +877,14 @@ class OrderEngine:
             self.handle_filled_order(order)
             return
 
-        self.log_message("warning", f"UNRECOGNIZED STATUS {status}")
+        self.log_message(
+            "warning",
+            self.build_event_log_payload(
+                "unrecognized_order_status",
+                status=status,
+                source=self.build_order_log_context(order),
+            ),
+        )
 
     def apply_position_update(self, order_template: dict) -> None:
         """
@@ -778,9 +961,25 @@ class OrderEngine:
                 try:
                     return bool(self.db_client.child_order_exists(parent_client_order_id, order_template))
                 except Exception as e:
-                    self.log_message("warning", f"child_order_exists check failed: {e}")
+                    self.log_message(
+                        "warning",
+                        self.build_event_log_payload(
+                            "child_order_exists_check_failed",
+                            parent_client_order_id=parent_client_order_id,
+                            attempted_new_order=order_template,
+                            error=str(e),
+                        ),
+                    )
             except Exception as e:
-                self.log_message("warning", f"child_order_exists check failed: {e}")
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "child_order_exists_check_failed",
+                        parent_client_order_id=parent_client_order_id,
+                        attempted_new_order=order_template,
+                        error=str(e),
+                    ),
+                )
 
         return False
 
@@ -819,7 +1018,15 @@ class OrderEngine:
             _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
         if not self.claim_follow_up_processing("cancelled", client_order_id):
-            self.log_message("warning", f"Could not claim follow-up processing for cancelled order {client_order_id}. {order}")
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=parent_client_order_id,
+                    details={"reason": "cancelled_order_follow_up_already_claimed"},
+                ),
+            )
             return
 
         try:
@@ -827,7 +1034,12 @@ class OrderEngine:
             if not order_template:
                 self.log_message(
                     "warning",
-                    f"Could not compute follow-up order template for cancelled order {client_order_id}"
+                    self.build_follow_up_log_payload(
+                        "follow_up_template_compute_failed",
+                        source_order=order,
+                        parent_client_order_id=parent_client_order_id,
+                        details={"reason": "cancelled_order_follow_up_template_compute_failed"},
+                    ),
                 )
                 self.release_follow_up_processing("cancelled", client_order_id)
                 return
@@ -835,7 +1047,16 @@ class OrderEngine:
             if self.child_order_already_exists(parent_client_order_id, order_template):
                 self.log_message(
                     "warning",
-                    f"Skipping duplicate child order for parent {parent_client_order_id}"
+                    self.build_follow_up_log_payload(
+                        "follow_up_duplicate_child_skipped",
+                        source_order=order,
+                        parent_client_order_id=parent_client_order_id,
+                        attempted_new_order={
+                            "product_id": order_template["product_id"],
+                            "side": order_template["side"],
+                            "price": float(order_template["start_price"]),
+                        },
+                    ),
                 )
                 self.complete_follow_up_processing("cancelled", client_order_id)
                 return
@@ -888,7 +1109,15 @@ class OrderEngine:
             )
 
         if not self.claim_follow_up_processing("filled", client_order_id):
-            self.log_message("warning", f"Could not claim follow-up processing for filled order {client_order_id}. {order}")
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=parent_client_order_id,
+                    details={"reason": "filled_order_follow_up_already_claimed"},
+                ),
+            )
             return
 
         try:
@@ -900,7 +1129,12 @@ class OrderEngine:
             if not order_template:
                 self.log_message(
                     "warning",
-                    f"Could not compute follow-up order template for filled order {client_order_id}"
+                    self.build_follow_up_log_payload(
+                        "follow_up_template_compute_failed",
+                        source_order=order,
+                        parent_client_order_id=parent_client_order_id,
+                        details={"reason": "filled_order_follow_up_template_compute_failed"},
+                    ),
                 )
                 self.release_follow_up_processing("filled", client_order_id)
                 return
@@ -908,7 +1142,16 @@ class OrderEngine:
             if self.child_order_already_exists(parent_client_order_id, order_template):
                 self.log_message(
                     "warning",
-                    f"Skipping duplicate child order for parent {parent_client_order_id}"
+                    self.build_follow_up_log_payload(
+                        "follow_up_duplicate_child_skipped",
+                        source_order=order,
+                        parent_client_order_id=parent_client_order_id,
+                        attempted_new_order={
+                            "product_id": order_template["product_id"],
+                            "side": order_template["side"],
+                            "price": float(order_template["start_price"]),
+                        },
+                    ),
                 )
                 self.complete_follow_up_processing("filled", client_order_id)
                 return
@@ -963,8 +1206,16 @@ class OrderEngine:
         if new_order[0]["success"] is not True:
             self.log_message(
                 "error",
-                f"{client_order_id}:{source_order['order_id']} FAILED TO PLACE "
-                f"{order_template['side']} {order_template['order_base_size']} @ {order_template['start_price']}"
+                self.build_follow_up_log_payload(
+                    "follow_up_order_placement_failed",
+                    source_order=source_order,
+                    parent_client_order_id=parent_client_order_id,
+                    attempted_new_order={
+                        "product_id": order_template["product_id"],
+                        "side": order_template["side"],
+                        "price": float(order_template["start_price"]),
+                    },
+                ),
             )
             if processed_flag_name:
                 self.release_follow_up_processing(processed_flag_name, client_order_id)
@@ -981,14 +1232,34 @@ class OrderEngine:
 
         self.log_message(
             "order",
-            f"{client_order_id}:{source_order['order_id']} => "
-            f"{new_order_side} {new_order_size} @ {new_order_price}"
+            self.build_follow_up_log_payload(
+                "follow_up_order_placed",
+                source_order=source_order,
+                parent_client_order_id=parent_client_order_id,
+                new_order={
+                    "client_order_id": new_order_client_order_id,
+                    "product_id": new_order_product_id,
+                    "side": new_order_side,
+                    "price": float(new_order_price),
+                },
+                details={"size": new_order_size},
+            ),
         )
 
         if not parent_client_order_id:
             self.log_message(
                 "warning",
-                f"Order {client_order_id} not found in parent or child order book. Order data: {source_order}"
+                self.build_follow_up_log_payload(
+                    "follow_up_parent_mapping_missing",
+                    source_order=source_order,
+                    parent_client_order_id=parent_client_order_id,
+                    new_order={
+                        "client_order_id": new_order_client_order_id,
+                        "product_id": new_order_product_id,
+                        "side": new_order_side,
+                        "price": float(new_order_price),
+                    },
+                ),
             )
             return
 
@@ -1013,8 +1284,17 @@ class OrderEngine:
 
         self.log_message(
             "database",
-            f"Inserting child order for parent client_order_id: {parent_client_order_id} / "
-            f"new child client_order_id: {new_order_client_order_id}"
+            self.build_follow_up_log_payload(
+                "follow_up_child_order_persisting",
+                source_order=source_order,
+                parent_client_order_id=parent_client_order_id,
+                new_order={
+                    "client_order_id": new_order_client_order_id,
+                    "product_id": new_order_product_id,
+                    "side": new_order_side,
+                    "price": float(new_order_price),
+                },
+            ),
         )
         self.db_client.insert_order_child(
             parent_client_order_id=parent_client_order_id,
@@ -1072,12 +1352,21 @@ class OrderEngine:
             True if changes were made, False if already in sync.
         """
         if force_log:
-            self.log_message("reconcile", "Reconciling parent/child order ids from database")
+            self.log_message(
+                "reconcile",
+                self.build_event_log_payload("parent_child_reconcile_started"),
+            )
 
         try:
             new_parent_order_ids, new_child_order_ids = self.build_parent_child_order_ids_snapshot()
         except Exception as e:
-            self.log_message("error", f"Failed building parent/child snapshot from database: {e}")
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "build_parent_child_snapshot_failed",
+                    error=str(e),
+                ),
+            )
             return False
 
         loaded_parent_count = len(new_parent_order_ids)
@@ -1091,8 +1380,11 @@ class OrderEngine:
                 if force_log:
                     self.log_message(
                         "reconcile",
-                        f"Parent/child order ids already in sync "
-                        f"({loaded_parent_count} parents / {loaded_child_count} children)"
+                        self.build_event_log_payload(
+                            "parent_child_reconcile_in_sync",
+                            parent_count=loaded_parent_count,
+                            child_count=loaded_child_count,
+                        ),
                     )
                 return False
 
@@ -1101,8 +1393,11 @@ class OrderEngine:
 
         self.log_message(
             "reconcile",
-            f"Reconciled parent/child order ids from database "
-            f"({loaded_parent_count} parents / {loaded_child_count} children)"
+            self.build_event_log_payload(
+                "parent_child_reconciled",
+                parent_count=loaded_parent_count,
+                child_count=loaded_child_count,
+            ),
         )
         return True
 
@@ -1122,7 +1417,13 @@ class OrderEngine:
             try:
                 self.load_parent_child_order_ids(force_log=False)
             except Exception as e:
-                self.log_message("error", f"Periodic reconcile error: {e}")
+                self.log_message(
+                    "error",
+                    self.build_event_log_payload(
+                        "periodic_parent_child_reconcile_error",
+                        error=str(e),
+                    ),
+                )
             sleep(interval_seconds)
 
     def rotate_seen_events_buckets(self) -> None:
@@ -1158,12 +1459,24 @@ class OrderEngine:
                 try:
                     if channel == "ticker":
                         with self.ticker_lock:
-                            self.log_message("ticker", json.dumps(event, indent=4))
+                            self.log_message(
+                                "ticker",
+                                self.build_event_log_payload(
+                                    "ticker_event_received",
+                                    **self.include_debug_fields(received_event=event),
+                                ),
+                            )
                             for tickr in event["tickers"]:
                                 self.ticker[tickr["product_id"]] = tickr
 
                     elif channel == "user":
-                        self.log_message("user", json.dumps(event, indent=4))
+                        self.log_message(
+                            "user",
+                            self.build_event_log_payload(
+                                "user_event_received",
+                                **self.include_debug_fields(received_event=event),
+                            ),
+                        )
                         self.event_executor.submit(self.process_user_event, event)
 
                 finally:
@@ -1200,7 +1513,13 @@ class OrderEngine:
                 if ws_client.sleep_with_exception_check(1):
                     break
         except WSClientConnectionClosedException as e:
-            self.log_message("connection", f"Connection Closed! {e}")
+            self.log_message(
+                "connection",
+                self.build_event_log_payload(
+                    "websocket_connection_closed",
+                    error=str(e),
+                ),
+            )
 
     def start_background_threads(self) -> None:
         """
