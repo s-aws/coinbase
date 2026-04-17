@@ -653,10 +653,6 @@ class OrderEngine:
             if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
                 self.refresh_positions_if_needed(product_id)
                 snapshot = self.get_orderbook_snapshot()
-        
-        elif order.get("product_type") == "SPOT":
-            product_id = order.get("product_id")
-            snapshot = self.get_orderbook_snapshot()
 
         return calculate_new_order_move_from_snapshot(
             snapshot,
