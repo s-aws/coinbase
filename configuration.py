@@ -134,11 +134,11 @@ def resolve_profit_move_pct(order: dict, profits: dict, products: dict) -> float
 def format_based_on_reference(value_to_format: float, reference_float: str) -> str:
     """
     Format a float to match the number of decimal places of a reference float.
-    
+
     Args:
         value_to_format: The numeric value to format.
         reference_float: A reference string representing the target format.
-    
+
     Returns:
         A formatted string representation of the value with appropriate decimal places.
     """
@@ -149,17 +149,17 @@ def format_based_on_reference(value_to_format: float, reference_float: str) -> s
 def quantize_to_increment(value: float, increment: str, direction: str = "nearest") -> float:
     """
     Quantize a value to the nearest valid increment.
-    
+
     Rounds, floors, or ceils a numeric value to match a specified price/size increment.
-    
+
     Args:
         value: The value to quantize.
         increment: The increment step as a string (e.g., "0.01").
         direction: Rounding direction - "down" (floor), "up" (ceil), or "nearest" (round).
-    
+
     Returns:
         The quantized value as a float.
-    
+
     Raises:
         ValueError: If increment is <= 0 or direction is unsupported.
     """
@@ -188,7 +188,7 @@ def quantize_to_increment(value: float, increment: str, direction: str = "neares
 def rest_get_account_wallets() -> dict:
     """
     Retrieve all active account wallets from Coinbase.
-    
+
     Returns:
         A dictionary mapping currency codes to wallet data dictionaries.
     """
@@ -203,10 +203,10 @@ def rest_get_account_wallets() -> dict:
 def rest_get_products() -> dict:
     """
     Retrieve all trading products from Coinbase.
-    
+
     Fetches product information for all configured derivatives and spot products,
     filtering out trading-disabled products.
-    
+
     Returns:
         A dictionary mapping product IDs to product data dictionaries.
     """
@@ -223,7 +223,7 @@ def rest_get_products() -> dict:
 def get_futures_positions() -> dict:
     """
     Retrieve all futures positions from Coinbase.
-    
+
     Returns:
         A dictionary mapping product IDs to futures position data dictionaries.
         Returns empty dict if no positions exist.
@@ -242,7 +242,7 @@ def get_futures_positions() -> dict:
 def get_open_orders() -> dict:
     """
     Retrieve all open orders from Coinbase.
-    
+
     Returns:
         A dictionary mapping client order IDs to order data dictionaries.
     """
@@ -258,13 +258,13 @@ def get_open_orders() -> dict:
 def apply_calculated_position_update(positions: dict, position_update: dict) -> dict:
     """
     Apply a position update returned by calculate_new_order_move_from_snapshot.
-    
+
     Updates or creates position entries in the positions dictionary with new values.
-    
+
     Args:
         positions: The positions dictionary to update.
         position_update: The position update dict with product_type, product_id, and fields.
-    
+
     Returns:
         The updated positions dictionary.
     """
@@ -286,15 +286,15 @@ def apply_calculated_position_update(positions: dict, position_update: dict) -> 
 def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target_movement: dict = None) -> dict:
     """
     Calculate the template for a follow-up order based on a caller-provided snapshot.
-    
+
     Computes pricing, sizing, and position updates for the next order in a trading strategy
     without making REST calls or mutating the input snapshot.
-    
+
     Args:
         snapshot: A snapshot dictionary with order, positions, product, profit, and fee data.
         order_id: The client order ID to compute template for.
         target_movement: Optional override for target movement (type "P" or "A" and amount).
-    
+
     Returns:
         A dictionary with computed order template (pricing, sizing) and optional position_update.
         Returns empty dict if order not found.
@@ -418,7 +418,7 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
 class OrderBook():
     """
     Container and state manager for order tracking and position management.
-    
+
     Maintains in-memory state of parent/child orders, positions, profit targets,
     and product metadata for a trading engine.
     """
@@ -453,8 +453,8 @@ class OrderBook():
             "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
         },
         "FUTURE": {
-            "BUY": 0.002, #float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
-            "SELL": 0.002 #float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
+            "BUY": 0.002,
+            "SELL": 0.002
         },
         "BIP-20DEC30-CDE": {
             "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 14,
@@ -471,11 +471,11 @@ class OrderBook():
     def calculate_new_order_move(self, order_id: str, target_movement: dict = None) -> dict:
         """
         Calculate a new order move using current orderbook snapshot.
-        
+
         Args:
             order_id: The client order ID to compute template for.
             target_movement: Optional target movement override.
-        
+
         Returns:
             A dictionary with computed order template and applied position updates.
         """
@@ -494,7 +494,7 @@ class OrderBook():
 class Subscription():
     """
     Configuration for websocket connection to Coinbase.
-    
+
     Defines which products and channels to subscribe to for real-time market
     and account updates.
     """
