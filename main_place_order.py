@@ -15,7 +15,6 @@ if __name__ == "__main__":
     ##################### PERP 
 
     # BTC
-
     orders = create_limit_order_span(
         delay_in_secs=0,
         product_id="BIP-20DEC30-CDE",
