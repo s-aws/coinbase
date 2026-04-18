@@ -22,6 +22,7 @@ Architecture:
 
 Example:
     >>> from main import OrderEngine
+    >>> from bridges.engine_integration import OrderEngineIntegration
     >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
     >>> import database.order as DB_CLIENT
     >>> 
@@ -33,7 +34,8 @@ Example:
     ...     api_secret=API_SECRET,
     ...     order_post_only=ORDER_POST_ONLY
     ... )
-    >>> engine.run_forever()  # Blocks indefinitely, runs all background threads
+    >>> integrated = OrderEngineIntegration(engine)
+    >>> integrated.run_forever()  # Blocks indefinitely, runs all background threads
 """
 
 import json
