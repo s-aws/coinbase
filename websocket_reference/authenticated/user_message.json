@@ -2,7 +2,7 @@
   "channel": "user",
   "description": "User channel message format - orders and positions",
   "message_type": "user",
-  "response_structure": {
+  "response": {
     "channel": "string - always 'user'",
     "client_id": "string - empty string",
     "timestamp": "string - ISO8601 timestamp",
@@ -79,7 +79,7 @@
       }
     ]
   },
-  "example_snapshot_with_orders": {
+  "example": {
     "channel": "user",
     "client_id": "",
     "timestamp": "2023-02-09T20:33:57.609931463Z",

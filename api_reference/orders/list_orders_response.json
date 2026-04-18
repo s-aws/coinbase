@@ -39,5 +39,37 @@
     "400": "Bad Request",
     "401": "Unauthorized",
     "403": "Forbidden"
+  },
+  "example": {
+    "orders": [
+      {
+        "order_id": "7c4a3d3e-e8f2-4e7a-9c1d-5a6e9f2b8c1d",
+        "client_order_id": "550e8400-e29b-41d4-a716-446655440000",
+        "product_id": "BTC-USD",
+        "user_id": "user-12345",
+        "order_configuration": {
+          "limit_order_config": {
+            "base_size": "0.25",
+            "limit_price": "42500.50",
+            "post_only": false
+          }
+        },
+        "side": "BUY",
+        "type": "LIMIT",
+        "time_in_force": "GTC",
+        "created_at": "2024-01-15T10:30:45.123Z",
+        "stop_price": null,
+        "end_time": null,
+        "status": "OPEN",
+        "number_of_fills": 0,
+        "filled_size": "0.0",
+        "average_filled_price": "0",
+        "fee": "0",
+        "net_proceeds": "0",
+        "user_native_currency": "USD"
+      }
+    ],
+    "sequence": "12345",
+    "has_next": false
   }
 }

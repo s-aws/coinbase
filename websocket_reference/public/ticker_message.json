@@ -3,7 +3,7 @@
   "description": "Ticker message format with real-time price data",
   "message_type": "ticker",
   "send_interval": "Every trade match (batched for cascading trades)",
-  "response_structure": {
+  "response": {
     "channel": "string - always 'ticker'",
     "client_id": "string - empty string",
     "timestamp": "string - ISO8601 timestamp",

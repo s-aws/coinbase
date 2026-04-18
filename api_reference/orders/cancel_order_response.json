@@ -16,7 +16,7 @@
     "404": "Order not found",
     "409": "Conflict - order state prevents cancellation"
   },
-  "example_success": {
+  "example": {
     "success": true,
     "cancel_request_id": "8e9f4c3a-e2f1-4b6d-9c8e-7a5d3f2e1c0b",
     "order_id": "7c4a3d3e-e8f2-4e7a-9c1d-5a6e9f2b8c1d"

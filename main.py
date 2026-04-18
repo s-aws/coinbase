@@ -60,6 +60,10 @@ from configuration import (
 
 from order import create_limit_order_span
 import database.order as DB_CLIENT
+from integration.engine_integration import OrderEngineIntegration
+from integration.calculator_bridge import CalculatorBridge
+from integration.processor_bridge import ProcessorBridge
+from integration.event_bridge import EventBridge
 
 
 class OrderEngine:
@@ -184,6 +188,14 @@ class OrderEngine:
             "reconcile": True,
         }
         self.debug_logging_enabled = False
+        
+        # Phase 4 Integration: CalculatorBridge, ProcessorBridge, & EventBridge
+        self.calc_bridge = CalculatorBridge()
+        self.proc_bridge = ProcessorBridge()
+        self.evt_bridge = EventBridge(
+            max_dedup_buckets=max_seen_event_buckets,
+            dedup_bucket_duration_secs=max_rotate_seen_events_bucket_seconds,
+        )
 
         self.websocket_events = {
             "SNAPSHOT": {
@@ -989,6 +1001,217 @@ class OrderEngine:
             target_movement=target_movement,
         )
 
+    def calculate_follow_up_details_using_bridge(
+        self,
+        parent_order: dict,
+        follow_up_side: str,
+        profit_target: float,
+    ) -> dict:
+        """Calculate follow-up order details using CalculatorBridge.
+        
+        **Phase 4 Integration**: Demonstrates CalculatorBridge usage for order calculations.
+        
+        Args:
+            parent_order: Parent order dict with order_side and avg_price.
+            follow_up_side: Side for follow-up order ('BUY' or 'SELL').
+            profit_target: Profit percentage (e.g., 0.01 for 1%).
+        
+        Returns:
+            Dict with 'follow_up_price' and 'follow_up_size' keys.
+        
+        Example:
+            >>> parent = {'order_side': 'BUY', 'avg_price': '100.00', 'filled_size': '1.0'}
+            >>> details = engine.calculate_follow_up_details_using_bridge(parent, 'SELL', 0.01)
+            >>> details['follow_up_price']
+            101.0
+            >>> details['follow_up_size']
+            1.0
+        """
+        try:
+            # Use CalculatorBridge for price calculation
+            follow_up_price = self.calc_bridge.calculate_follow_up_price(
+                parent_order,
+                follow_up_side,
+                profit_target,
+            )
+            
+            # Use CalculatorBridge for size extraction
+            follow_up_size = self.calc_bridge.calculate_follow_up_size(parent_order)
+            
+            return {
+                'follow_up_price': follow_up_price,
+                'follow_up_size': follow_up_size,
+            }
+        except Exception as e:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "follow_up_details_calculation_failed",
+                    error=str(e),
+                    parent_order_id=parent_order.get('client_order_id'),
+                ),
+            )
+            return {}
+
+    def validate_and_process_order_using_bridge(self, order: dict) -> dict:
+        """Validate and process order using ProcessorBridge.
+        
+        **Phase 4 Integration**: Demonstrates ProcessorBridge usage for order validation
+        and enrichment.
+        
+        Args:
+            order: Order dict to validate and process.
+        
+        Returns:
+            Dict with 'valid' (bool), 'context' (dict), and 'errors' (list) keys.
+        
+        Example:
+            >>> order = {'order_id': 'id123', 'product_id': 'BTC-USDC', ...}
+            >>> result = engine.validate_and_process_order_using_bridge(order)
+            >>> if result['valid']:
+            ...     print(f"Order context: {result['context']}")
+            >>> else:
+            ...     print(f"Validation errors: {result['errors']}")
+        """
+        try:
+            # Use ProcessorBridge to build order context
+            order_context = self.proc_bridge.build_order_context(order)
+            
+            # Use ProcessorBridge to validate required fields
+            required_fields = ['order_id', 'product_id', 'side', 'status']
+            is_valid = self.proc_bridge.validate_order_fields(
+                order,
+                required_fields=required_fields
+            )
+            
+            errors = []
+            if not is_valid:
+                missing_fields = [f for f in required_fields if f not in order]
+                errors = [f"Missing required field: {f}" for f in missing_fields]
+                return {
+                    'valid': False,
+                    'context': order_context,
+                    'errors': errors,
+                }
+            
+            # Use ProcessorBridge to check order status
+            if self.proc_bridge.is_filled_order(order):
+                return {
+                    'valid': True,
+                    'context': order_context,
+                    'errors': [],
+                    'status_check': 'filled',
+                }
+            elif self.proc_bridge.is_cancelled_order(order):
+                return {
+                    'valid': True,
+                    'context': order_context,
+                    'errors': [],
+                    'status_check': 'cancelled',
+                }
+            elif self.proc_bridge.is_open_order(order):
+                return {
+                    'valid': True,
+                    'context': order_context,
+                    'errors': [],
+                    'status_check': 'open',
+                }
+            
+            return {
+                'valid': True,
+                'context': order_context,
+                'errors': [],
+                'status_check': 'unknown',
+            }
+        
+        except Exception as e:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "order_validation_processing_failed",
+                    error=str(e),
+                    order_id=order.get('client_order_id'),
+                ),
+            )
+            return {
+                'valid': False,
+                'context': {},
+                'errors': [str(e)],
+            }
+
+    def process_event_using_bridge(self, event: dict, subscribed_channels: list = None) -> dict:
+        """Process event using EventBridge for deduplication and filtering.
+        
+        **Phase 4 Integration**: Demonstrates EventBridge usage for event processing.
+        
+        Args:
+            event: Event dict to process.
+            subscribed_channels: List of subscribed channel names.
+        
+        Returns:
+            Dict with 'should_process' (bool), 'is_duplicate' (bool), 
+            'channel' (str), and 'product_id' (str) keys.
+        
+        Example:
+            >>> event = {'type': 'FILLED', 'channel': 'user', 'orders': [...]}
+            >>> result = engine.process_event_using_bridge(event, ['user', 'ticker'])
+            >>> if result['should_process'] and not result['is_duplicate']:
+            ...     # Process this event
+            ...     pass
+        """
+        try:
+            if subscribed_channels is None:
+                subscribed_channels = self.subscription.channels if hasattr(self.subscription, 'channels') else []
+            
+            # Use EventBridge to check for duplicates
+            is_duplicate = self.evt_bridge.is_duplicate_event(event)
+            
+            if is_duplicate:
+                return {
+                    'should_process': False,
+                    'is_duplicate': True,
+                    'channel': event.get('channel'),
+                    'product_id': None,
+                }
+            
+            # Mark event as seen using EventBridge
+            self.evt_bridge.mark_event_seen(event)
+            
+            # Use EventBridge to extract product ID
+            product_id = self.evt_bridge.extract_product_id_from_event(event)
+            
+            # Use EventBridge to validate if should process
+            subscribed_products = list(self.orderbook.product.keys()) if hasattr(self.orderbook, 'product') else []
+            should_process = self.evt_bridge.should_process_event(
+                event,
+                subscribed_products,
+                subscribed_channels,
+            )
+            
+            return {
+                'should_process': should_process,
+                'is_duplicate': False,
+                'channel': event.get('channel'),
+                'product_id': product_id,
+            }
+        
+        except Exception as e:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "event_processing_failed",
+                    error=str(e),
+                    event_channel=event.get('channel'),
+                ),
+            )
+            return {
+                'should_process': False,
+                'is_duplicate': False,
+                'channel': event.get('channel'),
+                'product_id': None,
+                'error': str(e),
+            }
+
     def child_order_already_exists(self, parent_client_order_id: str, order_template: dict) -> bool:
         """Check if a child order matching the template already exists.
         
@@ -1711,4 +1934,6 @@ if __name__ == "__main__":
         api_secret=API_SECRET,
         order_post_only=ORDER_POST_ONLY,
     )
-    engine.run_forever()
+
+    integrated = OrderEngineIntegration(engine)
+    integrated.run_forever()

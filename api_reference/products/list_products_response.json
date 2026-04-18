@@ -42,5 +42,61 @@
     "200": "Success",
     "401": "Unauthorized",
     "403": "Forbidden"
+  },
+  "example": {
+    "products": [
+      {
+        "product_id": "BTC-USD",
+        "price": "42500.50",
+        "price_percentage_change_24h": "2.50",
+        "volume_24h": "156.78",
+        "volume_percentage_change_24h": "1.20",
+        "base_increment": "0.00000001",
+        "display_name": "BTC/USD",
+        "status": "OPEN",
+        "base_currency": "BTC",
+        "quote_currency": "USD",
+        "base_min_size": "0.001",
+        "base_max_size": "1000000",
+        "quote_increment": "0.01",
+        "quote_min_size": "10",
+        "quote_max_size": "10000000",
+        "cancel_only": false,
+        "limit_only": false,
+        "post_only": false,
+        "product_type": "SPOT",
+        "id": "BTC-USD",
+        "baseName": "Bitcoin",
+        "quoteName": "US Dollar",
+        "watchlist_symbol": "BTC"
+      },
+      {
+        "product_id": "ETH-USD",
+        "price": "2200.75",
+        "price_percentage_change_24h": "1.50",
+        "volume_24h": "89.34",
+        "volume_percentage_change_24h": "0.80",
+        "base_increment": "0.00000001",
+        "display_name": "ETH/USD",
+        "status": "OPEN",
+        "base_currency": "ETH",
+        "quote_currency": "USD",
+        "base_min_size": "0.01",
+        "base_max_size": "1000000",
+        "quote_increment": "0.01",
+        "quote_min_size": "10",
+        "quote_max_size": "10000000",
+        "cancel_only": false,
+        "limit_only": false,
+        "post_only": false,
+        "product_type": "SPOT",
+        "id": "ETH-USD",
+        "baseName": "Ethereum",
+        "quoteName": "US Dollar",
+        "watchlist_symbol": "ETH"
+      }
+    ],
+    "sequence": "12345",
+    "has_next": false
   }
 }

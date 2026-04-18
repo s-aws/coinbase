@@ -28,5 +28,27 @@
     "200": "Success",
     "401": "Unauthorized",
     "403": "Forbidden"
+  },
+  "example": {
+    "fills": [
+      {
+        "entry_id": "fill-12345",
+        "trade_id": "trade-67890",
+        "order_id": "7c4a3d3e-e8f2-4e7a-9c1d-5a6e9f2b8c1d",
+        "trade_time": "2024-01-15T10:35:45.123Z",
+        "price": "42500.50",
+        "size": "0.25",
+        "fee": "26.56",
+        "side": "BUY",
+        "liquidity": "TAKER",
+        "product_id": "BTC-USD",
+        "user_fee_rate": "0.00099",
+        "user_id": "user-12345",
+        "commission": "26.56",
+        "settlement_currency": "USD"
+      }
+    ],
+    "sequence": "12345",
+    "has_next": false
   }
 }
