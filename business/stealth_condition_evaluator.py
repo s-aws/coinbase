@@ -54,6 +54,10 @@ class PriceThresholdEvaluator(ConditionEvaluator):
         current_price = market_data.get("price", 0)
         condition_first_met = order_data.get("condition_first_met_at")
         
+        # Guard: Don't evaluate if market data not available (price = 0)
+        if current_price == 0:
+            return False, f"Waiting for market data for {condition_config.get('price_threshold', 'unknown')}"
+        
         # Check if threshold crossed
         if direction == "below":
             threshold_crossed = current_price < threshold

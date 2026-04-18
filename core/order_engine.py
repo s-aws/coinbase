@@ -1288,6 +1288,78 @@ class OrderEngine:
                 self.complete_follow_up_processing("filled", client_order_id)
                 return
 
+            # First, check if this filled order came from a stealth order BEFORE placing a regular order
+            original_stealth_order = None
+            if self.stealth_order_bridge:
+                # Search by order_id (not client_order_id) to match against revealed_orders
+                order_id = order.get("order_id")
+                original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                    order_id
+                )
+            
+            # If this is a stealth order follow-up, create a stealth order instead of a regular order
+            if original_stealth_order:
+                try:
+                    # This is a stealth order fill - create a stealth follow-up instead of a regular order
+                    follow_up_price = float(order_template["start_price"])
+                    
+                    # Seed the market cache with the fill price
+                    product_id = order["product_id"]
+                    fill_price = float(order.get("price", follow_up_price))
+                    
+                    self.stealth_order_bridge.stealth_manager._market_cache[product_id] = {
+                        "product_id": product_id,
+                        "price": fill_price,
+                        "bid": fill_price,
+                        "ask": fill_price,
+                        "volume_1m": 0,
+                        "time": datetime.utcnow()
+                    }
+                    
+                    # Build the reveal condition for the follow-up (flipped direction, new price)
+                    follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
+                    if follow_up_reveal_condition.get("type") == "price":
+                        if "direction" in follow_up_reveal_condition:
+                            follow_up_reveal_condition["direction"] = "above" if follow_up_reveal_condition.get("direction") == "below" else "below"
+                        follow_up_reveal_condition["price_threshold"] = follow_up_price
+                    
+                    # Create the stealth follow-up order (hidden, not revealed yet)
+                    stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
+                        original_stealth_order_id=original_stealth_order["stealth_order_id"],
+                        side=order_template["side"],
+                        total_size=order_template["order_base_size"],
+                        limit_price=follow_up_price,
+                        reveal_condition=follow_up_reveal_condition,
+                        notes=f"Auto follow-up from stealth order reveal"
+                    )
+                    
+                    self.log_message(
+                        "order",
+                        {
+                            "event": "stealth_follow_up_created",
+                            "stealth_follow_up_id": stealth_follow_up_id,
+                            "parent_stealth_id": original_stealth_order["stealth_order_id"],
+                            "product_id": product_id,
+                            "side": order_template["side"],
+                            "reveal_condition": follow_up_reveal_condition
+                        }
+                    )
+                    
+                    self.complete_follow_up_processing("filled", client_order_id)
+                    return
+                except Exception as e:
+                    self.log_message(
+                        "error",
+                        {
+                            "event": "stealth_follow_up_creation_failed",
+                            "error": str(e),
+                            "original_stealth_order_id": original_stealth_order.get("stealth_order_id"),
+                            "client_order_id": client_order_id
+                        }
+                    )
+                    # Fall through to regular order handling if stealth follow-up fails
+            
+            # Not a stealth follow-up, place a regular follow-up order
             new_order = create_limit_order_span(
                 product_id=order_template["product_id"],
                 side=order_template["side"],
@@ -1296,47 +1368,8 @@ class OrderEngine:
                 start_price=order_template["start_price"],
                 post_only=self.order_post_only[order_template["side"]],
             )
-
-            # Check if this filled order came from a stealth order
-            # If so, also create a stealth order for the follow-up to inherit the behavior
-            if self.stealth_order_bridge:
-                original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
-                    client_order_id
-                )
-                
-                if original_stealth_order and new_order[0]["success"] is True:
-                    # Extract the placed order ID from the follow-up order response
-                    success_response = new_order[0]["success_response"]
-                    follow_up_order_id = success_response.get("client_order_id")
-                    
-                    # Create a stealth order to track/wrap this follow-up
-                    # It will inherit the reveal conditions from the original stealth order
-                    stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
-                        original_stealth_order_id=original_stealth_order["stealth_order_id"],
-                        side=order_template["side"],
-                        total_size=order_template["order_base_size"],
-                        limit_price=order_template["start_price"],
-                        notes=f"Wraps follow-up order {follow_up_order_id[:8]}..."
-                    )
-                    
-                    # Record the relationship - the stealth follow-up is linked to this exchange order
-                    if follow_up_order_id:
-                        # This will be used if the follow-up order fills to create the next stealth follow-up
-                        self.log_message(
-                            "order",
-                            self.build_follow_up_log_payload(
-                                "follow_up_stealth_order_created",
-                                source_order=order,
-                                parent_client_order_id=parent_client_order_id,
-                                stealth_order_id=stealth_follow_up_id,
-                                details={
-                                    "original_stealth_order_id": original_stealth_order["stealth_order_id"],
-                                    "follow_up_order_id": follow_up_order_id,
-                                    "reason": "stealth_order_filled",
-                                },
-                            ),
-                        )
-
+            
+            # Place the regular follow-up order and record it
             self.record_follow_up_order(
                 order,
                 new_order,

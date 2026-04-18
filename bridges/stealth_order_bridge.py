@@ -211,12 +211,17 @@ class StealthOrderBridge:
         Should be called from OrderEngine's ticker processing.
         
         Args:
-            product_id: Product that was updated
+            product_id: Product that was updated (may be ticker product like BTC-USD)
             ticker_data: Latest ticker data from Coinbase
         """
+        from configuration import get_trading_product_id
+        
+        # Convert ticker product to trading product if necessary
+        trading_product_id = get_trading_product_id(product_id)
+        
         # Extract relevant fields for stealth order evaluation
         market_data = {
-            "product_id": product_id,
+            "product_id": trading_product_id,
             "price": float(ticker_data.get("price", 0)),
             "bid": float(ticker_data.get("best_bid", 0)),
             "ask": float(ticker_data.get("best_ask", 0)),
@@ -225,7 +230,7 @@ class StealthOrderBridge:
         }
         
         # Update market data cache in stealth manager
-        self._update_market_cache(product_id, market_data)
+        self._update_market_cache(trading_product_id, market_data)
     
     def record_reveal_event(self, stealth_order_id: str, client_order_id: str, reason: str):
         """Record a reveal event to the database."""

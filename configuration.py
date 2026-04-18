@@ -28,12 +28,34 @@ try:
         DERIVATIVES_PRODUCT_IDS = _products_config.get("derivatives", [])
         SPOT_PRODUCT_IDS = _products_config.get("spot", [])
         PRODUCT_METADATA = _products_config.get("metadata", {})
+        TICKER_TO_TRADING = _products_config.get("ticker_to_trading", {})
 except (FileNotFoundError, json.JSONDecodeError) as e:
     print(f"Warning: Failed to load products.json: {e}")
     # Fallback to hardcoded values
     DERIVATIVES_PRODUCT_IDS = []
     SPOT_PRODUCT_IDS = []
     PRODUCT_METADATA = {}
+    TICKER_TO_TRADING = {}
+
+def get_trading_product_id(ticker_product_id: str) -> str:
+    """
+    Convert a ticker product ID to its trading equivalent.
+    
+    Example:
+        get_trading_product_id("BTC-USD") -> "BTC-USDC"
+        get_trading_product_id("BTC-USDC") -> "BTC-USDC"  # Already a trading product
+    
+    Args:
+        ticker_product_id: Product ID from ticker feed
+        
+    Returns:
+        Trading product ID to use for order placement
+    """
+    # If it's in the mapping, use the mapped value
+    if ticker_product_id in TICKER_TO_TRADING:
+        return TICKER_TO_TRADING[ticker_product_id]
+    # Otherwise assume it's already a trading product
+    return ticker_product_id
 
 API_KEY = getenv("COINBASE_API_KEY")
 API_SECRET = getenv("COINBASE_API_SECRET")
