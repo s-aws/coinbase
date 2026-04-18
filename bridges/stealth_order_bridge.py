@@ -283,27 +283,3 @@ class StealthOrderBridge:
         """Save reveal event to stealth_order_reveal_history table."""
         # SQL INSERT implementation would go here
         pass
-
-
-def integrate_stealth_orders_with_engine(order_engine, db_client) -> StealthOrderBridge:
-    """
-    Factory function to integrate stealth orders with OrderEngine.
-    
-    Usage in main.py:
-        >>> bridge = integrate_stealth_orders_with_engine(order_engine, db_client)
-        >>> bridge.start()
-    
-    Args:
-        order_engine: OrderEngine instance
-        db_client: Database client
-        
-    Returns:
-        Configured StealthOrderBridge instance
-    """
-    stealth_manager = StealthOrderManager(db_client)
-    bridge = StealthOrderBridge(stealth_manager, order_engine)
-    
-    # Hook into engine's ticker processing
-    order_engine.stealth_order_bridge = bridge
-    
-    return bridge

@@ -694,7 +694,8 @@ def set_stealth_order_bridge(bridge):
     
     Example:
         >>> from dashboard_server import set_stealth_order_bridge
-        >>> stealth_bridge = integrate_stealth_orders_with_engine(engine, db_client)
+        >>> stealth_manager = StealthOrderManager(DB_CLIENT)
+        >>> stealth_bridge = StealthOrderBridge(stealth_manager, None)
         >>> set_stealth_order_bridge(stealth_bridge)
     """
     global stealth_order_bridge

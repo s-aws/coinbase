@@ -362,6 +362,20 @@
             gap: 20px;
         }
 
+        .history-entry {
+            padding: 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .history-entry:hover {
+            background: rgba(74, 222, 128, 0.1);
+            border-color: rgba(74, 222, 128, 0.3);
+        }
+
         /* Responsive */
         @media (max-width: 1000px) {
             .content {
@@ -393,8 +407,8 @@
                     <span class="stat-value" id="stat-active">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Total Size</span>
-                    <span class="stat-value" id="stat-size">0</span>
+                    <span class="stat-label">Avg Fill %</span>
+                    <span class="stat-value" id="stat-avg-fill">0%</span>
                 </div>
                 <div class="stat">
                     <span class="stat-label">Executed</span>
@@ -409,7 +423,7 @@
 
         <div class="content">
             <div class="section" style="grid-column: 1;">
-                <h2>📊 Active Stealth Orders</h2>
+                <h2>📊 Stealth Orders</h2>
                 <div class="message" id="message-container"></div>
                 <div style="overflow-x: auto;">
                     <table class="orders-table">
@@ -436,7 +450,7 @@
                     </table>
                 </div>
                 <div style="margin-top: 15px; font-size: 11px; color: #666; text-align: right;">
-                    <span class="refresh-indicator">Auto-refresh: <span id="refresh-timer">30</span>s</span>
+                    <span class="refresh-indicator">Auto-refresh: <span id="refresh-timer">5</span>s</span>
                 </div>
             </div>
 
@@ -476,8 +490,8 @@
                             <label>Reveal Condition *</label>
                             <select id="condition_type" required>
                                 <option value="">Select...</option>
-                                <option value="time_delay" selected>Time Delay</option>
-                                <option value="price">Price Threshold</option>
+                                <option value="time_delay">Time Delay</option>
+                                <option value="price" selected>Price Threshold</option>
                                 <option value="cumulative_volume">Volume Threshold</option>
                                 <option value="spread">Spread Trigger</option>
                                 <option value="product_ratio">Product Ratio</option>
@@ -523,6 +537,18 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Entry History -->
+                <div class="section">
+                    <h2>📝 Entry History</h2>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+                        <div id="history-list" style="display: flex; flex-direction: column; gap: 6px;">
+                            <div style="color: #666; text-align: center; padding: 10px;">No saved entries</div>
+                        </div>
+                        <button id="clear-history-btn" type="button" style="display: none; font-size: 10px; padding: 6px; margin-top: 8px; border-color: #ff6b6b; color: #ff6b6b;">Clear History</button>
+                    </div>
+                    <div id="save-status" style="font-size: 10px; color: #666; margin-top: 8px; text-align: right; display: none;">✓ Auto-saved</div>
+                </div>
             </div>
         </div>
     </div>
@@ -535,7 +561,7 @@
         let allProducts = [];  // All available products from JSON
         let productMetadata = {};  // Product metadata (base_increment, etc.)
         let refreshInterval = null;
-        let refreshCountdown = 30;
+        let refreshCountdown = 5;
 
         // Condition field templates
         const conditionTemplates = {
@@ -841,12 +867,23 @@
 
         function updateStats() {
             const orders = Object.values(ordersData);
-            const active = orders.filter(o => ['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED'].includes(o.status));
-            const totalSize = active.reduce((sum, o) => sum + parseFloat(o.total_size || 0), 0);
-            const executed = active.reduce((sum, o) => sum + parseFloat(o.executed_size || 0), 0);
+            const active = orders.filter(o => ['HIDDEN', 'PENDING', 'TRIGGERED'].includes(o.status));
+            
+            // Calculate average fill percentage across all active orders
+            let avgFillPct = 0;
+            if (active.length > 0) {
+                const totalFillPct = active.reduce((sum, o) => {
+                    const fill = o.total_size > 0 ? (o.executed_size / o.total_size) * 100 : 0;
+                    return sum + fill;
+                }, 0);
+                avgFillPct = Math.round(totalFillPct / active.length);
+            }
 
             document.getElementById('stat-active').textContent = active.length;
-            document.getElementById('stat-size').textContent = totalSize < 0.01 ? totalSize.toFixed(8) : totalSize.toFixed(2);
+            document.getElementById('stat-avg-fill').textContent = avgFillPct + '%';
+            
+            // Keep executed size display for reference (optional)
+            const executed = active.reduce((sum, o) => sum + parseFloat(o.executed_size || 0), 0);
             document.getElementById('stat-executed').textContent = executed < 0.01 ? executed.toFixed(8) : executed.toFixed(2);
 
             // Count by status
@@ -898,10 +935,180 @@
             }
             
             localStorage.setItem('stealth_order_form_data', JSON.stringify(formData));
+            showAutoSaveIndicator();
+        }
+
+        let autoSaveTimeout;
+        function setupAutoSave() {
+            // Auto-save on any form input change (debounced)
+            const form = document.getElementById('create-order-form');
+            const inputs = form.querySelectorAll('input, select, textarea');
+            
+            inputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    clearTimeout(autoSaveTimeout);
+                    autoSaveTimeout = setTimeout(() => {
+                        saveFormValues();
+                    }, 800); // Save 800ms after user stops typing
+                });
+                
+                input.addEventListener('change', () => {
+                    clearTimeout(autoSaveTimeout);
+                    autoSaveTimeout = setTimeout(() => {
+                        saveFormValues();
+                    }, 300); // Save 300ms after change for selects
+                });
+            });
+            
+            // Also save when condition type changes (to capture new fields)
+            document.getElementById('condition_type').addEventListener('change', () => {
+                setTimeout(() => {
+                    saveFormValues();
+                }, 500);
+            });
+        }
+
+        function showAutoSaveIndicator() {
+            // Show and fade out the auto-save indicator
+            const indicator = document.getElementById('save-status');
+            indicator.style.display = 'block';
+            clearTimeout(indicator.fadeTimeout);
+            indicator.fadeTimeout = setTimeout(() => {
+                indicator.style.display = 'none';
+            }, 2000);
+        }
+
+        function getFormDataSummary(formData) {
+            // Create a readable summary of form data
+            const product = formData.product_id || '(none)';
+            const side = formData.side || '-';
+            const size = formData.total_size || '-';
+            return `${product} ${side} ${size}`;
+        }
+
+        function saveToHistory() {
+            // Save the current form as an entry in history
+            const formData = {
+                product_id: document.getElementById('product_id').value,
+                side: document.getElementById('side').value,
+                total_size: document.getElementById('total_size').value,
+                limit_price: document.getElementById('limit_price').value,
+                condition_type: document.getElementById('condition_type').value,
+                sizing_strategy: document.getElementById('sizing_strategy').value,
+                notes: document.getElementById('notes').value,
+                timestamp: Date.now()
+            };
+            
+            // Also save any dynamic condition fields
+            const conditionFieldsContainer = document.getElementById('condition-fields-container');
+            if (conditionFieldsContainer) {
+                const inputs = conditionFieldsContainer.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    if (input.name) {
+                        formData[input.name] = input.value;
+                    }
+                });
+            }
+            
+            // Get existing history
+            let history = [];
+            const savedHistory = localStorage.getItem('stealth_order_history');
+            if (savedHistory) {
+                history = JSON.parse(savedHistory);
+            }
+            
+            // Add new entry to the beginning (most recent first)
+            history.unshift(formData);
+            
+            // Keep only last 10 entries
+            if (history.length > 10) {
+                history = history.slice(0, 10);
+            }
+            
+            localStorage.setItem('stealth_order_history', JSON.stringify(history));
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const savedHistory = localStorage.getItem('stealth_order_history');
+            const historyList = document.getElementById('history-list');
+            const clearBtn = document.getElementById('clear-history-btn');
+            
+            if (!savedHistory || JSON.parse(savedHistory).length === 0) {
+                historyList.innerHTML = '<div style="color: #666; text-align: center; padding: 10px;">No saved entries</div>';
+                clearBtn.style.display = 'none';
+                return;
+            }
+            
+            const history = JSON.parse(savedHistory);
+            clearBtn.style.display = 'block';
+            
+            historyList.innerHTML = history.map((entry, index) => {
+                const date = new Date(entry.timestamp);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const summary = getFormDataSummary(entry);
+                
+                return `
+                    <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; cursor: pointer; transition: all 0.2s ease;" 
+                         onmouseover="this.style.background='rgba(74, 222, 128, 0.1)'" 
+                         onmouseout="this.style.background='rgba(0,0,0,0.2)'"
+                         onclick="loadFromHistory(${index})">
+                        <div style="color: #4ade80; font-weight: 500; font-size: 11px;">${summary}</div>
+                        <div style="color: #666; font-size: 10px; margin-top: 2px;">${dateStr} ${timeStr}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function loadFromHistory(index) {
+            const savedHistory = localStorage.getItem('stealth_order_history');
+            if (!savedHistory) return;
+            
+            const history = JSON.parse(savedHistory);
+            if (index >= history.length) return;
+            
+            const entry = history[index];
+            
+            // Restore main fields
+            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes'];
+            mainFields.forEach(fieldId => {
+                const element = document.getElementById(fieldId);
+                if (element && entry[fieldId] !== undefined) {
+                    element.value = entry[fieldId];
+                }
+            });
+            
+            // Update condition fields based on condition_type
+            updateConditionFields();
+            
+            // Restore condition-specific field values
+            setTimeout(() => {
+                const conditionFieldsContainer = document.getElementById('condition-fields-container');
+                if (conditionFieldsContainer) {
+                    const inputs = conditionFieldsContainer.querySelectorAll('input, select, textarea');
+                    inputs.forEach(input => {
+                        if (input.name && entry[input.name] !== undefined) {
+                            input.value = entry[input.name];
+                        }
+                    });
+                }
+            }, 100);
+            
+            showMessage('Entry loaded from history', 'success');
+        }
+
+        function clearHistory() {
+            if (!confirm('Clear all saved entries?')) {
+                return;
+            }
+            localStorage.removeItem('stealth_order_history');
+            updateHistoryDisplay();
+            showMessage('History cleared', 'info');
         }
 
         function restoreFormValues() {
-            // Restore form values from localStorage
+            // Restore form values from localStorage (current/draft form data)
             const savedData = localStorage.getItem('stealth_order_form_data');
             
             if (savedData) {
@@ -984,8 +1191,8 @@
                     order: order
                 }));
 
-                // Save form values for next order
-                saveFormValues();
+                // Save entry to history for future reference
+                saveToHistory();
                 showMessage('Order creation request sent', 'info');
             } catch (error) {
                 showMessage(`Error: ${error.message}`, 'error');
@@ -1019,7 +1226,7 @@
         }
 
         function startRefreshTimer() {
-            refreshCountdown = 30;
+            refreshCountdown = 5;
             if (refreshInterval) clearInterval(refreshInterval);
             
             refreshInterval = setInterval(() => {
@@ -1032,7 +1239,7 @@
                             type: "request_stealth_orders"
                         }));
                     }
-                    refreshCountdown = 30;
+                    refreshCountdown = 5;
                 }
             }, 1000);
         }
@@ -1040,8 +1247,13 @@
         // Initialize
         loadProductsFromJSON();  // Load all products at startup
         restoreFormValues();      // Restore last used form values
+        setupAutoSave();          // Setup auto-save on input changes
+        updateHistoryDisplay();   // Display saved entries history
         initWebSocket();
         startRefreshTimer();
+        
+        // Setup clear history button
+        document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
     </script>
 </body>
 </html>

@@ -107,6 +107,7 @@ class OrderEngine:
         max_rotate_seen_events_bucket_seconds=60,
         max_seen_event_buckets=3,
         queue_maxsize=10000,
+        stealth_order_bridge=None,
     ) -> None:
         """Initialize the OrderEngine with configuration and state.
         
@@ -122,6 +123,7 @@ class OrderEngine:
             max_rotate_seen_events_bucket_seconds: Dedup bucket rotation interval (default 60).
             max_seen_event_buckets: Number of dedup buckets (default 3).
             queue_maxsize: Max size for event queues (default 10000).
+            stealth_order_bridge: Optional StealthOrderBridge for market data updates.
         """
         self.orderbook = orderbook
         self.db_client = db_client
@@ -129,6 +131,7 @@ class OrderEngine:
         self.api_key = api_key
         self.api_secret = api_secret
         self.order_post_only = order_post_only
+        self.stealth_order_bridge = stealth_order_bridge
 
         self.websocket_thread_maximum = websocket_thread_maximum
         self.max_rotate_seen_events_bucket_seconds = max_rotate_seen_events_bucket_seconds
@@ -1616,6 +1619,9 @@ class OrderEngine:
                                 best_ask = float(tickr.get("best_ask", 0))
                                 if best_bid > 0 and best_ask > 0 and product_id:
                                     record_spread_tick(product_id, best_bid, best_ask)
+                                # Feed market data to stealth order evaluator
+                                if self.stealth_order_bridge and product_id:
+                                    self.stealth_order_bridge.process_ticker_update(product_id, tickr)
 
                     elif channel == "user":
                         self.log_message(

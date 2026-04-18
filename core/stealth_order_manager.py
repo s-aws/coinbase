@@ -8,7 +8,6 @@ import uuid
 import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
-from decimal import Decimal
 
 from business.stealth_condition_evaluator import get_evaluator
 from order import create_limit_order_span
@@ -145,7 +144,7 @@ class StealthOrderManager:
             self._update_stealth_order(order)
         elif not condition_met and order.get("condition_first_met_at") is None:
             # First time condition partially met
-            if reason and "watching" in reason or "waiting" in reason:
+            if reason and ("watching" in reason or "waiting" in reason):
                 order["condition_first_met_at"] = datetime.utcnow()
                 order["status"] = "PENDING"
                 self._update_stealth_order(order)
