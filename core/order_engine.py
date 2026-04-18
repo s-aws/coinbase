@@ -1031,9 +1031,9 @@ class OrderEngine:
             )
             return False
 
-        if hasattr(self.db_client, "child_order_exists"):
+        if hasattr(DB_CLIENT, "child_order_exists"):
             try:
-                return bool(self.db_client.child_order_exists(
+                return bool(DB_CLIENT.child_order_exists(
                     parent_client_order_id=parent_client_order_id,
                     product_id=order_template["product_id"],
                     side=order_template["side"],
@@ -1042,7 +1042,7 @@ class OrderEngine:
                 ))
             except TypeError:
                 try:
-                    return bool(self.db_client.child_order_exists(parent_client_order_id, order_template))
+                    return bool(DB_CLIENT.child_order_exists(parent_client_order_id, order_template))
                 except Exception as e:
                     self.log_message(
                         "warning",
@@ -1475,7 +1475,7 @@ class OrderEngine:
                 },
             ),
         )
-        self.db_client.insert_order_child(
+        DB_CLIENT.insert_order_child(
             parent_client_order_id=parent_client_order_id,
             client_order_id=new_order_client_order_id,
             product_id=new_order_product_id,
@@ -1485,7 +1485,7 @@ class OrderEngine:
         )
 
         if processed_flag_name == "filled":
-            self.db_client.increment_order_parent_replacement_count(parent_client_order_id)
+            DB_CLIENT.increment_order_parent_replacement_count(parent_client_order_id)
 
     def build_parent_child_order_ids_snapshot(self) -> tuple:
         """Query database and build parent/child order mapping snapshot.
