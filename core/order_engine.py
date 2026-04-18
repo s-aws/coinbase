@@ -35,7 +35,7 @@ from bridges.event_bridge import EventBridge
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
-    from dashboard_server import update_order, update_position, add_log_entry, update_engine_status, broadcast_ticker
+    from dashboard_server import update_order, update_position, add_log_entry, update_engine_status, broadcast_ticker, record_spread_tick
     DASHBOARD_AVAILABLE = True
 except ImportError:
     DASHBOARD_AVAILABLE = False
@@ -44,6 +44,7 @@ except ImportError:
     def add_log_entry(*args, **kwargs): pass
     def update_engine_status(*args, **kwargs): pass
     def broadcast_ticker(*args, **kwargs): pass
+    def record_spread_tick(*args, **kwargs): pass
 
 
 class OrderEngine:
@@ -1609,6 +1610,11 @@ class OrderEngine:
                                 product_id = tickr.get("product_id")
                                 if price > 0 and product_id:
                                     broadcast_ticker(product_id, price)
+                                # Record bid/ask for spread monitor
+                                best_bid = float(tickr.get("best_bid", 0))
+                                best_ask = float(tickr.get("best_ask", 0))
+                                if best_bid > 0 and best_ask > 0 and product_id:
+                                    record_spread_tick(product_id, best_bid, best_ask)
 
                     elif channel == "user":
                         self.log_message(

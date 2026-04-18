@@ -362,12 +362,116 @@ def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
         logger.debug(f"Failed to broadcast ticker: {e}")
 
 
+# Spread monitoring for arbitrage detection
+spread_data = {}  # product_id -> { bids: [prices], asks: [prices], last_window: timestamp }
+spread_lock = Lock()
+
+
+def record_spread_tick(product_id: str, bid: float, ask: float):
+    """Record a bid/ask tick for spread monitoring.
+    
+    Args:
+        product_id: The product ID (e.g., 'BTC-USDC')
+        bid: Best bid price
+        ask: Best ask price
+    
+    Example:
+        >>> record_spread_tick('BTC-USDC', 42500.00, 42501.50)
+    """
+    global spread_data
+    
+    with spread_lock:
+        if product_id not in spread_data:
+            spread_data[product_id] = {
+                'bids': [],
+                'asks': [],
+                'last_window': datetime.utcnow().timestamp(),
+            }
+        
+        spread_data[product_id]['bids'].append(float(bid))
+        spread_data[product_id]['asks'].append(float(ask))
+
+
+async def _async_broadcast_spread(spread_snapshot: list):
+    """Async version of broadcast_spread for scheduling from event loop."""
+    payload = {
+        "type": "spread_snapshot",
+        "data": spread_snapshot,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    
+    message = json.dumps(payload)
+    
+    for client in connected_clients.copy():
+        try:
+            await client.send(message)
+        except websockets.exceptions.ConnectionClosed:
+            connected_clients.discard(client)
+
+
+def broadcast_spread():
+    """Aggregate and broadcast 1-second spread averages to all connected clients.
+    
+    Calculates average bid/ask for each product over the last second and sends
+    to all connected spread monitor clients.
+    """
+    global server_event_loop, spread_data
+    
+    if not server_event_loop or not connected_clients:
+        return
+    
+    try:
+        snapshot = []
+        
+        with spread_lock:
+            for product_id, data in spread_data.items():
+                if not data['bids'] or not data['asks']:
+                    continue
+                
+                avg_bid = sum(data['bids']) / len(data['bids'])
+                avg_ask = sum(data['asks']) / len(data['asks'])
+                mid = (avg_bid + avg_ask) / 2
+                
+                snapshot.append({
+                    'product_id': product_id,
+                    'bid': round(avg_bid, 8),
+                    'ask': round(avg_ask, 8),
+                    'mid': round(mid, 8),
+                })
+                
+                # Reset for next window
+                data['bids'] = []
+                data['asks'] = []
+                data['last_window'] = datetime.utcnow().timestamp()
+        
+        if snapshot:
+            asyncio.run_coroutine_threadsafe(
+                _async_broadcast_spread(snapshot),
+                server_event_loop
+            )
+    except Exception as e:
+        logger.debug(f"Failed to broadcast spread: {e}")
+
+
+async def _spread_broadcast_loop():
+    """Background task to broadcast spread snapshots every second."""
+    while True:
+        try:
+            await asyncio.sleep(1)
+            broadcast_spread()
+        except Exception as e:
+            logger.debug(f"Spread broadcast loop error: {e}")
+
+
 async def run_websocket_server(host: str = "localhost", port: int = 8765):
     """Start the WebSocket server."""
     global server_event_loop
     server_event_loop = asyncio.get_event_loop()
     
     logger.info(f"Starting WebSocket server on ws://{host}:{port}")
+    
+    # Start spread broadcast loop as background task
+    asyncio.create_task(_spread_broadcast_loop())
     
     async with websockets.serve(handler, host, port):
         logger.info("WebSocket server running. Connect dashboard.html to ws://localhost:8765")
