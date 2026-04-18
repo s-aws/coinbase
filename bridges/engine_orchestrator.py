@@ -1,19 +1,19 @@
-"""Engine integration bridge for OrderEngine with business logic modules.
+"""Engine orchestrator for coordinating OrderEngine with specialized business logic bridges.
 
-Provides a unified interface that wraps OrderEngine while offering access to
-specialized business logic bridges. Uses the Bridge pattern to integrate
+Provides a unified orchestration interface that wraps OrderEngine while offering access to
+specialized business logic bridges. Uses the Facade/Orchestrator pattern to coordinate
 OrderCalculator, OrderProcessor, and EventProcessor without coupling them
 directly to OrderEngine.
 
 This module preserves backward compatibility with OrderEngine while enabling
-access to specialized computation, validation, and event handling.
+access to specialized computation, validation, and event handling through dedicated bridges.
 
 Example:
     >>> from main import OrderEngine
-    >>> from bridges.engine_integration import OrderEngineIntegration
+    >>> from bridges.engine_orchestrator import OrderEngineOrchestrator
     >>> engine = OrderEngine(...)
-    >>> integrated = OrderEngineIntegration(engine)
-    >>> integrated.run_forever()  # Same interface as OrderEngine
+    >>> orchestrator = OrderEngineOrchestrator(engine)
+    >>> orchestrator.run_forever()  # Same interface as OrderEngine
 """
 
 from bridges.calculator_bridge import CalculatorBridge
@@ -21,14 +21,17 @@ from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
 
 
-class OrderEngineIntegration:
-    """Wraps OrderEngine with bridge access to business logic modules.
+class OrderEngineOrchestrator:
+    """Orchestrates OrderEngine with specialized business logic bridges.
     
-    This class delegates to the wrapped OrderEngine while providing
-    bridge access to specialized business logic components for:
+    This class coordinates the wrapped OrderEngine with three specialized bridges,
+    enabling access to business logic components without direct coupling:
     - Order calculations (follow-up prices, fees, positions)
     - Order processing (validation, enrichment, context)
     - Event handling (deduplication, routing, filtering)
+    
+    Acts as a Facade/Orchestrator to manage multiple bridge instances that can be
+    extended with additional bridges (risk, portfolio, strategy, etc.).
     
     Attributes:
         engine: Wrapped OrderEngine instance.
@@ -46,12 +49,12 @@ class OrderEngineIntegration:
         ...     api_secret=API_SECRET,
         ...     order_post_only=ORDER_POST_ONLY,
         ... )
-        >>> integrated = OrderEngineIntegration(engine)
-        >>> integrated.run_forever()
+        >>> orchestrator = OrderEngineOrchestrator(engine)
+        >>> orchestrator.run_forever()
     """
 
     def __init__(self, engine):
-        """Initialize integration with existing OrderEngine.
+        """Initialize orchestrator with existing OrderEngine.
         
         Args:
             engine: OrderEngine instance to wrap and provide bridge access to.
@@ -196,128 +199,64 @@ class OrderEngineIntegration:
         """Delegate to engine.process_user_order."""
         return self.engine.process_user_order(order)
 
-    def apply_position_update(self, order_template: dict) -> None:
-        """Delegate to engine.apply_position_update."""
-        return self.engine.apply_position_update(order_template)
-
-    def compute_order_template(
-        self,
-        client_order_id: str,
-        target_movement: dict = None,
-    ) -> dict:
-        """Delegate to engine.compute_order_template."""
-        return self.engine.compute_order_template(client_order_id, target_movement)
-
-    def child_order_already_exists(
-        self,
-        parent_client_order_id: str,
-        order_template: dict,
-    ) -> bool:
-        """Delegate to engine.child_order_already_exists."""
-        return self.engine.child_order_already_exists(
-            parent_client_order_id,
-            order_template,
-        )
-
-    def resolve_parent_target_movement(self, parent_client_order_id: str) -> dict:
-        """Delegate to engine.resolve_parent_target_movement."""
-        return self.engine.resolve_parent_target_movement(parent_client_order_id)
-
-    def resolve_parent_replacement_state(self, parent_client_order_id: str) -> dict:
-        """Delegate to engine.resolve_parent_replacement_state."""
-        return self.engine.resolve_parent_replacement_state(parent_client_order_id)
-
-    def can_create_follow_up_order(self, parent_client_order_id: str) -> tuple:
-        """Delegate to engine.can_create_follow_up_order."""
-        return self.engine.can_create_follow_up_order(parent_client_order_id)
+    def handle_filled_order(self, order: dict) -> None:
+        """Delegate to engine.handle_filled_order."""
+        return self.engine.handle_filled_order(order)
 
     def handle_cancelled_order(self, order: dict) -> None:
         """Delegate to engine.handle_cancelled_order."""
         return self.engine.handle_cancelled_order(order)
 
-    def handle_filled_order(self, order: dict) -> None:
-        """Delegate to engine.handle_filled_order."""
-        return self.engine.handle_filled_order(order)
+    def compute_order_template(self, parent_client_order_id: str) -> dict:
+        """Delegate to engine.compute_order_template."""
+        return self.engine.compute_order_template(parent_client_order_id)
 
-    def record_follow_up_order(
+    def child_order_already_exists(
         self,
-        source_order: dict,
-        new_order: list,
-        order_template: dict,
         parent_client_order_id: str,
-        processed_flag_name: str = None,
-    ) -> None:
-        """Delegate to engine.record_follow_up_order."""
-        return self.engine.record_follow_up_order(
-            source_order,
-            new_order,
-            order_template,
-            parent_client_order_id,
-            processed_flag_name,
-        )
+        template: dict,
+    ) -> bool:
+        """Delegate to engine.child_order_already_exists."""
+        return self.engine.child_order_already_exists(parent_client_order_id, template)
 
-    def build_parent_child_order_ids_snapshot(self) -> tuple:
-        """Delegate to engine.build_parent_child_order_ids_snapshot."""
-        return self.engine.build_parent_child_order_ids_snapshot()
+    def can_create_follow_up_order(self, parent_client_order_id: str) -> tuple:
+        """Delegate to engine.can_create_follow_up_order."""
+        return self.engine.can_create_follow_up_order(parent_client_order_id)
 
-    def load_parent_child_order_ids(self, force_log: bool = False) -> bool:
-        """Delegate to engine.load_parent_child_order_ids."""
-        return self.engine.load_parent_child_order_ids(force_log)
+    def create_and_record_follow_up_order(self, parent_client_order_id: str) -> None:
+        """Delegate to engine.create_and_record_follow_up_order."""
+        return self.engine.create_and_record_follow_up_order(parent_client_order_id)
 
-    def reconcile_parent_child_order_ids_periodically(
-        self,
-        interval_seconds: int = 30,
-    ) -> None:
-        """Delegate to engine.reconcile_parent_child_order_ids_periodically."""
-        return self.engine.reconcile_parent_child_order_ids_periodically(
-            interval_seconds,
-        )
-
-    def rotate_seen_events_buckets(self) -> None:
-        """Delegate to engine.rotate_seen_events_buckets."""
-        return self.engine.rotate_seen_events_buckets()
-
-    def generate_process_event_worker(self, channel: str) -> callable:
+    def generate_process_event_worker(self, channel: str):
         """Delegate to engine.generate_process_event_worker."""
         return self.engine.generate_process_event_worker(channel)
 
-    def connect_to_websocket(self) -> None:
-        """Delegate to engine.connect_to_websocket."""
-        return self.engine.connect_to_websocket()
-
-    def start_background_threads(self) -> None:
-        """Delegate to engine.start_background_threads."""
-        return self.engine.start_background_threads()
-
     def run_forever(self) -> None:
-        """Delegate to engine.run_forever.
-        
-        Starts all background threads and runs main event loop indefinitely.
-        """
+        """Delegate to engine.run_forever - starts all background threads."""
         return self.engine.run_forever()
 
-    # Bridge accessor methods
+    # Bridge accessors for accessing specialized business logic
 
     def get_calculator_bridge(self) -> CalculatorBridge:
-        """Get calculator bridge for direct access to calculations.
+        """Get calculator bridge for order calculations.
         
         Returns:
-            CalculatorBridge instance.
+            CalculatorBridge instance for follow-up price/size calculations.
         """
         return self.calculator_bridge
 
-    def get_processor_bridge(self) -> ProcessorBridge:
-        """Get processor bridge for direct access to order processing.
+    def get_processor_bridge(self) -> "ProcessorBridge":
+        """Get processor bridge for order validation and enrichment.
         
         Returns:
-            ProcessorBridge instance.
+            ProcessorBridge instance for order context building and validation.
         """
         return self.processor_bridge
 
     def get_event_bridge(self) -> EventBridge:
-        """Get event bridge for direct access to event handling.
+        """Get event bridge for event deduplication and routing.
         
         Returns:
-            EventBridge instance.
+            EventBridge instance for WebSocket event handling.
         """
         return self.event_bridge

@@ -22,7 +22,7 @@ Architecture:
 
 Example:
     >>> from main import OrderEngine
-    >>> from bridges.engine_integration import OrderEngineIntegration
+    >>> from bridges.engine_orchestrator import OrderEngineOrchestrator
     >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
     >>> import database.order as DB_CLIENT
     >>> 
@@ -34,8 +34,8 @@ Example:
     ...     api_secret=API_SECRET,
     ...     order_post_only=ORDER_POST_ONLY
     ... )
-    >>> integrated = OrderEngineIntegration(engine)
-    >>> integrated.run_forever()  # Blocks indefinitely, runs all background threads
+    >>> orchestrator = OrderEngineOrchestrator(engine)
+    >>> orchestrator.run_forever()  # Blocks indefinitely, runs all background threads
 """
 
 import json
@@ -62,7 +62,7 @@ from configuration import (
 
 from order import create_limit_order_span
 import database.order as DB_CLIENT
-from bridges.engine_integration import OrderEngineIntegration
+from bridges.engine_orchestrator import OrderEngineOrchestrator
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
@@ -1685,5 +1685,5 @@ if __name__ == "__main__":
         order_post_only=ORDER_POST_ONLY,
     )
 
-    integrated = OrderEngineIntegration(engine)
-    integrated.run_forever()
+    orchestrator = OrderEngineOrchestrator(engine)
+    orchestrator.run_forever()
