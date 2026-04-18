@@ -305,6 +305,63 @@ def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
     _trigger_broadcast()
 
 
+async def _async_broadcast_ticker(ticker_data: Dict[str, Any]):
+    """Async version of broadcast_ticker for scheduling from event loop."""
+    payload = {
+        "type": "ticker",
+        "data": ticker_data,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    
+    message = json.dumps(payload)
+    
+    for client in connected_clients.copy():
+        try:
+            await client.send(message)
+        except websockets.exceptions.ConnectionClosed:
+            connected_clients.discard(client)
+
+
+def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
+    """Broadcast ticker/price update to all connected chart clients.
+    
+    Args:
+        product_id: The product ID (e.g., 'BTC-USDC')
+        price: Current price
+        price_24h: Price 24 hours ago (optional, for % change calculation)
+    
+    Example:
+        >>> broadcast_ticker('BTC-USDC', 42500.50, 41200.00)
+    """
+    global server_event_loop
+    
+    if not server_event_loop:
+        # Server not started yet or stopping, silently skip
+        return
+    
+    if not connected_clients:
+        # No clients connected, nothing to broadcast
+        return
+    
+    try:
+        ticker_data = {
+            "product_id": product_id,
+            "price": float(price),
+            "time": datetime.utcnow().timestamp(),
+        }
+        
+        if price_24h is not None:
+            ticker_data["price_24h"] = float(price_24h)
+        
+        # Schedule on the event loop without blocking
+        asyncio.run_coroutine_threadsafe(
+            _async_broadcast_ticker(ticker_data),
+            server_event_loop
+        )
+    except Exception as e:
+        logger.debug(f"Failed to broadcast ticker: {e}")
+
+
 async def run_websocket_server(host: str = "localhost", port: int = 8765):
     """Start the WebSocket server."""
     global server_event_loop
