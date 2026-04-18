@@ -17,7 +17,7 @@ Example:
 """
 
 from database.database import PostgresDB
-
+from database.order import create_order_parent_table, create_order_child_table
 
 def main() -> None:
     """Delete all tables from the public schema in the PostgreSQL database.
@@ -75,7 +75,11 @@ def main() -> None:
                 print(f"Dropped table: {table_name}")
         
         print("\nAll tables deleted successfully!")
-        
+
+        create_order_parent_table()
+        create_order_child_table()
+
+        print("All tables created successfully!")
     finally:
         db.disconnect()
 
