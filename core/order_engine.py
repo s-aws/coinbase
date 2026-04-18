@@ -1297,6 +1297,46 @@ class OrderEngine:
                 post_only=self.order_post_only[order_template["side"]],
             )
 
+            # Check if this filled order came from a stealth order
+            # If so, also create a stealth order for the follow-up to inherit the behavior
+            if self.stealth_order_bridge:
+                original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                    client_order_id
+                )
+                
+                if original_stealth_order and new_order[0]["success"] is True:
+                    # Extract the placed order ID from the follow-up order response
+                    success_response = new_order[0]["success_response"]
+                    follow_up_order_id = success_response.get("client_order_id")
+                    
+                    # Create a stealth order to track/wrap this follow-up
+                    # It will inherit the reveal conditions from the original stealth order
+                    stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
+                        original_stealth_order_id=original_stealth_order["stealth_order_id"],
+                        side=order_template["side"],
+                        total_size=order_template["order_base_size"],
+                        limit_price=order_template["start_price"],
+                        notes=f"Wraps follow-up order {follow_up_order_id[:8]}..."
+                    )
+                    
+                    # Record the relationship - the stealth follow-up is linked to this exchange order
+                    if follow_up_order_id:
+                        # This will be used if the follow-up order fills to create the next stealth follow-up
+                        self.log_message(
+                            "order",
+                            self.build_follow_up_log_payload(
+                                "follow_up_stealth_order_created",
+                                source_order=order,
+                                parent_client_order_id=parent_client_order_id,
+                                stealth_order_id=stealth_follow_up_id,
+                                details={
+                                    "original_stealth_order_id": original_stealth_order["stealth_order_id"],
+                                    "follow_up_order_id": follow_up_order_id,
+                                    "reason": "stealth_order_filled",
+                                },
+                            ),
+                        )
+
             self.record_follow_up_order(
                 order,
                 new_order,

@@ -427,6 +427,62 @@ class StealthOrderManager:
         return {oid: self._serialize_order_for_json(order) 
                 for oid, order in self.in_memory_orders.items()}
     
+    def find_stealth_order_by_placed_order_id(self, placed_order_id: str) -> Optional[Dict[str, Any]]:
+        """Find stealth order that revealed the given placed_order_id.
+        
+        Args:
+            placed_order_id: The order ID placed on the exchange
+            
+        Returns:
+            Stealth order dict if found, None otherwise
+        """
+        for stealth_id, order in self.in_memory_orders.items():
+            if order.get("revealed_orders"):
+                for reveal_event in order["revealed_orders"]:
+                    if isinstance(reveal_event, dict) and reveal_event.get("placed_order_id") == placed_order_id:
+                        return order
+        return None
+    
+    def create_follow_up_stealth_order(
+        self,
+        original_stealth_order_id: str,
+        side: str,
+        total_size: float,
+        limit_price: float,
+        notes: str = ""
+    ) -> Optional[str]:
+        """Create a follow-up stealth order with same conditions as original.
+        
+        Used when a revealed stealth order fills and needs to be replaced on opposite side.
+        
+        Args:
+            original_stealth_order_id: The stealth order that just filled
+            side: Side for the follow-up ('BUY' or 'SELL')
+            total_size: Size for follow-up order
+            limit_price: Price for follow-up order
+            notes: Additional notes
+            
+        Returns:
+            New stealth_order_id if created, None if original not found
+        """
+        original_order = self._get_stealth_order(original_stealth_order_id)
+        if not original_order:
+            return None
+        
+        # Create follow-up with same reveal condition and sizing strategy
+        follow_up_id = self.create_stealth_order(
+            product_id=original_order["product_id"],
+            side=side,
+            total_size=total_size,
+            limit_price=limit_price,
+            reveal_condition=original_order.get("reveal_condition_json", {}),
+            sizing_strategy=original_order.get("sizing_strategy_json", {}),
+            reason="follow_up_replacement",
+            notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
+        )
+        
+        return follow_up_id
+    
     # Database operations
     
     def _save_stealth_order_to_db(self, order: Dict[str, Any]):
@@ -547,6 +603,9 @@ class StealthOrderManager:
     def load_all_active_orders_from_db(self) -> int:
         """Load all active stealth orders from database into memory.
         
+        Only loads HIDDEN orders on restart. PENDING/TRIGGERED/REVEALED orders should
+        have already been processed in previous session or are awaiting execution.
+        
         Returns:
             Number of orders loaded
         """
@@ -555,13 +614,8 @@ class StealthOrderManager:
         
         try:
             results = self.db_client.execute_query(
-                """SELECT stealth_order_id, product_id, side, total_size, revealed_size,
-                          remaining_size, executed_size, limit_price, status,
-                          reveal_condition_json, sizing_strategy_json, reason, notes,
-                          parent_order_id, revealed_orders, created_at,
-                          condition_first_met_at, condition_confirmed_at
-                   FROM stealth_orders 
-                   WHERE status IN ('HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED')
+                """SELECT * FROM stealth_orders 
+                   WHERE status = 'HIDDEN'
                    ORDER BY created_at ASC"""
             )
             
@@ -578,8 +632,14 @@ class StealthOrderManager:
             loaded_count = 0
             for row in results:
                 try:
+                    stealth_order_id = str(row['stealth_order_id'])
+                    db_status = row['status']
+                    condition_type = row.get('reveal_condition_type', 'time_delay')
+                    condition_first_met = row.get('condition_first_met_at')
+                    condition_confirmed = row.get('condition_confirmed_at')
+                    
                     order_data = {
-                        'stealth_order_id': str(row['stealth_order_id']),
+                        'stealth_order_id': stealth_order_id,
                         'product_id': row['product_id'],
                         'side': row['side'],
                         'total_size': float(row['total_size']),
@@ -587,8 +647,8 @@ class StealthOrderManager:
                         'remaining_size': float(row.get('remaining_size', 0)),
                         'executed_size': float(row.get('executed_size', 0)),
                         'limit_price': float(row['limit_price']),
-                        'status': row['status'],
-                        'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),
+                        'status': 'HIDDEN',  # Reset all loaded orders to HIDDEN for fresh evaluation
+                        'reveal_condition_type': condition_type,
                         'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
                         'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
                         'reason': row.get('reason', ''),
@@ -596,18 +656,20 @@ class StealthOrderManager:
                         'parent_order_id': row.get('parent_order_id'),
                         'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
                         'created_at': row.get('created_at'),
-                        'condition_first_met_at': row.get('condition_first_met_at'),
-                        'condition_confirmed_at': row.get('condition_confirmed_at'),
+                        'updated_at': row.get('updated_at'),
+                        'visibility_score': float(row.get('visibility_score', 0.0)),
+                        'last_placement_at': row.get('last_placement_at'),
+                        'condition_first_met_at': None,  # Reset for fresh evaluation on restart
+                        'condition_confirmed_at': None,  # Reset for fresh evaluation on restart
                         'revealed_count': 0,
                         'condition_monitoring_start': None,
                     }
                     
-                    self.in_memory_orders[str(row['stealth_order_id'])] = order_data
+                    self.in_memory_orders[stealth_order_id] = order_data
                     loaded_count += 1
                 except Exception as e:
                     print(f"Error loading order {row.get('stealth_order_id')}: {e}")
             
-            print(f"Loaded {loaded_count} active stealth orders from database")
             return loaded_count
         except Exception as e:
             print(f"Error loading stealth orders from database: {e}")
