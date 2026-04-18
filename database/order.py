@@ -83,6 +83,120 @@ def create_order_child_table() -> None:
         print("order_child table done.")
 
 
+def create_stealth_orders_table() -> None:
+    """
+    Create the stealth_orders table if it doesn't exist.
+    
+    Main table for hidden order tracking with reveal conditions and execution state.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS stealth_orders (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        
+        stealth_order_id UUID UNIQUE NOT NULL,
+        parent_order_id UUID,
+        product_id VARCHAR(32) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+        
+        total_size DECIMAL(16, 8) NOT NULL,
+        revealed_size DECIMAL(16, 8) DEFAULT 0,
+        remaining_size DECIMAL(16, 8) NOT NULL,
+        executed_size DECIMAL(16, 8) DEFAULT 0,
+        
+        limit_price DECIMAL(16, 2) NOT NULL,
+        
+        status VARCHAR(32) NOT NULL DEFAULT 'HIDDEN',
+        visibility_score FLOAT DEFAULT 0.0,
+        
+        reveal_condition_type VARCHAR(32) NOT NULL,
+        reveal_condition_json JSONB NOT NULL,
+        condition_first_met_at TIMESTAMP,
+        condition_confirmed_at TIMESTAMP,
+        
+        sizing_strategy_json JSONB,
+        
+        revealed_orders JSONB DEFAULT '[]'::jsonb,
+        last_placement_at TIMESTAMP,
+        
+        reason VARCHAR(255),
+        notes TEXT
+    );
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("stealth_orders table done.")
+
+
+def create_stealth_order_snapshots_table() -> None:
+    """
+    Create the stealth_order_snapshots table if it doesn't exist.
+    
+    Historical snapshots of stealth order state for auditing and analysis.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS stealth_order_snapshots (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        
+        stealth_order_id UUID NOT NULL,
+        status VARCHAR(32),
+        revealed_size DECIMAL(16, 8),
+        remaining_size DECIMAL(16, 8),
+        executed_size DECIMAL(16, 8),
+        condition_met BOOLEAN,
+        condition_first_met_at TIMESTAMP,
+        
+        market_price DECIMAL(16, 2),
+        market_bid DECIMAL(16, 2),
+        market_ask DECIMAL(16, 2),
+        market_spread DECIMAL(16, 2),
+        market_volume_1m DECIMAL(16, 8),
+        
+        FOREIGN KEY (stealth_order_id) REFERENCES stealth_orders(stealth_order_id) ON DELETE CASCADE
+    );
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("stealth_order_snapshots table done.")
+
+
+def create_stealth_order_reveal_history_table() -> None:
+    """
+    Create the stealth_order_reveal_history table if it doesn't exist.
+    
+    Detailed history of each reveal event with market conditions and trigger reasons.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS stealth_order_reveal_history (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        
+        stealth_order_id UUID NOT NULL,
+        reveal_number INT NOT NULL,
+        revealed_size DECIMAL(16, 8) NOT NULL,
+        placement_price DECIMAL(16, 2),
+        placed_order_id UUID,
+        
+        market_price DECIMAL(16, 2),
+        market_bid DECIMAL(16, 2),
+        market_ask DECIMAL(16, 2),
+        market_spread DECIMAL(16, 2),
+        market_volume_1m DECIMAL(16, 8),
+        
+        reveal_trigger_reason VARCHAR(255),
+        reveal_trigger_data JSONB,
+        
+        FOREIGN KEY (stealth_order_id) REFERENCES stealth_orders(stealth_order_id) ON DELETE CASCADE,
+        UNIQUE (stealth_order_id, reveal_number)
+    );
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("stealth_order_reveal_history table done.")
+
+
 def insert_order_parent(
     client_order_id: str,
     product_id: str,

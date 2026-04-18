@@ -36,6 +36,7 @@ state_lock = Lock()
 engine_state = {
     "orders": {},  # order_id -> order_data
     "positions": {},  # product_id -> position_data
+    "stealth_orders": {},  # stealth_order_id -> order_data
     "engine_status": {
         "running": False,
         "threads_active": 0,
@@ -49,11 +50,32 @@ max_logs = 100
 # Event loop reference (set when server starts)
 server_event_loop = None
 
+# Stealth order bridge reference (set during integration)
+stealth_order_bridge = None
+
 
 async def register_client(websocket: WebSocketServerProtocol):
     """Register a new connected client."""
     connected_clients.add(websocket)
     logger.info(f"Client connected. Total clients: {len(connected_clients)}")
+    
+    # Send products list first
+    try:
+        import json as json_lib
+        from pathlib import Path
+        products_file = Path(__file__).parent / "products.json"
+        if products_file.exists():
+            with open(products_file, 'r') as f:
+                products_data = json_lib.load(f)
+                products_payload = {
+                    "type": "products_list",
+                    "derivatives": products_data.get("derivatives", []),
+                    "spot": products_data.get("spot", []),
+                    "metadata": products_data.get("metadata", {}),
+                }
+                await websocket.send(json_lib.dumps(products_payload))
+    except Exception as e:
+        logger.error(f"Failed to send products list: {e}")
     
     # Send current state to newly connected client
     await broadcast_state(websocket)
@@ -242,6 +264,106 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             
             await websocket.send(json.dumps(response))
             
+        elif msg_type == "request_stealth_orders":
+            # Send current stealth orders snapshot
+            await send_stealth_orders_snapshot(websocket)
+        
+        elif msg_type == "create_stealth_order":
+            # Create new stealth order
+            order = data.get("order")
+            if not order:
+                response = {
+                    "type": "error",
+                    "message": "Missing order data"
+                }
+                await websocket.send(json.dumps(response))
+                return
+            
+            if not stealth_order_bridge:
+                response = {
+                    "type": "error",
+                    "message": "Stealth order system not initialized"
+                }
+                await websocket.send(json.dumps(response))
+                return
+            
+            try:
+                stealth_id = stealth_order_bridge.create_stealth_order(
+                    product_id=order['product_id'],
+                    side=order['side'],
+                    total_size=order['total_size'],
+                    limit_price=order['limit_price'],
+                    reveal_condition=order['reveal_condition'],
+                    sizing_strategy=order.get('sizing_strategy', {}),
+                    notes=order.get('notes', '')
+                )
+                
+                # Get the created order data and serialize for JSON
+                order_data = stealth_order_bridge.stealth_manager.in_memory_orders.get(stealth_id)
+                serialized_order = stealth_order_bridge.stealth_manager._serialize_order_for_json(order_data) if order_data else None
+                
+                response = {
+                    "type": "stealth_order_created",
+                    "stealth_order_id": str(stealth_id),
+                    "order": serialized_order
+                }
+                
+                with state_lock:
+                    engine_state["stealth_orders"][str(stealth_id)] = serialized_order
+                
+                add_log_entry("INFO", f"Stealth order created: {order['product_id']} {order['side']} {order['total_size']}")
+                logger.info(f"Stealth order created: {stealth_id}")
+                
+                # Broadcast to all clients
+                await broadcast_stealth_order_update(response)
+                
+            except Exception as e:
+                logger.error(f"Failed to create stealth order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to create order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Stealth order creation failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "cancel_stealth_order":
+            # Cancel a stealth order
+            stealth_order_id = data.get("stealth_order_id")
+            if not stealth_order_id or not stealth_order_bridge:
+                response = {
+                    "type": "error",
+                    "message": "Invalid order ID or system not initialized"
+                }
+                await websocket.send(json.dumps(response))
+                return
+            
+            try:
+                stealth_order_bridge.cancel_stealth_order(stealth_order_id, "user_cancelled")
+                
+                # Update state
+                with state_lock:
+                    if stealth_order_id in engine_state["stealth_orders"]:
+                        engine_state["stealth_orders"][stealth_order_id]["status"] = "CANCELLED"
+                
+                response = {
+                    "type": "stealth_order_cancelled",
+                    "stealth_order_id": stealth_order_id
+                }
+                
+                add_log_entry("INFO", f"Stealth order cancelled: {stealth_order_id}")
+                logger.info(f"Stealth order cancelled: {stealth_order_id}")
+                
+                # Broadcast to all clients
+                await broadcast_stealth_order_update(response)
+                
+            except Exception as e:
+                logger.error(f"Failed to cancel stealth order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to cancel order: {str(e)}"
+                }
+                await websocket.send(json.dumps(response))
+        
         elif msg_type == "ping":
             response = {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
             await websocket.send(json.dumps(response))
@@ -453,6 +575,76 @@ def broadcast_spread():
         logger.debug(f"Failed to broadcast spread: {e}")
 
 
+async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
+    """Send current stealth orders to a client."""
+    try:
+        with state_lock:
+            payload = {
+                "type": "stealth_orders_snapshot",
+                "orders": engine_state["stealth_orders"],
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        
+        await websocket.send(json.dumps(payload))
+    except Exception as e:
+        logger.error(f"Failed to send stealth orders snapshot: {e}")
+
+
+async def broadcast_stealth_order_update(update: Dict[str, Any]):
+    """Broadcast stealth order update to all connected clients."""
+    global server_event_loop
+    
+    if not server_event_loop or not connected_clients:
+        return
+    
+    try:
+        message = json.dumps(update)
+        
+        for client in connected_clients.copy():
+            try:
+                await client.send(message)
+            except websockets.exceptions.ConnectionClosed:
+                connected_clients.discard(client)
+    except Exception as e:
+        logger.debug(f"Failed to broadcast stealth order update: {e}")
+
+
+async def _stealth_orders_refresh_loop():
+    """Background task to refresh stealth orders from database every 30 seconds."""
+    while True:
+        try:
+            await asyncio.sleep(30)
+            
+            # Reload active stealth orders from database
+            if stealth_order_bridge:
+                try:
+                    # Get fresh orders from manager in JSON-serializable format
+                    serialized_orders = stealth_order_bridge.stealth_manager.get_serializable_orders()
+                    
+                    with state_lock:
+                        # Update with serialized orders
+                        engine_state["stealth_orders"] = serialized_orders
+                    
+                    # Broadcast updated snapshot
+                    payload = {
+                        "type": "stealth_orders_snapshot",
+                        "orders": serialized_orders,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                    
+                    message = json.dumps(payload)
+                    for client in connected_clients.copy():
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.discard(client)
+                except Exception as e:
+                    logger.debug(f"Error refreshing stealth orders: {e}")
+        
+        except Exception as e:
+            logger.debug(f"Stealth orders refresh loop error: {e}")
+
+
 async def _spread_broadcast_loop():
     """Background task to broadcast spread snapshots every second."""
     while True:
@@ -473,6 +665,9 @@ async def run_websocket_server(host: str = "localhost", port: int = 8765):
     # Start spread broadcast loop as background task
     asyncio.create_task(_spread_broadcast_loop())
     
+    # Start stealth orders refresh loop as background task
+    asyncio.create_task(_stealth_orders_refresh_loop())
+    
     async with websockets.serve(handler, host, port):
         logger.info("WebSocket server running. Connect dashboard.html to ws://localhost:8765")
         await asyncio.Event().wait()  # Run forever
@@ -490,6 +685,21 @@ def start_dashboard_server(host: str = "localhost", port: int = 8765):
     thread.start()
     logger.info("Dashboard server thread started")
     return thread
+
+
+def set_stealth_order_bridge(bridge):
+    """Set the stealth order bridge reference for WebSocket handlers.
+    
+    Call this from main.py after initializing the stealth order bridge:
+    
+    Example:
+        >>> from dashboard_server import set_stealth_order_bridge
+        >>> stealth_bridge = integrate_stealth_orders_with_engine(engine, db_client)
+        >>> set_stealth_order_bridge(stealth_bridge)
+    """
+    global stealth_order_bridge
+    stealth_order_bridge = bridge
+    logger.info("Stealth order bridge registered with dashboard server")
 
 
 # Demo/testing

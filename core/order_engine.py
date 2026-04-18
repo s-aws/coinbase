@@ -29,6 +29,7 @@ from configuration import (
 )
 
 from order import create_limit_order_span
+import database.order as DB_CLIENT
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
@@ -1452,7 +1453,7 @@ class OrderEngine:
         parent_order_ids = {}
         child_order_ids = {}
 
-        parent_orders = self.db_client.get_parent_orders()
+        parent_orders = DB_CLIENT.get_parent_orders()
 
         for parent in parent_orders:
             parent_client_order_id = parent["client_order_id"]
@@ -1468,7 +1469,7 @@ class OrderEngine:
                 "current_order_replacement": int(parent["current_order_replacement"]),
             }
 
-            child_orders = self.db_client.get_child_orders(parent_client_order_id)
+            child_orders = DB_CLIENT.get_child_orders(parent_client_order_id)
             for child in child_orders:
                 child_client_order_id = child["client_order_id"]
                 parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)

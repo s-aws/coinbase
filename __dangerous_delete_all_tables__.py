@@ -17,7 +17,13 @@ Example:
 """
 
 from database.database import PostgresDB
-from database.order import create_order_parent_table, create_order_child_table
+from database.order import (
+    create_order_parent_table,
+    create_order_child_table,
+    create_stealth_orders_table,
+    create_stealth_order_snapshots_table,
+    create_stealth_order_reveal_history_table,
+)
 
 def main() -> None:
     """Delete all tables from the public schema in the PostgreSQL database.
@@ -78,6 +84,9 @@ def main() -> None:
 
         create_order_parent_table()
         create_order_child_table()
+        create_stealth_orders_table()
+        create_stealth_order_snapshots_table()
+        create_stealth_order_reveal_history_table()
 
         print("All tables created successfully!")
     finally:
