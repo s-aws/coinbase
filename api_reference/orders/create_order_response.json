@@ -35,7 +35,7 @@
     "403": "Forbidden",
     "429": "Too Many Requests - rate limit exceeded"
   },
-  "example_success": {
+  "example": {
     "success": true,
     "order_id": "7c4a3d3e-e8f2-4e7a-9c1d-5a6e9f2b8c1d",
     "client_order_id": "550e8400-e29b-41d4-a716-446655440000",

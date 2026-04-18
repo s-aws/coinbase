@@ -34,5 +34,33 @@
     "200": "Success",
     "401": "Unauthorized",
     "403": "Forbidden"
+  },
+  "example": {
+    "positions": [
+      {
+        "portfolio_uuid": "018c4b12-9f87-7c36-897d-28fb6a1ea88d",
+        "product_id": "BTC-USD-PERP",
+        "net_size": "0.5",
+        "entry_vwap": "42000.00",
+        "position_direction": "LONG",
+        "max_show_amount": "100",
+        "created_at": "2024-01-15T10:30:45.123Z",
+        "updated_at": "2024-01-15T10:35:45.123Z",
+        "unrealized_pnl": {
+          "value": "250.50",
+          "currency": "USD"
+        },
+        "realized_pnl": {
+          "value": "100.00",
+          "currency": "USD"
+        },
+        "margin_type": "CROSS",
+        "margin_amt": {
+          "value": "1000.00",
+          "currency": "USD"
+        },
+        "leverage": "2.0"
+      }
+    ]
   }
 }

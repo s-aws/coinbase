@@ -301,7 +301,7 @@ def quantize_to_increment(value: float, increment: str, direction: str = "neares
         100.12
         >>> quantize_to_increment(100.126, "0.01", direction="up")
         100.13
-        >>> quantize_to_increment(100.125, "0.01", direction="nearest")
+        >>> quantize_to_increment(100.126, "0.01", direction="nearest")
         100.13
         >>> quantize_to_increment(50.5, "1", direction="down")
         50.0

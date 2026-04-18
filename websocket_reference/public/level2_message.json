@@ -2,7 +2,7 @@
   "channel": "level2",
   "description": "Order book snapshot and update message format",
   "message_type": "l2_data (note: channel field uses 'l2_data')",
-  "response_structure": {
+  "response": {
     "channel": "string - 'l2_data'",
     "client_id": "string - empty string",
     "timestamp": "string - ISO8601 timestamp",
@@ -22,7 +22,7 @@
       }
     ]
   },
-  "example_snapshot": {
+  "example": {
     "channel": "l2_data",
     "client_id": "",
     "timestamp": "2023-02-09T20:32:50.714964855Z",
@@ -51,13 +51,7 @@
             "new_quantity": "0.15"
           }
         ]
-      }
-    ]
-  },
-  "example_update": {
-    "channel": "l2_data",
-    "timestamp": "2023-02-09T20:32:51.214964855Z",
-    "events": [
+      },
       {
         "type": "update",
         "product_id": "BTC-USD",
