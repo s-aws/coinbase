@@ -45,7 +45,7 @@ from configuration import (
 import database.order as DB_CLIENT
 from core.order_engine import OrderEngine
 from bridges.engine_orchestrator import OrderEngineOrchestrator
-
+from dashboard_server import start_dashboard_server, update_order, update_position, add_log_entry, update_engine_status
 
 if __name__ == "__main__":
     engine = OrderEngine(
@@ -58,4 +58,5 @@ if __name__ == "__main__":
     )
 
     orchestrator = OrderEngineOrchestrator(engine)
+    start_dashboard_server()
     orchestrator.run_forever()
