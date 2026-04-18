@@ -20,7 +20,7 @@ Example:
     >>> from core.order_engine import OrderEngine
     >>> from bridges.engine_orchestrator import OrderEngineOrchestrator
     >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
-    >>> import database.order as DB_CLIENT
+    >>> from database.order import DB_CLIENT
     >>> 
     >>> engine = OrderEngine(
     ...     orderbook=ORDERBOOK,
@@ -42,10 +42,11 @@ from configuration import (
     ORDER_POST_ONLY,
 )
 
-import database.order as DB_CLIENT
+from database.order import DB_CLIENT
 from core.order_engine import OrderEngine
 from bridges.engine_orchestrator import OrderEngineOrchestrator
-
+from bridges.stealth_order_bridge import integrate_stealth_orders_with_engine
+from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
 
 if __name__ == "__main__":
     engine = OrderEngine(
@@ -58,4 +59,18 @@ if __name__ == "__main__":
     )
 
     orchestrator = OrderEngineOrchestrator(engine)
+    
+    # Start dashboard server
+    start_dashboard_server()
+    
+    # Initialize stealth order system
+    try:
+        stealth_bridge = integrate_stealth_orders_with_engine(engine, DB_CLIENT)
+        set_stealth_order_bridge(stealth_bridge)
+        stealth_bridge.start()
+        print("Stealth order system initialized and started")
+    except Exception as e:
+        print(f"Warning: Failed to initialize stealth order system: {e}")
+        print("Continuing without stealth orders...")
+    
     orchestrator.run_forever()

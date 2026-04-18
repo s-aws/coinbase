@@ -29,9 +29,23 @@ from configuration import (
 )
 
 from order import create_limit_order_span
+import database.order as DB_CLIENT
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
+
+# Dashboard integration (optional - will fail gracefully if dashboard_server not available)
+try:
+    from dashboard_server import update_order, update_position, add_log_entry, update_engine_status, broadcast_ticker, record_spread_tick
+    DASHBOARD_AVAILABLE = True
+except ImportError:
+    DASHBOARD_AVAILABLE = False
+    def update_order(*args, **kwargs): pass
+    def update_position(*args, **kwargs): pass
+    def add_log_entry(*args, **kwargs): pass
+    def update_engine_status(*args, **kwargs): pass
+    def broadcast_ticker(*args, **kwargs): pass
+    def record_spread_tick(*args, **kwargs): pass
 
 
 class OrderEngine:
@@ -864,16 +878,64 @@ class OrderEngine:
                     **self.include_debug_fields(raw_order=order),
                 ),
             )
+            # Push failure to dashboard
+            update_order(client_order_id, {
+                "order_id": order.get("id", client_order_id),
+                "client_order_id": client_order_id,
+                "product_id": order.get("product_id"),
+                "side": order.get("side"),
+                "size": order.get("order_quantity"),
+                "price": order.get("limit_price"),
+                "filled_size": order.get("filled_size", 0),
+                "status": status,
+            })
+            add_log_entry("ERROR", f"Order FAILED: {order.get('product_id')} {order.get('side')} - Check account balance/margin")
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             return
         if status == "OPEN":
+            # Push to dashboard
+            update_order(client_order_id, {
+                "order_id": order.get("id", client_order_id),
+                "client_order_id": client_order_id,
+                "product_id": order.get("product_id"),
+                "side": order.get("side"),
+                "size": order.get("order_quantity"),
+                "price": order.get("limit_price"),
+                "filled_size": order.get("filled_size", 0),
+                "status": status,
+            })
+            add_log_entry("INFO", f"Order OPEN: {order.get('product_id')} {order.get('side')} {order.get('order_quantity')}")
             return
         if status == "CANCELLED":
             self.handle_cancelled_order(order)
+            # Push to dashboard
+            update_order(client_order_id, {
+                "order_id": order.get("id", client_order_id),
+                "client_order_id": client_order_id,
+                "product_id": order.get("product_id"),
+                "side": order.get("side"),
+                "size": order.get("order_quantity"),
+                "price": order.get("limit_price"),
+                "filled_size": order.get("filled_size", 0),
+                "status": status,
+            })
+            add_log_entry("INFO", f"Order CANCELLED: {order.get('product_id')} {order.get('side')}")
             return
         if status == "FILLED":
             self.handle_filled_order(order)
+            # Push to dashboard
+            update_order(client_order_id, {
+                "order_id": order.get("id", client_order_id),
+                "client_order_id": client_order_id,
+                "product_id": order.get("product_id"),
+                "side": order.get("side"),
+                "size": order.get("order_quantity"),
+                "price": order.get("limit_price"),
+                "filled_size": order.get("filled_size", 0),
+                "status": status,
+            })
+            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order.get('side')} {order.get('filled_size')}")
             return
 
         self.log_message(
@@ -899,6 +961,17 @@ class OrderEngine:
             return
         with self.orderbook_lock:
             apply_calculated_position_update(self.orderbook.positions, position_update)
+            
+            # Push position updates to dashboard
+            for product_id, position_data in self.orderbook.positions.items():
+                update_position(product_id, {
+                    "product_id": product_id,
+                    "type": position_data.get("type", "UNKNOWN"),
+                    "amount": position_data.get("amount", 0),
+                    "entry_price": position_data.get("entry_price", 0),
+                    "current_value": position_data.get("current_value", 0),
+                    "entry_cost": position_data.get("entry_cost", 0),
+                })
 
     def compute_order_template(self, client_order_id: str, target_movement: dict = None) -> dict:
         """Compute follow-up order template for a given order.
@@ -1380,7 +1453,7 @@ class OrderEngine:
         parent_order_ids = {}
         child_order_ids = {}
 
-        parent_orders = self.db_client.get_parent_orders()
+        parent_orders = DB_CLIENT.get_parent_orders()
 
         for parent in parent_orders:
             parent_client_order_id = parent["client_order_id"]
@@ -1396,7 +1469,7 @@ class OrderEngine:
                 "current_order_replacement": int(parent["current_order_replacement"]),
             }
 
-            child_orders = self.db_client.get_child_orders(parent_client_order_id)
+            child_orders = DB_CLIENT.get_child_orders(parent_client_order_id)
             for child in child_orders:
                 child_client_order_id = child["client_order_id"]
                 parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
@@ -1533,6 +1606,16 @@ class OrderEngine:
                             )
                             for tickr in event["tickers"]:
                                 self.ticker[tickr["product_id"]] = tickr
+                                # Broadcast to price chart
+                                price = float(tickr.get("price", 0))
+                                product_id = tickr.get("product_id")
+                                if price > 0 and product_id:
+                                    broadcast_ticker(product_id, price)
+                                # Record bid/ask for spread monitor
+                                best_bid = float(tickr.get("best_bid", 0))
+                                best_ask = float(tickr.get("best_ask", 0))
+                                if best_bid > 0 and best_ask > 0 and product_id:
+                                    record_spread_tick(product_id, best_bid, best_ask)
 
                     elif channel == "user":
                         self.log_message(
@@ -1592,16 +1675,32 @@ class OrderEngine:
         - Deduplication rotation thread
         - Channel workers (ticker, user, heartbeats)
         - Websocket threads
+        - Status monitoring thread
         
         Returns:
             None
         """
         self.load_parent_child_order_ids(force_log=True)
+        
+        # Update dashboard with initial engine status
+        update_engine_status({
+            "running": True,
+            "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
+            "event_queue_depth": 0,
+        })
+        add_log_entry("INFO", "Trading engine started")
 
         threading.Thread(
             name="parent_child_reconcile_thread",
             target=self.reconcile_parent_child_order_ids_periodically,
             kwargs={"interval_seconds": 30},
+            daemon=True,
+        ).start()
+        
+        # Start status monitoring thread
+        threading.Thread(
+            name="dashboard_status_monitor",
+            target=self._monitor_engine_status,
             daemon=True,
         ).start()
 
@@ -1624,6 +1723,33 @@ class OrderEngine:
                 target=self.connect_to_websocket,
                 daemon=True,
             ).start()
+
+    def _monitor_engine_status(self) -> None:
+        """Monitor and broadcast engine status periodically to dashboard.
+        
+        Runs in background thread, updates event queue depth every 5 seconds.
+        
+        Returns:
+            None (infinite loop)
+        """
+        while True:
+            try:
+                # Calculate total events in all queues
+                total_queue_depth = sum(q.qsize() for q in self.event_queue.values())
+                
+                update_engine_status({
+                    "running": True,
+                    "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
+                    "event_queue_depth": total_queue_depth,
+                })
+                
+                sleep(5)
+            except Exception as e:
+                self.log_message("error", self.build_event_log_payload(
+                    "dashboard_status_update_failed",
+                    error=str(e),
+                ))
+                sleep(5)
 
     def run_forever(self) -> None:
         """Start all background threads and loop forever.

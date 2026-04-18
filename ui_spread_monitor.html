@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spread Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            background: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #334155;
+            background: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .connection-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #1e293b;
+            border: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+
+        .connection-dot.connected {
+            background: #22c55e;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .products-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .comparison-section {
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-left: 1px solid #334155;
+            padding-left: 16px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #cbd5e1;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            background: #1e293b;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #0f172a;
+            border-bottom: 1px solid #334155;
+        }
+
+        th {
+            padding: 8px 12px;
+            text-align: left;
+            color: #94a3b8;
+            font-weight: 600;
+            border-right: 1px solid #334155;
+        }
+
+        th:last-child {
+            border-right: none;
+        }
+
+        td {
+            padding: 8px 12px;
+            border-right: 1px solid #334155;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        td:last-child {
+            border-right: none;
+        }
+
+        tr:hover {
+            background: #0f172a;
+        }
+
+        .product-id {
+            font-weight: 600;
+            color: #3b82f6;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+
+        .product-id:hover {
+            text-decoration: underline;
+        }
+
+        .product-id.selected {
+            background: #3b82f6;
+            color: white;
+            padding: 4px 6px;
+            border-radius: 3px;
+        }
+
+        .positive {
+            color: #22c55e;
+        }
+
+        .negative {
+            color: #ef4444;
+        }
+
+        .neutral {
+            color: #94a3b8;
+        }
+
+        .comparison-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #1e293b;
+            border-radius: 6px;
+            border: 1px solid #334155;
+        }
+
+        .product-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .product-selector label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .product-selector select {
+            padding: 6px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .alert-settings {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+
+        .alert-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .alert-input-group label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .alert-input-group input {
+            padding: 4px 6px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .comparison-stats {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .stat-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        .ratio-chart {
+            width: 100%;
+            height: 150px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+
+        .scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scrollbar::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+
+        .scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .table-container {
+            scrollbar-color: #334155 #0f172a;
+            scrollbar-width: thin;
+        }
+
+        .comparison-stats {
+            scrollbar-color: #334155 #0f172a;
+            scrollbar-width: thin;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Spread Monitor</h1>
+        <div class="connection-badge">
+            <div class="connection-dot" id="connectionDot"></div>
+            <span id="connectionStatus">Disconnected</span>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="products-section">
+            <h3 class="section-title">All Products</h3>
+            <div class="table-container scrollbar">
+                <table id="productsTable">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Bid (1s avg)</th>
+                            <th>Ask (1s avg)</th>
+                            <th>Spread</th>
+                            <th>Spread %</th>
+                            <th>Mid Price</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="comparison-section">
+            <h3 class="section-title">Spread Comparison</h3>
+            
+            <div class="comparison-controls">
+                <div class="product-selector">
+                    <label>Product A</label>
+                    <select id="productASelect">
+                        <option value="">Select Product</option>
+                    </select>
+                </div>
+                <div class="product-selector">
+                    <label>Product B</label>
+                    <select id="productBSelect">
+                        <option value="">Select Product</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="alert-settings">
+                <h3 class="section-title">Alerts</h3>
+                <div class="alert-input-group">
+                    <label>Bid Ratio Alert (e.g., 1.005)</label>
+                    <input type="number" id="bidRatioAlert" placeholder="e.g., 1.005" step="0.0001" />
+                </div>
+                <div class="alert-input-group">
+                    <label>Ask Ratio Alert (e.g., 0.995)</label>
+                    <input type="number" id="askRatioAlert" placeholder="e.g., 0.995" step="0.0001" />
+                </div>
+                <div class="alert-input-group">
+                    <label>Bid Spread $ Alert (e.g., $200)</label>
+                    <input type="number" id="bidSpreadAlert" placeholder="e.g., 200" step="1" />
+                </div>
+                <div id="alertTriggered" style="display: none; padding: 8px; background: #ef4444; border-radius: 4px; font-size: 12px; margin-top: 8px;">
+                    ⚠️ Alert Triggered!
+                </div>
+            </div>
+
+            <div class="comparison-stats scrollbar">
+                <div class="stat-box">
+                    <div class="stat-label">Bid Ratio (A/B)</div>
+                    <div class="stat-value" id="bidRatio">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Ask Ratio (A/B)</div>
+                    <div class="stat-value" id="askRatio">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Bid Diff (A - B)</div>
+                    <div class="stat-value" id="bidDiff">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Ask Diff (A - B)</div>
+                    <div class="stat-value" id="askDiff">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Bid Ratio History (5min)</div>
+                    <canvas id="ratioChart" class="ratio-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class SpreadMonitor {
+            constructor() {
+                this.spreads = {}; // product_id -> { bid, ask, timestamp }
+                this.ratioHistory = []; // Array of { timestamp, bidRatio, askRatio }
+                this.maxHistoryPoints = 300; // 5 minutes at 1/second
+                this.productASelect = document.getElementById('productASelect');
+                this.productBSelect = document.getElementById('productBSelect');
+                this.bidRatioInput = document.getElementById('bidRatioAlert');
+                this.askRatioInput = document.getElementById('askRatioAlert');
+                this.bidSpreadInput = document.getElementById('bidSpreadAlert');
+                this.alertTriggeredDiv = document.getElementById('alertTriggered');
+                this.lastAlertState = false;
+
+                this.productASelect.addEventListener('change', () => this.updateComparison());
+                this.productBSelect.addEventListener('change', () => this.updateComparison());
+                this.bidRatioInput.addEventListener('input', () => this.checkAlerts());
+                this.askRatioInput.addEventListener('input', () => this.checkAlerts());
+                this.bidSpreadInput.addEventListener('input', () => this.checkAlerts());
+
+                this.connectWebSocket();
+            }
+
+            connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const hostname = window.location.hostname || 'localhost';
+                const wsUrl = `${protocol}//${hostname}:8765`;
+
+                console.log(`Connecting to ${wsUrl}`);
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    this.updateConnectionStatus(true);
+                    console.log('Connected to dashboard server');
+                };
+
+                this.ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    if (msg.type === 'spread_snapshot') {
+                        this.handleSpreadData(msg.data);
+                    }
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.updateConnectionStatus(false);
+                };
+
+                this.ws.onclose = () => {
+                    this.updateConnectionStatus(false);
+                    // Reconnect after 2 seconds
+                    setTimeout(() => this.connectWebSocket(), 2000);
+                };
+            }
+
+            handleSpreadData(spreadData) {
+                // spreadData is an array of { product_id, bid, ask, mid }
+                const timestamp = new Date().getTime();
+                
+                spreadData.forEach(item => {
+                    this.spreads[item.product_id] = {
+                        bid: parseFloat(item.bid),
+                        ask: parseFloat(item.ask),
+                        mid: parseFloat(item.mid),
+                        timestamp
+                    };
+                });
+
+                // Update product selector options
+                this.updateProductSelectors();
+
+                // Update main table
+                this.renderTable();
+
+                // Update comparison if both products selected
+                this.updateComparison();
+            }
+
+            updateProductSelectors() {
+                const products = Object.keys(this.spreads).sort();
+                const productAValue = this.productASelect.value;
+                const productBValue = this.productBSelect.value;
+
+                // Update A selector
+                const optionsA = '<option value="">Select Product</option>' + 
+                    products.map(p => `<option value="${p}">${p}</option>`).join('');
+                this.productASelect.innerHTML = optionsA;
+                if (productAValue) this.productASelect.value = productAValue;
+
+                // Update B selector
+                const optionsB = '<option value="">Select Product</option>' + 
+                    products.map(p => `<option value="${p}">${p}</option>`).join('');
+                this.productBSelect.innerHTML = optionsB;
+                if (productBValue) this.productBSelect.value = productBValue;
+            }
+
+            renderTable() {
+                const tbody = document.getElementById('productsTableBody');
+                const products = Object.keys(this.spreads).sort();
+
+                tbody.innerHTML = products.map(productId => {
+                    const data = this.spreads[productId];
+                    const spread = data.ask - data.bid;
+                    const spreadPct = (spread / data.ask) * 100;
+
+                    return `
+                        <tr>
+                            <td class="product-id" onclick="monitor.selectProduct('${productId}')">${productId}</td>
+                            <td>${data.bid.toFixed(2)}</td>
+                            <td>${data.ask.toFixed(2)}</td>
+                            <td class="positive">${spread.toFixed(2)}</td>
+                            <td class="positive">${spreadPct.toFixed(4)}%</td>
+                            <td>${data.mid.toFixed(2)}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            selectProduct(productId) {
+                // Select in product A if empty, else in B
+                if (!this.productASelect.value) {
+                    this.productASelect.value = productId;
+                } else if (!this.productBSelect.value) {
+                    this.productBSelect.value = productId;
+                } else {
+                    // Swap: move current A to B, set new as A
+                    this.productBSelect.value = this.productASelect.value;
+                    this.productASelect.value = productId;
+                }
+                this.updateComparison();
+            }
+
+            updateComparison() {
+                const productA = this.productASelect.value;
+                const productB = this.productBSelect.value;
+
+                if (!productA || !productB) {
+                    document.getElementById('bidRatio').textContent = '--';
+                    document.getElementById('askRatio').textContent = '--';
+                    document.getElementById('bidDiff').textContent = '--';
+                    document.getElementById('askDiff').textContent = '--';
+                    return;
+                }
+
+                const dataA = this.spreads[productA];
+                const dataB = this.spreads[productB];
+
+                if (!dataA || !dataB) return;
+
+                const bidRatio = dataA.bid / dataB.bid;
+                const askRatio = dataA.ask / dataB.ask;
+                const bidDiff = dataA.bid - dataB.bid;
+                const askDiff = dataA.ask - dataB.ask;
+
+                // Add to history
+                this.ratioHistory.push({
+                    timestamp: new Date().getTime(),
+                    bidRatio,
+                    askRatio
+                });
+                if (this.ratioHistory.length > this.maxHistoryPoints) {
+                    this.ratioHistory.shift();
+                }
+
+                // Update displays
+                const bidRatioColor = bidRatio > 1 ? 'positive' : bidRatio < 1 ? 'negative' : 'neutral';
+                const askRatioColor = askRatio > 1 ? 'positive' : askRatio < 1 ? 'negative' : 'neutral';
+
+                document.getElementById('bidRatio').innerHTML = 
+                    `<span class="${bidRatioColor}">${bidRatio.toFixed(6)}</span>`;
+                document.getElementById('askRatio').innerHTML = 
+                    `<span class="${askRatioColor}">${askRatio.toFixed(6)}</span>`;
+                document.getElementById('bidDiff').innerHTML = 
+                    `<span class="${bidDiff > 0 ? 'positive' : bidDiff < 0 ? 'negative' : 'neutral'}">${bidDiff.toFixed(2)}</span>`;
+                document.getElementById('askDiff').innerHTML = 
+                    `<span class="${askDiff > 0 ? 'positive' : askDiff < 0 ? 'negative' : 'neutral'}">${askDiff.toFixed(2)}</span>`;
+
+                // Draw ratio chart
+                this.drawRatioChart();
+
+                // Check alerts
+                this.checkAlerts();
+            }
+
+            checkAlerts() {
+                const productA = this.productASelect.value;
+                const productB = this.productBSelect.value;
+
+                if (!productA || !productB) {
+                    this.alertTriggeredDiv.style.display = 'none';
+                    this.lastAlertState = false;
+                    return;
+                }
+
+                const dataA = this.spreads[productA];
+                const dataB = this.spreads[productB];
+                if (!dataA || !dataB) return;
+
+                const bidRatio = dataA.bid / dataB.bid;
+                const askRatio = dataA.ask / dataB.ask;
+                const bidDiff = dataA.bid - dataB.bid;
+
+                let triggered = false;
+
+                const bidRatioAlert = parseFloat(this.bidRatioInput.value);
+                const askRatioAlert = parseFloat(this.askRatioInput.value);
+                const bidSpreadAlert = parseFloat(this.bidSpreadInput.value);
+
+                if (!isNaN(bidRatioAlert) && Math.abs(bidRatio - 1) > Math.abs(bidRatioAlert - 1)) {
+                    triggered = true;
+                }
+                if (!isNaN(askRatioAlert) && Math.abs(askRatio - 1) > Math.abs(askRatioAlert - 1)) {
+                    triggered = true;
+                }
+                if (!isNaN(bidSpreadAlert) && Math.abs(bidDiff) > bidSpreadAlert) {
+                    triggered = true;
+                }
+
+                if (triggered && !this.lastAlertState) {
+                    // Alert just triggered - could add sound/notification here
+                    console.log('⚠️ Spread alert triggered!');
+                }
+
+                this.alertTriggeredDiv.style.display = triggered ? 'block' : 'none';
+                this.lastAlertState = triggered;
+            }
+
+            drawRatioChart() {
+                const canvas = document.getElementById('ratioChart');
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+
+                // Clear
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, width, height);
+
+                if (this.ratioHistory.length < 2) return;
+
+                // Find min/max for scaling
+                const ratios = this.ratioHistory.map(h => h.bidRatio);
+                const minRatio = Math.min(...ratios);
+                const maxRatio = Math.max(...ratios);
+                const padding = (maxRatio - minRatio) * 0.1 || 0.01;
+
+                const min = minRatio - padding;
+                const max = maxRatio + padding;
+                const range = max - min;
+
+                // Draw grid line at 1.0
+                const y1 = height - ((1.0 - min) / range) * height;
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(0, y1);
+                ctx.lineTo(width, y1);
+                ctx.stroke();
+
+                // Draw line
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                this.ratioHistory.forEach((point, i) => {
+                    const x = (i / (this.ratioHistory.length - 1)) * width;
+                    const y = height - ((point.bidRatio - min) / range) * height;
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+            }
+
+            updateConnectionStatus(connected) {
+                const dot = document.getElementById('connectionDot');
+                const status = document.getElementById('connectionStatus');
+
+                if (connected) {
+                    dot.classList.add('connected');
+                    status.textContent = 'Connected';
+                } else {
+                    dot.classList.remove('connected');
+                    status.textContent = 'Disconnected';
+                }
+            }
+        }
+
+        let monitor;
+        window.addEventListener('DOMContentLoaded', () => {
+            monitor = new SpreadMonitor();
+        });
+    </script>
+</body>
+</html>

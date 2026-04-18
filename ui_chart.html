@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Price Chart</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            background: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e293b;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .product-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .product-btn {
+            padding: 6px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .product-btn:hover {
+            border-color: #64748b;
+            color: #cbd5e1;
+        }
+
+        .product-btn.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+
+        .stats {
+            display: flex;
+            gap: 24px;
+            align-items: baseline;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .stat-value.positive {
+            color: #22c55e;
+        }
+
+        .stat-value.negative {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            flex: 1;
+            display: block;
+            cursor: crosshair;
+        }
+
+        .connection-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #1e293b;
+            border: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+
+        .connection-dot.connected {
+            background: #22c55e;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .tooltip {
+            position: absolute;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+            white-space: nowrap;
+        }
+
+        .tooltip.visible {
+            display: block;
+        }
+
+        .info-text {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 12px;
+            color: #64748b;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Live Price Chart</h1>
+        <div class="header-right">
+            <div class="product-selector" id="productSelector"></div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Price</div>
+                    <div class="stat-value" id="currentPrice">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Change (24h)</div>
+                    <div class="stat-value" id="priceChange">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Data Points</div>
+                    <div class="stat-value" id="dataPoints" style="color: #64748b;">0</div>
+                </div>
+            </div>
+            <div class="connection-badge">
+                <div class="connection-dot" id="connectionDot"></div>
+                <span id="connectionStatus">Disconnected</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="chart"></canvas>
+        <div class="tooltip" id="tooltip"></div>
+        <div class="info-text" id="infoText">Hover over chart to inspect values</div>
+    </div>
+
+    <script>
+        const config = {
+            maxDataPoints: 500,
+            updateRate: 100, // milliseconds (60fps)
+            minHeight: 200,
+            padding: { top: 40, right: 60, bottom: 40, left: 60 },
+            colors: {
+                grid: '#334155',
+                gridDim: '#1e293b',
+                text: '#94a3b8',
+                line: '#3b82f6',
+                positive: '#22c55e',
+                negative: '#ef4444',
+            },
+        };
+
+        class PriceChart {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.data = {}; // product_id -> { prices: [], times: [], price24h: null }
+                this.activeProduct = null;
+                this.hoveredIndex = null;
+                this.lastRenderTime = 0;
+
+                this.setupCanvas();
+                this.attachEventListeners();
+                this.connectWebSocket();
+            }
+
+            setupCanvas() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = this.canvas.getBoundingClientRect();
+                
+                this.canvas.width = rect.width * dpr;
+                this.canvas.height = rect.height * dpr;
+                this.ctx.scale(dpr, dpr);
+                
+                this.width = rect.width;
+                this.height = rect.height;
+
+                window.addEventListener('resize', () => this.handleResize());
+            }
+
+            handleResize() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = this.canvas.getBoundingClientRect();
+                
+                this.canvas.width = rect.width * dpr;
+                this.canvas.height = rect.height * dpr;
+                this.ctx.scale(dpr, dpr);
+                
+                this.width = rect.width;
+                this.height = rect.height;
+            }
+
+            attachEventListeners() {
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
+            }
+
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+
+                if (!this.activeProduct || this.data[this.activeProduct].prices.length === 0) {
+                    return;
+                }
+
+                const chartX = x - config.padding.left;
+                const chartWidth = this.width - config.padding.left - config.padding.right;
+
+                if (chartX < 0 || chartX > chartWidth) {
+                    this.hoveredIndex = null;
+                    return;
+                }
+
+                const index = Math.floor(
+                    (chartX / chartWidth) * (this.data[this.activeProduct].prices.length - 1)
+                );
+                this.hoveredIndex = Math.max(0, Math.min(index, this.data[this.activeProduct].prices.length - 1));
+            }
+
+            handleMouseLeave() {
+                this.hoveredIndex = null;
+                document.getElementById('tooltip').classList.remove('visible');
+            }
+
+            connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const hostname = window.location.hostname || 'localhost';
+                const wsUrl = `${protocol}//${hostname}:8765`;
+
+                console.log(`Connecting to ${wsUrl}`);
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    this.updateConnectionStatus(true);
+                    console.log('Connected to dashboard server');
+                };
+
+                this.ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    if (msg.type === 'ticker') {
+                        this.handleTickerData(msg.data);
+                    }
+                };
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    this.updateConnectionStatus(false);
+                };
+
+                this.ws.onclose = () => {
+                    this.updateConnectionStatus(false);
+                    // Reconnect after 2 seconds
+                    setTimeout(() => this.connectWebSocket(), 2000);
+                };
+            }
+
+            handleTickerData(tickerData) {
+                const { product_id, price, price_24h, time } = tickerData;
+
+                if (!this.data[product_id]) {
+                    this.data[product_id] = {
+                        prices: [],
+                        times: [],
+                        price24h: price_24h,
+                    };
+
+                    // Add to product selector
+                    this.addProductButton(product_id);
+                }
+
+                // Update price24h if provided
+                if (price_24h !== undefined && price_24h !== null) {
+                    this.data[product_id].price24h = price_24h;
+                }
+
+                // Add data point
+                this.data[product_id].prices.push(price);
+                this.data[product_id].times.push(time);
+
+                // Keep only recent data
+                if (this.data[product_id].prices.length > config.maxDataPoints) {
+                    this.data[product_id].prices.shift();
+                    this.data[product_id].times.shift();
+                }
+
+                // Set as active product if not set
+                if (!this.activeProduct) {
+                    this.setActiveProduct(product_id);
+                }
+
+                this.render();
+            }
+
+            addProductButton(productId) {
+                const selector = document.getElementById('productSelector');
+                
+                // Check if already exists
+                if (document.querySelector(`[data-product="${productId}"]`)) {
+                    return;
+                }
+
+                const btn = document.createElement('button');
+                btn.className = 'product-btn';
+                btn.textContent = productId;
+                btn.setAttribute('data-product', productId);
+                btn.addEventListener('click', () => this.setActiveProduct(productId));
+
+                selector.appendChild(btn);
+            }
+
+            setActiveProduct(productId) {
+                this.activeProduct = productId;
+
+                // Update button states
+                document.querySelectorAll('.product-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-product') === productId);
+                });
+
+                this.render();
+            }
+
+            updateConnectionStatus(connected) {
+                const dot = document.getElementById('connectionDot');
+                const status = document.getElementById('connectionStatus');
+
+                if (connected) {
+                    dot.classList.add('connected');
+                    status.textContent = 'Connected';
+                } else {
+                    dot.classList.remove('connected');
+                    status.textContent = 'Disconnected';
+                }
+            }
+
+            render() {
+                const now = performance.now();
+                if (now - this.lastRenderTime < config.updateRate) {
+                    requestAnimationFrame(() => this.render());
+                    return;
+                }
+                this.lastRenderTime = now;
+
+                // Clear canvas
+                this.ctx.fillStyle = config.colors.gridDim;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                if (!this.activeProduct || this.data[this.activeProduct].prices.length === 0) {
+                    this.drawNoData();
+                    requestAnimationFrame(() => this.render());
+                    return;
+                }
+
+                const productData = this.data[this.activeProduct];
+
+                // Draw grid and axes
+                this.drawGrid();
+
+                // Draw chart
+                this.drawChart(productData.prices);
+
+                // Draw hovered value
+                if (this.hoveredIndex !== null) {
+                    this.drawHoverInfo(productData.prices, productData.times, this.hoveredIndex);
+                }
+
+                // Update stats
+                this.updateStats(productData);
+
+                requestAnimationFrame(() => this.render());
+            }
+
+            drawNoData() {
+                this.ctx.fillStyle = config.colors.text;
+                this.ctx.font = '14px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('Waiting for price data...', this.width / 2, this.height / 2);
+            }
+
+            drawGrid() {
+                const { left, right, top, bottom } = config.padding;
+                const chartX = left;
+                const chartY = top;
+                const chartWidth = this.width - left - right;
+                const chartHeight = this.height - top - bottom;
+
+                // Vertical grid lines
+                this.ctx.strokeStyle = config.colors.grid;
+                this.ctx.lineWidth = 0.5;
+                this.ctx.fillStyle = config.colors.text;
+                this.ctx.font = '11px Arial';
+                this.ctx.textAlign = 'center';
+
+                const verticalLines = 10;
+                for (let i = 0; i <= verticalLines; i++) {
+                    const x = chartX + (i / verticalLines) * chartWidth;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, chartY);
+                    this.ctx.lineTo(x, chartY + chartHeight);
+                    this.ctx.stroke();
+                }
+
+                // Horizontal grid lines with price labels
+                this.ctx.textAlign = 'right';
+                const horizontalLines = 8;
+                const prices = this.data[this.activeProduct].prices;
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const priceRange = maxPrice - minPrice;
+                const padding = priceRange * 0.1;
+                const min = minPrice - padding;
+                const max = maxPrice + padding;
+
+                for (let i = 0; i <= horizontalLines; i++) {
+                    const y = chartY + (i / horizontalLines) * chartHeight;
+                    const price = max - (i / horizontalLines) * (max - min);
+
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = config.colors.grid;
+                    this.ctx.moveTo(chartX, y);
+                    this.ctx.lineTo(chartX + chartWidth, y);
+                    this.ctx.stroke();
+
+                    this.ctx.fillStyle = config.colors.text;
+                    this.ctx.fillText(price.toFixed(2), chartX - 8, y + 4);
+                }
+
+                // Axes
+                this.ctx.strokeStyle = '#475569';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(chartX, chartY);
+                this.ctx.lineTo(chartX, chartY + chartHeight);
+                this.ctx.stroke();
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(chartX, chartY + chartHeight);
+                this.ctx.lineTo(chartX + chartWidth, chartY + chartHeight);
+                this.ctx.stroke();
+            }
+
+            drawChart(prices) {
+                const { left, right, top, bottom } = config.padding;
+                const chartX = left;
+                const chartY = top;
+                const chartWidth = this.width - left - right;
+                const chartHeight = this.height - top - bottom;
+
+                if (prices.length < 2) return;
+
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const priceRange = maxPrice - minPrice;
+                const padding = priceRange * 0.1;
+                const min = minPrice - padding;
+                const max = maxPrice + padding;
+
+                // Draw line
+                this.ctx.strokeStyle = config.colors.line;
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+
+                prices.forEach((price, i) => {
+                    const x = chartX + (i / (prices.length - 1)) * chartWidth;
+                    const y = chartY + chartHeight - ((price - min) / (max - min)) * chartHeight;
+
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                });
+
+                this.ctx.stroke();
+
+                // Draw area under line
+                this.ctx.lineTo(chartX + chartWidth, chartY + chartHeight);
+                this.ctx.lineTo(chartX, chartY + chartHeight);
+                this.ctx.closePath();
+
+                const gradient = this.ctx.createLinearGradient(0, chartY, 0, chartY + chartHeight);
+                gradient.addColorStop(0, 'rgba(59, 130, 246, 0.1)');
+                gradient.addColorStop(1, 'rgba(59, 130, 246, 0.01)');
+                this.ctx.fillStyle = gradient;
+                this.ctx.fill();
+            }
+
+            drawHoverInfo(prices, times, index) {
+                const { left, right, top, bottom } = config.padding;
+                const chartX = left;
+                const chartY = top;
+                const chartWidth = this.width - left - right;
+                const chartHeight = this.height - top - bottom;
+
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const priceRange = maxPrice - minPrice;
+                const padding = priceRange * 0.1;
+                const min = minPrice - padding;
+                const max = maxPrice + padding;
+
+                const price = prices[index];
+                const time = times[index];
+
+                const x = chartX + (index / (prices.length - 1)) * chartWidth;
+                const y = chartY + chartHeight - ((price - min) / (max - min)) * chartHeight;
+
+                // Draw vertical line
+                this.ctx.strokeStyle = config.colors.line;
+                this.ctx.lineWidth = 1;
+                this.ctx.globalAlpha = 0.3;
+                this.ctx.beginPath();
+                this.ctx.moveTo(x, chartY);
+                this.ctx.lineTo(x, chartY + chartHeight);
+                this.ctx.stroke();
+                this.ctx.globalAlpha = 1;
+
+                // Draw point
+                this.ctx.fillStyle = config.colors.line;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, 4, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Show tooltip
+                const tooltip = document.getElementById('tooltip');
+                const date = new Date(time * 1000);
+                const timeStr = date.toLocaleTimeString();
+                tooltip.innerHTML = `${price.toFixed(2)}<br>${timeStr}`;
+                tooltip.classList.add('visible');
+                tooltip.style.left = (x + 10) + 'px';
+                tooltip.style.top = (y - 30) + 'px';
+            }
+
+            updateStats(productData) {
+                const currentPrice = productData.prices[productData.prices.length - 1];
+                const price24h = productData.price24h;
+
+                document.getElementById('currentPrice').textContent = currentPrice.toFixed(2);
+                document.getElementById('dataPoints').textContent = productData.prices.length;
+
+                if (price24h !== null && price24h !== undefined) {
+                    const change = currentPrice - price24h;
+                    const changePercent = (change / price24h) * 100;
+                    const changeEl = document.getElementById('priceChange');
+
+                    changeEl.textContent = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+                    changeEl.className = 'stat-value ' + (changePercent >= 0 ? 'positive' : 'negative');
+                }
+            }
+        }
+
+        // Initialize chart when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            new PriceChart('chart');
+        });
+    </script>
+</body>
+</html>

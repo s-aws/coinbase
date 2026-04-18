@@ -16,7 +16,24 @@ Example:
 
 from os import getenv
 from copy import deepcopy
+import json
+from pathlib import Path
 from coinbase.rest import RESTClient
+
+# Load products from products.json
+PRODUCTS_FILE = Path(__file__).parent / "products.json"
+try:
+    with open(PRODUCTS_FILE, 'r') as f:
+        _products_config = json.load(f)
+        DERIVATIVES_PRODUCT_IDS = _products_config.get("derivatives", [])
+        SPOT_PRODUCT_IDS = _products_config.get("spot", [])
+        PRODUCT_METADATA = _products_config.get("metadata", {})
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    print(f"Warning: Failed to load products.json: {e}")
+    # Fallback to hardcoded values
+    DERIVATIVES_PRODUCT_IDS = []
+    SPOT_PRODUCT_IDS = []
+    PRODUCT_METADATA = {}
 
 API_KEY = getenv("COINBASE_API_KEY")
 API_SECRET = getenv("COINBASE_API_SECRET")
@@ -50,44 +67,6 @@ ORDER_DIRECTION = {
 
 DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
 DEFAULT_MAX_ORDER_REPLACEMENT = 1
-
-DERIVATIVES_PRODUCT_IDS = [
-    "BIP-20DEC30-CDE",
-    "ETP-20DEC30-CDE",
-    "XPP-20DEC30-CDE",
-    "SLP-20DEC30-CDE",
-    "ADP-20DEC30-CDE",
-    "DOP-20DEC30-CDE",
-    "BCP-20DEC30-CDE",
-    "SUP-20DEC30-CDE",
-    "AVP-20DEC30-CDE",
-    "XLP-20DEC30-CDE",
-    "LNP-20DEC30-CDE",
-    "LCP-20DEC30-CDE",
-    "POP-20DEC30-CDE",
-    "HEP-20DEC30-CDE",
-    "PAU-20DEC30-CDE",
-    "SLR-28APR26-CDE",
-    "GOL-27MAR26-CDE",
-    "NOL-19MAR26-CDE",
-    "PT-27MAR26-CDE",
-    "CU-28APR26-CDE",
-    "BIT-24APR26-CDE"
-]
-
-SPOT_PRODUCT_IDS = [
-    "DOT-BTC",
-    "NCT-USDC",
-    "BTC-USDC",
-    "LTC-USDC",
-    "ETH-USDC",
-    "MON-USDC",
-    "ZKP-USDC",
-    "WET-USDC",
-    "XPL-USDC",
-    "DOGE-USDC",
-    "SENT-USDC"
-]
 
 def safe_float(value, default: float = 0.0) -> float:
     """Safely convert a value to float, returning default on error.
