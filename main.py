@@ -60,10 +60,10 @@ from configuration import (
 
 from order import create_limit_order_span
 import database.order as DB_CLIENT
-from integration.engine_integration import OrderEngineIntegration
-from integration.calculator_bridge import CalculatorBridge
-from integration.processor_bridge import ProcessorBridge
-from integration.event_bridge import EventBridge
+from bridges.engine_integration import OrderEngineIntegration
+from bridges.calculator_bridge import CalculatorBridge
+from bridges.processor_bridge import ProcessorBridge
+from bridges.event_bridge import EventBridge
 
 
 class OrderEngine:
