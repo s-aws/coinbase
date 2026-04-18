@@ -12,6 +12,16 @@ from typing import Dict, Any, Optional, Tuple, List
 from business.stealth_condition_evaluator import get_evaluator
 from order import create_limit_order_span
 
+# Dashboard logging (optional - will fail gracefully if not available)
+try:
+    from dashboard_server import add_log_entry
+    DASHBOARD_AVAILABLE = True
+except ImportError:
+    DASHBOARD_AVAILABLE = False
+    def add_log_entry(level: str, message: str):
+        """Fallback logging function if dashboard not available."""
+        print(f"[{level}] {message}")
+
 
 class StealthOrderManager:
     """Manages the complete lifecycle of stealth (hidden) orders.
@@ -214,13 +224,13 @@ class StealthOrderManager:
                         placed_order_id = str(uuid.uuid4())
                 else:
                     # Order placement failed, log error but continue with fallback ID
-                    print(f"Order placement failed: {response.get('error_response')}")
+                    add_log_entry("ERROR", f"Order placement failed: {response.get('error_response')}")
                     placed_order_id = str(uuid.uuid4())
             else:
                 # No response, use fallback ID
                 placed_order_id = str(uuid.uuid4())
         except Exception as e:
-            print(f"Error placing order slice: {e}")
+            add_log_entry("ERROR", f"Error placing order slice: {e}")
             placed_order_id = str(uuid.uuid4())
         
         # Record reveal event
@@ -517,7 +527,7 @@ class StealthOrderManager:
                  order.get('parent_order_id'))
             )
         except Exception as e:
-            print(f"Error saving stealth order {order['stealth_order_id']}: {e}")
+            add_log_entry("ERROR", f"Error saving stealth order {order['stealth_order_id']}: {e}")
     
     def _update_stealth_order(self, order: Dict[str, Any]):
         """Update stealth order in database."""
@@ -554,7 +564,7 @@ class StealthOrderManager:
                  order['stealth_order_id'])
             )
         except Exception as e:
-            print(f"Error updating stealth order {order['stealth_order_id']}: {e}")
+            add_log_entry("ERROR", f"Error updating stealth order {order['stealth_order_id']}: {e}")
     
     def _load_stealth_order_from_db(self, stealth_order_id: str) -> Optional[Dict[str, Any]]:
         """Load stealth order from database."""
@@ -601,7 +611,7 @@ class StealthOrderManager:
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
                 }
         except Exception as e:
-            print(f"Error loading stealth order {stealth_order_id}: {e}")
+            add_log_entry("ERROR", f"Error loading stealth order {stealth_order_id}: {e}")
         
         return None
     
@@ -673,11 +683,11 @@ class StealthOrderManager:
                     self.in_memory_orders[stealth_order_id] = order_data
                     loaded_count += 1
                 except Exception as e:
-                    print(f"Error loading order {row.get('stealth_order_id')}: {e}")
+                    add_log_entry("ERROR", f"Error loading order {row.get('stealth_order_id')}: {e}")
             
             return loaded_count
         except Exception as e:
-            print(f"Error loading stealth orders from database: {e}")
+            add_log_entry("ERROR", f"Error loading stealth orders from database: {e}")
             return 0
     
     def _record_reveal_event(self, order: Dict[str, Any], reveal_event: Dict[str, Any]):
@@ -708,4 +718,4 @@ class StealthOrderManager:
                  }))
             )
         except Exception as e:
-            print(f"Error recording reveal event: {e}")
+            add_log_entry("ERROR", f"Error recording reveal event: {e}")
