@@ -88,21 +88,25 @@ def resolve_profit_move_pct(
     """Resolve configured profit target for an order.
     
     Determines the profit/fee movement percentage for an order by checking
-    product-specific and product-type-level configurations.
+    product-specific and product-type-level configurations. Checks product-specific
+    config first, then falls back to product type (SPOT/FUTURE) config.
     
     Args:
-        order: Order dict with 'product_id' and 'order_side' fields
+        order: Order dict with 'product_id' and 'order_side' fields.
         profits: Profit config dict with structure:
                  {product_type: {side: percentage}, product_id: {side: percentage}}
-        products: Product metadata dict keyed by product_id
+        products: Optional product metadata dict keyed by product_id (default None).
     
     Returns:
-        The profit movement percentage as float (e.g., 0.004 for 0.4%)
+        The profit movement percentage as float (e.g., 0.004 for 0.4%), or 0.0 if not found.
     
     Examples:
         >>> profits = {'SPOT': {'BUY': 0.004, 'SELL': 0.004}}
-        >>> resolve_profit_move_pct({'product_id': 'BTC-USDC', 'order_side': 'BUY'}, profits)
+        >>> resolve_profit_move_pct({'product_id': 'BTC-USDC', 'order_side': 'BUY'}, profits, {})
         0.004
+        >>> profits = {'FUTURE': {'SELL': 0.002}}
+        >>> resolve_profit_move_pct({'product_id': 'BIP-20DEC30-CDE', 'order_side': 'SELL'}, profits, {})
+        0.002
     """
     product_id = order.get("product_id")
     product_type = normalize_product_type(order, products=products)

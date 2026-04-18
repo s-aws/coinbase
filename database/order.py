@@ -95,8 +95,27 @@ def insert_order_parent(
     current_order_replacement: int = 0,
     status: str = "pending"
 ) -> Optional[int]:
-    """
-    Insert a parent order into the order_parent table.
+    """Insert a parent order into the order_parent table.
+    
+    Creates a new parent order entry with tracking for follow-up order replacement count.
+    
+    Args:
+        client_order_id: Unique client-assigned order ID.
+        product_id: Product ID (e.g., 'BTC-USDC').
+        side: Order side ('BUY' or 'SELL').
+        size: Order size/quantity.
+        price: Order price.
+        target_movement: Target profit/movement percentage.
+        target_movement_type: Type of target ('P' for percentage, 'A' for absolute, default 'P').
+        max_order_replacement: Maximum number of follow-up orders allowed (default 0).
+        current_order_replacement: Current count of replacements created (default 0).
+        status: Order status (default 'pending').
+    
+    Returns:
+        The inserted order's database ID if successful, None if failed.
+    
+    Raises:
+        Exception: If database insertion fails.
     """
     query = """
     INSERT INTO order_parent (
@@ -150,8 +169,24 @@ def insert_order_child(
     price: float,
     status: str = "pending"
 ) -> Optional[int]:
-    """
-    Insert a child order into the order_child table.
+    """Insert a child order into the order_child table.
+    
+    Creates a follow-up order that is linked to a parent order.
+    
+    Args:
+        parent_client_order_id: The client_order_id of the parent order.
+        client_order_id: Unique client-assigned ID for this child order.
+        product_id: Product ID (e.g., 'BTC-USDC').
+        side: Order side ('BUY' or 'SELL').
+        size: Order size/quantity.
+        price: Order price.
+        status: Order status (default 'pending').
+    
+    Returns:
+        The inserted order's database ID if successful, None if failed.
+    
+    Raises:
+        Exception: If database insertion or FK constraint fails.
     """
     query = """
     INSERT INTO order_child (
@@ -196,8 +231,19 @@ def insert_order_child(
 def insert_order_parent_batch(
     orders: List[Dict[str, Any]],
 ) -> List[Optional[int]]:
-    """
-    Insert multiple parent orders at once.
+    """Insert multiple parent orders in batch.
+    
+    Processes a list of parent order dicts and inserts each one, returning
+    the list of inserted IDs (None for failed entries).
+    
+    Args:
+        orders: List of parent order dicts with keys: client_order_id, product_id,
+                side, size, price, target_movement, and optional: target_movement_type,
+                max_order_replacement, current_order_replacement, status.
+    
+    Returns:
+        List of inserted database IDs, with None for any orders that failed validation
+        or insertion.
     """
     inserted_ids: List[Optional[int]] = []
 
@@ -245,8 +291,17 @@ def insert_order_parent_batch(
 def insert_order_child_batch(
     orders: List[Dict[str, Any]]
 ) -> int:
-    """
-    Insert multiple child orders at once.
+    """Insert multiple child orders in batch.
+    
+    Processes a list of child order dicts and inserts each one, returning
+    the total count of successfully inserted orders.
+    
+    Args:
+        orders: List of child order dicts with keys: parent_client_order_id, client_order_id,
+                product_id, side, size, price, and optional: status.
+    
+    Returns:
+        Total count of successfully inserted child orders.
     """
     total_inserted: int = 0
 
@@ -286,8 +341,13 @@ def insert_order_child_batch(
 
 
 def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Retrieve a parent order by client_order_id.
+    """Retrieve a parent order by client_order_id.
+    
+    Args:
+        client_order_id: The client-specified parent order ID.
+    
+    Returns:
+        Parent order dict if found, None if not found.
     """
     query = "SELECT * FROM order_parent WHERE client_order_id = %s"
     results = DB_CLIENT.execute_query(query, (client_order_id,))
@@ -295,16 +355,26 @@ def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_parent_orders() -> List[Dict[str, Any]]:
-    """
-    Retrieve all parent orders from the database.
+    """Retrieve all parent orders from the database.
+    
+    Args:
+        None
+    
+    Returns:
+        List of all parent order dicts, or empty list if none exist.
     """
     query = "SELECT * FROM order_parent"
     return DB_CLIENT.execute_query(query)
 
 
 def get_child_orders(parent_client_order_id: str) -> List[Dict[str, Any]]:
-    """
-    Retrieve all child orders for a parent order.
+    """Retrieve all child orders for a parent order.
+    
+    Args:
+        parent_client_order_id: The client_order_id of the parent order.
+    
+    Returns:
+        List of child order dicts for the parent, or empty list if none exist.
     """
     query = "SELECT * FROM order_child WHERE parent_client_order_id = %s"
     return DB_CLIENT.execute_query(query, (parent_client_order_id,))
@@ -317,8 +387,19 @@ def child_order_exists(
     size: float,
     price: float,
 ) -> bool:
-    """
-    Check whether a child order already exists for the given parent and order template.
+    """Check if a child order already exists matching the template.
+    
+    Prevents duplicate child orders by checking for exact matches on all key fields.
+    
+    Args:
+        parent_client_order_id: The parent order's client_order_id.
+        product_id: Product ID to match.
+        side: Order side ('BUY' or 'SELL') to match.
+        size: Order size to match.
+        price: Order price to match.
+    
+    Returns:
+        True if a matching child order exists, False otherwise.
     """
     query = """
     SELECT 1
@@ -342,8 +423,13 @@ def child_order_exists(
 
 
 def get_order_parent_replacement_count(client_order_id: str) -> Optional[int]:
-    """
-    Retrieve the current replacement count for a parent order.
+    """Retrieve the current replacement count for a parent order.
+    
+    Args:
+        client_order_id: The client-specified parent order ID.
+    
+    Returns:
+        The current replacement count, or None if parent not found.
     """
     query = "SELECT current_order_replacement FROM order_parent WHERE client_order_id = %s"
     results = DB_CLIENT.execute_query(query, (client_order_id,))
@@ -354,8 +440,14 @@ def update_order_parent_status(
     client_order_id: str,
     status: str
 ) -> int:
-    """
-    Update the status of a parent order.
+    """Update the status of a parent order.
+    
+    Args:
+        client_order_id: The client-specified parent order ID.
+        status: New status value.
+    
+    Returns:
+        Number of rows updated (0 or 1).
     """
     query = "UPDATE order_parent SET status = %s WHERE client_order_id = %s"
     params = (status, client_order_id)
@@ -372,8 +464,14 @@ def update_order_parent_replacement_count(
     client_order_id: str,
     current_order_replacement: int
 ) -> int:
-    """
-    Update the current replacement count for a parent order.
+    """Update the current replacement count for a parent order.
+    
+    Args:
+        client_order_id: The client-specified parent order ID.
+        current_order_replacement: New replacement count value.
+    
+    Returns:
+        Number of rows updated (0 or 1).
     """
     query = """
     UPDATE order_parent
@@ -394,8 +492,15 @@ def update_order_parent_replacement_count(
 
 
 def increment_order_parent_replacement_count(client_order_id: str) -> Optional[int]:
-    """
-    Increment the current replacement count for a parent order.
+    """Increment the current replacement count for a parent order.
+    
+    Adds 1 to the existing replacement count in a single atomic operation.
+    
+    Args:
+        client_order_id: The client-specified parent order ID.
+    
+    Returns:
+        The new replacement count after incrementing, or None if parent not found.
     """
     query = """
     UPDATE order_parent
@@ -419,8 +524,18 @@ def update_order_parent_replacement_config(
     max_order_replacement: int,
     current_order_replacement: Optional[int] = None,
 ) -> int:
-    """
-    Update replacement configuration for a parent order.
+    """Update replacement configuration for a parent order.
+    
+    Updates max and/or current replacement counts. If current_order_replacement
+    is None, only updates max. If provided, updates both.
+    
+    Args:
+        client_order_id: The client-specified parent order ID.
+        max_order_replacement: New maximum replacement count.
+        current_order_replacement: Optional new current replacement count (default None).
+    
+    Returns:
+        Number of rows updated (0 or 1).
     """
     if current_order_replacement is None:
         query = """
@@ -460,8 +575,15 @@ def update_order_parent_replacement_config(
 def update_order_parent_status_batch(
     status_updates: List[Dict[str, str]]
 ) -> int:
-    """
-    Update status for multiple parent orders at once.
+    """Update status for multiple parent orders in batch.
+    
+    Processes a list of status updates and applies each one.
+    
+    Args:
+        status_updates: List of dicts with 'client_order_id' and 'status' keys.
+    
+    Returns:
+        Total count of rows successfully updated.
     """
     total_updated: int = 0
 
@@ -483,8 +605,14 @@ def update_order_child_status(
     client_order_id: str,
     status: str
 ) -> int:
-    """
-    Update the status of a child order.
+    """Update the status of a child order.
+    
+    Args:
+        client_order_id: The client-specified child order ID.
+        status: New status value.
+    
+    Returns:
+        Number of rows updated (0 or 1).
     """
     query = "UPDATE order_child SET status = %s WHERE client_order_id = %s"
     params = (status, client_order_id)
@@ -500,8 +628,15 @@ def update_order_child_status(
 def update_order_child_status_batch(
     status_updates: List[Dict[str, str]]
 ) -> int:
-    """
-    Update status for multiple child orders at once.
+    """Update status for multiple child orders in batch.
+    
+    Processes a list of status updates and applies each one.
+    
+    Args:
+        status_updates: List of dicts with 'client_order_id' and 'status' keys.
+    
+    Returns:
+        Total count of rows successfully updated.
     """
     total_updated: int = 0
 

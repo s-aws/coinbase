@@ -87,12 +87,13 @@ class OrderEngine:
         ticker: Dict mapping product_id to last ticker data.
         ticker_lock: Thread lock for ticker updates.
         orderbook_lock: Thread lock for orderbook mutations.
-        seen_events_lock: Thread lock for event deduplication buckets.
         event_executor: ThreadPoolExecutor for user event processing.
         event_queue: Dict mapping channel name to Queue.
-        seen_events: Dict mapping bucket index to set of event hashes.
         logging_flags: Dict controlling which log types are emitted.
         debug_logging_enabled: Whether to include debug fields in logs.
+        calc_bridge: CalculatorBridge instance for order calculations.
+        proc_bridge: ProcessorBridge instance for order processing.
+        evt_bridge: EventBridge instance for event deduplication and bucket rotation.
         websocket_events: Event type schemas (internal reference).
     
     Example:
@@ -1027,7 +1028,7 @@ class OrderEngine:
             parent_client_order_id: Parent order ID.
         
         Returns:
-            Dict with 'type' and 'movement' keys, or empty dict.
+            Dict with 'type' and 'movement' keys, or None if parent not found.
         """
         with self.orderbook_lock:
             parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})

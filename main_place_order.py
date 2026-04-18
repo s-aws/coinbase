@@ -1,14 +1,16 @@
-""" New Coinbase Advanced trading project """
+"""Example script demonstrating limit order placement for various products.
+
+Creates sample limit orders for derivatives and spot trading pairs.
+Includes configurable parameters for order sizing, pricing, and delays.
+
+Example:
+    >>> python main_place_order.py
+    # Output: JSON array of order responses with success/error details
+"""
 import json
 from order import create_limit_order_span
 
 if __name__ == "__main__":
-    """
-    Example script demonstrating limit order placement for various products.
-    
-    Creates sample limit orders for derivatives and spot trading pairs.
-    Includes configurable parameters for order sizing, pricing, and delays.
-    """
 
     ##################### PERP 
 
