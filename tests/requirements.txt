@@ -1,0 +1,41 @@
+"""
+Test suite requirements and dependencies.
+
+Install with: pip install -r tests/requirements.txt
+"""
+
+# Core testing framework
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-timeout>=2.1.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# Mocking and fixtures
+responses>=0.22.0
+unittest-mock>=1.5.0
+
+# Code quality and coverage
+coverage>=7.0.0
+coverage-badge>=1.1.0
+
+# Data validation
+jsonschema>=4.17.0
+
+# Time handling in tests
+python-dateutil>=2.8.0
+
+# HTTP mocking for Coinbase API tests
+requests-mock>=1.10.0
+
+# WebSocket testing
+websocket-client>=1.5.0
+
+# Database testing
+sqlalchemy>=2.0.0
+
+# Async testing
+aioresponses>=0.7.4
+
+# Test reporting
+pytest-html>=3.2.0
