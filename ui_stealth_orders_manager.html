@@ -407,11 +407,11 @@
                     <span class="stat-value" id="stat-active">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Avg Fill %</span>
+                    <span class="stat-label">Avg Reveal %</span>
                     <span class="stat-value" id="stat-avg-fill">0%</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Executed</span>
+                    <span class="stat-label">Revealed</span>
                     <span class="stat-value" id="stat-executed">0</span>
                 </div>
                 <div class="stat">
@@ -664,8 +664,27 @@
                         updateProductDropdown();
                         addProductChangeListener();  // Add event listener for product selection
                         console.log(`Loaded ${allProducts.length} products from WebSocket`);
+                    } else if (data.type === "state_update") {
+                        // Initial state or periodic update from server
+                        if (data.data && data.data.stealth_orders) {
+                            ordersData = data.data.stealth_orders || {};
+                            console.log("Received state update with stealth orders:", ordersData);
+                            console.log("Number of orders:", Object.keys(ordersData).length);
+                            if (Object.keys(ordersData).length > 0) {
+                                const firstOrder = Object.values(ordersData)[0];
+                                console.log("Sample order structure:", firstOrder);
+                            }
+                            updateOrdersTable();
+                            updateStats();
+                        }
                     } else if (data.type === "stealth_orders_snapshot") {
                         ordersData = data.orders || {};
+                        console.log("Received stealth orders snapshot:", ordersData);
+                        console.log("Number of orders:", Object.keys(ordersData).length);
+                        if (Object.keys(ordersData).length > 0) {
+                            const firstOrder = Object.values(ordersData)[0];
+                            console.log("Sample order structure:", firstOrder);
+                        }
                         updateOrdersTable();
                         updateStats();
                     } else if (data.type === "stealth_order_created") {
@@ -825,17 +844,17 @@
             }
 
             tbody.innerHTML = orders.map(order => {
-                const executedPct = order.total_size > 0 
-                    ? Math.round((order.executed_size / order.total_size) * 100)
+                const revealedPct = order.total_size > 0 
+                    ? Math.round((order.revealed_size / order.total_size) * 100)
                     : 0;
                 
                 // Format size with appropriate decimals for micro quantities
                 const sizeStr = parseFloat(order.total_size) < 0.01 
                     ? parseFloat(order.total_size).toFixed(8)
                     : parseFloat(order.total_size).toFixed(2);
-                const executedStr = parseFloat(order.executed_size) < 0.01
-                    ? parseFloat(order.executed_size).toFixed(8)
-                    : parseFloat(order.executed_size).toFixed(2);
+                const revealedStr = parseFloat(order.revealed_size) < 0.01
+                    ? parseFloat(order.revealed_size).toFixed(8)
+                    : parseFloat(order.revealed_size).toFixed(2);
 
                 return `
                     <tr>
@@ -844,14 +863,14 @@
                         <td>${sizeStr}</td>
                         <td>${parseFloat(order.limit_price).toFixed(2)}</td>
                         <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
-                        <td><span class="condition-type">${order.reveal_condition?.type || 'N/A'}</span></td>
+                        <td><span class="condition-type">${order.reveal_condition_type || order.reveal_condition_json?.type || 'N/A'}</span></td>
                         <td>
                             <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${executedPct}%"></div>
+                                <div class="progress-fill" style="width: ${revealedPct}%"></div>
                             </div>
-                            <div style="font-size: 10px; color: #999; margin-top: 2px;">${executedPct}%</div>
+                            <div style="font-size: 10px; color: #999; margin-top: 2px;">${revealedPct}%</div>
                         </td>
-                        <td>${executedStr}</td>
+                        <td>${revealedStr}</td>
                         <td>
                             <div class="action-buttons">
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
@@ -867,24 +886,29 @@
 
         function updateStats() {
             const orders = Object.values(ordersData);
-            const active = orders.filter(o => ['HIDDEN', 'PENDING', 'TRIGGERED'].includes(o.status));
+            const active = orders.filter(o => ['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED'].includes(o.status));
             
-            // Calculate average fill percentage across all active orders
-            let avgFillPct = 0;
+            console.log("updateStats - Total orders:", orders.length, "Active orders:", active.length);
+            
+            // Calculate overall reveal percentage: total revealed / total size
+            let avgRevealPct = 0;
             if (active.length > 0) {
-                const totalFillPct = active.reduce((sum, o) => {
-                    const fill = o.total_size > 0 ? (o.executed_size / o.total_size) * 100 : 0;
-                    return sum + fill;
+                const totalSize = active.reduce((sum, o) => {
+                    const size = parseFloat(o.total_size || 0);
+                    console.log(`Order ${o.stealth_order_id}: total_size=${size}, revealed_size=${o.revealed_size}`);
+                    return sum + size;
                 }, 0);
-                avgFillPct = Math.round(totalFillPct / active.length);
+                const totalRevealed = active.reduce((sum, o) => sum + parseFloat(o.revealed_size || 0), 0);
+                avgRevealPct = totalSize > 0 ? Math.round((totalRevealed / totalSize) * 100) : 0;
+                console.log(`Reveal calculation: totalRevealed=${totalRevealed}, totalSize=${totalSize}, avgRevealPct=${avgRevealPct}%`);
             }
 
             document.getElementById('stat-active').textContent = active.length;
-            document.getElementById('stat-avg-fill').textContent = avgFillPct + '%';
+            document.getElementById('stat-avg-fill').textContent = avgRevealPct + '%';
             
-            // Keep executed size display for reference (optional)
-            const executed = active.reduce((sum, o) => sum + parseFloat(o.executed_size || 0), 0);
-            document.getElementById('stat-executed').textContent = executed < 0.01 ? executed.toFixed(8) : executed.toFixed(2);
+            // Show total revealed size across all active orders
+            const totalRevealedSize = active.reduce((sum, o) => sum + parseFloat(o.revealed_size || 0), 0);
+            document.getElementById('stat-executed').textContent = totalRevealedSize < 0.01 ? totalRevealedSize.toFixed(8) : totalRevealedSize.toFixed(2);
 
             // Count by status
             const hidden = orders.filter(o => o.status === 'HIDDEN').length;

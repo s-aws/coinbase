@@ -182,3 +182,5 @@ cython_debug/
 
 # General AI considerations
 genai_data/
+.ai-context
+.agent.md

@@ -229,9 +229,6 @@ class StealthOrderBridge:
             "volume_1m": safe_float(ticker_data.get("volume_24_h"), 0) / 1440,  # Approximate 1m volume
             "time": datetime.utcnow(),
         }
-        
-        # Update market data cache in stealth manager
-        self._update_market_cache(trading_product_id, market_data)
     
     def record_reveal_event(self, stealth_order_id: str, client_order_id: str, reason: str):
         """Record a reveal event to the database."""
