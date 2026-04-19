@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 from core.stealth_order_manager import StealthOrderManager
+from calculation.formatter import safe_float
 
 
 logger = logging.getLogger("StealthOrderBridge")
@@ -222,10 +223,10 @@ class StealthOrderBridge:
         # Extract relevant fields for stealth order evaluation
         market_data = {
             "product_id": trading_product_id,
-            "price": float(ticker_data.get("price", 0)),
-            "bid": float(ticker_data.get("best_bid", 0)),
-            "ask": float(ticker_data.get("best_ask", 0)),
-            "volume_1m": float(ticker_data.get("volume_24_h", 0)) / 1440,  # Approximate 1m volume
+            "price": safe_float(ticker_data.get("price"), 0),
+            "bid": safe_float(ticker_data.get("best_bid"), 0),
+            "ask": safe_float(ticker_data.get("best_ask"), 0),
+            "volume_1m": safe_float(ticker_data.get("volume_24_h"), 0) / 1440,  # Approximate 1m volume
             "time": datetime.utcnow(),
         }
         
