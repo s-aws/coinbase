@@ -223,6 +223,40 @@
             background: rgba(255, 107, 107, 0.1);
         }
 
+        button.hide-btn {
+            color: #4dabf7;
+            border-color: #4dabf7;
+        }
+
+        button.hide-btn:hover {
+            background: rgba(77, 171, 247, 0.1);
+        }
+
+        .hover-action-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 32px;
+        }
+
+        .hover-action-wrapper .action-text {
+            color: #999;
+            font-size: 12px;
+            display: block;
+        }
+
+        .hover-action-wrapper button {
+            display: none;
+        }
+
+        .hover-action-wrapper:hover .action-text {
+            display: none;
+        }
+
+        .hover-action-wrapper:hover button {
+            display: block;
+        }
+
         /* Form Styles */
         .form-section {
             display: flex;
@@ -827,7 +861,19 @@
 
         function updateOrdersTable() {
             const tbody = document.getElementById('orders-tbody');
-            const orders = Object.values(ordersData);
+            let orders = Object.values(ordersData);
+            
+            // Sort by Product (ascending), then by created_at (descending/most recent first)
+            orders.sort((a, b) => {
+                // Primary sort: by product_id
+                if (a.product_id !== b.product_id) {
+                    return a.product_id.localeCompare(b.product_id);
+                }
+                // Secondary sort: by created_at date-time descending (most recent first)
+                const dateA = new Date(a.created_at || 0);
+                const dateB = new Date(b.created_at || 0);
+                return dateB - dateA;
+            });
             
             // Update product dropdown with any new products
             updateProductDropdown();
@@ -875,7 +921,12 @@
                             <div class="action-buttons">
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
                                     ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn">Cancel</button>`
-                                    : `<span style="color: #999; font-size: 12px;">${order.status === 'REVEALED' ? 'Revealed' : order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
+                                    : order.status === 'REVEALED'
+                                    ? `<div class="hover-action-wrapper">
+                                        <span class="action-text">Revealed</span>
+                                        <button onclick="hideOrder('${order.stealth_order_id}')" class="hide-btn">Hide</button>
+                                      </div>`
+                                    : `<span style="color: #999; font-size: 12px;">${order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
                                 }
                             </div>
                         </td>
@@ -1204,22 +1255,10 @@
                 notes: document.getElementById('notes').value
             };
 
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                showMessage('Not connected to server', 'error');
-                return;
-            }
-
-            try {
-                ws.send(JSON.stringify({
-                    type: "create_stealth_order",
-                    order: order
-                }));
-
+            if (sendCreateStealthOrderMessage(order)) {
                 // Save entry to history for future reference
                 saveToHistory();
                 showMessage('Order creation request sent', 'info');
-            } catch (error) {
-                showMessage(`Error: ${error.message}`, 'error');
             }
         });
 
@@ -1237,6 +1276,59 @@
                 type: "cancel_stealth_order",
                 stealth_order_id: orderID
             }));
+        }
+
+        function sendCreateStealthOrderMessage(orderData) {
+            // Helper function to send create_stealth_order message to server
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return false;
+            }
+
+            try {
+                ws.send(JSON.stringify({
+                    type: "create_stealth_order",
+                    order: orderData
+                }));
+                return true;
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        function hideOrder(orderID) {
+            const order = ordersData[orderID];
+            
+            if (!order) {
+                showMessage('Order not found', 'error');
+                return;
+            }
+
+            console.log("Creating hidden duplicate of order:", orderID);
+            console.log("Order reveal condition type:", order.reveal_condition_type);
+            console.log("Order reveal condition JSON:", order.reveal_condition_json);
+
+            if (!confirm(`Create hidden duplicate of order ${orderID}?`)) {
+                return;
+            }
+
+            // Create a new stealth order with same parameters and reveal condition
+            const orderData = {
+                product_id: order.product_id,
+                side: order.side,
+                total_size: order.total_size,
+                limit_price: order.limit_price,
+                reveal_condition: order.reveal_condition_json,
+                sizing_strategy: {strategy: "equal_slices"},
+                notes: `Follow-up hidden order from ${orderID}`
+            };
+            
+            console.log("Sending order data:", orderData);
+            
+            if (sendCreateStealthOrderMessage(orderData)) {
+                showMessage('Hidden duplicate order sent', 'info');
+            }
         }
 
         function showMessage(text, type) {
