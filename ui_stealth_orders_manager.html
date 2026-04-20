@@ -177,6 +177,69 @@
             padding: 4px 8px;
             border-radius: 3px;
             font-size: 11px;
+            position: relative;
+            cursor: help;
+            display: inline-block;
+        }
+
+        .condition-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            color: #e0e0e0;
+            text-align: left;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #555;
+            font-size: 11px;
+            white-space: nowrap;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+        }
+
+        .condition-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: rgba(0, 0, 0, 0.9) transparent transparent transparent;
+        }
+
+        .condition-type:hover .condition-tooltip {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .condition-details {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .condition-detail-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .condition-detail-label {
+            color: #aaa;
+            min-width: 110px;
+            font-weight: 600;
+        }
+
+        .condition-detail-value {
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
         }
 
         .progress-bar {
@@ -588,15 +651,6 @@
     </div>
 
     <script>
-        const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
-        let ws = null;
-        let ordersData = {};
-        let orderedProducts = [];
-        let allProducts = [];  // All available products from JSON
-        let productMetadata = {};  // Product metadata (base_increment, etc.)
-        let refreshInterval = null;
-        let refreshCountdown = 5;
-
         // Condition field templates
         const conditionTemplates = {
             price: `
@@ -674,6 +728,71 @@
                 </div>
             `
         };
+
+        function formatConditionDetails(conditionJson) {
+            if (!conditionJson) return '';
+            
+            const type = conditionJson.type || 'Unknown';
+            let details = [];
+            
+            switch(type) {
+                case 'price':
+                    if (conditionJson.price_threshold) details.push(`Threshold: $${parseFloat(conditionJson.price_threshold).toFixed(2)}`);
+                    if (conditionJson.direction) details.push(`Direction: ${conditionJson.direction}`);
+                    if (conditionJson.hold_duration_seconds) details.push(`Hold: ${conditionJson.hold_duration_seconds}s`);
+                    break;
+                case 'cumulative_volume':
+                    if (conditionJson.price_level) details.push(`Price: $${parseFloat(conditionJson.price_level).toFixed(2)}`);
+                    if (conditionJson.volume_threshold) details.push(`Volume: ${parseFloat(conditionJson.volume_threshold).toFixed(2)}`);
+                    if (conditionJson.lookback_seconds) details.push(`Lookback: ${conditionJson.lookback_seconds}s`);
+                    break;
+                case 'time_delay':
+                    if (conditionJson.delay_seconds) details.push(`Delay: ${conditionJson.delay_seconds}s`);
+                    if (conditionJson.jitter_seconds) details.push(`Jitter: ${conditionJson.jitter_seconds}s`);
+                    break;
+                case 'spread':
+                    if (conditionJson.max_spread) details.push(`Max Spread: ${parseFloat(conditionJson.max_spread).toFixed(2)}`);
+                    if (conditionJson.hold_duration_seconds) details.push(`Hold: ${conditionJson.hold_duration_seconds}s`);
+                    break;
+                case 'product_ratio':
+                    if (conditionJson.product_a) details.push(`Product A: ${conditionJson.product_a}`);
+                    if (conditionJson.product_b) details.push(`Product B: ${conditionJson.product_b}`);
+                    if (conditionJson.ratio_threshold) details.push(`Ratio: ${parseFloat(conditionJson.ratio_threshold).toFixed(3)}`);
+                    if (conditionJson.direction) details.push(`Direction: ${conditionJson.direction}`);
+                    break;
+                default:
+                    return '';
+            }
+            
+            return details.length > 0 ? details.join('<br>') : '';
+        }
+
+        function createConditionTooltipHTML(order) {
+            const conditionJson = order.reveal_condition_json || {};
+            const type = order.reveal_condition_type || conditionJson.type || 'N/A';
+            const details = formatConditionDetails(conditionJson);
+            
+            if (!details) {
+                return `<span class="condition-type">${type}</span>`;
+            }
+            
+            return `<span class="condition-type">
+                ${type}
+                <div class="condition-tooltip">
+                    <div style="font-weight: 600; margin-bottom: 6px; color: #4ade80;">${type}</div>
+                    <div class="condition-details" style="white-space: normal; width: 220px;">${details}</div>
+                </div>
+            </span>`;
+        }
+
+        const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
+        let ws = null;
+        let ordersData = {};
+        let orderedProducts = [];
+        let allProducts = [];  // All available products from JSON
+        let productMetadata = {};  // Product metadata (base_increment, etc.)
+        let refreshInterval = null;
+        let refreshCountdown = 5;
 
         function initWebSocket() {
             try {
@@ -909,7 +1028,7 @@
                         <td>${sizeStr}</td>
                         <td>${parseFloat(order.limit_price).toFixed(2)}</td>
                         <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
-                        <td><span class="condition-type">${order.reveal_condition_type || order.reveal_condition_json?.type || 'N/A'}</span></td>
+                        <td>${createConditionTooltipHTML(order)}</td>
                         <td>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${revealedPct}%"></div>
