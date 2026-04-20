@@ -20,7 +20,6 @@ from concurrent.futures import ThreadPoolExecutor
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from configuration import (
-    Subscription,
     DEFAULT_MAX_ORDER_REPLACEMENT,
     calculate_new_order_move_from_snapshot,
     apply_calculated_position_update,
