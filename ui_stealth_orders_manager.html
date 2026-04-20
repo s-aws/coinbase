@@ -473,6 +473,63 @@
             border-color: rgba(74, 222, 128, 0.3);
         }
 
+        /* Accordion Styles */
+        .accordion-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 3px;
+            font-size: 12px;
+            color: #4ade80;
+            transition: all 0.2s ease;
+            user-select: none;
+            margin-right: 6px;
+        }
+
+        .accordion-toggle:hover {
+            background: rgba(74, 222, 128, 0.2);
+            border-color: rgba(74, 222, 128, 0.5);
+        }
+
+        .accordion-toggle.expanded::before {
+            content: "▼";
+        }
+
+        .accordion-toggle.collapsed::before {
+            content: "▶";
+        }
+
+        .parent-row {
+            background: rgba(255, 183, 71, 0.05);
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .parent-row:hover {
+            background: rgba(255, 183, 71, 0.1);
+        }
+
+        .child-row {
+            background: rgba(123, 163, 255, 0.02);
+            display: none;
+            transition: display 0.2s ease;
+        }
+
+        .child-row.visible {
+            display: table-row;
+        }
+
+        .child-row td {
+            padding-left: 50px;
+            color: #a0a0a0;
+            border-left: 2px solid rgba(123, 163, 255, 0.2);
+        }
+
         /* Responsive */
         @media (max-width: 1000px) {
             .content {
@@ -532,6 +589,7 @@
                                 <th>Price</th>
                                 <th>Status</th>
                                 <th>Condition</th>
+                                <th>Time</th>
                                 <th>Progress</th>
                                 <th>Executed</th>
                                 <th>Actions</th>
@@ -539,7 +597,7 @@
                         </thead>
                         <tbody id="orders-tbody">
                             <tr>
-                                <td colspan="9" style="text-align: center; padding: 30px; color: #666;">
+                                <td colspan="10" style="text-align: center; padding: 30px; color: #666;">
                                     Loading orders...
                                 </td>
                             </tr>
@@ -793,6 +851,7 @@
         let productMetadata = {};  // Product metadata (base_increment, etc.)
         let refreshInterval = null;
         let refreshCountdown = 5;
+        let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
 
         function initWebSocket() {
             try {
@@ -978,6 +1037,23 @@
             });
         }
 
+        function toggleAccordion(parentOrderId) {
+            accordionState[parentOrderId] = !accordionState[parentOrderId];
+            
+            // Toggle visibility of child rows
+            const childRows = document.querySelectorAll(`tr[data-parent-id="${parentOrderId}"]`);
+            childRows.forEach(row => {
+                row.classList.toggle('visible');
+            });
+            
+            // Toggle the button state
+            const toggleBtn = document.querySelector(`button[data-toggle-id="${parentOrderId}"]`);
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('expanded');
+                toggleBtn.classList.toggle('collapsed');
+            }
+        }
+
         function updateOrdersTable() {
             const tbody = document.getElementById('orders-tbody');
             let orders = Object.values(ordersData);
@@ -1016,7 +1092,7 @@
             if (orders.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="9" style="text-align: center; padding: 30px; color: #666;">
+                        <td colspan="10" style="text-align: center; padding: 30px; color: #666;">
                             No active stealth orders
                         </td>
                     </tr>
@@ -1024,7 +1100,19 @@
                 return;
             }
 
-            tbody.innerHTML = orders.map(order => {
+            // Group orders: parents with their children
+            const parentOrders = orders.filter(o => !o.parent_order_id);
+            const childOrdersByParent = {};
+            
+            orders.filter(o => o.parent_order_id).forEach(childOrder => {
+                if (!childOrdersByParent[childOrder.parent_order_id]) {
+                    childOrdersByParent[childOrder.parent_order_id] = [];
+                }
+                childOrdersByParent[childOrder.parent_order_id].push(childOrder);
+            });
+
+            // Render function for order row
+            const renderOrderRow = (order, isChild = false, parentId = null) => {
                 const revealedPct = order.total_size > 0 
                     ? Math.round((order.revealed_size / order.total_size) * 100)
                     : 0;
@@ -1037,18 +1125,46 @@
                     ? parseFloat(order.revealed_size).toFixed(8)
                     : parseFloat(order.revealed_size).toFixed(2);
 
-                const parentIndicator = order.parent_order_id 
-                    ? `<span style="color: #7ba3ff; margin-right: 6px;" title="Child order (Parent: ${order.parent_order_id.substring(0, 8)}...)">→</span>`
-                    : `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order">👑</span>`;
+                const isParent = !order.parent_order_id;
+                const hasChildren = childOrdersByParent[order.stealth_order_id] && childOrdersByParent[order.stealth_order_id].length > 0;
+                
+                let parentIndicator = '';
+                let toggleHtml = '';
+                
+                if (isParent) {
+                    if (hasChildren) {
+                        const childCount = childOrdersByParent[order.stealth_order_id].length;
+                        const isExpanded = accordionState[order.stealth_order_id] || false;
+                        toggleHtml = `<button type="button" data-toggle-id="${order.stealth_order_id}" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${order.stealth_order_id}')"></button>`;
+                        parentIndicator = toggleHtml + `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order (${childCount} children)">👑 (${childCount})</span>`;
+                    } else {
+                        parentIndicator = `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order">👑</span>`;
+                    }
+                } else {
+                    parentIndicator = `<span style="color: #7ba3ff; margin-right: 6px;" title="Child order (Parent: ${order.parent_order_id.substring(0, 8)}...)">→</span>`;
+                }
+                
+                const rowClass = isChild ? 'child-row' + (accordionState[parentId] ? ' visible' : '') : 'parent-row';
+                const dataAttr = isChild ? ` data-parent-id="${parentId}"` : '';
+                
+                // Format date and time from created_at
+                let createdDateTime = 'N/A';
+                if (order.created_at) {
+                    const date = new Date(order.created_at);
+                    const dateStr = date.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+                    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    createdDateTime = `${dateStr} ${timeStr}`;
+                }
                 
                 return `
-                    <tr>
+                    <tr class="${rowClass}"${dataAttr}>
                         <td>${parentIndicator}<strong>${order.product_id}</strong></td>
                         <td class="side-${order.side.toLowerCase()}">${order.side}</td>
                         <td>${sizeStr}</td>
                         <td>${parseFloat(order.limit_price).toFixed(2)}</td>
                         <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
                         <td>${createConditionTooltipHTML(order)}</td>
+                        <td style="font-size: 12px; color: #aaa;">${createdDateTime}</td>
                         <td>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${revealedPct}%"></div>
@@ -1071,7 +1187,23 @@
                         </td>
                     </tr>
                 `;
-            }).join('');
+            };
+
+            // Build HTML with parents and children
+            let html = '';
+            parentOrders.forEach(parentOrder => {
+                // Add parent row
+                html += renderOrderRow(parentOrder, false);
+                
+                // Add child rows if they exist
+                if (childOrdersByParent[parentOrder.stealth_order_id]) {
+                    childOrdersByParent[parentOrder.stealth_order_id].forEach(childOrder => {
+                        html += renderOrderRow(childOrder, true, parentOrder.stealth_order_id);
+                    });
+                }
+            });
+
+            tbody.innerHTML = html;
         }
 
         function updateStats() {
