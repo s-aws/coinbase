@@ -364,6 +364,181 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 await websocket.send(json.dumps(response))
         
+        elif msg_type == "request_parent_orders":
+            # Send parent orders list
+            try:
+                from database.order_dashboard_helpers import get_all_parent_orders
+                orders = get_all_parent_orders()
+                
+                # Convert to dict keyed by client_order_id
+                orders_dict = {o['client_order_id']: o for o in orders}
+                
+                response = {
+                    "type": "parent_orders_list",
+                    "orders": orders_dict
+                }
+                await websocket.send(json.dumps(response))
+                logger.info(f"Sent {len(orders)} parent orders to client")
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch parent orders: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to fetch orders: {str(e)}"
+                }
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "create_parent_order":
+            # Create new parent order
+            try:
+                from database.order_dashboard_helpers import insert_parent_order, get_parent_order_by_client_id
+                order = data.get("order", {})
+                
+                client_order_id = str(uuid.uuid4())
+                
+                result = insert_parent_order(
+                    client_order_id=client_order_id,
+                    product_id=order.get('product_id'),
+                    side=order.get('side'),
+                    size=float(order.get('size', 0)),
+                    price=float(order.get('price', 0)),
+                    target_movement=float(order.get('target_movement')) if order.get('target_movement') else None,
+                    max_order_replacement=int(order.get('max_order_replacement', 0)),
+                    status=order.get('status', 'ACTIVE')
+                )
+                
+                # Fetch the created order
+                created_order = get_parent_order_by_client_id(client_order_id)
+                
+                response = {
+                    "type": "parent_order_created",
+                    "order": created_order
+                }
+                
+                add_log_entry("INFO", f"Parent order created: {order.get('product_id')} {order.get('side')} {order.get('size')}")
+                logger.info(f"Parent order created: {client_order_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to create parent order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to create order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent order creation failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "update_parent_order":
+            # Update existing parent order
+            try:
+                from database.order_dashboard_helpers import update_parent_order, get_parent_order_by_client_id
+                order = data.get("order", {})
+                
+                client_order_id = order.get('client_order_id')
+                update_data = {
+                    'size': float(order.get('size', 0)),
+                    'price': float(order.get('price', 0)),
+                    'target_movement': float(order.get('target_movement')) if order.get('target_movement') else None,
+                    'max_order_replacement': int(order.get('max_order_replacement', 0)),
+                    'status': order.get('status', 'ACTIVE')
+                }
+                
+                update_parent_order(client_order_id, update_data)
+                
+                # Fetch the updated order
+                updated_order = get_parent_order_by_client_id(client_order_id)
+                
+                response = {
+                    "type": "parent_order_updated",
+                    "order": updated_order
+                }
+                
+                add_log_entry("INFO", f"Parent order updated: {client_order_id}")
+                logger.info(f"Parent order updated: {client_order_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to update parent order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent order update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "delete_parent_order":
+            # Delete parent order
+            try:
+                from database.order_dashboard_helpers import delete_parent_order
+                client_order_id = data.get('client_order_id')
+                
+                delete_parent_order(client_order_id)
+                
+                response = {
+                    "type": "parent_order_deleted",
+                    "client_order_id": client_order_id
+                }
+                
+                add_log_entry("INFO", f"Parent order deleted: {client_order_id}")
+                logger.info(f"Parent order deleted: {client_order_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to delete parent order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to delete order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent order deletion failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "request_products":
+            # Send products list to client
+            try:
+                products_file = Path(__file__).parent / "products.json"
+                if products_file.exists():
+                    with open(products_file, 'r') as f:
+                        products_data = json_lib.load(f)
+                        response = {
+                            "type": "products_list",
+                            "derivatives": products_data.get("derivatives", []),
+                            "spot": products_data.get("spot", []),
+                        }
+                        await websocket.send(json_lib.dumps(response))
+                else:
+                    logger.warning("products.json not found")
+                    response = {
+                        "type": "products_list",
+                        "derivatives": [],
+                        "spot": [],
+                    }
+                    await websocket.send(json_lib.dumps(response))
+            except Exception as e:
+                logger.error(f"Failed to send products: {e}")
+                response = {"type": "error", "message": f"Failed to load products: {str(e)}"}
+                await websocket.send(json_lib.dumps(response))
+        
         elif msg_type == "ping":
             response = {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
             await websocket.send(json.dumps(response))

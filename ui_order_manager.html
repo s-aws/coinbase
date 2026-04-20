@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #444;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Tab Navigation */
+        .tab-navigation {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #444;
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #555;
+            color: #aaa;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab-button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ddd;
+        }
+
+        .tab-button.active {
+            background: rgba(74, 222, 128, 0.1);
+            color: #4ade80;
+            border-color: #4ade80;
+        }
+
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #4ade80;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Section Styles */
+        .section {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Table Styles */
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            color: #aaa;
+            font-weight: 600;
+            border-bottom: 2px solid #444;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #333;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Form Styles */
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        input, select, textarea {
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 12px;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4ade80;
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.1);
+        }
+
+        /* Button Styles */
+        button {
+            padding: 8px 16px;
+            border: 1px solid #555;
+            background: rgba(100, 100, 100, 0.2);
+            color: #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: rgba(100, 100, 100, 0.4);
+            border-color: #777;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: #000;
+            border: none;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #51cf66, #16a34a);
+        }
+
+        .btn-danger {
+            color: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .btn-edit {
+            color: #74c0fc;
+            border-color: #74c0fc;
+            padding: 4px 10px;
+            font-size: 11px;
+        }
+
+        .btn-edit:hover {
+            background: rgba(116, 192, 252, 0.1);
+        }
+
+        /* Badges and Status */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .badge-pending {
+            background: rgba(255, 179, 71, 0.2);
+            color: #ffb347;
+        }
+
+        .badge-danger {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background-color: #2d2d44;
+            margin: 5% auto;
+            padding: 30px;
+            border: 1px solid #555;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+
+        /* Message Styles */
+        .message {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message.success {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+        }
+
+        .message.error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            color: #ff6b6b;
+        }
+
+        .message.info {
+            background: rgba(119, 163, 255, 0.1);
+            border: 1px solid rgba(119, 163, 255, 0.3);
+            color: #7ba3ff;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state p {
+            margin-bottom: 10px;
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #444;
+            border-top: 2px solid #4ade80;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1000px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span class="status-indicator"></span>
+                Order Manager
+            </h1>
+        </header>
+
+        <div class="tab-navigation">
+            <button class="tab-button active" onclick="switchTab('parent-orders')">
+                👨‍👩‍👧 Parent Orders
+            </button>
+            <button class="tab-button" onclick="switchTab('child-orders')">
+                👶 Child Orders
+            </button>
+            <button class="tab-button" onclick="switchTab('stealth-orders')">
+                👻 Stealth Orders
+            </button>
+        </div>
+
+        <!-- Parent Orders Tab -->
+        <div id="parent-orders" class="tab-content active">
+            <div id="parent-message" class="message"></div>
+
+            <div class="section">
+                <h2>📋 Parent Orders</h2>
+                <div class="table-wrapper">
+                    <table id="parent-orders-table">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Product</th>
+                                <th>Side</th>
+                                <th>Size</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Target Movement</th>
+                                <th>Replacement</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="9" style="text-align: center; padding: 30px; color: #666;">
+                                    Loading orders...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>➕ Create Parent Order</h2>
+                <form id="parent-order-form" class="form-section">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Product ID *</label>
+                            <select id="parent-product" required>
+                                <option value="">Select Product...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Side *</label>
+                            <select id="parent-side" required>
+                                <option value="">Select...</option>
+                                <option value="BUY">BUY</option>
+                                <option value="SELL">SELL</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Size *</label>
+                            <input type="number" id="parent-size" placeholder="0.00" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Price *</label>
+                            <input type="number" id="parent-price" placeholder="0.00" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Target Movement %</label>
+                            <input type="number" id="parent-target-movement" placeholder="0.5" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>Max Replacements</label>
+                            <input type="number" id="parent-max-replacement" placeholder="0" step="1" min="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="parent-status">
+                                <option value="ACTIVE">ACTIVE</option>
+                                <option value="PENDING">PENDING</option>
+                                <option value="COMPLETED">COMPLETED</option>
+                                <option value="CANCELLED">CANCELLED</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">Create Parent Order</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Child Orders Tab (Placeholder) -->
+        <div id="child-orders" class="tab-content">
+            <div class="section">
+                <h2>📋 Child Orders</h2>
+                <div class="empty-state">
+                    <p>Child order management coming soon</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stealth Orders Tab (Placeholder) -->
+        <div id="stealth-orders" class="tab-content">
+            <div class="section">
+                <h2>📋 Stealth Orders</h2>
+                <div class="empty-state">
+                    <p>Stealth order management coming soon</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Edit Parent Order</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="edit-form" class="form-section">
+                <input type="hidden" id="edit-order-id">
+                <div class="form-group">
+                    <label>Product ID</label>
+                    <input type="text" id="edit-product" disabled>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Size</label>
+                        <input type="number" id="edit-size" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Price</label>
+                        <input type="number" id="edit-price" step="0.01">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Target Movement %</label>
+                        <input type="number" id="edit-target-movement" step="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Replacements</label>
+                        <input type="number" id="edit-max-replacement" step="1" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="edit-status">
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="PENDING">PENDING</option>
+                        <option value="COMPLETED">COMPLETED</option>
+                        <option value="CANCELLED">CANCELLED</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-danger" onclick="deleteOrder()">Delete</button>
+                    <button type="button" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
+        let ws = null;
+        let parentOrders = {};
+        let currentEditingOrderId = null;
+        let allProducts = [];
+
+        // Request products from WebSocket server
+        function requestProducts() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "request_products"
+                }));
+            }
+        }
+
+        // Update product dropdown with loaded products
+        function updateProductDropdown() {
+            const select = document.getElementById('parent-product');
+            const currentValue = select.value;
+            
+            // Rebuild options
+            let options = '<option value="">Select Product...</option>';
+            allProducts.forEach(product => {
+                options += `<option value="${product}">${product}</option>`;
+            });
+            
+            select.innerHTML = options;
+            if (currentValue && allProducts.includes(currentValue)) {
+                select.value = currentValue;
+            }
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // WebSocket Connection
+        function initWebSocket() {
+            try {
+                ws = new WebSocket(WS_URL);
+
+                ws.onopen = () => {
+                    console.log("Connected to dashboard server");
+                    requestProducts();
+                    requestParentOrders();
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === "products_list") {
+                        allProducts = [...(data.derivatives || []), ...(data.spot || [])].sort();
+                        updateProductDropdown();
+                        console.log(`Loaded ${allProducts.length} products from server`);
+                    } else if (data.type === "parent_orders_list") {
+                        parentOrders = data.orders || {};
+                        updateParentOrdersTable();
+                    } else if (data.type === "parent_order_created") {
+                        showMessage('Parent order created successfully', 'success', 'parent-message');
+                        parentOrders[data.order.client_order_id] = data.order;
+                        updateParentOrdersTable();
+                        document.getElementById('parent-order-form').reset();
+                    } else if (data.type === "parent_order_updated") {
+                        showMessage('Parent order updated successfully', 'success', 'parent-message');
+                        parentOrders[data.order.client_order_id] = data.order;
+                        updateParentOrdersTable();
+                        closeModal();
+                    } else if (data.type === "parent_order_deleted") {
+                        showMessage('Parent order deleted successfully', 'success', 'parent-message');
+                        delete parentOrders[data.client_order_id];
+                        updateParentOrdersTable();
+                        closeModal();
+                    } else if (data.type === "error") {
+                        showMessage(data.message || 'An error occurred', 'error', 'parent-message');
+                    }
+                };
+
+                ws.onclose = () => {
+                    console.log("Disconnected from server");
+                    setTimeout(initWebSocket, 3000);
+                };
+
+                ws.onerror = (error) => {
+                    console.error("WebSocket error:", error);
+                };
+            } catch (error) {
+                console.error("Failed to connect:", error);
+            }
+        }
+
+        // Request parent orders from server
+        function requestParentOrders() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "request_parent_orders"
+                }));
+            }
+        }
+
+        // Update parent orders table
+        function updateParentOrdersTable() {
+            const tbody = document.querySelector('#parent-orders-table tbody');
+            let orders = Object.values(parentOrders);
+
+            if (orders.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" style="text-align: center; padding: 30px; color: #666;">
+                            No parent orders found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = orders.map(order => `
+                <tr>
+                    <td><code style="color: #999; font-size: 11px;">${order.client_order_id.substring(0, 8)}...</code></td>
+                    <td><strong>${order.product_id}</strong></td>
+                    <td class="${order.side === 'BUY' ? 'buy-side' : 'sell-side'}" style="color: ${order.side === 'BUY' ? '#51cf66' : '#ff6b6b'}">
+                        ${order.side}
+                    </td>
+                    <td>${parseFloat(order.size).toFixed(2)}</td>
+                    <td>$${parseFloat(order.price).toFixed(2)}</td>
+                    <td>
+                        <span class="badge ${getStatusClass(order.status)}">
+                            ${order.status}
+                        </span>
+                    </td>
+                    <td>${order.target_movement ? order.target_movement + '%' : '-'}</td>
+                    <td>${order.current_order_replacement}/${order.max_order_replacement}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editOrder('${order.client_order_id}')">Edit</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Get status badge class
+        function getStatusClass(status) {
+            const classMap = {
+                'ACTIVE': 'badge-success',
+                'PENDING': 'badge-pending',
+                'COMPLETED': 'badge-success',
+                'CANCELLED': 'badge-danger'
+            };
+            return classMap[status] || 'badge-pending';
+        }
+
+        // Show message
+        function showMessage(text, type, elementId = 'parent-message') {
+            const element = document.getElementById(elementId);
+            element.textContent = text;
+            element.className = `message ${type} show`;
+            
+            setTimeout(() => {
+                element.classList.remove('show');
+            }, 5000);
+        }
+
+        // Open edit modal
+        function editOrder(clientOrderId) {
+            const order = parentOrders[clientOrderId];
+            if (!order) return;
+
+            currentEditingOrderId = clientOrderId;
+            document.getElementById('edit-order-id').value = clientOrderId;
+            document.getElementById('edit-product').value = order.product_id;
+            document.getElementById('edit-size').value = order.size;
+            document.getElementById('edit-price').value = order.price;
+            document.getElementById('edit-target-movement').value = order.target_movement || '';
+            document.getElementById('edit-max-replacement').value = order.max_order_replacement;
+            document.getElementById('edit-status').value = order.status;
+
+            document.getElementById('edit-modal').style.display = 'block';
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+            currentEditingOrderId = null;
+        }
+
+        // Delete order
+        function deleteOrder() {
+            if (!currentEditingOrderId || !confirm('Are you sure you want to delete this order?')) {
+                return;
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "delete_parent_order",
+                    client_order_id: currentEditingOrderId
+                }));
+            }
+        }
+
+        // Handle form submissions
+        document.getElementById('parent-order-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const orderData = {
+                product_id: document.getElementById('parent-product').value,
+                side: document.getElementById('parent-side').value,
+                size: parseFloat(document.getElementById('parent-size').value),
+                price: parseFloat(document.getElementById('parent-price').value),
+                target_movement: parseFloat(document.getElementById('parent-target-movement').value) || null,
+                max_order_replacement: parseInt(document.getElementById('parent-max-replacement').value) || 0,
+                status: document.getElementById('parent-status').value,
+            };
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "create_parent_order",
+                    order: orderData
+                }));
+            } else {
+                showMessage('Not connected to server', 'error', 'parent-message');
+            }
+        });
+
+        document.getElementById('edit-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const orderData = {
+                client_order_id: document.getElementById('edit-order-id').value,
+                product_id: document.getElementById('edit-product').value,
+                size: parseFloat(document.getElementById('edit-size').value),
+                price: parseFloat(document.getElementById('edit-price').value),
+                target_movement: parseFloat(document.getElementById('edit-target-movement').value) || null,
+                max_order_replacement: parseInt(document.getElementById('edit-max-replacement').value) || 0,
+                status: document.getElementById('edit-status').value,
+            };
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "update_parent_order",
+                    order: orderData
+                }));
+            } else {
+                showMessage('Not connected to server', 'error', 'parent-message');
+            }
+        });
+
+        // Close modal when clicking outside
+        window.onclick = (event) => {
+            const modal = document.getElementById('edit-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+
+        // Initialize
+        initWebSocket();
+    </script>
+</body>
+</html>
