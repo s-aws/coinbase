@@ -586,6 +586,153 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 response = {"type": "error", "message": f"Failed to load products: {str(e)}"}
                 await websocket.send(json.dumps(response))
         
+        elif msg_type == "request_move_history":
+            # Send move history list
+            try:
+                from database.order import get_order_moves_by_original_parent
+                # Get all moves from database (fetch all to show complete history)
+                # For now, we'll fetch from database directly
+                from database.database import PostgresDB
+                db = PostgresDB()
+                result = db.execute_query("SELECT * FROM order_moves ORDER BY created_at DESC LIMIT 100")
+                
+                moves_dict = {move['id']: move for move in result} if result else {}
+                
+                response = {
+                    "type": "move_history_list",
+                    "moves": moves_dict
+                }
+                await websocket.send(json.dumps(response))
+                logger.info(f"Sent {len(result or [])} move records to client")
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch move history: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to fetch move history: {str(e)}"
+                }
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "move_order":
+            # Execute a manual move (immediate)
+            try:
+                from business.move_manager import MoveManager
+                from configuration import OrderBook
+                
+                move_data = data.get("move", {})
+                original_parent_id = move_data.get('original_parent_client_order_id')
+                new_order_details = move_data.get('new_order_details', {})
+                reason = move_data.get('reason', 'user_move')
+                notes = move_data.get('notes')
+                
+                # Create move manager and execute move
+                move_manager = MoveManager(OrderBook())
+                result = move_manager.move_order(
+                    original_parent_client_order_id=original_parent_id,
+                    new_order_details=new_order_details,
+                    reason=reason,
+                    notes=notes
+                )
+                
+                if result['success']:
+                    # Create the new parent order in database
+                    from database.order_dashboard_helpers import insert_parent_order, get_parent_order_by_client_id
+                    new_parent_id = result['new_parent_client_order_id']
+                    
+                    insert_parent_order(
+                        client_order_id=new_parent_id,
+                        product_id=new_order_details.get('product_id'),
+                        side=new_order_details.get('side'),
+                        size=float(new_order_details.get('size', 0)),
+                        price=float(new_order_details.get('price', 0)),
+                        target_movement=float(new_order_details.get('target_movement')) if new_order_details.get('target_movement') else None,
+                        max_order_replacement=int(new_order_details.get('max_order_replacement', 0)),
+                        status='OPEN'
+                    )
+                    
+                    new_parent_order = get_parent_order_by_client_id(new_parent_id)
+                    
+                    response = {
+                        "type": "order_moved",
+                        "success": True,
+                        "original_parent_client_order_id": original_parent_id,
+                        "new_parent_client_order_id": new_parent_id,
+                        "new_parent_order": new_parent_order,
+                        "message": f"Order moved successfully"
+                    }
+                    
+                    add_log_entry("INFO", f"Order moved: {original_parent_id} -> {new_parent_id}")
+                    logger.info(f"Order moved: {original_parent_id} -> {new_parent_id}")
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Move failed: {result.get('message', 'Unknown error')}"
+                    }
+                    add_log_entry("ERROR", f"Move failed: {result.get('message')}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to move order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to move order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Order move failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "premark_move":
+            # Pre-mark an order for automatic move (when cancelled)
+            try:
+                from database.order import create_pending_move
+                
+                move_data = data.get("move", {})
+                parent_id = move_data.get('parent_client_order_id')
+                new_order_details = move_data.get('new_order_details', {})
+                notes = move_data.get('notes')
+                
+                # Create pending move record in database
+                move_id = create_pending_move(
+                    parent_client_order_id=parent_id,
+                    new_order_config=new_order_details,
+                    reason='premarked_auto_move',
+                    notes=notes
+                )
+                
+                response = {
+                    "type": "order_premarked",
+                    "success": True,
+                    "parent_client_order_id": parent_id,
+                    "move_id": move_id,
+                    "message": f"Order pre-marked for automatic move on cancellation"
+                }
+                
+                add_log_entry("INFO", f"Order pre-marked for move: {parent_id}")
+                logger.info(f"Order pre-marked for move: {parent_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to pre-mark order for move: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to pre-mark order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Pre-mark failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
         elif msg_type == "ping":
             response = {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
             await websocket.send(json.dumps(response))

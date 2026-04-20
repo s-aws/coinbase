@@ -411,6 +411,9 @@
             <button class="tab-button" onclick="switchTab('child-orders')">
                 👶 Child Orders
             </button>
+            <button class="tab-button" onclick="switchTab('move-orders')">
+                🔄 Move Orders
+            </button>
             <button class="tab-button" onclick="switchTab('stealth-orders')">
                 👻 Stealth Orders
             </button>
@@ -513,7 +516,155 @@
             </div>
         </div>
 
-        <!-- Stealth Orders Tab (Placeholder) -->
+        <!-- Move Orders Tab -->
+        <div id="move-orders" class="tab-content">
+            <div id="move-message" class="message"></div>
+
+            <div class="section">
+                <h2>📊 Move History</h2>
+                <div class="table-wrapper">
+                    <table id="move-history-table">
+                        <thead>
+                            <tr>
+                                <th>Original Parent</th>
+                                <th>New Parent</th>
+                                <th>Reason</th>
+                                <th>Created</th>
+                                <th>Executed</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 30px; color: #666;">
+                                    Loading move history...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🔄 Move Cancelled Order</h2>
+                <p style="font-size: 12px; color: #999; margin-bottom: 15px;">
+                    Replace a cancelled parent order with a new parent order. The original parent is preserved for audit purposes.
+                </p>
+                <form id="move-order-form" class="form-section">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cancelled Parent Order *</label>
+                            <select id="move-original-parent" required>
+                                <option value="">Select Cancelled Order...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Move Reason</label>
+                            <input type="text" id="move-reason" placeholder="e.g., price_adjustment, strategy_change" value="user_move">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>New Product ID *</label>
+                            <select id="move-product" required>
+                                <option value="">Select Product...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>New Side *</label>
+                            <select id="move-side" required>
+                                <option value="">Select...</option>
+                                <option value="BUY">BUY</option>
+                                <option value="SELL">SELL</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>New Size *</label>
+                            <input type="number" id="move-size" placeholder="0.00000001" step="0.00000001" required>
+                        </div>
+                        <div class="form-group">
+                            <label>New Price *</label>
+                            <input type="number" id="move-price" placeholder="0.00" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Target Movement %</label>
+                            <input type="number" id="move-target-movement" placeholder="0.5" step="any">
+                        </div>
+                        <div class="form-group">
+                            <label>Max Replacements</label>
+                            <input type="number" id="move-max-replacement" placeholder="0" step="1" min="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Additional Notes</label>
+                        <textarea id="move-notes" placeholder="Optional context about this move" style="resize: vertical; min-height: 60px;"></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary">Execute Move</button>
+                </form>
+            </div>
+
+            <div class="section">
+                <h2>📌 Pre-Mark for Automatic Move</h2>
+                <p style="font-size: 12px; color: #999; margin-bottom: 15px;">
+                    Pre-mark a parent order so it automatically moves to a new parent when cancelled. Configuration is saved and executed automatically.
+                </p>
+                <form id="premark-move-form" class="form-section">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Parent Order to Mark *</label>
+                            <select id="premark-parent" required>
+                                <option value="">Select Parent Order...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>New Product ID *</label>
+                            <select id="premark-product" required>
+                                <option value="">Select Product...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>New Side *</label>
+                            <select id="premark-side" required>
+                                <option value="">Select...</option>
+                                <option value="BUY">BUY</option>
+                                <option value="SELL">SELL</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>New Size *</label>
+                            <input type="number" id="premark-size" placeholder="0.00000001" step="0.00000001" required>
+                        </div>
+                        <div class="form-group">
+                            <label>New Price *</label>
+                            <input type="number" id="premark-price" placeholder="0.00" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Target Movement %</label>
+                            <input type="number" id="premark-target-movement" placeholder="0.5" step="any">
+                        </div>
+                        <div class="form-group">
+                            <label>Max Replacements</label>
+                            <input type="number" id="premark-max-replacement" placeholder="0" step="1" min="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea id="premark-notes" placeholder="Optional context about this pre-mark" style="resize: vertical; min-height: 60px;"></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary">Pre-Mark for Auto Move</button>
+                </form>
+            </div>
+        </div>
         <div id="stealth-orders" class="tab-content">
             <div class="section">
                 <h2>📋 Stealth Orders</h2>
@@ -579,6 +730,7 @@
         const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
         let ws = null;
         let parentOrders = {};
+        let moveHistory = {};
         let currentEditingOrderId = null;
         let allProducts = [];
 
@@ -591,21 +743,69 @@
             }
         }
 
-        // Update product dropdown with loaded products
-        function updateProductDropdown() {
-            const select = document.getElementById('parent-product');
-            const currentValue = select.value;
-            
-            // Rebuild options
-            let options = '<option value="">Select Product...</option>';
-            allProducts.forEach(product => {
-                options += `<option value="${product}">${product}</option>`;
-            });
-            
-            select.innerHTML = options;
-            if (currentValue && allProducts.includes(currentValue)) {
-                select.value = currentValue;
+        // Request move history from server
+        function requestMoveHistory() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "request_move_history"
+                }));
             }
+        }
+
+        // Update product dropdowns with loaded products
+        function updateProductDropdowns() {
+            const selects = [
+                'parent-product',
+                'move-product', 
+                'premark-product'
+            ];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                const currentValue = select.value;
+                
+                // Rebuild options
+                let options = '<option value="">Select Product...</option>';
+                allProducts.forEach(product => {
+                    options += `<option value="${product}">${product}</option>`;
+                });
+                
+                select.innerHTML = options;
+                if (currentValue && allProducts.includes(currentValue)) {
+                    select.value = currentValue;
+                }
+            });
+        }
+
+        // Update cancelled orders dropdowns
+        function updateCancelledOrdersDropdowns() {
+            const cancelledOrders = Object.values(parentOrders).filter(o => o.status === 'CANCELLED');
+            
+            const selects = [
+                'move-original-parent',
+                'premark-parent'
+            ];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                const currentValue = select.value;
+                
+                // Rebuild options
+                let options = '<option value="">Select Order...</option>';
+                cancelledOrders.forEach(order => {
+                    options += `<option value="${order.client_order_id}">
+                        ${order.product_id} ${order.side} @ ${order.price} 
+                        (${order.client_order_id.substring(0, 8)}...)
+                    </option>`;
+                });
+                
+                select.innerHTML = options;
+                if (currentValue && cancelledOrders.some(o => o.client_order_id === currentValue)) {
+                    select.value = currentValue;
+                }
+            });
         }
 
         // Tab switching
@@ -615,6 +815,11 @@
             
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
+            
+            // Load move history when switching to move orders tab
+            if (tabName === 'move-orders') {
+                requestMoveHistory();
+            }
         }
 
         // WebSocket Connection
@@ -626,6 +831,7 @@
                     console.log("Connected to dashboard server");
                     requestProducts();
                     requestParentOrders();
+                    requestMoveHistory();
                 };
 
                 ws.onmessage = (event) => {
@@ -633,28 +839,47 @@
                     
                     if (data.type === "products_list") {
                         allProducts = [...(data.derivatives || []), ...(data.spot || [])].sort();
-                        updateProductDropdown();
+                        updateProductDropdowns();
                         console.log(`Loaded ${allProducts.length} products from server`);
                     } else if (data.type === "parent_orders_list") {
                         parentOrders = data.orders || {};
                         updateParentOrdersTable();
+                        updateCancelledOrdersDropdowns();
                     } else if (data.type === "parent_order_created") {
                         showMessage('Parent order created successfully', 'success', 'parent-message');
                         parentOrders[data.order.client_order_id] = data.order;
                         updateParentOrdersTable();
+                        updateCancelledOrdersDropdowns();
                         document.getElementById('parent-order-form').reset();
                     } else if (data.type === "parent_order_updated") {
                         showMessage('Parent order updated successfully', 'success', 'parent-message');
                         parentOrders[data.order.client_order_id] = data.order;
                         updateParentOrdersTable();
+                        updateCancelledOrdersDropdowns();
                         closeModal();
                     } else if (data.type === "parent_order_deleted") {
                         showMessage('Parent order deleted successfully', 'success', 'parent-message');
                         delete parentOrders[data.client_order_id];
                         updateParentOrdersTable();
+                        updateCancelledOrdersDropdowns();
                         closeModal();
+                    } else if (data.type === "move_history_list") {
+                        moveHistory = data.moves || {};
+                        updateMoveHistoryTable();
+                    } else if (data.type === "order_moved") {
+                        showMessage('Order moved successfully! New parent: ' + data.new_parent_client_order_id.substring(0, 8), 'success', 'move-message');
+                        parentOrders[data.new_parent_client_order_id] = data.new_parent_order;
+                        updateParentOrdersTable();
+                        updateCancelledOrdersDropdowns();
+                        requestMoveHistory();
+                        document.getElementById('move-order-form').reset();
+                    } else if (data.type === "order_premarked") {
+                        showMessage('Order pre-marked for automatic move on cancellation', 'success', 'move-message');
+                        requestMoveHistory();
+                        document.getElementById('premark-move-form').reset();
                     } else if (data.type === "error") {
-                        showMessage(data.message || 'An error occurred', 'error', 'parent-message');
+                        const msgElement = event.target === ws ? 'parent-message' : 'move-message';
+                        showMessage(data.message || 'An error occurred', 'error', msgElement);
                     }
                 };
 
@@ -714,6 +939,38 @@
                     <td>${order.current_order_replacement}/${order.max_order_replacement}</td>
                     <td>
                         <button class="btn-edit" onclick="editOrder('${order.client_order_id}')">Edit</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Update move history table
+        function updateMoveHistoryTable() {
+            const tbody = document.querySelector('#move-history-table tbody');
+            let moves = Object.values(moveHistory);
+
+            if (moves.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 30px; color: #666;">
+                            No move history found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = moves.map(move => `
+                <tr>
+                    <td><code style="color: #999; font-size: 11px;">${move.original_parent_client_order_id.substring(0, 8)}...</code></td>
+                    <td>${move.new_parent_client_order_id ? `<code style="color: #51cf66; font-size: 11px;">${move.new_parent_client_order_id.substring(0, 8)}...</code>` : '-'}</td>
+                    <td>${move.reason}</td>
+                    <td style="font-size: 11px; color: #999;">${new Date(move.created_at).toLocaleString()}</td>
+                    <td style="font-size: 11px; color: #999;">${move.moved_at ? new Date(move.moved_at).toLocaleString() : '-'}</td>
+                    <td>
+                        <span class="badge ${move.new_parent_client_order_id ? 'badge-success' : 'badge-pending'}">
+                            ${move.new_parent_client_order_id ? 'EXECUTED' : 'PENDING'}
+                        </span>
                     </td>
                 </tr>
             `).join('');
@@ -822,6 +1079,61 @@
                 }));
             } else {
                 showMessage('Not connected to server', 'error', 'parent-message');
+            }
+        });
+
+        // Handle move order form submission
+        document.getElementById('move-order-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const moveData = {
+                original_parent_client_order_id: document.getElementById('move-original-parent').value,
+                new_order_details: {
+                    product_id: document.getElementById('move-product').value,
+                    side: document.getElementById('move-side').value,
+                    size: parseFloat(document.getElementById('move-size').value),
+                    price: parseFloat(document.getElementById('move-price').value),
+                    target_movement: document.getElementById('move-target-movement').value ? parseFloat(document.getElementById('move-target-movement').value) : null,
+                    max_order_replacement: parseInt(document.getElementById('move-max-replacement').value) || 0,
+                },
+                reason: document.getElementById('move-reason').value || 'user_move',
+                notes: document.getElementById('move-notes').value || null
+            };
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "move_order",
+                    move: moveData
+                }));
+            } else {
+                showMessage('Not connected to server', 'error', 'move-message');
+            }
+        });
+
+        // Handle pre-mark for move form submission
+        document.getElementById('premark-move-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const premarkData = {
+                parent_client_order_id: document.getElementById('premark-parent').value,
+                new_order_details: {
+                    product_id: document.getElementById('premark-product').value,
+                    side: document.getElementById('premark-side').value,
+                    size: parseFloat(document.getElementById('premark-size').value),
+                    price: parseFloat(document.getElementById('premark-price').value),
+                    target_movement: document.getElementById('premark-target-movement').value ? parseFloat(document.getElementById('premark-target-movement').value) : null,
+                    max_order_replacement: parseInt(document.getElementById('premark-max-replacement').value) || 0,
+                },
+                notes: document.getElementById('premark-notes').value || null
+            };
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "premark_move",
+                    move: premarkData
+                }));
+            } else {
+                showMessage('Not connected to server', 'error', 'move-message');
             }
         });
 
