@@ -659,8 +659,8 @@
                         <div class="form-group">
                             <label>Follow-up Reveal Direction</label>
                             <select id="follow_up_reveal_direction">
-                                <option value="same" selected>Same as Original</option>
-                                <option value="opposite">Opposite Direction</option>
+                                <option value="same">Same as Original</option>
+                                <option value="opposite" selected>Opposite Direction</option>
                                 <option value="above">Explicitly Above</option>
                                 <option value="below">Explicitly Below</option>
                             </select>
@@ -1605,7 +1605,7 @@
                 total_size: order.total_size,
                 limit_price: order.limit_price,
                 reveal_condition: order.reveal_condition_json,
-                follow_up_reveal_direction: order.follow_up_reveal_direction || 'same',
+                follow_up_reveal_direction: order.follow_up_reveal_direction || 'opposite',
                 sizing_strategy: {strategy: "equal_slices"},
                 notes: `Follow-up hidden order from ${orderID}`
             };

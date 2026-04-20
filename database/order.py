@@ -886,3 +886,497 @@ def adopt_child_to_parent(
     except Exception as e:
         print(f"Error adopting child order: {e}")
         return False
+
+
+def find_compatible_parents(
+    child_order: Dict[str, Any],
+    parent_orders: List[Dict[str, Any]],
+    price_tolerance_pct: float = 0.5
+) -> List[Dict[str, Any]]:
+    """
+    Find parent orders compatible for adopting a child order.
+    
+    Compatibility criteria:
+    - Same product_id
+    - Same side
+    - Price difference < price_tolerance_pct% of parent price
+    
+    Args:
+        child_order: Child order dict with product_id, side, price keys.
+        parent_orders: List of parent order dicts to search.
+        price_tolerance_pct: Maximum price difference as % of parent price (default 0.5%).
+    
+    Returns:
+        List of compatible parent orders, sorted by price difference (closest first).
+    """
+    compatible = []
+    child_product = child_order.get("product_id")
+    child_side = child_order.get("side")
+    child_price = float(child_order.get("price", 0))
+    
+    for parent in parent_orders:
+        parent_product = parent.get("product_id")
+        parent_side = parent.get("side")
+        parent_price = float(parent.get("price", 0))
+        
+        # Check product and side match
+        if parent_product != child_product or parent_side != child_side:
+            continue
+        
+        # Skip if parent price is invalid
+        if parent_price <= 0:
+            continue
+        
+        # Check price difference
+        price_diff_pct = abs(child_price - parent_price) / parent_price * 100
+        if price_diff_pct < price_tolerance_pct:
+            compatible.append({
+                "parent": parent,
+                "price_diff_pct": price_diff_pct
+            })
+    
+    # Sort by price difference (closest first)
+    compatible.sort(key=lambda x: x["price_diff_pct"])
+    return compatible
+
+
+def adopt_orphaned_orders(
+    price_tolerance_pct: float = 0.5,
+    dry_run: bool = False
+) -> Dict[str, Any]:
+    """
+    Find and adopt orphaned child orders to compatible parents.
+    
+    Searches for child orders without a matching parent and attempts to find
+    compatible parents based on product_id, side, and price similarity.
+    
+    Args:
+        price_tolerance_pct: Maximum price difference as % of parent price (default 0.5%).
+        dry_run: If True, only report what would be adopted without making changes.
+    
+    Returns:
+        Dict with adoption results:
+        {
+            "total_children": int,
+            "orphaned_found": int,
+            "adoptions_completed": int,
+            "adoptions_skipped": int,
+            "details": List[Dict with adoption details]
+        }
+    
+    Examples:
+        >>> # Find and adopt orphaned orders
+        >>> result = adopt_orphaned_orders(price_tolerance_pct=0.5)
+        >>> print(f"Adopted {result['adoptions_completed']} orders")
+        
+        >>> # Dry run to see what would be adopted
+        >>> result = adopt_orphaned_orders(dry_run=True)
+        >>> for detail in result['details']:
+        ...     print(f"Would adopt {detail['child_id']} to {detail['parent_id']}")
+    """
+    try:
+        # Get all parents and children
+        all_parents = get_parent_orders()
+        all_children = []
+        orphaned_children = []
+        
+        # Collect all children and find orphaned ones
+        if all_parents:
+            all_parent_ids = {p["client_order_id"] for p in all_parents}
+            
+            for parent in all_parents:
+                children = get_child_orders(parent["client_order_id"])
+                all_children.extend(children)
+        else:
+            all_parent_ids = set()
+        
+        # Find orphaned children (parent doesn't exist)
+        for child in all_children:
+            if child.get("parent_client_order_id") not in all_parent_ids:
+                orphaned_children.append(child)
+        
+        result = {
+            "total_children": len(all_children),
+            "orphaned_found": len(orphaned_children),
+            "adoptions_completed": 0,
+            "adoptions_skipped": 0,
+            "details": []
+        }
+        
+        if not orphaned_children:
+            print(f"✅ No orphaned children found")
+            return result
+        
+        print(f"\n📍 Found {len(orphaned_children)} orphaned child orders")
+        print(f"   Searching for compatible parents (tolerance: {price_tolerance_pct}%)...")
+        
+        # Try to adopt each orphaned child
+        for orphan in orphaned_children:
+            # Find compatible parents
+            compatible = find_compatible_parents(
+                orphan,
+                all_parents,
+                price_tolerance_pct=price_tolerance_pct
+            )
+            
+            if not compatible:
+                result["adoptions_skipped"] += 1
+                result["details"].append({
+                    "child_id": orphan.get("client_order_id"),
+                    "status": "SKIPPED_NO_COMPATIBLE_PARENT",
+                    "product_id": orphan.get("product_id"),
+                    "side": orphan.get("side"),
+                    "price": orphan.get("price"),
+                    "reason": f"No compatible parents found (tolerance: {price_tolerance_pct}%)"
+                })
+                continue
+            
+            # Adopt to the closest parent
+            best_parent = compatible[0]["parent"]
+            parent_id = best_parent.get("client_order_id")
+            price_diff = compatible[0]["price_diff_pct"]
+            
+            if dry_run:
+                result["adoptions_completed"] += 1
+                result["details"].append({
+                    "child_id": orphan.get("client_order_id"),
+                    "status": "DRY_RUN_WOULD_ADOPT",
+                    "product_id": orphan.get("product_id"),
+                    "side": orphan.get("side"),
+                    "child_price": orphan.get("price"),
+                    "parent_id": parent_id,
+                    "parent_price": best_parent.get("price"),
+                    "price_diff_pct": price_diff
+                })
+            else:
+                success = adopt_child_to_parent(
+                    child_client_order_id=orphan.get("client_order_id"),
+                    new_parent_client_order_id=parent_id,
+                    keep_adoption_history=True
+                )
+                
+                if success:
+                    result["adoptions_completed"] += 1
+                    result["details"].append({
+                        "child_id": orphan.get("client_order_id"),
+                        "status": "ADOPTED",
+                        "product_id": orphan.get("product_id"),
+                        "side": orphan.get("side"),
+                        "child_price": orphan.get("price"),
+                        "parent_id": parent_id,
+                        "parent_price": best_parent.get("price"),
+                        "price_diff_pct": price_diff
+                    })
+                else:
+                    result["adoptions_skipped"] += 1
+                    result["details"].append({
+                        "child_id": orphan.get("client_order_id"),
+                        "status": "ADOPTION_FAILED",
+                        "product_id": orphan.get("product_id"),
+                        "side": orphan.get("side"),
+                        "parent_id": parent_id,
+                        "reason": "Database adoption failed - check logs"
+                    })
+        
+        # Print summary
+        mode = "[DRY RUN] " if dry_run else ""
+        print(f"\n✅ {mode}Adoption Summary:")
+        print(f"   Total children: {result['total_children']}")
+        print(f"   Orphaned found: {result['orphaned_found']}")
+        print(f"   Adoptions completed: {result['adoptions_completed']}")
+        print(f"   Adoptions skipped: {result['adoptions_skipped']}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error during adoption process: {e}")
+        return {
+            "total_children": 0,
+            "orphaned_found": 0,
+            "adoptions_completed": 0,
+            "adoptions_skipped": 0,
+            "details": [],
+            "error": str(e)
+        }
+
+
+def find_compatible_stealth_parents(
+    orphaned_stealth: Dict[str, Any],
+    all_parent_orders: List[Dict[str, Any]],
+    price_tolerance_pct: float = 0.5
+) -> List[Dict[str, Any]]:
+    """
+    Find parent orders compatible for adopting an orphaned stealth order.
+    
+    Compatibility criteria:
+    - Same product_id
+    - Same side
+    - Price difference < price_tolerance_pct% of parent price
+    
+    Args:
+        orphaned_stealth: Orphaned stealth order dict with product_id, side, limit_price keys.
+        all_parent_orders: List of parent order dicts from order_parent table to search.
+        price_tolerance_pct: Maximum price difference as % of parent price (default 0.5%).
+    
+    Returns:
+        List of compatible parent orders, sorted by price difference (closest first).
+    """
+    compatible = []
+    child_product = orphaned_stealth.get("product_id")
+    child_side = orphaned_stealth.get("side")
+    child_price = float(orphaned_stealth.get("limit_price", 0))
+    
+    for parent in all_parent_orders:
+        parent_product = parent.get("product_id")
+        parent_side = parent.get("side")
+        parent_price = float(parent.get("price", 0))
+        
+        # Check product and side match
+        if parent_product != child_product or parent_side != child_side:
+            continue
+        
+        # Skip if parent price is invalid
+        if parent_price <= 0:
+            continue
+        
+        # Check price difference
+        price_diff_pct = abs(child_price - parent_price) / parent_price * 100
+        if price_diff_pct <= price_tolerance_pct:
+            compatible.append({
+                "parent": parent,
+                "price_diff_pct": price_diff_pct
+            })
+    
+    # Sort by price difference (closest first)
+    compatible.sort(key=lambda x: x["price_diff_pct"])
+    return compatible
+
+
+def adopt_stealth_order_to_parent(
+    stealth_order_id: str,
+    new_parent_order_id: str
+) -> bool:
+    """
+    Reassign a stealth order to a new parent order (adoption).
+    
+    Updates the parent reference in the stealth_orders table to a valid order_parent.
+    
+    Args:
+        stealth_order_id: The UUID of the stealth order to adopt.
+        new_parent_order_id: The UUID of the new parent order (client_order_id from order_parent).
+    
+    Returns:
+        True if adoption was successful, False otherwise.
+    """
+    # First, validate that stealth order exists
+    validate_stealth_query = (
+        "SELECT parent_order_id FROM stealth_orders WHERE stealth_order_id = %s"
+    )
+    try:
+        stealth_result = DB_CLIENT.execute_query(validate_stealth_query, (stealth_order_id,))
+        if not stealth_result:
+            print(f"Error: Stealth order not found: {stealth_order_id}")
+            return False
+        
+        old_parent = stealth_result[0].get("parent_order_id")
+    except Exception as e:
+        print(f"Error validating stealth order: {e}")
+        return False
+    
+    # Validate that new parent exists in order_parent table
+    validate_parent_query = (
+        "SELECT client_order_id FROM order_parent WHERE client_order_id = %s"
+    )
+    try:
+        parent_result = DB_CLIENT.execute_query(validate_parent_query, (new_parent_order_id,))
+        if not parent_result:
+            print(f"Error: Parent order not found in order_parent: {new_parent_order_id}")
+            return False
+    except Exception as e:
+        print(f"Error validating parent order: {e}")
+        return False
+    
+    # Perform the adoption
+    update_query = """
+    UPDATE stealth_orders
+    SET parent_order_id = %s,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE stealth_order_id = %s
+    """
+    params = (new_parent_order_id, stealth_order_id)
+    
+    try:
+        result = DB_CLIENT.execute_update(update_query, params)
+        if result > 0:
+            print(
+                f"Stealth order adopted: {stealth_order_id} "
+                f"from {old_parent} -> {new_parent_order_id}"
+            )
+            return True
+        else:
+            print(f"No stealth order found with stealth_order_id: {stealth_order_id}")
+            return False
+    except Exception as e:
+        print(f"Error adopting stealth order: {e}")
+        return False
+
+
+def adopt_orphaned_stealth_orders(
+    price_tolerance_pct: float = 0.5,
+    dry_run: bool = False
+) -> Dict[str, Any]:
+    """
+    Find and adopt orphaned stealth orders to compatible stealth parents.
+    
+    Searches for stealth orders without a matching parent and attempts to find
+    compatible stealth parents based on product_id, side, and price similarity.
+    
+    Args:
+        price_tolerance_pct: Maximum price difference as % of parent price (default 0.5%).
+        dry_run: If True, only report what would be adopted without making changes.
+    
+    Returns:
+        Dict with adoption results:
+        {
+            "total_stealth_orders": int,
+            "orphaned_found": int,
+            "stealth_parents": int,
+            "adoptions_completed": int,
+            "adoptions_skipped": int,
+            "details": List[Dict with adoption details]
+        }
+    
+    Examples:
+        >>> # Find and adopt orphaned stealth orders
+        >>> result = adopt_orphaned_stealth_orders(price_tolerance_pct=0.5)
+        >>> print(f"Adopted {result['adoptions_completed']} stealth orders")
+        
+        >>> # Dry run to see what would be adopted
+        >>> result = adopt_orphaned_stealth_orders(dry_run=True)
+        >>> for detail in result['details']:
+        ...     print(f"Would adopt {detail['stealth_id']} to {detail['parent_id']}")
+    """
+    try:
+        # Get all orphaned stealth orders (those with parent_order_id NULL)
+        orphaned_query = (
+            "SELECT * FROM stealth_orders WHERE parent_order_id IS NULL ORDER BY created_at DESC"
+        )
+        orphaned_stealth = DB_CLIENT.execute_query(orphaned_query)
+        
+        # Get all parent orders from order_parent table
+        parents_query = (
+            "SELECT client_order_id, product_id, side, price FROM order_parent ORDER BY created_at DESC"
+        )
+        all_parent_orders = DB_CLIENT.execute_query(parents_query)
+        
+        # Count total stealth orders
+        total_stealth_query = "SELECT COUNT(*) as count FROM stealth_orders"
+        total_stealth_result = DB_CLIENT.execute_query(total_stealth_query)
+        total_stealth_count = total_stealth_result[0]["count"] if total_stealth_result else 0
+        
+        result = {
+            "total_stealth_orders": total_stealth_count,
+            "orphaned_found": len(orphaned_stealth),
+            "parent_orders_available": len(all_parent_orders),
+            "adoptions_completed": 0,
+            "adoptions_skipped": 0,
+            "details": []
+        }
+        
+        if not orphaned_stealth:
+            print(f"✅ No orphaned stealth orders found")
+            return result
+        
+        print(f"\n📍 Found {len(orphaned_stealth)} orphaned stealth orders")
+        print(f"   Found {len(all_parent_orders)} parent orders")
+        print(f"   Searching for compatible parents (tolerance: {price_tolerance_pct}%)...")
+        
+        # Try to adopt each orphaned stealth order
+        for orphan in orphaned_stealth:
+            # Find compatible parent orders
+            compatible = find_compatible_stealth_parents(
+                orphan,
+                all_parent_orders,
+                price_tolerance_pct=price_tolerance_pct
+            )
+            
+            if not compatible:
+                result["adoptions_skipped"] += 1
+                result["details"].append({
+                    "stealth_id": orphan.get("stealth_order_id"),
+                    "status": "SKIPPED_NO_COMPATIBLE_PARENT",
+                    "product_id": orphan.get("product_id"),
+                    "side": orphan.get("side"),
+                    "price": orphan.get("limit_price"),
+                    "reason": f"No compatible stealth parents found (tolerance: {price_tolerance_pct}%)"
+                })
+                continue
+            
+            # Adopt to the closest parent
+            best_parent = compatible[0]["parent"]
+            parent_id = best_parent.get("client_order_id")
+            price_diff = compatible[0]["price_diff_pct"]
+            
+            if dry_run:
+                result["adoptions_completed"] += 1
+                result["details"].append({
+                    "stealth_id": orphan.get("stealth_order_id"),
+                    "status": "DRY_RUN_WOULD_ADOPT",
+                    "product_id": orphan.get("product_id"),
+                    "side": orphan.get("side"),
+                    "child_price": orphan.get("limit_price"),
+                    "parent_id": parent_id,
+                    "parent_price": best_parent.get("price"),
+                    "price_diff_pct": price_diff
+                })
+            else:
+                success = adopt_stealth_order_to_parent(
+                    stealth_order_id=orphan.get("stealth_order_id"),
+                    new_parent_order_id=parent_id
+                )
+                
+                if success:
+                    result["adoptions_completed"] += 1
+                    result["details"].append({
+                        "stealth_id": orphan.get("stealth_order_id"),
+                        "status": "ADOPTED",
+                        "product_id": orphan.get("product_id"),
+                        "side": orphan.get("side"),
+                        "child_price": orphan.get("limit_price"),
+                        "parent_id": parent_id,
+                        "parent_price": best_parent.get("price"),
+                        "price_diff_pct": price_diff
+                    })
+                else:
+                    result["adoptions_skipped"] += 1
+                    result["details"].append({
+                        "stealth_id": orphan.get("stealth_order_id"),
+                        "status": "ADOPTION_FAILED",
+                        "product_id": orphan.get("product_id"),
+                        "side": orphan.get("side"),
+                        "parent_id": parent_id,
+                        "reason": "Database adoption failed - check logs"
+                    })
+        
+        # Print summary
+        mode = "[DRY RUN] " if dry_run else ""
+        print(f"\n✅ {mode}Stealth Adoption Summary:")
+        print(f"   Total stealth orders: {result['total_stealth_orders']}")
+        print(f"   Orphaned found: {result['orphaned_found']}")
+        print(f"   Parent orders available: {result['parent_orders_available']}")
+        print(f"   Adoptions completed: {result['adoptions_completed']}")
+        print(f"   Adoptions skipped: {result['adoptions_skipped']}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error during stealth adoption process: {e}")
+        return {
+            "total_stealth_orders": 0,
+            "orphaned_found": 0,
+            "parent_orders_available": 0,
+            "adoptions_completed": 0,
+            "adoptions_skipped": 0,
+            "details": [],
+            "error": str(e)
+        }

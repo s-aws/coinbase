@@ -296,7 +296,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     limit_price=order['limit_price'],
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
-                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'same'),
+                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'opposite'),
                     notes=order.get('notes', '')
                 )
                 

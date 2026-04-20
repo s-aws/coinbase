@@ -107,7 +107,7 @@ class StealthOrderManager:
             "visibility_score": 0.0,
             "reveal_condition_type": reveal_condition.get("type", "time_delay"),
             "reveal_condition_json": reveal_condition,
-            "follow_up_reveal_direction": follow_up_reveal_direction or "same",
+            "follow_up_reveal_direction": follow_up_reveal_direction or "opposite",
             "sizing_strategy_json": sizing_strategy or {"type": "fixed"},
             "parent_order_id": parent_order_id,
             "reason": reason,
@@ -508,7 +508,7 @@ class StealthOrderManager:
         if follow_up_id:
             follow_up_order = self._get_stealth_order(follow_up_id)
             if follow_up_order:
-                follow_up_order["follow_up_reveal_direction"] = follow_up_reveal_direction or "same"
+                follow_up_order["follow_up_reveal_direction"] = follow_up_reveal_direction or "opposite"
         
         return follow_up_id
     

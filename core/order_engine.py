@@ -1321,7 +1321,7 @@ class OrderEngine:
                     
                     # Build the reveal condition for the follow-up using configurable direction
                     follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
-                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", "same")
+                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", "opposite")
                     
                     if follow_up_reveal_condition.get("type") == "price":
                         follow_up_reveal_condition["price_threshold"] = follow_up_price
