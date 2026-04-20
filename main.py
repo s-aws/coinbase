@@ -42,7 +42,7 @@ from configuration import (
     ORDER_POST_ONLY,
 )
 
-import database.order as DB_CLIENT
+import database.order as DB_HELPER
 from core.order_engine import OrderEngine
 from bridges.engine_orchestrator import OrderEngineOrchestrator
 from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
@@ -54,14 +54,14 @@ if __name__ == "__main__":
         from bridges.stealth_order_bridge import StealthOrderBridge
         from core.stealth_order_manager import StealthOrderManager
         
-        stealth_manager = StealthOrderManager(DB_CLIENT.DB_CLIENT)
+        stealth_manager = StealthOrderManager(DB_HELPER.DB_CLIENT)
         stealth_bridge = StealthOrderBridge(stealth_manager, None)  # engine will be set later
     except Exception as e:
         print(f"Warning: Failed to initialize stealth order bridge: {e}")
     
     engine = OrderEngine(
         orderbook=ORDERBOOK,
-        db_client=DB_CLIENT,
+        db_helper=DB_HELPER,
         subscription=Subscription,
         api_key=API_KEY,
         api_secret=API_SECRET,

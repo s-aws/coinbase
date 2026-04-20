@@ -21,7 +21,6 @@ from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from configuration import (
     Subscription,
-    ORDERBOOK,
     DEFAULT_MAX_ORDER_REPLACEMENT,
     calculate_new_order_move_from_snapshot,
     apply_calculated_position_update,
@@ -29,7 +28,6 @@ from configuration import (
 )
 
 from order import create_limit_order_span
-import database.order as DB_CLIENT
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
@@ -57,7 +55,7 @@ class OrderEngine:
     
     Attributes:
         orderbook: OrderBook instance (source-of-truth for orders/positions).
-        db_client: Database client for persisting parent/child orders.
+        db_helper: Database client for persisting parent/child orders.
         subscription: Subscription config (products, channels).
         api_key: Coinbase API key for websocket authentication.
         api_secret: Coinbase API secret for websocket authentication.
@@ -82,7 +80,7 @@ class OrderEngine:
         >>> from core.order_engine import OrderEngine
         >>> engine = OrderEngine(
         ...     orderbook=ORDERBOOK,
-        ...     db_client=DB_CLIENT,
+        ...     db_helper=DB_HELPER,
         ...     subscription=Subscription,
         ...     api_key=API_KEY,
         ...     api_secret=API_SECRET,
@@ -97,7 +95,7 @@ class OrderEngine:
     def __init__(
         self,
         orderbook,
-        db_client,
+        db_helper,
         subscription,
         api_key,
         api_secret,
@@ -113,7 +111,7 @@ class OrderEngine:
         
         Args:
             orderbook: OrderBook instance for state tracking.
-            db_client: Database client module.
+            db_helper: Database client module.
             subscription: Subscription config object.
             api_key: Coinbase API key.
             api_secret: Coinbase API secret.
@@ -126,7 +124,7 @@ class OrderEngine:
             stealth_order_bridge: Optional StealthOrderBridge for market data updates.
         """
         self.orderbook = orderbook
-        self.db_client = db_client
+        self.db_helper = db_helper
         self.subscription = subscription
         self.api_key = api_key
         self.api_secret = api_secret
@@ -200,7 +198,7 @@ class OrderEngine:
             },
         }
 
-        self.orderbook.db_client = self.db_client
+        self.orderbook.db_helper = self.db_helper
 
     def log_message(self, log_type: str, message) -> None:
         """Log a message if the log type is enabled.
@@ -529,7 +527,7 @@ class OrderEngine:
                 ),
             )
 
-            parent_id = self.db_client.insert_order_parent(
+            parent_id = self.db_helper.insert_order_parent(
                 client_order_id=client_order_id,
                 product_id=order["product_id"],
                 side=order["order_side"],
@@ -851,12 +849,12 @@ class OrderEngine:
 
         try:
             if client_order_id in self.orderbook.child_order_ids:
-                self.db_client.update_order_child_status(
+                self.db_helper.update_order_child_status(
                     client_order_id=client_order_id,
                     status=status,
                 )
             elif client_order_id in self.orderbook.parent_order_ids:
-                self.db_client.update_order_parent_status(
+                self.db_helper.update_order_parent_status(
                     client_order_id=client_order_id,
                     status=status,
                 )
@@ -1036,9 +1034,9 @@ class OrderEngine:
             )
             return False
 
-        if hasattr(DB_CLIENT, "child_order_exists"):
+        if hasattr(self.db_helper, "child_order_exists"):
             try:
-                return bool(DB_CLIENT.child_order_exists(
+                return bool(self.db_helper.child_order_exists(
                     parent_client_order_id=parent_client_order_id,
                     product_id=order_template["product_id"],
                     side=order_template["side"],
@@ -1047,7 +1045,7 @@ class OrderEngine:
                 ))
             except TypeError:
                 try:
-                    return bool(DB_CLIENT.child_order_exists(parent_client_order_id, order_template))
+                    return bool(self.db_helper.child_order_exists(parent_client_order_id, order_template))
                 except Exception as e:
                     self.log_message(
                         "warning",
@@ -1530,7 +1528,7 @@ class OrderEngine:
                 },
             ),
         )
-        DB_CLIENT.insert_order_child(
+        self.db_helper.insert_order_child(
             parent_client_order_id=parent_client_order_id,
             client_order_id=new_order_client_order_id,
             product_id=new_order_product_id,
@@ -1540,7 +1538,7 @@ class OrderEngine:
         )
 
         if processed_flag_name == "filled":
-            DB_CLIENT.increment_order_parent_replacement_count(parent_client_order_id)
+            self.db_helper.increment_order_parent_replacement_count(parent_client_order_id)
 
     def build_parent_child_order_ids_snapshot(self) -> tuple:
         """Query database and build parent/child order mapping snapshot.
@@ -1551,7 +1549,7 @@ class OrderEngine:
         parent_order_ids = {}
         child_order_ids = {}
 
-        parent_orders = DB_CLIENT.get_parent_orders()
+        parent_orders = self.db_helper.get_parent_orders()
 
         for parent in parent_orders:
             parent_client_order_id = parent["client_order_id"]
@@ -1567,7 +1565,7 @@ class OrderEngine:
                 "current_order_replacement": int(parent["current_order_replacement"]),
             }
 
-            child_orders = DB_CLIENT.get_child_orders(parent_client_order_id)
+            child_orders = self.db_helper.get_child_orders(parent_client_order_id)
             for child in child_orders:
                 child_client_order_id = child["client_order_id"]
                 parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
