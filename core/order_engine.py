@@ -1128,6 +1128,9 @@ class OrderEngine:
     def handle_cancelled_order(self, order: dict) -> None:
         """Handle a cancelled order by potentially creating a follow-up.
         
+        If the order is pre-marked for automatic move (move_on_cancel=True),
+        executes the pending move instead of creating a child order.
+        
         Args:
             order: Cancelled order dict.
         
@@ -1140,6 +1143,48 @@ class OrderEngine:
             if self.orderbook.should_replace["CANCELLED"] is not True:
                 return
             _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+
+        # Check for pending move (automation) - executes instead of normal follow-up
+        from database.order import has_pending_move
+        if has_pending_move(parent_client_order_id):
+            try:
+                from business.move_manager import MoveManager
+                move_manager = MoveManager(self.orderbook)
+                move_result = move_manager.execute_pending_move_for_order(parent_client_order_id)
+                
+                if move_result["success"]:
+                    self.log_message(
+                        "order",
+                        {
+                            "event": "pending_move_auto_executed",
+                            "original_parent_client_order_id": parent_client_order_id,
+                            "new_parent_client_order_id": move_result["new_parent_client_order_id"],
+                            "trigger": "cancelled_order"
+                        }
+                    )
+                    # Successfully handled via pending move, don't do normal follow-up
+                    return
+                else:
+                    self.log_message(
+                        "warning",
+                        {
+                            "event": "pending_move_execution_failed",
+                            "original_parent_client_order_id": parent_client_order_id,
+                            "error": move_result.get("error"),
+                            "message": move_result.get("message")
+                        }
+                    )
+                    # Fall through to normal handling if pending move fails
+            except Exception as e:
+                self.log_message(
+                    "error",
+                    {
+                        "event": "pending_move_execution_exception",
+                        "original_parent_client_order_id": parent_client_order_id,
+                        "error": str(e)
+                    }
+                )
+                # Fall through to normal handling
 
         if not self.claim_follow_up_processing("cancelled", client_order_id):
             self.log_message(
@@ -1205,6 +1250,105 @@ class OrderEngine:
         except Exception:
             self.release_follow_up_processing("cancelled", client_order_id)
             raise
+
+    def move_cancelled_order(
+        self,
+        original_parent_client_order_id: str,
+        new_order_details: dict,
+        reason: str = "cancelled_move",
+        notes: str = None
+    ) -> dict:
+        """Move a cancelled parent order to a new parent order.
+        
+        Instead of creating a child order, this replaces the parent/child relationship
+        by creating a completely new parent order. The original parent remains in the
+        database for audit purposes, and the move is recorded in order_moves table.
+        
+        Args:
+            original_parent_client_order_id: The client_order_id of the parent to move.
+            new_order_details: Dict with new parent configuration (product_id, side, size,
+                             price, target_movement, target_movement_type, max_order_replacement).
+            reason: Reason for the move (default 'cancelled_move').
+            notes: Optional additional context.
+        
+        Returns:
+            Dict with move result:
+            {
+                "success": bool,
+                "message": str,
+                "new_parent_client_order_id": str or None,
+                "error": str or None
+            }
+            
+        Example:
+            >>> result = engine.move_cancelled_order(
+            ...     original_parent_client_order_id="old_parent_uuid",
+            ...     new_order_details={
+            ...         "product_id": "BTC-USDC",
+            ...         "side": "BUY",
+            ...         "size": 1.0,
+            ...         "price": 42500.0,
+            ...         "target_movement": 0.005
+            ...     },
+            ...     reason="user_cancelled_and_moved"
+            ... )
+        """
+        from business.move_manager import MoveManager
+        
+        try:
+            move_manager = MoveManager(self.orderbook)
+            result = move_manager.move_order(
+                original_parent_client_order_id=original_parent_client_order_id,
+                new_order_details=new_order_details,
+                reason=reason,
+                notes=notes
+            )
+            
+            if result["success"]:
+                self.log_message(
+                    "order",
+                    {
+                        "event": "order_moved",
+                        "original_parent_client_order_id": original_parent_client_order_id,
+                        "new_parent_client_order_id": result["new_parent_client_order_id"],
+                        "move_id": result["move_id"],
+                        "reason": reason,
+                        "product_id": new_order_details.get("product_id"),
+                        "side": new_order_details.get("side"),
+                        "price": new_order_details.get("price"),
+                        "notes": notes
+                    }
+                )
+            else:
+                self.log_message(
+                    "warning",
+                    {
+                        "event": "order_move_failed",
+                        "original_parent_client_order_id": original_parent_client_order_id,
+                        "reason": reason,
+                        "error": result.get("error"),
+                        "message": result.get("message")
+                    }
+                )
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Exception during order move: {str(e)}"
+            self.log_message(
+                "error",
+                {
+                    "event": "order_move_exception",
+                    "original_parent_client_order_id": original_parent_client_order_id,
+                    "error": error_msg
+                }
+            )
+            return {
+                "success": False,
+                "message": error_msg,
+                "new_parent_client_order_id": None,
+                "error": error_msg
+            }
 
     def handle_filled_order(self, order: dict) -> None:
         """Handle a filled order by creating a follow-up if allowed.

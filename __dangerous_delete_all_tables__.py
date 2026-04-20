@@ -23,6 +23,7 @@ from database.order import (
     create_stealth_orders_table,
     create_stealth_order_snapshots_table,
     create_stealth_order_reveal_history_table,
+    create_order_moves_table,
 )
 
 def main() -> None:
@@ -87,6 +88,7 @@ def main() -> None:
         create_stealth_orders_table()
         create_stealth_order_snapshots_table()
         create_stealth_order_reveal_history_table()
+        create_order_moves_table()
 
         print("All tables created successfully!")
     finally:

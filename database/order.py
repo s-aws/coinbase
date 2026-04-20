@@ -9,6 +9,7 @@ It manages the parent-child order relationship for the trading engine.
 
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
+from core.constants import get_local_now
 
 DB_CLIENT: PostgresDB = PostgresDB()
 
@@ -1436,3 +1437,398 @@ def clear_all_stealth_orders() -> Dict[str, Any]:
             "rows_deleted": 0,
             "error": error_msg
         }
+
+
+def create_order_moves_table() -> None:
+    """
+    Create the order_moves table to track when cancelled orders are "moved" to new replacement orders.
+    
+    An order "move" occurs when a cancelled order is replaced with a new order that takes
+    its place as the parent order, rather than becoming a child order. This tracks the
+    relationship between the cancelled order and its replacement.
+    
+    Table columns:
+    - id: Unique identifier for the move record
+    - original_parent_client_order_id: The client_order_id of the cancelled parent order
+    - new_parent_client_order_id: The client_order_id of the new replacement parent order (NULL if pre-marked)
+    - move_on_cancel: If True, execute move automatically when order cancels (for automation)
+    - moved_at: Timestamp when the move occurred (NULL until actual move happens)
+    - reason: Optional reason for the move (e.g., "user_move", "auto_move")
+    - notes: Optional additional details about the move
+    - created_at: Timestamp when the move record was created
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS order_moves (
+        id SERIAL PRIMARY KEY,
+        original_parent_client_order_id VARCHAR(40) NOT NULL,
+        new_parent_client_order_id VARCHAR(40),
+        move_on_cancel BOOLEAN DEFAULT FALSE,
+        moved_at TIMESTAMP,
+        reason VARCHAR(50) DEFAULT 'auto_move',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (original_parent_client_order_id) REFERENCES order_parent(client_order_id) ON DELETE CASCADE,
+        FOREIGN KEY (new_parent_client_order_id) REFERENCES order_parent(client_order_id) ON DELETE CASCADE
+    );
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("order_moves table done.")
+
+
+def insert_order_move(
+    original_parent_client_order_id: str,
+    new_parent_client_order_id: str = None,
+    reason: str = "auto_move",
+    notes: str = None,
+    move_on_cancel: bool = False
+) -> Optional[int]:
+    """
+    Record a move when a cancelled parent order is replaced with a new parent order.
+    
+    Can be used in two ways:
+    1. Record completed move: new_parent_client_order_id is set, moved_at is set
+    2. Pre-mark for automation: new_parent_client_order_id is None, move_on_cancel=True
+       (will be set when order cancels)
+    
+    Args:
+        original_parent_client_order_id: The client_order_id of the cancelled parent order.
+        new_parent_client_order_id: The client_order_id of the new replacement parent order.
+                                  If None, this is a pre-marked move.
+        reason: Reason for the move (default 'auto_move'). Other values: 'user_move', etc.
+        notes: Optional additional details about the move.
+        move_on_cancel: If True, execute move automatically when order cancels (for automation).
+    
+    Returns:
+        The inserted move record's database ID if successful, None if failed.
+    
+    Raises:
+        Exception: If database insertion fails.
+        
+    Example - Completed move:
+        >>> move_id = insert_order_move(
+        ...     original_parent_client_order_id="old_parent_uuid",
+        ...     new_parent_client_order_id="new_parent_uuid",
+        ...     reason="cancelled_order_moved",
+        ...     notes="Cancelled due to user request"
+        ... )
+    
+    Example - Pre-marked move (for automation):
+        >>> move_id = insert_order_move(
+        ...     original_parent_client_order_id="parent_uuid",
+        ...     reason="auto_move_scheduled",
+        ...     notes="Will move to strategy B if cancelled",
+        ...     move_on_cancel=True
+        ... )
+    """
+    query = """
+    INSERT INTO order_moves (
+        original_parent_client_order_id,
+        new_parent_client_order_id,
+        reason,
+        notes,
+        move_on_cancel,
+        moved_at
+    )
+    VALUES (%s, %s, %s, %s, %s, %s)
+    RETURNING id
+    """
+    params = (
+        original_parent_client_order_id,
+        new_parent_client_order_id,
+        reason,
+        notes,
+        move_on_cancel,
+        get_local_now() if new_parent_client_order_id else None  # Only set if completed move
+    )
+
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            inserted_id = results[0]["id"]
+            if new_parent_client_order_id:
+                print(
+                    f"Order move recorded: {original_parent_client_order_id} "
+                    f"-> {new_parent_client_order_id} (ID: {inserted_id}, reason: {reason})"
+                )
+            else:
+                print(
+                    f"Order move pre-marked: {original_parent_client_order_id} "
+                    f"(ID: {inserted_id}, move_on_cancel={move_on_cancel}, reason: {reason})"
+                )
+            return inserted_id
+
+        print(f"Failed to retrieve inserted move record ID")
+        return None
+    except Exception as e:
+        print(f"Error inserting order move: {e}")
+        return None
+
+
+def get_order_move(original_parent_client_order_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve a move record by the original parent order ID.
+    
+    Args:
+        original_parent_client_order_id: The client_order_id of the original (cancelled) parent order.
+    
+    Returns:
+        Move record dict if found, None if not found.
+        
+    Example:
+        >>> move = get_order_move("old_parent_uuid")
+        >>> if move:
+        ...     print(f"Order was moved to: {move['new_parent_client_order_id']}")
+    """
+    query = """
+    SELECT * FROM order_moves 
+    WHERE original_parent_client_order_id = %s
+    ORDER BY moved_at DESC
+    LIMIT 1
+    """
+    results = DB_CLIENT.execute_query(query, (original_parent_client_order_id,))
+    return results[0] if results else None
+
+
+def get_order_moves_by_original_parent(original_parent_client_order_id: str) -> List[Dict[str, Any]]:
+    """
+    Retrieve all move records for a given original parent order ID.
+    
+    Useful for tracking the full history of moves for a parent order.
+    
+    Args:
+        original_parent_client_order_id: The client_order_id of the original parent order.
+    
+    Returns:
+        List of move record dicts, ordered by moved_at timestamp (newest first).
+        
+    Example:
+        >>> moves = get_order_moves_by_original_parent("old_parent_uuid")
+        >>> for move in moves:
+        ...     print(f"Moved to {move['new_parent_client_order_id']} on {move['moved_at']}")
+    """
+    query = """
+    SELECT * FROM order_moves 
+    WHERE original_parent_client_order_id = %s
+    ORDER BY moved_at DESC
+    """
+    return DB_CLIENT.execute_query(query, (original_parent_client_order_id,))
+
+
+def get_order_moves_by_new_parent(new_parent_client_order_id: str) -> List[Dict[str, Any]]:
+    """
+    Retrieve all move records where a given order ID is the new parent.
+    
+    Useful for finding all orders that resulted from a move.
+    
+    Args:
+        new_parent_client_order_id: The client_order_id of the new parent order.
+    
+    Returns:
+        List of move record dicts, ordered by moved_at timestamp (newest first).
+        
+    Example:
+        >>> moves = get_order_moves_by_new_parent("new_parent_uuid")
+        >>> for move in moves:
+        ...     print(f"Replaced {move['original_parent_client_order_id']} on {move['moved_at']}")
+    """
+    query = """
+    SELECT * FROM order_moves 
+    WHERE new_parent_client_order_id = %s
+    ORDER BY moved_at DESC
+    """
+    return DB_CLIENT.execute_query(query, (new_parent_client_order_id,))
+
+
+def has_order_moved(client_order_id: str) -> bool:
+    """
+    Check if an order has been moved (replaced).
+    
+    Args:
+        client_order_id: The client_order_id to check (could be original or new parent).
+    
+    Returns:
+        True if the order was involved in a move (either as original or new parent), False otherwise.
+        
+    Example:
+        >>> if has_order_moved("parent_uuid"):
+        ...     print("This order has been moved or is a replacement")
+    """
+    query = """
+    SELECT 1 FROM order_moves 
+    WHERE original_parent_client_order_id = %s 
+       OR new_parent_client_order_id = %s
+    LIMIT 1
+    """
+    results = DB_CLIENT.execute_query(query, (client_order_id, client_order_id))
+    return bool(results)
+
+
+def get_pending_move(original_parent_client_order_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get a pre-marked (pending) move for an order that hasn't been executed yet.
+    
+    Pre-marked moves have:
+    - move_on_cancel = True (should execute automatically on cancel)
+    - new_parent_client_order_id = None (not yet set)
+    - moved_at = NULL (not yet executed)
+    
+    Args:
+        original_parent_client_order_id: The client_order_id of the parent to check.
+    
+    Returns:
+        Pending move record dict if found, None if no pending move.
+        
+    Example:
+        >>> pending = get_pending_move("parent_uuid")
+        >>> if pending:
+        ...     print(f"This order is pre-marked for move: {pending['reason']}")
+    """
+    query = """
+    SELECT * FROM order_moves 
+    WHERE original_parent_client_order_id = %s 
+      AND move_on_cancel = TRUE
+      AND new_parent_client_order_id IS NULL
+    LIMIT 1
+    """
+    results = DB_CLIENT.execute_query(query, (original_parent_client_order_id,))
+    return results[0] if results else None
+
+
+def has_pending_move(original_parent_client_order_id: str) -> bool:
+    """
+    Check if an order has a pre-marked move waiting to be executed on cancel.
+    
+    Args:
+        original_parent_client_order_id: The client_order_id of the parent to check.
+    
+    Returns:
+        True if a pending move exists, False otherwise.
+        
+    Example:
+        >>> if has_pending_move("parent_uuid"):
+        ...     print("Order is pre-marked for automatic move on cancel")
+    """
+    return get_pending_move(original_parent_client_order_id) is not None
+
+
+def create_pending_move(
+    original_parent_client_order_id: str,
+    new_order_details: Dict[str, Any],
+    reason: str = "auto_move_scheduled",
+    notes: str = None
+) -> Optional[int]:
+    """
+    Pre-mark an order for automatic move when it cancels.
+    
+    Creates a move record with move_on_cancel=True and no new parent yet.
+    When the order cancels, the new parent will be created and move executed.
+    
+    Args:
+        original_parent_client_order_id: The client_order_id to pre-mark.
+        new_order_details: Dict with new parent configuration (same as move_order):
+            - product_id, side, size, price, target_movement, target_movement_type, max_order_replacement
+        reason: Reason for the pending move (default 'auto_move_scheduled').
+        notes: Optional additional context.
+    
+    Returns:
+        The move record ID if successful, None if failed.
+        
+    Example:
+        >>> move_id = create_pending_move(
+        ...     original_parent_client_order_id="parent_uuid",
+        ...     new_order_details={
+        ...         "product_id": "BTC-USDC",
+        ...         "side": "SELL",
+        ...         "size": 0.5,
+        ...         "price": 43000.0,
+        ...         "target_movement": 0.01,
+        ...         "max_order_replacement": 5
+        ...     },
+        ...     reason="scheduled_reversal",
+        ...     notes="Switch to sell if cancelled after 1 hour"
+        ... )
+        >>> if move_id:
+        ...     print(f"Pending move created: {move_id}")
+    """
+    # Store the new order details as JSON in notes if not provided
+    import json
+    if notes is None:
+        notes = f"Pending move config: {json.dumps(new_order_details)}"
+    else:
+        notes = f"{notes}\n\nPending move config: {json.dumps(new_order_details)}"
+    
+    query = """
+    INSERT INTO order_moves (
+        original_parent_client_order_id,
+        move_on_cancel,
+        reason,
+        notes
+    )
+    VALUES (%s, %s, %s, %s)
+    RETURNING id
+    """
+    params = (original_parent_client_order_id, True, reason, notes)
+    
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            move_id = results[0]["id"]
+            print(
+                f"Pending move created: {original_parent_client_order_id} "
+                f"(ID: {move_id}, reason: {reason})"
+            )
+            return move_id
+        return None
+    except Exception as e:
+        print(f"Error creating pending move: {e}")
+        return None
+
+
+def execute_pending_move(
+    original_parent_client_order_id: str,
+    new_parent_client_order_id: str
+) -> int:
+    """
+    Execute a pending move by setting the new parent and marking as executed.
+    
+    Called when a pre-marked order cancels and the new parent has been created.
+    Sets new_parent_client_order_id, moved_at timestamp, and move_on_cancel to FALSE.
+    
+    Args:
+        original_parent_client_order_id: The original parent being moved.
+        new_parent_client_order_id: The new parent that was created.
+    
+    Returns:
+        Number of rows updated (0 or 1).
+        
+    Example:
+        >>> result = execute_pending_move(
+        ...     original_parent_client_order_id="old_parent_uuid",
+        ...     new_parent_client_order_id="new_parent_uuid"
+        ... )
+        >>> if result > 0:
+        ...     print("Pending move executed")
+    """
+    query = """
+    UPDATE order_moves
+    SET new_parent_client_order_id = %s,
+        moved_at = CURRENT_TIMESTAMP,
+        move_on_cancel = FALSE
+    WHERE original_parent_client_order_id = %s
+      AND move_on_cancel = TRUE
+      AND new_parent_client_order_id IS NULL
+    """
+    params = (new_parent_client_order_id, original_parent_client_order_id)
+    
+    try:
+        result = DB_CLIENT.execute_update(query, params)
+        if result > 0:
+            print(
+                f"Pending move executed: {original_parent_client_order_id} "
+                f"-> {new_parent_client_order_id}"
+            )
+        return result
+    except Exception as e:
+        print(f"Error executing pending move: {e}")
+        return 0
