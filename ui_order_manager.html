@@ -470,7 +470,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>Size *</label>
-                            <input type="number" id="parent-size" placeholder="0.00" step="0.01" required>
+                            <input type="number" id="parent-size" placeholder="0.00000001" step="0.00000001" required>
                         </div>
                         <div class="form-group">
                             <label>Price *</label>
@@ -480,7 +480,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>Target Movement %</label>
-                            <input type="number" id="parent-target-movement" placeholder="0.5" step="0.1">
+                            <input type="number" id="parent-target-movement" placeholder="0.5" step="any">
                         </div>
                         <div class="form-group">
                             <label>Max Replacements</label>
@@ -540,7 +540,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Size</label>
-                        <input type="number" id="edit-size" step="0.01">
+                        <input type="number" id="edit-size" step="0.00000001">
                     </div>
                     <div class="form-group">
                         <label>Price</label>
@@ -550,7 +550,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Target Movement %</label>
-                        <input type="number" id="edit-target-movement" step="0.1">
+                        <input type="number" id="edit-target-movement" step="any">
                     </div>
                     <div class="form-group">
                         <label>Max Replacements</label>
@@ -787,7 +787,7 @@
                 side: document.getElementById('parent-side').value,
                 size: parseFloat(document.getElementById('parent-size').value),
                 price: parseFloat(document.getElementById('parent-price').value),
-                target_movement: parseFloat(document.getElementById('parent-target-movement').value) || null,
+                target_movement: document.getElementById('parent-target-movement').value ? parseFloat(document.getElementById('parent-target-movement').value) : null,
                 max_order_replacement: parseInt(document.getElementById('parent-max-replacement').value) || 0,
                 status: document.getElementById('parent-status').value,
             };
@@ -810,7 +810,7 @@
                 product_id: document.getElementById('edit-product').value,
                 size: parseFloat(document.getElementById('edit-size').value),
                 price: parseFloat(document.getElementById('edit-price').value),
-                target_movement: parseFloat(document.getElementById('edit-target-movement').value) || null,
+                target_movement: document.getElementById('edit-target-movement').value ? parseFloat(document.getElementById('edit-target-movement').value) : null,
                 max_order_replacement: parseInt(document.getElementById('edit-max-replacement').value) || 0,
                 status: document.getElementById('edit-status').value,
             };

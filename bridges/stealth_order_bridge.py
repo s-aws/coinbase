@@ -33,6 +33,9 @@ class StealthOrderBridge:
         """
         self.stealth_manager = stealth_manager
         self.order_engine = order_engine
+        # Pass order_engine's log_message to stealth_manager for consistent logging
+        if hasattr(order_engine, 'log_message'):
+            self.stealth_manager.log_callback = order_engine.log_message
         self.evaluation_thread = None
         self.running = False
         self.lock = threading.Lock()

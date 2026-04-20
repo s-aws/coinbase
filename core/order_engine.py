@@ -619,6 +619,7 @@ class OrderEngine:
         event: str,
         source_order: dict = None,
         parent_client_order_id: str = None,
+        parent_target_movement = None,
         new_order: dict = None,
         attempted_new_order: dict = None,
         details: dict = None,
@@ -629,6 +630,7 @@ class OrderEngine:
             event: Event name.
             source_order: Original order that triggered follow-up.
             parent_client_order_id: Parent order ID.
+            parent_target_movement: Parent order's target movement percentage.
             new_order: Newly placed order data.
             attempted_new_order: Order data if placement failed.
             details: Additional details dict.
@@ -647,6 +649,9 @@ class OrderEngine:
 
         if parent_client_order_id is not None:
             payload["parent_client_order_id"] = parent_client_order_id
+
+        if parent_target_movement is not None:
+            payload["parent_target_movement"] = parent_target_movement
 
         if source_order is not None:
             payload["source"] = self.build_order_log_context(source_order)
@@ -1339,6 +1344,7 @@ class OrderEngine:
                             "event": "stealth_follow_up_created",
                             "stealth_follow_up_id": stealth_follow_up_id,
                             "parent_stealth_id": original_stealth_order["stealth_order_id"],
+                            "parent_target_movement": target_movement,
                             "product_id": product_id,
                             "side": order_template["side"],
                             "reveal_condition": follow_up_reveal_condition
@@ -1433,12 +1439,20 @@ class OrderEngine:
         new_order_size = limit_cfg["base_size"]
         new_order_price = self.order_limit_price_or_avg_price(limit_cfg)
 
+        # Get parent target_movement if available
+        parent_target_movement = None
+        with self.orderbook_lock:
+            parent_entry = self.orderbook.parent_order_ids.get(parent_client_order_id)
+            if parent_entry and parent_entry.get("target_movement"):
+                parent_target_movement = parent_entry["target_movement"]
+        
         self.log_message(
             "order",
             self.build_follow_up_log_payload(
                 "follow_up_order_placed",
                 source_order=source_order,
                 parent_client_order_id=parent_client_order_id,
+                parent_target_movement=parent_target_movement,
                 new_order={
                     "client_order_id": new_order_client_order_id,
                     "product_id": new_order_product_id,
@@ -1494,12 +1508,20 @@ class OrderEngine:
 
         self.apply_position_update(order_template)
 
+        # Get parent target_movement for logging
+        parent_target_movement = None
+        with self.orderbook_lock:
+            parent_entry = self.orderbook.parent_order_ids.get(parent_client_order_id)
+            if parent_entry and parent_entry.get("target_movement"):
+                parent_target_movement = parent_entry["target_movement"]
+        
         self.log_message(
             "database",
             self.build_follow_up_log_payload(
                 "follow_up_child_order_persisting",
                 source_order=source_order,
                 parent_client_order_id=parent_client_order_id,
+                parent_target_movement=parent_target_movement,
                 new_order={
                     "client_order_id": new_order_client_order_id,
                     "product_id": new_order_product_id,
