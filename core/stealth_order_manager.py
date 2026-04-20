@@ -483,6 +483,7 @@ class StealthOrderManager:
         follow_up_condition = reveal_condition if reveal_condition is not None else original_order.get("reveal_condition_json", {})
         
         # Create follow-up with same reveal condition and sizing strategy
+        # Link the follow-up as a child order to the original parent
         follow_up_id = self.create_stealth_order(
             product_id=original_order["product_id"],
             side=side,
@@ -490,6 +491,7 @@ class StealthOrderManager:
             limit_price=limit_price,
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
+            parent_order_id=original_stealth_order_id,
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
         )

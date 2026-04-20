@@ -982,13 +982,29 @@
             const tbody = document.getElementById('orders-tbody');
             let orders = Object.values(ordersData);
             
-            // Sort by Product (ascending), then by created_at (descending/most recent first)
+            // Sort by Product (ascending), then by Parent/Child relationship, then by Date-Time (descending)
             orders.sort((a, b) => {
                 // Primary sort: by product_id
                 if (a.product_id !== b.product_id) {
                     return a.product_id.localeCompare(b.product_id);
                 }
-                // Secondary sort: by created_at date-time descending (most recent first)
+                
+                // Secondary sort: by parent/child relationship
+                // Orders without parent_order_id (parents) come first, then orders with parent_order_id
+                const aHasParent = a.parent_order_id ? 1 : 0;
+                const bHasParent = b.parent_order_id ? 1 : 0;
+                if (aHasParent !== bHasParent) {
+                    return aHasParent - bHasParent;
+                }
+                
+                // If both are children, group by parent_order_id
+                if (aHasParent === 1 && bHasParent === 1) {
+                    if (a.parent_order_id !== b.parent_order_id) {
+                        return a.parent_order_id.localeCompare(b.parent_order_id);
+                    }
+                }
+                
+                // Tertiary sort: by created_at date-time descending (most recent first)
                 const dateA = new Date(a.created_at || 0);
                 const dateB = new Date(b.created_at || 0);
                 return dateB - dateA;
@@ -1021,9 +1037,13 @@
                     ? parseFloat(order.revealed_size).toFixed(8)
                     : parseFloat(order.revealed_size).toFixed(2);
 
+                const parentIndicator = order.parent_order_id 
+                    ? `<span style="color: #7ba3ff; margin-right: 6px;" title="Child order (Parent: ${order.parent_order_id.substring(0, 8)}...)">→</span>`
+                    : `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order">👑</span>`;
+                
                 return `
                     <tr>
-                        <td><strong>${order.product_id}</strong></td>
+                        <td>${parentIndicator}<strong>${order.product_id}</strong></td>
                         <td class="side-${order.side.toLowerCase()}">${order.side}</td>
                         <td>${sizeStr}</td>
                         <td>${parseFloat(order.limit_price).toFixed(2)}</td>
