@@ -13,6 +13,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
+from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
 from typing import Set, Dict, Any
@@ -519,13 +520,13 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 products_file = Path(__file__).parent / "products.json"
                 if products_file.exists():
                     with open(products_file, 'r') as f:
-                        products_data = json_lib.load(f)
+                        products_data = json.load(f)
                         response = {
                             "type": "products_list",
                             "derivatives": products_data.get("derivatives", []),
                             "spot": products_data.get("spot", []),
                         }
-                        await websocket.send(json_lib.dumps(response))
+                        await websocket.send(json.dumps(response))
                 else:
                     logger.warning("products.json not found")
                     response = {
@@ -533,11 +534,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         "derivatives": [],
                         "spot": [],
                     }
-                    await websocket.send(json_lib.dumps(response))
+                    await websocket.send(json.dumps(response))
             except Exception as e:
                 logger.error(f"Failed to send products: {e}")
                 response = {"type": "error", "message": f"Failed to load products: {str(e)}"}
-                await websocket.send(json_lib.dumps(response))
+                await websocket.send(json.dumps(response))
         
         elif msg_type == "ping":
             response = {"type": "pong", "timestamp": datetime.utcnow().isoformat()}

@@ -218,8 +218,8 @@ class StealthOrderManager:
             if order_responses and len(order_responses) > 0:
                 response = order_responses[0]
                 if response.get('success') and response.get('success_response'):
-                    # Get the order ID from the success response
-                    placed_order_id = response['success_response'].get('order_id') or response['success_response'].get('client_order_id')
+                    # Get the client_order_id first (our UUID), fallback to order_id (exchange ID)
+                    placed_order_id = response['success_response'].get('client_order_id') or response['success_response'].get('order_id')
                     if not placed_order_id:
                         placed_order_id = str(uuid.uuid4())
                 else:

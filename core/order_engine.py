@@ -1291,10 +1291,10 @@ class OrderEngine:
             # First, check if this filled order came from a stealth order BEFORE placing a regular order
             original_stealth_order = None
             if self.stealth_order_bridge:
-                # Search by order_id (not client_order_id) to match against revealed_orders
-                order_id = order.get("order_id")
+                # Search by client_order_id (the UUID we sent) to match against revealed_orders
+                # This matches what reveal_order_slice() now returns
                 original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
-                    order_id
+                    client_order_id
                 )
             
             # If this is a stealth order follow-up, create a stealth order instead of a regular order
