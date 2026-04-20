@@ -1318,12 +1318,21 @@ class OrderEngine:
                         "time": datetime.utcnow()
                     }
                     
-                    # Build the reveal condition for the follow-up (flipped direction, new price)
+                    # Build the reveal condition for the follow-up using configurable direction
                     follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
+                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", "same")
+                    
                     if follow_up_reveal_condition.get("type") == "price":
-                        if "direction" in follow_up_reveal_condition:
-                            follow_up_reveal_condition["direction"] = "above" if follow_up_reveal_condition.get("direction") == "below" else "below"
                         follow_up_reveal_condition["price_threshold"] = follow_up_price
+                        
+                        if direction_choice == "opposite":
+                            # Flip direction (below → above, above → below)
+                            if "direction" in follow_up_reveal_condition:
+                                follow_up_reveal_condition["direction"] = "above" if follow_up_reveal_condition.get("direction") == "below" else "below"
+                        elif direction_choice in ["above", "below"]:
+                            # Use explicit direction
+                            follow_up_reveal_condition["direction"] = direction_choice
+                        # else: "same" - keep original direction unchanged
                     
                     # Create the stealth follow-up order (hidden, not revealed yet)
                     stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
@@ -1332,6 +1341,7 @@ class OrderEngine:
                         total_size=order_template["order_base_size"],
                         limit_price=follow_up_price,
                         reveal_condition=follow_up_reveal_condition,
+                        follow_up_reveal_direction=direction_choice,
                         notes=f"Auto follow-up from stealth order reveal"
                     )
                     
@@ -1344,7 +1354,8 @@ class OrderEngine:
                             "parent_target_movement": target_movement,
                             "product_id": product_id,
                             "side": order_template["side"],
-                            "reveal_condition": follow_up_reveal_condition
+                            "reveal_condition": follow_up_reveal_condition,
+                            "follow_up_reveal_direction": direction_choice,
                         }
                     )
                     

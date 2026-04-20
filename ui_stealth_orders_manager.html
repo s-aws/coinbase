@@ -657,6 +657,19 @@
                         <div class="condition-fields" id="condition-fields-container"></div>
 
                         <div class="form-group">
+                            <label>Follow-up Reveal Direction</label>
+                            <select id="follow_up_reveal_direction">
+                                <option value="same" selected>Same as Original</option>
+                                <option value="opposite">Opposite Direction</option>
+                                <option value="above">Explicitly Above</option>
+                                <option value="below">Explicitly Below</option>
+                            </select>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Controls how reveal conditions change when this order fills and creates a follow-up.
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Sizing Strategy</label>
                             <select id="sizing_strategy" onchange="updateSizingFields()">
                                 <option value="fixed">Fixed (All at once)</option>
@@ -1520,6 +1533,7 @@
                 total_size: parseFloat(document.getElementById('total_size').value),
                 limit_price: parseFloat(document.getElementById('limit_price').value),
                 reveal_condition: buildRevealCondition(),
+                follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
                 sizing_strategy: {
                     type: document.getElementById('sizing_strategy').value
                 },
@@ -1591,6 +1605,7 @@
                 total_size: order.total_size,
                 limit_price: order.limit_price,
                 reveal_condition: order.reveal_condition_json,
+                follow_up_reveal_direction: order.follow_up_reveal_direction || 'same',
                 sizing_strategy: {strategy: "equal_slices"},
                 notes: `Follow-up hidden order from ${orderID}`
             };

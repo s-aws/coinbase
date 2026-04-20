@@ -36,6 +36,7 @@ class StealthOrderManager:
         self.log_callback = log_callback or self._default_log
         self.in_memory_orders = {}  # For caching/quick access
         self._market_cache = {}  # Market data cache: product_id -> market_data
+        self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
     
     def _default_log(self, log_type: str, message: str):
         """Fallback logging if no callback provided."""
@@ -53,6 +54,7 @@ class StealthOrderManager:
         reveal_condition: Dict[str, Any],
         sizing_strategy: Optional[Dict[str, Any]] = None,
         parent_order_id: Optional[str] = None,
+        follow_up_reveal_direction: Optional[str] = None,
         reason: str = "avoid_frontrun",
         notes: str = ""
     ) -> str:
@@ -67,6 +69,7 @@ class StealthOrderManager:
             reveal_condition: Dict specifying when to reveal
             sizing_strategy: Dict specifying how much to reveal at a time
             parent_order_id: Link to parent order if part of larger strategy
+            follow_up_reveal_direction: How to handle direction in follow-ups ('same', 'opposite', 'above', 'below')
             reason: Why hidden (e.g., 'avoid_frontrun', 'scale_in')
             notes: Additional notes
             
@@ -84,7 +87,8 @@ class StealthOrderManager:
             ...         "price_threshold": 41000.00,
             ...         "direction": "below",
             ...         "hold_duration_seconds": 2,
-            ...     }
+            ...     },
+            ...     follow_up_reveal_direction="opposite"
             ... )
         """
         stealth_order_id = str(uuid.uuid4())
@@ -103,6 +107,7 @@ class StealthOrderManager:
             "visibility_score": 0.0,
             "reveal_condition_type": reveal_condition.get("type", "time_delay"),
             "reveal_condition_json": reveal_condition,
+            "follow_up_reveal_direction": follow_up_reveal_direction or "same",
             "sizing_strategy_json": sizing_strategy or {"type": "fixed"},
             "parent_order_id": parent_order_id,
             "reason": reason,
@@ -254,6 +259,9 @@ class StealthOrderManager:
         # Persist updates
         self._update_stealth_order(order)
         self._record_reveal_event(order, reveal_event)
+        
+        # Index the placed order for O(1) lookup in find_stealth_order_by_placed_order_id()
+        self._placed_order_index[placed_order_id] = order
         
         return placed_order_id
     
@@ -438,18 +446,15 @@ class StealthOrderManager:
     def find_stealth_order_by_placed_order_id(self, placed_order_id: str) -> Optional[Dict[str, Any]]:
         """Find stealth order that revealed the given placed_order_id.
         
+        Uses indexed lookup for O(1) performance instead of iterating all orders.
+        
         Args:
             placed_order_id: The order ID placed on the exchange
             
         Returns:
             Stealth order dict if found, None otherwise
         """
-        for stealth_id, order in self.in_memory_orders.items():
-            if order.get("revealed_orders"):
-                for reveal_event in order["revealed_orders"]:
-                    if isinstance(reveal_event, dict) and reveal_event.get("placed_order_id") == placed_order_id:
-                        return order
-        return None
+        return self._placed_order_index.get(placed_order_id)
     
     def create_follow_up_stealth_order(
         self,
@@ -458,6 +463,7 @@ class StealthOrderManager:
         total_size: float,
         limit_price: float,
         reveal_condition: Optional[Dict[str, Any]] = None,
+        follow_up_reveal_direction: Optional[str] = None,
         notes: str = ""
     ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
@@ -470,6 +476,8 @@ class StealthOrderManager:
             total_size: Size for follow-up order
             limit_price: Price for follow-up order
             reveal_condition: Optional override for reveal condition. If not provided, uses original's condition.
+            follow_up_reveal_direction: Direction override ('same', 'opposite', 'above', 'below'). 
+                                       If None, inherits from original. If 'opposite', flips the direction.
             notes: Additional notes
             
         Returns:
@@ -495,6 +503,12 @@ class StealthOrderManager:
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
         )
+        
+        # Store the follow-up reveal direction choice for later use
+        if follow_up_id:
+            follow_up_order = self._get_stealth_order(follow_up_id)
+            if follow_up_order:
+                follow_up_order["follow_up_reveal_direction"] = follow_up_reveal_direction or "same"
         
         return follow_up_id
     

@@ -296,6 +296,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     limit_price=order['limit_price'],
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
+                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'same'),
                     notes=order.get('notes', '')
                 )
                 
@@ -864,7 +865,7 @@ def start_dashboard_server(host: str = "localhost", port: int = 8765):
 
 
 def set_stealth_order_bridge(bridge):
-    """Set the stealth order bridge reference for WebSocket handlers.
+    """Set the stealth order bridge reference for WebSocket handlers and order placement.
     
     Call this from main.py after initializing the stealth order bridge:
     
@@ -877,6 +878,14 @@ def set_stealth_order_bridge(bridge):
     global stealth_order_bridge
     stealth_order_bridge = bridge
     logger.info("Stealth order bridge registered with dashboard server")
+    
+    # Also register with order.py so create_limit_order_span can use it
+    try:
+        from order import set_stealth_order_bridge as order_set_stealth_bridge
+        order_set_stealth_bridge(bridge)
+        logger.info("Stealth order bridge registered with order.py")
+    except ImportError:
+        logger.warning("Could not register stealth bridge with order.py")
 
 
 # Demo/testing

@@ -6,6 +6,7 @@ multiple price points (order spanning). Handles:
 - Automatic price stepping across a range
 - Delay coordination between order placements
 - Insufficient fund error handling and retry logic
+- Optional stealth (hidden) order creation with reveal conditions
 
 Example:
     >>> from order import create_limit_order_span
@@ -17,6 +18,21 @@ Example:
     ...     max_order_count=5
     ... )
     >>> print(f"Placed {len(orders)} orders")
+    
+    >>> # Place as stealth order (hidden until condition met)
+    >>> stealth_orders = create_limit_order_span(
+    ...     product_id='BTC-USDC',
+    ...     side='SELL',
+    ...     start_price=42000.00,
+    ...     order_base_size=0.5,
+    ...     max_order_count=1,
+    ...     use_stealth=True,
+    ...     reveal_condition={
+    ...         'type': 'price',
+    ...         'price_threshold': 41500.00,
+    ...         'direction': 'below'
+    ...     }
+    ... )
 """
 import uuid
 from random import uniform as random
@@ -24,6 +40,29 @@ from json import dumps
 from time import sleep
 from configuration import REST_CLIENT, \
     ORDER_DIRECTION, ORDERBOOK, format_based_on_reference, quantize_to_increment
+
+# Global stealth bridge reference (set by dashboard_server)
+_stealth_order_bridge = None
+
+def set_stealth_order_bridge(bridge):
+    """Set the global stealth order bridge reference.
+    
+    Called by dashboard_server during initialization to enable stealth order
+    support in create_limit_order_span().
+    
+    Args:
+        bridge: StealthOrderBridge instance
+    """
+    global _stealth_order_bridge
+    _stealth_order_bridge = bridge
+
+def get_stealth_order_bridge():
+    """Get the global stealth order bridge reference.
+    
+    Returns:
+        StealthOrderBridge instance if available, None otherwise
+    """
+    return _stealth_order_bridge
 
 def generate_float(start: float, stop: float = None) -> float:
     """Generate a random float between two floats.
@@ -60,18 +99,22 @@ def create_limit_order_span(
         order_base_size: float = 1,
         order_price_difference: float = 0.00001,
         start_price: float = 0.00992,
-        post_only: bool = False) -> list:
+        post_only: bool = False,
+        use_stealth: bool = False,
+        reveal_condition: dict = None,
+        sizing_strategy: dict = None) -> list:
     """Create a series of limit orders spanning a price range.
     
     Places multiple GTC (Good-Till-Cancel) limit orders at specified price intervals,
-    with optional delays between placements. Handles insufficient fund errors by 
-    retrying. Each order is assigned a unique UUID client_order_id.
+    with optional delays between placements. Can create orders as hidden (stealth)
+    that will be revealed when specified conditions are met.
     
     Key Features:
     - Automatic price stepping: each order placed at start_price + (order_index * price_difference)
     - Size variation: use order_base_size_range to randomize sizes
     - Exchange compliance: formats prices/sizes to exchange increments
     - Error handling: retries on insufficient funds, aborts on other errors
+    - Stealth orders: optionally create hidden orders that reveal conditionally
     
     Args:
         order_base_size_range: Dictionary with 'start' and optional 'stop' for size range.
@@ -85,18 +128,51 @@ def create_limit_order_span(
         order_price_difference: Price difference between consecutive orders (default 0.00001).
         start_price: Starting price for the first order (default 0.00992).
         post_only: If True, orders will be rejected if they would immediately fill (default False).
+        use_stealth: If True, creates hidden orders instead of placing directly (default False).
+                     Requires reveal_condition to be specified.
+        reveal_condition: Dictionary specifying when to reveal hidden order (required if use_stealth=True).
+                         Example: {
+                             'type': 'price',
+                             'price_threshold': 41000.00,
+                             'direction': 'below',  # 'below' or 'above'
+                             'hold_duration_seconds': 2,
+                             'follow_up_reveal_direction': 'opposite'  # Optional: 'same', 'opposite', 'above', or 'below'
+                         }
+                         The 'follow_up_reveal_direction' field controls how reveal conditions are set for
+                         follow-ups when this order fills:
+                         - 'same': Keep the original direction (default)
+                         - 'opposite': Flip the direction (below→above, above→below)
+                         - 'above'/'below': Explicitly set the direction
+        sizing_strategy: Dictionary specifying how to reveal hidden orders (optional, used with use_stealth).
+                        Example: {
+                            'type': 'fixed',  # or 'volume_proportional'
+                            'slice_size': 0.1
+                        }
     
     Returns:
-        A list of order response dictionaries from the API. Each dict contains:
-        - 'success': bool indicating if order was placed
-        - 'success_response': order data if successful
+        A list of order response dictionaries. Each dict contains:
+        - 'success': bool indicating if order was placed/created
+        - 'success_response': order data with standard fields:
+            - For normal orders:
+                - 'client_order_id': our local UUID for tracking
+                - 'order_id': exchange-assigned UUID (from API response)
+                - 'status': order status (e.g., 'PENDING', 'OPEN', 'FILLED')
+                - 'created_at': timestamp
+            - For stealth orders (use_stealth=True):
+                - 'client_order_id': our local UUID (same as stealth_order_id)
+                - 'order_id': None (will be assigned when order reveals on API)
+                - 'status': 'HIDDEN' (indicates not yet sent to exchange)
+                - 'type': 'STEALTH_ORDER' (indicates special type)
+                - 'created_at': timestamp of stealth order creation
+                - 'reveal_condition': the condition that triggers reveal
+                - 'sizing_strategy': strategy for adaptive reveals
         - 'error_response': error details if failed
     
     Raises:
         Exception: Re-raises unhandled API errors (other than INSUFFICIENT_FUND).
     
     Examples:
-        >>> # Place 5 SELL orders with fixed size
+        >>> # Place 5 SELL orders with fixed size (normal flow)
         >>> orders = create_limit_order_span(
         ...     product_id='BTC-USDC',
         ...     side='SELL',
@@ -105,6 +181,31 @@ def create_limit_order_span(
         ...     max_order_count=5,
         ...     order_base_size=0.01
         ... )
+        >>> for order in orders:
+        ...     if order["success"]:
+        ...         print(f"Placed order: {order['success_response']['client_order_id']}")
+        
+        >>> # Place as hidden stealth order (revealed when condition met)
+        >>> stealth_orders = create_limit_order_span(
+        ...     product_id='BTC-USDC',
+        ...     side='SELL',
+        ...     order_base_size=0.5,
+        ...     start_price=42000.0,
+        ...     max_order_count=1,
+        ...     use_stealth=True,
+        ...     reveal_condition={
+        ...         'type': 'price',
+        ...         'price_threshold': 41500.0,
+        ...         'direction': 'below'
+        ...     }
+        ... )
+        >>> for order in stealth_orders:
+        ...     if order["success"]:
+        ...         resp = order['success_response']
+        ...         print(f"Stealth order {resp['client_order_id']}")
+        ...         print(f"  Status: {resp['status']}")  # 'HIDDEN'
+        ...         print(f"  Will reveal when: {resp['reveal_condition']}")
+        ...         print(f"  order_id (on API): {resp['order_id']}")  # None until revealed
         
         >>> # Place 3 BUY orders with random sizes and 2-second delay
         >>> orders = create_limit_order_span(
@@ -116,18 +217,80 @@ def create_limit_order_span(
         ...     max_order_count=3,
         ...     delay_in_secs=2
         ... )
-        
-        >>> # Create post-only orders (will cancel if they'd fill immediately)
-        >>> orders = create_limit_order_span(
-        ...     product_id='MON-USDC',
-        ...     side='SELL',
-        ...     start_price=0.009,
-        ...     max_order_count=2,
-        ...     post_only=True
-        ... )
     """
     results = []
+    
+    # Handle stealth order creation
+    if use_stealth:
+        if not reveal_condition:
+            raise ValueError("reveal_condition is required when use_stealth=True")
+        
+        stealth_bridge = get_stealth_order_bridge()
+        if not stealth_bridge:
+            raise RuntimeError(
+                "Stealth order system not initialized. "
+                "Ensure dashboard_server has been started and stealth bridge is set."
+            )
+        
+        # Calculate total size for hidden order
+        if order_base_size_range:
+            # Use midpoint of range for stealth order sizing
+            start_size = order_base_size_range.get("start", order_base_size)
+            stop_size = order_base_size_range.get("stop", start_size)
+            total_size = (start_size + stop_size) / 2 * max_order_count
+        else:
+            total_size = order_base_size * max_order_count
+        
+        # Create stealth order wrapper instead of placing directly
+        try:
+            from datetime import datetime as dt
+            
+            sizing_strategy_dict = sizing_strategy or {"type": "fixed"}
+            stealth_id = stealth_bridge.create_stealth_order(
+                product_id=product_id,
+                side=side,
+                total_size=total_size,
+                limit_price=start_price,
+                reveal_condition=reveal_condition,
+                sizing_strategy=sizing_strategy_dict,
+                reason="programmatic_stealth_placement",
+                notes=f"Stealth span: {max_order_count} orders with price diff {order_price_difference}"
+            )
+            
+            # Return stealth order with same structure as normal orders
+            # client_order_id = stealth_order_id (our local tracking UUID)
+            # order_id = None (will be assigned when revealed on exchange)
+            return [
+                {
+                    "success": True,
+                    "success_response": {
+                        "client_order_id": stealth_id,           # Local UUID for tracking
+                        "order_id": None,                       # Assigned when revealed on API
+                        "product_id": product_id,
+                        "side": side,
+                        "size": str(total_size),
+                        "price": str(start_price),
+                        "status": "HIDDEN",                     # Not yet placed on exchange
+                        "type": "STEALTH_ORDER",                # Indicates hidden order
+                        "created_at": dt.utcnow().isoformat(),
+                        "reveal_condition": reveal_condition,   # Condition for triggering reveal
+                        "sizing_strategy": sizing_strategy_dict,# Strategy for reveal slicing
+                    }
+                }
+            ]
+        except Exception as e:
+            print(f"ERROR: Failed to create stealth order: {e}")
+            return [
+                {
+                    "success": False,
+                    "error_response": {
+                        "error": "STEALTH_ORDER_CREATION_FAILED",
+                        "message": str(e)
+                    }
+                }
+            ]
 
+    # Normal (non-stealth) order placement flow
     if max_order_count <= 0:
         max_order_count = 1
 
