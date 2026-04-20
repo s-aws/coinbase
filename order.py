@@ -256,41 +256,6 @@ def create_limit_order_span(
         ...     side='BUY',
         ...     start_price=2000.0,
         ...     order_base_size_range={'start': 0.5, 'stop': 2.0},
-        ...     max_order_count=5,
-        ...     order_base_size=0.01
-        ... )
-        >>> for order in orders:
-        ...     if order["success"]:
-        ...         print(f"Placed order: {order['success_response']['client_order_id']}")
-        
-        >>> # Place as hidden stealth order (revealed when condition met)
-        >>> stealth_orders = create_limit_order_span(
-        ...     product_id='BTC-USDC',
-        ...     side='SELL',
-        ...     order_base_size=0.5,
-        ...     start_price=42000.0,
-        ...     max_order_count=1,
-        ...     use_stealth=True,
-        ...     reveal_condition={
-        ...         'type': 'price',
-        ...         'price_threshold': 41500.0,
-        ...         'direction': 'below'
-        ...     }
-        ... )
-        >>> for order in stealth_orders:
-        ...     if order["success"]:
-        ...         resp = order['success_response']
-        ...         print(f"Stealth order {resp['client_order_id']}")
-        ...         print(f"  Status: {resp['status']}")  # 'HIDDEN'
-        ...         print(f"  Will reveal when: {resp['reveal_condition']}")
-        ...         print(f"  order_id (on API): {resp['order_id']}")  # None until revealed
-        
-        >>> # Place 3 BUY orders with random sizes and 2-second delay
-        >>> orders = create_limit_order_span(
-        ...     product_id='ETH-USDC',
-        ...     side='BUY',
-        ...     start_price=2000.0,
-        ...     order_base_size_range={'start': 0.5, 'stop': 2.0},
         ...     order_price_difference=10.0,
         ...     max_order_count=3,
         ...     delay_in_secs=2
@@ -423,6 +388,3 @@ def create_limit_order_span(
         results.append(order)
 
     return results
-
-if __name__ == "__main__":
-    print(ORDERBOOK.positions)
