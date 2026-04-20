@@ -405,7 +405,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     price=float(order.get('price', 0)),
                     target_movement=float(order.get('target_movement')) if order.get('target_movement') else None,
                     max_order_replacement=int(order.get('max_order_replacement', 0)),
-                    status=order.get('status', 'ACTIVE')
+                    status=order.get('status', 'OPEN')
                 )
                 
                 # Fetch the created order
@@ -448,7 +448,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     'price': float(order.get('price', 0)),
                     'target_movement': float(order.get('target_movement')) if order.get('target_movement') else None,
                     'max_order_replacement': int(order.get('max_order_replacement', 0)),
-                    'status': order.get('status', 'ACTIVE')
+                    'status': order.get('status', 'OPEN')
                 }
                 
                 update_parent_order(client_order_id, update_data)

@@ -80,7 +80,7 @@ def insert_parent_order(
     price: float,
     target_movement: Optional[float] = None,
     max_order_replacement: int = 0,
-    status: str = "ACTIVE"
+    status: str = "OPEN"
 ) -> Optional[int]:
     """Insert a new parent order.
     
