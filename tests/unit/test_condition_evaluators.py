@@ -5,7 +5,7 @@ Tests all reveal condition types: price threshold, time delay, volume, spread, r
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class TestPriceThresholdCondition:
@@ -43,9 +43,9 @@ class TestPriceThresholdCondition:
     
     def test_hold_duration_requirement(self):
         """Hold until price stays at threshold for duration."""
-        price_at_threshold_time = datetime.now() - timedelta(seconds=30)
+        price_at_threshold_time = datetime.now(timezone.utc).astimezone() - timedelta(seconds=30)
         hold_duration = 60  # seconds
-        current_time = datetime.now()
+        current_time = datetime.now(timezone.utc).astimezone()
         
         time_at_threshold = (current_time - price_at_threshold_time).total_seconds()
         should_reveal = time_at_threshold >= hold_duration
@@ -58,20 +58,20 @@ class TestTimeDelayCondition:
     
     def test_reveal_after_delay_passed(self):
         """Reveal when delay duration has passed."""
-        created_at = datetime.now() - timedelta(seconds=300)
+        created_at = datetime.now(timezone.utc).astimezone() - timedelta(seconds=300)
         delay_seconds = 300
         
-        elapsed = (datetime.now() - created_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc).astimezone() - created_at).total_seconds()
         should_reveal = elapsed >= delay_seconds
         
         assert should_reveal is True
     
     def test_hold_before_delay_passes(self):
         """Hold before delay duration is met."""
-        created_at = datetime.now() - timedelta(seconds=200)
+        created_at = datetime.now(timezone.utc).astimezone() - timedelta(seconds=200)
         delay_seconds = 300
         
-        elapsed = (datetime.now() - created_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc).astimezone() - created_at).total_seconds()
         should_reveal = elapsed >= delay_seconds
         
         assert should_reveal is False

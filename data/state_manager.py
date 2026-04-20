@@ -27,7 +27,8 @@ Usage:
 
 from typing import Dict, Optional, List, Any, Set
 from threading import Lock
-from core.models import Order, Position, OrderStatus
+from core.models import Order, Position
+from core.enums import OrderStatus
 from core.constants import SPOT_PRODUCT_IDS, DERIVATIVES_PRODUCT_IDS
 
 

@@ -23,6 +23,7 @@ Usage:
 from typing import Dict, List, Optional, Any
 from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
+from core.enums import OrderSide, TimeInForce
 
 
 class CoinbaseRestClient:
@@ -196,7 +197,7 @@ class CoinbaseRestClient:
         quote_size: str = None,
         client_order_id: str = None,
         post_only: bool = False,
-        time_in_force: str = "GOOD_TILL_CANCELLED"
+        time_in_force: str = TimeInForce.GOOD_UNTIL_CANCELLED.value
     ) -> Order:
         """Place a limit order.
         

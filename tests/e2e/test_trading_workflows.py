@@ -5,7 +5,7 @@ Tests complete user journeys through the full application.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestStealthOrderDashboardFlow:
@@ -110,7 +110,7 @@ class TestMarketDataToOrderTrigger:
             "type": "ticker",
             "product_id": "BTC-USDC",
             "price": 44500.0,  # Below threshold
-            "time": datetime.now().isoformat()
+            "time": datetime.now(timezone.utc).astimezone().isoformat()
         }
         
         # Condition evaluation

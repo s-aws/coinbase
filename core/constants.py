@@ -1,6 +1,16 @@
 """Constants for trading engine - Order mappings, product lists, fees."""
 
+from datetime import datetime, timezone
 from core.enums import OrderSide
+
+
+def get_local_now() -> datetime:
+    """Get current time with local timezone awareness.
+    
+    Returns timezone-aware datetime in local timezone.
+    Replaces deprecated datetime.now() which returns naive datetime.
+    """
+    return datetime.now(timezone.utc).astimezone()
 
 # Order Side Mapping
 ORDER_SIDE_SWITCH = {

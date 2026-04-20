@@ -5,7 +5,7 @@ Tests REST API client and WebSocket connection.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestCoinbaseRESTAPIClient:
@@ -98,7 +98,7 @@ class TestCoinbaseRESTAPIClient:
             "bid": "49999.99",
             "ask": "50000.01",
             "volume": "1000.5",
-            "time": datetime.now().isoformat()
+            "time": datetime.now(timezone.utc).astimezone().isoformat()
         }
         
         assert float(response["price"]) > 0
@@ -134,7 +134,7 @@ class TestCoinbaseWebSocketClient:
             "best_bid": "49999.99",
             "best_ask": "50000.01",
             "side": "buy",
-            "time": datetime.now().isoformat(),
+            "time": datetime.now(timezone.utc).astimezone().isoformat(),
             "trade_id": 12345,
             "last_size": "0.5"
         }
@@ -154,7 +154,7 @@ class TestCoinbaseWebSocketClient:
             "price": "50000.00",
             "remaining_size": "0.0",
             "sequence": 123457,
-            "time": datetime.now().isoformat()
+            "time": datetime.now(timezone.utc).astimezone().isoformat()
         }
         
         assert done_msg["type"] == "done"
@@ -169,7 +169,7 @@ class TestCoinbaseWebSocketClient:
             "sequence": 123457,
             "maker_order_id": "maker_123",
             "taker_order_id": "taker_456",
-            "time": datetime.now().isoformat(),
+            "time": datetime.now(timezone.utc).astimezone().isoformat(),
             "product_id": "BTC-USDC",
             "size": "0.5",
             "price": "50000.00",

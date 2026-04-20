@@ -15,7 +15,6 @@ from time import sleep
 from hashlib import sha256
 from queue import Queue, Full
 from copy import deepcopy
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
@@ -26,6 +25,7 @@ from configuration import (
     get_futures_positions,
 )
 
+from core.constants import get_local_now
 from order import create_limit_order_span
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
@@ -220,7 +220,7 @@ class OrderEngine:
         if isinstance(message, (dict, list)):
             message = json.dumps(message, sort_keys=True, default=str)
 
-        print(f"{datetime.now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
+        print(f"{get_local_now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
 
     @staticmethod
     def order_limit_price_or_avg_price(order: dict) -> float:

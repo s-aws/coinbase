@@ -5,7 +5,7 @@ Tests multiple components working together with realistic scenarios.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestCompleteOrderLifecycle:
@@ -197,13 +197,13 @@ class TestEventPropagation:
         order = {
             "stealth_order_id": "so_123",
             "status": "HIDDEN",
-            "created_at": datetime.now()
+            "created_at": datetime.now(timezone.utc).astimezone()
         }
         
         event = {
             "type": "stealth_order_created",
             "order_id": order["stealth_order_id"],
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(timezone.utc).astimezone()
         }
         
         events.append(event)
@@ -225,7 +225,7 @@ class TestEventPropagation:
             "type": "stealth_order_revealed",
             "order_id": order["stealth_order_id"],
             "revealed_size": order["revealed_size"],
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(timezone.utc).astimezone()
         }
         
         events.append(event)
@@ -240,7 +240,7 @@ class TestEventPropagation:
         order = {
             "stealth_order_id": "so_123",
             "status": "FILLED",
-            "filled_at": datetime.now()
+            "filled_at": datetime.now(timezone.utc).astimezone()
         }
         
         event = {

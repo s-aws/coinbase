@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Dict, Any, Tuple, Optional
 from collections import defaultdict
+from core.enums import RevealConditionType, Direction
 
 
 class ConditionEvaluator(ABC):
@@ -48,7 +49,7 @@ class PriceThresholdEvaluator(ConditionEvaluator):
         }
         """
         threshold = condition_config.get("price_threshold", 0)
-        direction = condition_config.get("direction", "below")
+        direction = condition_config.get("direction", Direction.BELOW.value)
         hold_duration = condition_config.get("hold_duration_seconds", 0)
         
         current_price = market_data.get("price", 0)
@@ -59,9 +60,9 @@ class PriceThresholdEvaluator(ConditionEvaluator):
             return False, f"Waiting for market data for {condition_config.get('price_threshold', 'unknown')}"
         
         # Check if threshold crossed
-        if direction == "below":
+        if direction == Direction.BELOW.value:
             threshold_crossed = current_price < threshold
-        else:  # "above"
+        else:  # Direction.ABOVE
             threshold_crossed = current_price > threshold
         
         if not threshold_crossed:
@@ -228,16 +229,16 @@ class ProductRatioEvaluator(ConditionEvaluator):
         price_a = market_data.get("price_a", 0)
         price_b = market_data.get("price_b", 0)
         threshold = condition_config.get("ratio_threshold", 0)
-        direction = condition_config.get("direction", "below")
+        direction = condition_config.get("direction", Direction.BELOW.value)
         
         if price_a <= 0 or price_b <= 0:
             return False, "Price data for one/both products missing"
         
         ratio = price_a / price_b
         
-        if direction == "below":
+        if direction == Direction.BELOW.value:
             threshold_met = ratio < threshold
-        else:  # "above"
+        else:  # Direction.ABOVE
             threshold_met = ratio > threshold
         
         if threshold_met:
@@ -268,11 +269,11 @@ class CompositeEvaluator(ConditionEvaluator):
         conditions = condition_config.get("conditions", [])
         
         evaluators = {
-            "price": PriceThresholdEvaluator(),
-            "cumulative_volume": CumulativeVolumeEvaluator(),
-            "time_delay": TimeDelayEvaluator(),
-            "spread": SpreadEvaluator(),
-            "product_ratio": ProductRatioEvaluator(),
+            RevealConditionType.PRICE_THRESHOLD.value: PriceThresholdEvaluator(),
+            RevealConditionType.CUMULATIVE_VOLUME.value: CumulativeVolumeEvaluator(),
+            RevealConditionType.TIME_DELAY.value: TimeDelayEvaluator(),
+            RevealConditionType.SPREAD.value: SpreadEvaluator(),
+            RevealConditionType.PRODUCT_RATIO.value: ProductRatioEvaluator(),
         }
         
         results = []
@@ -305,12 +306,12 @@ class CompositeEvaluator(ConditionEvaluator):
 def get_evaluator(condition_type: str) -> ConditionEvaluator:
     """Factory function to get appropriate evaluator for condition type."""
     evaluators = {
-        "price": PriceThresholdEvaluator,
-        "cumulative_volume": CumulativeVolumeEvaluator,
-        "time_delay": TimeDelayEvaluator,
-        "spread": SpreadEvaluator,
-        "product_ratio": ProductRatioEvaluator,
-        "composite": CompositeEvaluator,
+        RevealConditionType.PRICE_THRESHOLD.value: PriceThresholdEvaluator,
+        RevealConditionType.CUMULATIVE_VOLUME.value: CumulativeVolumeEvaluator,
+        RevealConditionType.TIME_DELAY.value: TimeDelayEvaluator,
+        RevealConditionType.SPREAD.value: SpreadEvaluator,
+        RevealConditionType.PRODUCT_RATIO.value: ProductRatioEvaluator,
+        RevealConditionType.COMPOSITE.value: CompositeEvaluator,
     }
     
     evaluator_class = evaluators.get(condition_type.lower(), TimeDelayEvaluator)

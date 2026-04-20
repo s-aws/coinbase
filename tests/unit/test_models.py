@@ -5,7 +5,7 @@ Tests order models, enums, and state tracking.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestOrderModels:
@@ -28,8 +28,8 @@ class TestOrderModels:
                 "direction": "below",
                 "price_threshold": 45000.0,
             },
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
+            "created_at": datetime.now(timezone.utc).astimezone(),
+            "updated_at": datetime.now(timezone.utc).astimezone(),
         }
         
         required_fields = [
@@ -176,7 +176,7 @@ class TestWebSocketMessage:
             "type": "ticker",
             "product_id": "BTC-USDC",
             "price": 50000.0,
-            "time": datetime.now().isoformat()
+            "time": datetime.now(timezone.utc).astimezone().isoformat()
         }
         
         assert ticker["price"] == 50000.0
@@ -213,7 +213,7 @@ class TestTimeAndDateHandling:
     
     def test_order_timestamps_are_datetime(self):
         """Order timestamps should be datetime objects."""
-        now = datetime.now()
+        now = datetime.now(timezone.utc).astimezone()
         
         assert isinstance(now, datetime)
     

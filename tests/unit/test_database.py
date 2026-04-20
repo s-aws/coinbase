@@ -5,7 +5,7 @@ Tests data persistence, queries, and repository operations.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestDatabaseOperations:
@@ -20,7 +20,7 @@ class TestDatabaseOperations:
             "total_size": 1.0,
             "limit_price": 50000.0,
             "status": "HIDDEN",
-            "created_at": datetime.now(),
+            "created_at": datetime.now(timezone.utc).astimezone(),
         }
         
         # Simulate DB insert
@@ -79,7 +79,7 @@ class TestDatabaseOperations:
         order = {
             "stealth_order_id": order_id,
             "status": "CANCELLED",
-            "deleted_at": datetime.now()
+            "deleted_at": datetime.now(timezone.utc).astimezone()
         }
         
         assert order["status"] == "CANCELLED"
@@ -212,7 +212,7 @@ class TestOrderPersistence:
         order = {
             "stealth_order_id": "so_123",
             "status": "HIDDEN",
-            "created_at": datetime.now()
+            "created_at": datetime.now(timezone.utc).astimezone()
         }
         
         # In real system, data written to DB before crash
@@ -260,7 +260,7 @@ class TestDataIntegrity:
             "stealth_order_id": "so_123",
             "product_id": "BTC-USDC",
             "side": "BUY",
-            "created_at": datetime.now()
+            "created_at": datetime.now(timezone.utc).astimezone()
         }
         
         updated = {
