@@ -95,7 +95,8 @@ class CoinbaseRestClient:
             >>> summary = client.get_transaction_summary()
             >>> fees = summary.get('total_fees')
         """
-        return self._client.get_transaction_summary()
+        response = self._client.get_transaction_summary()
+        return response.to_dict() if hasattr(response, 'to_dict') else response
     
     # ========================================================================
     # Product Methods
@@ -119,7 +120,8 @@ class CoinbaseRestClient:
             ...     print(f"Price increment: {product.price_increment}")
         """
         try:
-            data = self._client.get_product(product_id)
+            response = self._client.get_product(product_id)
+            data = response.to_dict() if hasattr(response, 'to_dict') else response
             return Product.from_dict(data)
         except Exception as e:
             # Check if it's a 404 - product not found
@@ -332,3 +334,191 @@ class CoinbaseRestClient:
         """
         response = self._client.list_portfolios()
         return response.to_dict().get("portfolios", [])
+    
+    # ========================================================================
+    # Pass-through Methods (Raw SDK Access)
+    # ========================================================================
+    
+    def get_product_dict(self, product_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a single product by ID as a raw dict.
+        
+        Raw pass-through to SDK for use cases that need dict instead of Product object.
+        
+        Args:
+            product_id: The product identifier (e.g., 'BTC-USDC')
+        
+        Returns:
+            Product data dict if found, None if not found
+        
+        Raises:
+            Exception: If API call fails
+        """
+        try:
+            response = self._client.get_product(product_id)
+            return response.to_dict() if hasattr(response, 'to_dict') else response
+        except Exception as e:
+            if "404" in str(e) or "not found" in str(e).lower():
+                return None
+            raise
+    
+    def get_accounts(self) -> Dict[str, Any]:
+        """Get raw accounts data from SDK.
+        
+        Returns:
+            Raw response dict with 'accounts' key
+        
+        Raises:
+            Exception: If API call fails
+        """
+        response = self._client.get_accounts()
+        return response.to_dict() if hasattr(response, 'to_dict') else response
+    
+    def list_orders(self, order_status: Optional[List[str]] = None) -> Dict[str, Any]:
+        """List orders with optional status filter.
+        
+        Args:
+            order_status: List of order statuses to filter (e.g., ['OPEN', 'FILLED'])
+        
+        Returns:
+            Raw SDK response object (call .to_dict() to get dict)
+        
+        Raises:
+            Exception: If API call fails
+        """
+        return self._client.list_orders(order_status=order_status)
+    
+    def list_futures_positions(self):
+        """List all futures positions (raw SDK response).
+        
+        Returns:
+            Raw SDK response object (call .to_dict() to get dict)
+        
+        Raises:
+            Exception: If API call fails
+        """
+        return self._client.list_futures_positions()
+    
+    def cancel_orders(self, order_ids: List[str]) -> List[Dict[str, Any]]:
+        """Cancel multiple orders by order IDs.
+        
+        Args:
+            order_ids: List of order IDs to cancel
+        
+        Returns:
+            List of cancel results
+        
+        Raises:
+            Exception: If API call fails
+        """
+        return self._client.cancel_orders(order_ids)
+    
+    def limit_order_gtc(
+        self,
+        product_id: str,
+        side: str,
+        base_size: Optional[str] = None,
+        quote_size: Optional[str] = None,
+        limit_price: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+        post_only: bool = False,
+        **kwargs
+    ):
+        """Place a Good-Till-Cancelled (GTC) limit order.
+        
+        Convenience method that wraps the SDK limit_order_gtc for the most common order type.
+        Accepts the parameter names used by the Coinbase SDK.
+        
+        Args:
+            product_id: Trading pair (e.g., 'BTC-USDC')
+            side: 'BUY' or 'SELL'
+            base_size: Order size in base currency (required)
+            quote_size: Order size in quote currency (optional, alternative to base_size)
+            limit_price: Limit price as string (required)
+            client_order_id: Custom order ID for idempotency
+            post_only: If True, order rejected if it would immediately fill
+            **kwargs: Additional parameters passed to SDK
+        
+        Returns:
+            Raw SDK response object (call .to_dict() to get dict)
+        
+        Raises:
+            Exception: If API call fails or required parameters missing
+        """
+        if not client_order_id:
+            import uuid
+            client_order_id = str(uuid.uuid4())
+        
+        if not base_size and not quote_size:
+            raise ValueError("Either base_size or quote_size must be provided")
+        
+        if not limit_price:
+            raise ValueError("limit_price is required")
+        
+        # SDK requires positional args: client_order_id, product_id, side, base_size, limit_price
+        return self._client.limit_order_gtc(
+            client_order_id=client_order_id,
+            product_id=product_id,
+            side=side,
+            base_size=base_size or quote_size,
+            limit_price=limit_price,
+            post_only=post_only,
+            **kwargs
+        )
+    
+    def create_order(
+        self,
+        product_id: str,
+        side: str,
+        order_type: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+        order_configuration: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Create an order via SDK.
+        
+        Flexible pass-through to SDK for all order types.
+        Accepts either old-style (order_type) or new-style (order_configuration) parameters.
+        
+        Args:
+            product_id: Trading pair
+            side: 'BUY' or 'SELL'
+            order_type: Order type (e.g., 'LIMIT', 'MARKET') for old-style orders
+            client_order_id: Custom order ID for idempotency
+            order_configuration: Order configuration dict (new-style API)
+            **kwargs: Additional order parameters
+        
+        Returns:
+            Raw SDK response (may need .to_dict() call)
+        
+        Raises:
+            Exception: If API call fails
+        """
+        params = {
+            'product_id': product_id,
+            'side': side,
+        }
+        
+        if order_type:
+            params['order_type'] = order_type
+        if client_order_id:
+            params['client_order_id'] = client_order_id
+        if order_configuration:
+            params['order_configuration'] = order_configuration
+        
+        params.update(kwargs)
+        
+        return self._client.create_order(**params)
+    
+    def get_sdk_client(self) -> RESTClient:
+        """Get the underlying SDK client (for advanced use only).
+        
+        Use with caution - direct SDK access bypasses abstraction.
+        
+        Returns:
+            The underlying coinbase.rest.RESTClient
+        
+        Examples:
+            >>> sdk_client = client.get_sdk_client()
+            >>> # Advanced operations...
+        """
+        return self._client

@@ -12,11 +12,12 @@ This module implements the core OrderEngine class that:
 import json
 import threading
 from time import sleep
-from hashlib import sha256
 from queue import Queue, Full
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
+
+from external import CoinbaseWebSocketClient
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
@@ -1315,7 +1316,7 @@ class OrderEngine:
                         "bid": fill_price,
                         "ask": fill_price,
                         "volume_1m": 0,
-                        "time": datetime.utcnow()
+                        "time": get_local_now()
                     }
                     
                     # Build the reveal condition for the follow-up using configurable direction
@@ -1749,17 +1750,19 @@ class OrderEngine:
         Returns:
             None (infinite loop)
         """
-        ws_client = WSClient(
+        # Create SDK client and wrap with our abstraction
+        sdk_client = WSClient(
             verbose=True,
             api_key=self.api_key,
             api_secret=self.api_secret,
             on_open=self.on_open,
             on_message=self.on_message,
         )
+        ws_client = CoinbaseWebSocketClient(sdk_client)
 
-        ws_client.open()
+        ws_client.connect()
         ws_client.subscribe(
-            product_ids=self.subscription.product_ids,
+            products=self.subscription.product_ids,
             channels=self.subscription.channels,
         )
 

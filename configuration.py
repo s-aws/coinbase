@@ -20,6 +20,8 @@ import json
 from pathlib import Path
 from coinbase.rest import RESTClient
 
+from external import CoinbaseRestClient
+
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
 try:
@@ -60,10 +62,11 @@ def get_trading_product_id(ticker_product_id: str) -> str:
 API_KEY = getenv("COINBASE_API_KEY")
 API_SECRET = getenv("COINBASE_API_SECRET")
 
-REST_CLIENT = RESTClient(
+_sdk_client = RESTClient(
     api_key=API_KEY,
     api_secret=API_SECRET,
     rate_limit_headers=True)
+REST_CLIENT = CoinbaseRestClient(_sdk_client)
 
 ORDER_SIDE_SWITCH = {
     "BUY": "SELL",
@@ -380,7 +383,7 @@ def rest_get_products() -> dict:
         >>> print(f"Can trade {base_increment} BTC increments")
     """
     products_list = [
-        REST_CLIENT.get_product(product_id) for
+        REST_CLIENT.get_product_dict(product_id) for
             product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS]
 
     products = {
@@ -695,7 +698,7 @@ class OrderBook():
     mandatory_fee_per_contract = {
         product_id: {
             "mandatory_fee_per_contract": (
-                DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.to_dict().get("future_product_details", {}).get("contract_size", 1))
+                DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
             ) if this["product_type"] == "FUTURE" else 0
         } for product_id, this in product.items()
     }
