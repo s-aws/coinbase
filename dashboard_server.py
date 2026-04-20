@@ -366,6 +366,51 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 await websocket.send(json.dumps(response))
         
+        elif msg_type == "clear_all_stealth_orders":
+            # Clear all stealth orders from the database
+            try:
+                from database.order import clear_all_stealth_orders
+                
+                result = clear_all_stealth_orders()
+                
+                if result["success"]:
+                    # Clear all stealth orders from in-memory state
+                    with state_lock:
+                        engine_state["stealth_orders"] = {}
+                    
+                    response = {
+                        "type": "stealth_orders_cleared",
+                        "rows_deleted": result["rows_deleted"],
+                        "message": result["message"]
+                    }
+                    
+                    add_log_entry("INFO", f"All stealth orders cleared - {result['rows_deleted']} deleted")
+                    logger.info(f"All stealth orders cleared - {result['rows_deleted']} deleted")
+                    
+                    # Broadcast to all clients
+                    message = json.dumps(response)
+                    for client in connected_clients.copy():
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.discard(client)
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to clear orders: {result.get('error', 'Unknown error')}"
+                    }
+                    add_log_entry("ERROR", f"Failed to clear stealth orders: {result.get('error')}")
+                    await websocket.send(json.dumps(response))
+                
+            except Exception as e:
+                logger.error(f"Failed to clear stealth orders: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to clear orders: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Clear stealth orders failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
         elif msg_type == "request_parent_orders":
             # Send parent orders list
             try:

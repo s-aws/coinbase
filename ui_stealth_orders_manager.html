@@ -706,6 +706,17 @@
                     </div>
                 </div>
 
+                <!-- Clear All Orders Section -->
+                <div class="section">
+                    <h2>🗑️ Management</h2>
+                    <button id="clear-all-btn" type="button" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #ff6b6b, #ff5252); color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        Clear All Orders
+                    </button>
+                    <div style="font-size: 11px; color: #999; margin-top: 8px; text-align: center;">
+                        ⚠️ This will delete all stealth orders
+                    </div>
+                </div>
+
                 <!-- Entry History -->
                 <div class="section">
                     <h2>📝 Entry History</h2>
@@ -921,6 +932,11 @@
                         ordersData[data.stealth_order_id] = data.order;
                         updateOrdersTable();
                         updateStats();
+                    } else if (data.type === "stealth_orders_cleared") {
+                        ordersData = {};
+                        updateOrdersTable();
+                        updateStats();
+                        showMessage(`✅ Cleared ${data.rows_deleted} stealth orders`, 'success');
                     }
                 };
 
@@ -1656,6 +1672,36 @@
         
         // Setup clear history button
         document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
+        
+        // Setup clear all stealth orders button
+        document.getElementById('clear-all-btn').addEventListener('click', clearAllStealthOrders);
+        
+        function clearAllStealthOrders() {
+            const confirmed = confirm('⚠️ This will permanently delete ALL stealth orders from the database.\n\nAre you sure?');
+            if (!confirmed) {
+                return;
+            }
+            
+            // Double confirm to prevent accidental deletion
+            const doubleConfirm = confirm('This action cannot be undone. Delete all stealth orders?');
+            if (!doubleConfirm) {
+                return;
+            }
+            
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            
+            try {
+                ws.send(JSON.stringify({
+                    type: "clear_all_stealth_orders"
+                }));
+                showMessage('Clear request sent to server...', 'info');
+            } catch (error) {
+                showMessage(`Error sending clear request: ${error.message}`, 'error');
+            }
+        }
     </script>
 </body>
 </html>

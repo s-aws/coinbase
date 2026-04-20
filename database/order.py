@@ -1380,3 +1380,59 @@ def adopt_orphaned_stealth_orders(
             "details": [],
             "error": str(e)
         }
+
+def clear_all_stealth_orders() -> Dict[str, Any]:
+    """
+    Clears all stealth orders from the database.
+    
+    Deletes all records from the stealth_orders table. Due to cascading delete
+    constraints, related records in stealth_order_snapshots and 
+    stealth_order_reveal_history tables are automatically deleted.
+    
+    Returns:
+        Dict with clear operation result:
+        {
+            "success": bool,
+            "rows_deleted": int,
+            "message": str,
+            "error": str (if operation failed)
+        }
+    
+    Examples:
+        >>> # Clear all stealth orders
+        >>> result = clear_all_stealth_orders()
+        >>> if result["success"]:
+        ...     print(f"Cleared {result['rows_deleted']} stealth orders")
+        >>> else:
+        ...     print(f"Error: {result['error']}")
+    """
+    try:
+        # Get count before deletion for reporting
+        count_query = "SELECT COUNT(*) as count FROM stealth_orders"
+        count_result = DB_CLIENT.execute_query(count_query)
+        count_before = count_result[0]["count"] if count_result else 0
+        
+        # Execute DELETE query for all stealth orders
+        delete_query = "DELETE FROM stealth_orders"
+        rows_deleted = DB_CLIENT.execute_update(delete_query)
+        
+        result = {
+            "success": True,
+            "rows_deleted": rows_deleted,
+            "message": f"Successfully cleared {rows_deleted} stealth orders"
+        }
+        
+        print(f"? {result['message']}")
+        if count_before > 0:
+            print(f"   (Cascaded: snapshots and reveal history also deleted)")
+        
+        return result
+        
+    except Exception as e:
+        error_msg = f"Failed to clear stealth orders: {str(e)}"
+        print(f"? {error_msg}")
+        return {
+            "success": False,
+            "rows_deleted": 0,
+            "error": error_msg
+        }
