@@ -20,11 +20,11 @@ Example:
     >>> from core.order_engine import OrderEngine
     >>> from bridges.engine_orchestrator import OrderEngineOrchestrator
     >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
-    >>> from database.order import DB_CLIENT
+    >>> import database.order as DB_HELPER
     >>> 
     >>> engine = OrderEngine(
     ...     orderbook=ORDERBOOK,
-    ...     db_client=DB_CLIENT,
+    ...     db_helper=DB_HELPER,
     ...     subscription=Subscription,
     ...     api_key=API_KEY,
     ...     api_secret=API_SECRET,
