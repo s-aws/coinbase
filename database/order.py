@@ -63,6 +63,10 @@ def add_missing_order_parent_replacement_columns() -> None:
 def create_order_child_table() -> None:
     """
     Create the order_child table if it doesn't exist.
+    
+    Includes adoption tracking columns for greenfield deployments:
+    - previous_parent_client_order_id: Stores original parent before adoption
+    - adopted_at: Timestamp when adoption occurred
     """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS order_child (
@@ -75,6 +79,8 @@ def create_order_child_table() -> None:
         price NUMERIC NOT NULL,
         status VARCHAR(20) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        previous_parent_client_order_id VARCHAR(40) DEFAULT NULL,
+        adopted_at TIMESTAMP DEFAULT NULL,
         FOREIGN KEY (parent_client_order_id) REFERENCES order_parent(client_order_id)
     );
     """
@@ -766,3 +772,117 @@ def update_order_child_status_batch(
         total_updated += result
 
     return total_updated
+
+
+def adopt_child_to_parent(
+    child_client_order_id: str,
+    new_parent_client_order_id: str,
+    keep_adoption_history: bool = True
+) -> bool:
+    """
+    Reassign a child order to a new parent order (adoption).
+    
+    Updates the parent-child relationship in the database. Optionally tracks
+    the original parent for audit history.
+    
+    Args:
+        child_client_order_id: The UUID of the child order to adopt.
+        new_parent_client_order_id: The UUID of the new parent order.
+        keep_adoption_history: If True, stores the old parent in previous_parent_client_order_id
+                               and timestamp in adopted_at. If False, old parent is lost.
+    
+    Returns:
+        True if adoption was successful, False otherwise.
+    
+    Raises:
+        Exception: If database update fails.
+    
+    Examples:
+        >>> # Adopt child to new parent, keeping history
+        >>> result = adopt_child_to_parent(
+        ...     child_client_order_id="child-uuid-123",
+        ...     new_parent_client_order_id="parent-uuid-456",
+        ...     keep_adoption_history=True
+        ... )
+        >>> if result:
+        ...     print("Child adopted successfully")
+        
+        >>> # Adopt without keeping history
+        >>> result = adopt_child_to_parent(
+        ...     child_client_order_id="child-uuid-123",
+        ...     new_parent_client_order_id="parent-uuid-456",
+        ...     keep_adoption_history=False
+        ... )
+    
+    Notes:
+        - Validates that both parent and child exist before updating
+        - When keep_adoption_history=True, stores old parent ID for audit trail
+        - The timestamp adopted_at records when the adoption occurred
+        - Old parent-child relationship is broken by updating the FK
+    """
+    # First, validate that child exists
+    validate_child_query = (
+        "SELECT parent_client_order_id FROM order_child WHERE client_order_id = %s"
+    )
+    try:
+        child_result = DB_CLIENT.execute_query(validate_child_query, (child_client_order_id,))
+        if not child_result:
+            print(f"Error: Child order not found: {child_client_order_id}")
+            return False
+        
+        old_parent = child_result[0].get("parent_client_order_id")
+    except Exception as e:
+        print(f"Error validating child order: {e}")
+        return False
+    
+    # Validate that new parent exists
+    validate_parent_query = (
+        "SELECT client_order_id FROM order_parent WHERE client_order_id = %s"
+    )
+    try:
+        parent_result = DB_CLIENT.execute_query(validate_parent_query, (new_parent_client_order_id,))
+        if not parent_result:
+            print(f"Error: Parent order not found: {new_parent_client_order_id}")
+            return False
+    except Exception as e:
+        print(f"Error validating parent order: {e}")
+        return False
+    
+    # Perform the adoption
+    if keep_adoption_history:
+        # Preserve old parent and add adoption timestamp
+        update_query = """
+        UPDATE order_child 
+        SET parent_client_order_id = %s,
+            previous_parent_client_order_id = %s,
+            adopted_at = CURRENT_TIMESTAMP
+        WHERE client_order_id = %s
+        """
+        params = (new_parent_client_order_id, old_parent, child_client_order_id)
+    else:
+        # Just update the parent, no history
+        update_query = """
+        UPDATE order_child 
+        SET parent_client_order_id = %s
+        WHERE client_order_id = %s
+        """
+        params = (new_parent_client_order_id, child_client_order_id)
+    
+    try:
+        result = DB_CLIENT.execute_update(update_query, params)
+        if result > 0:
+            history_note = (
+                f" (previous parent: {old_parent})"
+                if keep_adoption_history else ""
+            )
+            print(
+                f"Child order adopted: {child_client_order_id} "
+                f"from {old_parent} -> {new_parent_client_order_id}{history_note}"
+            )
+            return True
+        else:
+            print(f"No child order found with client_order_id: {child_client_order_id}")
+            return False
+    except Exception as e:
+        print(f"Error adopting child order: {e}")
+        return False

@@ -1584,6 +1584,111 @@ class OrderEngine:
 
         return parent_order_ids, child_order_ids
 
+    def adopt_child_to_new_parent(
+        self,
+        child_client_order_id: str,
+        new_parent_client_order_id: str,
+        keep_adoption_history: bool = True
+    ) -> bool:
+        """
+        Reassign a child order to a new parent order (adoption).
+        
+        Updates both in-memory orderbook structures and the database to reflect
+        the new parent-child relationship. Optionally tracks the original parent
+        for audit history.
+        
+        This is useful for strategies like:
+        - Migrating orders to a new parent due to market conditions
+        - Consolidating children from multiple parents to a single parent
+        - Orphaning a child and making it the parent of other orders
+        
+        Args:
+            child_client_order_id: The UUID of the child order to adopt.
+            new_parent_client_order_id: The UUID of the new parent order.
+            keep_adoption_history: If True, stores the old parent in the database
+                                   for audit trail. If False, old parent link is lost.
+        
+        Returns:
+            True if adoption was successful, False otherwise.
+        
+        Raises:
+            None - errors are logged and False is returned.
+        
+        Examples:
+            >>> # Adopt child to new parent, keeping history
+            >>> result = engine.adopt_child_to_new_parent(
+            ...     child_client_order_id="child-uuid-123",
+            ...     new_parent_client_order_id="parent-uuid-456",
+            ...     keep_adoption_history=True
+            ... )
+            >>> if result:
+            ...     print("Adoption successful")
+            
+            >>> # Adopt without tracking history
+            >>> result = engine.adopt_child_to_new_parent(
+            ...     child_client_order_id="child-uuid-123",
+            ...     new_parent_client_order_id="parent-uuid-456",
+            ...     keep_adoption_history=False
+            ... )
+        
+        Notes:
+            - Both child and new parent must exist in the system
+            - Validates existence before attempting adoption
+            - Updates in-memory orderbook atomically with orderbook_lock
+            - Persists changes to database immediately
+            - Logs adoption event for audit trail
+        """
+        # First update database
+        success = self.db_helper.adopt_child_to_parent(
+            child_client_order_id=child_client_order_id,
+            new_parent_client_order_id=new_parent_client_order_id,
+            keep_adoption_history=keep_adoption_history,
+        )
+        
+        if not success:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "adopt_child_database_failed",
+                    child_client_order_id=child_client_order_id,
+                    new_parent_client_order_id=new_parent_client_order_id,
+                ),
+            )
+            return False
+        
+        # Then update in-memory structures atomically
+        with self.orderbook_lock:
+            old_parent = self.orderbook.child_order_ids.get(child_client_order_id)
+            
+            # Remove from old parent's children list
+            if old_parent and old_parent in self.orderbook.parent_order_ids:
+                children_list = self.orderbook.parent_order_ids[old_parent].get("orders", [])
+                if child_client_order_id in children_list:
+                    children_list.remove(child_client_order_id)
+            
+            # Update mapping to new parent
+            self.orderbook.child_order_ids[child_client_order_id] = new_parent_client_order_id
+            
+            # Add to new parent's children list
+            if new_parent_client_order_id in self.orderbook.parent_order_ids:
+                children_list = self.orderbook.parent_order_ids[new_parent_client_order_id].get("orders", [])
+                if child_client_order_id not in children_list:
+                    children_list.append(child_client_order_id)
+        
+        # Log the adoption
+        self.log_message(
+            "order",
+            self.build_event_log_payload(
+                "child_order_adopted",
+                child_client_order_id=child_client_order_id,
+                old_parent_client_order_id=old_parent,
+                new_parent_client_order_id=new_parent_client_order_id,
+                kept_history=keep_adoption_history,
+            ),
+        )
+        
+        return True
+
     def load_parent_child_order_ids(self, force_log: bool = False) -> bool:
         """Load parent/child order mappings from database into orderbook.
         
