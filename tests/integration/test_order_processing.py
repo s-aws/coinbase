@@ -13,19 +13,25 @@ class TestCompleteOrderLifecycle:
     
     def test_limit_order_to_execution(self, stealth_order_factory, sample_market_data):
         """Test lifecycle: create limit order → monitor → fill."""
-        # Create order
+        # Create order with price-based reveal condition
         order = stealth_order_factory(
             product_id="BTC-USDC",
             side="BUY",
             total_size=1.0,
-            limit_price=50000.0
+            limit_price=50000.0,
+            reveal_condition_json={
+                "type": "price",
+                "direction": "below",
+                "price_threshold": 49000.0,
+                "hold_duration_seconds": 1
+            }
         )
         
         assert order["status"] == "HIDDEN"
         assert order["revealed_size"] == 0.0
         
         # Simulate price movement to trigger condition
-        current_price = 49500.0  # Price dropped
+        current_price = 48500.0  # Price dropped below threshold of 49000
         condition = order["reveal_condition_json"]
         
         should_trigger = (
@@ -100,8 +106,8 @@ class TestConditionEvaluationIntegration:
         """Test price threshold condition with realistic market data."""
         order = sample_stealth_order
         
-        # Initial price: above threshold
-        market_price = 48500.0
+        # Market price drops well below threshold
+        market_price = 44000.0  # Below the threshold of 45000
         condition = order["reveal_condition_json"]
         
         # Condition: reveal when price below 45000

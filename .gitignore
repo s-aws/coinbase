@@ -188,3 +188,5 @@ genai_tools/
 AGENTS.md
 ID_USAGE_ANALYSIS.md
 .ai-context.md
+agent.md
+ai-context.md

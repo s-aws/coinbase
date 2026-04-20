@@ -205,7 +205,7 @@ class StealthOrderManager:
         if slice_size <= 0:
             return None
         
-        # Place actual limit order on exchange
+        # Place actual limit order on exchange (NOT stealth - this IS the revealed placement)
         try:
             order_responses = create_limit_order_span(
                 product_id=order["product_id"],
@@ -214,7 +214,8 @@ class StealthOrderManager:
                 start_price=order["limit_price"],
                 order_price_difference=0,  # Single order at limit price
                 max_order_count=1,
-                post_only=False
+                post_only=False,
+                use_stealth=False  # CRITICAL: Place on exchange directly, don't create another stealth order
             )
             
             # Extract the placed order ID from response

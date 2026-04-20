@@ -187,9 +187,10 @@ class TestProcessorBridgeValidation:
         required = order["size"] * order["price"]
         has_funds = account["balance"] >= required
         
-        assert has_funds is False  # 5000 required, only 10000 available (should work)
+        # 5000 required, 10000 available - should have funds
+        assert has_funds is True  # FIXED: 5000 <= 10000
         
-        # Fix: 5000 < 10000
+        # Verify the calculation
         assert 5000 < 10000
 
 

@@ -64,6 +64,33 @@ def get_stealth_order_bridge():
     """
     return _stealth_order_bridge
 
+def get_immediate_reveal_condition() -> dict:
+    """Create a reveal condition for immediate order placement (Time Delay 0).
+    
+    Use this when you want to create a stealth order that is immediately revealed.
+    The order will be created as hidden but triggered instantly, resulting in
+    behavior nearly equivalent to non-stealth orders but with stealth system tracking.
+    
+    Returns:
+        dict: Reveal condition with type='time_delay', delay_seconds=0, jitter_seconds=0
+        
+    Example:
+        >>> from order import create_limit_order_span, get_immediate_reveal_condition
+        >>> orders = create_limit_order_span(
+        ...     product_id='BTC-USDC',
+        ...     side='SELL',
+        ...     order_base_size=0.5,
+        ...     start_price=42000.0,
+        ...     max_order_count=1,
+        ...     reveal_condition=get_immediate_reveal_condition()
+        ... )
+    """
+    return {
+        "type": "time_delay",
+        "delay_seconds": 0,
+        "jitter_seconds": 0
+    }
+
 def generate_float(start: float, stop: float = None) -> float:
     """Generate a random float between two floats.
     
@@ -100,21 +127,26 @@ def create_limit_order_span(
         order_price_difference: float = 0.00001,
         start_price: float = 0.00992,
         post_only: bool = False,
-        use_stealth: bool = False,
+        use_stealth: bool = True,
         reveal_condition: dict = None,
         sizing_strategy: dict = None) -> list:
     """Create a series of limit orders spanning a price range.
     
-    Places multiple GTC (Good-Till-Cancel) limit orders at specified price intervals,
-    with optional delays between placements. Can create orders as hidden (stealth)
-    that will be revealed when specified conditions are met.
+    ARCHITECTURE: Orders are created as STEALTH (hidden) by default and revealed
+    based on conditions. This prevents market maker frontrunning and information
+    leakage. Use reveal_condition to control when hidden orders are revealed.
+    
+    For orders that should NOT be hidden, set reveal_condition to Time Delay 0
+    (immediate reveal). See get_immediate_reveal_condition() helper.
     
     Key Features:
+    - DEFAULT BEHAVIOR: Creates hidden orders with reveal conditions
+    - Automatic reveal condition: If reveal_condition not provided, uses Time Delay 0 (immediate)
     - Automatic price stepping: each order placed at start_price + (order_index * price_difference)
     - Size variation: use order_base_size_range to randomize sizes
     - Exchange compliance: formats prices/sizes to exchange increments
     - Error handling: retries on insufficient funds, aborts on other errors
-    - Stealth orders: optionally create hidden orders that reveal conditionally
+    - Adaptive sizing: supports volume-proportional or fixed-size reveals
     
     Args:
         order_base_size_range: Dictionary with 'start' and optional 'stop' for size range.
@@ -128,15 +160,21 @@ def create_limit_order_span(
         order_price_difference: Price difference between consecutive orders (default 0.00001).
         start_price: Starting price for the first order (default 0.00992).
         post_only: If True, orders will be rejected if they would immediately fill (default False).
-        use_stealth: If True, creates hidden orders instead of placing directly (default False).
-                     Requires reveal_condition to be specified.
-        reveal_condition: Dictionary specifying when to reveal hidden order (required if use_stealth=True).
-                         Example: {
+        use_stealth: If False, creates normal (non-stealth) orders placed directly on exchange.
+                     If True (DEFAULT), creates hidden orders with reveal conditions (default True).
+        reveal_condition: Dictionary specifying when to reveal hidden order.
+                         If not provided and use_stealth=True, defaults to Time Delay 0 (immediate reveal).
+                         Example for price-based reveal: {
                              'type': 'price',
                              'price_threshold': 41000.00,
                              'direction': 'below',  # 'below' or 'above'
                              'hold_duration_seconds': 2,
-                             'follow_up_reveal_direction': 'opposite'  # Optional: 'same', 'opposite', 'above', or 'below'
+                             'follow_up_reveal_direction': 'opposite'  # Optional
+                         }
+                         Example for time-based reveal: {
+                             'type': 'time_delay',
+                             'delay_seconds': 300,  # 5 minutes
+                             'jitter_seconds': 60    # ±60 seconds random variation
                          }
                          The 'follow_up_reveal_direction' field controls how reveal conditions are set for
                          follow-ups when this order fills:
@@ -153,12 +191,12 @@ def create_limit_order_span(
         A list of order response dictionaries. Each dict contains:
         - 'success': bool indicating if order was placed/created
         - 'success_response': order data with standard fields:
-            - For normal orders:
+            - For normal orders (use_stealth=False):
                 - 'client_order_id': our local UUID for tracking
                 - 'order_id': exchange-assigned UUID (from API response)
                 - 'status': order status (e.g., 'PENDING', 'OPEN', 'FILLED')
                 - 'created_at': timestamp
-            - For stealth orders (use_stealth=True):
+            - For stealth orders (use_stealth=True, DEFAULT):
                 - 'client_order_id': our local UUID (same as stealth_order_id)
                 - 'order_id': None (will be assigned when order reveals on API)
                 - 'status': 'HIDDEN' (indicates not yet sent to exchange)
@@ -172,12 +210,52 @@ def create_limit_order_span(
         Exception: Re-raises unhandled API errors (other than INSUFFICIENT_FUND).
     
     Examples:
-        >>> # Place 5 SELL orders with fixed size (normal flow)
+        >>> # Place 5 SELL orders as STEALTH (DEFAULT BEHAVIOR)
+        >>> # These will be immediately revealed (Time Delay 0 by default)
         >>> orders = create_limit_order_span(
         ...     product_id='BTC-USDC',
         ...     side='SELL',
         ...     start_price=42000.0,
         ...     order_price_difference=50.0,
+        ...     max_order_count=5,
+        ...     order_base_size=0.01
+        ... )
+        >>> for order in orders:
+        ...     if order["success"]:
+        ...         print(f"Created stealth order: {order['success_response']['client_order_id']}")
+        ...         print(f"  Status: {order['success_response']['status']}")  # 'HIDDEN'
+        
+        >>> # Place with custom reveal condition (price-based)
+        >>> stealth_orders = create_limit_order_span(
+        ...     product_id='BTC-USDC',
+        ...     side='SELL',
+        ...     order_base_size=0.5,
+        ...     start_price=42000.0,
+        ...     max_order_count=1,
+        ...     reveal_condition={
+        ...         'type': 'price',
+        ...         'price_threshold': 41500.0,
+        ...         'direction': 'below'
+        ...     }
+        ... )
+        
+        >>> # Place as normal (non-stealth) orders
+        >>> orders = create_limit_order_span(
+        ...     product_id='ETH-USDC',
+        ...     side='BUY',
+        ...     start_price=2000.0,
+        ...     order_base_size_range={'start': 0.5, 'stop': 2.0},
+        ...     order_price_difference=10.0,
+        ...     max_order_count=3,
+        ...     use_stealth=False    # Opt-out of stealth behavior
+        ... )
+        
+        >>> # Place 3 BUY orders with random sizes and 2-second delay
+        >>> orders = create_limit_order_span(
+        ...     product_id='ETH-USDC',
+        ...     side='BUY',
+        ...     start_price=2000.0,
+        ...     order_base_size_range={'start': 0.5, 'stop': 2.0},
         ...     max_order_count=5,
         ...     order_base_size=0.01
         ... )
@@ -220,10 +298,11 @@ def create_limit_order_span(
     """
     results = []
     
-    # Handle stealth order creation
+    # Handle stealth order creation (DEFAULT BEHAVIOR)
     if use_stealth:
+        # Auto-generate reveal condition for immediate reveal if not provided
         if not reveal_condition:
-            raise ValueError("reveal_condition is required when use_stealth=True")
+            reveal_condition = get_immediate_reveal_condition()
         
         stealth_bridge = get_stealth_order_bridge()
         if not stealth_bridge:
