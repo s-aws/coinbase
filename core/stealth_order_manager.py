@@ -11,7 +11,7 @@ Key Concepts:
 - Parent:Child Relationships: 1:Many - one parent order can have many follow-ups
 
 The term "stealth" reflects the internal implementation but from the API perspective,
-all orders are just orders with configurable reveal timing.
+all orders are just orders with configurable reveal timing. """
 
 
 import uuid
