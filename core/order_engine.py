@@ -1507,70 +1507,8 @@ class OrderEngine:
             return
 
         # Handle stealth order fills - create a Child stealth order as follow-up
-        if original_stealth_order and self.stealth_order_bridge:
-            try:
-                # Determine the follow-up side (opposite of revealed order)
-                follow_up_side = "BUY" if order["side"] == "SELL" else "SELL"
-                
-                # Use revealed size for follow-up (what just filled)
-                follow_up_size = float(order.get("filled_size", 0))
-                if follow_up_size <= 0:
-                    follow_up_size = float(order.get("size", 0))
-                
-                # Get parent stealth order to inherit settings
-                parent_stealth_id = original_stealth_order.get("stealth_order_id")
-                parent_reveal_condition = original_stealth_order.get("reveal_condition_json", {})
-                parent_follow_up_direction = original_stealth_order.get("follow_up_reveal_direction", "opposite")
-                parent_target_movement = original_stealth_order.get("target_movement")
-                parent_target_movement_type = original_stealth_order.get("target_movement_type", "P")
-                
-                # Create Child stealth order
-                child_stealth_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
-                    original_stealth_order_id=parent_stealth_id,
-                    side=follow_up_side,
-                    total_size=follow_up_size,
-                    limit_price=order.get("price", 0),
-                    reveal_condition=parent_reveal_condition,
-                    follow_up_reveal_direction=parent_follow_up_direction,
-                    notes=f"Follow-up from filled reveal {client_order_id[:8]}...",
-                    target_movement=parent_target_movement,
-                    target_movement_type=parent_target_movement_type
-                )
-                
-                if child_stealth_id:
-                    self.log_message(
-                        "order",
-                        {
-                            "event": "stealth_follow_up_created",
-                            "parent_stealth_order_id": parent_stealth_id,
-                            "child_stealth_order_id": child_stealth_id,
-                            "filled_order_id": client_order_id,
-                            "child_side": follow_up_side,
-                            "child_size": follow_up_size,
-                            "inherited_target_movement": parent_target_movement,
-                        }
-                    )
-                    self.complete_follow_up_processing("filled", client_order_id)
-                    return
-                else:
-                    self.log_message(
-                        "warning",
-                        {
-                            "event": "stealth_follow_up_creation_failed",
-                            "parent_stealth_order_id": parent_stealth_id,
-                            "filled_order_id": client_order_id,
-                        }
-                    )
-            except Exception as e:
-                self.log_message(
-                    "error",
-                    {
-                        "event": "stealth_follow_up_creation_exception",
-                        "filled_order_id": client_order_id,
-                        "error": str(e),
-                    }
-                )
-            # Fall through to normal follow-up processing if stealth follow-up fails
+        # NOTE: This is handled in the later stealth order code path (around line 1663)
+        # After normal follow-up processing claims the order. Kept here for reference only.
 
         if not self.claim_follow_up_processing("filled", client_order_id):
             self.log_message(
@@ -1672,6 +1610,10 @@ class OrderEngine:
                         # else: "same" - keep original direction unchanged
                     
                     # Create the stealth follow-up order (hidden, not revealed yet)
+                    # Get target_movement from parent stealth order for inheritance
+                    parent_target_movement = original_stealth_order.get("target_movement")
+                    parent_target_movement_type = original_stealth_order.get("target_movement_type", "P")
+                    
                     stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
                         original_stealth_order_id=original_stealth_order["stealth_order_id"],
                         side=order_template["side"],
@@ -1679,7 +1621,9 @@ class OrderEngine:
                         limit_price=follow_up_price,
                         reveal_condition=follow_up_reveal_condition,
                         follow_up_reveal_direction=direction_choice,
-                        notes=f"Auto follow-up from stealth order reveal"
+                        notes=f"Auto follow-up from stealth order reveal",
+                        target_movement=parent_target_movement,
+                        target_movement_type=parent_target_movement_type
                     )
                     
                     self.log_message(
@@ -1688,7 +1632,10 @@ class OrderEngine:
                             "event": "stealth_follow_up_created",
                             "stealth_follow_up_id": stealth_follow_up_id,
                             "parent_stealth_id": original_stealth_order["stealth_order_id"],
-                            "parent_target_movement": target_movement,
+                            "parent_target_movement": {
+                                "movement": parent_target_movement,
+                                "type": parent_target_movement_type
+                            } if parent_target_movement else None,
                             "product_id": product_id,
                             "side": order_template["side"],
                             "reveal_condition": follow_up_reveal_condition,
