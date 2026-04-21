@@ -708,16 +708,16 @@ class OrderBook():
 
     profit = {
         "SPOT": {
-            "BUY": 0.004,
-            "SELL": 0.004
+            "BUY": 0.002,
+            "SELL": 0.002
         },
         "FUTURE": {
             "BUY": 0.004,
             "SELL": 0.004
         },
         "BIP-20DEC30-CDE": {
-            "BUY": 0.004,
-            "SELL": 0.004
+            "BUY": 0.0021,
+            "SELL": 0.0021
         }
     }
 
