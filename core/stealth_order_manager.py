@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
 from business.stealth_condition_evaluator import get_evaluator
+from database.order import insert_order_parent
 
 
 class StealthOrderManager:
@@ -179,6 +180,22 @@ class StealthOrderManager:
         
         # Persist to database
         self._save_stealth_order_to_db(order_data)
+        
+        # UNIFIED TRACKING: If this is a root order (no parent), also insert into order_parent table
+        # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
+        if not parent_order_id:
+            insert_order_parent(
+                client_order_id=stealth_order_id,
+                product_id=product_id,
+                side=side,
+                size=total_size,
+                price=limit_price,
+                target_movement=0.0,  # Stealth orders use reveal conditions instead of target_movement
+                target_movement_type="P",
+                max_order_replacement=0,  # Will be set later based on follow-up strategy
+                current_order_replacement=0,
+                status="pending"  # Stealth orders start as pending in traditional tracking
+            )
         
         return stealth_order_id
     
@@ -579,7 +596,8 @@ class StealthOrderManager:
         follow_up_target_movement_type = target_movement_type if target_movement is not None else original_order.get("target_movement_type", "P")
         
         # Create follow-up with same reveal condition and sizing strategy
-        # Link the follow-up as a child order to the original parent
+        # Link the follow-up as a child order to the ORIGINAL root parent (not the filled child)
+        # This maintains a flat, single-level Parent:Child hierarchy as per design
         follow_up_id = self.create_stealth_order(
             product_id=original_order["product_id"],
             side=side,
@@ -587,7 +605,7 @@ class StealthOrderManager:
             limit_price=limit_price,
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
-            parent_order_id=original_stealth_order_id,
+            parent_order_id=original_order.get("parent_order_id") or original_stealth_order_id,
             follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", "opposite"),
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"

@@ -574,6 +574,31 @@ def get_child_orders(parent_client_order_id: str) -> List[Dict[str, Any]]:
     return DB_CLIENT.execute_query(query, (parent_client_order_id,))
 
 
+def get_stealth_children_for_parent(parent_order_id: str) -> List[Dict[str, Any]]:
+    """Retrieve all children (follow-ups) for a parent stealth order.
+    
+    Since all orders are stealth orders, all children are stealth children
+    stored in the stealth_orders table with parent_order_id pointing to the parent.
+    
+    Args:
+        parent_order_id: The UUID of the parent stealth order (matches stealth_order_id).
+    
+    Returns:
+        List of stealth child order dicts (with stealth_order_id as the child identifier),
+        or empty list if none exist.
+    """
+    query = """
+    SELECT stealth_order_id as client_order_id, 
+           product_id, 
+           side, 
+           total_size as size, 
+           limit_price as price
+    FROM stealth_orders 
+    WHERE parent_order_id = %s
+    """
+    return DB_CLIENT.execute_query(query, (parent_order_id,))
+
+
 def child_order_exists(
     parent_client_order_id: str,
     product_id: str,
