@@ -583,3 +583,42 @@ class MoveManager:
                 "move_id": None,
                 "error": error_msg
             }
+            result = self.move_order(
+                original_parent_client_order_id=original_parent_client_order_id,
+                new_order_details=new_order_details,
+                reason=f"automated_{pending_move['reason']}",
+                notes=f"Auto-executed: {pending_move.get('notes', '')}"
+            )
+
+            if result["success"]:
+                # Mark the pending move as executed
+                execute_pending_move(
+                    original_parent_client_order_id=original_parent_client_order_id,
+                    new_parent_client_order_id=result["new_parent_client_order_id"]
+                )
+
+                return {
+                    "success": True,
+                    "message": f"Pending move executed automatically",
+                    "new_parent_client_order_id": result["new_parent_client_order_id"],
+                    "move_id": result["move_id"],
+                    "error": None
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Failed to execute pending move: {result['error']}",
+                    "new_parent_client_order_id": None,
+                    "move_id": pending_move["id"],
+                    "error": result["error"]
+                }
+
+        except Exception as e:
+            error_msg = f"Exception executing pending move: {str(e)}"
+            return {
+                "success": False,
+                "message": error_msg,
+                "new_parent_client_order_id": None,
+                "move_id": None,
+                "error": error_msg
+            }

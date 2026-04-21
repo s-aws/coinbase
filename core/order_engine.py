@@ -1139,10 +1139,36 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
+        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
+        # This must happen before any other processing to prevent race conditions
+        if not self.claim_follow_up_processing("cancelled", client_order_id):
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=None,
+                    details={"reason": "cancelled_order_follow_up_already_claimed"},
+                ),
+            )
+            return
+
         with self.orderbook_lock:
             if self.orderbook.should_replace["CANCELLED"] is not True:
+                self.release_follow_up_processing("cancelled", client_order_id)
                 return
-            _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+            is_parent, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+            
+            # If this is an external order (not tracked), treat it as a parent
+            if parent_client_order_id is None:
+                # External order - create parent entry so it's tracked
+                self.resolve_parent_client_order_id(
+                    client_order_id, 
+                    order=order, 
+                    create_parent=True, 
+                    status="CANCELLED"
+                )
+                _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
         # Check for pending move (automation) - executes instead of normal follow-up
         from database.order import has_pending_move
@@ -1163,6 +1189,7 @@ class OrderEngine:
                         }
                     )
                     # Successfully handled via pending move, don't do normal follow-up
+                    self.complete_follow_up_processing("cancelled", client_order_id)
                     return
                 else:
                     self.log_message(
@@ -1174,7 +1201,11 @@ class OrderEngine:
                             "message": move_result.get("message")
                         }
                     )
-                    # Fall through to normal handling if pending move fails
+                    # IMPORTANT: Don't fall through to normal follow-up
+                    # If a pending move failed, don't create a child order as fallback
+                    # Complete the processing to mark as handled
+                    self.complete_follow_up_processing("cancelled", client_order_id)
+                    return
             except Exception as e:
                 self.log_message(
                     "error",
@@ -1184,19 +1215,11 @@ class OrderEngine:
                         "error": str(e)
                     }
                 )
-                # Fall through to normal handling
-
-        if not self.claim_follow_up_processing("cancelled", client_order_id):
-            self.log_message(
-                "warning",
-                self.build_follow_up_log_payload(
-                    "follow_up_already_claimed",
-                    source_order=order,
-                    parent_client_order_id=parent_client_order_id,
-                    details={"reason": "cancelled_order_follow_up_already_claimed"},
-                ),
-            )
-            return
+                # IMPORTANT: Don't fall through to normal follow-up
+                # If a pending move exception occurs, don't create a child order as fallback
+                # Complete the processing to mark as handled
+                self.complete_follow_up_processing("cancelled", client_order_id)
+                return
 
         try:
             order_template = self.compute_order_template(client_order_id)

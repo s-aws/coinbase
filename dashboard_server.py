@@ -635,21 +635,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 )
                 
                 if result['success']:
-                    # Create the new parent order in database
-                    from database.order_dashboard_helpers import insert_parent_order, get_parent_order_by_client_id
+                    # The new parent order was already created by move_order()
+                    # Just fetch it to send back to client
+                    from database.order_dashboard_helpers import get_parent_order_by_client_id
                     new_parent_id = result['new_parent_client_order_id']
-                    
-                    insert_parent_order(
-                        client_order_id=new_parent_id,
-                        product_id=new_order_details.get('product_id'),
-                        side=new_order_details.get('side'),
-                        size=float(new_order_details.get('size', 0)),
-                        price=float(new_order_details.get('price', 0)),
-                        target_movement=float(new_order_details.get('target_movement')) if new_order_details.get('target_movement') else None,
-                        max_order_replacement=int(new_order_details.get('max_order_replacement', 0)),
-                        status='OPEN'
-                    )
-                    
                     new_parent_order = get_parent_order_by_client_id(new_parent_id)
                     
                     response = {
