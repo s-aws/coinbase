@@ -519,9 +519,16 @@ class StealthOrderManager:
     def _serialize_order_for_json(self, order: Dict[str, Any]) -> Dict[str, Any]:
         """Convert order dict to JSON-serializable format.
         
-        Converts datetime objects to ISO format strings.
+        Converts datetime objects to ISO format strings and Decimal to float.
         """
+        from decimal import Decimal
+        
         serialized = order.copy()
+        
+        # Convert Decimal values to float
+        for key, value in serialized.items():
+            if isinstance(value, Decimal):
+                serialized[key] = float(value)
         
         # Convert datetime objects to ISO format strings
         for key in ['created_at', 'updated_at', 'condition_first_met_at', 'condition_confirmed_at', 'last_placement_at']:
@@ -535,6 +542,10 @@ class StealthOrderManager:
             for event in serialized['revealed_orders']:
                 serialized_event = event.copy() if isinstance(event, dict) else event
                 if isinstance(serialized_event, dict):
+                    # Convert Decimal values in reveal events
+                    for key, value in serialized_event.items():
+                        if isinstance(value, Decimal):
+                            serialized_event[key] = float(value)
                     # Convert datetime objects in reveal events
                     for dt_key in ['reveal_time', 'created_at', 'timestamp']:
                         if dt_key in serialized_event and serialized_event[dt_key]:

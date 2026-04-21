@@ -1390,6 +1390,12 @@ class OrderEngine:
                     "delay_seconds": 0  # Immediate reveal on cancel follow-up
                 }
                 
+                # Get target_movement from parent order (stored in order_parent table)
+                from database.order import get_parent_order
+                parent_order_data = get_parent_order(parent_client_order_id)
+                parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
+                parent_target_movement_type = parent_order_data.get("target_movement_type", "P") if parent_order_data else "P"
+                
                 stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
                     original_stealth_order_id=client_order_id,
                     side=order_template["side"],
@@ -1397,7 +1403,9 @@ class OrderEngine:
                     limit_price=follow_up_price,
                     reveal_condition=reveal_condition,
                     follow_up_reveal_direction="same",
-                    notes=f"Auto follow-up from cancelled order"
+                    notes=f"Auto follow-up from cancelled order",
+                    target_movement=parent_target_movement,
+                    target_movement_type=parent_target_movement_type
                 )
                 
                 # Register stealth follow-up as child of original parent
@@ -1697,9 +1705,11 @@ class OrderEngine:
                         # else: "same" - keep original direction unchanged
                     
                     # Create the stealth follow-up order (hidden, not revealed yet)
-                    # Get target_movement from parent stealth order for inheritance
-                    parent_target_movement = original_stealth_order.get("target_movement")
-                    parent_target_movement_type = original_stealth_order.get("target_movement_type", "P")
+                    # Get target_movement from parent order (stored in order_parent table)
+                    from database.order import get_parent_order
+                    parent_order_data = get_parent_order(parent_client_order_id)
+                    parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
+                    parent_target_movement_type = parent_order_data.get("target_movement_type", "P") if parent_order_data else "P"
                     
                     # Debug: Log the exact reveal condition being set
                     self.log_message(
