@@ -19,6 +19,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
+from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 
@@ -78,7 +79,10 @@ class StealthOrderManager:
         follow_up_reveal_direction: Optional[str] = None,
         reason: str = "normal_placement",
         notes: str = "",
-        stealth_order_id: Optional[str] = None
+        stealth_order_id: Optional[str] = None,
+        max_order_replacements: Optional[int] = None,
+        target_movement: float = 0.002,
+        target_movement_type: str = "P"
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -106,6 +110,9 @@ class StealthOrderManager:
             stealth_order_id: Optional UUID provided by caller (UI or engine). 
                              If not provided, a new UUID is generated.
                              Used to enable deterministic order IDs from UI.
+            max_order_replacements: Maximum number of follow-up orders allowed (default: from config)
+            target_movement: Target profit/movement percentage (default: 0.0)
+            target_movement_type: Type of target ('P' for percentage, 'A' for absolute, default 'P')
             
         Returns:
             order_id (UUID string) - Used as client_order_id for all internal tracking
@@ -184,15 +191,18 @@ class StealthOrderManager:
         # UNIFIED TRACKING: If this is a root order (no parent), also insert into order_parent table
         # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
         if not parent_order_id:
+            # Use provided max_order_replacements or fall back to configuration default
+            effective_max_replacements = max_order_replacements if max_order_replacements is not None else DEFAULT_MAX_ORDER_REPLACEMENT
+            
             insert_order_parent(
                 client_order_id=stealth_order_id,
                 product_id=product_id,
                 side=side,
                 size=total_size,
                 price=limit_price,
-                target_movement=0.0,  # Stealth orders use reveal conditions instead of target_movement
-                target_movement_type="P",
-                max_order_replacement=0,  # Will be set later based on follow-up strategy
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+                max_order_replacement=effective_max_replacements,
                 current_order_replacement=0,
                 status="pending"  # Stealth orders start as pending in traditional tracking
             )

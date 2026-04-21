@@ -305,7 +305,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
                     follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'opposite'),
-                    notes=order.get('notes', '')
+                    notes=order.get('notes', ''),
+                    max_order_replacements=order.get('max_order_replacements'),
+                    target_movement=order.get('target_movement', 0.002),
+                    target_movement_type=order.get('target_movement_type', 'P')
                 )
                 
                 # Get the created order data and serialize for JSON
