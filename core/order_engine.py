@@ -1,12 +1,45 @@
-"""OrderEngine - Multithreaded trading engine for Coinbase Advanced API order management.
+"""OrderEngine - Multithreaded trading engine for Coinbase Advanced API.
 
-This module implements the core OrderEngine class that:
-- Maintains a live websocket connection to Coinbase for real-time order updates
-- Manages parent-child order relationships and their lifecycle
-- Automatically creates follow-up orders based on fills and cancellations
-- Handles order deduplication and event processing with thread-safe operations
-- Synchronizes in-memory orderbook state with PostgreSQL database
-- Implements position tracking for futures contracts
+Core responsibilities:
+- Real-time order event processing via WebSocket
+- Parent-child order relationship lifecycle management  
+- Automatic follow-up order creation on fills/cancellations
+- Position tracking for derivatives
+- Thread-safe orderbook state synchronization with database
+
+ARCHITECTURE: Unified Order System
+===================================
+
+All orders flow through StealthOrderManager with automated reveal conditions:
+- Orders are created via StealthOrderManager.create_stealth_order()
+- Orders start in HIDDEN state with a reveal_condition
+- Conditions are evaluated continuously (time-based, price-based, immediate)
+- When condition is met, order transitions to PENDING, then to FILLED/CANCELLED
+- OrderEngine processes fill events and creates follow-up orders
+
+Parent:Child Order Relationships (1:Many)
+=========================================
+
+The system enforces a 1:Many parent-child relationship:
+- ONE parent order can have MANY child orders (follow-ups)
+- Parent: The initial order that triggers follow-up creation
+- Child: Orders created when parent fills or is cancelled
+- Example: 
+  - Create parent order: BUY 10 @ $40,000 (via reveal condition)
+  - Parent fills
+  - OrderEngine detects fill and creates follow-up child: SELL 10 @ $41,000
+  
+Data Structures:
+- order_parent_ids: Dict[parent_id → {orders: [child_ids], ...}]
+- child_order_ids: Dict[child_id → parent_id]
+
+This module maintains:
+- Live WebSocket connection for real-time order updates
+- Parent-child order relationships and lifecycle
+- Automatic follow-up creation logic
+- Order deduplication with thread-safe event processing
+- In-memory orderbook state synchronized with PostgreSQL
+- Position tracking for futures contracts
 """
 
 import json
@@ -221,7 +254,9 @@ class OrderEngine:
         if isinstance(message, (dict, list)):
             message = json.dumps(message, sort_keys=True, default=str)
 
-        print(f"{get_local_now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
+        from logging_service import get_logger
+        logger = get_logger("OrderEngine")
+        logger.info(f"{threading.current_thread().name} [{log_type.upper()}] {message}")
 
     @staticmethod
     def order_limit_price_or_avg_price(order: dict) -> float:

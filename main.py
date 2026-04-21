@@ -34,6 +34,17 @@ Example:
     >>> orchestrator.run_forever()  # Blocks indefinitely, runs all background threads
 """
 
+import logging
+
+# Configure logging for all modules
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Initialize custom logging service
+from logging_service import set_backend
+
 from configuration import (
     Subscription,
     ORDERBOOK,
@@ -46,6 +57,9 @@ import database.order as DB_HELPER
 from core.order_engine import OrderEngine
 from bridges.engine_orchestrator import OrderEngineOrchestrator
 from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
+
+# Set up custom logging backend to use dashboard's add_log_entry function
+set_backend(add_log_entry)
 
 if __name__ == "__main__":
     # Initialize stealth order system first (before OrderEngine)

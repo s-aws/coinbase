@@ -244,11 +244,17 @@ class CoinbaseRestClient:
         
         return Order.from_dict(response)
     
-    def cancel_order(self, order_id: str) -> bool:
-        """Cancel an open order by order ID.
+    def cancel_order(self, client_order_id: str) -> bool:
+        """Cancel a single order by client order ID.
+        
+        Coinbase accepts either order_id (exchange-assigned) or client_order_id (ours).
+        We use client_order_id because:
+        - We always have it (we generate it for every order)
+        - It works for both revealed and unrevealed orders
+        - More robust than relying on exchange-assigned order_id
         
         Args:
-            order_id: The order ID to cancel (not client_order_id)
+            client_order_id: The client order ID we generated for this order
         
         Returns:
             True if cancel successful, False if order not found
@@ -257,11 +263,11 @@ class CoinbaseRestClient:
             Exception: If API call fails
         
         Examples:
-            >>> success = client.cancel_order('abc123def456')
+            >>> success = client.cancel_order('550e8400-e29b-41d4-a716-446655440000')
             >>> if success:
             ...     print("Order cancelled")
         """
-        result = self._client.cancel_orders([order_id])
+        result = self._client.cancel_orders([client_order_id])
         return result and len(result) > 0
     
     # ========================================================================

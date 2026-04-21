@@ -1,8 +1,18 @@
-"""Stealth Order Manager - Orchestrates hidden order lifecycle and reveals.
+"""Stealth Order Manager - The unified order creation and lifecycle system.
 
-Manages creation, condition evaluation, and timed reveals of stealth orders
-to prevent market maker frontrunning and information leakage.
-"""
+All orders in the system flow through this manager with automated reveal conditions.
+Orders are created in HIDDEN state and automatically revealed based on their
+reveal_condition (time-based, price-based, or immediate).
+
+Key Concepts:
+- reveal_condition: Controls when/how an order transitions from HIDDEN to PENDING to FILLED
+- delay_seconds: For time-based reveals (0 = immediate, 300 = 5 minutes, etc.)
+- price_condition: For price-based reveals (reveal when price drops below X, etc.)
+- Parent:Child Relationships: 1:Many - one parent order can have many follow-ups
+
+The term "stealth" reflects the internal implementation but from the API perspective,
+all orders are just orders with configurable reveal timing.
+
 
 import uuid
 import json
@@ -14,14 +24,25 @@ from order import create_limit_order_span
 
 
 class StealthOrderManager:
-    """Manages the complete lifecycle of stealth (hidden) orders.
+    """Manages the complete lifecycle of all orders with automated reveal conditions.
+    
+    ARCHITECTURE: This is now the ONLY order creation and management system.
+    All orders flow through this system:
+    - Orders start in HIDDEN state with a reveal_condition
+    - The reveal_condition controls when/how orders transition to the exchange
+    - A reveal_condition with delay=0 creates immediate reveals (traditional orders)
+    - More complex conditions enable sophisticated trading strategies
+    
+    The term "stealth" is internal - from the API perspective, these are just orders
+    with configurable reveal timing.
     
     Features:
-    - Create hidden orders with flexible reveal conditions
+    - Create orders with flexible reveal conditions (time-based, price-based, etc.)
     - Evaluate conditions in real-time
     - Adaptive sizing (volume-proportional reveals)
     - Track execution and history
     - Database integration
+    - Parent:Child order relationships (1:Many)
     """
     
     def __init__(self, db_client, log_callback=None):
@@ -55,29 +76,48 @@ class StealthOrderManager:
         sizing_strategy: Optional[Dict[str, Any]] = None,
         parent_order_id: Optional[str] = None,
         follow_up_reveal_direction: Optional[str] = None,
-        reason: str = "avoid_frontrun",
+        reason: str = "normal_placement",
         notes: str = ""
     ) -> str:
         """
-        Create a stealth (hidden) order.
+        Create an order with automated reveal condition.
+        
+        ARCHITECTURE: This is the ONLY way orders are created. All orders start
+        in HIDDEN state pending their reveal condition being met.
         
         Args:
             product_id: Product to trade (e.g., 'BTC-USDC')
             side: 'BUY' or 'SELL'
             total_size: Total amount to eventually buy/sell
             limit_price: Limit price for the order
-            reveal_condition: Dict specifying when to reveal
-            sizing_strategy: Dict specifying how much to reveal at a time
-            parent_order_id: Link to parent order if part of larger strategy
-            follow_up_reveal_direction: How to handle direction in follow-ups ('same', 'opposite', 'above', 'below')
-            reason: Why hidden (e.g., 'avoid_frontrun', 'scale_in')
-            notes: Additional notes
+            reveal_condition: Dict specifying when/how order transitions to exchange.
+                             Examples:
+                             - Immediate: {'type': 'time_delay', 'delay_seconds': 0}
+                             - Time-based: {'type': 'time_delay', 'delay_seconds': 300}
+                             - Price-based: {'type': 'price', 'price_threshold': 41000,
+                                           'direction': 'below', 'hold_duration_seconds': 10}
+            sizing_strategy: Dict specifying adaptive reveal sizing (default: fixed)
+                            Example: {'type': 'volume_proportional', 'min_reveal': 0.1}
+            parent_order_id: Client order ID if this is a child/follow-up order
+            follow_up_reveal_direction: Direction for follow-up reveals ('same', 'opposite', etc.)
+            reason: Reason for order (e.g., 'normal_placement', 'follow_up_replacement')
+            notes: Additional notes for tracking
             
         Returns:
-            stealth_order_id (UUID string)
+            order_id (UUID string) - Used as client_order_id for all internal tracking
             
         Example:
-            >>> stealth_id = manager.create_stealth_order(
+            >>> # Immediate reveal (traditional order)
+            >>> order_id = manager.create_stealth_order(
+            ...     product_id="BTC-USDC",
+            ...     side="BUY",
+            ...     total_size=5.0,
+            ...     limit_price=41000.00,
+            ...     reveal_condition={'type': 'time_delay', 'delay_seconds': 0}
+            ... )
+            
+            >>> # Price-triggered reveal (stealth execution)
+            >>> order_id = manager.create_stealth_order(
             ...     product_id="BTC-USDC",
             ...     side="BUY",
             ...     total_size=5.0,
@@ -215,7 +255,7 @@ class StealthOrderManager:
                 order_price_difference=0,  # Single order at limit price
                 max_order_count=1,
                 post_only=False,
-                use_stealth=False  # CRITICAL: Place on exchange directly, don't create another stealth order
+                reveal_condition={'type': 'time_delay', 'delay_seconds': 0}  # Immediate reveal
             )
             
             # Extract the placed order ID from response

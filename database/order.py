@@ -7,10 +7,12 @@ replacement tracking, and status updates.
 It manages the parent-child order relationship for the trading engine.
 """
 
+from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
 
+logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
 
 
@@ -153,7 +155,8 @@ def update_stealth_order_target_movement(stealth_order_id: str, target_movement:
         
         return rows_affected > 0
     except Exception as e:
-        print(f"Error updating stealth order target_movement: {e}")
+        logger.error(f"✗ Error updating stealth order target_movement {stealth_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Update params - target_movement: {target_movement}, type: {target_movement_type}")
         return False
 
 
@@ -176,7 +179,7 @@ def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
         results = DB_CLIENT.execute_query(query, (stealth_order_id,))
         return results[0] if results else None
     except Exception as e:
-        print(f"Error fetching stealth order: {e}")
+        logger.error(f"✗ Error fetching stealth order {stealth_order_id}: {type(e).__name__}: {e}")
         return None
 
 
@@ -315,13 +318,14 @@ def insert_order_parent(
         results = DB_CLIENT.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
-            print(f"Parent order inserted: {client_order_id} (ID: {inserted_id})")
+            logger.info(f"✓ Parent order inserted: {client_order_id} (DB ID: {inserted_id}, product: {product_id}, {side} {size} @ {price})")
             return inserted_id
 
-        print(f"Failed to retrieve inserted order ID for: {client_order_id}")
+        logger.warning(f"Failed to retrieve inserted order ID for: {client_order_id} - query executed but no result returned")
         return None
     except Exception as e:
-        print(f"Error inserting parent order: {e}")
+        logger.error(f"✗ Error inserting parent order {client_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Failed insert params - product: {product_id}, side: {side}, size: {size}, price: {price}, target_movement: {target_movement}")
         return None
 
 
@@ -380,16 +384,14 @@ def insert_order_child(
         results = DB_CLIENT.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
-            print(
-                f"Child order inserted: {client_order_id} "
-                f"(ID: {inserted_id}, parent: {parent_client_order_id})"
-            )
+            logger.info(f"✓ Child order inserted: {client_order_id} (DB ID: {inserted_id}, parent: {parent_client_order_id}, {side} {size} @ {price})")
             return inserted_id
 
-        print(f"Failed to retrieve inserted child order ID for: {client_order_id}")
+        logger.warning(f"Failed to retrieve inserted child order ID for: {client_order_id} - query executed but no result returned")
         return None
     except Exception as e:
-        print(f"Error inserting child order: {e}")
+        logger.error(f"✗ Error inserting child order {client_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Failed insert params - parent: {parent_client_order_id}, product: {product_id}, side: {side}, size: {size}, price: {price}")
         return None
 
 
@@ -411,8 +413,10 @@ def insert_order_parent_batch(
         or insertion.
     """
     inserted_ids: List[Optional[int]] = []
+    
+    logger.info(f"Starting batch insert of {len(orders)} parent orders")
 
-    for order in orders:
+    for idx, order in enumerate(orders, start=1):
         client_order_id = order.get("client_order_id")
         product_id = order.get("product_id")
         side = order.get("side")
@@ -432,7 +436,7 @@ def insert_order_parent_batch(
             price,
             target_movement,
         )):
-            print(f"Skipping invalid order: {order}")
+            logger.warning(f"  [{idx}/{len(orders)}] Skipping invalid order - missing required fields: {order}")
             inserted_ids.append(None)
             continue
 
@@ -450,6 +454,9 @@ def insert_order_parent_batch(
         )
         inserted_ids.append(result)
 
+    success_count = sum(1 for x in inserted_ids if x is not None)
+    logger.info(f"Batch insert complete: {success_count}/{len(orders)} parent orders inserted successfully")
+    
     return inserted_ids
 
 
@@ -469,8 +476,10 @@ def insert_order_child_batch(
         Total count of successfully inserted child orders.
     """
     total_inserted: int = 0
+    
+    logger.info(f"Starting batch insert of {len(orders)} child orders")
 
-    for order in orders:
+    for idx, order in enumerate(orders, start=1):
         parent_client_order_id = order.get("parent_client_order_id")
         client_order_id = order.get("client_order_id")
         product_id = order.get("product_id")
@@ -487,7 +496,7 @@ def insert_order_child_batch(
             size,
             price,
         )):
-            print(f"Skipping invalid order: {order}")
+            logger.warning(f"  [{idx}/{len(orders)}] Skipping invalid child order - missing required fields: {order}")
             continue
 
         result = insert_order_child(
@@ -502,10 +511,9 @@ def insert_order_child_batch(
         if result is not None:
             total_inserted += 1
 
+    logger.info(f"Batch insert complete: {total_inserted}/{len(orders)} child orders inserted successfully")
+    
     return total_inserted
-
-
-def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
     """Retrieve a parent order by client_order_id.
     
     Args:
@@ -619,9 +627,9 @@ def update_order_parent_status(
 
     result = DB_CLIENT.execute_update(query, params)
     if result > 0:
-        print(f"Parent order status updated: {client_order_id} -> {status}")
+        logger.info(f"Parent order status updated: {client_order_id} -> {status}")
     else:
-        print(f"No parent order found with client_order_id: {client_order_id}")
+        logger.warning(f"No parent order found to update status: {client_order_id}")
     return result
 
 
@@ -647,12 +655,12 @@ def update_order_parent_replacement_count(
 
     result = DB_CLIENT.execute_update(query, params)
     if result > 0:
-        print(
+        logger.info(
             f"Parent order replacement count updated: "
             f"{client_order_id} -> {current_order_replacement}"
         )
     else:
-        print(f"No parent order found with client_order_id: {client_order_id}")
+        logger.warning(f"No parent order found to update replacement count: {client_order_id}")
     return result
 
 
@@ -677,10 +685,10 @@ def increment_order_parent_replacement_count(client_order_id: str) -> Optional[i
 
     if results:
         new_count = int(results[0]["current_order_replacement"])
-        print(f"Parent order replacement count incremented: {client_order_id} -> {new_count}")
+        logger.info(f"Parent order replacement count incremented: {client_order_id} -> {new_count}")
         return new_count
 
-    print(f"No parent order found with client_order_id: {client_order_id}")
+    logger.warning(f"No parent order found to increment replacement count: {client_order_id}")
     return None
 
 
@@ -733,7 +741,7 @@ def update_order_parent_replacement_config(
             )
         )
     else:
-        print(f"No parent order found with client_order_id: {client_order_id}")
+        logger.warning(f"No parent order found to update replacement config: {client_order_id}")
     return result
 
 
@@ -757,7 +765,7 @@ def update_order_parent_status_batch(
         status = update.get("status")
 
         if not all([client_order_id, status]):
-            print(f"Skipping invalid status update: {update}")
+            logger.warning(f"Skipping invalid parent order status update: {update}")
             continue
 
         result = update_order_parent_status(client_order_id, status)
@@ -784,9 +792,9 @@ def update_order_child_status(
 
     result = DB_CLIENT.execute_update(query, params)
     if result > 0:
-        print(f"Child order status updated: {client_order_id} -> {status}")
+        logger.info(f"Child order status updated: {client_order_id} -> {status}")
     else:
-        print(f"No child order found with client_order_id: {client_order_id}")
+        logger.warning(f"No child order found to update status: {client_order_id}")
     return result
 
 
@@ -810,7 +818,7 @@ def update_order_child_status_batch(
         status = update.get("status")
 
         if not all([client_order_id, status]):
-            print(f"Skipping invalid status update: {update}")
+            logger.warning(f"Skipping invalid child order status update: {update}")
             continue
 
         result = update_order_child_status(client_order_id, status)
@@ -872,12 +880,12 @@ def adopt_child_to_parent(
     try:
         child_result = DB_CLIENT.execute_query(validate_child_query, (child_client_order_id,))
         if not child_result:
-            print(f"Error: Child order not found: {child_client_order_id}")
+            logger.error(f"Adoption failed: Child order not found: {child_client_order_id}")
             return False
         
         old_parent = child_result[0].get("parent_client_order_id")
     except Exception as e:
-        print(f"Error validating child order: {e}")
+        logger.error(f"Error validating child order {child_client_order_id}: {type(e).__name__}: {e}")
         return False
     
     # Validate that new parent exists
@@ -887,10 +895,10 @@ def adopt_child_to_parent(
     try:
         parent_result = DB_CLIENT.execute_query(validate_parent_query, (new_parent_client_order_id,))
         if not parent_result:
-            print(f"Error: Parent order not found: {new_parent_client_order_id}")
+            logger.error(f"Adoption failed: Parent order not found: {new_parent_client_order_id}")
             return False
     except Exception as e:
-        print(f"Error validating parent order: {e}")
+        logger.error(f"Error validating parent order {new_parent_client_order_id}: {type(e).__name__}: {e}")
         return False
     
     # Perform the adoption
@@ -920,16 +928,17 @@ def adopt_child_to_parent(
                 f" (previous parent: {old_parent})"
                 if keep_adoption_history else ""
             )
-            print(
-                f"Child order adopted: {child_client_order_id} "
-                f"from {old_parent} -> {new_parent_client_order_id}{history_note}"
+            logger.info(
+                f"✓ Child order adopted: {child_client_order_id} "
+                f"{old_parent} → {new_parent_client_order_id}{history_note}"
             )
             return True
         else:
-            print(f"No child order found with client_order_id: {child_client_order_id}")
+            logger.error(f"✗ Adoption failed: No child order found: {child_client_order_id}")
             return False
     except Exception as e:
-        print(f"Error adopting child order: {e}")
+        logger.error(f"✗ Error adopting child order {child_client_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Adoption details - new_parent: {new_parent_client_order_id}, keep_history: {keep_adoption_history}")
         return False
 
 
@@ -1220,12 +1229,12 @@ def adopt_stealth_order_to_parent(
     try:
         stealth_result = DB_CLIENT.execute_query(validate_stealth_query, (stealth_order_id,))
         if not stealth_result:
-            print(f"Error: Stealth order not found: {stealth_order_id}")
+            logger.error(f"Adoption failed: Stealth order not found: {stealth_order_id}")
             return False
         
         old_parent = stealth_result[0].get("parent_order_id")
     except Exception as e:
-        print(f"Error validating stealth order: {e}")
+        logger.error(f"Error validating stealth order {stealth_order_id}: {type(e).__name__}: {e}")
         return False
     
     # Validate that new parent exists in order_parent table
@@ -1235,10 +1244,10 @@ def adopt_stealth_order_to_parent(
     try:
         parent_result = DB_CLIENT.execute_query(validate_parent_query, (new_parent_order_id,))
         if not parent_result:
-            print(f"Error: Parent order not found in order_parent: {new_parent_order_id}")
+            logger.error(f"Adoption failed: Parent order not found: {new_parent_order_id}")
             return False
     except Exception as e:
-        print(f"Error validating parent order: {e}")
+        logger.error(f"Error validating parent order {new_parent_order_id}: {type(e).__name__}: {e}")
         return False
     
     # Perform the adoption
@@ -1253,16 +1262,17 @@ def adopt_stealth_order_to_parent(
     try:
         result = DB_CLIENT.execute_update(update_query, params)
         if result > 0:
-            print(
+            logger.info(
                 f"Stealth order adopted: {stealth_order_id} "
                 f"from {old_parent} -> {new_parent_order_id}"
             )
             return True
         else:
-            print(f"No stealth order found with stealth_order_id: {stealth_order_id}")
+            logger.error(f"Adoption failed: No stealth order found: {stealth_order_id}")
             return False
     except Exception as e:
-        print(f"Error adopting stealth order: {e}")
+        logger.error(f"Error adopting stealth order {stealth_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Adoption details - new_parent: {new_parent_order_id}")
         return False
 
 
@@ -1591,21 +1601,22 @@ def insert_order_move(
         if results:
             inserted_id = results[0]["id"]
             if new_parent_client_order_id:
-                print(
-                    f"Order move recorded: {original_parent_client_order_id} "
-                    f"-> {new_parent_client_order_id} (ID: {inserted_id}, reason: {reason})"
+                logger.info(
+                    f"✓ Order move recorded: {original_parent_client_order_id} "
+                    f"→ {new_parent_client_order_id} (DB ID: {inserted_id}, reason: {reason})"
                 )
             else:
-                print(
-                    f"Order move pre-marked: {original_parent_client_order_id} "
-                    f"(ID: {inserted_id}, move_on_cancel={move_on_cancel}, reason: {reason})"
+                logger.info(
+                    f"✓ Order move pre-marked: {original_parent_client_order_id} "
+                    f"(DB ID: {inserted_id}, move_on_cancel={move_on_cancel}, reason: {reason})"
                 )
             return inserted_id
 
-        print(f"Failed to retrieve inserted move record ID")
+        logger.warning(f"Failed to retrieve inserted move record ID for: {original_parent_client_order_id}")
         return None
     except Exception as e:
-        print(f"Error inserting order move: {e}")
+        logger.error(f"✗ Error inserting order move ({original_parent_client_order_id}): {type(e).__name__}: {e}")
+        logger.debug(f"  Move details - new_parent: {new_parent_client_order_id}, reason: {reason}, move_on_cancel: {move_on_cancel}")
         return None
 
 
@@ -1818,14 +1829,15 @@ def create_pending_move(
         results = DB_CLIENT.execute_query(query, params)
         if results:
             move_id = results[0]["id"]
-            print(
+            logger.info(
                 f"Pending move created: {original_parent_client_order_id} "
-                f"(ID: {move_id}, reason: {reason})"
+                f"(DB ID: {move_id}, reason: {reason})"
             )
             return move_id
         return None
     except Exception as e:
-        print(f"Error creating pending move: {e}")
+        logger.error(f"Error creating pending move {original_parent_client_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Move details - new_parent: {new_parent_client_order_id}, reason: {reason}")
         return None
 
 
@@ -1868,11 +1880,11 @@ def execute_pending_move(
     try:
         result = DB_CLIENT.execute_update(query, params)
         if result > 0:
-            print(
+            logger.info(
                 f"Pending move executed: {original_parent_client_order_id} "
                 f"-> {new_parent_client_order_id}"
             )
         return result
     except Exception as e:
-        print(f"Error executing pending move: {e}")
+        logger.error(f"Error executing pending move for {original_parent_client_order_id}: {type(e).__name__}: {e}")
         return 0

@@ -10,7 +10,6 @@ Usage:
 
 import asyncio
 import json
-import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -27,9 +26,10 @@ try:
 except ImportError:
     REST_CLIENT_AVAILABLE = False
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("DashboardServer")
+# Use custom logging service
+from logging_service import get_logger
+
+logger = get_logger("DashboardServer")
 
 # Global state
 connected_clients: Set[WebSocketServerProtocol] = set()
@@ -229,8 +229,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             
         elif msg_type == "cancel_order":
             # Cancel order via REST API
-            order_id = data.get("order_id")
-            logger.info(f"Cancel requested for order: {order_id}")
+            # Use client_order_id (which we always have) rather than order_id
+            # This works for both revealed and unrevealed orders
+            client_order_id = data.get("client_order_id")
+            logger.info(f"Cancel requested for order: {client_order_id}")
             
             if not REST_CLIENT_AVAILABLE:
                 response = {
@@ -242,8 +244,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
             
             try:
-                # Call REST API to cancel order
-                result = REST_CLIENT.cancel_orders(order_ids=[order_id])
+                # Call REST API to cancel order using client_order_id
+                result = REST_CLIENT.cancel_orders(order_ids=[client_order_id])
                 
                 logger.info(f"Order cancelled successfully: {result}")
                 response = {
@@ -252,7 +254,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": "Order cancelled",
                     "data": result,
                 }
-                add_log_entry("INFO", f"Order cancelled: {order_id}")
+                add_log_entry("INFO", f"Order cancelled: {client_order_id}")
                 
             except Exception as e:
                 logger.error(f"Order cancellation failed: {str(e)}")

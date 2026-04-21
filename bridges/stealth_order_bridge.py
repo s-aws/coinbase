@@ -1,19 +1,25 @@
-"""Stealth Order Bridge - Integrates stealth orders with OrderEngine.
+"""Stealth Order Bridge - Integrates the unified order system with OrderEngine.
 
-Provides background tasks for condition evaluation and reveal trigger management.
+Provides background tasks for:
+- Condition evaluation (checks if reveal conditions are met)
+- Reveal trigger management (executes reveals when conditions trigger)
+- Database reconciliation (syncs in-memory state with PostgreSQL)
+
+The bridge connects StealthOrderManager (responsible for order creation and state)
+with OrderEngine (responsible for event processing and follow-up creation).
 """
 
 import threading
-import logging
 from time import sleep
 from datetime import datetime
 from typing import Dict, Any
 
 from core.stealth_order_manager import StealthOrderManager
 from calculation.formatter import safe_float
+from logging_service import get_logger
 
 
-logger = logging.getLogger("StealthOrderBridge")
+logger = get_logger("StealthOrderBridge")
 
 
 class StealthOrderBridge:
