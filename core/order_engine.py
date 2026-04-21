@@ -1142,6 +1142,38 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
+        # CRITICAL: Check for stealth order BEFORE marking as external
+        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
+        original_stealth_order = None
+        if self.stealth_order_bridge:
+            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
+            )
+        
+        # If this is a stealth-revealed order, register it in the orderbook first
+        if original_stealth_order and original_stealth_order.get("parent_order_id"):
+            with self.orderbook_lock:
+                parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+                
+                # Ensure parent entry exists
+                if parent_client_order_id_stealth not in self.orderbook.parent_order_ids:
+                    self.orderbook.parent_order_ids[parent_client_order_id_stealth] = {
+                        "orders": [],
+                        "target_movement": {},
+                        "max_order_replacement": getattr(
+                            self.orderbook,
+                            "default_max_order_replacement",
+                            DEFAULT_MAX_ORDER_REPLACEMENT,
+                        ),
+                        "current_order_replacement": 0,
+                    }
+                
+                # Register this revealed slice as a child of the stealth order's parent
+                if client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"]:
+                    self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"].append(client_order_id)
+                
+                self.orderbook.child_order_ids[client_order_id] = parent_client_order_id_stealth
+
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = (
@@ -1410,6 +1442,38 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
+        # CRITICAL: Check for stealth order BEFORE marking as external
+        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
+        original_stealth_order = None
+        if self.stealth_order_bridge:
+            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
+            )
+        
+        # If this is a stealth-revealed order, register it in the orderbook first
+        if original_stealth_order and original_stealth_order.get("parent_order_id"):
+            with self.orderbook_lock:
+                parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+                
+                # Ensure parent entry exists
+                if parent_client_order_id_stealth not in self.orderbook.parent_order_ids:
+                    self.orderbook.parent_order_ids[parent_client_order_id_stealth] = {
+                        "orders": [],
+                        "target_movement": {},
+                        "max_order_replacement": getattr(
+                            self.orderbook,
+                            "default_max_order_replacement",
+                            DEFAULT_MAX_ORDER_REPLACEMENT,
+                        ),
+                        "current_order_replacement": 0,
+                    }
+                
+                # Register this revealed slice as a child of the stealth order's parent
+                if client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"]:
+                    self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"].append(client_order_id)
+                
+                self.orderbook.child_order_ids[client_order_id] = parent_client_order_id_stealth
+
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = (
@@ -1504,15 +1568,7 @@ class OrderEngine:
                 self.complete_follow_up_processing("filled", client_order_id)
                 return
 
-            # First, check if this filled order came from a stealth order BEFORE placing a regular order
-            original_stealth_order = None
-            if self.stealth_order_bridge:
-                # Search by client_order_id (the UUID we sent) to match against revealed_orders
-                # This matches what reveal_order_slice() now returns
-                original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
-                    client_order_id
-                )
-            
+            # Use the stealth order already found at the start of this function
             # If this is a stealth order follow-up, create a stealth order instead of a regular order
             if original_stealth_order:
                 try:
