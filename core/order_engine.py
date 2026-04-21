@@ -1607,7 +1607,9 @@ class OrderEngine:
                     direction_choice = original_stealth_order.get("follow_up_reveal_direction", "opposite")
                     
                     if follow_up_reveal_condition.get("type") == "price":
-                        follow_up_reveal_condition["price_threshold"] = follow_up_price
+                        # Set threshold to the ACTUAL price where we plan to place the new order
+                        # Use float conversion to ensure numeric precision
+                        follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
                         
                         if direction_choice == "opposite":
                             # Flip direction (below → above, above → below)
@@ -1622,6 +1624,20 @@ class OrderEngine:
                     # Get target_movement from parent stealth order for inheritance
                     parent_target_movement = original_stealth_order.get("target_movement")
                     parent_target_movement_type = original_stealth_order.get("target_movement_type", "P")
+                    
+                    # Debug: Log the exact reveal condition being set
+                    self.log_message(
+                        "info",
+                        {
+                            "event": "stealth_follow_up_condition_set",
+                            "follow_up_price": follow_up_price,
+                            "fill_price": fill_price,
+                            "threshold": follow_up_reveal_condition.get("price_threshold"),
+                            "direction": follow_up_reveal_condition.get("direction"),
+                            "hold_duration_seconds": follow_up_reveal_condition.get("hold_duration_seconds"),
+                            "market_cache_price": self.stealth_order_bridge.stealth_manager._market_cache.get(product_id, {}).get("price"),
+                        }
+                    )
                     
                     stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
                         original_stealth_order_id=original_stealth_order["stealth_order_id"],

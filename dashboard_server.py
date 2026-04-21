@@ -149,7 +149,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         msg_type = data.get("type")
         
         # DEBUG: Log all incoming messages
-        logger.info(f"[HANDLER] Received message type: {msg_type}")
+        logger.debug(f"[HANDLER] Received message type: {msg_type}")
         
         if msg_type == "place_order":
             # Place order via REST API
