@@ -237,23 +237,6 @@ class OrderEngineIntegration:
         """Delegate to engine.handle_filled_order."""
         return self.engine.handle_filled_order(order)
 
-    def record_follow_up_order(
-        self,
-        source_order: dict,
-        new_order: list,
-        order_template: dict,
-        parent_client_order_id: str,
-        processed_flag_name: str = None,
-    ) -> None:
-        """Delegate to engine.record_follow_up_order."""
-        return self.engine.record_follow_up_order(
-            source_order,
-            new_order,
-            order_template,
-            parent_client_order_id,
-            processed_flag_name,
-        )
-
     def build_parent_child_order_ids_snapshot(self) -> tuple:
         """Delegate to engine.build_parent_child_order_ids_snapshot."""
         return self.engine.build_parent_child_order_ids_snapshot()

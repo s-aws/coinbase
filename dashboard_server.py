@@ -48,6 +48,18 @@ engine_state = {
 }
 max_logs = 100
 
+# Custom JSON encoder for handling Decimal and other non-standard types
+from decimal import Decimal
+
+class CustomJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles Decimal, datetime, and other special types."""
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        if hasattr(obj, 'isoformat'):  # datetime, date, time
+            return obj.isoformat()
+        return super().default(obj)
+
 # Event loop reference (set when server starts)
 server_event_loop = None
 
@@ -305,7 +317,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
                     follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'opposite'),
-                    notes=order.get('notes', '')
+                    notes=order.get('notes', ''),
+                    max_order_replacements=order.get('max_order_replacements'),
+                    target_movement=order.get('target_movement', 0.002),
+                    target_movement_type=order.get('target_movement_type', 'P')
                 )
                 
                 # Get the created order data and serialize for JSON
@@ -1031,7 +1046,7 @@ async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
                 "timestamp": datetime.utcnow().isoformat(),
             }
         
-        await websocket.send(json.dumps(payload))
+        await websocket.send(json.dumps(payload, cls=CustomJSONEncoder))
     except Exception as e:
         logger.error(f"Failed to send stealth orders snapshot: {e}")
 
@@ -1044,7 +1059,7 @@ async def broadcast_stealth_order_update(update: Dict[str, Any]):
         return
     
     try:
-        message = json.dumps(update)
+        message = json.dumps(update, cls=CustomJSONEncoder)
         
         for client in connected_clients.copy():
             try:
@@ -1078,7 +1093,7 @@ async def _stealth_orders_refresh_loop():
                         "timestamp": datetime.utcnow().isoformat(),
                     }
                     
-                    message = json.dumps(payload)
+                    message = json.dumps(payload, cls=CustomJSONEncoder)
                     for client in connected_clients.copy():
                         try:
                             await client.send(message)

@@ -19,7 +19,9 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
+from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 from business.stealth_condition_evaluator import get_evaluator
+from database.order import insert_order_parent
 
 
 class StealthOrderManager:
@@ -77,7 +79,10 @@ class StealthOrderManager:
         follow_up_reveal_direction: Optional[str] = None,
         reason: str = "normal_placement",
         notes: str = "",
-        stealth_order_id: Optional[str] = None
+        stealth_order_id: Optional[str] = None,
+        max_order_replacements: Optional[int] = None,
+        target_movement: float = 0.002,
+        target_movement_type: str = "P"
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -105,6 +110,9 @@ class StealthOrderManager:
             stealth_order_id: Optional UUID provided by caller (UI or engine). 
                              If not provided, a new UUID is generated.
                              Used to enable deterministic order IDs from UI.
+            max_order_replacements: Maximum number of follow-up orders allowed (default: from config)
+            target_movement: Target profit/movement percentage (default: 0.0)
+            target_movement_type: Type of target ('P' for percentage, 'A' for absolute, default 'P')
             
         Returns:
             order_id (UUID string) - Used as client_order_id for all internal tracking
@@ -179,6 +187,25 @@ class StealthOrderManager:
         
         # Persist to database
         self._save_stealth_order_to_db(order_data)
+        
+        # UNIFIED TRACKING: If this is a root order (no parent), also insert into order_parent table
+        # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
+        if not parent_order_id:
+            # Use provided max_order_replacements or fall back to configuration default
+            effective_max_replacements = max_order_replacements if max_order_replacements is not None else DEFAULT_MAX_ORDER_REPLACEMENT
+            
+            insert_order_parent(
+                client_order_id=stealth_order_id,
+                product_id=product_id,
+                side=side,
+                size=total_size,
+                price=limit_price,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+                max_order_replacement=effective_max_replacements,
+                current_order_replacement=0,
+                status="pending"  # Stealth orders start as pending in traditional tracking
+            )
         
         return stealth_order_id
     
@@ -492,9 +519,16 @@ class StealthOrderManager:
     def _serialize_order_for_json(self, order: Dict[str, Any]) -> Dict[str, Any]:
         """Convert order dict to JSON-serializable format.
         
-        Converts datetime objects to ISO format strings.
+        Converts datetime objects to ISO format strings and Decimal to float.
         """
+        from decimal import Decimal
+        
         serialized = order.copy()
+        
+        # Convert Decimal values to float
+        for key, value in serialized.items():
+            if isinstance(value, Decimal):
+                serialized[key] = float(value)
         
         # Convert datetime objects to ISO format strings
         for key in ['created_at', 'updated_at', 'condition_first_met_at', 'condition_confirmed_at', 'last_placement_at']:
@@ -508,6 +542,10 @@ class StealthOrderManager:
             for event in serialized['revealed_orders']:
                 serialized_event = event.copy() if isinstance(event, dict) else event
                 if isinstance(serialized_event, dict):
+                    # Convert Decimal values in reveal events
+                    for key, value in serialized_event.items():
+                        if isinstance(value, Decimal):
+                            serialized_event[key] = float(value)
                     # Convert datetime objects in reveal events
                     for dt_key in ['reveal_time', 'created_at', 'timestamp']:
                         if dt_key in serialized_event and serialized_event[dt_key]:
@@ -579,7 +617,8 @@ class StealthOrderManager:
         follow_up_target_movement_type = target_movement_type if target_movement is not None else original_order.get("target_movement_type", "P")
         
         # Create follow-up with same reveal condition and sizing strategy
-        # Link the follow-up as a child order to the original parent
+        # Link the follow-up as a child order to the ORIGINAL root parent (not the filled child)
+        # This maintains a flat, single-level Parent:Child hierarchy as per design
         follow_up_id = self.create_stealth_order(
             product_id=original_order["product_id"],
             side=side,
@@ -587,7 +626,7 @@ class StealthOrderManager:
             limit_price=limit_price,
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
-            parent_order_id=original_stealth_order_id,
+            parent_order_id=original_order.get("parent_order_id") or original_stealth_order_id,
             follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", "opposite"),
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"

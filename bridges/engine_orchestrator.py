@@ -223,10 +223,6 @@ class OrderEngineOrchestrator:
         """Delegate to engine.can_create_follow_up_order."""
         return self.engine.can_create_follow_up_order(parent_client_order_id)
 
-    def create_and_record_follow_up_order(self, parent_client_order_id: str) -> None:
-        """Delegate to engine.create_and_record_follow_up_order."""
-        return self.engine.create_and_record_follow_up_order(parent_client_order_id)
-
     def generate_process_event_worker(self, channel: str):
         """Delegate to engine.generate_process_event_worker."""
         return self.engine.generate_process_event_worker(channel)
