@@ -465,7 +465,9 @@ class StealthOrderManager:
         limit_price: float,
         reveal_condition: Optional[Dict[str, Any]] = None,
         follow_up_reveal_direction: Optional[str] = None,
-        notes: str = ""
+        notes: str = "",
+        target_movement: Optional[float] = None,
+        target_movement_type: str = "P"
     ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
@@ -480,6 +482,8 @@ class StealthOrderManager:
             follow_up_reveal_direction: Direction override ('same', 'opposite', 'above', 'below'). 
                                        If None, inherits from original. If 'opposite', flips the direction.
             notes: Additional notes
+            target_movement: Optional override for target movement. If not provided, uses original's target_movement.
+            target_movement_type: Type for target movement ('P' or 'A'). Default 'P'.
             
         Returns:
             New stealth_order_id if created, None if original not found
@@ -491,6 +495,10 @@ class StealthOrderManager:
         # Use provided reveal condition or inherit from original
         follow_up_condition = reveal_condition if reveal_condition is not None else original_order.get("reveal_condition_json", {})
         
+        # Use provided target movement or inherit from original
+        follow_up_target_movement = target_movement if target_movement is not None else original_order.get("target_movement")
+        follow_up_target_movement_type = target_movement_type if target_movement is not None else original_order.get("target_movement_type", "P")
+        
         # Create follow-up with same reveal condition and sizing strategy
         # Link the follow-up as a child order to the original parent
         follow_up_id = self.create_stealth_order(
@@ -501,15 +509,18 @@ class StealthOrderManager:
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
             parent_order_id=original_stealth_order_id,
+            follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", "opposite"),
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
         )
         
-        # Store the follow-up reveal direction choice for later use
+        # Set target movement on the new child order and persist to database
         if follow_up_id:
             follow_up_order = self._get_stealth_order(follow_up_id)
             if follow_up_order:
-                follow_up_order["follow_up_reveal_direction"] = follow_up_reveal_direction or "opposite"
+                follow_up_order["target_movement"] = follow_up_target_movement
+                follow_up_order["target_movement_type"] = follow_up_target_movement_type
+                self._update_stealth_order(follow_up_order)
         
         return follow_up_id
     
@@ -525,8 +536,8 @@ class StealthOrderManager:
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
                     limit_price, status, reveal_condition_type, reveal_condition_json, 
-                    sizing_strategy_json, reason, notes, parent_order_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    sizing_strategy_json, reason, notes, parent_order_id, target_movement, target_movement_type)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -539,7 +550,9 @@ class StealthOrderManager:
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
-                 order.get('parent_order_id'))
+                 order.get('parent_order_id'),
+                 order.get('target_movement'),
+                 order.get('target_movement_type'))
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
@@ -568,7 +581,8 @@ class StealthOrderManager:
             self.db_client.execute_update(
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
-                       executed_size = %s, revealed_orders = %s, last_placement_at = %s
+                       executed_size = %s, revealed_orders = %s, last_placement_at = %s,
+                       target_movement = %s, target_movement_type = %s
                    WHERE stealth_order_id = %s""",
                 (order['status'],
                  order.get('revealed_size', 0),
@@ -576,6 +590,8 @@ class StealthOrderManager:
                  order.get('executed_size', 0),
                  revealed_orders_json,
                  last_placement,
+                 order.get('target_movement'),
+                 order.get('target_movement_type'),
                  order['stealth_order_id'])
             )
         except Exception as e:

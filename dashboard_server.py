@@ -366,6 +366,79 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 await websocket.send(json.dumps(response))
         
+        elif msg_type == "update_stealth_target_movement":
+            # Update target movement for a stealth order
+            stealth_order_id = data.get("stealth_order_id")
+            target_movement = data.get("target_movement")
+            target_movement_type = data.get("target_movement_type", "P")
+            
+            if not stealth_order_id:
+                response = {
+                    "type": "error",
+                    "message": "Missing stealth_order_id"
+                }
+                await websocket.send(json.dumps(response))
+                return
+            
+            try:
+                from database.order import update_stealth_order_target_movement, get_stealth_order_by_id
+                
+                # Update in database
+                success = update_stealth_order_target_movement(
+                    stealth_order_id=stealth_order_id,
+                    target_movement=target_movement,
+                    target_movement_type=target_movement_type
+                )
+                
+                if success:
+                    # Get updated order data
+                    order_data = get_stealth_order_by_id(stealth_order_id)
+                    
+                    # Update in-memory state if available
+                    with state_lock:
+                        if stealth_order_id in engine_state["stealth_orders"]:
+                            engine_state["stealth_orders"][stealth_order_id]["target_movement"] = target_movement
+                            engine_state["stealth_orders"][stealth_order_id]["target_movement_type"] = target_movement_type
+                    
+                    response = {
+                        "type": "stealth_order_updated",
+                        "stealth_order_id": stealth_order_id,
+                        "order": {
+                            "stealth_order_id": stealth_order_id,
+                            "target_movement": target_movement,
+                            "target_movement_type": target_movement_type
+                        }
+                    }
+                    
+                    add_log_entry("INFO", f"Stealth order target_movement updated: {stealth_order_id} = {target_movement}{target_movement_type}")
+                    logger.info(f"Stealth order target_movement updated: {stealth_order_id} = {target_movement}{target_movement_type}")
+                    
+                    # Broadcast to all clients
+                    message = json.dumps(response)
+                    for client in connected_clients.copy():
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.discard(client)
+                    
+                    await websocket.send(json.dumps({"type": "update_success", "message": "Target movement updated"}))
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to update stealth order: {stealth_order_id}"
+                    }
+                    add_log_entry("ERROR", f"Failed to update stealth target_movement: {stealth_order_id}")
+                    await websocket.send(json.dumps(response))
+                
+            except Exception as e:
+                logger.error(f"Failed to update stealth target_movement: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update target movement: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
         elif msg_type == "clear_all_stealth_orders":
             # Clear all stealth orders from the database
             try:

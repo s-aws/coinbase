@@ -295,6 +295,127 @@
             background: rgba(77, 171, 247, 0.1);
         }
 
+        button.edit-btn {
+            color: #ffd700;
+            border-color: #ffd700;
+            font-size: 14px;
+            padding: 4px 8px;
+        }
+
+        button.edit-btn:hover {
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background: rgba(30, 30, 46, 0.98);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #444;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            color: #fff;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+
+        .modal-footer button {
+            padding: 8px 16px;
+        }
+
+        .modal-footer button.confirm-btn {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: #000;
+            border: none;
+            font-weight: 600;
+        }
+
+        .modal-footer button.confirm-btn:hover {
+            background: linear-gradient(135deg, #51cf66, #16a34a);
+        }
+
+        .modal-footer button.cancel-modal-btn {
+            background: rgba(100, 100, 100, 0.2);
+            color: #e0e0e0;
+        }
+
+        .modal-footer button.cancel-modal-btn:hover {
+            background: rgba(100, 100, 100, 0.4);
+        }
+
         .hover-action-wrapper {
             display: flex;
             align-items: center;
@@ -592,12 +713,13 @@
                                 <th>Time</th>
                                 <th>Progress</th>
                                 <th>Executed</th>
+                                <th>Target Movement</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="orders-tbody">
                             <tr>
-                                <td colspan="10" style="text-align: center; padding: 30px; color: #666;">
+                                <td colspan="11" style="text-align: center; padding: 30px; color: #666;">
                                     Loading orders...
                                 </td>
                             </tr>
@@ -728,6 +850,37 @@
                     </div>
                     <div id="save-status" style="font-size: 10px; color: #666; margin-top: 8px; text-align: right; display: none;">✓ Auto-saved</div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Target Movement Modal -->
+    <div id="editTargetMovementModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Target Movement</h2>
+                <button type="button" class="modal-close" onclick="closeEditTargetMovementModal()">&times;</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Target Movement Value</label>
+                    <input type="number" id="editTargetMovementValue" placeholder="0.005" step="0.0001" min="0">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Type</label>
+                    <select id="editTargetMovementType">
+                        <option value="P">Percentage (%)</option>
+                        <option value="A">Absolute Amount</option>
+                    </select>
+                </div>
+                <div style="font-size: 12px; color: #aaa;">
+                    <strong>Percentage (%):</strong> Profit target as % of current price (e.g., 0.5 = 0.5%)<br>
+                    <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cancel-modal-btn" onclick="closeEditTargetMovementModal()">Cancel</button>
+                <button type="button" class="confirm-btn" onclick="confirmEditTargetMovement()">Update</button>
             </div>
         </div>
     </div>
@@ -1121,7 +1274,7 @@
             if (orders.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="10" style="text-align: center; padding: 30px; color: #666;">
+                        <td colspan="11" style="text-align: center; padding: 30px; color: #666;">
                             No active stealth orders
                         </td>
                     </tr>
@@ -1185,6 +1338,10 @@
                     createdDateTime = `${dateStr} ${timeStr}`;
                 }
                 
+                const targetMovementStr = order.target_movement 
+                    ? `${parseFloat(order.target_movement).toFixed(4)}${order.target_movement_type === 'A' ? ' (Abs)' : '%'}`
+                    : '-';
+                
                 return `
                     <tr class="${rowClass}"${dataAttr}>
                         <td>${parentIndicator}<strong>${order.product_id}</strong></td>
@@ -1201,8 +1358,10 @@
                             <div style="font-size: 10px; color: #999; margin-top: 2px;">${revealedPct}%</div>
                         </td>
                         <td>${revealedStr}</td>
+                        <td style="font-size: 13px; color: #7ba3ff; font-weight: 500;">${targetMovementStr}</td>
                         <td>
                             <div class="action-buttons">
+                                <button onclick="openEditTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}')" class="edit-btn" title="Edit target movement">⚙️</button>
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
                                     ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn">Cancel</button>`
                                     : order.status === 'REVEALED'
@@ -1675,6 +1834,90 @@
         
         // Setup clear all stealth orders button
         document.getElementById('clear-all-btn').addEventListener('click', clearAllStealthOrders);
+
+        // Modal functions for editing target movement
+        function openEditTargetMovementModal(stealthOrderId, currentValue, currentType) {
+            const modal = document.getElementById('editTargetMovementModal');
+            const valueInput = document.getElementById('editTargetMovementValue');
+            const typeSelect = document.getElementById('editTargetMovementType');
+            
+            // Store the order ID for later use
+            modal.dataset.stealthOrderId = stealthOrderId;
+            
+            // Populate with current values
+            valueInput.value = currentValue || '';
+            typeSelect.value = currentType || 'P';
+            
+            // Show modal
+            modal.classList.add('show');
+            valueInput.focus();
+        }
+
+        function closeEditTargetMovementModal() {
+            const modal = document.getElementById('editTargetMovementModal');
+            modal.classList.remove('show');
+            
+            // Clear stored order ID
+            delete modal.dataset.stealthOrderId;
+        }
+
+        function confirmEditTargetMovement() {
+            const modal = document.getElementById('editTargetMovementModal');
+            const stealthOrderId = modal.dataset.stealthOrderId;
+            const value = document.getElementById('editTargetMovementValue').value;
+            const type = document.getElementById('editTargetMovementType').value;
+            
+            if (!stealthOrderId) {
+                showMessage('Error: No order selected', 'error');
+                return;
+            }
+            
+            if (!value || isNaN(parseFloat(value))) {
+                showMessage('Please enter a valid number for target movement', 'error');
+                return;
+            }
+            
+            // Validate range
+            const numValue = parseFloat(value);
+            if (numValue < 0) {
+                showMessage('Target movement cannot be negative', 'error');
+                return;
+            }
+            
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            
+            try {
+                ws.send(JSON.stringify({
+                    type: "update_stealth_target_movement",
+                    stealth_order_id: stealthOrderId,
+                    target_movement: numValue,
+                    target_movement_type: type
+                }));
+                
+                showMessage(`Target movement updated to ${numValue}${type === 'A' ? ' (Abs)' : '%'}`, 'success');
+                closeEditTargetMovementModal();
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Close modal when clicking outside of it
+        window.addEventListener('click', (event) => {
+            const modal = document.getElementById('editTargetMovementModal');
+            if (event.target === modal) {
+                closeEditTargetMovementModal();
+            }
+        });
+
+        // Allow Enter key to confirm
+        document.getElementById('editTargetMovementValue').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                confirmEditTargetMovement();
+            }
+        });
         
         function clearAllStealthOrders() {
             const confirmed = confirm('⚠️ This will permanently delete ALL stealth orders from the database.\n\nAre you sure?');

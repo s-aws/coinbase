@@ -39,28 +39,6 @@ def create_order_parent_table() -> None:
         print("order_parent table done.")
 
 
-def add_missing_order_parent_replacement_columns() -> None:
-    """
-    Add replacement tracking columns to an existing order_parent table.
-    Safe to run repeatedly.
-    """
-    alter_queries = [
-        """
-        ALTER TABLE order_parent
-        ADD COLUMN IF NOT EXISTS max_order_replacement INTEGER NOT NULL DEFAULT 0
-        """,
-        """
-        ALTER TABLE order_parent
-        ADD COLUMN IF NOT EXISTS current_order_replacement INTEGER NOT NULL DEFAULT 0
-        """,
-    ]
-
-    with DB_CLIENT.get_cursor() as cursor:
-        for query in alter_queries:
-            cursor.execute(query)
-        print("order_parent replacement columns done.")
-
-
 def create_order_child_table() -> None:
     """
     Create the order_child table if it doesn't exist.
@@ -127,6 +105,9 @@ def create_stealth_orders_table() -> None:
         revealed_orders JSONB DEFAULT '[]'::jsonb,
         last_placement_at TIMESTAMP,
         
+        target_movement NUMERIC,
+        target_movement_type VARCHAR(1),
+        
         reason VARCHAR(255),
         notes TEXT
     );
@@ -134,6 +115,69 @@ def create_stealth_orders_table() -> None:
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("stealth_orders table done.")
+
+
+def update_stealth_order_target_movement(stealth_order_id: str, target_movement: Optional[float], target_movement_type: str = "P") -> bool:
+    """
+    Update the target_movement and target_movement_type for a stealth order.
+    
+    Args:
+        stealth_order_id: UUID of the stealth order
+        target_movement: Profit target value (float) or None to clear
+        target_movement_type: "P" for percentage (default) or "A" for absolute amount
+    
+    Returns:
+        True if update successful, False otherwise
+    
+    Example:
+        >>> update_stealth_order_target_movement(
+        ...     stealth_order_id="550e8400-e29b-41d4-a716-446655440000",
+        ...     target_movement=0.005,
+        ...     target_movement_type="P"
+        ... )
+        True
+    """
+    try:
+        query = """
+        UPDATE stealth_orders
+        SET target_movement = %s,
+            target_movement_type = %s,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE stealth_order_id = %s
+        """
+        
+        rows_affected = DB_CLIENT.execute_update(
+            query,
+            (target_movement, target_movement_type if target_movement else None, stealth_order_id)
+        )
+        
+        return rows_affected > 0
+    except Exception as e:
+        print(f"Error updating stealth order target_movement: {e}")
+        return False
+
+
+def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get a stealth order by its ID.
+    
+    Args:
+        stealth_order_id: UUID of the stealth order
+    
+    Returns:
+        Dictionary with stealth order data or None if not found
+    """
+    try:
+        query = """
+        SELECT * FROM stealth_orders
+        WHERE stealth_order_id = %s
+        """
+        
+        results = DB_CLIENT.execute_query(query, (stealth_order_id,))
+        return results[0] if results else None
+    except Exception as e:
+        print(f"Error fetching stealth order: {e}")
+        return None
 
 
 def create_stealth_order_snapshots_table() -> None:

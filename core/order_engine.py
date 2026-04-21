@@ -1493,7 +1493,8 @@ class OrderEngine:
             )
 
         # For external orders, just track them but don't create follow-ups
-        if is_external_order:
+        # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
+        if is_external_order and not original_stealth_order:
             self.log_message(
                 "order",
                 self.build_follow_up_log_payload(
@@ -1504,6 +1505,72 @@ class OrderEngine:
                 ),
             )
             return
+
+        # Handle stealth order fills - create a Child stealth order as follow-up
+        if original_stealth_order and self.stealth_order_bridge:
+            try:
+                # Determine the follow-up side (opposite of revealed order)
+                follow_up_side = "BUY" if order["side"] == "SELL" else "SELL"
+                
+                # Use revealed size for follow-up (what just filled)
+                follow_up_size = float(order.get("filled_size", 0))
+                if follow_up_size <= 0:
+                    follow_up_size = float(order.get("size", 0))
+                
+                # Get parent stealth order to inherit settings
+                parent_stealth_id = original_stealth_order.get("stealth_order_id")
+                parent_reveal_condition = original_stealth_order.get("reveal_condition_json", {})
+                parent_follow_up_direction = original_stealth_order.get("follow_up_reveal_direction", "opposite")
+                parent_target_movement = original_stealth_order.get("target_movement")
+                parent_target_movement_type = original_stealth_order.get("target_movement_type", "P")
+                
+                # Create Child stealth order
+                child_stealth_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
+                    original_stealth_order_id=parent_stealth_id,
+                    side=follow_up_side,
+                    total_size=follow_up_size,
+                    limit_price=order.get("price", 0),
+                    reveal_condition=parent_reveal_condition,
+                    follow_up_reveal_direction=parent_follow_up_direction,
+                    notes=f"Follow-up from filled reveal {client_order_id[:8]}...",
+                    target_movement=parent_target_movement,
+                    target_movement_type=parent_target_movement_type
+                )
+                
+                if child_stealth_id:
+                    self.log_message(
+                        "order",
+                        {
+                            "event": "stealth_follow_up_created",
+                            "parent_stealth_order_id": parent_stealth_id,
+                            "child_stealth_order_id": child_stealth_id,
+                            "filled_order_id": client_order_id,
+                            "child_side": follow_up_side,
+                            "child_size": follow_up_size,
+                            "inherited_target_movement": parent_target_movement,
+                        }
+                    )
+                    self.complete_follow_up_processing("filled", client_order_id)
+                    return
+                else:
+                    self.log_message(
+                        "warning",
+                        {
+                            "event": "stealth_follow_up_creation_failed",
+                            "parent_stealth_order_id": parent_stealth_id,
+                            "filled_order_id": client_order_id,
+                        }
+                    )
+            except Exception as e:
+                self.log_message(
+                    "error",
+                    {
+                        "event": "stealth_follow_up_creation_exception",
+                        "filled_order_id": client_order_id,
+                        "error": str(e),
+                    }
+                )
+            # Fall through to normal follow-up processing if stealth follow-up fails
 
         if not self.claim_follow_up_processing("filled", client_order_id):
             self.log_message(
