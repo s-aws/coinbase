@@ -42,6 +42,8 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+logger = logging.getLogger(__name__)
+
 # Initialize custom logging service
 from logging_service import set_backend
 
@@ -62,6 +64,8 @@ from dashboard_server import start_dashboard_server, set_stealth_order_bridge, u
 set_backend(add_log_entry)
 
 if __name__ == "__main__":
+    import sys
+    
     # Initialize stealth order system first (before OrderEngine)
     stealth_bridge = None
     try:
@@ -71,7 +75,8 @@ if __name__ == "__main__":
         stealth_manager = StealthOrderManager(DB_HELPER.DB_CLIENT)
         stealth_bridge = StealthOrderBridge(stealth_manager, None)  # engine will be set later
     except Exception as e:
-        print(f"Warning: Failed to initialize stealth order bridge: {e}")
+        import traceback
+        traceback.print_exc()
     
     engine = OrderEngine(
         orderbook=ORDERBOOK,
@@ -90,6 +95,7 @@ if __name__ == "__main__":
     orchestrator = OrderEngineOrchestrator(engine)
     
     # Start dashboard server
+    import sys
     start_dashboard_server()
     
     # Start stealth order system if it was initialized
@@ -97,9 +103,8 @@ if __name__ == "__main__":
         try:
             set_stealth_order_bridge(stealth_bridge)
             stealth_bridge.start()
-            print("Stealth order system initialized and started")
         except Exception as e:
-            print(f"Warning: Failed to start stealth order system: {e}")
-            print("Continuing without stealth orders...")
+            import traceback
+            traceback.print_exc()
     
     orchestrator.run_forever()

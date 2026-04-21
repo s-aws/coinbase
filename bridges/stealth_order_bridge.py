@@ -12,7 +12,7 @@ with OrderEngine (responsible for event processing and follow-up creation).
 import threading
 from time import sleep
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from core.stealth_order_manager import StealthOrderManager
 from calculation.formatter import safe_float
@@ -109,13 +109,13 @@ class StealthOrderBridge:
                         should_reveal, reason = self.stealth_manager.should_trigger_reveal(stealth_order_id)
                         
                         if should_reveal:
-                            logger.info(f"Stealth order {stealth_order_id} ready to reveal: {reason}")
+                            logger.debug(f"Stealth order {stealth_order_id} ready to reveal: {reason}")
                             
                             # Reveal order slice
                             client_order_id = self.stealth_manager.reveal_order_slice(stealth_order_id)
                             
                             if client_order_id:
-                                logger.info(f"Revealed slice: {client_order_id}")
+                                logger.debug(f"Revealed slice: {client_order_id}")
                                 self.record_reveal_event(stealth_order_id, client_order_id, reason)
                         
                     except Exception as e:
@@ -280,9 +280,17 @@ class StealthOrderBridge:
         
         return all_orders
     
-    def create_stealth_order(self, **kwargs) -> str:
-        """Convenience method to create stealth order."""
-        return self.stealth_manager.create_stealth_order(**kwargs)
+    def create_stealth_order(self, stealth_order_id: Optional[str] = None, **kwargs) -> str:
+        """Convenience method to create stealth order.
+        
+        Args:
+            stealth_order_id: Optional UUID for the stealth order. If not provided, one will be generated.
+            **kwargs: Additional arguments passed to stealth_manager.create_stealth_order()
+            
+        Returns:
+            The stealth_order_id (either provided or newly generated)
+        """
+        return self.stealth_manager.create_stealth_order(stealth_order_id=stealth_order_id, **kwargs)
     
     def cancel_stealth_order(self, stealth_order_id: str, reason: str = "User cancelled") -> bool:
         """Cancel a stealth order."""

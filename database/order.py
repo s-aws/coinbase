@@ -540,6 +540,20 @@ def get_parent_orders() -> List[Dict[str, Any]]:
     return DB_CLIENT.execute_query(query)
 
 
+def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a single parent order by client_order_id.
+    
+    Args:
+        client_order_id: The client_order_id to look up.
+    
+    Returns:
+        Parent order dict if found, None otherwise.
+    """
+    query = "SELECT * FROM order_parent WHERE client_order_id = %s"
+    results = DB_CLIENT.execute_query(query, (client_order_id,))
+    return results[0] if results else None
+
+
 def get_child_orders(parent_client_order_id: str) -> List[Dict[str, Any]]:
     """Retrieve all child orders for a parent order.
     

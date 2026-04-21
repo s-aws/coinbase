@@ -15,8 +15,42 @@ from typing import Dict, Any, Optional
 from functools import partial
 
 
+# Log level constants
+LOG_LEVELS = {
+    "DEBUG": 10,
+    "INFO": 20,
+    "WARNING": 30,
+    "ERROR": 40,
+    "CRITICAL": 50,
+}
+
+# Default logging level (set to INFO to hide DEBUG messages by default)
+_current_log_level = LOG_LEVELS["INFO"]
+
 # This will be set by main.py to point to the dashboard's add_log_entry function
 _add_log_entry_backend = None
+
+
+def set_log_level(level: str):
+    """Set the minimum logging level to display.
+    
+    Args:
+        level: One of "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+    """
+    global _current_log_level
+    if level in LOG_LEVELS:
+        _current_log_level = LOG_LEVELS[level]
+        print(f"Logging level set to {level}")
+    else:
+        raise ValueError(f"Invalid logging level: {level}. Must be one of {list(LOG_LEVELS.keys())}")
+
+
+def get_log_level() -> str:
+    """Get the current logging level."""
+    for level_name, level_value in LOG_LEVELS.items():
+        if level_value == _current_log_level:
+            return level_name
+    return "INFO"
 
 
 def set_backend(add_log_entry_func):
@@ -77,6 +111,17 @@ class CustomLogger:
         
         return formatted_msg, context
     
+    def _should_log(self, level: str) -> bool:
+        """Check if a message at this level should be logged.
+        
+        Args:
+            level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+            
+        Returns:
+            True if message should be printed/logged
+        """
+        return LOG_LEVELS.get(level, 20) >= _current_log_level
+    
     def info(self, msg: str, *args, **kwargs) -> None:
         """Log an info message.
         
@@ -85,7 +130,13 @@ class CustomLogger:
             args: Arguments to format into message
             extra: Dict with additional context
         """
+        if not self._should_log("INFO"):
+            return
+            
         formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
+        # Print to console
+        print(f"[INFO] {self.name}: {formatted_msg}")
+        # Also send to backend if available
         if _add_log_entry_backend:
             _add_log_entry_backend("INFO", formatted_msg, context)
     
@@ -98,10 +149,16 @@ class CustomLogger:
             extra: Dict with additional context
             exc_info: If True, include exception information
         """
+        if not self._should_log("ERROR"):
+            return
+            
         formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
         if kwargs.get('exc_info'):
             import traceback
             context['traceback'] = traceback.format_exc()
+        # Print to console
+        print(f"[ERROR] {self.name}: {formatted_msg}")
+        # Also send to backend if available
         if _add_log_entry_backend:
             _add_log_entry_backend("ERROR", formatted_msg, context)
     
@@ -113,7 +170,13 @@ class CustomLogger:
             args: Arguments to format into message
             extra: Dict with additional context
         """
+        if not self._should_log("WARNING"):
+            return
+            
         formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
+        # Print to console
+        print(f"[WARNING] {self.name}: {formatted_msg}")
+        # Also send to backend if available
         if _add_log_entry_backend:
             _add_log_entry_backend("WARNING", formatted_msg, context)
     
@@ -129,7 +192,13 @@ class CustomLogger:
             args: Arguments to format into message
             extra: Dict with additional context
         """
+        if not self._should_log("DEBUG"):
+            return
+            
         formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
+        # Print to console
+        print(f"[DEBUG] {self.name}: {formatted_msg}")
+        # Also send to backend if available
         if _add_log_entry_backend:
             _add_log_entry_backend("DEBUG", formatted_msg, context)
     
@@ -141,7 +210,13 @@ class CustomLogger:
             args: Arguments to format into message
             extra: Dict with additional context
         """
+        if not self._should_log("CRITICAL"):
+            return
+            
         formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
+        # Print to console
+        print(f"[CRITICAL] {self.name}: {formatted_msg}")
+        # Also send to backend if available
         if _add_log_entry_backend:
             _add_log_entry_backend("CRITICAL", formatted_msg, context)
 

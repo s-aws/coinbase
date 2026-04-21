@@ -158,11 +158,11 @@ def create_limit_order_span(
     The reveal_condition controls when/how the order transitions to the exchange:
     - Time-based: Reveal after delay_seconds
     - Price-based: Reveal when price crosses threshold
-    - Immediate: Use get_immediate_reveal_condition() for instant reveal
+    - Immediate: Use get_immediate_reveal_condition() for instant reveal (0 second delay)
     
     Key Features:
     - UNIFIED ORDER SYSTEM: All orders use the same reveal mechanism
-    - Automatic reveal condition: If reveal_condition not provided, defaults to immediate reveal
+    - Automatic reveal condition: If reveal_condition not provided, defaults to 60-second delay (to prevent accidental instant reveals)
     - Automatic price stepping: each order placed at start_price + (order_index * price_difference)
     - Size variation: use order_base_size_range to randomize sizes
     - Adaptive sizing: supports volume-proportional or fixed-size reveals
@@ -253,9 +253,14 @@ def create_limit_order_span(
         ...     delay_in_secs=2
         ... )
     """
-    # Auto-generate reveal condition for immediate reveal if not provided
+    # Auto-generate reveal condition if not provided
+    # Default to 60-second delay instead of immediate (0s) to prevent accidental instant reveals
     if not reveal_condition:
-        reveal_condition = get_immediate_reveal_condition()
+        reveal_condition = {
+            "type": "time_delay",
+            "delay_seconds": 60,
+            "jitter_seconds": 0
+        }
     
     order_bridge = get_stealth_order_bridge()
     if not order_bridge:

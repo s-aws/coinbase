@@ -230,19 +230,19 @@ class CoinbaseRestClient:
             ... )
             >>> print(f"Order {order.order_id} placed")
         """
-        response = self._client.create_order(
+        # Use limit_order_gtc() which works with the current SDK
+        # (time_in_force param is ignored as SDK uses GTC for this method)
+        response = self.limit_order_gtc(
             product_id=product_id,
             side=side,
-            order_type="LIMIT",
             limit_price=limit_price,
             base_size=base_size,
             quote_size=quote_size,
             client_order_id=client_order_id,
-            post_only=post_only,
-            time_in_force=time_in_force
+            post_only=post_only
         )
         
-        return Order.from_dict(response)
+        return Order.from_dict(response.to_dict() if hasattr(response, 'to_dict') else response)
     
     def cancel_order(self, client_order_id: str) -> bool:
         """Cancel a single order by client order ID.

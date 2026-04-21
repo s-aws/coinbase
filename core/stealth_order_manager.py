@@ -20,7 +20,6 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
 from business.stealth_condition_evaluator import get_evaluator
-from order import create_limit_order_span
 
 
 class StealthOrderManager:
@@ -77,7 +76,8 @@ class StealthOrderManager:
         parent_order_id: Optional[str] = None,
         follow_up_reveal_direction: Optional[str] = None,
         reason: str = "normal_placement",
-        notes: str = ""
+        notes: str = "",
+        stealth_order_id: Optional[str] = None
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -102,6 +102,9 @@ class StealthOrderManager:
             follow_up_reveal_direction: Direction for follow-up reveals ('same', 'opposite', etc.)
             reason: Reason for order (e.g., 'normal_placement', 'follow_up_replacement')
             notes: Additional notes for tracking
+            stealth_order_id: Optional UUID provided by caller (UI or engine). 
+                             If not provided, a new UUID is generated.
+                             Used to enable deterministic order IDs from UI.
             
         Returns:
             order_id (UUID string) - Used as client_order_id for all internal tracking
@@ -130,8 +133,21 @@ class StealthOrderManager:
             ...     },
             ...     follow_up_reveal_direction="opposite"
             ... )
+            
+            >>> # UI-provided UUID (for deterministic order tracking)
+            >>> order_id = manager.create_stealth_order(
+            ...     product_id="BTC-USDC",
+            ...     side="BUY",
+            ...     total_size=5.0,
+            ...     limit_price=41000.00,
+            ...     reveal_condition={'type': 'time_delay', 'delay_seconds': 60},
+            ...     stealth_order_id="550e8400-e29b-41d4-a716-446655440000"
+            ... )
         """
-        stealth_order_id = str(uuid.uuid4())
+        # ⚠️ CRITICAL: Use provided stealth_order_id or generate a new one
+        # This ensures deterministic IDs when UI provides them, and proper generation for follow-ups
+        if not stealth_order_id:
+            stealth_order_id = str(uuid.uuid4())
         
         order_data = {
             "stealth_order_id": stealth_order_id,
@@ -246,42 +262,65 @@ class StealthOrderManager:
             return None
         
         # Place actual limit order on exchange (NOT stealth - this IS the revealed placement)
+        # Use REST API directly - DO NOT create another stealth order!
+        placed_order_id = None
+        placement_success = False
+        placement_error = None
+        exchange_order_id = None
+        
         try:
-            order_responses = create_limit_order_span(
+            from configuration import REST_CLIENT
+            
+            # ⚠️ CRITICAL: Use the stealth_order_id as client_order_id for the revealed order
+            # This creates the direct link: stealth_order_id → placed order → fill event
+            client_order_id = order["stealth_order_id"]
+            
+            # Place order directly on the exchange via REST API
+            # ⚠️ CRITICAL: Do NOT call create_limit_order_span() here as it creates another stealth order!
+            # Use REST_CLIENT.place_limit_order() which is purpose-built for this
+            order_result = REST_CLIENT.place_limit_order(
                 product_id=order["product_id"],
                 side=order["side"],
-                order_base_size=slice_size,
-                start_price=order["limit_price"],
-                order_price_difference=0,  # Single order at limit price
-                max_order_count=1,
-                post_only=False,
-                reveal_condition={'type': 'time_delay', 'delay_seconds': 0}  # Immediate reveal
+                limit_price=str(order["limit_price"]),
+                base_size=str(slice_size),
+                client_order_id=client_order_id,
+                post_only=False
             )
             
-            # Extract the placed order ID from response
-            if order_responses and len(order_responses) > 0:
-                response = order_responses[0]
-                if response.get('success') and response.get('success_response'):
-                    # Get the client_order_id first (our UUID), fallback to order_id (exchange ID)
-                    placed_order_id = response['success_response'].get('client_order_id') or response['success_response'].get('order_id')
-                    if not placed_order_id:
-                        placed_order_id = str(uuid.uuid4())
-                else:
-                    # Order placement failed, log error but continue with fallback ID
-                    self.log_callback("error", {"event": "stealth_order_placement_failed", "error": response.get('error_response')})
-                    placed_order_id = str(uuid.uuid4())
-            else:
-                # No response, use fallback ID
-                placed_order_id = str(uuid.uuid4())
+            # ✓ Use the client_order_id we sent (stealth_order_id)
+            # When fill event arrives with this client_order_id, it links directly to stealth order
+            placed_order_id = client_order_id
+            placement_success = True
+            
+            self.log_callback("info", {
+                "event": "stealth_order_slice_placed_successfully",
+                "stealth_order_id": order['stealth_order_id'],
+                "client_order_id": placed_order_id,
+                "size": slice_size,
+                "product_id": order["product_id"],
+                "limit_price": order["limit_price"]
+            })
         except Exception as e:
-            self.log_callback("error", {"event": "stealth_order_slice_placement_error", "error": str(e)})
-            placed_order_id = str(uuid.uuid4())
+            # ✗ EXCEPTION DURING PLACEMENT
+            placed_order_id = str(uuid.uuid4())  # Fallback for tracking
+            placement_error = str(e)
+            
+            self.log_callback("error", {
+                "event": "stealth_order_slice_placement_exception",
+                "stealth_order_id": order['stealth_order_id'],
+                "size": slice_size,
+                "product_id": order["product_id"],
+                "exception": str(e),
+                "note": "Exception while placing order on exchange. Order was NOT placed."
+            })
         
-        # Record reveal event
+        # Record reveal event with placement status tracking
         reveal_event = {
             "reveal_number": len(order["revealed_orders"]) + 1,
             "revealed_size": slice_size,
             "placed_order_id": placed_order_id,
+            "placement_success": placement_success,  # ✓ Track if actually placed on exchange
+            "placement_error": placement_error,      # Error message if failed
             "reveal_time": datetime.utcnow(),
             "market_price": self._get_current_market_data(order["product_id"]).get("price"),
         }

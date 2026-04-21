@@ -1436,6 +1436,24 @@
             
             if (conditionTemplates[conditionType]) {
                 container.innerHTML = conditionTemplates[conditionType];
+                
+                // Attach event listeners to the newly added fields for auto-save
+                const newFields = container.querySelectorAll('input, select, textarea');
+                newFields.forEach(field => {
+                    field.addEventListener('input', () => {
+                        clearTimeout(autoSaveTimeout);
+                        autoSaveTimeout = setTimeout(() => {
+                            saveFormValues();
+                        }, 800);
+                    });
+                    
+                    field.addEventListener('change', () => {
+                        clearTimeout(autoSaveTimeout);
+                        autoSaveTimeout = setTimeout(() => {
+                            saveFormValues();
+                        }, 300);
+                    });
+                });
             } else {
                 container.innerHTML = '';
             }
@@ -1684,7 +1702,8 @@
 
         function buildRevealCondition() {
             const type = document.getElementById('condition_type').value;
-            const fields = document.querySelectorAll('[name]');
+            const container = document.getElementById('condition-fields-container');
+            const fields = container ? container.querySelectorAll('[name]') : [];
             const condition = { type };
 
             fields.forEach(field => {

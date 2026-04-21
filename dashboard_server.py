@@ -148,6 +148,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         data = json.loads(message)
         msg_type = data.get("type")
         
+        # DEBUG: Log all incoming messages
+        logger.info(f"[HANDLER] Received message type: {msg_type}")
+        
         if msg_type == "place_order":
             # Place order via REST API
             order_params = data.get("params", {})
@@ -273,7 +276,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         
         elif msg_type == "create_stealth_order":
             # Create new stealth order
+            logger.info("[HANDLER] create_stealth_order message received")
             order = data.get("order")
+            
             if not order:
                 response = {
                     "type": "error",
@@ -292,6 +297,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             
             try:
                 stealth_id = stealth_order_bridge.create_stealth_order(
+                    stealth_order_id=order.get('stealth_order_id'),  # Allow UI to provide UUID
                     product_id=order['product_id'],
                     side=order['side'],
                     total_size=order['total_size'],
@@ -322,7 +328,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await broadcast_stealth_order_update(response)
                 
             except Exception as e:
-                logger.error(f"Failed to create stealth order: {e}")
+                import traceback
+                error_trace = traceback.format_exc()
+                logger.error(f"Failed to create stealth order: {e}\n{error_trace}")
                 response = {
                     "type": "error",
                     "message": f"Failed to create order: {str(e)}"
@@ -846,7 +854,11 @@ def update_engine_status(status_data: Dict[str, Any]):
 
 
 def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
-    """Add log entry to dashboard."""
+    """Add log entry to dashboard and print to console."""
+    # Print to console immediately
+    print(f"[{level}] {message}")
+    
+    # Also store in engine state for UI
     with state_lock:
         entry = {
             "timestamp": datetime.utcnow().isoformat(),
