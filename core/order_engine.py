@@ -646,6 +646,124 @@ class OrderEngine:
             # Map child to parent
             self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
 
+    def _update_dashboard_order_status(self, client_order_id: str, order: dict, status: str) -> None:
+        """Update dashboard with current order status.
+        
+        Extracts order details and pushes to dashboard, plus logs the update.
+        
+        Args:
+            client_order_id: The order's client order ID.
+            order: Order data dict.
+            status: Order status (OPEN, CANCELLED, FILLED, FAILED, etc.).
+        
+        Returns:
+            None
+        
+        Example:
+            >>> self._update_dashboard_order_status('order_123', order_data, 'FILLED')
+        """
+        order_side = resolve_order_side(order)
+        order_size = resolve_order_size(order)
+        filled_size = safe_float(order.get("filled_size"), default=0.0)
+        
+        # Push to dashboard
+        update_order(client_order_id, {
+            "order_id": order.get("id", client_order_id),
+            "client_order_id": client_order_id,
+            "product_id": order.get("product_id"),
+            "side": order_side,
+            "size": order_size,
+            "price": order.get("limit_price"),
+            "filled_size": filled_size,
+            "status": status,
+        })
+        
+        # Log the update
+        product_id = order.get("product_id", "UNKNOWN")
+        if status == "FAILED":
+            add_log_entry("ERROR", f"Order FAILED: {product_id} {order_side} - Check account balance/margin")
+        elif status == "OPEN":
+            add_log_entry("INFO", f"Order OPEN: {product_id} {order_side} {order_size}")
+        elif status == "CANCELLED":
+            add_log_entry("INFO", f"Order CANCELLED: {product_id} {order_side} {order_size}")
+        elif status == "FILLED":
+            add_log_entry("INFO", f"Order FILLED: {product_id} {order_side} {order_size}")
+
+    def _is_external_order(self, client_order_id: str) -> bool:
+        """Check if an order is external (not created by our engine).
+        
+        External orders are ones placed directly via Coinbase UI or API,
+        not by our automated order engine.
+        
+        Args:
+            client_order_id: The order's client order ID.
+        
+        Returns:
+            True if order is external (not in our orderbook), False if it's ours.
+        
+        Example:
+            >>> if self._is_external_order('order_123'):
+            ...     # Just track it, don't create follow-ups
+        """
+        return (
+            client_order_id not in self.orderbook.parent_order_ids
+            and client_order_id not in self.orderbook.child_order_ids
+        )
+
+    def _handle_external_order_tracking(
+        self,
+        client_order_id: str,
+        order: dict,
+        event_type: str,
+        processed_flag_name: str = None,
+    ) -> bool:
+        """Track external orders (for record-keeping, no follow-ups).
+        
+        For external orders that we didn't create:
+        - Creates a parent entry for tracking purposes
+        - Logs the event with appropriate context
+        - Completes follow-up processing to prevent retries
+        
+        Args:
+            client_order_id: The order's client order ID.
+            order: Order data dict.
+            event_type: Type of event ('cancelled' or 'filled').
+            processed_flag_name: Flag dict name for completion ('cancelled' or 'filled').
+        
+        Returns:
+            True (indicating we handled this external order and should return early).
+        
+        Example:
+            >>> if self._handle_external_order_tracking('order_123', order, 'cancelled', 'cancelled'):
+            ...     return  # Already handled
+        """
+        # Create a parent entry for tracking purposes only
+        with self.orderbook_lock:
+            is_parent, parent_client_order_id = self.resolve_parent_client_order_id(
+                client_order_id,
+                order=order,
+                create_parent=True,
+                status=event_type.upper(),
+            )
+        
+        # Log the external order event
+        event_name = f"external_order_{event_type}"
+        self.log_message(
+            "order",
+            self.build_follow_up_log_payload(
+                event_name,
+                source_order=order,
+                parent_client_order_id=parent_client_order_id,
+                details={"reason": "external_order_no_follow_up"},
+            ),
+        )
+        
+        # Complete processing to prevent follow-up retries
+        if processed_flag_name:
+            self.complete_follow_up_processing(processed_flag_name, client_order_id)
+        
+        return True
+
     def build_follow_up_log_payload(
         self,
         event: str,
@@ -918,72 +1036,20 @@ class OrderEngine:
                     **self.include_debug_fields(raw_order=order),
                 ),
             )
-            # Push failure to dashboard
-            order_side = resolve_order_side(order)
-            update_order(client_order_id, {
-                "order_id": order.get("id", client_order_id),
-                "client_order_id": client_order_id,
-                "product_id": order.get("product_id"),
-                "side": order_side,
-                "size": resolve_order_size(order),
-                "price": order.get("limit_price"),
-                "filled_size": order.get("filled_size", 0),
-                "status": status,
-            })
-            add_log_entry("ERROR", f"Order FAILED: {order.get('product_id')} {order_side} - Check account balance/margin")
+            self._update_dashboard_order_status(client_order_id, order, status)
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             return
         if status == "OPEN":
-            # Push to dashboard
-            order_side = resolve_order_side(order)
-            order_size = resolve_order_size(order)
-            update_order(client_order_id, {
-                "order_id": order.get("id", client_order_id),
-                "client_order_id": client_order_id,
-                "product_id": order.get("product_id"),
-                "side": order_side,
-                "size": order_size,
-                "price": order.get("limit_price"),
-                "filled_size": order.get("filled_size", 0),
-                "status": status,
-            })
-            add_log_entry("INFO", f"Order OPEN: {order.get('product_id')} {order_side} {order_size}")
+            self._update_dashboard_order_status(client_order_id, order, status)
             return
         if status == "CANCELLED":
             self.handle_cancelled_order(order)
-            # Push to dashboard
-            order_side = resolve_order_side(order)
-            cancelled_size = resolve_order_size(order)
-            update_order(client_order_id, {
-                "order_id": order.get("id", client_order_id),
-                "client_order_id": client_order_id,
-                "product_id": order.get("product_id"),
-                "side": order_side,
-                "size": cancelled_size,
-                "price": order.get("limit_price"),
-                "filled_size": order.get("filled_size", 0),
-                "status": status,
-            })
-            add_log_entry("INFO", f"Order CANCELLED: {order.get('product_id')} {order_side} {cancelled_size}")
+            self._update_dashboard_order_status(client_order_id, order, status)
             return
         if status == "FILLED":
             self.handle_filled_order(order)
-            # Push to dashboard
-            order_side = resolve_order_side(order)
-            filled_size = safe_float(order.get("filled_size"), default=0.0)
-            order_size = resolve_order_size(order)
-            update_order(client_order_id, {
-                "order_id": order.get("id", client_order_id),
-                "client_order_id": client_order_id,
-                "product_id": order.get("product_id"),
-                "side": order_side,
-                "size": order_size,
-                "price": order.get("limit_price"),
-                "filled_size": filled_size,
-                "status": status,
-            })
-            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order_side} {order_size}")
+            self._update_dashboard_order_status(client_order_id, order, status)
             return
 
         self.log_message(
@@ -1199,10 +1265,7 @@ class OrderEngine:
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
-        is_external_order = (
-            client_order_id not in self.orderbook.parent_order_ids
-            and client_order_id not in self.orderbook.child_order_ids
-        )
+        is_external_order = self._is_external_order(client_order_id)
 
         # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
         # This must happen before any other processing to prevent race conditions
@@ -1220,26 +1283,12 @@ class OrderEngine:
 
         # For external orders, just track them but don't create follow-ups
         if is_external_order:
-            with self.orderbook_lock:
-                # Create a parent entry for tracking purposes only
-                is_parent, parent_client_order_id = self.resolve_parent_client_order_id(
-                    client_order_id, 
-                    order=order, 
-                    create_parent=True, 
-                    status="CANCELLED"
-                )
-            
-            self.log_message(
-                "order",
-                self.build_follow_up_log_payload(
-                    "external_order_cancelled",
-                    source_order=order,
-                    parent_client_order_id=parent_client_order_id,
-                    details={"reason": "external_order_no_follow_up"},
-                ),
+            self._handle_external_order_tracking(
+                client_order_id,
+                order,
+                "cancelled",
+                processed_flag_name="cancelled",
             )
-            
-            self.complete_follow_up_processing("cancelled", client_order_id)
             return
 
         with self.orderbook_lock:
@@ -1494,10 +1543,7 @@ class OrderEngine:
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
-        is_external_order = (
-            client_order_id not in self.orderbook.parent_order_ids
-            and client_order_id not in self.orderbook.child_order_ids
-        )
+        is_external_order = self._is_external_order(client_order_id)
 
         with self.orderbook_lock:
             if self.orderbook.should_replace["FILLED"] is not True:
@@ -1513,14 +1559,11 @@ class OrderEngine:
         # For external orders, just track them but don't create follow-ups
         # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
         if is_external_order and not original_stealth_order:
-            self.log_message(
-                "order",
-                self.build_follow_up_log_payload(
-                    "external_order_filled",
-                    source_order=order,
-                    parent_client_order_id=parent_client_order_id,
-                    details={"reason": "external_order_no_follow_up"},
-                ),
+            self._handle_external_order_tracking(
+                client_order_id,
+                order,
+                "filled",
+                processed_flag_name=None,  # Don't complete processing for filled orders
             )
             return
 
