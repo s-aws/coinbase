@@ -60,6 +60,7 @@ from configuration import (
 )
 
 from core.constants import get_local_now
+from core.enums import OrderStatus, OrderSide, ProductType
 from order import create_limit_order_span
 from calculation.resolver import resolve_order_size, resolve_order_side
 from calculation.formatter import safe_float
@@ -680,13 +681,13 @@ class OrderEngine:
         
         # Log the update
         product_id = order.get("product_id", "UNKNOWN")
-        if status == "FAILED":
+        if status == OrderStatus.FAILED:
             add_log_entry("ERROR", f"Order FAILED: {product_id} {order_side} - Check account balance/margin")
-        elif status == "OPEN":
+        elif status == OrderStatus.OPEN:
             add_log_entry("INFO", f"Order OPEN: {product_id} {order_side} {order_size}")
-        elif status == "CANCELLED":
+        elif status == OrderStatus.CANCELLED:
             add_log_entry("INFO", f"Order CANCELLED: {product_id} {order_side} {order_size}")
-        elif status == "FILLED":
+        elif status == OrderStatus.FILLED:
             add_log_entry("INFO", f"Order FILLED: {product_id} {order_side} {order_size}")
 
     def _is_external_order(self, client_order_id: str) -> bool:
@@ -986,7 +987,7 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
-        if status == "FILLED" and outstanding_hold_amount > 0:
+        if status == OrderStatus.FILLED and outstanding_hold_amount > 0:
             self.log_message(
                 "order",
                 self.build_event_log_payload(
@@ -1023,11 +1024,11 @@ class OrderEngine:
 
         if status == "SNAPSHOT":
             return
-        if status == "CANCEL_QUEUED":
+        if status == OrderStatus.CANCEL_QUEUED:
             return
-        if status == "PENDING":
+        if status == OrderStatus.PENDING:
             return
-        if status == "FAILED":
+        if status == OrderStatus.FAILED:
             self.log_message(
                 "error",
                 self.build_event_log_payload(
@@ -1040,14 +1041,14 @@ class OrderEngine:
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             return
-        if status == "OPEN":
+        if status == OrderStatus.OPEN:
             self._update_dashboard_order_status(client_order_id, order, status)
             return
-        if status == "CANCELLED":
+        if status == OrderStatus.CANCELLED:
             self.handle_cancelled_order(order)
             self._update_dashboard_order_status(client_order_id, order, status)
             return
-        if status == "FILLED":
+        if status == OrderStatus.FILLED:
             self.handle_filled_order(order)
             self._update_dashboard_order_status(client_order_id, order, status)
             return
@@ -1106,7 +1107,7 @@ class OrderEngine:
         if not order:
             return {}
 
-        if self.normalize_product_type(order) == "FUTURE":
+        if self.normalize_product_type(order) == ProductType.FUTURE:
             product_id = order.get("product_id")
             if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
                 self.refresh_positions_if_needed(product_id)
