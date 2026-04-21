@@ -266,6 +266,7 @@ def insert_order_parent(
     """Insert a parent order into the order_parent table.
     
     Creates a new parent order entry with tracking for follow-up order replacement count.
+    This operation is idempotent - if the parent order already exists, it returns the existing ID.
     
     Args:
         client_order_id: Unique client-assigned order ID.
@@ -285,6 +286,12 @@ def insert_order_parent(
     Raises:
         Exception: If database insertion fails.
     """
+    # Check if parent order already exists (handles race condition with multiple threads)
+    existing_parent = get_parent_order(client_order_id)
+    if existing_parent:
+        logger.info(f"✓ Parent order already exists: {client_order_id} (DB ID: {existing_parent['id']})")
+        return existing_parent['id']
+    
     query = """
     INSERT INTO order_parent (
         client_order_id,

@@ -61,6 +61,7 @@ from configuration import (
 
 from core.constants import get_local_now
 from order import create_limit_order_span
+from calculation.resolver import resolve_order_size, resolve_order_side
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
@@ -920,33 +921,36 @@ class OrderEngine:
                 ),
             )
             # Push failure to dashboard
+            order_side = resolve_order_side(order)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
+                "side": order_side,
+                "size": resolve_order_size(order),
                 "price": order.get("limit_price"),
                 "filled_size": order.get("filled_size", 0),
                 "status": status,
             })
-            add_log_entry("ERROR", f"Order FAILED: {order.get('product_id')} {order.get('side')} - Check account balance/margin")
+            add_log_entry("ERROR", f"Order FAILED: {order.get('product_id')} {order_side} - Check account balance/margin")
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             return
         if status == "OPEN":
             # Push to dashboard
+            order_side = resolve_order_side(order)
+            order_size = resolve_order_size(order)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
+                "side": order_side,
+                "size": order_size,
                 "price": order.get("limit_price"),
                 "filled_size": order.get("filled_size", 0),
                 "status": status,
             })
-            add_log_entry("INFO", f"Order OPEN: {order.get('product_id')} {order.get('side')} {order.get('order_quantity')}")
+            add_log_entry("INFO", f"Order OPEN: {order.get('product_id')} {order_side} {order_size}")
             return
         if status == "CANCELLED":
             self.handle_cancelled_order(order)
@@ -966,17 +970,19 @@ class OrderEngine:
         if status == "FILLED":
             self.handle_filled_order(order)
             # Push to dashboard
+            order_side = resolve_order_side(order)
+            filled_size = self.safe_float(order.get("filled_size"), default=0.0)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
+                "side": order_side,
+                "size": resolve_order_size(order),
                 "price": order.get("limit_price"),
-                "filled_size": order.get("filled_size", 0),
+                "filled_size": filled_size,
                 "status": status,
             })
-            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order.get('side')} {order.get('filled_size')}")
+            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order_side} {filled_size}")
             return
 
         self.log_message(
@@ -1477,6 +1483,20 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
+        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
+        # This must happen before any other processing to prevent race conditions
+        if not self.claim_follow_up_processing("filled", client_order_id):
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=None,
+                    details={"reason": "filled_order_follow_up_already_claimed"},
+                ),
+            )
+            return
+
         # CRITICAL: Check for stealth order BEFORE marking as external
         # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
         original_stealth_order = None
@@ -1545,18 +1565,9 @@ class OrderEngine:
         # NOTE: This is handled in the later stealth order code path (around line 1663)
         # After normal follow-up processing claims the order. Kept here for reference only.
 
-        if not self.claim_follow_up_processing("filled", client_order_id):
-            self.log_message(
-                "warning",
-                self.build_follow_up_log_payload(
-                    "follow_up_already_claimed",
-                    source_order=order,
-                    parent_client_order_id=parent_client_order_id,
-                    details={"reason": "filled_order_follow_up_already_claimed"},
-                ),
-            )
-            return
-
+        # Note: We already claimed processing at the start of handle_filled_order
+        # No need to claim again here
+        
         try:
             can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
             if not can_replace:
