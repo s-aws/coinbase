@@ -62,6 +62,7 @@ from configuration import (
 from core.constants import get_local_now
 from order import create_limit_order_span
 from calculation.resolver import resolve_order_size, resolve_order_side
+from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
@@ -279,30 +280,6 @@ class OrderEngine:
             return float(order["limit_price"])
         return float(order["avg_price"])
 
-    @staticmethod
-    def safe_float(value, default: float = 0.0) -> float:
-        """Safely convert value to float with default fallback.
-        
-        Args:
-            value: Value to convert.
-            default: Default if conversion fails.
-        
-        Returns:
-            Float or default.
-        
-        Example:
-            >>> OrderEngine.safe_float('123.45')
-            123.45
-            >>> OrderEngine.safe_float(None)
-            0.0
-        """
-        try:
-            if value in (None, ""):
-                return default
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
     def build_order_log_context(self, order: dict) -> dict:
         """Build a concise log dict from order data.
         
@@ -413,25 +390,7 @@ class OrderEngine:
             return "FUTURE"
         return "SPOT"
 
-    def resolve_order_size(self, order: dict) -> float:
-        """Extract order size from multiple possible fields.
-        
-        Args:
-            order: Order dict.
-        
-        Returns:
-            Order size or 0.0 if not found.
-        
-        Example:
-            >>> size = engine.resolve_order_size({'base_size': '1.5'})
-            >>> size
-            1.5
-        """
-        for field in ("cumulative_quantity", "filled_size", "base_size", "size", "leaves_quantity"):
-            value = self.safe_float(order.get(field), default=0.0)
-            if value > 0:
-                return value
-        return 0.0
+    # Note: resolve_order_size is now imported from calculation.resolver
 
     def resolve_profit_target(self, order: dict) -> float:
         """Get configured profit target % for an order.
@@ -567,7 +526,7 @@ class OrderEngine:
                 client_order_id=client_order_id,
                 product_id=order["product_id"],
                 side=order["order_side"],
-                size=float(self.resolve_order_size(order)),
+                size=float(resolve_order_size(order)),
                 price=float(self.order_limit_price_or_avg_price(order)),
                 target_movement=float(
                     self.orderbook.parent_order_ids[client_order_id]["target_movement"]["movement"]
@@ -647,6 +606,45 @@ class OrderEngine:
                 return
 
             processed_flags[client_order_id] = "done"
+
+    def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
+        """Register a child order under a parent in the orderbook.
+        
+        Maintains bidirectional mappings:
+        - parent_order_ids[parent][orders] list contains child
+        - child_order_ids[child] points to parent
+        
+        Args:
+            child_client_order_id: The child order to register.
+            parent_client_order_id: The parent order to register under.
+        
+        Returns:
+            None
+        
+        Example:
+            >>> engine.register_child_order('child_123', 'parent_123')
+            >>> # Now child_123 is tracked as child of parent_123
+        """
+        with self.orderbook_lock:
+            # Ensure parent entry exists
+            if parent_client_order_id not in self.orderbook.parent_order_ids:
+                self.orderbook.parent_order_ids[parent_client_order_id] = {
+                    "orders": [],
+                    "target_movement": {"movement": 0, "type": "P"},
+                    "max_order_replacement": getattr(
+                        self.orderbook,
+                        "default_max_order_replacement",
+                        DEFAULT_MAX_ORDER_REPLACEMENT,
+                    ),
+                    "current_order_replacement": 0,
+                }
+            
+            # Add child to parent's orders list if not already there
+            if child_client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id]["orders"]:
+                self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+            
+            # Map child to parent
+            self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
 
     def build_follow_up_log_payload(
         self,
@@ -862,7 +860,7 @@ class OrderEngine:
 
         normalized_order = deepcopy(order)
         normalized_order["product_type"] = self.normalize_product_type(normalized_order)
-        outstanding_hold_amount = self.safe_float(
+        outstanding_hold_amount = safe_float(
             normalized_order.get("outstanding_hold_amount"),
             default=0.0,
         )
@@ -955,34 +953,37 @@ class OrderEngine:
         if status == "CANCELLED":
             self.handle_cancelled_order(order)
             # Push to dashboard
-            update_order(client_order_id, {
-                "order_id": order.get("id", client_order_id),
-                "client_order_id": client_order_id,
-                "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
-                "price": order.get("limit_price"),
-                "filled_size": order.get("filled_size", 0),
-                "status": status,
-            })
-            add_log_entry("INFO", f"Order CANCELLED: {order.get('product_id')} {order.get('side')}")
-            return
-        if status == "FILLED":
-            self.handle_filled_order(order)
-            # Push to dashboard
             order_side = resolve_order_side(order)
-            filled_size = self.safe_float(order.get("filled_size"), default=0.0)
+            cancelled_size = resolve_order_size(order)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
                 "side": order_side,
-                "size": resolve_order_size(order),
+                "size": cancelled_size,
+                "price": order.get("limit_price"),
+                "filled_size": order.get("filled_size", 0),
+                "status": status,
+            })
+            add_log_entry("INFO", f"Order CANCELLED: {order.get('product_id')} {order_side} {cancelled_size}")
+            return
+        if status == "FILLED":
+            self.handle_filled_order(order)
+            # Push to dashboard
+            order_side = resolve_order_side(order)
+            filled_size = safe_float(order.get("filled_size"), default=0.0)
+            order_size = resolve_order_size(order)
+            update_order(client_order_id, {
+                "order_id": order.get("id", client_order_id),
+                "client_order_id": client_order_id,
+                "product_id": order.get("product_id"),
+                "side": order_side,
+                "size": order_size,
                 "price": order.get("limit_price"),
                 "filled_size": filled_size,
                 "status": status,
             })
-            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order_side} {filled_size}")
+            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order_side} {order_size}")
             return
 
         self.log_message(
@@ -1193,27 +1194,8 @@ class OrderEngine:
         
         # If this is a stealth-revealed order, register it in the orderbook first
         if original_stealth_order and original_stealth_order.get("parent_order_id"):
-            with self.orderbook_lock:
-                parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
-                
-                # Ensure parent entry exists
-                if parent_client_order_id_stealth not in self.orderbook.parent_order_ids:
-                    self.orderbook.parent_order_ids[parent_client_order_id_stealth] = {
-                        "orders": [],
-                        "target_movement": {},
-                        "max_order_replacement": getattr(
-                            self.orderbook,
-                            "default_max_order_replacement",
-                            DEFAULT_MAX_ORDER_REPLACEMENT,
-                        ),
-                        "current_order_replacement": 0,
-                    }
-                
-                # Register this revealed slice as a child of the stealth order's parent
-                if client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"]:
-                    self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"].append(client_order_id)
-                
-                self.orderbook.child_order_ids[client_order_id] = parent_client_order_id_stealth
+            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+            self.register_child_order(client_order_id, parent_client_order_id_stealth)
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
@@ -1507,27 +1489,8 @@ class OrderEngine:
         
         # If this is a stealth-revealed order, register it in the orderbook first
         if original_stealth_order and original_stealth_order.get("parent_order_id"):
-            with self.orderbook_lock:
-                parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
-                
-                # Ensure parent entry exists
-                if parent_client_order_id_stealth not in self.orderbook.parent_order_ids:
-                    self.orderbook.parent_order_ids[parent_client_order_id_stealth] = {
-                        "orders": [],
-                        "target_movement": {},
-                        "max_order_replacement": getattr(
-                            self.orderbook,
-                            "default_max_order_replacement",
-                            DEFAULT_MAX_ORDER_REPLACEMENT,
-                        ),
-                        "current_order_replacement": 0,
-                    }
-                
-                # Register this revealed slice as a child of the stealth order's parent
-                if client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"]:
-                    self.orderbook.parent_order_ids[parent_client_order_id_stealth]["orders"].append(client_order_id)
-                
-                self.orderbook.child_order_ids[client_order_id] = parent_client_order_id_stealth
+            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+            self.register_child_order(client_order_id, parent_client_order_id_stealth)
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
@@ -1671,6 +1634,9 @@ class OrderEngine:
                         target_movement=parent_target_movement,
                         target_movement_type=parent_target_movement_type
                     )
+                    
+                    # Register stealth follow-up as child of original parent
+                    self.register_child_order(stealth_follow_up_id, parent_client_order_id)
                     
                     self.log_message(
                         "order",
@@ -1833,8 +1799,7 @@ class OrderEngine:
                 }
                 self.orderbook.parent_order_ids[parent_client_order_id] = parent_entry
 
-            parent_entry.setdefault("orders", []).append(new_order_client_order_id)
-            self.orderbook.child_order_ids[new_order_client_order_id] = parent_client_order_id
+            self.register_child_order(new_order_client_order_id, parent_client_order_id)
 
             if processed_flag_name == "filled":
                 parent_entry["current_order_replacement"] += 1
