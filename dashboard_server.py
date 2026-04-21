@@ -593,6 +593,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 # Get all moves from database (fetch all to show complete history)
                 # For now, we'll fetch from database directly
                 from database.database import PostgresDB
+                from database.order_dashboard_helpers import _serialize_for_json
                 db = PostgresDB()
                 result = db.execute_query("SELECT * FROM order_moves ORDER BY created_at DESC LIMIT 100")
                 
@@ -600,7 +601,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 
                 response = {
                     "type": "move_history_list",
-                    "moves": moves_dict
+                    "moves": _serialize_for_json(moves_dict)
                 }
                 await websocket.send(json.dumps(response))
                 logger.info(f"Sent {len(result or [])} move records to client")

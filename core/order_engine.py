@@ -1131,6 +1131,9 @@ class OrderEngine:
         If the order is pre-marked for automatic move (move_on_cancel=True),
         executes the pending move instead of creating a child order.
         
+        NOTE: External orders (created in Coinbase UI, not by our engine) are
+        tracked for record-keeping but do NOT trigger follow-up orders.
+        
         Args:
             order: Cancelled order dict.
         
@@ -1138,6 +1141,13 @@ class OrderEngine:
             None
         """
         client_order_id = order["client_order_id"]
+
+        # Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        is_external_order = (
+            client_order_id not in self.orderbook.parent_order_ids
+            and client_order_id not in self.orderbook.child_order_ids
+        )
 
         # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
         # This must happen before any other processing to prevent race conditions
@@ -1153,22 +1163,35 @@ class OrderEngine:
             )
             return
 
-        with self.orderbook_lock:
-            if self.orderbook.should_replace["CANCELLED"] is not True:
-                self.release_follow_up_processing("cancelled", client_order_id)
-                return
-            is_parent, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
-            
-            # If this is an external order (not tracked), treat it as a parent
-            if parent_client_order_id is None:
-                # External order - create parent entry so it's tracked
-                self.resolve_parent_client_order_id(
+        # For external orders, just track them but don't create follow-ups
+        if is_external_order:
+            with self.orderbook_lock:
+                # Create a parent entry for tracking purposes only
+                is_parent, parent_client_order_id = self.resolve_parent_client_order_id(
                     client_order_id, 
                     order=order, 
                     create_parent=True, 
                     status="CANCELLED"
                 )
-                _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+            
+            self.log_message(
+                "order",
+                self.build_follow_up_log_payload(
+                    "external_order_cancelled",
+                    source_order=order,
+                    parent_client_order_id=parent_client_order_id,
+                    details={"reason": "external_order_no_follow_up"},
+                ),
+            )
+            
+            self.complete_follow_up_processing("cancelled", client_order_id)
+            return
+
+        with self.orderbook_lock:
+            if self.orderbook.should_replace["CANCELLED"] is not True:
+                self.release_follow_up_processing("cancelled", client_order_id)
+                return
+            is_parent, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
         # Check for pending move (automation) - executes instead of normal follow-up
         from database.order import has_pending_move
@@ -1376,6 +1399,9 @@ class OrderEngine:
     def handle_filled_order(self, order: dict) -> None:
         """Handle a filled order by creating a follow-up if allowed.
         
+        NOTE: External orders (created in Coinbase UI, not by our engine) are
+        tracked for record-keeping but do NOT trigger follow-up orders.
+        
         Args:
             order: Filled order dict.
         
@@ -1383,6 +1409,13 @@ class OrderEngine:
             None
         """
         client_order_id = order["client_order_id"]
+
+        # Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        is_external_order = (
+            client_order_id not in self.orderbook.parent_order_ids
+            and client_order_id not in self.orderbook.child_order_ids
+        )
 
         with self.orderbook_lock:
             if self.orderbook.should_replace["FILLED"] is not True:
@@ -1394,6 +1427,19 @@ class OrderEngine:
                 create_parent=True,
                 status="FILLED",
             )
+
+        # For external orders, just track them but don't create follow-ups
+        if is_external_order:
+            self.log_message(
+                "order",
+                self.build_follow_up_log_payload(
+                    "external_order_filled",
+                    source_order=order,
+                    parent_client_order_id=parent_client_order_id,
+                    details={"reason": "external_order_no_follow_up"},
+                ),
+            )
+            return
 
         if not self.claim_follow_up_processing("filled", client_order_id):
             self.log_message(
