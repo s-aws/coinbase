@@ -1,35 +1,68 @@
-"""OrderEngine - Multithreaded trading engine for Coinbase Advanced API order management.
+"""OrderEngine - Multithreaded trading engine for Coinbase Advanced API.
 
-This module implements the core OrderEngine class that:
-- Maintains a live websocket connection to Coinbase for real-time order updates
-- Manages parent-child order relationships and their lifecycle
-- Automatically creates follow-up orders based on fills and cancellations
-- Handles order deduplication and event processing with thread-safe operations
-- Synchronizes in-memory orderbook state with PostgreSQL database
-- Implements position tracking for futures contracts
+Core responsibilities:
+- Real-time order event processing via WebSocket
+- Parent-child order relationship lifecycle management  
+- Automatic follow-up order creation on fills/cancellations
+- Position tracking for derivatives
+- Thread-safe orderbook state synchronization with database
+
+ARCHITECTURE: Unified Order System
+===================================
+
+All orders flow through StealthOrderManager with automated reveal conditions:
+- Orders are created via StealthOrderManager.create_stealth_order()
+- Orders start in HIDDEN state with a reveal_condition
+- Conditions are evaluated continuously (time-based, price-based, immediate)
+- When condition is met, order transitions to PENDING, then to FILLED/CANCELLED
+- OrderEngine processes fill events and creates follow-up orders
+
+Parent:Child Order Relationships (1:Many)
+=========================================
+
+The system enforces a 1:Many parent-child relationship:
+- ONE parent order can have MANY child orders (follow-ups)
+- Parent: The initial order that triggers follow-up creation
+- Child: Orders created when parent fills or is cancelled
+- Example: 
+  - Create parent order: BUY 10 @ $40,000 (via reveal condition)
+  - Parent fills
+  - OrderEngine detects fill and creates follow-up child: SELL 10 @ $41,000
+  
+Data Structures:
+- order_parent_ids: Dict[parent_id → {orders: [child_ids], ...}]
+- child_order_ids: Dict[child_id → parent_id]
+
+This module maintains:
+- Live WebSocket connection for real-time order updates
+- Parent-child order relationships and lifecycle
+- Automatic follow-up creation logic
+- Order deduplication with thread-safe event processing
+- In-memory orderbook state synchronized with PostgreSQL
+- Position tracking for futures contracts
 """
 
 import json
 import threading
 from time import sleep
-from hashlib import sha256
 from queue import Queue, Full
 from copy import deepcopy
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
+from external import CoinbaseWebSocketClient
+
 from configuration import (
-    Subscription,
-    ORDERBOOK,
     DEFAULT_MAX_ORDER_REPLACEMENT,
     calculate_new_order_move_from_snapshot,
     apply_calculated_position_update,
     get_futures_positions,
 )
 
+from core.constants import get_local_now
 from order import create_limit_order_span
-import database.order as DB_CLIENT
+from calculation.resolver import resolve_order_size, resolve_order_side
+from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
@@ -57,7 +90,7 @@ class OrderEngine:
     
     Attributes:
         orderbook: OrderBook instance (source-of-truth for orders/positions).
-        db_client: Database client for persisting parent/child orders.
+        db_helper: Database client for persisting parent/child orders.
         subscription: Subscription config (products, channels).
         api_key: Coinbase API key for websocket authentication.
         api_secret: Coinbase API secret for websocket authentication.
@@ -82,7 +115,7 @@ class OrderEngine:
         >>> from core.order_engine import OrderEngine
         >>> engine = OrderEngine(
         ...     orderbook=ORDERBOOK,
-        ...     db_client=DB_CLIENT,
+        ...     db_helper=DB_HELPER,
         ...     subscription=Subscription,
         ...     api_key=API_KEY,
         ...     api_secret=API_SECRET,
@@ -97,7 +130,7 @@ class OrderEngine:
     def __init__(
         self,
         orderbook,
-        db_client,
+        db_helper,
         subscription,
         api_key,
         api_secret,
@@ -107,12 +140,13 @@ class OrderEngine:
         max_rotate_seen_events_bucket_seconds=60,
         max_seen_event_buckets=3,
         queue_maxsize=10000,
+        stealth_order_bridge=None,
     ) -> None:
         """Initialize the OrderEngine with configuration and state.
         
         Args:
             orderbook: OrderBook instance for state tracking.
-            db_client: Database client module.
+            db_helper: Database client module.
             subscription: Subscription config object.
             api_key: Coinbase API key.
             api_secret: Coinbase API secret.
@@ -122,13 +156,15 @@ class OrderEngine:
             max_rotate_seen_events_bucket_seconds: Dedup bucket rotation interval (default 60).
             max_seen_event_buckets: Number of dedup buckets (default 3).
             queue_maxsize: Max size for event queues (default 10000).
+            stealth_order_bridge: Optional StealthOrderBridge for market data updates.
         """
         self.orderbook = orderbook
-        self.db_client = db_client
+        self.db_helper = db_helper
         self.subscription = subscription
         self.api_key = api_key
         self.api_secret = api_secret
         self.order_post_only = order_post_only
+        self.stealth_order_bridge = stealth_order_bridge
 
         self.websocket_thread_maximum = websocket_thread_maximum
         self.max_rotate_seen_events_bucket_seconds = max_rotate_seen_events_bucket_seconds
@@ -197,7 +233,7 @@ class OrderEngine:
             },
         }
 
-        self.orderbook.db_client = self.db_client
+        self.orderbook.db_helper = self.db_helper
 
     def log_message(self, log_type: str, message) -> None:
         """Log a message if the log type is enabled.
@@ -220,7 +256,9 @@ class OrderEngine:
         if isinstance(message, (dict, list)):
             message = json.dumps(message, sort_keys=True, default=str)
 
-        print(f"{datetime.now()} {threading.current_thread().name} [{log_type.upper()}] {message}")
+        from logging_service import get_logger
+        logger = get_logger("OrderEngine")
+        logger.info(f"{threading.current_thread().name} [{log_type.upper()}] {message}")
 
     @staticmethod
     def order_limit_price_or_avg_price(order: dict) -> float:
@@ -241,30 +279,6 @@ class OrderEngine:
         if order.get("limit_price") and float(order["limit_price"]) > 0:
             return float(order["limit_price"])
         return float(order["avg_price"])
-
-    @staticmethod
-    def safe_float(value, default: float = 0.0) -> float:
-        """Safely convert value to float with default fallback.
-        
-        Args:
-            value: Value to convert.
-            default: Default if conversion fails.
-        
-        Returns:
-            Float or default.
-        
-        Example:
-            >>> OrderEngine.safe_float('123.45')
-            123.45
-            >>> OrderEngine.safe_float(None)
-            0.0
-        """
-        try:
-            if value in (None, ""):
-                return default
-            return float(value)
-        except (TypeError, ValueError):
-            return default
 
     def build_order_log_context(self, order: dict) -> dict:
         """Build a concise log dict from order data.
@@ -376,25 +390,7 @@ class OrderEngine:
             return "FUTURE"
         return "SPOT"
 
-    def resolve_order_size(self, order: dict) -> float:
-        """Extract order size from multiple possible fields.
-        
-        Args:
-            order: Order dict.
-        
-        Returns:
-            Order size or 0.0 if not found.
-        
-        Example:
-            >>> size = engine.resolve_order_size({'base_size': '1.5'})
-            >>> size
-            1.5
-        """
-        for field in ("cumulative_quantity", "filled_size", "base_size", "size", "leaves_quantity"):
-            value = self.safe_float(order.get(field), default=0.0)
-            if value > 0:
-                return value
-        return 0.0
+    # Note: resolve_order_size is now imported from calculation.resolver
 
     def resolve_profit_target(self, order: dict) -> float:
         """Get configured profit target % for an order.
@@ -526,11 +522,11 @@ class OrderEngine:
                 ),
             )
 
-            parent_id = self.db_client.insert_order_parent(
+            parent_id = self.db_helper.insert_order_parent(
                 client_order_id=client_order_id,
                 product_id=order["product_id"],
                 side=order["order_side"],
-                size=float(self.resolve_order_size(order)),
+                size=float(resolve_order_size(order)),
                 price=float(self.order_limit_price_or_avg_price(order)),
                 target_movement=float(
                     self.orderbook.parent_order_ids[client_order_id]["target_movement"]["movement"]
@@ -611,11 +607,51 @@ class OrderEngine:
 
             processed_flags[client_order_id] = "done"
 
+    def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
+        """Register a child order under a parent in the orderbook.
+        
+        Maintains bidirectional mappings:
+        - parent_order_ids[parent][orders] list contains child
+        - child_order_ids[child] points to parent
+        
+        Args:
+            child_client_order_id: The child order to register.
+            parent_client_order_id: The parent order to register under.
+        
+        Returns:
+            None
+        
+        Example:
+            >>> engine.register_child_order('child_123', 'parent_123')
+            >>> # Now child_123 is tracked as child of parent_123
+        """
+        with self.orderbook_lock:
+            # Ensure parent entry exists
+            if parent_client_order_id not in self.orderbook.parent_order_ids:
+                self.orderbook.parent_order_ids[parent_client_order_id] = {
+                    "orders": [],
+                    "target_movement": {"movement": 0, "type": "P"},
+                    "max_order_replacement": getattr(
+                        self.orderbook,
+                        "default_max_order_replacement",
+                        DEFAULT_MAX_ORDER_REPLACEMENT,
+                    ),
+                    "current_order_replacement": 0,
+                }
+            
+            # Add child to parent's orders list if not already there
+            if child_client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id]["orders"]:
+                self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+            
+            # Map child to parent
+            self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
+
     def build_follow_up_log_payload(
         self,
         event: str,
         source_order: dict = None,
         parent_client_order_id: str = None,
+        parent_target_movement = None,
         new_order: dict = None,
         attempted_new_order: dict = None,
         details: dict = None,
@@ -626,6 +662,7 @@ class OrderEngine:
             event: Event name.
             source_order: Original order that triggered follow-up.
             parent_client_order_id: Parent order ID.
+            parent_target_movement: Parent order's target movement percentage.
             new_order: Newly placed order data.
             attempted_new_order: Order data if placement failed.
             details: Additional details dict.
@@ -644,6 +681,9 @@ class OrderEngine:
 
         if parent_client_order_id is not None:
             payload["parent_client_order_id"] = parent_client_order_id
+
+        if parent_target_movement is not None:
+            payload["parent_target_movement"] = parent_target_movement
 
         if source_order is not None:
             payload["source"] = self.build_order_log_context(source_order)
@@ -820,7 +860,7 @@ class OrderEngine:
 
         normalized_order = deepcopy(order)
         normalized_order["product_type"] = self.normalize_product_type(normalized_order)
-        outstanding_hold_amount = self.safe_float(
+        outstanding_hold_amount = safe_float(
             normalized_order.get("outstanding_hold_amount"),
             default=0.0,
         )
@@ -843,12 +883,12 @@ class OrderEngine:
 
         try:
             if client_order_id in self.orderbook.child_order_ids:
-                self.db_client.update_order_child_status(
+                self.db_helper.update_order_child_status(
                     client_order_id=client_order_id,
                     status=status,
                 )
             elif client_order_id in self.orderbook.parent_order_ids:
-                self.db_client.update_order_parent_status(
+                self.db_helper.update_order_parent_status(
                     client_order_id=client_order_id,
                     status=status,
                 )
@@ -879,63 +919,71 @@ class OrderEngine:
                 ),
             )
             # Push failure to dashboard
+            order_side = resolve_order_side(order)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
+                "side": order_side,
+                "size": resolve_order_size(order),
                 "price": order.get("limit_price"),
                 "filled_size": order.get("filled_size", 0),
                 "status": status,
             })
-            add_log_entry("ERROR", f"Order FAILED: {order.get('product_id')} {order.get('side')} - Check account balance/margin")
+            add_log_entry("ERROR", f"Order FAILED: {order.get('product_id')} {order_side} - Check account balance/margin")
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             return
         if status == "OPEN":
             # Push to dashboard
+            order_side = resolve_order_side(order)
+            order_size = resolve_order_size(order)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
+                "side": order_side,
+                "size": order_size,
                 "price": order.get("limit_price"),
                 "filled_size": order.get("filled_size", 0),
                 "status": status,
             })
-            add_log_entry("INFO", f"Order OPEN: {order.get('product_id')} {order.get('side')} {order.get('order_quantity')}")
+            add_log_entry("INFO", f"Order OPEN: {order.get('product_id')} {order_side} {order_size}")
             return
         if status == "CANCELLED":
             self.handle_cancelled_order(order)
             # Push to dashboard
+            order_side = resolve_order_side(order)
+            cancelled_size = resolve_order_size(order)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
+                "side": order_side,
+                "size": cancelled_size,
                 "price": order.get("limit_price"),
                 "filled_size": order.get("filled_size", 0),
                 "status": status,
             })
-            add_log_entry("INFO", f"Order CANCELLED: {order.get('product_id')} {order.get('side')}")
+            add_log_entry("INFO", f"Order CANCELLED: {order.get('product_id')} {order_side} {cancelled_size}")
             return
         if status == "FILLED":
             self.handle_filled_order(order)
             # Push to dashboard
+            order_side = resolve_order_side(order)
+            filled_size = safe_float(order.get("filled_size"), default=0.0)
+            order_size = resolve_order_size(order)
             update_order(client_order_id, {
                 "order_id": order.get("id", client_order_id),
                 "client_order_id": client_order_id,
                 "product_id": order.get("product_id"),
-                "side": order.get("side"),
-                "size": order.get("order_quantity"),
+                "side": order_side,
+                "size": order_size,
                 "price": order.get("limit_price"),
-                "filled_size": order.get("filled_size", 0),
+                "filled_size": filled_size,
                 "status": status,
             })
-            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order.get('side')} {order.get('filled_size')}")
+            add_log_entry("INFO", f"Order FILLED: {order.get('product_id')} {order_side} {order_size}")
             return
 
         self.log_message(
@@ -1028,9 +1076,9 @@ class OrderEngine:
             )
             return False
 
-        if hasattr(self.db_client, "child_order_exists"):
+        if hasattr(self.db_helper, "child_order_exists"):
             try:
-                return bool(self.db_client.child_order_exists(
+                return bool(self.db_helper.child_order_exists(
                     parent_client_order_id=parent_client_order_id,
                     product_id=order_template["product_id"],
                     side=order_template["side"],
@@ -1039,7 +1087,7 @@ class OrderEngine:
                 ))
             except TypeError:
                 try:
-                    return bool(self.db_client.child_order_exists(parent_client_order_id, order_template))
+                    return bool(self.db_helper.child_order_exists(parent_client_order_id, order_template))
                 except Exception as e:
                     self.log_message(
                         "warning",
@@ -1122,6 +1170,12 @@ class OrderEngine:
     def handle_cancelled_order(self, order: dict) -> None:
         """Handle a cancelled order by potentially creating a follow-up.
         
+        If the order is pre-marked for automatic move (move_on_cancel=True),
+        executes the pending move instead of creating a child order.
+        
+        NOTE: External orders (created in Coinbase UI, not by our engine) are
+        tracked for record-keeping but do NOT trigger follow-up orders.
+        
         Args:
             order: Cancelled order dict.
         
@@ -1130,22 +1184,120 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
-        with self.orderbook_lock:
-            if self.orderbook.should_replace["CANCELLED"] is not True:
-                return
-            _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+        # CRITICAL: Check for stealth order BEFORE marking as external
+        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
+        original_stealth_order = None
+        if self.stealth_order_bridge:
+            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
+            )
+        
+        # If this is a stealth-revealed order, register it in the orderbook first
+        if original_stealth_order and original_stealth_order.get("parent_order_id"):
+            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+            self.register_child_order(client_order_id, parent_client_order_id_stealth)
 
+        # Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        is_external_order = (
+            client_order_id not in self.orderbook.parent_order_ids
+            and client_order_id not in self.orderbook.child_order_ids
+        )
+
+        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
+        # This must happen before any other processing to prevent race conditions
         if not self.claim_follow_up_processing("cancelled", client_order_id):
             self.log_message(
                 "warning",
                 self.build_follow_up_log_payload(
                     "follow_up_already_claimed",
                     source_order=order,
-                    parent_client_order_id=parent_client_order_id,
+                    parent_client_order_id=None,
                     details={"reason": "cancelled_order_follow_up_already_claimed"},
                 ),
             )
             return
+
+        # For external orders, just track them but don't create follow-ups
+        if is_external_order:
+            with self.orderbook_lock:
+                # Create a parent entry for tracking purposes only
+                is_parent, parent_client_order_id = self.resolve_parent_client_order_id(
+                    client_order_id, 
+                    order=order, 
+                    create_parent=True, 
+                    status="CANCELLED"
+                )
+            
+            self.log_message(
+                "order",
+                self.build_follow_up_log_payload(
+                    "external_order_cancelled",
+                    source_order=order,
+                    parent_client_order_id=parent_client_order_id,
+                    details={"reason": "external_order_no_follow_up"},
+                ),
+            )
+            
+            self.complete_follow_up_processing("cancelled", client_order_id)
+            return
+
+        with self.orderbook_lock:
+            if self.orderbook.should_replace["CANCELLED"] is not True:
+                self.release_follow_up_processing("cancelled", client_order_id)
+                return
+            is_parent, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+
+        # Check for pending move (automation) - executes instead of normal follow-up
+        from database.order import has_pending_move
+        if has_pending_move(parent_client_order_id):
+            try:
+                from business.move_manager import MoveManager
+                move_manager = MoveManager(self.orderbook)
+                move_result = move_manager.execute_pending_move_for_order(parent_client_order_id)
+                
+                if move_result["success"]:
+                    self.log_message(
+                        "order",
+                        {
+                            "event": "pending_move_auto_executed",
+                            "original_parent_client_order_id": parent_client_order_id,
+                            "new_parent_client_order_id": move_result["new_parent_client_order_id"],
+                            "trigger": "cancelled_order"
+                        }
+                    )
+                    # Successfully handled via pending move, don't do normal follow-up
+                    self.complete_follow_up_processing("cancelled", client_order_id)
+                    return
+                else:
+                    self.log_message(
+                        "warning",
+                        {
+                            "event": "pending_move_execution_failed",
+                            "original_parent_client_order_id": parent_client_order_id,
+                            "error": move_result.get("error"),
+                            "message": move_result.get("message")
+                        }
+                    )
+                    # IMPORTANT: Don't fall through to normal follow-up
+                    # If a pending move failed, don't create a child order as fallback
+                    # Complete the processing to mark as handled
+                    self.complete_follow_up_processing("cancelled", client_order_id)
+                    return
+            except Exception as e:
+                self.log_message(
+                    "error",
+                    {
+                        "event": "pending_move_execution_exception",
+                        "original_parent_client_order_id": parent_client_order_id,
+                        "error": str(e)
+                    }
+                )
+                # IMPORTANT: Don't fall through to normal follow-up
+                # If a pending move exception occurs, don't create a child order as fallback
+                # Complete the processing to mark as handled
+                self.complete_follow_up_processing("cancelled", client_order_id)
+                return
 
         try:
             order_template = self.compute_order_template(client_order_id)
@@ -1200,8 +1352,110 @@ class OrderEngine:
             self.release_follow_up_processing("cancelled", client_order_id)
             raise
 
+    def move_cancelled_order(
+        self,
+        original_parent_client_order_id: str,
+        new_order_details: dict,
+        reason: str = "cancelled_move",
+        notes: str = None
+    ) -> dict:
+        """Move a cancelled parent order to a new parent order.
+        
+        Instead of creating a child order, this replaces the parent/child relationship
+        by creating a completely new parent order. The original parent remains in the
+        database for audit purposes, and the move is recorded in order_moves table.
+        
+        Args:
+            original_parent_client_order_id: The client_order_id of the parent to move.
+            new_order_details: Dict with new parent configuration (product_id, side, size,
+                             price, target_movement, target_movement_type, max_order_replacement).
+            reason: Reason for the move (default 'cancelled_move').
+            notes: Optional additional context.
+        
+        Returns:
+            Dict with move result:
+            {
+                "success": bool,
+                "message": str,
+                "new_parent_client_order_id": str or None,
+                "error": str or None
+            }
+            
+        Example:
+            >>> result = engine.move_cancelled_order(
+            ...     original_parent_client_order_id="old_parent_uuid",
+            ...     new_order_details={
+            ...         "product_id": "BTC-USDC",
+            ...         "side": "BUY",
+            ...         "size": 1.0,
+            ...         "price": 42500.0,
+            ...         "target_movement": 0.005
+            ...     },
+            ...     reason="user_cancelled_and_moved"
+            ... )
+        """
+        from business.move_manager import MoveManager
+        
+        try:
+            move_manager = MoveManager(self.orderbook)
+            result = move_manager.move_order(
+                original_parent_client_order_id=original_parent_client_order_id,
+                new_order_details=new_order_details,
+                reason=reason,
+                notes=notes
+            )
+            
+            if result["success"]:
+                self.log_message(
+                    "order",
+                    {
+                        "event": "order_moved",
+                        "original_parent_client_order_id": original_parent_client_order_id,
+                        "new_parent_client_order_id": result["new_parent_client_order_id"],
+                        "move_id": result["move_id"],
+                        "reason": reason,
+                        "product_id": new_order_details.get("product_id"),
+                        "side": new_order_details.get("side"),
+                        "price": new_order_details.get("price"),
+                        "notes": notes
+                    }
+                )
+            else:
+                self.log_message(
+                    "warning",
+                    {
+                        "event": "order_move_failed",
+                        "original_parent_client_order_id": original_parent_client_order_id,
+                        "reason": reason,
+                        "error": result.get("error"),
+                        "message": result.get("message")
+                    }
+                )
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Exception during order move: {str(e)}"
+            self.log_message(
+                "error",
+                {
+                    "event": "order_move_exception",
+                    "original_parent_client_order_id": original_parent_client_order_id,
+                    "error": error_msg
+                }
+            )
+            return {
+                "success": False,
+                "message": error_msg,
+                "new_parent_client_order_id": None,
+                "error": error_msg
+            }
+
     def handle_filled_order(self, order: dict) -> None:
         """Handle a filled order by creating a follow-up if allowed.
+        
+        NOTE: External orders (created in Coinbase UI, not by our engine) are
+        tracked for record-keeping but do NOT trigger follow-up orders.
         
         Args:
             order: Filled order dict.
@@ -1210,6 +1464,40 @@ class OrderEngine:
             None
         """
         client_order_id = order["client_order_id"]
+
+        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
+        # This must happen before any other processing to prevent race conditions
+        if not self.claim_follow_up_processing("filled", client_order_id):
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=None,
+                    details={"reason": "filled_order_follow_up_already_claimed"},
+                ),
+            )
+            return
+
+        # CRITICAL: Check for stealth order BEFORE marking as external
+        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
+        original_stealth_order = None
+        if self.stealth_order_bridge:
+            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
+            )
+        
+        # If this is a stealth-revealed order, register it in the orderbook first
+        if original_stealth_order and original_stealth_order.get("parent_order_id"):
+            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+            self.register_child_order(client_order_id, parent_client_order_id_stealth)
+
+        # Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        is_external_order = (
+            client_order_id not in self.orderbook.parent_order_ids
+            and client_order_id not in self.orderbook.child_order_ids
+        )
 
         with self.orderbook_lock:
             if self.orderbook.should_replace["FILLED"] is not True:
@@ -1222,18 +1510,27 @@ class OrderEngine:
                 status="FILLED",
             )
 
-        if not self.claim_follow_up_processing("filled", client_order_id):
+        # For external orders, just track them but don't create follow-ups
+        # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
+        if is_external_order and not original_stealth_order:
             self.log_message(
-                "warning",
+                "order",
                 self.build_follow_up_log_payload(
-                    "follow_up_already_claimed",
+                    "external_order_filled",
                     source_order=order,
                     parent_client_order_id=parent_client_order_id,
-                    details={"reason": "filled_order_follow_up_already_claimed"},
+                    details={"reason": "external_order_no_follow_up"},
                 ),
             )
             return
 
+        # Handle stealth order fills - create a Child stealth order as follow-up
+        # NOTE: This is handled in the later stealth order code path (around line 1663)
+        # After normal follow-up processing claims the order. Kept here for reference only.
+
+        # Note: We already claimed processing at the start of handle_filled_order
+        # No need to claim again here
+        
         try:
             can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
             if not can_replace:
@@ -1285,6 +1582,110 @@ class OrderEngine:
                 self.complete_follow_up_processing("filled", client_order_id)
                 return
 
+            # Use the stealth order already found at the start of this function
+            # If this is a stealth order follow-up, create a stealth order instead of a regular order
+            if original_stealth_order:
+                try:
+                    # This is a stealth order fill - create a stealth follow-up instead of a regular order
+                    follow_up_price = float(order_template["start_price"])
+                    
+                    # Seed the market cache with the fill price
+                    product_id = order["product_id"]
+                    fill_price = float(order.get("price", follow_up_price))
+                    
+                    self.stealth_order_bridge.stealth_manager._market_cache[product_id] = {
+                        "product_id": product_id,
+                        "price": fill_price,
+                        "bid": fill_price,
+                        "ask": fill_price,
+                        "volume_1m": 0,
+                        "time": get_local_now()
+                    }
+                    
+                    # Build the reveal condition for the follow-up using configurable direction
+                    follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
+                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", "opposite")
+                    
+                    if follow_up_reveal_condition.get("type") == "price":
+                        # Set threshold to the ACTUAL price where we plan to place the new order
+                        # Use float conversion to ensure numeric precision
+                        follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
+                        
+                        if direction_choice == "opposite":
+                            # Flip direction (below → above, above → below)
+                            if "direction" in follow_up_reveal_condition:
+                                follow_up_reveal_condition["direction"] = "above" if follow_up_reveal_condition.get("direction") == "below" else "below"
+                        elif direction_choice in ["above", "below"]:
+                            # Use explicit direction
+                            follow_up_reveal_condition["direction"] = direction_choice
+                        # else: "same" - keep original direction unchanged
+                    
+                    # Create the stealth follow-up order (hidden, not revealed yet)
+                    # Get target_movement from parent stealth order for inheritance
+                    parent_target_movement = original_stealth_order.get("target_movement")
+                    parent_target_movement_type = original_stealth_order.get("target_movement_type", "P")
+                    
+                    # Debug: Log the exact reveal condition being set
+                    self.log_message(
+                        "info",
+                        {
+                            "event": "stealth_follow_up_condition_set",
+                            "follow_up_price": follow_up_price,
+                            "fill_price": fill_price,
+                            "threshold": follow_up_reveal_condition.get("price_threshold"),
+                            "direction": follow_up_reveal_condition.get("direction"),
+                            "hold_duration_seconds": follow_up_reveal_condition.get("hold_duration_seconds"),
+                            "market_cache_price": self.stealth_order_bridge.stealth_manager._market_cache.get(product_id, {}).get("price"),
+                        }
+                    )
+                    
+                    stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
+                        original_stealth_order_id=original_stealth_order["stealth_order_id"],
+                        side=order_template["side"],
+                        total_size=order_template["order_base_size"],
+                        limit_price=follow_up_price,
+                        reveal_condition=follow_up_reveal_condition,
+                        follow_up_reveal_direction=direction_choice,
+                        notes=f"Auto follow-up from stealth order reveal",
+                        target_movement=parent_target_movement,
+                        target_movement_type=parent_target_movement_type
+                    )
+                    
+                    # Register stealth follow-up as child of original parent
+                    self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+                    
+                    self.log_message(
+                        "order",
+                        {
+                            "event": "stealth_follow_up_created",
+                            "stealth_follow_up_id": stealth_follow_up_id,
+                            "parent_stealth_id": original_stealth_order["stealth_order_id"],
+                            "parent_target_movement": {
+                                "movement": parent_target_movement,
+                                "type": parent_target_movement_type
+                            } if parent_target_movement else None,
+                            "product_id": product_id,
+                            "side": order_template["side"],
+                            "reveal_condition": follow_up_reveal_condition,
+                            "follow_up_reveal_direction": direction_choice,
+                        }
+                    )
+                    
+                    self.complete_follow_up_processing("filled", client_order_id)
+                    return
+                except Exception as e:
+                    self.log_message(
+                        "error",
+                        {
+                            "event": "stealth_follow_up_creation_failed",
+                            "error": str(e),
+                            "original_stealth_order_id": original_stealth_order.get("stealth_order_id"),
+                            "client_order_id": client_order_id
+                        }
+                    )
+                    # Fall through to regular order handling if stealth follow-up fails
+            
+            # Not a stealth follow-up, place a regular follow-up order
             new_order = create_limit_order_span(
                 product_id=order_template["product_id"],
                 side=order_template["side"],
@@ -1293,7 +1694,8 @@ class OrderEngine:
                 start_price=order_template["start_price"],
                 post_only=self.order_post_only[order_template["side"]],
             )
-
+            
+            # Place the regular follow-up order and record it
             self.record_follow_up_order(
                 order,
                 new_order,
@@ -1357,12 +1759,20 @@ class OrderEngine:
         new_order_size = limit_cfg["base_size"]
         new_order_price = self.order_limit_price_or_avg_price(limit_cfg)
 
+        # Get parent target_movement if available
+        parent_target_movement = None
+        with self.orderbook_lock:
+            parent_entry = self.orderbook.parent_order_ids.get(parent_client_order_id)
+            if parent_entry and parent_entry.get("target_movement"):
+                parent_target_movement = parent_entry["target_movement"]
+        
         self.log_message(
             "order",
             self.build_follow_up_log_payload(
                 "follow_up_order_placed",
                 source_order=source_order,
                 parent_client_order_id=parent_client_order_id,
+                parent_target_movement=parent_target_movement,
                 new_order={
                     "client_order_id": new_order_client_order_id,
                     "product_id": new_order_product_id,
@@ -1405,8 +1815,7 @@ class OrderEngine:
                 }
                 self.orderbook.parent_order_ids[parent_client_order_id] = parent_entry
 
-            parent_entry.setdefault("orders", []).append(new_order_client_order_id)
-            self.orderbook.child_order_ids[new_order_client_order_id] = parent_client_order_id
+            self.register_child_order(new_order_client_order_id, parent_client_order_id)
 
             if processed_flag_name == "filled":
                 parent_entry["current_order_replacement"] += 1
@@ -1418,12 +1827,20 @@ class OrderEngine:
 
         self.apply_position_update(order_template)
 
+        # Get parent target_movement for logging
+        parent_target_movement = None
+        with self.orderbook_lock:
+            parent_entry = self.orderbook.parent_order_ids.get(parent_client_order_id)
+            if parent_entry and parent_entry.get("target_movement"):
+                parent_target_movement = parent_entry["target_movement"]
+        
         self.log_message(
             "database",
             self.build_follow_up_log_payload(
                 "follow_up_child_order_persisting",
                 source_order=source_order,
                 parent_client_order_id=parent_client_order_id,
+                parent_target_movement=parent_target_movement,
                 new_order={
                     "client_order_id": new_order_client_order_id,
                     "product_id": new_order_product_id,
@@ -1432,7 +1849,7 @@ class OrderEngine:
                 },
             ),
         )
-        self.db_client.insert_order_child(
+        self.db_helper.insert_order_child(
             parent_client_order_id=parent_client_order_id,
             client_order_id=new_order_client_order_id,
             product_id=new_order_product_id,
@@ -1442,7 +1859,7 @@ class OrderEngine:
         )
 
         if processed_flag_name == "filled":
-            self.db_client.increment_order_parent_replacement_count(parent_client_order_id)
+            self.db_helper.increment_order_parent_replacement_count(parent_client_order_id)
 
     def build_parent_child_order_ids_snapshot(self) -> tuple:
         """Query database and build parent/child order mapping snapshot.
@@ -1453,7 +1870,7 @@ class OrderEngine:
         parent_order_ids = {}
         child_order_ids = {}
 
-        parent_orders = DB_CLIENT.get_parent_orders()
+        parent_orders = self.db_helper.get_parent_orders()
 
         for parent in parent_orders:
             parent_client_order_id = parent["client_order_id"]
@@ -1469,13 +1886,118 @@ class OrderEngine:
                 "current_order_replacement": int(parent["current_order_replacement"]),
             }
 
-            child_orders = DB_CLIENT.get_child_orders(parent_client_order_id)
+            child_orders = self.db_helper.get_child_orders(parent_client_order_id)
             for child in child_orders:
                 child_client_order_id = child["client_order_id"]
                 parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
                 child_order_ids[child_client_order_id] = parent_client_order_id
 
         return parent_order_ids, child_order_ids
+
+    def adopt_child_to_new_parent(
+        self,
+        child_client_order_id: str,
+        new_parent_client_order_id: str,
+        keep_adoption_history: bool = True
+    ) -> bool:
+        """
+        Reassign a child order to a new parent order (adoption).
+        
+        Updates both in-memory orderbook structures and the database to reflect
+        the new parent-child relationship. Optionally tracks the original parent
+        for audit history.
+        
+        This is useful for strategies like:
+        - Migrating orders to a new parent due to market conditions
+        - Consolidating children from multiple parents to a single parent
+        - Orphaning a child and making it the parent of other orders
+        
+        Args:
+            child_client_order_id: The UUID of the child order to adopt.
+            new_parent_client_order_id: The UUID of the new parent order.
+            keep_adoption_history: If True, stores the old parent in the database
+                                   for audit trail. If False, old parent link is lost.
+        
+        Returns:
+            True if adoption was successful, False otherwise.
+        
+        Raises:
+            None - errors are logged and False is returned.
+        
+        Examples:
+            >>> # Adopt child to new parent, keeping history
+            >>> result = engine.adopt_child_to_new_parent(
+            ...     child_client_order_id="child-uuid-123",
+            ...     new_parent_client_order_id="parent-uuid-456",
+            ...     keep_adoption_history=True
+            ... )
+            >>> if result:
+            ...     print("Adoption successful")
+            
+            >>> # Adopt without tracking history
+            >>> result = engine.adopt_child_to_new_parent(
+            ...     child_client_order_id="child-uuid-123",
+            ...     new_parent_client_order_id="parent-uuid-456",
+            ...     keep_adoption_history=False
+            ... )
+        
+        Notes:
+            - Both child and new parent must exist in the system
+            - Validates existence before attempting adoption
+            - Updates in-memory orderbook atomically with orderbook_lock
+            - Persists changes to database immediately
+            - Logs adoption event for audit trail
+        """
+        # First update database
+        success = self.db_helper.adopt_child_to_parent(
+            child_client_order_id=child_client_order_id,
+            new_parent_client_order_id=new_parent_client_order_id,
+            keep_adoption_history=keep_adoption_history,
+        )
+        
+        if not success:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "adopt_child_database_failed",
+                    child_client_order_id=child_client_order_id,
+                    new_parent_client_order_id=new_parent_client_order_id,
+                ),
+            )
+            return False
+        
+        # Then update in-memory structures atomically
+        with self.orderbook_lock:
+            old_parent = self.orderbook.child_order_ids.get(child_client_order_id)
+            
+            # Remove from old parent's children list
+            if old_parent and old_parent in self.orderbook.parent_order_ids:
+                children_list = self.orderbook.parent_order_ids[old_parent].get("orders", [])
+                if child_client_order_id in children_list:
+                    children_list.remove(child_client_order_id)
+            
+            # Update mapping to new parent
+            self.orderbook.child_order_ids[child_client_order_id] = new_parent_client_order_id
+            
+            # Add to new parent's children list
+            if new_parent_client_order_id in self.orderbook.parent_order_ids:
+                children_list = self.orderbook.parent_order_ids[new_parent_client_order_id].get("orders", [])
+                if child_client_order_id not in children_list:
+                    children_list.append(child_client_order_id)
+        
+        # Log the adoption
+        self.log_message(
+            "order",
+            self.build_event_log_payload(
+                "child_order_adopted",
+                child_client_order_id=child_client_order_id,
+                old_parent_client_order_id=old_parent,
+                new_parent_client_order_id=new_parent_client_order_id,
+                kept_history=keep_adoption_history,
+            ),
+        )
+        
+        return True
 
     def load_parent_child_order_ids(self, force_log: bool = False) -> bool:
         """Load parent/child order mappings from database into orderbook.
@@ -1616,6 +2138,9 @@ class OrderEngine:
                                 best_ask = float(tickr.get("best_ask", 0))
                                 if best_bid > 0 and best_ask > 0 and product_id:
                                     record_spread_tick(product_id, best_bid, best_ask)
+                                # Feed market data to stealth order evaluator
+                                if self.stealth_order_bridge and product_id:
+                                    self.stealth_order_bridge.process_ticker_update(product_id, tickr)
 
                     elif channel == "user":
                         self.log_message(
@@ -1640,17 +2165,19 @@ class OrderEngine:
         Returns:
             None (infinite loop)
         """
-        ws_client = WSClient(
+        # Create SDK client and wrap with our abstraction
+        sdk_client = WSClient(
             verbose=True,
             api_key=self.api_key,
             api_secret=self.api_secret,
             on_open=self.on_open,
             on_message=self.on_message,
         )
+        ws_client = CoinbaseWebSocketClient(sdk_client)
 
-        ws_client.open()
+        ws_client.connect()
         ws_client.subscribe(
-            product_ids=self.subscription.product_ids,
+            products=self.subscription.product_ids,
             channels=self.subscription.channels,
         )
 

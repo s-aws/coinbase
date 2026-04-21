@@ -80,6 +80,39 @@ def resolve_order_size(order: Dict[str, Any]) -> float:
     return 0.0
 
 
+def resolve_order_side(order: Dict[str, Any]) -> Optional[str]:
+    """Resolve order side (BUY/SELL) from the best available field.
+    
+    Attempts to extract order side from multiple possible fields.
+    Different API responses and order states use different field names.
+    
+    Args:
+        order: Order dictionary that may contain side in various fields
+    
+    Returns:
+        The order side as a string ('BUY' or 'SELL'), or None if not found
+    
+    Examples:
+        >>> resolve_order_side({'side': 'BUY'})
+        'BUY'
+        >>> resolve_order_side({'order_side': 'SELL'})
+        'SELL'
+        >>> resolve_order_side({})
+        None
+    """
+    # Priority order of field checking
+    field_names = ["order_side", "side"]
+    
+    for field in field_names:
+        value = order.get(field)
+        if value:
+            side = str(value).upper().strip()
+            if side in ("BUY", "SELL"):
+                return side
+    
+    return None
+
+
 def resolve_profit_move_pct(
     order: Dict[str, Any],
     profits: Dict[str, Any],

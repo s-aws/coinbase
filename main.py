@@ -20,11 +20,11 @@ Example:
     >>> from core.order_engine import OrderEngine
     >>> from bridges.engine_orchestrator import OrderEngineOrchestrator
     >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
-    >>> from database.order import DB_CLIENT
+    >>> import database.order as DB_HELPER
     >>> 
     >>> engine = OrderEngine(
     ...     orderbook=ORDERBOOK,
-    ...     db_client=DB_CLIENT,
+    ...     db_helper=DB_HELPER,
     ...     subscription=Subscription,
     ...     api_key=API_KEY,
     ...     api_secret=API_SECRET,
@@ -34,6 +34,19 @@ Example:
     >>> orchestrator.run_forever()  # Blocks indefinitely, runs all background threads
 """
 
+import logging
+
+# Configure logging for all modules
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logger = logging.getLogger(__name__)
+
+# Initialize custom logging service
+from logging_service import set_backend
+
 from configuration import (
     Subscription,
     ORDERBOOK,
@@ -42,35 +55,56 @@ from configuration import (
     ORDER_POST_ONLY,
 )
 
-from database.order import DB_CLIENT
+import database.order as DB_HELPER
 from core.order_engine import OrderEngine
 from bridges.engine_orchestrator import OrderEngineOrchestrator
-from bridges.stealth_order_bridge import integrate_stealth_orders_with_engine
 from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
 
+# Set up custom logging backend to use dashboard's add_log_entry function
+set_backend(add_log_entry)
+
 if __name__ == "__main__":
+    import sys
+    
+    # Initialize stealth order system first (before OrderEngine)
+    stealth_bridge = None
+    try:
+        from bridges.stealth_order_bridge import StealthOrderBridge
+        from core.stealth_order_manager import StealthOrderManager
+        
+        stealth_manager = StealthOrderManager(DB_HELPER.DB_CLIENT)
+        stealth_bridge = StealthOrderBridge(stealth_manager, None)  # engine will be set later
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+    
     engine = OrderEngine(
         orderbook=ORDERBOOK,
-        db_client=DB_CLIENT,
+        db_helper=DB_HELPER,
         subscription=Subscription,
         api_key=API_KEY,
         api_secret=API_SECRET,
         order_post_only=ORDER_POST_ONLY,
+        stealth_order_bridge=stealth_bridge,
     )
+    
+    # Update stealth bridge with engine reference if it exists
+    if stealth_bridge:
+        stealth_bridge.order_engine = engine
 
     orchestrator = OrderEngineOrchestrator(engine)
     
     # Start dashboard server
+    import sys
     start_dashboard_server()
     
-    # Initialize stealth order system
-    try:
-        stealth_bridge = integrate_stealth_orders_with_engine(engine, DB_CLIENT)
-        set_stealth_order_bridge(stealth_bridge)
-        stealth_bridge.start()
-        print("Stealth order system initialized and started")
-    except Exception as e:
-        print(f"Warning: Failed to initialize stealth order system: {e}")
-        print("Continuing without stealth orders...")
+    # Start stealth order system if it was initialized
+    if stealth_bridge:
+        try:
+            set_stealth_order_bridge(stealth_bridge)
+            stealth_bridge.start()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
     
     orchestrator.run_forever()

@@ -26,7 +26,8 @@ from database.order import (
     insert_order_child,
     update_order_parent_status
 )
-from core.models import Order, OrderStatus
+from core.models import Order
+from core.enums import OrderStatus
 
 
 class PostgresOrderRepository:

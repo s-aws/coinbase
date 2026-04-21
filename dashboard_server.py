@@ -10,9 +10,9 @@ Usage:
 
 import asyncio
 import json
-import logging
 import uuid
 from datetime import datetime
+from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
 from typing import Set, Dict, Any
@@ -26,9 +26,10 @@ try:
 except ImportError:
     REST_CLIENT_AVAILABLE = False
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("DashboardServer")
+# Use custom logging service
+from logging_service import get_logger
+
+logger = get_logger("DashboardServer")
 
 # Global state
 connected_clients: Set[WebSocketServerProtocol] = set()
@@ -147,6 +148,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         data = json.loads(message)
         msg_type = data.get("type")
         
+        # DEBUG: Log all incoming messages
+        logger.debug(f"[HANDLER] Received message type: {msg_type}")
+        
         if msg_type == "place_order":
             # Place order via REST API
             order_params = data.get("params", {})
@@ -228,8 +232,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             
         elif msg_type == "cancel_order":
             # Cancel order via REST API
-            order_id = data.get("order_id")
-            logger.info(f"Cancel requested for order: {order_id}")
+            # Use client_order_id (which we always have) rather than order_id
+            # This works for both revealed and unrevealed orders
+            client_order_id = data.get("client_order_id")
+            logger.info(f"Cancel requested for order: {client_order_id}")
             
             if not REST_CLIENT_AVAILABLE:
                 response = {
@@ -241,8 +247,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
             
             try:
-                # Call REST API to cancel order
-                result = REST_CLIENT.cancel_orders(order_ids=[order_id])
+                # Call REST API to cancel order using client_order_id
+                result = REST_CLIENT.cancel_orders(order_ids=[client_order_id])
                 
                 logger.info(f"Order cancelled successfully: {result}")
                 response = {
@@ -251,7 +257,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": "Order cancelled",
                     "data": result,
                 }
-                add_log_entry("INFO", f"Order cancelled: {order_id}")
+                add_log_entry("INFO", f"Order cancelled: {client_order_id}")
                 
             except Exception as e:
                 logger.error(f"Order cancellation failed: {str(e)}")
@@ -270,7 +276,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         
         elif msg_type == "create_stealth_order":
             # Create new stealth order
+            logger.info("[HANDLER] create_stealth_order message received")
             order = data.get("order")
+            
             if not order:
                 response = {
                     "type": "error",
@@ -289,12 +297,14 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             
             try:
                 stealth_id = stealth_order_bridge.create_stealth_order(
+                    stealth_order_id=order.get('stealth_order_id'),  # Allow UI to provide UUID
                     product_id=order['product_id'],
                     side=order['side'],
                     total_size=order['total_size'],
                     limit_price=order['limit_price'],
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
+                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'opposite'),
                     notes=order.get('notes', '')
                 )
                 
@@ -318,7 +328,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await broadcast_stealth_order_update(response)
                 
             except Exception as e:
-                logger.error(f"Failed to create stealth order: {e}")
+                import traceback
+                error_trace = traceback.format_exc()
+                logger.error(f"Failed to create stealth order: {e}\n{error_trace}")
                 response = {
                     "type": "error",
                     "message": f"Failed to create order: {str(e)}"
@@ -362,6 +374,436 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": f"Failed to cancel order: {str(e)}"
                 }
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "update_stealth_target_movement":
+            # Update target movement for a stealth order
+            stealth_order_id = data.get("stealth_order_id")
+            target_movement = data.get("target_movement")
+            target_movement_type = data.get("target_movement_type", "P")
+            
+            if not stealth_order_id:
+                response = {
+                    "type": "error",
+                    "message": "Missing stealth_order_id"
+                }
+                await websocket.send(json.dumps(response))
+                return
+            
+            try:
+                from database.order import update_stealth_order_target_movement, get_stealth_order_by_id
+                
+                # Update in database
+                success = update_stealth_order_target_movement(
+                    stealth_order_id=stealth_order_id,
+                    target_movement=target_movement,
+                    target_movement_type=target_movement_type
+                )
+                
+                if success:
+                    # Get updated order data
+                    order_data = get_stealth_order_by_id(stealth_order_id)
+                    
+                    # Update in-memory state if available
+                    with state_lock:
+                        if stealth_order_id in engine_state["stealth_orders"]:
+                            engine_state["stealth_orders"][stealth_order_id]["target_movement"] = target_movement
+                            engine_state["stealth_orders"][stealth_order_id]["target_movement_type"] = target_movement_type
+                    
+                    response = {
+                        "type": "stealth_order_updated",
+                        "stealth_order_id": stealth_order_id,
+                        "order": {
+                            "stealth_order_id": stealth_order_id,
+                            "target_movement": target_movement,
+                            "target_movement_type": target_movement_type
+                        }
+                    }
+                    
+                    add_log_entry("INFO", f"Stealth order target_movement updated: {stealth_order_id} = {target_movement}{target_movement_type}")
+                    logger.info(f"Stealth order target_movement updated: {stealth_order_id} = {target_movement}{target_movement_type}")
+                    
+                    # Broadcast to all clients
+                    message = json.dumps(response)
+                    for client in connected_clients.copy():
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.discard(client)
+                    
+                    await websocket.send(json.dumps({"type": "update_success", "message": "Target movement updated"}))
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to update stealth order: {stealth_order_id}"
+                    }
+                    add_log_entry("ERROR", f"Failed to update stealth target_movement: {stealth_order_id}")
+                    await websocket.send(json.dumps(response))
+                
+            except Exception as e:
+                logger.error(f"Failed to update stealth target_movement: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update target movement: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "clear_all_stealth_orders":
+            # Clear all stealth orders from the database
+            try:
+                from database.order import clear_all_stealth_orders
+                
+                result = clear_all_stealth_orders()
+                
+                if result["success"]:
+                    # Clear all stealth orders from in-memory state
+                    with state_lock:
+                        engine_state["stealth_orders"] = {}
+                    
+                    response = {
+                        "type": "stealth_orders_cleared",
+                        "rows_deleted": result["rows_deleted"],
+                        "message": result["message"]
+                    }
+                    
+                    add_log_entry("INFO", f"All stealth orders cleared - {result['rows_deleted']} deleted")
+                    logger.info(f"All stealth orders cleared - {result['rows_deleted']} deleted")
+                    
+                    # Broadcast to all clients
+                    message = json.dumps(response)
+                    for client in connected_clients.copy():
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.discard(client)
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to clear orders: {result.get('error', 'Unknown error')}"
+                    }
+                    add_log_entry("ERROR", f"Failed to clear stealth orders: {result.get('error')}")
+                    await websocket.send(json.dumps(response))
+                
+            except Exception as e:
+                logger.error(f"Failed to clear stealth orders: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to clear orders: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Clear stealth orders failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "request_parent_orders":
+            # Send parent orders list
+            try:
+                from database.order_dashboard_helpers import get_all_parent_orders
+                orders = get_all_parent_orders()
+                
+                # Convert to dict keyed by client_order_id
+                orders_dict = {o['client_order_id']: o for o in orders}
+                
+                response = {
+                    "type": "parent_orders_list",
+                    "orders": orders_dict
+                }
+                await websocket.send(json.dumps(response))
+                logger.info(f"Sent {len(orders)} parent orders to client")
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch parent orders: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to fetch orders: {str(e)}"
+                }
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "create_parent_order":
+            # Create new parent order
+            try:
+                from database.order_dashboard_helpers import insert_parent_order, get_parent_order_by_client_id
+                order = data.get("order", {})
+                
+                client_order_id = str(uuid.uuid4())
+                
+                result = insert_parent_order(
+                    client_order_id=client_order_id,
+                    product_id=order.get('product_id'),
+                    side=order.get('side'),
+                    size=float(order.get('size', 0)),
+                    price=float(order.get('price', 0)),
+                    target_movement=float(order.get('target_movement')) if order.get('target_movement') else None,
+                    max_order_replacement=int(order.get('max_order_replacement', 0)),
+                    status=order.get('status', 'OPEN')
+                )
+                
+                # Fetch the created order
+                created_order = get_parent_order_by_client_id(client_order_id)
+                
+                response = {
+                    "type": "parent_order_created",
+                    "order": created_order
+                }
+                
+                add_log_entry("INFO", f"Parent order created: {order.get('product_id')} {order.get('side')} {order.get('size')}")
+                logger.info(f"Parent order created: {client_order_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to create parent order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to create order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent order creation failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "update_parent_order":
+            # Update existing parent order
+            try:
+                from database.order_dashboard_helpers import update_parent_order, get_parent_order_by_client_id
+                order = data.get("order", {})
+                
+                client_order_id = order.get('client_order_id')
+                update_data = {
+                    'size': float(order.get('size', 0)),
+                    'price': float(order.get('price', 0)),
+                    'target_movement': float(order.get('target_movement')) if order.get('target_movement') else None,
+                    'max_order_replacement': int(order.get('max_order_replacement', 0)),
+                    'status': order.get('status', 'OPEN')
+                }
+                
+                update_parent_order(client_order_id, update_data)
+                
+                # Fetch the updated order
+                updated_order = get_parent_order_by_client_id(client_order_id)
+                
+                response = {
+                    "type": "parent_order_updated",
+                    "order": updated_order
+                }
+                
+                add_log_entry("INFO", f"Parent order updated: {client_order_id}")
+                logger.info(f"Parent order updated: {client_order_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to update parent order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent order update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "delete_parent_order":
+            # Delete parent order
+            try:
+                from database.order_dashboard_helpers import delete_parent_order
+                client_order_id = data.get('client_order_id')
+                
+                delete_parent_order(client_order_id)
+                
+                response = {
+                    "type": "parent_order_deleted",
+                    "client_order_id": client_order_id
+                }
+                
+                add_log_entry("INFO", f"Parent order deleted: {client_order_id}")
+                logger.info(f"Parent order deleted: {client_order_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to delete parent order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to delete order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent order deletion failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "request_products":
+            # Send products list to client
+            try:
+                products_file = Path(__file__).parent / "products.json"
+                if products_file.exists():
+                    with open(products_file, 'r') as f:
+                        products_data = json.load(f)
+                        response = {
+                            "type": "products_list",
+                            "derivatives": products_data.get("derivatives", []),
+                            "spot": products_data.get("spot", []),
+                        }
+                        await websocket.send(json.dumps(response))
+                else:
+                    logger.warning("products.json not found")
+                    response = {
+                        "type": "products_list",
+                        "derivatives": [],
+                        "spot": [],
+                    }
+                    await websocket.send(json.dumps(response))
+            except Exception as e:
+                logger.error(f"Failed to send products: {e}")
+                response = {"type": "error", "message": f"Failed to load products: {str(e)}"}
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "request_move_history":
+            # Send move history list
+            try:
+                from database.order import get_order_moves_by_original_parent
+                # Get all moves from database (fetch all to show complete history)
+                # For now, we'll fetch from database directly
+                from database.database import PostgresDB
+                from database.order_dashboard_helpers import _serialize_for_json
+                db = PostgresDB()
+                result = db.execute_query("SELECT * FROM order_moves ORDER BY created_at DESC LIMIT 100")
+                
+                moves_dict = {move['id']: move for move in result} if result else {}
+                
+                response = {
+                    "type": "move_history_list",
+                    "moves": _serialize_for_json(moves_dict)
+                }
+                await websocket.send(json.dumps(response))
+                logger.info(f"Sent {len(result or [])} move records to client")
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch move history: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to fetch move history: {str(e)}"
+                }
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "move_order":
+            # Execute a manual move (immediate)
+            try:
+                from business.move_manager import MoveManager
+                from configuration import OrderBook
+                
+                move_data = data.get("move", {})
+                original_parent_id = move_data.get('original_parent_client_order_id')
+                new_order_details = move_data.get('new_order_details', {})
+                reason = move_data.get('reason', 'user_move')
+                notes = move_data.get('notes')
+                
+                # Create move manager and execute move
+                move_manager = MoveManager(OrderBook())
+                result = move_manager.move_order(
+                    original_parent_client_order_id=original_parent_id,
+                    new_order_details=new_order_details,
+                    reason=reason,
+                    notes=notes
+                )
+                
+                if result['success']:
+                    # The new parent order was already created by move_order()
+                    # Just fetch it to send back to client
+                    from database.order_dashboard_helpers import get_parent_order_by_client_id
+                    new_parent_id = result['new_parent_client_order_id']
+                    new_parent_order = get_parent_order_by_client_id(new_parent_id)
+                    
+                    response = {
+                        "type": "order_moved",
+                        "success": True,
+                        "original_parent_client_order_id": original_parent_id,
+                        "new_parent_client_order_id": new_parent_id,
+                        "new_parent_order": new_parent_order,
+                        "message": f"Order moved successfully"
+                    }
+                    
+                    add_log_entry("INFO", f"Order moved: {original_parent_id} -> {new_parent_id}")
+                    logger.info(f"Order moved: {original_parent_id} -> {new_parent_id}")
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Move failed: {result.get('message', 'Unknown error')}"
+                    }
+                    add_log_entry("ERROR", f"Move failed: {result.get('message')}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to move order: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to move order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Order move failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "premark_move":
+            # Pre-mark an order for automatic move (when cancelled)
+            try:
+                from database.order import create_pending_move
+                
+                move_data = data.get("move", {})
+                parent_id = move_data.get('parent_client_order_id')
+                new_order_details = move_data.get('new_order_details', {})
+                notes = move_data.get('notes')
+                
+                # Create pending move record in database
+                move_id = create_pending_move(
+                    parent_client_order_id=parent_id,
+                    new_order_config=new_order_details,
+                    reason='premarked_auto_move',
+                    notes=notes
+                )
+                
+                response = {
+                    "type": "order_premarked",
+                    "success": True,
+                    "parent_client_order_id": parent_id,
+                    "move_id": move_id,
+                    "message": f"Order pre-marked for automatic move on cancellation"
+                }
+                
+                add_log_entry("INFO", f"Order pre-marked for move: {parent_id}")
+                logger.info(f"Order pre-marked for move: {parent_id}")
+                
+                # Broadcast to all clients
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+                
+            except Exception as e:
+                logger.error(f"Failed to pre-mark order for move: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to pre-mark order: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Pre-mark failed: {str(e)}")
                 await websocket.send(json.dumps(response))
         
         elif msg_type == "ping":
@@ -412,7 +854,11 @@ def update_engine_status(status_data: Dict[str, Any]):
 
 
 def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
-    """Add log entry to dashboard."""
+    """Add log entry to dashboard and print to console."""
+    # Print to console immediately
+    print(f"[{level}] {message}")
+    
+    # Also store in engine state for UI
     with state_lock:
         entry = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -688,18 +1134,27 @@ def start_dashboard_server(host: str = "localhost", port: int = 8765):
 
 
 def set_stealth_order_bridge(bridge):
-    """Set the stealth order bridge reference for WebSocket handlers.
+    """Set the stealth order bridge reference for WebSocket handlers and order placement.
     
     Call this from main.py after initializing the stealth order bridge:
     
     Example:
         >>> from dashboard_server import set_stealth_order_bridge
-        >>> stealth_bridge = integrate_stealth_orders_with_engine(engine, db_client)
+        >>> stealth_manager = StealthOrderManager(DB_CLIENT)
+        >>> stealth_bridge = StealthOrderBridge(stealth_manager, None)
         >>> set_stealth_order_bridge(stealth_bridge)
     """
     global stealth_order_bridge
     stealth_order_bridge = bridge
     logger.info("Stealth order bridge registered with dashboard server")
+    
+    # Also register with order.py so create_limit_order_span can use it
+    try:
+        from order import set_stealth_order_bridge as order_set_stealth_bridge
+        order_set_stealth_bridge(bridge)
+        logger.info("Stealth order bridge registered with order.py")
+    except ImportError:
+        logger.warning("Could not register stealth bridge with order.py")
 
 
 # Demo/testing

@@ -177,6 +177,69 @@
             padding: 4px 8px;
             border-radius: 3px;
             font-size: 11px;
+            position: relative;
+            cursor: help;
+            display: inline-block;
+        }
+
+        .condition-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            color: #e0e0e0;
+            text-align: left;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #555;
+            font-size: 11px;
+            white-space: nowrap;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+        }
+
+        .condition-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: rgba(0, 0, 0, 0.9) transparent transparent transparent;
+        }
+
+        .condition-type:hover .condition-tooltip {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .condition-details {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .condition-detail-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .condition-detail-label {
+            color: #aaa;
+            min-width: 110px;
+            font-weight: 600;
+        }
+
+        .condition-detail-value {
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
         }
 
         .progress-bar {
@@ -221,6 +284,161 @@
 
         button.cancel-btn:hover {
             background: rgba(255, 107, 107, 0.1);
+        }
+
+        button.hide-btn {
+            color: #4dabf7;
+            border-color: #4dabf7;
+        }
+
+        button.hide-btn:hover {
+            background: rgba(77, 171, 247, 0.1);
+        }
+
+        button.edit-btn {
+            color: #ffd700;
+            border-color: #ffd700;
+            font-size: 14px;
+            padding: 4px 8px;
+        }
+
+        button.edit-btn:hover {
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background: rgba(30, 30, 46, 0.98);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #444;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            color: #fff;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+
+        .modal-footer button {
+            padding: 8px 16px;
+        }
+
+        .modal-footer button.confirm-btn {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: #000;
+            border: none;
+            font-weight: 600;
+        }
+
+        .modal-footer button.confirm-btn:hover {
+            background: linear-gradient(135deg, #51cf66, #16a34a);
+        }
+
+        .modal-footer button.cancel-modal-btn {
+            background: rgba(100, 100, 100, 0.2);
+            color: #e0e0e0;
+        }
+
+        .modal-footer button.cancel-modal-btn:hover {
+            background: rgba(100, 100, 100, 0.4);
+        }
+
+        .hover-action-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 32px;
+        }
+
+        .hover-action-wrapper .action-text {
+            color: #999;
+            font-size: 12px;
+            display: block;
+        }
+
+        .hover-action-wrapper button {
+            display: none;
+        }
+
+        .hover-action-wrapper:hover .action-text {
+            display: none;
+        }
+
+        .hover-action-wrapper:hover button {
+            display: block;
         }
 
         /* Form Styles */
@@ -362,6 +580,77 @@
             gap: 20px;
         }
 
+        .history-entry {
+            padding: 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .history-entry:hover {
+            background: rgba(74, 222, 128, 0.1);
+            border-color: rgba(74, 222, 128, 0.3);
+        }
+
+        /* Accordion Styles */
+        .accordion-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 3px;
+            font-size: 12px;
+            color: #4ade80;
+            transition: all 0.2s ease;
+            user-select: none;
+            margin-right: 6px;
+        }
+
+        .accordion-toggle:hover {
+            background: rgba(74, 222, 128, 0.2);
+            border-color: rgba(74, 222, 128, 0.5);
+        }
+
+        .accordion-toggle.expanded::before {
+            content: "▼";
+        }
+
+        .accordion-toggle.collapsed::before {
+            content: "▶";
+        }
+
+        .parent-row {
+            background: rgba(255, 183, 71, 0.05);
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .parent-row:hover {
+            background: rgba(255, 183, 71, 0.1);
+        }
+
+        .child-row {
+            background: rgba(123, 163, 255, 0.02);
+            display: none;
+            transition: display 0.2s ease;
+        }
+
+        .child-row.visible {
+            display: table-row;
+        }
+
+        .child-row td {
+            padding-left: 50px;
+            color: #a0a0a0;
+            border-left: 2px solid rgba(123, 163, 255, 0.2);
+        }
+
         /* Responsive */
         @media (max-width: 1000px) {
             .content {
@@ -393,11 +682,11 @@
                     <span class="stat-value" id="stat-active">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Total Size</span>
-                    <span class="stat-value" id="stat-size">0</span>
+                    <span class="stat-label">Avg Reveal %</span>
+                    <span class="stat-value" id="stat-avg-fill">0%</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Executed</span>
+                    <span class="stat-label">Revealed</span>
                     <span class="stat-value" id="stat-executed">0</span>
                 </div>
                 <div class="stat">
@@ -409,7 +698,7 @@
 
         <div class="content">
             <div class="section" style="grid-column: 1;">
-                <h2>📊 Active Stealth Orders</h2>
+                <h2>📊 Stealth Orders</h2>
                 <div class="message" id="message-container"></div>
                 <div style="overflow-x: auto;">
                     <table class="orders-table">
@@ -421,14 +710,16 @@
                                 <th>Price</th>
                                 <th>Status</th>
                                 <th>Condition</th>
+                                <th>Time</th>
                                 <th>Progress</th>
                                 <th>Executed</th>
+                                <th>Target Movement</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="orders-tbody">
                             <tr>
-                                <td colspan="9" style="text-align: center; padding: 30px; color: #666;">
+                                <td colspan="11" style="text-align: center; padding: 30px; color: #666;">
                                     Loading orders...
                                 </td>
                             </tr>
@@ -436,7 +727,7 @@
                     </table>
                 </div>
                 <div style="margin-top: 15px; font-size: 11px; color: #666; text-align: right;">
-                    <span class="refresh-indicator">Auto-refresh: <span id="refresh-timer">30</span>s</span>
+                    <span class="refresh-indicator">Auto-refresh: <span id="refresh-timer">5</span>s</span>
                 </div>
             </div>
 
@@ -476,8 +767,8 @@
                             <label>Reveal Condition *</label>
                             <select id="condition_type" required>
                                 <option value="">Select...</option>
-                                <option value="time_delay" selected>Time Delay</option>
-                                <option value="price">Price Threshold</option>
+                                <option value="time_delay">Time Delay</option>
+                                <option value="price" selected>Price Threshold</option>
                                 <option value="cumulative_volume">Volume Threshold</option>
                                 <option value="spread">Spread Trigger</option>
                                 <option value="product_ratio">Product Ratio</option>
@@ -486,6 +777,19 @@
 
                         <!-- Condition-specific fields -->
                         <div class="condition-fields" id="condition-fields-container"></div>
+
+                        <div class="form-group">
+                            <label>Follow-up Reveal Direction</label>
+                            <select id="follow_up_reveal_direction">
+                                <option value="same">Same as Original</option>
+                                <option value="opposite" selected>Opposite Direction</option>
+                                <option value="above">Explicitly Above</option>
+                                <option value="below">Explicitly Below</option>
+                            </select>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Controls how reveal conditions change when this order fills and creates a follow-up.
+                            </div>
+                        </div>
 
                         <div class="form-group">
                             <label>Sizing Strategy</label>
@@ -523,20 +827,65 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Clear All Orders Section -->
+                <div class="section">
+                    <h2>🗑️ Management</h2>
+                    <button id="clear-all-btn" type="button" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #ff6b6b, #ff5252); color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        Clear All Orders
+                    </button>
+                    <div style="font-size: 11px; color: #999; margin-top: 8px; text-align: center;">
+                        ⚠️ This will delete all stealth orders
+                    </div>
+                </div>
+
+                <!-- Entry History -->
+                <div class="section">
+                    <h2>📝 Entry History</h2>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+                        <div id="history-list" style="display: flex; flex-direction: column; gap: 6px;">
+                            <div style="color: #666; text-align: center; padding: 10px;">No saved entries</div>
+                        </div>
+                        <button id="clear-history-btn" type="button" style="display: none; font-size: 10px; padding: 6px; margin-top: 8px; border-color: #ff6b6b; color: #ff6b6b;">Clear History</button>
+                    </div>
+                    <div id="save-status" style="font-size: 10px; color: #666; margin-top: 8px; text-align: right; display: none;">✓ Auto-saved</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Target Movement Modal -->
+    <div id="editTargetMovementModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Target Movement</h2>
+                <button type="button" class="modal-close" onclick="closeEditTargetMovementModal()">&times;</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Target Movement Value</label>
+                    <input type="number" id="editTargetMovementValue" placeholder="0.005" step="0.0001" min="0">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Type</label>
+                    <select id="editTargetMovementType">
+                        <option value="P">Percentage (%)</option>
+                        <option value="A">Absolute Amount</option>
+                    </select>
+                </div>
+                <div style="font-size: 12px; color: #aaa;">
+                    <strong>Percentage (%):</strong> Profit target as % of current price (e.g., 0.5 = 0.5%)<br>
+                    <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cancel-modal-btn" onclick="closeEditTargetMovementModal()">Cancel</button>
+                <button type="button" class="confirm-btn" onclick="confirmEditTargetMovement()">Update</button>
             </div>
         </div>
     </div>
 
     <script>
-        const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
-        let ws = null;
-        let ordersData = {};
-        let orderedProducts = [];
-        let allProducts = [];  // All available products from JSON
-        let productMetadata = {};  // Product metadata (base_increment, etc.)
-        let refreshInterval = null;
-        let refreshCountdown = 30;
-
         // Condition field templates
         const conditionTemplates = {
             price: `
@@ -615,6 +964,72 @@
             `
         };
 
+        function formatConditionDetails(conditionJson) {
+            if (!conditionJson) return '';
+            
+            const type = conditionJson.type || 'Unknown';
+            let details = [];
+            
+            switch(type) {
+                case 'price':
+                    if (conditionJson.price_threshold) details.push(`Threshold: $${parseFloat(conditionJson.price_threshold).toFixed(2)}`);
+                    if (conditionJson.direction) details.push(`Direction: ${conditionJson.direction}`);
+                    if (conditionJson.hold_duration_seconds) details.push(`Hold: ${conditionJson.hold_duration_seconds}s`);
+                    break;
+                case 'cumulative_volume':
+                    if (conditionJson.price_level) details.push(`Price: $${parseFloat(conditionJson.price_level).toFixed(2)}`);
+                    if (conditionJson.volume_threshold) details.push(`Volume: ${parseFloat(conditionJson.volume_threshold).toFixed(2)}`);
+                    if (conditionJson.lookback_seconds) details.push(`Lookback: ${conditionJson.lookback_seconds}s`);
+                    break;
+                case 'time_delay':
+                    if (conditionJson.delay_seconds) details.push(`Delay: ${conditionJson.delay_seconds}s`);
+                    if (conditionJson.jitter_seconds) details.push(`Jitter: ${conditionJson.jitter_seconds}s`);
+                    break;
+                case 'spread':
+                    if (conditionJson.max_spread) details.push(`Max Spread: ${parseFloat(conditionJson.max_spread).toFixed(2)}`);
+                    if (conditionJson.hold_duration_seconds) details.push(`Hold: ${conditionJson.hold_duration_seconds}s`);
+                    break;
+                case 'product_ratio':
+                    if (conditionJson.product_a) details.push(`Product A: ${conditionJson.product_a}`);
+                    if (conditionJson.product_b) details.push(`Product B: ${conditionJson.product_b}`);
+                    if (conditionJson.ratio_threshold) details.push(`Ratio: ${parseFloat(conditionJson.ratio_threshold).toFixed(3)}`);
+                    if (conditionJson.direction) details.push(`Direction: ${conditionJson.direction}`);
+                    break;
+                default:
+                    return '';
+            }
+            
+            return details.length > 0 ? details.join('<br>') : '';
+        }
+
+        function createConditionTooltipHTML(order) {
+            const conditionJson = order.reveal_condition_json || {};
+            const type = order.reveal_condition_type || conditionJson.type || 'N/A';
+            const details = formatConditionDetails(conditionJson);
+            
+            if (!details) {
+                return `<span class="condition-type">${type}</span>`;
+            }
+            
+            return `<span class="condition-type">
+                ${type}
+                <div class="condition-tooltip">
+                    <div style="font-weight: 600; margin-bottom: 6px; color: #4ade80;">${type}</div>
+                    <div class="condition-details" style="white-space: normal; width: 220px;">${details}</div>
+                </div>
+            </span>`;
+        }
+
+        const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
+        let ws = null;
+        let ordersData = {};
+        let orderedProducts = [];
+        let allProducts = [];  // All available products from JSON
+        let productMetadata = {};  // Product metadata (base_increment, etc.)
+        let refreshInterval = null;
+        let refreshCountdown = 5;
+        let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
+
         function initWebSocket() {
             try {
                 ws = new WebSocket(WS_URL);
@@ -638,8 +1053,27 @@
                         updateProductDropdown();
                         addProductChangeListener();  // Add event listener for product selection
                         console.log(`Loaded ${allProducts.length} products from WebSocket`);
+                    } else if (data.type === "state_update") {
+                        // Initial state or periodic update from server
+                        if (data.data && data.data.stealth_orders) {
+                            ordersData = data.data.stealth_orders || {};
+                            console.log("Received state update with stealth orders:", ordersData);
+                            console.log("Number of orders:", Object.keys(ordersData).length);
+                            if (Object.keys(ordersData).length > 0) {
+                                const firstOrder = Object.values(ordersData)[0];
+                                console.log("Sample order structure:", firstOrder);
+                            }
+                            updateOrdersTable();
+                            updateStats();
+                        }
                     } else if (data.type === "stealth_orders_snapshot") {
                         ordersData = data.orders || {};
+                        console.log("Received stealth orders snapshot:", ordersData);
+                        console.log("Number of orders:", Object.keys(ordersData).length);
+                        if (Object.keys(ordersData).length > 0) {
+                            const firstOrder = Object.values(ordersData)[0];
+                            console.log("Sample order structure:", firstOrder);
+                        }
                         updateOrdersTable();
                         updateStats();
                     } else if (data.type === "stealth_order_created") {
@@ -651,6 +1085,11 @@
                         ordersData[data.stealth_order_id] = data.order;
                         updateOrdersTable();
                         updateStats();
+                    } else if (data.type === "stealth_orders_cleared") {
+                        ordersData = {};
+                        updateOrdersTable();
+                        updateStats();
+                        showMessage(`✅ Cleared ${data.rows_deleted} stealth orders`, 'success');
                     }
                 };
 
@@ -780,9 +1219,54 @@
             });
         }
 
+        function toggleAccordion(parentOrderId) {
+            accordionState[parentOrderId] = !accordionState[parentOrderId];
+            
+            // Toggle visibility of child rows
+            const childRows = document.querySelectorAll(`tr[data-parent-id="${parentOrderId}"]`);
+            childRows.forEach(row => {
+                row.classList.toggle('visible');
+            });
+            
+            // Toggle the button state
+            const toggleBtn = document.querySelector(`button[data-toggle-id="${parentOrderId}"]`);
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('expanded');
+                toggleBtn.classList.toggle('collapsed');
+            }
+        }
+
         function updateOrdersTable() {
             const tbody = document.getElementById('orders-tbody');
-            const orders = Object.values(ordersData);
+            let orders = Object.values(ordersData);
+            
+            // Sort by Product (ascending), then by Parent/Child relationship, then by Date-Time (descending)
+            orders.sort((a, b) => {
+                // Primary sort: by product_id
+                if (a.product_id !== b.product_id) {
+                    return a.product_id.localeCompare(b.product_id);
+                }
+                
+                // Secondary sort: by parent/child relationship
+                // Orders without parent_order_id (parents) come first, then orders with parent_order_id
+                const aHasParent = a.parent_order_id ? 1 : 0;
+                const bHasParent = b.parent_order_id ? 1 : 0;
+                if (aHasParent !== bHasParent) {
+                    return aHasParent - bHasParent;
+                }
+                
+                // If both are children, group by parent_order_id
+                if (aHasParent === 1 && bHasParent === 1) {
+                    if (a.parent_order_id !== b.parent_order_id) {
+                        return a.parent_order_id.localeCompare(b.parent_order_id);
+                    }
+                }
+                
+                // Tertiary sort: by created_at date-time descending (most recent first)
+                const dateA = new Date(a.created_at || 0);
+                const dateB = new Date(b.created_at || 0);
+                return dateB - dateA;
+            });
             
             // Update product dropdown with any new products
             updateProductDropdown();
@@ -790,7 +1274,7 @@
             if (orders.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="9" style="text-align: center; padding: 30px; color: #666;">
+                        <td colspan="11" style="text-align: center; padding: 30px; color: #666;">
                             No active stealth orders
                         </td>
                     </tr>
@@ -798,56 +1282,143 @@
                 return;
             }
 
-            tbody.innerHTML = orders.map(order => {
-                const executedPct = order.total_size > 0 
-                    ? Math.round((order.executed_size / order.total_size) * 100)
+            // Group orders: parents with their children
+            const parentOrders = orders.filter(o => !o.parent_order_id);
+            const childOrdersByParent = {};
+            
+            orders.filter(o => o.parent_order_id).forEach(childOrder => {
+                if (!childOrdersByParent[childOrder.parent_order_id]) {
+                    childOrdersByParent[childOrder.parent_order_id] = [];
+                }
+                childOrdersByParent[childOrder.parent_order_id].push(childOrder);
+            });
+
+            // Render function for order row
+            const renderOrderRow = (order, isChild = false, parentId = null) => {
+                const revealedPct = order.total_size > 0 
+                    ? Math.round((order.revealed_size / order.total_size) * 100)
                     : 0;
                 
                 // Format size with appropriate decimals for micro quantities
                 const sizeStr = parseFloat(order.total_size) < 0.01 
                     ? parseFloat(order.total_size).toFixed(8)
                     : parseFloat(order.total_size).toFixed(2);
-                const executedStr = parseFloat(order.executed_size) < 0.01
-                    ? parseFloat(order.executed_size).toFixed(8)
-                    : parseFloat(order.executed_size).toFixed(2);
+                const revealedStr = parseFloat(order.revealed_size) < 0.01
+                    ? parseFloat(order.revealed_size).toFixed(8)
+                    : parseFloat(order.revealed_size).toFixed(2);
 
+                const isParent = !order.parent_order_id;
+                const hasChildren = childOrdersByParent[order.stealth_order_id] && childOrdersByParent[order.stealth_order_id].length > 0;
+                
+                let parentIndicator = '';
+                let toggleHtml = '';
+                
+                if (isParent) {
+                    if (hasChildren) {
+                        const childCount = childOrdersByParent[order.stealth_order_id].length;
+                        const isExpanded = accordionState[order.stealth_order_id] || false;
+                        toggleHtml = `<button type="button" data-toggle-id="${order.stealth_order_id}" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${order.stealth_order_id}')"></button>`;
+                        parentIndicator = toggleHtml + `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order (${childCount} children)">👑 (${childCount})</span>`;
+                    } else {
+                        parentIndicator = `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order">👑</span>`;
+                    }
+                } else {
+                    parentIndicator = `<span style="color: #7ba3ff; margin-right: 6px;" title="Child order (Parent: ${order.parent_order_id.substring(0, 8)}...)">→</span>`;
+                }
+                
+                const rowClass = isChild ? 'child-row' + (accordionState[parentId] ? ' visible' : '') : 'parent-row';
+                const dataAttr = isChild ? ` data-parent-id="${parentId}"` : '';
+                
+                // Format date and time from created_at
+                let createdDateTime = 'N/A';
+                if (order.created_at) {
+                    const date = new Date(order.created_at);
+                    const dateStr = date.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+                    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    createdDateTime = `${dateStr} ${timeStr}`;
+                }
+                
+                const targetMovementStr = order.target_movement 
+                    ? `${parseFloat(order.target_movement).toFixed(4)}${order.target_movement_type === 'A' ? ' (Abs)' : '%'}`
+                    : '-';
+                
                 return `
-                    <tr>
-                        <td><strong>${order.product_id}</strong></td>
+                    <tr class="${rowClass}"${dataAttr}>
+                        <td>${parentIndicator}<strong>${order.product_id}</strong></td>
                         <td class="side-${order.side.toLowerCase()}">${order.side}</td>
                         <td>${sizeStr}</td>
                         <td>${parseFloat(order.limit_price).toFixed(2)}</td>
                         <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
-                        <td><span class="condition-type">${order.reveal_condition?.type || 'N/A'}</span></td>
+                        <td>${createConditionTooltipHTML(order)}</td>
+                        <td style="font-size: 12px; color: #aaa;">${createdDateTime}</td>
                         <td>
                             <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${executedPct}%"></div>
+                                <div class="progress-fill" style="width: ${revealedPct}%"></div>
                             </div>
-                            <div style="font-size: 10px; color: #999; margin-top: 2px;">${executedPct}%</div>
+                            <div style="font-size: 10px; color: #999; margin-top: 2px;">${revealedPct}%</div>
                         </td>
-                        <td>${executedStr}</td>
+                        <td>${revealedStr}</td>
+                        <td style="font-size: 13px; color: #7ba3ff; font-weight: 500;">${targetMovementStr}</td>
                         <td>
                             <div class="action-buttons">
+                                <button onclick="openEditTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}')" class="edit-btn" title="Edit target movement">⚙️</button>
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
                                     ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn">Cancel</button>`
-                                    : `<span style="color: #999; font-size: 12px;">${order.status === 'REVEALED' ? 'Revealed' : order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
+                                    : order.status === 'REVEALED'
+                                    ? `<div class="hover-action-wrapper">
+                                        <span class="action-text">Revealed</span>
+                                        <button onclick="hideOrder('${order.stealth_order_id}')" class="hide-btn">Hide</button>
+                                      </div>`
+                                    : `<span style="color: #999; font-size: 12px;">${order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
                                 }
                             </div>
                         </td>
                     </tr>
                 `;
-            }).join('');
+            };
+
+            // Build HTML with parents and children
+            let html = '';
+            parentOrders.forEach(parentOrder => {
+                // Add parent row
+                html += renderOrderRow(parentOrder, false);
+                
+                // Add child rows if they exist
+                if (childOrdersByParent[parentOrder.stealth_order_id]) {
+                    childOrdersByParent[parentOrder.stealth_order_id].forEach(childOrder => {
+                        html += renderOrderRow(childOrder, true, parentOrder.stealth_order_id);
+                    });
+                }
+            });
+
+            tbody.innerHTML = html;
         }
 
         function updateStats() {
             const orders = Object.values(ordersData);
             const active = orders.filter(o => ['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED'].includes(o.status));
-            const totalSize = active.reduce((sum, o) => sum + parseFloat(o.total_size || 0), 0);
-            const executed = active.reduce((sum, o) => sum + parseFloat(o.executed_size || 0), 0);
+            
+            console.log("updateStats - Total orders:", orders.length, "Active orders:", active.length);
+            
+            // Calculate overall reveal percentage: total revealed / total size
+            let avgRevealPct = 0;
+            if (active.length > 0) {
+                const totalSize = active.reduce((sum, o) => {
+                    const size = parseFloat(o.total_size || 0);
+                    console.log(`Order ${o.stealth_order_id}: total_size=${size}, revealed_size=${o.revealed_size}`);
+                    return sum + size;
+                }, 0);
+                const totalRevealed = active.reduce((sum, o) => sum + parseFloat(o.revealed_size || 0), 0);
+                avgRevealPct = totalSize > 0 ? Math.round((totalRevealed / totalSize) * 100) : 0;
+                console.log(`Reveal calculation: totalRevealed=${totalRevealed}, totalSize=${totalSize}, avgRevealPct=${avgRevealPct}%`);
+            }
 
             document.getElementById('stat-active').textContent = active.length;
-            document.getElementById('stat-size').textContent = totalSize < 0.01 ? totalSize.toFixed(8) : totalSize.toFixed(2);
-            document.getElementById('stat-executed').textContent = executed < 0.01 ? executed.toFixed(8) : executed.toFixed(2);
+            document.getElementById('stat-avg-fill').textContent = avgRevealPct + '%';
+            
+            // Show total revealed size across all active orders
+            const totalRevealedSize = active.reduce((sum, o) => sum + parseFloat(o.revealed_size || 0), 0);
+            document.getElementById('stat-executed').textContent = totalRevealedSize < 0.01 ? totalRevealedSize.toFixed(8) : totalRevealedSize.toFixed(2);
 
             // Count by status
             const hidden = orders.filter(o => o.status === 'HIDDEN').length;
@@ -865,6 +1436,24 @@
             
             if (conditionTemplates[conditionType]) {
                 container.innerHTML = conditionTemplates[conditionType];
+                
+                // Attach event listeners to the newly added fields for auto-save
+                const newFields = container.querySelectorAll('input, select, textarea');
+                newFields.forEach(field => {
+                    field.addEventListener('input', () => {
+                        clearTimeout(autoSaveTimeout);
+                        autoSaveTimeout = setTimeout(() => {
+                            saveFormValues();
+                        }, 800);
+                    });
+                    
+                    field.addEventListener('change', () => {
+                        clearTimeout(autoSaveTimeout);
+                        autoSaveTimeout = setTimeout(() => {
+                            saveFormValues();
+                        }, 300);
+                    });
+                });
             } else {
                 container.innerHTML = '';
             }
@@ -898,10 +1487,180 @@
             }
             
             localStorage.setItem('stealth_order_form_data', JSON.stringify(formData));
+            showAutoSaveIndicator();
+        }
+
+        let autoSaveTimeout;
+        function setupAutoSave() {
+            // Auto-save on any form input change (debounced)
+            const form = document.getElementById('create-order-form');
+            const inputs = form.querySelectorAll('input, select, textarea');
+            
+            inputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    clearTimeout(autoSaveTimeout);
+                    autoSaveTimeout = setTimeout(() => {
+                        saveFormValues();
+                    }, 800); // Save 800ms after user stops typing
+                });
+                
+                input.addEventListener('change', () => {
+                    clearTimeout(autoSaveTimeout);
+                    autoSaveTimeout = setTimeout(() => {
+                        saveFormValues();
+                    }, 300); // Save 300ms after change for selects
+                });
+            });
+            
+            // Also save when condition type changes (to capture new fields)
+            document.getElementById('condition_type').addEventListener('change', () => {
+                setTimeout(() => {
+                    saveFormValues();
+                }, 500);
+            });
+        }
+
+        function showAutoSaveIndicator() {
+            // Show and fade out the auto-save indicator
+            const indicator = document.getElementById('save-status');
+            indicator.style.display = 'block';
+            clearTimeout(indicator.fadeTimeout);
+            indicator.fadeTimeout = setTimeout(() => {
+                indicator.style.display = 'none';
+            }, 2000);
+        }
+
+        function getFormDataSummary(formData) {
+            // Create a readable summary of form data
+            const product = formData.product_id || '(none)';
+            const side = formData.side || '-';
+            const size = formData.total_size || '-';
+            return `${product} ${side} ${size}`;
+        }
+
+        function saveToHistory() {
+            // Save the current form as an entry in history
+            const formData = {
+                product_id: document.getElementById('product_id').value,
+                side: document.getElementById('side').value,
+                total_size: document.getElementById('total_size').value,
+                limit_price: document.getElementById('limit_price').value,
+                condition_type: document.getElementById('condition_type').value,
+                sizing_strategy: document.getElementById('sizing_strategy').value,
+                notes: document.getElementById('notes').value,
+                timestamp: Date.now()
+            };
+            
+            // Also save any dynamic condition fields
+            const conditionFieldsContainer = document.getElementById('condition-fields-container');
+            if (conditionFieldsContainer) {
+                const inputs = conditionFieldsContainer.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    if (input.name) {
+                        formData[input.name] = input.value;
+                    }
+                });
+            }
+            
+            // Get existing history
+            let history = [];
+            const savedHistory = localStorage.getItem('stealth_order_history');
+            if (savedHistory) {
+                history = JSON.parse(savedHistory);
+            }
+            
+            // Add new entry to the beginning (most recent first)
+            history.unshift(formData);
+            
+            // Keep only last 10 entries
+            if (history.length > 10) {
+                history = history.slice(0, 10);
+            }
+            
+            localStorage.setItem('stealth_order_history', JSON.stringify(history));
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const savedHistory = localStorage.getItem('stealth_order_history');
+            const historyList = document.getElementById('history-list');
+            const clearBtn = document.getElementById('clear-history-btn');
+            
+            if (!savedHistory || JSON.parse(savedHistory).length === 0) {
+                historyList.innerHTML = '<div style="color: #666; text-align: center; padding: 10px;">No saved entries</div>';
+                clearBtn.style.display = 'none';
+                return;
+            }
+            
+            const history = JSON.parse(savedHistory);
+            clearBtn.style.display = 'block';
+            
+            historyList.innerHTML = history.map((entry, index) => {
+                const date = new Date(entry.timestamp);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const summary = getFormDataSummary(entry);
+                
+                return `
+                    <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; cursor: pointer; transition: all 0.2s ease;" 
+                         onmouseover="this.style.background='rgba(74, 222, 128, 0.1)'" 
+                         onmouseout="this.style.background='rgba(0,0,0,0.2)'"
+                         onclick="loadFromHistory(${index})">
+                        <div style="color: #4ade80; font-weight: 500; font-size: 11px;">${summary}</div>
+                        <div style="color: #666; font-size: 10px; margin-top: 2px;">${dateStr} ${timeStr}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function loadFromHistory(index) {
+            const savedHistory = localStorage.getItem('stealth_order_history');
+            if (!savedHistory) return;
+            
+            const history = JSON.parse(savedHistory);
+            if (index >= history.length) return;
+            
+            const entry = history[index];
+            
+            // Restore main fields
+            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes'];
+            mainFields.forEach(fieldId => {
+                const element = document.getElementById(fieldId);
+                if (element && entry[fieldId] !== undefined) {
+                    element.value = entry[fieldId];
+                }
+            });
+            
+            // Update condition fields based on condition_type
+            updateConditionFields();
+            
+            // Restore condition-specific field values
+            setTimeout(() => {
+                const conditionFieldsContainer = document.getElementById('condition-fields-container');
+                if (conditionFieldsContainer) {
+                    const inputs = conditionFieldsContainer.querySelectorAll('input, select, textarea');
+                    inputs.forEach(input => {
+                        if (input.name && entry[input.name] !== undefined) {
+                            input.value = entry[input.name];
+                        }
+                    });
+                }
+            }, 100);
+            
+            showMessage('Entry loaded from history', 'success');
+        }
+
+        function clearHistory() {
+            if (!confirm('Clear all saved entries?')) {
+                return;
+            }
+            localStorage.removeItem('stealth_order_history');
+            updateHistoryDisplay();
+            showMessage('History cleared', 'info');
         }
 
         function restoreFormValues() {
-            // Restore form values from localStorage
+            // Restore form values from localStorage (current/draft form data)
             const savedData = localStorage.getItem('stealth_order_form_data');
             
             if (savedData) {
@@ -943,7 +1702,8 @@
 
         function buildRevealCondition() {
             const type = document.getElementById('condition_type').value;
-            const fields = document.querySelectorAll('[name]');
+            const container = document.getElementById('condition-fields-container');
+            const fields = container ? container.querySelectorAll('[name]') : [];
             const condition = { type };
 
             fields.forEach(field => {
@@ -967,28 +1727,17 @@
                 total_size: parseFloat(document.getElementById('total_size').value),
                 limit_price: parseFloat(document.getElementById('limit_price').value),
                 reveal_condition: buildRevealCondition(),
+                follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
                 sizing_strategy: {
                     type: document.getElementById('sizing_strategy').value
                 },
                 notes: document.getElementById('notes').value
             };
 
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                showMessage('Not connected to server', 'error');
-                return;
-            }
-
-            try {
-                ws.send(JSON.stringify({
-                    type: "create_stealth_order",
-                    order: order
-                }));
-
-                // Save form values for next order
-                saveFormValues();
+            if (sendCreateStealthOrderMessage(order)) {
+                // Save entry to history for future reference
+                saveToHistory();
                 showMessage('Order creation request sent', 'info');
-            } catch (error) {
-                showMessage(`Error: ${error.message}`, 'error');
             }
         });
 
@@ -1008,6 +1757,60 @@
             }));
         }
 
+        function sendCreateStealthOrderMessage(orderData) {
+            // Helper function to send create_stealth_order message to server
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return false;
+            }
+
+            try {
+                ws.send(JSON.stringify({
+                    type: "create_stealth_order",
+                    order: orderData
+                }));
+                return true;
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        function hideOrder(orderID) {
+            const order = ordersData[orderID];
+            
+            if (!order) {
+                showMessage('Order not found', 'error');
+                return;
+            }
+
+            console.log("Creating hidden duplicate of order:", orderID);
+            console.log("Order reveal condition type:", order.reveal_condition_type);
+            console.log("Order reveal condition JSON:", order.reveal_condition_json);
+
+            if (!confirm(`Create hidden duplicate of order ${orderID}?`)) {
+                return;
+            }
+
+            // Create a new stealth order with same parameters and reveal condition
+            const orderData = {
+                product_id: order.product_id,
+                side: order.side,
+                total_size: order.total_size,
+                limit_price: order.limit_price,
+                reveal_condition: order.reveal_condition_json,
+                follow_up_reveal_direction: order.follow_up_reveal_direction || 'opposite',
+                sizing_strategy: {strategy: "equal_slices"},
+                notes: `Follow-up hidden order from ${orderID}`
+            };
+            
+            console.log("Sending order data:", orderData);
+            
+            if (sendCreateStealthOrderMessage(orderData)) {
+                showMessage('Hidden duplicate order sent', 'info');
+            }
+        }
+
         function showMessage(text, type) {
             const container = document.getElementById('message-container');
             container.textContent = text;
@@ -1019,7 +1822,7 @@
         }
 
         function startRefreshTimer() {
-            refreshCountdown = 30;
+            refreshCountdown = 5;
             if (refreshInterval) clearInterval(refreshInterval);
             
             refreshInterval = setInterval(() => {
@@ -1032,7 +1835,7 @@
                             type: "request_stealth_orders"
                         }));
                     }
-                    refreshCountdown = 30;
+                    refreshCountdown = 5;
                 }
             }, 1000);
         }
@@ -1040,8 +1843,127 @@
         // Initialize
         loadProductsFromJSON();  // Load all products at startup
         restoreFormValues();      // Restore last used form values
+        setupAutoSave();          // Setup auto-save on input changes
+        updateHistoryDisplay();   // Display saved entries history
         initWebSocket();
         startRefreshTimer();
+        
+        // Setup clear history button
+        document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
+        
+        // Setup clear all stealth orders button
+        document.getElementById('clear-all-btn').addEventListener('click', clearAllStealthOrders);
+
+        // Modal functions for editing target movement
+        function openEditTargetMovementModal(stealthOrderId, currentValue, currentType) {
+            const modal = document.getElementById('editTargetMovementModal');
+            const valueInput = document.getElementById('editTargetMovementValue');
+            const typeSelect = document.getElementById('editTargetMovementType');
+            
+            // Store the order ID for later use
+            modal.dataset.stealthOrderId = stealthOrderId;
+            
+            // Populate with current values
+            valueInput.value = currentValue || '';
+            typeSelect.value = currentType || 'P';
+            
+            // Show modal
+            modal.classList.add('show');
+            valueInput.focus();
+        }
+
+        function closeEditTargetMovementModal() {
+            const modal = document.getElementById('editTargetMovementModal');
+            modal.classList.remove('show');
+            
+            // Clear stored order ID
+            delete modal.dataset.stealthOrderId;
+        }
+
+        function confirmEditTargetMovement() {
+            const modal = document.getElementById('editTargetMovementModal');
+            const stealthOrderId = modal.dataset.stealthOrderId;
+            const value = document.getElementById('editTargetMovementValue').value;
+            const type = document.getElementById('editTargetMovementType').value;
+            
+            if (!stealthOrderId) {
+                showMessage('Error: No order selected', 'error');
+                return;
+            }
+            
+            if (!value || isNaN(parseFloat(value))) {
+                showMessage('Please enter a valid number for target movement', 'error');
+                return;
+            }
+            
+            // Validate range
+            const numValue = parseFloat(value);
+            if (numValue < 0) {
+                showMessage('Target movement cannot be negative', 'error');
+                return;
+            }
+            
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            
+            try {
+                ws.send(JSON.stringify({
+                    type: "update_stealth_target_movement",
+                    stealth_order_id: stealthOrderId,
+                    target_movement: numValue,
+                    target_movement_type: type
+                }));
+                
+                showMessage(`Target movement updated to ${numValue}${type === 'A' ? ' (Abs)' : '%'}`, 'success');
+                closeEditTargetMovementModal();
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Close modal when clicking outside of it
+        window.addEventListener('click', (event) => {
+            const modal = document.getElementById('editTargetMovementModal');
+            if (event.target === modal) {
+                closeEditTargetMovementModal();
+            }
+        });
+
+        // Allow Enter key to confirm
+        document.getElementById('editTargetMovementValue').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                confirmEditTargetMovement();
+            }
+        });
+        
+        function clearAllStealthOrders() {
+            const confirmed = confirm('⚠️ This will permanently delete ALL stealth orders from the database.\n\nAre you sure?');
+            if (!confirmed) {
+                return;
+            }
+            
+            // Double confirm to prevent accidental deletion
+            const doubleConfirm = confirm('This action cannot be undone. Delete all stealth orders?');
+            if (!doubleConfirm) {
+                return;
+            }
+            
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            
+            try {
+                ws.send(JSON.stringify({
+                    type: "clear_all_stealth_orders"
+                }));
+                showMessage('Clear request sent to server...', 'info');
+            } catch (error) {
+                showMessage(`Error sending clear request: ${error.message}`, 'error');
+            }
+        }
     </script>
 </body>
 </html>

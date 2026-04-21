@@ -20,6 +20,8 @@ import json
 from pathlib import Path
 from coinbase.rest import RESTClient
 
+from external import CoinbaseRestClient
+
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
 try:
@@ -28,20 +30,43 @@ try:
         DERIVATIVES_PRODUCT_IDS = _products_config.get("derivatives", [])
         SPOT_PRODUCT_IDS = _products_config.get("spot", [])
         PRODUCT_METADATA = _products_config.get("metadata", {})
+        TICKER_TO_TRADING = _products_config.get("ticker_to_trading", {})
 except (FileNotFoundError, json.JSONDecodeError) as e:
     print(f"Warning: Failed to load products.json: {e}")
     # Fallback to hardcoded values
     DERIVATIVES_PRODUCT_IDS = []
     SPOT_PRODUCT_IDS = []
     PRODUCT_METADATA = {}
+    TICKER_TO_TRADING = {}
+
+def get_trading_product_id(ticker_product_id: str) -> str:
+    """
+    Convert a ticker product ID to its trading equivalent.
+    
+    Example:
+        get_trading_product_id("BTC-USD") -> "BTC-USDC"
+        get_trading_product_id("BTC-USDC") -> "BTC-USDC"  # Already a trading product
+    
+    Args:
+        ticker_product_id: Product ID from ticker feed
+        
+    Returns:
+        Trading product ID to use for order placement
+    """
+    # If it's in the mapping, use the mapped value
+    if ticker_product_id in TICKER_TO_TRADING:
+        return TICKER_TO_TRADING[ticker_product_id]
+    # Otherwise assume it's already a trading product
+    return ticker_product_id
 
 API_KEY = getenv("COINBASE_API_KEY")
 API_SECRET = getenv("COINBASE_API_SECRET")
 
-REST_CLIENT = RESTClient(
+_sdk_client = RESTClient(
     api_key=API_KEY,
     api_secret=API_SECRET,
     rate_limit_headers=True)
+REST_CLIENT = CoinbaseRestClient(_sdk_client)
 
 ORDER_SIDE_SWITCH = {
     "BUY": "SELL",
@@ -66,7 +91,7 @@ ORDER_DIRECTION = {
 }
 
 DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
-DEFAULT_MAX_ORDER_REPLACEMENT = 1
+DEFAULT_MAX_ORDER_REPLACEMENT = 11
 
 def safe_float(value, default: float = 0.0) -> float:
     """Safely convert a value to float, returning default on error.
@@ -358,7 +383,7 @@ def rest_get_products() -> dict:
         >>> print(f"Can trade {base_increment} BTC increments")
     """
     products_list = [
-        REST_CLIENT.get_product(product_id) for
+        REST_CLIENT.get_product_dict(product_id) for
             product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS]
 
     products = {
@@ -673,7 +698,7 @@ class OrderBook():
     mandatory_fee_per_contract = {
         product_id: {
             "mandatory_fee_per_contract": (
-                DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.to_dict().get("future_product_details", {}).get("contract_size", 1))
+                DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
             ) if this["product_type"] == "FUTURE" else 0
         } for product_id, this in product.items()
     }
@@ -683,16 +708,16 @@ class OrderBook():
 
     profit = {
         "SPOT": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 2
-        },
-        "FUTURE": {
             "BUY": 0.002,
             "SELL": 0.002
         },
+        "FUTURE": {
+            "BUY": 0.004,
+            "SELL": 0.004
+        },
         "BIP-20DEC30-CDE": {
-            "BUY": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 14,
-            "SELL": float(transaction_summary["fee_tier"]["taker_fee_rate"]) * 14
+            "BUY": 0.0021,
+            "SELL": 0.0021
         }
     }
 

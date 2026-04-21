@@ -23,18 +23,40 @@
     "XPP-20DEC30-CDE"
   ],
   "spot": [
+    "BTC-USD",
     "BTC-USDC",
+    "DOGE-USD",
     "DOGE-USDC",
     "DOT-BTC",
+    "ETH-USD",
     "ETH-USDC",
+    "LTC-USD",
     "LTC-USDC",
+    "MON-USD",
     "MON-USDC",
+    "NCT-USD",
     "NCT-USDC",
+    "SENT-USD",
     "SENT-USDC",
+    "WET-USD",
     "WET-USDC",
+    "XPL-USD",
     "XPL-USDC",
+    "ZKP-USD",
     "ZKP-USDC"
   ],
+  "ticker_to_trading": {
+    "BTC-USD": "BTC-USDC",
+    "DOGE-USD": "DOGE-USDC",
+    "ETH-USD": "ETH-USDC",
+    "LTC-USD": "LTC-USDC",
+    "MON-USD": "MON-USDC",
+    "NCT-USD": "NCT-USDC",
+    "SENT-USD": "SENT-USDC",
+    "WET-USD": "WET-USDC",
+    "XPL-USD": "XPL-USDC",
+    "ZKP-USD": "ZKP-USDC"
+  },
   "metadata": {
     "BIP-20DEC30-CDE": {
       "type": "FUTURE",

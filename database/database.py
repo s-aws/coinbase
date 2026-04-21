@@ -20,6 +20,9 @@ import psycopg2
 from psycopg2 import sql, Error
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
+from logging_service import get_logger
+
+logger = get_logger("PostgresDB")
 
 
 class PostgresDB:
@@ -71,13 +74,14 @@ class PostgresDB:
         """
         Establish connection to PostgreSQL database.
         
-        Initiates a new connection using stored credentials. Prints confirmation
+        Initiates a new connection using stored credentials. Logs confirmation
         on success and raises an exception on failure.
         
         Raises:
             Error: If connection fails due to invalid credentials or database unavailable.
         """
         try:
+            logger.info(f"Attempting connection to PostgreSQL at {self.host}:{self.port} (db: {self.database})")
             self._conn = psycopg2.connect(
                 host=self.host,
                 port=self.port,
@@ -85,9 +89,9 @@ class PostgresDB:
                 user=self.user,
                 password=self.password
             )
-            print(f"Connected to PostgreSQL at {self.host}:{self.port}")
+            logger.info(f"Successfully connected to PostgreSQL at {self.host}:{self.port}")
         except Error as e:
-            print(f"Error connecting to PostgreSQL: {e}")
+            logger.error(f"Failed to connect to PostgreSQL at {self.host}:{self.port}: {type(e).__name__}: {e}")
             raise
     
     def disconnect(self) -> None:
@@ -95,11 +99,11 @@ class PostgresDB:
         Close database connection.
         
         Safely closes an active connection. Safe to call even if no connection exists.
-        Prints confirmation message on successful disconnection.
+        Logs confirmation message on successful disconnection.
         """
         if self._conn:
             self._conn.close()
-            print("Disconnected from PostgreSQL")
+            logger.info("Disconnected from PostgreSQL")
     
     @contextmanager
     def get_cursor(self):
@@ -123,7 +127,7 @@ class PostgresDB:
             self._conn.commit()
         except Error as e:
             self._conn.rollback()
-            print(f"Database error: {e}")
+            logger.error(f"Database transaction error - rolling back: {type(e).__name__}: {e}")
             raise
         finally:
             cursor.close()
@@ -201,9 +205,14 @@ class PostgresDB:
         col_defs = ", ".join([f"{name} {dtype}" for name, dtype in columns.items()])
         query = f"CREATE TABLE IF NOT EXISTS {table_name} ({col_defs})"
         
-        with self.get_cursor() as cursor:
-            cursor.execute(query)
-        print(f"Table '{table_name}' created successfully")
+        try:
+            logger.debug(f"Creating table '{table_name}' with {len(columns)} columns")
+            with self.get_cursor() as cursor:
+                cursor.execute(query)
+            logger.info(f"Table '{table_name}' created/verified successfully")
+        except Error as e:
+            logger.error(f"Failed to create table '{table_name}': {type(e).__name__}: {e}")
+            raise
     
     def insert(self, table: str, data: Dict[str, Any]) -> int:
         """

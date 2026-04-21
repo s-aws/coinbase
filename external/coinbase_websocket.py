@@ -28,7 +28,7 @@ Usage:
 """
 
 from typing import Callable, List, Dict, Any, Optional
-from coinbase.websocket import WSClient
+from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 
 class CoinbaseWebSocketClient:
@@ -150,13 +150,13 @@ class CoinbaseWebSocketClient:
                 # User channel requires authentication (default)
                 self._client.subscribe(
                     product_ids=products,
-                    channel=channel
+                    channels=[channel]
                 )
             else:
                 # Public channels don't require specific auth
                 self._client.subscribe(
                     product_ids=products,
-                    channel=channel
+                    channels=[channel]
                 )
     
     def unsubscribe(
@@ -254,6 +254,28 @@ class CoinbaseWebSocketClient:
     # ========================================================================
     # Utility Methods
     # ========================================================================
+    
+    def sleep_with_exception_check(self, duration: float) -> bool:
+        """Sleep while checking for connection exceptions.
+        
+        Delegates to the underlying SDK client's sleep_with_exception_check method.
+        Used in connection maintenance loops.
+        
+        Args:
+            duration: Duration to sleep in seconds
+        
+        Returns:
+            True if connection should close, False otherwise
+        
+        Raises:
+            WSClientConnectionClosedException: If connection is lost
+        
+        Examples:
+            >>> while True:
+            ...     if client.sleep_with_exception_check(1):
+            ...         break
+        """
+        return self._client.sleep_with_exception_check(duration)
     
     def get_sdk_client(self) -> WSClient:
         """Get the underlying SDK client (for advanced use only).

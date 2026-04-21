@@ -179,3 +179,14 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# General AI considerations
+genai_data/
+genai_tools/
+.ai-context
+.agent.md
+AGENTS.md
+ID_USAGE_ANALYSIS.md
+.ai-context.md
+agent.md
+ai-context.md
