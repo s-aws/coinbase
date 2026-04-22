@@ -409,7 +409,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             try:
                 from database.order import update_stealth_order_target_movement, get_stealth_order_by_id
                 
-                # Update in database
+                # Update in database (order_parent table is source of truth for target_movement)
                 success = update_stealth_order_target_movement(
                     stealth_order_id=stealth_order_id,
                     target_movement=target_movement,
@@ -417,8 +417,13 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 )
                 
                 if success:
-                    # Get updated order data
-                    order_data = get_stealth_order_by_id(stealth_order_id)
+                    # Sync to in-memory cache for fast access
+                    if stealth_order_bridge:
+                        stealth_order_bridge.stealth_manager.sync_target_movement_to_cache(
+                            stealth_order_id,
+                            target_movement,
+                            target_movement_type
+                        )
                     
                     # Update in-memory state if available
                     with state_lock:
@@ -482,7 +487,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             try:
                 from database.order import update_parent_order_target_movement, get_parent_order
                 
-                # Update in database
+                # Update in database (order_parent table is source of truth for target_movement)
                 success = update_parent_order_target_movement(
                     parent_order_id=parent_order_id,
                     target_movement=target_movement,
@@ -490,8 +495,13 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 )
                 
                 if success:
-                    # Get updated order data
-                    order_data = get_parent_order(parent_order_id)
+                    # Sync to in-memory cache for fast access
+                    if stealth_order_bridge:
+                        stealth_order_bridge.stealth_manager.sync_target_movement_to_cache(
+                            parent_order_id,
+                            target_movement,
+                            target_movement_type
+                        )
                     
                     response = {
                         "type": "parent_target_movement_updated",

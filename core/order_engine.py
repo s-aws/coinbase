@@ -60,7 +60,7 @@ from configuration import (
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus
 from calculation.resolver import resolve_order_size, resolve_order_side
 from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
@@ -1000,12 +1000,10 @@ class OrderEngine:
         order = normalized_order
 
         try:
-            if client_order_id in self.orderbook.child_order_ids:
-                self.db_helper.update_order_child_status(
-                    client_order_id=client_order_id,
-                    status=status,
-                )
-            elif client_order_id in self.orderbook.parent_order_ids:
+            # NOTE: All child orders in this system are stealth orders (stored in stealth_orders table).
+            # Stealth orders are managed by StealthOrderManager, not via order_child table updates.
+            # Therefore, we only update parent orders (stored in order_parent table).
+            if client_order_id in self.orderbook.parent_order_ids:
                 self.db_helper.update_order_parent_status(
                     client_order_id=client_order_id,
                     status=status,
@@ -1382,6 +1380,14 @@ class OrderEngine:
 
             # All orders are stealth orders - create stealth follow-up on cancel
             try:
+                # Update the original stealth order status to CANCELLED
+                if original_stealth_order:
+                    self.stealth_order_bridge.stealth_manager.update_execution(
+                        stealth_order_id=original_stealth_order["stealth_order_id"],
+                        executed_size=0.0,
+                        order_status=StealthOrderStatus.CANCELLED.value
+                    )
+                
                 follow_up_price = float(order_template["start_price"])
                 
                 # Build reveal condition for the follow-up (use same as filled orders)
@@ -1670,6 +1676,14 @@ class OrderEngine:
             # If this is a stealth order follow-up, create a stealth order instead of a regular order
             if original_stealth_order:
                 try:
+                    # Update the original stealth order status to EXECUTED
+                    filled_size = float(order.get("filled_size", order_template["order_base_size"]))
+                    self.stealth_order_bridge.stealth_manager.update_execution(
+                        stealth_order_id=original_stealth_order["stealth_order_id"],
+                        executed_size=filled_size,
+                        order_status=StealthOrderStatus.EXECUTED.value
+                    )
+                    
                     # This is a stealth order fill - create a stealth follow-up instead of a regular order
                     follow_up_price = float(order_template["start_price"])
                     

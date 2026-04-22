@@ -21,9 +21,7 @@ from database.database import PostgresDB
 from database.order import (
     get_parent_order,
     get_parent_orders,
-    get_child_orders,
     insert_order_parent,
-    insert_order_child,
     update_order_parent_status
 )
 from core.models import Order
@@ -220,47 +218,6 @@ class PostgresOrderRepository:
         )
         return parent_id
     
-    def save_child_order(
-        self,
-        parent_order_id: int,
-        client_order_id: str,
-        product_id: str,
-        side: str,
-        size: float,
-        price: float,
-        replacement_order_number: int = 0
-    ) -> int:
-        """Save a child (follow-up) order record.
-        
-        Args:
-            parent_order_id: The parent order ID
-            client_order_id: Child order's client ID
-            product_id: Trading pair
-            side: 'BUY' or 'SELL'
-            size: Order size
-            price: Order price
-            replacement_order_number: Replacement number in the sequence
-        
-        Returns:
-            The child order ID
-        
-        Raises:
-            Exception: If database access fails
-        """
-        # Note: In the actual database.order module, we need the parent_client_order_id
-        # For now, we'll assume parent_order_id can be used as a lookup key
-        # In a real implementation, you'd store the mapping or restructure the DB
-        child_id = insert_order_child(
-            parent_client_order_id=f"parent_{parent_order_id}",
-            client_order_id=client_order_id,
-            product_id=product_id,
-            side=side,
-            size=str(size),
-            price=str(price),
-            status="PENDING"
-        )
-        return child_id
-    
     def get_parent_orders(self) -> List[Dict[str, Any]]:
         """Retrieve all parent orders.
         
@@ -271,21 +228,6 @@ class PostgresOrderRepository:
             Exception: If database access fails
         """
         return self._get_all_parent_orders()
-    
-    def get_children_of_parent(self, parent_order_id: int) -> List[Dict[str, Any]]:
-        """Retrieve all child orders for a parent.
-        
-        Args:
-            parent_order_id: The parent order ID
-        
-        Returns:
-            List of child order records as dictionaries
-        
-        Raises:
-            Exception: If database access fails
-        """
-        parent_client_id = f"parent_{parent_order_id}"
-        return get_child_orders(parent_client_id)
     
     def update_order_status(self, client_order_id: str, status: str) -> None:
         """Update the status of an order.

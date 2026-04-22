@@ -190,10 +190,25 @@ class StealthOrderManager:
         # Persist to database
         self._save_stealth_order_to_db(order_data)
         
-        # UNIFIED TRACKING: If this is a root order (no parent), also insert into order_parent table
+        # UNIFIED TRACKING: Insert into order_parent table (for both parent and child orders)
         # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
-        if not parent_order_id:
-            # Use provided max_order_replacements or fall back to configuration default
+        if parent_order_id:
+            # This is a child/follow-up order - insert with parent reference
+            insert_order_parent(
+                client_order_id=stealth_order_id,
+                product_id=product_id,
+                side=side,
+                size=total_size,
+                price=limit_price,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+                max_order_replacement=0,  # Children don't have follow-ups
+                current_order_replacement=0,
+                status=StealthOrderStatus.PENDING.value,
+                parent_order_id=parent_order_id
+            )
+        else:
+            # This is a root order (no parent) - insert as parent
             effective_max_replacements = max_order_replacements if max_order_replacements is not None else DEFAULT_MAX_ORDER_REPLACEMENT
             
             insert_order_parent(
@@ -206,7 +221,7 @@ class StealthOrderManager:
                 target_movement_type=target_movement_type,
                 max_order_replacement=effective_max_replacements,
                 current_order_replacement=0,
-                status=StealthOrderStatus.PENDING.value  # Stealth orders start as pending in traditional tracking
+                status=StealthOrderStatus.PENDING.value
             )
         
         return stealth_order_id
@@ -568,6 +583,30 @@ class StealthOrderManager:
         return {oid: self._serialize_order_for_json(order) 
                 for oid, order in self.in_memory_orders.items()}
     
+    def sync_target_movement_to_cache(self, stealth_order_id: str, target_movement: float, target_movement_type: str) -> bool:
+        """Sync target_movement changes to in-memory cache.
+        
+        Called after target_movement is updated in the database (order_parent table).
+        Updates the in-memory cache immediately so UI gets fresh data.
+        
+        Args:
+            stealth_order_id: The stealth order to update
+            target_movement: New target movement value
+            target_movement_type: New target movement type ('P' or 'A')
+            
+        Returns:
+            True if successful, False if order not found in cache
+        """
+        order = self.in_memory_orders.get(stealth_order_id)
+        if not order:
+            return False
+        
+        order['target_movement'] = target_movement
+        order['target_movement_type'] = target_movement_type
+        order['updated_at'] = datetime.utcnow()
+        
+        return True
+    
     def find_stealth_order_by_placed_order_id(self, placed_order_id: str) -> Optional[Dict[str, Any]]:
         """Find stealth order that revealed the given placed_order_id.
         
@@ -663,8 +702,8 @@ class StealthOrderManager:
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
                     limit_price, status, reveal_condition_type, reveal_condition_json, 
-                    sizing_strategy_json, reason, notes, parent_order_id, target_movement, target_movement_type)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    sizing_strategy_json, reason, notes, parent_order_id)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -677,9 +716,7 @@ class StealthOrderManager:
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
-                 order.get('parent_order_id'),
-                 order.get('target_movement'),
-                 order.get('target_movement_type'))
+                 order.get('parent_order_id'))
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
@@ -708,8 +745,7 @@ class StealthOrderManager:
             self.db_client.execute_update(
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
-                       executed_size = %s, revealed_orders = %s, last_placement_at = %s,
-                       target_movement = %s, target_movement_type = %s
+                       executed_size = %s, revealed_orders = %s, last_placement_at = %s
                    WHERE stealth_order_id = %s""",
                 (order['status'],
                  order.get('revealed_size', 0),
@@ -717,8 +753,6 @@ class StealthOrderManager:
                  order.get('executed_size', 0),
                  revealed_orders_json,
                  last_placement,
-                 order.get('target_movement'),
-                 order.get('target_movement_type'),
                  order['stealth_order_id'])
             )
         except Exception as e:

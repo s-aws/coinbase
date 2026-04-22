@@ -9,21 +9,18 @@ Useful for resetting the database during development or testing.
 
 Example:
     >>> python __dangerous_delete_all_tables__.py
-    Found 6 table(s) to delete:
+    Found 5 table(s) to delete:
       - order_parent
-      - order_child
       - stealth_orders
       - stealth_order_snapshots
       - stealth_order_reveal_history
       - order_moves
     Dropped table: order_parent
-    Dropped table: order_child
     ...
     All tables deleted successfully!
     
     Creating tables...
     order_parent table done.
-    order_child table done.
     ...
     All tables recreated successfully!
 """
@@ -31,7 +28,6 @@ Example:
 from database.database import PostgresDB
 from database.order import (
     create_order_parent_table,
-    create_order_child_table,
     create_stealth_orders_table,
     create_stealth_order_snapshots_table,
     create_stealth_order_reveal_history_table,
@@ -63,21 +59,18 @@ def main() -> None:
     
     Example:
         >>> main()
-        Found 6 table(s) to delete:
+        Found 5 table(s) to delete:
           - order_parent
-          - order_child
           - stealth_orders
           - stealth_order_snapshots
           - stealth_order_reveal_history
           - order_moves
         Dropped table: order_parent
-        Dropped table: order_child
         ...
         All tables deleted successfully!
         
         Creating tables...
         order_parent table done.
-        order_child table done.
         ...
         All tables created successfully!
     """
@@ -130,7 +123,6 @@ def main() -> None:
         print("\nCreating tables...")
         try:
             create_order_parent_table()
-            create_order_child_table()
             create_stealth_orders_table()
             create_stealth_order_snapshots_table()
             create_stealth_order_reveal_history_table()
