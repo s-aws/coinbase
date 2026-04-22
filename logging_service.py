@@ -1,7 +1,22 @@
-"""Custom logging service that wraps the dashboard logging system.
+"""Logging service using Python's industry-standard logging module.
 
-Provides a logger interface compatible with Python's standard logging module
-so it can be easily swapped out in the future.
+This module wraps Python's built-in logging to provide:
+- Industry-standard logging using Python's logging module
+- Dashboard integration via custom handler
+- Structured logging support via extra context
+- Backward compatible API with the previous custom logger
+
+The standard logging module is used for:
+- Reliable log level filtering
+- Multiple handler support
+- Standard formatter patterns
+- Exception tracking and traceback capture
+- Thread-safe logging
+
+Dashboard Backend:
+- Logs are forwarded to the dashboard via set_backend()
+- Custom handler captures all logs for real-time display
+- Supports structured logging with context dictionaries
 
 Usage:
     >>> from logging_service import get_logger
@@ -11,231 +26,248 @@ Usage:
     >>> logger.debug("Debug info", extra={"value": 42})
 """
 
-from typing import Dict, Any, Optional
-from functools import partial
+import logging
+import json
+from typing import Dict, Any, Optional, Callable
 
 
-# Log level constants
-LOG_LEVELS = {
-    "DEBUG": 10,
-    "INFO": 20,
-    "WARNING": 30,
-    "ERROR": 40,
-    "CRITICAL": 50,
-}
+# Console formatter with timestamp and level
+_FORMATTER = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
-# Default logging level (set to INFO to hide DEBUG messages by default)
-_current_log_level = LOG_LEVELS["INFO"]
-
-# This will be set by main.py to point to the dashboard's add_log_entry function
-_add_log_entry_backend = None
+# Global reference to dashboard backend function
+_dashboard_backend: Optional[Callable] = None
+_dashboard_handler: Optional['DashboardHandler'] = None
 
 
-def set_log_level(level: str):
+class DashboardHandler(logging.Handler):
+    """Custom logging handler that forwards logs to the dashboard.
+    
+    This handler captures all logging records and sends them to the dashboard
+    backend for real-time display and storage.
+    """
+    
+    def __init__(self, backend_func: Callable):
+        """Initialize the dashboard handler.
+        
+        Args:
+            backend_func: Function with signature (level: str, message: str, context: Dict = None)
+        """
+        super().__init__()
+        self.backend_func = backend_func
+    
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record to the dashboard.
+        
+        Args:
+            record: The logging record to emit
+        """
+        try:
+            # Extract level name
+            level = record.levelname
+            
+            # Format the message
+            message = record.getMessage()
+            
+            # Extract context from record
+            context = {}
+            
+            # Include exception info if present
+            if record.exc_info:
+                import traceback
+                context['traceback'] = ''.join(traceback.format_exception(*record.exc_info))
+            
+            # Include any extra fields from the record that are JSON-serializable
+            # Standard logging fields to exclude
+            standard_fields = {
+                'name', 'msg', 'args', 'created', 'filename', 'funcName',
+                'levelname', 'levelno', 'lineno', 'module', 'msecs', 'message',
+                'pathname', 'process', 'processName', 'relativeCreated', 'thread',
+                'threadName', 'exc_info', 'exc_text', 'stack_info', 'taskName'
+            }
+            
+            for key, value in record.__dict__.items():
+                if key not in standard_fields and not key.startswith('_'):
+                    # Only include fields that are JSON-serializable
+                    # This prevents non-serializable objects like WebSocketServerProtocol
+                    # from being included in the dashboard logs
+                    if self._is_serializable(value):
+                        context[key] = value
+            
+            # Call backend
+            self.backend_func(level, message, context)
+            
+        except Exception:
+            # If dashboard logging fails, don't let it crash the application
+            self.handleError(record)
+    
+    @staticmethod
+    def _is_serializable(value: Any) -> bool:
+        """Check if a value is JSON-serializable or convertible.
+        
+        This checks if a value can be serialized to JSON directly, or if it's
+        a known type that can be converted by CustomJSONEncoder (Decimal, datetime).
+        
+        Args:
+            value: The value to check
+            
+        Returns:
+            True if the value can be serialized directly or converted via CustomJSONEncoder
+        """
+        # Import here to avoid circular imports
+        from decimal import Decimal
+        from datetime import (datetime, date, time)
+        
+        # Check for standard JSON-serializable types first
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return True
+        
+        if isinstance(value, (list, tuple)):
+            # Recursively check list/tuple contents
+            return all(DashboardHandler._is_serializable(item) for item in value)
+        
+        if isinstance(value, dict):
+            # Recursively check dict keys and values
+            return all(
+                isinstance(k, str) and DashboardHandler._is_serializable(v)
+                for k, v in value.items()
+            )
+        
+        # Check for types that CustomJSONEncoder can handle
+        if isinstance(value, (Decimal, datetime, date, time)):
+            return True
+        
+        # For anything else, try to serialize it
+        try:
+            json.dumps(value)
+            return True
+        except (TypeError, ValueError):
+            return False
+
+
+def set_backend(add_log_entry_func: Callable) -> None:
+    """Set the backend logging function (called from main.py).
+    
+    This function sets up the dashboard handler to forward logs to the dashboard.
+    
+    Args:
+        add_log_entry_func: Function with signature (level: str, message: str, context: Dict = None)
+    
+    Example:
+        >>> from logging_service import set_backend
+        >>> def dashboard_logger(level, message, context):
+        ...     # Store in database or send to dashboard
+        ...     print(f"[{level}] {message}")
+        >>> set_backend(dashboard_logger)
+    """
+    global _dashboard_backend, _dashboard_handler
+    
+    _dashboard_backend = add_log_entry_func
+    
+    # Create and configure the dashboard handler if we have a backend
+    if add_log_entry_func:
+        _dashboard_handler = DashboardHandler(add_log_entry_func)
+        # Use a simple formatter for dashboard handler
+        dashboard_formatter = logging.Formatter('%(message)s')
+        _dashboard_handler.setFormatter(dashboard_formatter)
+        
+        # Add handler to the root logger
+        root_logger = logging.getLogger()
+        
+        # Remove any existing dashboard handlers to avoid duplicates
+        for handler in root_logger.handlers[:]:
+            if isinstance(handler, DashboardHandler):
+                root_logger.removeHandler(handler)
+        
+        # Add the new dashboard handler
+        root_logger.addHandler(_dashboard_handler)
+
+
+def set_log_level(level: str) -> None:
     """Set the minimum logging level to display.
     
     Args:
         level: One of "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+    
+    Raises:
+        ValueError: If level is not a valid log level
+    
+    Example:
+        >>> from logging_service import set_log_level
+        >>> set_log_level("DEBUG")
     """
-    global _current_log_level
-    if level in LOG_LEVELS:
-        _current_log_level = LOG_LEVELS[level]
-        print(f"Logging level set to {level}")
-    else:
-        raise ValueError(f"Invalid logging level: {level}. Must be one of {list(LOG_LEVELS.keys())}")
+    valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    
+    if level.upper() not in valid_levels:
+        raise ValueError(
+            f"Invalid logging level: {level}. Must be one of {valid_levels}"
+        )
+    
+    # Set level on root logger and all configured loggers
+    logging.getLogger().setLevel(level.upper())
+    print(f"Logging level set to {level.upper()}")
 
 
 def get_log_level() -> str:
-    """Get the current logging level."""
-    for level_name, level_value in LOG_LEVELS.items():
-        if level_value == _current_log_level:
-            return level_name
-    return "INFO"
-
-
-def set_backend(add_log_entry_func):
-    """Set the backend logging function (called from main.py).
+    """Get the current logging level.
     
-    Args:
-        add_log_entry_func: Function with signature (level: str, message: str, context: Dict = None)
+    Returns:
+        The current logging level as a string (e.g., "INFO", "DEBUG")
+    
+    Example:
+        >>> from logging_service import get_log_level
+        >>> level = get_log_level()
+        >>> print(f"Current level: {level}")
     """
-    global _add_log_entry_backend
-    _add_log_entry_backend = add_log_entry_func
+    return logging.getLevelName(logging.getLogger().level)
 
 
-class CustomLogger:
-    """Custom logger that mimics Python's logging.Logger interface.
-    
-    Provides the same method signatures as standard logging.Logger:
-    - info(msg, *args, **kwargs)
-    - error(msg, *args, **kwargs)
-    - warning(msg, *args, **kwargs)
-    - debug(msg, *args, **kwargs)
-    
-    Can be swapped with standard logging.Logger without code changes.
-    """
-    
-    def __init__(self, name: str):
-        """Initialize logger with a name.
-        
-        Args:
-            name: Logger name (e.g., 'PostgresDB', 'OrderDB')
-        """
-        self.name = name
-    
-    def _format_message(self, msg: str, *args, extra: Optional[Dict[str, Any]] = None) -> tuple:
-        """Format message with args and extract extra context.
-        
-        Args:
-            msg: Message string with optional %s placeholders
-            args: Arguments to substitute into message
-            extra: Extra context dict (from kwargs)
-        
-        Returns:
-            Tuple of (formatted_message, context_dict)
-        """
-        # Format message with positional args if provided
-        if args:
-            try:
-                formatted_msg = msg % args
-            except (TypeError, ValueError):
-                # If formatting fails, just concatenate
-                formatted_msg = f"{msg} {args}"
-        else:
-            formatted_msg = msg
-        
-        # Extract context from extra kwarg
-        context = {}
-        if extra and isinstance(extra, dict):
-            context = extra.copy()
-        
-        return formatted_msg, context
-    
-    def _should_log(self, level: str) -> bool:
-        """Check if a message at this level should be logged.
-        
-        Args:
-            level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-            
-        Returns:
-            True if message should be printed/logged
-        """
-        return LOG_LEVELS.get(level, 20) >= _current_log_level
-    
-    def info(self, msg: str, *args, **kwargs) -> None:
-        """Log an info message.
-        
-        Args:
-            msg: Message string
-            args: Arguments to format into message
-            extra: Dict with additional context
-        """
-        if not self._should_log("INFO"):
-            return
-            
-        formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
-        # Print to console
-        print(f"[INFO] {self.name}: {formatted_msg}")
-        # Also send to backend if available
-        if _add_log_entry_backend:
-            _add_log_entry_backend("INFO", formatted_msg, context)
-    
-    def error(self, msg: str, *args, **kwargs) -> None:
-        """Log an error message.
-        
-        Args:
-            msg: Message string
-            args: Arguments to format into message
-            extra: Dict with additional context
-            exc_info: If True, include exception information
-        """
-        if not self._should_log("ERROR"):
-            return
-            
-        formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
-        if kwargs.get('exc_info'):
-            import traceback
-            context['traceback'] = traceback.format_exc()
-        # Print to console
-        print(f"[ERROR] {self.name}: {formatted_msg}")
-        # Also send to backend if available
-        if _add_log_entry_backend:
-            _add_log_entry_backend("ERROR", formatted_msg, context)
-    
-    def warning(self, msg: str, *args, **kwargs) -> None:
-        """Log a warning message.
-        
-        Args:
-            msg: Message string
-            args: Arguments to format into message
-            extra: Dict with additional context
-        """
-        if not self._should_log("WARNING"):
-            return
-            
-        formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
-        # Print to console
-        print(f"[WARNING] {self.name}: {formatted_msg}")
-        # Also send to backend if available
-        if _add_log_entry_backend:
-            _add_log_entry_backend("WARNING", formatted_msg, context)
-    
-    def warn(self, msg: str, *args, **kwargs) -> None:
-        """Alias for warning() for compatibility."""
-        self.warning(msg, *args, **kwargs)
-    
-    def debug(self, msg: str, *args, **kwargs) -> None:
-        """Log a debug message.
-        
-        Args:
-            msg: Message string
-            args: Arguments to format into message
-            extra: Dict with additional context
-        """
-        if not self._should_log("DEBUG"):
-            return
-            
-        formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
-        # Print to console
-        print(f"[DEBUG] {self.name}: {formatted_msg}")
-        # Also send to backend if available
-        if _add_log_entry_backend:
-            _add_log_entry_backend("DEBUG", formatted_msg, context)
-    
-    def critical(self, msg: str, *args, **kwargs) -> None:
-        """Log a critical message.
-        
-        Args:
-            msg: Message string
-            args: Arguments to format into message
-            extra: Dict with additional context
-        """
-        if not self._should_log("CRITICAL"):
-            return
-            
-        formatted_msg, context = self._format_message(msg, *args, extra=kwargs.get('extra'))
-        # Print to console
-        print(f"[CRITICAL] {self.name}: {formatted_msg}")
-        # Also send to backend if available
-        if _add_log_entry_backend:
-            _add_log_entry_backend("CRITICAL", formatted_msg, context)
 
-
-def get_logger(name: str) -> CustomLogger:
-    """Get a logger instance with the given name.
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger instance using Python's standard logging module.
     
-    Mimics logging.getLogger() interface.
+    This function returns a standard Python logger configured for your application.
+    It uses the industry-standard logging module and supports:
+    - Multiple log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    - Structured logging via the 'extra' parameter
+    - Exception tracking with exc_info=True
+    - Dashboard integration via set_backend()
     
     Args:
         name: Logger name (e.g., 'PostgresDB', 'OrderDB')
     
     Returns:
-        CustomLogger instance
+        logging.Logger instance (standard Python logger)
     
     Example:
         >>> from logging_service import get_logger
         >>> logger = get_logger("MyModule")
         >>> logger.info("Starting module")
         >>> logger.error("Something failed", extra={"order_id": "123"})
+        >>> logger.debug("Debug value: %s", value)
+        >>> logger.error("Exception occurred", exc_info=True)
+    
+    Notes:
+        - This returns the standard logging.Logger class
+        - No code changes needed if you switch between this and standard logging
+        - The returned logger has console output plus dashboard integration
+        - Use set_backend() in main.py to enable dashboard logging
     """
-    return CustomLogger(name)
+    # Configure root logger if not already done
+    root_logger = logging.getLogger()
+    
+    # Set a default level if not already set
+    if root_logger.level == logging.NOTSET:
+        root_logger.setLevel(logging.INFO)
+    
+    # Add a console handler if one doesn't exist
+    if not any(isinstance(h, logging.StreamHandler) and not isinstance(h, DashboardHandler) 
+               for h in root_logger.handlers):
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(_FORMATTER)
+        root_logger.addHandler(console_handler)
+    
+    # Return a logger with the given name
+    return logging.getLogger(name)

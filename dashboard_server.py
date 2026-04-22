@@ -110,7 +110,7 @@ async def _async_broadcast_state():
             "timestamp": datetime.utcnow().isoformat(),
         }
     
-    message = json.dumps(payload)
+    message = json.dumps(payload, cls=CustomJSONEncoder)
     
     for client in connected_clients.copy():
         try:
@@ -138,7 +138,7 @@ async def broadcast_state(websocket: WebSocketServerProtocol = None):
             "timestamp": datetime.utcnow().isoformat(),
         }
     
-    message = json.dumps(payload)
+    message = json.dumps(payload, cls=CustomJSONEncoder)
     
     if websocket:
         # Send to single client
@@ -939,11 +939,12 @@ def update_engine_status(status_data: Dict[str, Any]):
 
 
 def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
-    """Add log entry to dashboard and print to console."""
-    # Print to console immediately
-    print(f"[{level}] {message}")
+    """Add log entry to dashboard for UI display and storage.
     
-    # Also store in engine state for UI
+    Note: Console output is handled by Python's logging module, not here.
+    This function only stores the log entry in engine_state for the dashboard UI.
+    """
+    # Store in engine state for UI
     with state_lock:
         entry = {
             "timestamp": datetime.utcnow().isoformat(),
