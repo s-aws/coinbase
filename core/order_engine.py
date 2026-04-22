@@ -60,7 +60,7 @@ from configuration import (
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType
 from calculation.resolver import resolve_order_size, resolve_order_side
 from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
@@ -842,7 +842,7 @@ class OrderEngine:
 
             if any((
                 "events" not in json_msg,
-                channel == "subscriptions",
+                channel == ChannelType.SUBSCRIPTIONS.value,
                 not channel,
                 channel not in self.event_queue,
             )):
@@ -1394,7 +1394,7 @@ class OrderEngine:
                 from database.order import get_parent_order
                 parent_order_data = get_parent_order(parent_client_order_id)
                 parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                parent_target_movement_type = parent_order_data.get("target_movement_type", "P") if parent_order_data else "P"
+                parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
                 
                 stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
                     original_stealth_order_id=client_order_id,
@@ -1688,28 +1688,28 @@ class OrderEngine:
                     
                     # Build the reveal condition for the follow-up using configurable direction
                     follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
-                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", "opposite")
+                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value)
                     
                     if follow_up_reveal_condition.get("type") == "price":
                         # Set threshold to the ACTUAL price where we plan to place the new order
                         # Use float conversion to ensure numeric precision
                         follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
                         
-                        if direction_choice == "opposite":
+                        if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
                             # Flip direction (below → above, above → below)
                             if "direction" in follow_up_reveal_condition:
-                                follow_up_reveal_condition["direction"] = "above" if follow_up_reveal_condition.get("direction") == "below" else "below"
-                        elif direction_choice in ["above", "below"]:
-                            # Use explicit direction
-                            follow_up_reveal_condition["direction"] = direction_choice
-                        # else: "same" - keep original direction unchanged
+                                follow_up_reveal_condition["direction"] = Direction.ABOVE.value if follow_up_reveal_condition.get("direction") == Direction.BELOW.value else Direction.BELOW.value
+                        elif direction_choice == FollowUpRevealDirection.SAME.value:
+                            # Keep original direction unchanged
+                            pass
+                        # else: Unknown direction choice, keep original
                     
                     # Create the stealth follow-up order (hidden, not revealed yet)
                     # Get target_movement from parent order (stored in order_parent table)
                     from database.order import get_parent_order
                     parent_order_data = get_parent_order(parent_client_order_id)
                     parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                    parent_target_movement_type = parent_order_data.get("target_movement_type", "P") if parent_order_data else "P"
+                    parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
                     
                     # Debug: Log the exact reveal condition being set
                     self.log_message(
@@ -1801,7 +1801,7 @@ class OrderEngine:
                 "orders": [],
                 "target_movement": {
                     "movement": float(parent["target_movement"]),
-                    "type": parent.get("target_movement_type", "P"),
+                    "type": parent.get("target_movement_type", TargetMovementType.PERCENTAGE.value),
                 },
                 "max_order_replacement": int(parent["max_order_replacement"]),
                 "current_order_replacement": int(parent["current_order_replacement"]),
@@ -2039,7 +2039,7 @@ class OrderEngine:
             while True:
                 event = self.event_queue[channel].get()
                 try:
-                    if channel == "ticker":
+                    if channel == ChannelType.TICKER.value:
                         with self.ticker_lock:
                             self.log_message(
                                 "ticker",
@@ -2064,7 +2064,7 @@ class OrderEngine:
                                 if self.stealth_order_bridge and product_id:
                                     self.stealth_order_bridge.process_ticker_update(product_id, tickr)
 
-                    elif channel == "user":
+                    elif channel == ChannelType.USER.value:
                         self.log_message(
                             "user",
                             self.build_event_log_payload(

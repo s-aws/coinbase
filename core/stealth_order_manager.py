@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
+from core.enums import FollowUpRevealDirection, StealthOrderStatus
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 
@@ -104,7 +105,8 @@ class StealthOrderManager:
             sizing_strategy: Dict specifying adaptive reveal sizing (default: fixed)
                             Example: {'type': 'volume_proportional', 'min_reveal': 0.1}
             parent_order_id: Client order ID if this is a child/follow-up order
-            follow_up_reveal_direction: Direction for follow-up reveals ('same', 'opposite', etc.)
+            follow_up_reveal_direction: Direction for follow-up reveals (FollowUpRevealDirection.SAME or OPPOSITE).
+                                       Accepts enum or string value. Defaults to OPPOSITE.
             reason: Reason for order (e.g., 'normal_placement', 'follow_up_replacement')
             notes: Additional notes for tracking
             stealth_order_id: Optional UUID provided by caller (UI or engine). 
@@ -167,11 +169,11 @@ class StealthOrderManager:
             "limit_price": float(limit_price),
             "revealed_size": 0.0,
             "remaining_size": float(total_size),
-            "status": "HIDDEN",
+            "status": StealthOrderStatus.HIDDEN.value,
             "visibility_score": 0.0,
             "reveal_condition_type": reveal_condition.get("type", "time_delay"),
             "reveal_condition_json": reveal_condition,
-            "follow_up_reveal_direction": follow_up_reveal_direction or "opposite",
+            "follow_up_reveal_direction": follow_up_reveal_direction or FollowUpRevealDirection.OPPOSITE.value,
             "sizing_strategy_json": sizing_strategy or {"type": "fixed"},
             "parent_order_id": parent_order_id,
             "reason": reason,
@@ -204,7 +206,7 @@ class StealthOrderManager:
                 target_movement_type=target_movement_type,
                 max_order_replacement=effective_max_replacements,
                 current_order_replacement=0,
-                status="pending"  # Stealth orders start as pending in traditional tracking
+                status=StealthOrderStatus.PENDING.value  # Stealth orders start as pending in traditional tracking
             )
         
         return stealth_order_id
@@ -236,13 +238,13 @@ class StealthOrderManager:
         # Update condition tracking
         if condition_met and not order.get("condition_confirmed_at"):
             order["condition_confirmed_at"] = datetime.utcnow()
-            order["status"] = "TRIGGERED"
+            order["status"] = StealthOrderStatus.TRIGGERED.value
             self._update_stealth_order(order)
         elif not condition_met and order.get("condition_first_met_at") is None:
             # First time condition partially met
             if reason and ("watching" in reason or "waiting" in reason):
                 order["condition_first_met_at"] = datetime.utcnow()
-                order["status"] = "PENDING"
+                order["status"] = StealthOrderStatus.PENDING.value
                 self._update_stealth_order(order)
         
         return condition_met, reason
@@ -261,7 +263,7 @@ class StealthOrderManager:
         if not order:
             return False, "Order not found"
         
-        if order["status"] in ["EXECUTED", "CANCELLED"]:
+        if order["status"] in [StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value]:
             return False, f"Order already {order['status']}"
         
         if order["remaining_size"] <= 0:
@@ -358,7 +360,7 @@ class StealthOrderManager:
         order["visibility_score"] = order["revealed_size"] / order["total_size"]
         
         if order["remaining_size"] <= 0:
-            order["status"] = "REVEALED"
+            order["status"] = StealthOrderStatus.REVEALED.value
         
         order["updated_at"] = datetime.utcnow()
         order["last_placement_at"] = datetime.utcnow()
@@ -372,7 +374,7 @@ class StealthOrderManager:
         
         return placed_order_id
     
-    def update_execution(self, stealth_order_id: str, executed_size: float, order_status: str = "EXECUTED"):
+    def update_execution(self, stealth_order_id: str, executed_size: float, order_status: str = StealthOrderStatus.EXECUTED.value):
         """
         Update stealth order with execution information.
         
@@ -404,10 +406,10 @@ class StealthOrderManager:
         if not order:
             return False
         
-        if order["status"] == "CANCELLED":
+        if order["status"] == StealthOrderStatus.CANCELLED.value:
             return False
         
-        order["status"] = "CANCELLED"
+        order["status"] = StealthOrderStatus.CANCELLED.value
         order["updated_at"] = datetime.utcnow()
         order["notes"] = f"{order['notes']}\nCancelled: {reason}"
         
@@ -510,7 +512,12 @@ class StealthOrderManager:
     
     def _get_active_stealth_orders(self) -> List[str]:
         """Get list of active stealth order IDs."""
-        active_statuses = ["HIDDEN", "PENDING", "TRIGGERED", "REVEALED"]
+        active_statuses = [
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+            StealthOrderStatus.TRIGGERED.value,
+            StealthOrderStatus.REVEALED.value
+        ]
         return [
             sid for sid, order in self.in_memory_orders.items()
             if order.get("status") in active_statuses
@@ -596,8 +603,10 @@ class StealthOrderManager:
             total_size: Size for follow-up order
             limit_price: Price for follow-up order
             reveal_condition: Optional override for reveal condition. If not provided, uses original's condition.
-            follow_up_reveal_direction: Direction override ('same', 'opposite', 'above', 'below'). 
-                                       If None, inherits from original. If 'opposite', flips the direction.
+            follow_up_reveal_direction: Direction strategy for follow-up (FollowUpRevealDirection.SAME or OPPOSITE).
+                                       Accepts enum or string value. If None, inherits from original.
+                                       - SAME: Keep same side (BUY stays BUY, SELL stays SELL)
+                                       - OPPOSITE: Flip side (BUY becomes SELL, SELL becomes BUY)
             notes: Additional notes
             target_movement: Optional override for target movement. If not provided, uses original's target_movement.
             target_movement_type: Type for target movement ('P' or 'A'). Default 'P'.
@@ -627,7 +636,7 @@ class StealthOrderManager:
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
             parent_order_id=original_order.get("parent_order_id") or original_stealth_order_id,
-            follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", "opposite"),
+            follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value),
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
         )

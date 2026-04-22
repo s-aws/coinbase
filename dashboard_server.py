@@ -28,6 +28,7 @@ except ImportError:
 
 # Use custom logging service
 from logging_service import get_logger
+from core.enums import FollowUpRevealDirection
 
 logger = get_logger("DashboardServer")
 
@@ -316,7 +317,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     limit_price=order['limit_price'],
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
-                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'opposite'),
+                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                     notes=order.get('notes', ''),
                     max_order_replacements=order.get('max_order_replacements'),
                     target_movement=order.get('target_movement', 0.002),
