@@ -21,7 +21,7 @@ from websockets.server import WebSocketServerProtocol
 
 # Import REST client for order placement
 try:
-    from configuration import REST_CLIENT
+    from configuration import REST_CLIENT, rest_get_products
     REST_CLIENT_AVAILABLE = True
 except ImportError:
     REST_CLIENT_AVAILABLE = False
@@ -825,6 +825,75 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         elif msg_type == "ping":
             response = {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
             await websocket.send(json.dumps(response))
+        
+        elif msg_type == "update_products_list":
+            # Update products.json with latest data from REST API
+            logger.info("Products list update requested")
+            
+            try:
+                result = update_products_json_from_api()
+                
+                if result["success"]:
+                    response = {
+                        "type": "products_list_updated",
+                        "status": "success",
+                        "message": result["message"],
+                        "derivatives_count": result["derivatives_count"],
+                        "spot_count": result["spot_count"],
+                        "metadata_count": result["metadata_count"],
+                    }
+                    add_log_entry("INFO", f"Products list updated: {result['derivatives_count']} derivatives, {result['spot_count']} spot products")
+                    logger.info(f"Products updated successfully: {result['derivatives_count']} derivatives, {result['spot_count']} spot")
+                else:
+                    response = {
+                        "type": "products_list_updated",
+                        "status": "error",
+                        "message": result["message"],
+                        "derivatives_count": 0,
+                        "spot_count": 0,
+                        "metadata_count": 0,
+                    }
+                    add_log_entry("ERROR", f"Products list update failed: {result['message']}")
+                
+                # Send response to requesting client
+                await websocket.send(json.dumps(response))
+                
+                # If successful, broadcast updated products to all clients
+                if result["success"]:
+                    try:
+                        products_file = Path(__file__).parent / "products.json"
+                        if products_file.exists():
+                            with open(products_file, 'r') as f:
+                                products_data = json.load(f)
+                                broadcast_payload = {
+                                    "type": "products_list",
+                                    "derivatives": products_data.get("derivatives", []),
+                                    "spot": products_data.get("spot", []),
+                                    "metadata": products_data.get("metadata", {}),
+                                }
+                                
+                                # Broadcast to all connected clients
+                                message = json.dumps(broadcast_payload)
+                                for client in connected_clients.copy():
+                                    try:
+                                        await client.send(message)
+                                    except websockets.exceptions.ConnectionClosed:
+                                        connected_clients.discard(client)
+                    except Exception as e:
+                        logger.error(f"Failed to broadcast updated products: {e}")
+                
+            except Exception as e:
+                logger.error(f"Products list update failed: {str(e)}")
+                response = {
+                    "type": "products_list_updated",
+                    "status": "error",
+                    "message": f"Failed to update products: {str(e)}",
+                    "derivatives_count": 0,
+                    "spot_count": 0,
+                    "metadata_count": 0,
+                }
+                add_log_entry("ERROR", f"Products update exception: {str(e)}")
+                await websocket.send(json.dumps(response))
             
     except json.JSONDecodeError:
         logger.error(f"Invalid JSON received: {message}")
@@ -887,6 +956,113 @@ def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
         if len(engine_state["logs"]) > max_logs:
             engine_state["logs"] = engine_state["logs"][-max_logs:]
     _trigger_broadcast()
+
+
+def update_products_json_from_api() -> Dict[str, Any]:
+    """Update products.json with the latest data from Coinbase REST API.
+    
+    Fetches current product metadata for derivatives and spot products,
+    organizes them by type, and updates the products.json file while
+    preserving the ticker_to_trading mapping if it exists.
+    
+    Returns:
+        Dictionary with status information:
+        {
+            "success": bool,
+            "message": str,
+            "derivatives_count": int,
+            "spot_count": int,
+            "metadata_count": int
+        }
+    
+    Raises:
+        Exception: If REST API call fails
+    """
+    try:
+        # Fetch all products from REST API
+        api_products = rest_get_products()
+        logger.info(f"Fetched {len(api_products)} products from REST API")
+        
+        # Separate derivatives and spot products
+        derivatives = []
+        spot = []
+        metadata = {}
+        
+        for product_id, product_data in api_products.items():
+            # Determine product type
+            product_type = product_data.get("product_type", "").upper()
+            
+            if product_type == "PERPETUAL_FUTURE" or product_type == "FUTURE":
+                derivatives.append(product_id)
+            else:
+                # Default to SPOT for any other type
+                spot.append(product_id)
+            
+            # Extract metadata for this product
+            metadata[product_id] = {
+                "type": product_type if product_type in ["SPOT", "FUTURE", "PERPETUAL_FUTURE"] else "UNKNOWN",
+                "base_currency": product_data.get("base_currency"),
+                "quote_currency": product_data.get("quote_currency"),
+                "base_increment": str(product_data.get("base_increment", "")),
+                "quote_increment": str(product_data.get("quote_increment", "")),
+                "price_increment": str(product_data.get("price_increment", "")),
+                "display_name": product_data.get("display_name"),
+                "status": product_data.get("status"),
+                "mid_price": product_data.get("mid_price"),
+                "trading_disabled": product_data.get("trading_disabled", False),
+                "contract_size": str(product_data.get("contract_size", "")) if "contract_size" in product_data else None,
+                "expiry": product_data.get("expiry"),
+            }
+        
+        # Load existing products.json to preserve ticker_to_trading mapping
+        products_file = Path(__file__).parent / "products.json"
+        existing_data = {}
+        
+        if products_file.exists():
+            try:
+                with open(products_file, 'r') as f:
+                    existing_data = json.load(f)
+            except Exception as e:
+                logger.warning(f"Could not read existing products.json: {e}")
+        
+        # Build the updated products data with desired key order
+        # Put spot and derivatives at the top (human-managed), then metadata
+        updated_data = {}
+        updated_data["spot"] = sorted(spot)
+        updated_data["derivatives"] = sorted(derivatives)
+        
+        # Preserve ticker_to_trading mapping if it exists
+        if "ticker_to_trading" in existing_data:
+            updated_data["ticker_to_trading"] = existing_data["ticker_to_trading"]
+        
+        # Add metadata last
+        updated_data["metadata"] = metadata
+        
+        # Write updated data to products.json (preserve key order, don't sort)
+        with open(products_file, 'w') as f:
+            json.dump(updated_data, f, indent=2)
+        
+        logger.info(f"Updated products.json: {len(derivatives)} derivatives, {len(spot)} spot, {len(metadata)} metadata entries")
+        
+        return {
+            "success": True,
+            "message": f"Successfully updated products.json with {len(api_products)} products",
+            "derivatives_count": len(derivatives),
+            "spot_count": len(spot),
+            "metadata_count": len(metadata),
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to update products.json: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "message": error_msg,
+            "derivatives_count": 0,
+            "spot_count": 0,
+            "metadata_count": 0,
+        }
+
 
 
 async def _async_broadcast_ticker(ticker_data: Dict[str, Any]):
@@ -1123,6 +1299,16 @@ async def run_websocket_server(host: str = "localhost", port: int = 8765):
     server_event_loop = asyncio.get_event_loop()
     
     logger.info(f"Starting WebSocket server on ws://{host}:{port}")
+    
+    # Update products from REST API on startup
+    logger.info("Updating products list from REST API on startup...")
+    update_result = update_products_json_from_api()
+    if update_result["success"]:
+        logger.info(f"Initial products update: {update_result['derivatives_count']} derivatives, {update_result['spot_count']} spot products loaded")
+        add_log_entry("INFO", f"Products loaded: {update_result['derivatives_count']} derivatives, {update_result['spot_count']} spot")
+    else:
+        logger.warning(f"Initial products update failed: {update_result['message']}")
+        add_log_entry("WARNING", f"Products update failed: {update_result['message']}")
     
     # Start spread broadcast loop as background task
     asyncio.create_task(_spread_broadcast_loop())
