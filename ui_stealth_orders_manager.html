@@ -1268,14 +1268,27 @@
             const tbody = document.getElementById('orders-tbody');
             let orders = Object.values(ordersData);
             
-            // Sort by Product (ascending), then by Parent/Child relationship, then by Date-Time (descending)
-            orders.sort((a, b) => {
-                // Primary sort: by product_id
-                if (a.product_id !== b.product_id) {
-                    return a.product_id.localeCompare(b.product_id);
+            // First pass: count children for each parent
+            const childCountByParent = {};
+            orders.forEach(order => {
+                if (!order.parent_order_id) {
+                    // This is a parent
+                    childCountByParent[order.stealth_order_id] = 0;
                 }
-                
-                // Secondary sort: by parent/child relationship
+            });
+            
+            orders.forEach(order => {
+                if (order.parent_order_id) {
+                    // This is a child, increment parent's child count
+                    if (childCountByParent[order.parent_order_id] !== undefined) {
+                        childCountByParent[order.parent_order_id]++;
+                    }
+                }
+            });
+            
+            // Sort by Parent->Child count (descending), then by Product ID (ascending)
+            orders.sort((a, b) => {
+                // Primary sort: by parent/child relationship
                 // Orders without parent_order_id (parents) come first, then orders with parent_order_id
                 const aHasParent = a.parent_order_id ? 1 : 0;
                 const bHasParent = b.parent_order_id ? 1 : 0;
@@ -1283,17 +1296,29 @@
                     return aHasParent - bHasParent;
                 }
                 
-                // If both are children, group by parent_order_id
+                // If both are parents, sort by child count (descending) then product_id
+                if (aHasParent === 0 && bHasParent === 0) {
+                    const aChildCount = childCountByParent[a.stealth_order_id] || 0;
+                    const bChildCount = childCountByParent[b.stealth_order_id] || 0;
+                    
+                    if (aChildCount !== bChildCount) {
+                        return bChildCount - aChildCount; // Descending (more children first)
+                    }
+                    
+                    // If same child count, sort by product_id
+                    return a.product_id.localeCompare(b.product_id);
+                }
+                
+                // If both are children, group by parent_order_id, then sort by created_at descending
                 if (aHasParent === 1 && bHasParent === 1) {
                     if (a.parent_order_id !== b.parent_order_id) {
                         return a.parent_order_id.localeCompare(b.parent_order_id);
                     }
+                    
+                    const dateA = new Date(a.created_at || 0);
+                    const dateB = new Date(b.created_at || 0);
+                    return dateB - dateA;
                 }
-                
-                // Tertiary sort: by created_at date-time descending (most recent first)
-                const dateA = new Date(a.created_at || 0);
-                const dateB = new Date(b.created_at || 0);
-                return dateB - dateA;
             });
             
             // Update product dropdown with any new products
