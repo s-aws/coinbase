@@ -714,12 +714,13 @@
                                 <th>Progress</th>
                                 <th>Executed</th>
                                 <th>Parent Target</th>
+                                <th>Max Followups</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="orders-tbody">
                             <tr>
-                                <td colspan="11" style="text-align: center; padding: 30px; color: #666;">
+                                <td colspan="12" style="text-align: center; padding: 30px; color: #666;">
                                     Loading orders...
                                 </td>
                             </tr>
@@ -1403,10 +1404,19 @@
                     createdDateTime = `${dateStr} ${timeStr}`;
                 }
                 
-                const parentTargetMovementStr = order.parent_target_movement 
+                const parentTargetMovementStr = (order.parent_target_movement !== undefined && order.parent_target_movement !== null)
                     ? order.parent_target_movement_type === 'A' 
                         ? `${parseFloat(order.parent_target_movement).toFixed(4)} (Abs)`
                         : `${(parseFloat(order.parent_target_movement) * 100).toFixed(4)}%`
+                    : (order.target_movement !== undefined && order.target_movement !== null)
+                    ? order.target_movement_type === 'A'
+                        ? `${parseFloat(order.target_movement).toFixed(4)} (Abs)`
+                        : `${(parseFloat(order.target_movement) * 100).toFixed(4)}%`
+                    : '-';
+                
+                // Display max followups: for parents, show their own value; for children, show '-'
+                const maxFollowupsStr = order.max_order_replacements !== undefined && order.max_order_replacements !== null
+                    ? order.max_order_replacements
                     : '-';
                 
                 return `
@@ -1426,6 +1436,7 @@
                         </td>
                         <td>${revealedStr}</td>
                         <td style="font-size: 13px; color: #7ba3ff; font-weight: 500;">${parentTargetMovementStr}</td>
+                        <td style="font-size: 13px; font-weight: 500; ${isParent ? 'color: #51cf66;' : 'color: #999;'} text-align: center;">${maxFollowupsStr}</td>
                         <td>
                             <div class="action-buttons">
                                 ${isParent

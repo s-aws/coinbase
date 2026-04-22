@@ -1297,13 +1297,15 @@ async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
 
 
 def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str, Any]:
-    """Enrich stealth orders with their parent's target_movement data.
+    """Enrich stealth orders with parent-related data.
     
     Args:
         orders: Dictionary of stealth_order_id -> order_data
     
     Returns:
-        Same dictionary but with parent_target_movement and parent_target_movement_type added
+        Same dictionary enriched with:
+        - For child orders: parent_target_movement, parent_target_movement_type, parent_max_order_replacements
+        - For parent orders: max_order_replacements from order_parent table
     """
     from database.order import get_parent_order
     
@@ -1311,16 +1313,33 @@ def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str,
     for order_id, order_data in orders.items():
         enriched_order = order_data.copy() if isinstance(order_data, dict) else dict(order_data)
         
-        # Get parent's target_movement if this order has a parent
+        # Check if this is a parent or child order
         parent_order_id = enriched_order.get("parent_order_id")
+        
         if parent_order_id:
+            # Child order: get parent's data by parent_order_id
             try:
                 parent_data = get_parent_order(parent_order_id)
                 if parent_data:
                     enriched_order["parent_target_movement"] = parent_data.get("target_movement")
                     enriched_order["parent_target_movement_type"] = parent_data.get("target_movement_type", "P")
+                    enriched_order["parent_max_order_replacements"] = parent_data.get("max_order_replacement", 0)
             except Exception as e:
                 logger.debug(f"Failed to enrich order {order_id} with parent data: {e}")
+        else:
+            # Parent order: look it up in order_parent using stealth_order_id as client_order_id
+            # to get max_order_replacements (target_movement is already in stealth_order)
+            try:
+                parent_data = get_parent_order(order_id)
+                if parent_data:
+                    enriched_order["max_order_replacements"] = parent_data.get("max_order_replacement", 0)
+                    # Also ensure we have the parent's target movement for consistent UI display
+                    if not enriched_order.get("target_movement"):
+                        enriched_order["target_movement"] = parent_data.get("target_movement")
+                    if not enriched_order.get("target_movement_type"):
+                        enriched_order["target_movement_type"] = parent_data.get("target_movement_type", "P")
+            except Exception as e:
+                logger.debug(f"Failed to enrich parent order {order_id}: {e}")
         
         enriched[order_id] = enriched_order
     
