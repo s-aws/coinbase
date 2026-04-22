@@ -21,6 +21,7 @@ from pathlib import Path
 from coinbase.rest import RESTClient
 
 from external import CoinbaseRestClient
+from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
 
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
@@ -157,13 +158,13 @@ def normalize_product_type(order: dict, products: dict = None) -> str:
         'SPOT'
     """
     product_type = str(order.get("product_type") or "").upper()
-    if product_type in {"SPOT", "FUTURE"}:
+    if product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
         return product_type
 
     product_id = order.get("product_id")
     product = (products or {}).get(product_id, {})
     configured_product_type = str(product.get("product_type") or "").upper()
-    if configured_product_type in {"SPOT", "FUTURE"}:
+    if configured_product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
         return configured_product_type
 
     if product_id and product_id.endswith("-CDE"):
@@ -319,13 +320,13 @@ def quantize_to_increment(value: float, increment: str, direction: str = "neares
     if remainder == 0:
         return value
 
-    if direction == "down":
+    if direction == RoundingDirection.DOWN.value:
         return value - remainder
 
-    if direction == "up":
+    if direction == RoundingDirection.UP.value:
         return value + (increment_float - remainder)
 
-    if direction == "nearest":
+    if direction == RoundingDirection.NEAREST.value:
         down_value = value - remainder
         up_value = value + (increment_float - remainder)
         return down_value if remainder < (increment_float / 2) else up_value
@@ -560,10 +561,10 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     minimum_move_amount = float(price_increment)
     profit_move_pct = resolve_profit_move_pct(order, profits, products)
 
-    if order_status == "FILLED":
+    if order_status == OrderStatus.FILLED.value:
         order_side = ORDER_SIDE_SWITCH[order_side]
 
-    if order_status == "CANCELLED":
+    if order_status == OrderStatus.CANCELLED.value:
         order_size = safe_float(order.get("leaves_quantity"), default=0.0)
 
     if safe_float(order.get("limit_price"), default=0.0) > 0:
@@ -574,9 +575,9 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
         return {}
 
     if target_movement is not None:
-        if target_movement.get("type") == "P":
+        if target_movement.get("type") == TargetMovementType.PERCENTAGE.value:
             profit_move_pct = target_movement["movement"]
-        elif target_movement.get("type") == "A":
+        elif target_movement.get("type") == TargetMovementType.ABSOLUTE.value:
             minimum_move_amount = float(target_movement["movement"])
 
     fee_move_calculated_from_pct = order_float_price * profit_move_pct
@@ -585,11 +586,11 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
 
     position_update = None
 
-    if order_product_type == "FUTURE":
+    if order_product_type == ProductType.FUTURE.value:
         product_positions = positions.get(order_product_type, {})
         position = deepcopy(product_positions.get(order_product_id))
 
-        if order_status == "FILLED" and position:
+        if order_status == OrderStatus.FILLED.value and position:
             number_of_contracts = float(position["number_of_contracts"])
 
             if ORDER_POSITION_SIDE[position["side"]] == order_side:
@@ -619,7 +620,7 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     order_new_price = float(format_based_on_reference(order_new_price, quote_increment))
     order_new_size = float(format_based_on_reference(order_size, base_increment))
 
-    round_direction = "up" if order_side == "SELL" else "down"
+    round_direction = RoundingDirection.UP.value if order_side == OrderSide.SELL.value else RoundingDirection.DOWN.value
     order_new_price = quantize_to_increment(
         order_new_price,
         price_increment,
@@ -630,7 +631,7 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     base_increment_len = len(base_increment) - 2 if len(base_increment) > 3 else 1
 
     current_contract_count = "N/A"
-    if order_product_type == "FUTURE":
+    if order_product_type == ProductType.FUTURE.value:
         updated_position = positions.get(order_product_type, {}).get(order_product_id)
         if updated_position:
             current_contract_count = updated_position.get("number_of_contracts", "N/A")
@@ -699,7 +700,7 @@ class OrderBook():
         product_id: {
             "mandatory_fee_per_contract": (
                 DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
-            ) if this["product_type"] == "FUTURE" else 0
+            ) if this["product_type"] == ProductType.FUTURE.value else 0
         } for product_id, this in product.items()
     }
 

@@ -139,6 +139,16 @@ class Direction(str, Enum):
     BELOW = "below"
 
 
+class RoundingDirection(str, Enum):
+    """Rounding direction for quantization operations.
+    
+    Used in price/size quantization to determine rounding strategy.
+    """
+    UP = "up"
+    DOWN = "down"
+    NEAREST = "nearest"
+
+
 class FollowUpRevealDirection(str, Enum):
     """Direction strategy for follow-up orders after stealth order reveals/fills.
     

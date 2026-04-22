@@ -31,7 +31,7 @@ Example:
 
 from decimal import Decimal, ROUND_HALF_UP
 from core.models import Order, Position
-from core.enums import OrderSide, ProductType
+from core.enums import OrderSide, ProductType, OrderStatus
 from calculation.formatter import safe_float, format_based_on_reference, quantize_to_increment
 from calculation.resolver import normalize_product_type
 
@@ -84,7 +84,7 @@ class OrderCalculator:
 
         # For BUY orders, follow-up is SELL at higher price
         # For SELL orders, follow-up is BUY at lower price
-        if parent_side == "BUY":
+        if parent_side == OrderSide.BUY.value:
             # Sell at fill_price * (1 + profit_target_pct)
             target_price = fill_price * (1 + profit_target_pct)
         else:
@@ -178,7 +178,7 @@ class OrderCalculator:
         current_vwap = safe_float(position.get("entry_vwap"), default=0.0)
 
         # Calculate new VWAP (volume-weighted average price)
-        if side == "BUY":
+        if side == OrderSide.BUY.value:
             size_change = fill_size
             if current_size == 0:
                 new_vwap = fill_price
@@ -273,4 +273,4 @@ class OrderCalculator:
         status = order.get("status")
         filled_size = safe_float(order.get("filled_size"), default=0.0)
 
-        return status == "FILLED" and filled_size > 0
+        return status == OrderStatus.FILLED.value and filled_size > 0

@@ -6,6 +6,7 @@ Tests order models, enums, and state tracking.
 
 import pytest
 from datetime import datetime, timezone
+from core.enums import StealthOrderStatus, OrderStatus
 
 
 class TestOrderModels:
@@ -43,9 +44,9 @@ class TestOrderModels:
     
     def test_order_status_enum(self):
         """Order status must be valid enum value."""
-        valid_statuses = ["HIDDEN", "PENDING", "TRIGGERED", "REVEALED", "FILLED", "CANCELLED"]
+        valid_statuses = [StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value, StealthOrderStatus.REVEALED.value, OrderStatus.FILLED.value, OrderStatus.CANCELLED.value]
         
-        test_status = "HIDDEN"
+        test_status = StealthOrderStatus.HIDDEN.value
         
         assert test_status in valid_statuses
     
@@ -96,37 +97,37 @@ class TestOrderStateTransitions:
     
     def test_hidden_to_triggered_transition(self):
         """HIDDEN order can transition to TRIGGERED."""
-        current_status = "HIDDEN"
-        new_status = "TRIGGERED"
+        current_status = StealthOrderStatus.HIDDEN.value
+        new_status = StealthOrderStatus.TRIGGERED.value
         
-        valid_transition = current_status == "HIDDEN" and new_status == "TRIGGERED"
+        valid_transition = current_status == StealthOrderStatus.HIDDEN.value and new_status == StealthOrderStatus.TRIGGERED.value
         
         assert valid_transition is True
     
     def test_triggered_to_revealed_transition(self):
         """TRIGGERED order can transition to REVEALED."""
-        current_status = "TRIGGERED"
-        new_status = "REVEALED"
+        current_status = StealthOrderStatus.TRIGGERED.value
+        new_status = StealthOrderStatus.REVEALED.value
         
-        valid_transition = current_status == "TRIGGERED" and new_status == "REVEALED"
+        valid_transition = current_status == StealthOrderStatus.TRIGGERED.value and new_status == StealthOrderStatus.REVEALED.value
         
         assert valid_transition is True
     
     def test_revealed_to_filled_transition(self):
         """REVEALED order can transition to FILLED."""
-        current_status = "REVEALED"
-        new_status = "FILLED"
+        current_status = StealthOrderStatus.REVEALED.value
+        new_status = OrderStatus.FILLED.value
         
-        valid_transition = current_status == "REVEALED" and new_status == "FILLED"
+        valid_transition = current_status == StealthOrderStatus.REVEALED.value and new_status == OrderStatus.FILLED.value
         
         assert valid_transition is True
     
     def test_any_status_to_cancelled(self):
         """Any status can transition to CANCELLED."""
-        statuses = ["HIDDEN", "PENDING", "TRIGGERED", "REVEALED"]
+        statuses = [StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value, StealthOrderStatus.REVEALED.value]
         
         for status in statuses:
-            can_cancel = status in ["HIDDEN", "PENDING", "TRIGGERED", "REVEALED"]
+            can_cancel = status in [StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value, StealthOrderStatus.REVEALED.value]
             assert can_cancel is True
 
 
