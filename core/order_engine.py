@@ -210,6 +210,14 @@ class OrderEngine:
             max_dedup_buckets=max_seen_event_buckets,
             dedup_bucket_duration_secs=max_rotate_seen_events_bucket_seconds,
         )
+        
+        # Profit Tracking: FeeManager and ProfitValidator for profitable order validation
+        from configuration import REST_CLIENT
+        from calculation.fee_manager import FeeManager
+        from calculation.profit_validator import ProfitValidator
+        
+        self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
+        self.profit_validator = ProfitValidator(fee_manager=self.fee_manager)
 
         self.websocket_events = {
             "SNAPSHOT": {
@@ -2178,6 +2186,9 @@ class OrderEngine:
                 target=self.generate_process_event_worker(channel),
                 daemon=True,
             ).start()
+        
+        # Start fee manager (fetches taker fees from Coinbase API, refreshes hourly)
+        self.fee_manager.start()
 
         for websocket in range(self.websocket_thread_maximum):
             threading.Thread(
