@@ -465,6 +465,70 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
                 await websocket.send(json.dumps(response))
         
+        elif msg_type == "update_parent_target_movement":
+            # Update target movement for a parent order
+            parent_order_id = data.get("parent_order_id")
+            target_movement = data.get("target_movement")
+            target_movement_type = data.get("target_movement_type", "P")
+            
+            if not parent_order_id:
+                response = {
+                    "type": "error",
+                    "message": "Missing parent_order_id"
+                }
+                await websocket.send(json.dumps(response))
+                return
+            
+            try:
+                from database.order import update_parent_order_target_movement, get_parent_order
+                
+                # Update in database
+                success = update_parent_order_target_movement(
+                    parent_order_id=parent_order_id,
+                    target_movement=target_movement,
+                    target_movement_type=target_movement_type
+                )
+                
+                if success:
+                    # Get updated order data
+                    order_data = get_parent_order(parent_order_id)
+                    
+                    response = {
+                        "type": "parent_target_movement_updated",
+                        "parent_order_id": parent_order_id,
+                        "target_movement": target_movement,
+                        "target_movement_type": target_movement_type
+                    }
+                    
+                    add_log_entry("INFO", f"Parent order target_movement updated: {parent_order_id} = {target_movement}{target_movement_type}")
+                    logger.info(f"Parent order target_movement updated: {parent_order_id} = {target_movement}{target_movement_type}")
+                    
+                    # Broadcast to all clients
+                    message = json.dumps(response, cls=CustomJSONEncoder)
+                    for client in connected_clients.copy():
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.discard(client)
+                    
+                    await websocket.send(json.dumps({"type": "update_success", "message": "Parent target movement updated"}))
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to update parent order: {parent_order_id}"
+                    }
+                    add_log_entry("ERROR", f"Failed to update parent target_movement: {parent_order_id}")
+                    await websocket.send(json.dumps(response))
+                
+            except Exception as e:
+                logger.error(f"Failed to update parent target_movement: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update parent target movement: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent target_movement update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
         elif msg_type == "clear_all_stealth_orders":
             # Clear all stealth orders from the database
             try:
@@ -1218,15 +1282,49 @@ async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
     """Send current stealth orders to a client."""
     try:
         with state_lock:
+            # Enrich stealth orders with parent target_movement
+            enriched_orders = _enrich_stealth_orders_with_parent_data(engine_state["stealth_orders"])
+            
             payload = {
                 "type": "stealth_orders_snapshot",
-                "orders": engine_state["stealth_orders"],
+                "orders": enriched_orders,
                 "timestamp": datetime.utcnow().isoformat(),
             }
         
         await websocket.send(json.dumps(payload, cls=CustomJSONEncoder))
     except Exception as e:
         logger.error(f"Failed to send stealth orders snapshot: {e}")
+
+
+def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str, Any]:
+    """Enrich stealth orders with their parent's target_movement data.
+    
+    Args:
+        orders: Dictionary of stealth_order_id -> order_data
+    
+    Returns:
+        Same dictionary but with parent_target_movement and parent_target_movement_type added
+    """
+    from database.order import get_parent_order
+    
+    enriched = {}
+    for order_id, order_data in orders.items():
+        enriched_order = order_data.copy() if isinstance(order_data, dict) else dict(order_data)
+        
+        # Get parent's target_movement if this order has a parent
+        parent_order_id = enriched_order.get("parent_order_id")
+        if parent_order_id:
+            try:
+                parent_data = get_parent_order(parent_order_id)
+                if parent_data:
+                    enriched_order["parent_target_movement"] = parent_data.get("target_movement")
+                    enriched_order["parent_target_movement_type"] = parent_data.get("target_movement_type", "P")
+            except Exception as e:
+                logger.debug(f"Failed to enrich order {order_id} with parent data: {e}")
+        
+        enriched[order_id] = enriched_order
+    
+    return enriched
 
 
 async def broadcast_stealth_order_update(update: Dict[str, Any]):
@@ -1260,14 +1358,17 @@ async def _stealth_orders_refresh_loop():
                     # Get fresh orders from manager in JSON-serializable format
                     serialized_orders = stealth_order_bridge.stealth_manager.get_serializable_orders()
                     
+                    # Enrich with parent target_movement data
+                    enriched_orders = _enrich_stealth_orders_with_parent_data(serialized_orders)
+                    
                     with state_lock:
-                        # Update with serialized orders
-                        engine_state["stealth_orders"] = serialized_orders
+                        # Update with enriched orders
+                        engine_state["stealth_orders"] = enriched_orders
                     
                     # Broadcast updated snapshot
                     payload = {
                         "type": "stealth_orders_snapshot",
-                        "orders": serialized_orders,
+                        "orders": enriched_orders,
                         "timestamp": datetime.utcnow().isoformat(),
                     }
                     

@@ -561,6 +561,45 @@ def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
     return results[0] if results else None
 
 
+def update_parent_order_target_movement(parent_order_id: str, target_movement: Optional[float], target_movement_type: str = "P") -> bool:
+    """Update the target_movement and target_movement_type for a parent order.
+    
+    Args:
+        parent_order_id: UUID of the parent order
+        target_movement: Profit target value (float) or None to clear
+        target_movement_type: "P" for percentage (default) or "A" for absolute amount
+    
+    Returns:
+        True if update successful, False otherwise
+    
+    Example:
+        >>> update_parent_order_target_movement(
+        ...     parent_order_id="550e8400-e29b-41d4-a716-446655440000",
+        ...     target_movement=0.002,
+        ...     target_movement_type="P"
+        ... )
+        True
+    """
+    try:
+        query = """
+        UPDATE order_parent
+        SET target_movement = %s,
+            target_movement_type = %s
+        WHERE client_order_id = %s
+        """
+        
+        rows_affected = DB_CLIENT.execute_update(
+            query,
+            (target_movement, target_movement_type if target_movement else None, parent_order_id)
+        )
+        
+        return rows_affected > 0
+    except Exception as e:
+        logger.error(f"✗ Error updating parent order target_movement {parent_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Update params - target_movement: {target_movement}, type: {target_movement_type}")
+        return False
+
+
 def get_child_orders(parent_client_order_id: str) -> List[Dict[str, Any]]:
     """Retrieve all child orders for a parent order.
     

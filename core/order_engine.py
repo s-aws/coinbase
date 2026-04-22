@@ -1390,7 +1390,7 @@ class OrderEngine:
                     "delay_seconds": 0  # Immediate reveal on cancel follow-up
                 }
                 
-                # Get target_movement from parent order (stored in order_parent table)
+                # Get target_movement from parent order (source of truth)
                 from database.order import get_parent_order
                 parent_order_data = get_parent_order(parent_client_order_id)
                 parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
@@ -1704,8 +1704,7 @@ class OrderEngine:
                             pass
                         # else: Unknown direction choice, keep original
                     
-                    # Create the stealth follow-up order (hidden, not revealed yet)
-                    # Get target_movement from parent order (stored in order_parent table)
+                    # Use parent order's target_movement (source of truth)
                     from database.order import get_parent_order
                     parent_order_data = get_parent_order(parent_client_order_id)
                     parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
