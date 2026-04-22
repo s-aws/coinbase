@@ -1392,7 +1392,9 @@
                 }
                 
                 const targetMovementStr = order.target_movement 
-                    ? `${parseFloat(order.target_movement).toFixed(4)}${order.target_movement_type === 'A' ? ' (Abs)' : '%'}`
+                    ? order.target_movement_type === 'A' 
+                        ? `${parseFloat(order.target_movement).toFixed(4)} (Abs)`
+                        : `${(parseFloat(order.target_movement) * 100).toFixed(4)}%`
                     : '-';
                 
                 return `
