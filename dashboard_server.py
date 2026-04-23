@@ -317,6 +317,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     limit_price=order['limit_price'],
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
+                    parent_order_id=order.get('parent_order_id'),  # Support parent-child relationships for order spans
                     follow_up_reveal_direction=order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                     notes=order.get('notes', ''),
                     max_order_replacements=order.get('max_order_replacements'),
