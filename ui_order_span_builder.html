@@ -619,7 +619,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Price Step *</label>
-                                    <input type="number" id="price_step" placeholder="0.00" step="0.01" value="1" required>
+                                    <input type="number" id="price_step" placeholder="0.00" step="0.01" value="0" required>
                                 </div>
                             </div>
 
@@ -760,6 +760,82 @@
     </div>
 
     <script>
+        /**
+         * Product Metadata Handler
+         * Shared utility for managing product metadata and updating form field step attributes
+         */
+        class ProductMetadataHandler {
+            constructor() {
+                this.productMetadata = {};
+            }
+
+            setProductMetadata(metadata) {
+                this.productMetadata = metadata || {};
+            }
+
+            getMetadata(productId) {
+                return this.productMetadata[productId] || null;
+            }
+
+            updateFieldSteps(productId, priceFieldId, sizeFieldId, additionalPriceFields = []) {
+                const metadata = this.getMetadata(productId);
+                
+                if (!metadata) {
+                    console.warn(`No metadata found for product: ${productId}`);
+                    return;
+                }
+
+                if (sizeFieldId) {
+                    const sizeField = document.getElementById(sizeFieldId);
+                    if (sizeField) {
+                        const baseIncrement = metadata.base_increment || "0.00000001";
+                        sizeField.step = baseIncrement;
+                        console.log(`Updated ${sizeFieldId} step to ${baseIncrement} (base_increment)`);
+                    }
+                }
+
+                if (priceFieldId) {
+                    const priceField = document.getElementById(priceFieldId);
+                    if (priceField) {
+                        const priceIncrement = metadata.price_increment || "0.01";
+                        priceField.step = priceIncrement;
+                        console.log(`Updated ${priceFieldId} step to ${priceIncrement} (price_increment)`);
+                    }
+                }
+
+                additionalPriceFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        const priceIncrement = metadata.price_increment || "0.01";
+                        field.step = priceIncrement;
+                        console.log(`Updated ${fieldId} step to ${priceIncrement} (price_increment)`);
+                    }
+                });
+            }
+
+            attachProductChangeListener(selectElementId, priceFieldId, sizeFieldId, additionalPriceFields = []) {
+                const selectElement = document.getElementById(selectElementId);
+                
+                if (!selectElement) {
+                    console.error(`Product dropdown not found: ${selectElementId}`);
+                    return;
+                }
+
+                selectElement.addEventListener('change', (event) => {
+                    const selectedProduct = event.target.value;
+                    if (selectedProduct) {
+                        this.updateFieldSteps(selectedProduct, priceFieldId, sizeFieldId, additionalPriceFields);
+                    }
+                });
+
+                if (selectElement.value) {
+                    this.updateFieldSteps(selectElement.value, priceFieldId, sizeFieldId, additionalPriceFields);
+                }
+            }
+        }
+
+        const productMetadataHandler = new ProductMetadataHandler();
+
         // WebSocket connection
         let ws = null;
         const ordersData = {};
@@ -837,6 +913,7 @@
         function handleProductsList(data) {
             products = data.derivatives || [];
             productMetadata = data.metadata || {};
+            productMetadataHandler.setProductMetadata(data.metadata);  // Update shared handler
             
             const select = document.getElementById('product_id');
             let options = '<option value="">Select Product...</option>';
@@ -846,9 +923,35 @@
             
             select.innerHTML = options;
             
+            // Attach shared handler listener for automatic step updates on product change
+            productMetadataHandler.attachProductChangeListener(
+                'product_id',       // product dropdown
+                'start_price',      // price field
+                'total_size',       // size field
+                ['price_threshold', 'price_step']  // additional price fields
+            );
+            
+            // Also set price_step value to price_increment when product changes
+            document.getElementById('product_id').addEventListener('change', (e) => {
+                const selectedProduct = e.target.value;
+                if (selectedProduct && productMetadata[selectedProduct]) {
+                    const metadata = productMetadata[selectedProduct];
+                    const priceIncrement = metadata.price_increment || "1";
+                    document.getElementById('price_step').value = priceIncrement;
+                    updatePreview();
+                }
+            });
+            
             // Auto-select first product if available
             if (products.length > 0) {
                 select.value = products[0];
+                // Set price_step to first product's price_increment
+                if (productMetadata[products[0]]) {
+                    const priceIncrement = productMetadata[products[0]].price_increment || "1";
+                    document.getElementById('price_step').value = priceIncrement;
+                }
+                // Trigger change to update field steps
+                select.dispatchEvent(new Event('change'));
                 updatePreview();
             }
         }
@@ -1261,13 +1364,19 @@
             document.getElementById('side').value = 'BUY';
             document.getElementById('order_count').value = '5';
             document.getElementById('start_price').value = '';
-            document.getElementById('price_step').value = '1';
+            document.getElementById('price_step').value = '0';
             document.getElementById('total_size').value = '';
             document.getElementById('size_distribution').value = 'equal';
             document.getElementById('target_movement').value = '0.002';
             document.getElementById('max_followups').value = '11';
             document.getElementById('notes').value = '';
             document.getElementById('reveal_type').value = 'price';
+            
+            // Trigger product change to set price_step to price_increment
+            if (products.length > 0) {
+                document.getElementById('product_id').dispatchEvent(new Event('change'));
+            }
+            
             updatePreview();
             updateRevealFields();
         }

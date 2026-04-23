@@ -915,12 +915,88 @@
     </div>
 
     <script>
+        /**
+         * Product Metadata Handler
+         * Shared utility for managing product metadata and updating form field step attributes
+         */
+        class ProductMetadataHandler {
+            constructor() {
+                this.productMetadata = {};
+            }
+
+            setProductMetadata(metadata) {
+                this.productMetadata = metadata || {};
+            }
+
+            getMetadata(productId) {
+                return this.productMetadata[productId] || null;
+            }
+
+            updateFieldSteps(productId, priceFieldId, sizeFieldId, additionalPriceFields = []) {
+                const metadata = this.getMetadata(productId);
+                
+                if (!metadata) {
+                    console.warn(`No metadata found for product: ${productId}`);
+                    return;
+                }
+
+                if (sizeFieldId) {
+                    const sizeField = document.getElementById(sizeFieldId);
+                    if (sizeField) {
+                        const baseIncrement = metadata.base_increment || "0.00000001";
+                        sizeField.step = baseIncrement;
+                        console.log(`Updated ${sizeFieldId} step to ${baseIncrement} (base_increment)`);
+                    }
+                }
+
+                if (priceFieldId) {
+                    const priceField = document.getElementById(priceFieldId);
+                    if (priceField) {
+                        const priceIncrement = metadata.price_increment || "0.01";
+                        priceField.step = priceIncrement;
+                        console.log(`Updated ${priceFieldId} step to ${priceIncrement} (price_increment)`);
+                    }
+                }
+
+                additionalPriceFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        const priceIncrement = metadata.price_increment || "0.01";
+                        field.step = priceIncrement;
+                        console.log(`Updated ${fieldId} step to ${priceIncrement} (price_increment)`);
+                    }
+                });
+            }
+
+            attachProductChangeListener(selectElementId, priceFieldId, sizeFieldId, additionalPriceFields = []) {
+                const selectElement = document.getElementById(selectElementId);
+                
+                if (!selectElement) {
+                    console.error(`Product dropdown not found: ${selectElementId}`);
+                    return;
+                }
+
+                selectElement.addEventListener('change', (event) => {
+                    const selectedProduct = event.target.value;
+                    if (selectedProduct) {
+                        this.updateFieldSteps(selectedProduct, priceFieldId, sizeFieldId, additionalPriceFields);
+                    }
+                });
+
+                if (selectElement.value) {
+                    this.updateFieldSteps(selectElement.value, priceFieldId, sizeFieldId, additionalPriceFields);
+                }
+            }
+        }
+
+        const productMetadataHandler = new ProductMetadataHandler();
+
         // Condition field templates
         const conditionTemplates = {
             price: `
                 <div class="condition-field">
                     <label>Price Threshold *</label>
-                    <input type="number" name="price_threshold" placeholder="0.00" step="0.01" required>
+                    <input type="number" id="condition_price_threshold" name="price_threshold" placeholder="0.00" step="0.01" required>
                 </div>
                 <div class="condition-field">
                     <label>Direction *</label>
@@ -938,7 +1014,7 @@
             cumulative_volume: `
                 <div class="condition-field">
                     <label>Price Level *</label>
-                    <input type="number" name="price_level" placeholder="0.00" step="0.01" required>
+                    <input type="number" id="condition_price_level" name="price_level" placeholder="0.00" step="0.01" required>
                 </div>
                 <div class="condition-field">
                     <label>Volume Threshold *</label>
@@ -1079,6 +1155,7 @@
                         // Receive products from WebSocket on initial connection
                         allProducts = [...(data.derivatives || []), ...(data.spot || [])].sort();
                         productMetadata = data.metadata || {};  // Store metadata
+                        productMetadataHandler.setProductMetadata(data.metadata);  // Update shared handler
                         updateProductDropdown();
                         addProductChangeListener();  // Add event listener for product selection
                         console.log(`Loaded ${allProducts.length} products from WebSocket`);
@@ -1259,6 +1336,13 @@
                 const selectedProduct = e.target.value;
                 
                 if (selectedProduct && productMetadata[selectedProduct]) {
+                    // Update field step attributes based on product metadata
+                    productMetadataHandler.updateFieldSteps(
+                        selectedProduct,
+                        'limit_price',     // price field
+                        'total_size'       // size field
+                    );
+                    
                     // Get the base_increment (minimum size) for this product
                     const metadata = productMetadata[selectedProduct];
                     const minSizeValue = metadata.base_increment;
@@ -1270,6 +1354,15 @@
                     document.getElementById('total_size').value = formattedSize;
                 }
             });
+            
+            // Initial setup: attach shared handler listener for step updates
+            // This ensures steps are updated when product is programmatically changed
+            productMetadataHandler.attachProductChangeListener(
+                'product_id',      // product dropdown
+                'limit_price',     // price field
+                'total_size',      // size field
+                ['condition_price_threshold', 'condition_price_level']  // additional price fields in condition templates
+            );
         }
 
         function toggleAccordion(parentOrderId) {
