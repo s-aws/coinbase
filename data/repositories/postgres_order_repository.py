@@ -174,7 +174,7 @@ class PostgresOrderRepository:
             target_movement=None,
             max_order_replacement=None,
             current_order_replacement=0,
-            status="PENDING"
+            status=OrderStatus.PENDING.value
         )
     
     def save_parent_order(
@@ -214,7 +214,7 @@ class PostgresOrderRepository:
             target_movement=target_movement,
             max_order_replacement=max_order_replacement,
             current_order_replacement=0,
-            status="PENDING"
+            status=OrderStatus.PENDING.value
         )
         return parent_id
     

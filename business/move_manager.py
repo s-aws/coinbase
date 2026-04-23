@@ -45,7 +45,8 @@ from database.order import (
     execute_pending_move,
     get_order_moves_by_new_parent,
 )
-from configuration import OrderBook
+from configuration import OrderBook, DEFAULT_MAX_ORDER_REPLACEMENT
+from core.enums import OrderStatus
 
 
 class MoveManager:
@@ -127,7 +128,7 @@ class MoveManager:
                 - price (required): Order price
                 - target_movement (required): Target profit/movement percentage or amount
                 - target_movement_type (optional): 'P' for percentage, 'A' for absolute (default 'P')
-                - max_order_replacement (optional): Max follow-ups for new parent (default 0)
+                - max_order_replacement (optional): Max follow-ups for new parent (default DEFAULT_MAX_ORDER_REPLACEMENT = 11)
             reason: Reason for the move. Examples: 'cancelled_move', 'user_move', 'price_adjustment'.
             notes: Optional additional context about the move.
         
@@ -200,7 +201,7 @@ class MoveManager:
             price = float(new_order_details["price"])
             target_movement = float(new_order_details["target_movement"])
             target_movement_type = new_order_details.get("target_movement_type", "P")
-            max_order_replacement = int(new_order_details.get("max_order_replacement", 0))
+            max_order_replacement = int(new_order_details.get("max_order_replacement", DEFAULT_MAX_ORDER_REPLACEMENT))
 
             # Insert new parent order into database
             parent_id = insert_order_parent(
@@ -213,7 +214,7 @@ class MoveManager:
                 target_movement_type=target_movement_type,
                 max_order_replacement=max_order_replacement,
                 current_order_replacement=0,
-                status="pending"
+                status=OrderStatus.PENDING.value
             )
 
             if parent_id is None:
@@ -367,7 +368,7 @@ class MoveManager:
                 - price (required): Order price
                 - target_movement (required): Target profit/movement percentage or amount
                 - target_movement_type (optional): 'P' for percentage, 'A' for absolute (default 'P')
-                - max_order_replacement (optional): Max follow-ups (default 0)
+                - max_order_replacement (optional): Max follow-ups (default DEFAULT_MAX_ORDER_REPLACEMENT = 11)
             reason: Reason for pending move (default 'auto_move_scheduled').
             notes: Optional additional context.
         

@@ -618,9 +618,10 @@ class OrderEngine:
     def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
         """Register a child order under a parent in the orderbook.
         
-        Maintains bidirectional mappings:
+        Maintains bidirectional mappings and increments replacement count:
         - parent_order_ids[parent][orders] list contains child
         - child_order_ids[child] points to parent
+        - Increments parent's current_order_replacement counter
         
         Args:
             child_client_order_id: The child order to register.
@@ -631,7 +632,7 @@ class OrderEngine:
         
         Example:
             >>> engine.register_child_order('child_123', 'parent_123')
-            >>> # Now child_123 is tracked as child of parent_123
+            >>> # Now child_123 is tracked as child of parent_123 and count is incremented
         """
         with self.orderbook_lock:
             # Ensure parent entry exists
@@ -650,9 +651,27 @@ class OrderEngine:
             # Add child to parent's orders list if not already there
             if child_client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id]["orders"]:
                 self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+                
+                # ✅ INCREMENT replacement count when adding a new child
+                self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
             
             # Map child to parent
             self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
+        
+        # ✅ ALSO increment in database for persistence
+        from database.order import increment_order_parent_replacement_count
+        new_count = increment_order_parent_replacement_count(parent_client_order_id)
+        
+        if new_count is not None:
+            self.log_message(
+                "order",
+                self.build_event_log_payload(
+                    "child_order_registered",
+                    parent_client_order_id=parent_client_order_id,
+                    child_client_order_id=child_client_order_id,
+                    new_replacement_count=new_count,
+                ),
+            )
 
     def _update_dashboard_order_status(self, client_order_id: str, order: dict, status: str) -> None:
         """Update dashboard with current order status.
@@ -1608,7 +1627,7 @@ class OrderEngine:
                 client_order_id,
                 order=order,
                 create_parent=True,
-                status="FILLED",
+                status=OrderStatus.FILLED.value,
             )
 
         # For external orders, just track them but don't create follow-ups

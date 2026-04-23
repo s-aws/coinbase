@@ -11,6 +11,7 @@ from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
+from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
 logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
@@ -342,7 +343,7 @@ def insert_order_parent_batch(
         status = order.get("status", "pending")
         target_movement = order.get("target_movement")
         target_movement_type = order.get("target_movement_type", "P")
-        max_order_replacement = int(order.get("max_order_replacement", 0))
+        max_order_replacement = int(order.get("max_order_replacement", DEFAULT_MAX_ORDER_REPLACEMENT))
         current_order_replacement = int(order.get("current_order_replacement", 0))
 
         if any(value is None for value in (
