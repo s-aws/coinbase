@@ -58,20 +58,6 @@
       "contract_size": null,
       "expiry": null
     },
-    "ETP-20DEC30-CDE": {
-      "type": "FUTURE",
-      "base_currency": null,
-      "quote_currency": null,
-      "base_increment": "1",
-      "quote_increment": "0.01",
-      "price_increment": "0.5",
-      "display_name": "ETH PERP",
-      "status": "",
-      "mid_price": null,
-      "trading_disabled": false,
-      "contract_size": null,
-      "expiry": null
-    },
     "ET-29MAY26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
@@ -80,6 +66,20 @@
       "quote_increment": "0.01",
       "price_increment": "0.5",
       "display_name": "ETH 29 MAY 26",
+      "status": "",
+      "mid_price": null,
+      "trading_disabled": false,
+      "contract_size": null,
+      "expiry": null
+    },
+    "ETP-20DEC30-CDE": {
+      "type": "FUTURE",
+      "base_currency": null,
+      "quote_currency": null,
+      "base_increment": "1",
+      "quote_increment": "0.01",
+      "price_increment": "0.5",
+      "display_name": "ETH PERP",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,

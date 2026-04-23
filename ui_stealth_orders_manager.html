@@ -1394,9 +1394,10 @@
                 if (isParent) {
                     if (hasChildren) {
                         const childCount = childOrdersByParent[order.stealth_order_id].length;
+                        const nonHiddenCount = childOrdersByParent[order.stealth_order_id].filter(child => child.status !== 'HIDDEN').length;
                         const isExpanded = accordionState[order.stealth_order_id] || false;
                         toggleHtml = `<button type="button" data-toggle-id="${order.stealth_order_id}" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${order.stealth_order_id}')"></button>`;
-                        parentIndicator = toggleHtml + `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order (${childCount} children)">👑 (${childCount})</span>`;
+                        parentIndicator = toggleHtml + `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order (${nonHiddenCount} revealed, ${childCount} total children)">👑 (${nonHiddenCount}/${childCount})</span>`;
                     } else {
                         parentIndicator = `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order">👑</span>`;
                     }

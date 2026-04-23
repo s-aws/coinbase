@@ -808,10 +808,16 @@ class StealthOrderManager:
         return None
     
     def load_all_active_orders_from_db(self) -> int:
-        """Load all active stealth orders from database into memory.
+        """Load all stealth orders from database into memory.
         
-        Only loads HIDDEN orders on restart. PENDING/TRIGGERED/REVEALED orders should
-        have already been processed in previous session or are awaiting execution.
+        Loads all orders (HIDDEN, PENDING, TRIGGERED, REVEALED, EXECUTED, CANCELLED)
+        to ensure UI displays the complete history and current state of stealth orders.
+        
+        Status handling on restart:
+        - HIDDEN, PENDING, TRIGGERED: Reset to HIDDEN for fresh condition evaluation
+        - REVEALED: Keep as-is (in-flight orders may complete)
+        - EXECUTED: Keep as-is (historical record for UI display)
+        - CANCELLED: Keep as-is (historical record for UI display)
         
         Returns:
             Number of orders loaded
@@ -822,7 +828,6 @@ class StealthOrderManager:
         try:
             results = self.db_client.execute_query(
                 """SELECT * FROM stealth_orders 
-                   WHERE status = 'HIDDEN'
                    ORDER BY created_at ASC"""
             )
             
@@ -854,7 +859,7 @@ class StealthOrderManager:
                         'remaining_size': float(row.get('remaining_size', 0)),
                         'executed_size': float(row.get('executed_size', 0)),
                         'limit_price': float(row['limit_price']),
-                        'status': 'HIDDEN',  # Reset all loaded orders to HIDDEN for fresh evaluation
+                        'status': db_status if db_status in ['REVEALED', 'EXECUTED', 'CANCELLED'] else 'HIDDEN',
                         'reveal_condition_type': condition_type,
                         'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
                         'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
@@ -866,8 +871,8 @@ class StealthOrderManager:
                         'updated_at': row.get('updated_at'),
                         'visibility_score': float(row.get('visibility_score', 0.0)),
                         'last_placement_at': row.get('last_placement_at'),
-                        'condition_first_met_at': None,  # Reset for fresh evaluation on restart
-                        'condition_confirmed_at': None,  # Reset for fresh evaluation on restart
+                        'condition_first_met_at': None if db_status in ['HIDDEN', 'PENDING', 'TRIGGERED'] else condition_first_met,
+                        'condition_confirmed_at': None if db_status in ['HIDDEN', 'PENDING', 'TRIGGERED'] else condition_confirmed,
                         'revealed_count': 0,
                         'condition_monitoring_start': None,
                     }
