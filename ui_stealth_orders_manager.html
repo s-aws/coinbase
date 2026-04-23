@@ -1126,11 +1126,23 @@
                         showMessage(`Parent target movement updated to ${data.target_movement}${data.target_movement_type === 'A' ? ' (Abs)' : '%'}`, 'success');
                         updateOrdersTable();
                         updateStats();
+                    } else if (data.type === "stealth_order_cancelled") {
+                        // Handle stealth order cancellation
+                        const stealth_order_id = data.stealth_order_id;
+                        if (ordersData[stealth_order_id]) {
+                            ordersData[stealth_order_id].status = "CANCELLED";
+                            updateOrdersTable();
+                            updateStats();
+                            showMessage(`Order cancelled: ${stealth_order_id.substring(0, 8)}...`, 'info');
+                        }
                     } else if (data.type === "stealth_orders_cleared") {
                         ordersData = {};
                         updateOrdersTable();
                         updateStats();
                         showMessage(`✅ Cleared ${data.rows_deleted} stealth orders`, 'success');
+                    } else if (data.type === "error") {
+                        // Handle generic error messages from server
+                        showMessage(`Error: ${data.message || 'Unknown error'}`, 'error');
                     }
                 };
 

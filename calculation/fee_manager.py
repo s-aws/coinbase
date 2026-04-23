@@ -148,8 +148,19 @@ class FeeManager:
         try:
             summary = self.rest_client.get_transaction_summary()
             
-            # Extract taker_fee_rate from response
-            taker_fee_str = summary.get("taker_fee_rate", str(self.DEFAULT_TAKER_FEE_RATE))
+            # Extract taker_fee_rate - it's nested in fee_tier
+            taker_fee_str = None
+            if isinstance(summary, dict):
+                fee_tier = summary.get("fee_tier", {})
+                if isinstance(fee_tier, dict):
+                    taker_fee_str = fee_tier.get("taker_fee_rate")
+            
+            # Fallback to default if not found
+            if not taker_fee_str:
+                taker_fee_str = str(self.DEFAULT_TAKER_FEE_RATE)
+            
+            # API returns fee as a decimal (e.g., "0.00035" = 0.035%)
+            # Use directly - NO division by 100 needed
             taker_fee = safe_float(taker_fee_str, default=self.DEFAULT_TAKER_FEE_RATE)
             
             with self._lock:

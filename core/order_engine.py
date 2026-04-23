@@ -1684,6 +1684,62 @@ class OrderEngine:
             # If this is a stealth order follow-up, create a stealth order instead of a regular order
             if original_stealth_order:
                 try:
+                    # Check profitability BEFORE creating follow-up order
+                    filled_price = float(order.get("price", order.get("avg_price", 0)))
+                    follow_up_price = float(order_template["start_price"])
+                    # ✅ FIX: Use helper to resolve order_side (checks "order_side" then "side")
+                    order_side = resolve_order_side(order) or "BUY"
+                    order_size = float(order_template["order_base_size"])
+                    product_type = self.normalize_product_type(order)
+                    product_id = order.get("product_id")
+                    
+                    # Get current position side for FUTURE/PERPETUAL
+                    position_side = None
+                    if product_type in ('FUTURE', 'PERPETUAL'):
+                        position_side = self.orderbook.get_position_side(product_id)
+                    
+                    # Debug: Log what position_side we detected
+                    self.log_message(
+                        "info",
+                        {
+                            "event": "profitability_check_debug",
+                            "filled_price": filled_price,
+                            "follow_up_price": follow_up_price,
+                            "parent_side": order_side,
+                            "position_side": position_side,
+                            "product_type": product_type,
+                            "product_id": product_id,
+                        }
+                    )
+                    
+                    # Validate profitability
+                    if self.profit_validator:
+                        profit_result = self.profit_validator.is_profitable(
+                            filled_price=filled_price,
+                            follow_up_price=follow_up_price,
+                            side=order_side,
+                            order_size=order_size,
+                            product_type=product_type,
+                            position_side=position_side
+                        )
+                        
+                        if not profit_result["is_profitable"]:
+                            self.log_message(
+                                "warning",
+                                {
+                                    "event": "follow_up_order_skipped_unprofitable",
+                                    "parent_client_order_id": parent_client_order_id,
+                                    "product_id": product_id,
+                                    "filled_price": filled_price,
+                                    "follow_up_price": follow_up_price,
+                                    "gross_profit": profit_result.get("gross_profit", 0),
+                                    "total_fees": profit_result.get("total_fees", 0),
+                                    "net_profit": profit_result.get("net_profit", 0),
+                                }
+                            )
+                            self.complete_follow_up_processing("filled", client_order_id)
+                            return
+                    
                     # Update the original stealth order status to EXECUTED
                     filled_size = float(order.get("filled_size", order_template["order_base_size"]))
                     self.stealth_order_bridge.stealth_manager.update_execution(

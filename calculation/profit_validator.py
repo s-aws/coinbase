@@ -236,6 +236,13 @@ class ProfitValidator:
             parent_order_side=side
         )
         
+        # Debug: Log the open/close side determination
+        logger.info(
+            f"Open/Close side determination | Product: {product_type} | "
+            f"Parent side: {side} | Position side: {position_side} | "
+            f"Determined: OPEN={open_side}, CLOSE={close_side}"
+        )
+        
         # Validate that the provided side matches the open side
         if side != open_side:
             # Log or handle warning - parent side should match open side
@@ -258,6 +265,13 @@ class ProfitValidator:
         # The fee is charged on the close_side order's price
         # Important: Fee is charged at close_side price, not open_side price
         percentage_fees = follow_up_price * order_size * fee_rate
+        
+        # Debug: Log the fee rate being used
+        logger.info(
+            f"Fee rate applied | Base fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
+            f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
+            f"Calculated percentage fee: ${percentage_fees:.2f}"
+        )
         
         # Add mandatory fixed fee for FUTURE/PERPETUAL contracts
         # FUTURE and PERPETUAL products charge $0.15 per contract on close
