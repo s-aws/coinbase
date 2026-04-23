@@ -475,7 +475,7 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.positions["FUTURE"] = refreshed_positions
 
-    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None) -> tuple:
+    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None) -> tuple:
         """Resolve if an order is a parent or find its parent.
         
         Returns (is_parent: bool, parent_client_order_id: str).
@@ -486,6 +486,8 @@ class OrderEngine:
             order: Order data (required if create_parent=True).
             create_parent: Whether to create parent entry if not found.
             status: Order status (for parent creation).
+            stealth_order: Optional stealth order dict with target_movement/target_movement_type
+                          to use instead of defaults. Used when revealing stealth orders.
         
         Returns:
             Tuple (is_parent, parent_client_order_id).
@@ -512,11 +514,20 @@ class OrderEngine:
                 DEFAULT_MAX_ORDER_REPLACEMENT,
             )
 
+            # ✅ FIX: Use stealth order's target_movement if available (for revealed orders)
+            # This preserves the target_movement configured when the stealth order was created
+            if stealth_order and stealth_order.get("target_movement"):
+                target_movement_value = stealth_order["target_movement"]
+                target_movement_type = stealth_order.get("target_movement_type", "P")
+            else:
+                target_movement_value = self.resolve_profit_target(order)
+                target_movement_type = "P"
+
             self.orderbook.parent_order_ids[client_order_id] = {
                 "orders": [],
                 "target_movement": {
-                    "movement": self.resolve_profit_target(order),
-                    "type": "P",
+                    "movement": target_movement_value,
+                    "type": target_movement_type,
                 },
                 "max_order_replacement": max_order_replacement,
                 "current_order_replacement": 0,
@@ -539,6 +550,7 @@ class OrderEngine:
                 target_movement=float(
                     self.orderbook.parent_order_ids[client_order_id]["target_movement"]["movement"]
                 ),
+                target_movement_type=self.orderbook.parent_order_ids[client_order_id]["target_movement"]["type"],
                 status=status or order.get("status"),
                 max_order_replacement=self.orderbook.parent_order_ids[client_order_id]["max_order_replacement"],
                 current_order_replacement=self.orderbook.parent_order_ids[client_order_id]["current_order_replacement"],
@@ -1623,11 +1635,28 @@ class OrderEngine:
             if self.orderbook.should_replace["FILLED"] is not True:
                 return
 
+            # ✅ FIX: For stealth-revealed orders, get target_movement from the stealth order's entry
+            stealth_target_movement = None
+            if original_stealth_order:
+                # The stealth order's target_movement is stored in order_parent with client_order_id=stealth_order_id
+                parent_order_data = self.db_helper.get_parent_order(
+                    original_stealth_order["stealth_order_id"]
+                )
+                if parent_order_data:
+                    # ✅ Use safe_float to handle Decimal type from database
+                    from configuration import safe_float
+                    target_mv = safe_float(parent_order_data.get("target_movement"))
+                    stealth_target_movement = {
+                        "target_movement": target_mv if target_mv > 0 else None,
+                        "target_movement_type": parent_order_data.get("target_movement_type", "P")
+                    }
+
             _, parent_client_order_id = self.resolve_parent_client_order_id(
                 client_order_id,
                 order=order,
                 create_parent=True,
                 status=OrderStatus.FILLED.value,
+                stealth_order=stealth_target_movement,
             )
 
         # For external orders, just track them but don't create follow-ups
