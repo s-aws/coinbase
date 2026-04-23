@@ -1762,13 +1762,23 @@ class OrderEngine:
                     
                     # Validate profitability
                     if self.profit_validator:
+                        # Get contract_size for futures products if needed
+                        contract_size = None
+                        if product_type in ('FUTURE', 'PERPETUAL'):
+                            product_data = self.orderbook.product.get(product_id, {})
+                            contract_size = safe_float(
+                                product_data.get("future_product_details", {}).get("contract_size"),
+                                default=1.0
+                            )
+                        
                         profit_result = self.profit_validator.is_profitable(
                             filled_price=filled_price,
                             follow_up_price=follow_up_price,
                             side=order_side,
                             order_size=order_size,
                             product_type=product_type,
-                            position_side=position_side
+                            position_side=position_side,
+                            contract_size=contract_size
                         )
                         
                         if not profit_result["is_profitable"]:

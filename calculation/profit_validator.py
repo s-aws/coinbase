@@ -121,7 +121,8 @@ class ProfitValidator:
         order_size: float,
         min_profit_margin: float = 0.0,
         product_type: str = 'SPOT',
-        position_side: str = None
+        position_side: str = None,
+        contract_size: float = None
     ) -> Dict[str, Any]:
         """
         Check if follow-up order is profitable after fees.
@@ -189,6 +190,8 @@ class ProfitValidator:
             min_profit_margin: Minimum profit threshold (default: 0 = breakeven)
             product_type: 'SPOT', 'FUTURE', or 'PERPETUAL' (default: 'SPOT')
             position_side: For futures only, 'LONG' or 'SHORT' (position context)
+            contract_size: For FUTURE/PERPETUAL, the contract size (e.g., 0.01 BTC).
+                          Used to adjust fee rate calculation per contract. (optional)
         
         Notes:
             Mandatory fees use raw constant ($0.15 per contract).
@@ -247,19 +250,32 @@ class ProfitValidator:
         # Get the effective fee rate (base_fee_rate × 4)
         fee_rate = self._get_fee_rate()
         
+        # For FUTURE/PERPETUAL products, order_size is in "number of contracts"
+        # We need to convert to actual position size (in BTC/units) for fee calculation
+        # Gross profit and fees should be based on actual position size, not contract count
+        effective_size = order_size
+        if product_type in ('FUTURE', 'PERPETUAL') and contract_size and contract_size > 0:
+            effective_size = order_size * float(contract_size)
+            # TODO: Change to DEBUG level logging
+            logger.info(
+                f"Contract size adjustment | Product: {product_type} | "
+                f"Order size (contracts): {order_size} | Contract size: {contract_size} | "
+                f"Effective size (units): {effective_size}"
+            )
+        
         # Calculate gross profit (before fees)
         # Profit is the price difference between open and close
         if side == OrderSide.BUY.value:
             # Parent was BUY (open), follow-up will be SELL (close)
-            gross_profit = (follow_up_price - filled_price) * order_size
+            gross_profit = (follow_up_price - filled_price) * effective_size
         else:  # SELL
             # Parent was SELL (open), follow-up will be BUY (close)
-            gross_profit = (filled_price - follow_up_price) * order_size
+            gross_profit = (filled_price - follow_up_price) * effective_size
         
         # Calculate fees - ONLY the close order incurs fees
         # The fee is charged on the close_side order's price
         # Important: Fee is charged at close_side price, not open_side price
-        percentage_fees = follow_up_price * order_size * fee_rate
+        percentage_fees = follow_up_price * effective_size * fee_rate
         
         # TODO: Change to DEBUG level logging
         logger.info(
