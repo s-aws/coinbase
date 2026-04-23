@@ -46,6 +46,7 @@ from typing import Dict, Any, Optional
 import logging
 from calculation.formatter import safe_float
 from configuration import determine_open_close_sides
+from core.enums import OrderSide, ProductType
 
 logger = logging.getLogger(__name__)
 
@@ -236,25 +237,19 @@ class ProfitValidator:
             parent_order_side=side
         )
         
-        # Debug: Log the open/close side determination
+        # TODO: Change to DEBUG level logging
         logger.info(
             f"Open/Close side determination | Product: {product_type} | "
             f"Parent side: {side} | Position side: {position_side} | "
             f"Determined: OPEN={open_side}, CLOSE={close_side}"
         )
         
-        # Validate that the provided side matches the open side
-        if side != open_side:
-            # Log or handle warning - parent side should match open side
-            # For now, we'll just proceed but this could be an error condition
-            pass
-        
         # Get the effective fee rate (base_fee_rate × 4)
         fee_rate = self._get_fee_rate()
         
         # Calculate gross profit (before fees)
         # Profit is the price difference between open and close
-        if side == "BUY":
+        if side == OrderSide.BUY.value:
             # Parent was BUY (open), follow-up will be SELL (close)
             gross_profit = (follow_up_price - filled_price) * order_size
         else:  # SELL
@@ -266,7 +261,7 @@ class ProfitValidator:
         # Important: Fee is charged at close_side price, not open_side price
         percentage_fees = follow_up_price * order_size * fee_rate
         
-        # Debug: Log the fee rate being used
+        # TODO: Change to DEBUG level logging
         logger.info(
             f"Fee rate applied | Base fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
             f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
@@ -280,6 +275,7 @@ class ProfitValidator:
         mandatory_fees = 0.0
         if product_type in ('FUTURE', 'PERPETUAL'):
             mandatory_fees = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT * order_size
+            # TODO: Change to DEBUG level logging
             logger.info(
                 f"Mandatory fee applied | Product: {product_type} | "
                 f"Contracts: {order_size} | Fee: ${mandatory_fees:.2f} "
@@ -306,6 +302,7 @@ class ProfitValidator:
         
         is_profitable = net_profit > min_profit_margin
         
+        # TODO: Change to DEBUG level logging
         # Log profitability result
         if mandatory_fees > 0:  # Only log when mandatory fees present (FUTURE/PERPETUAL)
             logger.info(
@@ -363,7 +360,7 @@ class ProfitValidator:
         Returns:
             Price at which net profit = 0
         """
-        if side == "BUY":
+        if side == OrderSide.BUY.value:
             # Parent BUY (open, no fee), Follow-up SELL (close, has fee)
             # 0 = (follow_up - filled) × size - follow_up × size × fee_rate
             # 0 = follow_up × size - filled × size - follow_up × size × fee_rate
@@ -408,7 +405,7 @@ class ProfitValidator:
         # How much additional price movement do we need per unit?
         profit_per_unit = min_profit / order_size if order_size > 0 else 0
         
-        if side == "BUY":
+        if side == OrderSide.BUY.value:
             # SELL at: breakeven + profit_per_unit
             return breakeven + profit_per_unit
         else:
