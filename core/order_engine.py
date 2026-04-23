@@ -241,7 +241,7 @@ class OrderEngine:
         if LOT_TRACKING_AVAILABLE:
             try:
                 from business.post_fill_hook import initialize_fill_ledger
-                self.fill_repo = initialize_fill_ledger(self.db_helper)
+                self.fill_repo = initialize_fill_ledger(self.db_helper.DB_CLIENT)
                 # Initialize fill event hook registry
                 self.fill_event_hooks = get_global_fill_event_hook_registry()
                 # Register default post-fill hook for recording fills
@@ -1743,20 +1743,6 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
-        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
-        # This must happen before any other processing to prevent race conditions
-        if not self.claim_follow_up_processing("filled", client_order_id):
-            self.log_message(
-                "warning",
-                self.build_follow_up_log_payload(
-                    "follow_up_already_claimed",
-                    source_order=order,
-                    parent_client_order_id=None,
-                    details={"reason": "filled_order_follow_up_already_claimed"},
-                ),
-            )
-            return
-
         # CRITICAL: Check for stealth order BEFORE marking as external
         # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
         original_stealth_order = None
@@ -1774,7 +1760,11 @@ class OrderEngine:
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = self._is_external_order(client_order_id)
 
-        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger using hook registry
+        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger FIRST
+        # ⚠️ CRITICAL: Must happen BEFORE claim_follow_up_processing check
+        # Reason: Fill recording is idempotent (via trade_id UNIQUE constraint)
+        # so it's safe to record even if we process this order again.
+        # But we only want to create follow-ups once (hence the claim check below).
         if self.fill_repo and LOT_TRACKING_AVAILABLE:
             try:
                 order_side = resolve_order_side(order) or "BUY"
@@ -1862,6 +1852,20 @@ class OrderEngine:
             except Exception as e:
                 # Log but don't block - lot tracking failure shouldn't stop order processing
                 self.log_message("warning", f"[LOT-TRACK] Failed to record fill: {type(e).__name__}: {e}")
+
+        # CRITICAL: Claim follow-up processing NOW, after fill is recorded
+        # This prevents duplicate follow-up orders while allowing fill recording even if claim fails
+        if not self.claim_follow_up_processing("filled", client_order_id):
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=None,
+                    details={"reason": "filled_order_follow_up_already_claimed"},
+                ),
+            )
+            return
 
         with self.orderbook_lock:
             if self.orderbook.should_replace["FILLED"] is not True:
