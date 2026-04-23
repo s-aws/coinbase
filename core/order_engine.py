@@ -1875,8 +1875,7 @@ class OrderEngine:
                     original_stealth_order["stealth_order_id"]
                 )
                 if parent_order_data:
-                    # ✅ Use safe_float to handle Decimal type from database
-                    from configuration import safe_float
+                    # ✅ Use safe_float to handle Decimal type from database (imported at module level)
                     target_mv = safe_float(parent_order_data.get("target_movement"))
                     stealth_target_movement = {
                         "target_movement": target_mv if target_mv > 0 else None,
