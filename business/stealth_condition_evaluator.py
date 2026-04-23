@@ -1,7 +1,41 @@
-"""Stealth order condition evaluators for flexible reveal triggers.
+"""Stealth Order Condition Evaluators - Flexible Reveal Triggers.
 
-Provides evaluators for different condition types that determine when hidden
-orders should be revealed to the market.
+This module provides evaluators for different condition types that determine when
+hidden stealth orders should be revealed (placed) on the exchange. Each evaluator
+implements logic to detect specific market conditions.
+
+Supported Condition Types:
+    - PRICE_THRESHOLD: Reveal when price crosses a target price level
+    - CUMULATIVE_VOLUME: Reveal when trading volume accumulates at a price level
+    - TIME_DELAY: Reveal after a time delay with optional jitter
+    - SPREAD: Reveal when bid-ask spread narrows below a threshold
+    - PRODUCT_RATIO: Reveal when ratio between two products meets threshold
+    - COMPOSITE: Reveal when multiple conditions combine with AND/OR logic
+
+All evaluators inherit from ConditionEvaluator base class and implement the
+evaluate() method which returns (condition_met: bool, reason: Optional[str]).
+
+Factory Pattern:
+    Use get_evaluator(condition_type) to instantiate appropriate evaluator for
+    a given condition type. Returns TimeDelayEvaluator as default fallback.
+
+Usage:
+    >>> from business.stealth_condition_evaluator import get_evaluator
+    >>> from core.enums import RevealConditionType
+    >>> 
+    >>> evaluator = get_evaluator(RevealConditionType.PRICE_THRESHOLD.value)
+    >>> condition_config = {
+    ...     "price_threshold": 41000.00,
+    ...     "direction": "below",
+    ...     "hold_duration_seconds": 2,
+    ... }
+    >>> market_data = {"price": 40900.00}
+    >>> order_data = {"condition_first_met_at": None}
+    >>> met, reason = evaluator.evaluate(market_data, condition_config, order_data)
+    >>> met
+    False
+    >>> reason
+    'Price 40900.0 crossed below 41000.0, watching hold time...'
 """
 
 from abc import ABC, abstractmethod
@@ -304,7 +338,36 @@ class CompositeEvaluator(ConditionEvaluator):
 
 
 def get_evaluator(condition_type: str) -> ConditionEvaluator:
-    """Factory function to get appropriate evaluator for condition type."""
+    """Get appropriate evaluator instance for the specified condition type.
+    
+    Factory function that instantiates the correct evaluator class based on
+    the condition type. Acts as a registry for all available evaluators.
+    
+    Args:
+        condition_type: Type of condition (e.g., 'price', 'spread', 'time_delay').
+                       Should match RevealConditionType enum values.
+    
+    Returns:
+        Instantiated evaluator (ConditionEvaluator subclass).
+        If condition_type not recognized, returns TimeDelayEvaluator as fallback.
+    
+    Raises:
+        No exceptions - always returns valid evaluator (uses default fallback).
+    
+    Example:
+        >>> evaluator = get_evaluator('price')
+        >>> type(evaluator).__name__
+        'PriceThresholdEvaluator'
+        
+        >>> evaluator = get_evaluator('unknown_type')
+        >>> type(evaluator).__name__  # Fallback
+        'TimeDelayEvaluator'
+        
+        >>> from core.enums import RevealConditionType
+        >>> evaluator = get_evaluator(RevealConditionType.SPREAD.value)
+        >>> type(evaluator).__name__
+        'SpreadEvaluator'
+    """
     evaluators = {
         RevealConditionType.PRICE_THRESHOLD.value: PriceThresholdEvaluator,
         RevealConditionType.CUMULATIVE_VOLUME.value: CumulativeVolumeEvaluator,

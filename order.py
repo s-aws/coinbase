@@ -60,6 +60,7 @@ from json import dumps
 from time import sleep
 from configuration import REST_CLIENT, \
     ORDER_DIRECTION, ORDERBOOK, format_based_on_reference, quantize_to_increment
+from core.enums import RevealConditionType
 
 # Global stealth bridge reference (set by dashboard_server)
 _stealth_order_bridge = None
@@ -106,7 +107,7 @@ def get_immediate_reveal_condition() -> dict:
         ... )
     """
     return {
-        "type": "time_delay",
+        "type": RevealConditionType.TIME_DELAY.value,
         "delay_seconds": 0,
         "jitter_seconds": 0
     }
@@ -257,7 +258,7 @@ def create_limit_order_span(
     # Default to 60-second delay instead of immediate (0s) to prevent accidental instant reveals
     if not reveal_condition:
         reveal_condition = {
-            "type": "time_delay",
+            "type": RevealConditionType.TIME_DELAY.value,
             "delay_seconds": 60,
             "jitter_seconds": 0
         }

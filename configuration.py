@@ -21,6 +21,7 @@ from pathlib import Path
 from coinbase.rest import RESTClient
 
 from external import CoinbaseRestClient
+from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
 
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
@@ -157,13 +158,13 @@ def normalize_product_type(order: dict, products: dict = None) -> str:
         'SPOT'
     """
     product_type = str(order.get("product_type") or "").upper()
-    if product_type in {"SPOT", "FUTURE"}:
+    if product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
         return product_type
 
     product_id = order.get("product_id")
     product = (products or {}).get(product_id, {})
     configured_product_type = str(product.get("product_type") or "").upper()
-    if configured_product_type in {"SPOT", "FUTURE"}:
+    if configured_product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
         return configured_product_type
 
     if product_id and product_id.endswith("-CDE"):
@@ -319,13 +320,13 @@ def quantize_to_increment(value: float, increment: str, direction: str = "neares
     if remainder == 0:
         return value
 
-    if direction == "down":
+    if direction == RoundingDirection.DOWN.value:
         return value - remainder
 
-    if direction == "up":
+    if direction == RoundingDirection.UP.value:
         return value + (increment_float - remainder)
 
-    if direction == "nearest":
+    if direction == RoundingDirection.NEAREST.value:
         down_value = value - remainder
         up_value = value + (increment_float - remainder)
         return down_value if remainder < (increment_float / 2) else up_value
@@ -560,10 +561,10 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     minimum_move_amount = float(price_increment)
     profit_move_pct = resolve_profit_move_pct(order, profits, products)
 
-    if order_status == "FILLED":
+    if order_status == OrderStatus.FILLED.value:
         order_side = ORDER_SIDE_SWITCH[order_side]
 
-    if order_status == "CANCELLED":
+    if order_status == OrderStatus.CANCELLED.value:
         order_size = safe_float(order.get("leaves_quantity"), default=0.0)
 
     if safe_float(order.get("limit_price"), default=0.0) > 0:
@@ -574,9 +575,9 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
         return {}
 
     if target_movement is not None:
-        if target_movement.get("type") == "P":
+        if target_movement.get("type") == TargetMovementType.PERCENTAGE.value:
             profit_move_pct = target_movement["movement"]
-        elif target_movement.get("type") == "A":
+        elif target_movement.get("type") == TargetMovementType.ABSOLUTE.value:
             minimum_move_amount = float(target_movement["movement"])
 
     fee_move_calculated_from_pct = order_float_price * profit_move_pct
@@ -585,11 +586,11 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
 
     position_update = None
 
-    if order_product_type == "FUTURE":
+    if order_product_type == ProductType.FUTURE.value:
         product_positions = positions.get(order_product_type, {})
         position = deepcopy(product_positions.get(order_product_id))
 
-        if order_status == "FILLED" and position:
+        if order_status == OrderStatus.FILLED.value and position:
             number_of_contracts = float(position["number_of_contracts"])
 
             if ORDER_POSITION_SIDE[position["side"]] == order_side:
@@ -619,7 +620,7 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     order_new_price = float(format_based_on_reference(order_new_price, quote_increment))
     order_new_size = float(format_based_on_reference(order_size, base_increment))
 
-    round_direction = "up" if order_side == "SELL" else "down"
+    round_direction = RoundingDirection.UP.value if order_side == OrderSide.SELL.value else RoundingDirection.DOWN.value
     order_new_price = quantize_to_increment(
         order_new_price,
         price_increment,
@@ -630,7 +631,7 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     base_increment_len = len(base_increment) - 2 if len(base_increment) > 3 else 1
 
     current_contract_count = "N/A"
-    if order_product_type == "FUTURE":
+    if order_product_type == ProductType.FUTURE.value:
         updated_position = positions.get(order_product_type, {}).get(order_product_id)
         if updated_position:
             current_contract_count = updated_position.get("number_of_contracts", "N/A")
@@ -648,6 +649,200 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
         "start_price": f"{order_new_price:.{price_increment_len}f}",
         "position_update": position_update,
     }
+
+
+def determine_open_close_sides(product_type: str, position_side: str = None, parent_order_side: str = None, 
+                                position_size: float = None, order_size: float = None) -> tuple:
+    """Determine which order side is 'open' and which is 'close' based on product type and position.
+    
+    For SPOT products: All BUY orders are OPEN, all SELL orders are CLOSE (always).
+    
+    For FUTURE/PERPETUAL products: Depends on account position:
+    - If position is LONG: BUY=open (add), SELL=close (reduce)
+    - If position is SHORT: SELL=open (add), BUY=close (reduce)
+    - If position is None/closed: Use parent_order_side to determine:
+      * If parent was BUY: BUY=open (new position opening), SELL=close (future)
+      * If parent was SELL: SELL=open (new position opening), BUY=close (future)
+      * If parent_order_side not provided: Default to BUY=open, SELL=close
+    - POSITION FLIP (order_size > position_size): Partial close + partial open
+      * First portion closes existing position (opposite order closes position)
+      * Remaining portion opens new position in opposite direction
+      * Fee applies only to closing portion
+    
+    CRITICAL: When account position reaches 0 contracts, the next order opens a new position.
+    Position resets when balance → 0, so the direction of that next order determines whether
+    it's opening LONG or SHORT.
+    
+    POSITION FLIP SCENARIO:
+    - Current: LONG 5 contracts
+    - Order: SELL 10 contracts
+    - Interpretation: 5 SELL to close LONG + 5 SELL to open SHORT
+    - New position: SHORT 5
+    
+    Args:
+        product_type: 'SPOT', 'FUTURE', or 'PERPETUAL'
+        position_side: Current position ('LONG', 'SHORT', or None if closed)
+        parent_order_side: The side of the parent/opening order ('BUY' or 'SELL') for context
+        position_size: Current position size (contracts) - for flip detection
+        order_size: New order size (contracts) - for flip detection
+    
+    Returns:
+        Tuple of (open_side, close_side) where each is 'BUY' or 'SELL'
+        Example: ('BUY', 'SELL') or ('SELL', 'BUY')
+        
+    Important for Flips:
+        When flip is detected, the open_side/close_side still represents the IMMEDIATE
+        behavior of this order. For LONG 5 + SELL 10:
+        - First 5 SELL close LONG (use current logic)
+        - Next 5 SELL open SHORT (determined by position_side that will result)
+        This function returns close_side for the closing portion.
+    
+    Examples:
+        >>> # SPOT: always same regardless of position
+        >>> determine_open_close_sides('SPOT')
+        ('BUY', 'SELL')
+        
+        >>> # FUTURE LONG: BUY opens, SELL closes
+        >>> determine_open_close_sides('FUTURE', position_side='LONG')
+        ('BUY', 'SELL')
+        
+        >>> # FUTURE SHORT: SELL opens, BUY closes
+        >>> determine_open_close_sides('FUTURE', position_side='SHORT')
+        ('SELL', 'BUY')
+        
+        >>> # Position flip: LONG 5 + SELL 10 → SHORT 5
+        >>> determine_open_close_sides('FUTURE', position_side='LONG', 
+        ...                              parent_order_side='SELL', 
+        ...                              position_size=5.0, order_size=10.0)
+        ('BUY', 'SELL')  # SELL closes LONG portion (fee applies here)
+        
+        >>> # After flip completes, position is SHORT
+        >>> determine_open_close_sides('FUTURE', position_side='SHORT')
+        ('SELL', 'BUY')  # SELL opens, BUY closes SHORT
+    """
+    # SPOT products always use BUY=open, SELL=close
+    if product_type == ProductType.SPOT.value:
+        return ('BUY', 'SELL')
+    
+    # FUTURE/PERPETUAL: Check if position exists
+    if position_side == 'SHORT':
+        return ('SELL', 'BUY')
+    elif position_side == 'LONG':
+        return ('BUY', 'SELL')
+    
+    # Position is None/closed (position_side is None)
+    # The parent order determines the new opening direction
+    if parent_order_side == 'SELL':
+        # Parent was SELL (opening SHORT), so SELL=open, BUY=close
+        return ('SELL', 'BUY')
+    
+    # Default: BUY=open, SELL=close
+    # Covers parent_order_side='BUY' or unknown/None cases
+    return ('BUY', 'SELL')
+
+
+def detect_position_flip(position_side: str, position_size: float, order_side: str, order_size: float) -> dict:
+    """Detect if an order will cause a position to flip direction.
+    
+    When order size exceeds current position size and opposes it, the position flips.
+    This has implications for profit calculation:
+    - Portion that closes: Fee applies, profit/loss realized
+    - Portion that opens: No fee yet, future profit depends on follow-up
+    
+    Args:
+        position_side: Current position ('LONG', 'SHORT', or None)
+        position_size: Current position size in contracts (e.g., 5.0)
+        order_side: New order side ('BUY' or 'SELL')
+        order_size: New order size in contracts (e.g., 10.0)
+    
+    Returns:
+        Dict with keys:
+            'will_flip': bool - True if position flips after this order
+            'closing_size': float - Size that closes existing position
+            'opening_size': float - Size that opens new position
+            'new_position_side': str - Side after order ('LONG', 'SHORT', or None)
+            'new_position_size': float - Size after order
+    
+    Examples:
+        >>> # LONG 5 + SELL 10 → SHORT 5
+        >>> detect_position_flip('LONG', 5.0, 'SELL', 10.0)
+        {
+            'will_flip': True,
+            'closing_size': 5.0,  # 5 SELL to close LONG
+            'opening_size': 5.0,  # 5 SELL to open SHORT
+            'new_position_side': 'SHORT',
+            'new_position_size': 5.0
+        }
+        
+        >>> # LONG 5 + SELL 3 (no flip, just reduce)
+        >>> detect_position_flip('LONG', 5.0, 'SELL', 3.0)
+        {
+            'will_flip': False,
+            'closing_size': 3.0,
+            'opening_size': 0.0,
+            'new_position_side': 'LONG',
+            'new_position_size': 2.0
+        }
+        
+        >>> # LONG 5 + SELL 5 (closes completely)
+        >>> detect_position_flip('LONG', 5.0, 'SELL', 5.0)
+        {
+            'will_flip': False,
+            'closing_size': 5.0,
+            'opening_size': 0.0,
+            'new_position_side': None,
+            'new_position_size': 0.0
+        }
+    """
+    if position_side is None or position_size == 0:
+        # No position to flip from
+        return {
+            'will_flip': False,
+            'closing_size': 0.0,
+            'opening_size': order_size,
+            'new_position_side': 'LONG' if order_side == 'BUY' else 'SHORT',
+            'new_position_size': order_size
+        }
+    
+    # Determine if order opposes current position
+    order_opposes = (
+        (position_side == 'LONG' and order_side == 'SELL') or
+        (position_side == 'SHORT' and order_side == 'BUY')
+    )
+    
+    if not order_opposes:
+        # Order increases position, no flip possible
+        return {
+            'will_flip': False,
+            'closing_size': 0.0,
+            'opening_size': order_size,
+            'new_position_side': position_side,
+            'new_position_size': position_size + order_size
+        }
+    
+    # Order opposes position - check if it flips
+    if order_size > position_size:
+        # FLIP: portion closes, portion opens opposite
+        closing_size = position_size
+        opening_size = order_size - position_size
+        new_side = 'SHORT' if position_side == 'LONG' else 'LONG'
+        return {
+            'will_flip': True,
+            'closing_size': closing_size,
+            'opening_size': opening_size,
+            'new_position_side': new_side,
+            'new_position_size': opening_size
+        }
+    else:
+        # No flip: just reduces position
+        new_size = position_size - order_size
+        return {
+            'will_flip': False,
+            'closing_size': order_size,
+            'opening_size': 0.0,
+            'new_position_side': position_side if new_size > 0 else None,
+            'new_position_size': new_size
+        }
 
 
 class OrderBook():
@@ -699,7 +894,7 @@ class OrderBook():
         product_id: {
             "mandatory_fee_per_contract": (
                 DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
-            ) if this["product_type"] == "FUTURE" else 0
+            ) if this["product_type"] == ProductType.FUTURE.value else 0
         } for product_id, this in product.items()
     }
 
@@ -708,16 +903,16 @@ class OrderBook():
 
     profit = {
         "SPOT": {
-            "BUY": 0.002,
-            "SELL": 0.002
+            "BUY": 0.001,
+            "SELL": 0.001
         },
         "FUTURE": {
-            "BUY": 0.004,
-            "SELL": 0.004
+            "BUY": 0.001,
+            "SELL": 0.001
         },
         "BIP-20DEC30-CDE": {
-            "BUY": 0.0021,
-            "SELL": 0.0021
+            "BUY": 0.001,
+            "SELL": 0.001
         }
     }
 
@@ -726,6 +921,62 @@ class OrderBook():
     }
 
     db_client = None
+
+    def get_position_side(self, product_id: str) -> str | None:
+        """Get the current position side for a product.
+        
+        For FUTURE/PERPETUAL products, returns the current position side (LONG, SHORT)
+        if an open position exists. Returns None if position is closed (contracts = 0).
+        For SPOT products, returns None (no positions).
+        
+        CRITICAL: When number_of_contracts reaches 0, the position is fully closed and
+        the next order will OPEN a new position (not close an existing one). This method
+        correctly returns None in that case so the profit validator knows to expect the
+        next order as "open" regardless of its direction.
+        
+        This method is thread-safe when called from OrderEngine (which holds orderbook_lock).
+        
+        Args:
+            product_id: The product ID to get position for (e.g., 'BIP-20DEC30-CDE')
+        
+        Returns:
+            Position side string ('LONG' or 'SHORT') if position exists and contracts > 0,
+            None if position is closed (contracts = 0) or doesn't exist.
+            
+        Examples:
+            >>> orderbook = OrderBook()
+            >>> # Active LONG position with 10 contracts
+            >>> position_side = orderbook.get_position_side('BIP-20DEC30-CDE')
+            >>> print(position_side)  # 'LONG'
+            
+            >>> # Position fully closed (contracts = 0) - ready for new open order
+            >>> orderbook.positions["FUTURE"]["BIP-20DEC30-CDE"]["number_of_contracts"] = "0"
+            >>> position_side = orderbook.get_position_side('BIP-20DEC30-CDE')
+            >>> print(position_side)  # None (position is reset)
+            
+            >>> position_side = orderbook.get_position_side('BTC-USDC')  # SPOT
+            >>> print(position_side)  # None (SPOT has no positions)
+        """
+        future_positions = self.positions.get("FUTURE", {})
+        position = future_positions.get(product_id)
+        
+        if not position:
+            return None
+        
+        # Check if position is closed (contracts = 0)
+        # Handle both string and float representations
+        try:
+            num_contracts = float(position.get("number_of_contracts", 0))
+        except (ValueError, TypeError):
+            return None
+        
+        # If contracts is at or near zero (within floating point precision), 
+        # the position is closed and we treat it as None (ready for new open)
+        if num_contracts <= 1e-8:  # Effectively zero within float precision
+            return None
+        
+        # Position is active, return its side
+        return position.get("side")  # Returns 'LONG', 'SHORT', or None
 
     def calculate_new_order_move(self, order_id: str, target_movement: dict = None) -> dict:
         """Calculate a new order move using current orderbook snapshot.

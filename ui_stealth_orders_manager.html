@@ -713,13 +713,14 @@
                                 <th>Time</th>
                                 <th>Progress</th>
                                 <th>Executed</th>
-                                <th>Target Movement</th>
+                                <th>Parent Target</th>
+                                <th>Max Followups</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="orders-tbody">
                             <tr>
-                                <td colspan="11" style="text-align: center; padding: 30px; color: #666;">
+                                <td colspan="12" style="text-align: center; padding: 30px; color: #666;">
                                     Loading orders...
                                 </td>
                             </tr>
@@ -812,7 +813,7 @@
                                 <label>Target Movement</label>
                                 <input type="number" id="target_movement" placeholder="0.002" step="0.0001" value="0.002">
                                 <div style="font-size: 10px; color: #666; margin-top: 4px;">
-                                    Profit target (% or absolute amount)
+                                    Profit target: Enter as decimal (0.002 = 0.2%, 0.05 = 5%)
                                 </div>
                             </div>
                         </div>
@@ -883,32 +884,32 @@
     </div>
 
     <!-- Edit Target Movement Modal -->
-    <div id="editTargetMovementModal" class="modal">
+    <div id="editParentTargetMovementModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Edit Target Movement</h2>
-                <button type="button" class="modal-close" onclick="closeEditTargetMovementModal()">&times;</button>
+                <button type="button" class="modal-close" onclick="closeEditParentTargetMovementModal()">&times;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 15px;">
                 <div>
                     <label style="display: block; margin-bottom: 8px;">Target Movement Value</label>
-                    <input type="number" id="editTargetMovementValue" placeholder="0.005" step="0.0001" min="0">
+                    <input type="number" id="editParentTargetMovementValue" placeholder="0.002" step="0.0001" min="0">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 8px;">Type</label>
-                    <select id="editTargetMovementType">
+                    <select id="editParentTargetMovementType">
                         <option value="P">Percentage (%)</option>
                         <option value="A">Absolute Amount</option>
                     </select>
                 </div>
                 <div style="font-size: 12px; color: #aaa;">
-                    <strong>Percentage (%):</strong> Profit target as % of current price (e.g., 0.5 = 0.5%)<br>
+                    <strong>Percentage (%):</strong> Enter as decimal (e.g., 0.002 = 0.2%, 0.05 = 5%)<br>
                     <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="cancel-modal-btn" onclick="closeEditTargetMovementModal()">Cancel</button>
-                <button type="button" class="confirm-btn" onclick="confirmEditTargetMovement()">Update</button>
+                <button type="button" class="cancel-modal-btn" onclick="closeEditParentTargetMovementModal()">Cancel</button>
+                <button type="button" class="confirm-btn" onclick="confirmEditParentTargetMovement()">Update</button>
             </div>
         </div>
     </div>
@@ -1113,11 +1114,35 @@
                         ordersData[data.stealth_order_id] = data.order;
                         updateOrdersTable();
                         updateStats();
+                    } else if (data.type === "parent_target_movement_updated") {
+                        // Update all stealth orders with this parent
+                        const parentOrderId = data.parent_order_id;
+                        Object.values(ordersData).forEach(order => {
+                            if (order.parent_order_id === parentOrderId) {
+                                order.parent_target_movement = data.target_movement;
+                                order.parent_target_movement_type = data.target_movement_type;
+                            }
+                        });
+                        showMessage(`Parent target movement updated to ${data.target_movement}${data.target_movement_type === 'A' ? ' (Abs)' : '%'}`, 'success');
+                        updateOrdersTable();
+                        updateStats();
+                    } else if (data.type === "stealth_order_cancelled") {
+                        // Handle stealth order cancellation
+                        const stealth_order_id = data.stealth_order_id;
+                        if (ordersData[stealth_order_id]) {
+                            ordersData[stealth_order_id].status = "CANCELLED";
+                            updateOrdersTable();
+                            updateStats();
+                            showMessage(`Order cancelled: ${stealth_order_id.substring(0, 8)}...`, 'info');
+                        }
                     } else if (data.type === "stealth_orders_cleared") {
                         ordersData = {};
                         updateOrdersTable();
                         updateStats();
                         showMessage(`✅ Cleared ${data.rows_deleted} stealth orders`, 'success');
+                    } else if (data.type === "error") {
+                        // Handle generic error messages from server
+                        showMessage(`Error: ${data.message || 'Unknown error'}`, 'error');
                     }
                 };
 
@@ -1268,14 +1293,27 @@
             const tbody = document.getElementById('orders-tbody');
             let orders = Object.values(ordersData);
             
-            // Sort by Product (ascending), then by Parent/Child relationship, then by Date-Time (descending)
-            orders.sort((a, b) => {
-                // Primary sort: by product_id
-                if (a.product_id !== b.product_id) {
-                    return a.product_id.localeCompare(b.product_id);
+            // First pass: count children for each parent
+            const childCountByParent = {};
+            orders.forEach(order => {
+                if (!order.parent_order_id) {
+                    // This is a parent
+                    childCountByParent[order.stealth_order_id] = 0;
                 }
-                
-                // Secondary sort: by parent/child relationship
+            });
+            
+            orders.forEach(order => {
+                if (order.parent_order_id) {
+                    // This is a child, increment parent's child count
+                    if (childCountByParent[order.parent_order_id] !== undefined) {
+                        childCountByParent[order.parent_order_id]++;
+                    }
+                }
+            });
+            
+            // Sort by Parent->Child count (descending), then by Product ID (ascending)
+            orders.sort((a, b) => {
+                // Primary sort: by parent/child relationship
                 // Orders without parent_order_id (parents) come first, then orders with parent_order_id
                 const aHasParent = a.parent_order_id ? 1 : 0;
                 const bHasParent = b.parent_order_id ? 1 : 0;
@@ -1283,17 +1321,29 @@
                     return aHasParent - bHasParent;
                 }
                 
-                // If both are children, group by parent_order_id
+                // If both are parents, sort by child count (descending) then product_id
+                if (aHasParent === 0 && bHasParent === 0) {
+                    const aChildCount = childCountByParent[a.stealth_order_id] || 0;
+                    const bChildCount = childCountByParent[b.stealth_order_id] || 0;
+                    
+                    if (aChildCount !== bChildCount) {
+                        return bChildCount - aChildCount; // Descending (more children first)
+                    }
+                    
+                    // If same child count, sort by product_id
+                    return a.product_id.localeCompare(b.product_id);
+                }
+                
+                // If both are children, group by parent_order_id, then sort by created_at descending
                 if (aHasParent === 1 && bHasParent === 1) {
                     if (a.parent_order_id !== b.parent_order_id) {
                         return a.parent_order_id.localeCompare(b.parent_order_id);
                     }
+                    
+                    const dateA = new Date(a.created_at || 0);
+                    const dateB = new Date(b.created_at || 0);
+                    return dateB - dateA;
                 }
-                
-                // Tertiary sort: by created_at date-time descending (most recent first)
-                const dateA = new Date(a.created_at || 0);
-                const dateB = new Date(b.created_at || 0);
-                return dateB - dateA;
             });
             
             // Update product dropdown with any new products
@@ -1321,6 +1371,18 @@
                 childOrdersByParent[childOrder.parent_order_id].push(childOrder);
             });
 
+            // Filter out parent orders that don't meet display criteria:
+            // Show a parent if: (parent is active: PENDING or HIDDEN) OR (parent has at least one active child)
+            // When showing a parent, display all of its children regardless of their status
+            const filteredParentOrders = parentOrders.filter(parentOrder => {
+                const isParentActive = parentOrder.status === 'PENDING' || parentOrder.status === 'HIDDEN';
+                const children = childOrdersByParent[parentOrder.stealth_order_id] || [];
+                const hasActiveChild = children.some(child => child.status === 'PENDING' || child.status === 'HIDDEN');
+                
+                // Show parent if parent is active OR if parent has at least one active child
+                return isParentActive || hasActiveChild;
+            });
+
             // Render function for order row
             const renderOrderRow = (order, isChild = false, parentId = null) => {
                 const revealedPct = order.total_size > 0 
@@ -1344,9 +1406,10 @@
                 if (isParent) {
                     if (hasChildren) {
                         const childCount = childOrdersByParent[order.stealth_order_id].length;
+                        const nonHiddenCount = childOrdersByParent[order.stealth_order_id].filter(child => child.status !== 'HIDDEN').length;
                         const isExpanded = accordionState[order.stealth_order_id] || false;
                         toggleHtml = `<button type="button" data-toggle-id="${order.stealth_order_id}" class="accordion-toggle ${isExpanded ? 'expanded' : 'collapsed'}" onclick="toggleAccordion('${order.stealth_order_id}')"></button>`;
-                        parentIndicator = toggleHtml + `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order (${childCount} children)">👑 (${childCount})</span>`;
+                        parentIndicator = toggleHtml + `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order (${nonHiddenCount} revealed, ${childCount} total children)">👑 (${nonHiddenCount}/${childCount})</span>`;
                     } else {
                         parentIndicator = `<span style="color: #ffb347; margin-right: 6px; font-weight: bold;" title="Parent order">👑</span>`;
                     }
@@ -1366,8 +1429,19 @@
                     createdDateTime = `${dateStr} ${timeStr}`;
                 }
                 
-                const targetMovementStr = order.target_movement 
-                    ? `${parseFloat(order.target_movement).toFixed(4)}${order.target_movement_type === 'A' ? ' (Abs)' : '%'}`
+                const parentTargetMovementStr = (order.parent_target_movement !== undefined && order.parent_target_movement !== null)
+                    ? order.parent_target_movement_type === 'A' 
+                        ? `${parseFloat(order.parent_target_movement).toFixed(4)} (Abs)`
+                        : `${(parseFloat(order.parent_target_movement) * 100).toFixed(4)}%`
+                    : (order.target_movement !== undefined && order.target_movement !== null)
+                    ? order.target_movement_type === 'A'
+                        ? `${parseFloat(order.target_movement).toFixed(4)} (Abs)`
+                        : `${(parseFloat(order.target_movement) * 100).toFixed(4)}%`
+                    : '-';
+                
+                // Display max followups: for parents, show their own value; for children, show '-'
+                const maxFollowupsStr = order.max_order_replacements !== undefined && order.max_order_replacements !== null
+                    ? order.max_order_replacements
                     : '-';
                 
                 return `
@@ -1386,10 +1460,13 @@
                             <div style="font-size: 10px; color: #999; margin-top: 2px;">${revealedPct}%</div>
                         </td>
                         <td>${revealedStr}</td>
-                        <td style="font-size: 13px; color: #7ba3ff; font-weight: 500;">${targetMovementStr}</td>
+                        <td style="font-size: 13px; color: #7ba3ff; font-weight: 500;">${parentTargetMovementStr}</td>
+                        <td style="font-size: 13px; font-weight: 500; ${isParent ? 'color: #51cf66;' : 'color: #999;'} text-align: center;">${maxFollowupsStr}</td>
                         <td>
                             <div class="action-buttons">
-                                <button onclick="openEditTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}')" class="edit-btn" title="Edit target movement">⚙️</button>
+                                ${isParent
+                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}')" class="edit-btn" title="Edit target movement">⚙️</button>`
+                                    : ''}
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
                                     ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn">Cancel</button>`
                                     : order.status === 'REVEALED'
@@ -1407,7 +1484,7 @@
 
             // Build HTML with parents and children
             let html = '';
-            parentOrders.forEach(parentOrder => {
+            filteredParentOrders.forEach(parentOrder => {
                 // Add parent row
                 html += renderOrderRow(parentOrder, false);
                 
@@ -1846,6 +1923,94 @@
             }
         }
 
+        // Modal functions for editing parent target movement
+        function openEditParentTargetMovementModal(parentOrderId, currentValue, currentType) {
+            const modal = document.getElementById('editParentTargetMovementModal');
+            const valueInput = document.getElementById('editParentTargetMovementValue');
+            const typeSelect = document.getElementById('editParentTargetMovementType');
+            
+            // Store the parent order ID for later use
+            modal.dataset.parentOrderId = parentOrderId;
+            
+            // Populate with current values (use raw DB values)
+            valueInput.value = currentValue || '';
+            typeSelect.value = currentType || 'P';
+            
+            // Show modal
+            modal.classList.add('show');
+            valueInput.focus();
+        }
+
+        function closeEditParentTargetMovementModal() {
+            const modal = document.getElementById('editParentTargetMovementModal');
+            modal.classList.remove('show');
+            
+            // Clear stored order ID
+            delete modal.dataset.parentOrderId;
+        }
+
+        function confirmEditParentTargetMovement() {
+            const modal = document.getElementById('editParentTargetMovementModal');
+            const parentOrderId = modal.dataset.parentOrderId;
+            const value = document.getElementById('editParentTargetMovementValue').value;
+            const type = document.getElementById('editParentTargetMovementType').value;
+            
+            if (!parentOrderId) {
+                showMessage('Error: No parent order selected', 'error');
+                return;
+            }
+            
+            if (!value || isNaN(parseFloat(value))) {
+                showMessage('Please enter a valid number for target movement', 'error');
+                return;
+            }
+            
+            // Validate range
+            const numValue = parseFloat(value);
+            if (numValue < 0) {
+                showMessage('Target movement cannot be negative', 'error');
+                return;
+            }
+            
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            
+            try {
+                // Send value directly without conversion (same format as form)
+                ws.send(JSON.stringify({
+                    type: "update_parent_target_movement",
+                    parent_order_id: parentOrderId,
+                    target_movement: numValue,
+                    target_movement_type: type
+                }));
+                
+                showMessage(`Parent target movement updated to ${numValue}${type === 'A' ? ' (Abs)' : '%'}`, 'success');
+                closeEditParentTargetMovementModal();
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Close modal when clicking outside of it
+        window.addEventListener('click', (event) => {
+            const modal = document.getElementById('editParentTargetMovementModal');
+            if (event.target === modal) {
+                closeEditParentTargetMovementModal();
+            }
+        });
+
+        // Allow Enter key to confirm
+        const parentTargetInput = document.getElementById('editParentTargetMovementValue');
+        if (parentTargetInput) {
+            parentTargetInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    confirmEditParentTargetMovement();
+                }
+            });
+        }
+
         function showMessage(text, type) {
             const container = document.getElementById('message-container');
             container.textContent = text;
@@ -1889,90 +2054,6 @@
         // Setup clear all stealth orders button
         document.getElementById('clear-all-btn').addEventListener('click', clearAllStealthOrders);
 
-        // Modal functions for editing target movement
-        function openEditTargetMovementModal(stealthOrderId, currentValue, currentType) {
-            const modal = document.getElementById('editTargetMovementModal');
-            const valueInput = document.getElementById('editTargetMovementValue');
-            const typeSelect = document.getElementById('editTargetMovementType');
-            
-            // Store the order ID for later use
-            modal.dataset.stealthOrderId = stealthOrderId;
-            
-            // Populate with current values
-            valueInput.value = currentValue || '';
-            typeSelect.value = currentType || 'P';
-            
-            // Show modal
-            modal.classList.add('show');
-            valueInput.focus();
-        }
-
-        function closeEditTargetMovementModal() {
-            const modal = document.getElementById('editTargetMovementModal');
-            modal.classList.remove('show');
-            
-            // Clear stored order ID
-            delete modal.dataset.stealthOrderId;
-        }
-
-        function confirmEditTargetMovement() {
-            const modal = document.getElementById('editTargetMovementModal');
-            const stealthOrderId = modal.dataset.stealthOrderId;
-            const value = document.getElementById('editTargetMovementValue').value;
-            const type = document.getElementById('editTargetMovementType').value;
-            
-            if (!stealthOrderId) {
-                showMessage('Error: No order selected', 'error');
-                return;
-            }
-            
-            if (!value || isNaN(parseFloat(value))) {
-                showMessage('Please enter a valid number for target movement', 'error');
-                return;
-            }
-            
-            // Validate range
-            const numValue = parseFloat(value);
-            if (numValue < 0) {
-                showMessage('Target movement cannot be negative', 'error');
-                return;
-            }
-            
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                showMessage('Not connected to server', 'error');
-                return;
-            }
-            
-            try {
-                ws.send(JSON.stringify({
-                    type: "update_stealth_target_movement",
-                    stealth_order_id: stealthOrderId,
-                    target_movement: numValue,
-                    target_movement_type: type
-                }));
-                
-                showMessage(`Target movement updated to ${numValue}${type === 'A' ? ' (Abs)' : '%'}`, 'success');
-                closeEditTargetMovementModal();
-            } catch (error) {
-                showMessage(`Error: ${error.message}`, 'error');
-            }
-        }
-
-        // Close modal when clicking outside of it
-        window.addEventListener('click', (event) => {
-            const modal = document.getElementById('editTargetMovementModal');
-            if (event.target === modal) {
-                closeEditTargetMovementModal();
-            }
-        });
-
-        // Allow Enter key to confirm
-        document.getElementById('editTargetMovementValue').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                confirmEditTargetMovement();
-            }
-        });
-        
         function clearAllStealthOrders() {
             const confirmed = confirm('⚠️ This will permanently delete ALL stealth orders from the database.\n\nAre you sure?');
             if (!confirmed) {

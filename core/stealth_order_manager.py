@@ -20,8 +20,10 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
+from core.enums import FollowUpRevealDirection, StealthOrderStatus
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
+from logging_service import get_logger
 
 
 class StealthOrderManager:
@@ -46,25 +48,44 @@ class StealthOrderManager:
     - Parent:Child order relationships (1:Many)
     """
     
-    def __init__(self, db_client, log_callback=None):
+    def __init__(self, db_client, log_callback=None, order_placement_hooks=None):
         """
         Initialize StealthOrderManager.
         
         Args:
             db_client: Database client for persistence
-            log_callback: Optional logging callback (log_type, message). Defaults to print fallback.
+            log_callback: Optional logging callback (log_type, message). Defaults to proper logging_service.
+            order_placement_hooks: Optional OrderPlacementHookRegistry for pre/post submission hooks.
         """
         self.db_client = db_client
+        self.logger = get_logger("StealthOrderManager")
         self.log_callback = log_callback or self._default_log
         self.in_memory_orders = {}  # For caching/quick access
         self._market_cache = {}  # Market data cache: product_id -> market_data
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
+        
+        # Order placement hooks for extensibility
+        if order_placement_hooks is None:
+            from integration.order_placement_hooks import get_global_placement_hook_registry
+            order_placement_hooks = get_global_placement_hook_registry()
+        self.order_placement_hooks = order_placement_hooks
     
     def _default_log(self, log_type: str, message: str):
-        """Fallback logging if no callback provided."""
+        """Log using proper logging_service with timestamps."""
         if isinstance(message, (dict, list)):
             message = json.dumps(message, sort_keys=True, default=str)
-        print(f"[{log_type.upper()}] {message}")
+        
+        log_type_lower = log_type.lower()
+        if log_type_lower in ('debug',):
+            self.logger.debug(message)
+        elif log_type_lower in ('info',):
+            self.logger.info(message)
+        elif log_type_lower in ('warning',):
+            self.logger.warning(message)
+        elif log_type_lower in ('error',):
+            self.logger.error(message)
+        else:
+            self.logger.info(message)
 
     
     def create_stealth_order(
@@ -104,7 +125,8 @@ class StealthOrderManager:
             sizing_strategy: Dict specifying adaptive reveal sizing (default: fixed)
                             Example: {'type': 'volume_proportional', 'min_reveal': 0.1}
             parent_order_id: Client order ID if this is a child/follow-up order
-            follow_up_reveal_direction: Direction for follow-up reveals ('same', 'opposite', etc.)
+            follow_up_reveal_direction: Direction for follow-up reveals (FollowUpRevealDirection.SAME or OPPOSITE).
+                                       Accepts enum or string value. Defaults to OPPOSITE.
             reason: Reason for order (e.g., 'normal_placement', 'follow_up_replacement')
             notes: Additional notes for tracking
             stealth_order_id: Optional UUID provided by caller (UI or engine). 
@@ -167,11 +189,11 @@ class StealthOrderManager:
             "limit_price": float(limit_price),
             "revealed_size": 0.0,
             "remaining_size": float(total_size),
-            "status": "HIDDEN",
+            "status": StealthOrderStatus.HIDDEN.value,
             "visibility_score": 0.0,
             "reveal_condition_type": reveal_condition.get("type", "time_delay"),
             "reveal_condition_json": reveal_condition,
-            "follow_up_reveal_direction": follow_up_reveal_direction or "opposite",
+            "follow_up_reveal_direction": follow_up_reveal_direction or FollowUpRevealDirection.OPPOSITE.value,
             "sizing_strategy_json": sizing_strategy or {"type": "fixed"},
             "parent_order_id": parent_order_id,
             "reason": reason,
@@ -188,10 +210,30 @@ class StealthOrderManager:
         # Persist to database
         self._save_stealth_order_to_db(order_data)
         
-        # UNIFIED TRACKING: If this is a root order (no parent), also insert into order_parent table
+        # 📊 LOT-TRACKING: Log stealth order creation
+        reveal_type = reveal_condition.get("type", "time_delay")
+        reveal_delay = reveal_condition.get("delay_seconds", 0) if reveal_type == "time_delay" else "N/A"
+        self.log_callback("info", f"[LOT-TRACK] Stealth order created: {stealth_order_id} ({side} {total_size} {product_id} @ {limit_price}, reveal_type={reveal_type}, delay={reveal_delay}s)")
+        
+        # UNIFIED TRACKING: Insert into order_parent table (for both parent and child orders)
         # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
-        if not parent_order_id:
-            # Use provided max_order_replacements or fall back to configuration default
+        if parent_order_id:
+            # This is a child/follow-up order - insert with parent reference
+            insert_order_parent(
+                client_order_id=stealth_order_id,
+                product_id=product_id,
+                side=side,
+                size=total_size,
+                price=limit_price,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+                max_order_replacement=0,  # Children don't have follow-ups
+                current_order_replacement=0,
+                status=StealthOrderStatus.PENDING.value,
+                parent_order_id=parent_order_id
+            )
+        else:
+            # This is a root order (no parent) - insert as parent
             effective_max_replacements = max_order_replacements if max_order_replacements is not None else DEFAULT_MAX_ORDER_REPLACEMENT
             
             insert_order_parent(
@@ -204,7 +246,7 @@ class StealthOrderManager:
                 target_movement_type=target_movement_type,
                 max_order_replacement=effective_max_replacements,
                 current_order_replacement=0,
-                status="pending"  # Stealth orders start as pending in traditional tracking
+                status=StealthOrderStatus.PENDING.value
             )
         
         return stealth_order_id
@@ -236,13 +278,16 @@ class StealthOrderManager:
         # Update condition tracking
         if condition_met and not order.get("condition_confirmed_at"):
             order["condition_confirmed_at"] = datetime.utcnow()
-            order["status"] = "TRIGGERED"
+            order["status"] = StealthOrderStatus.TRIGGERED.value
             self._update_stealth_order(order)
+            # 📊 LOT-TRACKING: Log condition met
+            market_price = market_data.get("price", "unknown") if market_data else "unknown"
+            self.log_callback("info", f"[LOT-TRACK] Stealth order condition met: {order['stealth_order_id']} ({order['side']} {order['total_size']} {order['product_id']} @ {order['limit_price']}, market_price={market_price})")
         elif not condition_met and order.get("condition_first_met_at") is None:
             # First time condition partially met
             if reason and ("watching" in reason or "waiting" in reason):
                 order["condition_first_met_at"] = datetime.utcnow()
-                order["status"] = "PENDING"
+                order["status"] = StealthOrderStatus.PENDING.value
                 self._update_stealth_order(order)
         
         return condition_met, reason
@@ -261,7 +306,7 @@ class StealthOrderManager:
         if not order:
             return False, "Order not found"
         
-        if order["status"] in ["EXECUTED", "CANCELLED"]:
+        if order["status"] in [StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value]:
             return False, f"Order already {order['status']}"
         
         if order["remaining_size"] <= 0:
@@ -302,22 +347,83 @@ class StealthOrderManager:
             # This creates the direct link: stealth_order_id → placed order → fill event
             client_order_id = order["stealth_order_id"]
             
+            # Build order dict for hooks (before REST submission)
+            order_for_submission = {
+                "product_id": order["product_id"],
+                "side": order["side"],
+                "limit_price": order["limit_price"],
+                "base_size": slice_size,
+                "client_order_id": client_order_id,
+                "post_only": False,
+                "stealth_order_id": stealth_order_id,
+            }
+            
+            # 🪝 PRE-SUBMISSION HOOKS: Validate/modify order before REST submission
+            # Extensions can raise exceptions to block placement or modify order fields
+            try:
+                self.order_placement_hooks.call_pre_submission_hooks(order_for_submission)
+            except Exception as hook_error:
+                # Hook validation failed - don't submit order
+                placed_order_id = str(uuid.uuid4())  # Fallback for tracking
+                placement_error = f"Pre-submission hook blocked: {str(hook_error)}"
+                placement_success = False
+                
+                self.log_callback("warning", {
+                    "event": "stealth_order_submission_blocked_by_hook",
+                    "stealth_order_id": stealth_order_id,
+                    "size": slice_size,
+                    "product_id": order["product_id"],
+                    "block_reason": placement_error,
+                })
+                
+                # Record the blocked reveal event and return
+                reveal_event = {
+                    "reveal_number": len(order["revealed_orders"]) + 1,
+                    "revealed_size": 0,  # No size placed
+                    "placed_order_id": placed_order_id,
+                    "placement_success": False,
+                    "placement_error": placement_error,
+                    "reveal_time": datetime.utcnow(),
+                    "market_price": self._get_current_market_data(order["product_id"]).get("price"),
+                }
+                order["revealed_orders"].append(reveal_event)
+                order["updated_at"] = datetime.utcnow()
+                self._update_stealth_order(order)
+                self._record_reveal_event(order, reveal_event)
+                return None
+            
             # Place order directly on the exchange via REST API
             # ⚠️ CRITICAL: Do NOT call create_limit_order_span() here as it creates another stealth order!
             # Use REST_CLIENT.place_limit_order() which is purpose-built for this
             order_result = REST_CLIENT.place_limit_order(
-                product_id=order["product_id"],
-                side=order["side"],
-                limit_price=str(order["limit_price"]),
-                base_size=str(slice_size),
-                client_order_id=client_order_id,
-                post_only=False
+                product_id=order_for_submission["product_id"],
+                side=order_for_submission["side"],
+                limit_price=str(order_for_submission["limit_price"]),
+                base_size=str(order_for_submission["base_size"]),
+                client_order_id=order_for_submission["client_order_id"],
+                post_only=order_for_submission["post_only"]
             )
             
             # ✓ Use the client_order_id we sent (stealth_order_id)
             # When fill event arrives with this client_order_id, it links directly to stealth order
             placed_order_id = client_order_id
             placement_success = True
+            
+            # 🪝 POST-SUBMISSION HOOKS: Log/track submission after REST call succeeds
+            # Exceptions here are logged but don't affect placement
+            try:
+                self.order_placement_hooks.call_post_submission_hooks(order_for_submission, order_result)
+            except Exception as hook_error:
+                # Post-hook error - log but don't fail (order is already placed)
+                self.log_callback("warning", {
+                    "event": "post_submission_hook_exception",
+                    "stealth_order_id": stealth_order_id,
+                    "error": str(hook_error),
+                    "note": "Order was placed successfully, but post-submission hook failed"
+                })
+            
+            # 📊 LOT-TRACKING: Log order placement
+            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {order['limit_price']}, exchange_order_id={exchange_order_id})")
             
             self.log_callback("info", {
                 "event": "stealth_order_slice_placed_successfully",
@@ -358,7 +464,7 @@ class StealthOrderManager:
         order["visibility_score"] = order["revealed_size"] / order["total_size"]
         
         if order["remaining_size"] <= 0:
-            order["status"] = "REVEALED"
+            order["status"] = StealthOrderStatus.REVEALED.value
         
         order["updated_at"] = datetime.utcnow()
         order["last_placement_at"] = datetime.utcnow()
@@ -372,7 +478,7 @@ class StealthOrderManager:
         
         return placed_order_id
     
-    def update_execution(self, stealth_order_id: str, executed_size: float, order_status: str = "EXECUTED"):
+    def update_execution(self, stealth_order_id: str, executed_size: float, order_status: str = StealthOrderStatus.EXECUTED.value):
         """
         Update stealth order with execution information.
         
@@ -390,6 +496,9 @@ class StealthOrderManager:
         order["status"] = order_status
         order["updated_at"] = datetime.utcnow()
         
+        # 📊 LOT-TRACKING: Log execution
+        self.log_callback("info", f"[LOT-TRACK] Stealth order executed: {stealth_order_id} ({order['side']} {executed_size} of {order['total_size']} {order['product_id']}, status={order_status})")
+        
         self._update_stealth_order(order)
     
     def cancel_stealth_order(self, stealth_order_id: str, reason: str = "User cancelled") -> bool:
@@ -404,10 +513,10 @@ class StealthOrderManager:
         if not order:
             return False
         
-        if order["status"] == "CANCELLED":
+        if order["status"] == StealthOrderStatus.CANCELLED.value:
             return False
         
-        order["status"] = "CANCELLED"
+        order["status"] = StealthOrderStatus.CANCELLED.value
         order["updated_at"] = datetime.utcnow()
         order["notes"] = f"{order['notes']}\nCancelled: {reason}"
         
@@ -510,7 +619,12 @@ class StealthOrderManager:
     
     def _get_active_stealth_orders(self) -> List[str]:
         """Get list of active stealth order IDs."""
-        active_statuses = ["HIDDEN", "PENDING", "TRIGGERED", "REVEALED"]
+        active_statuses = [
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+            StealthOrderStatus.TRIGGERED.value,
+            StealthOrderStatus.REVEALED.value
+        ]
         return [
             sid for sid, order in self.in_memory_orders.items()
             if order.get("status") in active_statuses
@@ -561,6 +675,30 @@ class StealthOrderManager:
         return {oid: self._serialize_order_for_json(order) 
                 for oid, order in self.in_memory_orders.items()}
     
+    def sync_target_movement_to_cache(self, stealth_order_id: str, target_movement: float, target_movement_type: str) -> bool:
+        """Sync target_movement changes to in-memory cache.
+        
+        Called after target_movement is updated in the database (order_parent table).
+        Updates the in-memory cache immediately so UI gets fresh data.
+        
+        Args:
+            stealth_order_id: The stealth order to update
+            target_movement: New target movement value
+            target_movement_type: New target movement type ('P' or 'A')
+            
+        Returns:
+            True if successful, False if order not found in cache
+        """
+        order = self.in_memory_orders.get(stealth_order_id)
+        if not order:
+            return False
+        
+        order['target_movement'] = target_movement
+        order['target_movement_type'] = target_movement_type
+        order['updated_at'] = datetime.utcnow()
+        
+        return True
+    
     def find_stealth_order_by_placed_order_id(self, placed_order_id: str) -> Optional[Dict[str, Any]]:
         """Find stealth order that revealed the given placed_order_id.
         
@@ -596,8 +734,10 @@ class StealthOrderManager:
             total_size: Size for follow-up order
             limit_price: Price for follow-up order
             reveal_condition: Optional override for reveal condition. If not provided, uses original's condition.
-            follow_up_reveal_direction: Direction override ('same', 'opposite', 'above', 'below'). 
-                                       If None, inherits from original. If 'opposite', flips the direction.
+            follow_up_reveal_direction: Direction strategy for follow-up (FollowUpRevealDirection.SAME or OPPOSITE).
+                                       Accepts enum or string value. If None, inherits from original.
+                                       - SAME: Keep same side (BUY stays BUY, SELL stays SELL)
+                                       - OPPOSITE: Flip side (BUY becomes SELL, SELL becomes BUY)
             notes: Additional notes
             target_movement: Optional override for target movement. If not provided, uses original's target_movement.
             target_movement_type: Type for target movement ('P' or 'A'). Default 'P'.
@@ -627,7 +767,7 @@ class StealthOrderManager:
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
             parent_order_id=original_order.get("parent_order_id") or original_stealth_order_id,
-            follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", "opposite"),
+            follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value),
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
         )
@@ -654,8 +794,8 @@ class StealthOrderManager:
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
                     limit_price, status, reveal_condition_type, reveal_condition_json, 
-                    sizing_strategy_json, reason, notes, parent_order_id, target_movement, target_movement_type)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    sizing_strategy_json, reason, notes, parent_order_id)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -668,9 +808,7 @@ class StealthOrderManager:
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
-                 order.get('parent_order_id'),
-                 order.get('target_movement'),
-                 order.get('target_movement_type'))
+                 order.get('parent_order_id'))
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
@@ -699,8 +837,7 @@ class StealthOrderManager:
             self.db_client.execute_update(
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
-                       executed_size = %s, revealed_orders = %s, last_placement_at = %s,
-                       target_movement = %s, target_movement_type = %s
+                       executed_size = %s, revealed_orders = %s, last_placement_at = %s
                    WHERE stealth_order_id = %s""",
                 (order['status'],
                  order.get('revealed_size', 0),
@@ -708,8 +845,6 @@ class StealthOrderManager:
                  order.get('executed_size', 0),
                  revealed_orders_json,
                  last_placement,
-                 order.get('target_movement'),
-                 order.get('target_movement_type'),
                  order['stealth_order_id'])
             )
         except Exception as e:
@@ -765,10 +900,16 @@ class StealthOrderManager:
         return None
     
     def load_all_active_orders_from_db(self) -> int:
-        """Load all active stealth orders from database into memory.
+        """Load all stealth orders from database into memory.
         
-        Only loads HIDDEN orders on restart. PENDING/TRIGGERED/REVEALED orders should
-        have already been processed in previous session or are awaiting execution.
+        Loads all orders (HIDDEN, PENDING, TRIGGERED, REVEALED, EXECUTED, CANCELLED)
+        to ensure UI displays the complete history and current state of stealth orders.
+        
+        Status handling on restart:
+        - HIDDEN, PENDING, TRIGGERED: Reset to HIDDEN for fresh condition evaluation
+        - REVEALED: Keep as-is (in-flight orders may complete)
+        - EXECUTED: Keep as-is (historical record for UI display)
+        - CANCELLED: Keep as-is (historical record for UI display)
         
         Returns:
             Number of orders loaded
@@ -779,7 +920,6 @@ class StealthOrderManager:
         try:
             results = self.db_client.execute_query(
                 """SELECT * FROM stealth_orders 
-                   WHERE status = 'HIDDEN'
                    ORDER BY created_at ASC"""
             )
             
@@ -811,7 +951,7 @@ class StealthOrderManager:
                         'remaining_size': float(row.get('remaining_size', 0)),
                         'executed_size': float(row.get('executed_size', 0)),
                         'limit_price': float(row['limit_price']),
-                        'status': 'HIDDEN',  # Reset all loaded orders to HIDDEN for fresh evaluation
+                        'status': db_status if db_status in ['REVEALED', 'EXECUTED', 'CANCELLED'] else 'HIDDEN',
                         'reveal_condition_type': condition_type,
                         'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
                         'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
@@ -823,8 +963,8 @@ class StealthOrderManager:
                         'updated_at': row.get('updated_at'),
                         'visibility_score': float(row.get('visibility_score', 0.0)),
                         'last_placement_at': row.get('last_placement_at'),
-                        'condition_first_met_at': None,  # Reset for fresh evaluation on restart
-                        'condition_confirmed_at': None,  # Reset for fresh evaluation on restart
+                        'condition_first_met_at': None if db_status in ['HIDDEN', 'PENDING', 'TRIGGERED'] else condition_first_met,
+                        'condition_confirmed_at': None if db_status in ['HIDDEN', 'PENDING', 'TRIGGERED'] else condition_confirmed,
                         'revealed_count': 0,
                         'condition_monitoring_start': None,
                     }

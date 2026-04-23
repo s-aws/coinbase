@@ -34,6 +34,27 @@ class OrderStatus(str, Enum):
     CANCEL_QUEUED = "CANCEL_QUEUED"
 
 
+class StealthOrderStatus(str, Enum):
+    """Status of a stealth order throughout its internal lifecycle.
+    
+    Distinct from OrderStatus (which tracks API-visible states like OPEN, FILLED).
+    StealthOrderStatus tracks the internal reveal and execution lifecycle of stealth orders.
+    
+    - HIDDEN: Order created, not yet revealed to exchange
+    - PENDING: Reveal condition partially met, watching for full trigger
+    - TRIGGERED: Reveal condition fully met, pending placement on exchange
+    - REVEALED: Order partially or fully revealed to exchange
+    - EXECUTED: Order fully executed
+    - CANCELLED: Order cancelled before execution
+    """
+    HIDDEN = "HIDDEN"
+    PENDING = "PENDING"
+    TRIGGERED = "TRIGGERED"
+    REVEALED = "REVEALED"
+    EXECUTED = "EXECUTED"
+    CANCELLED = "CANCELLED"
+
+
 class OrderType(str, Enum):
     """Type of order - how it executes.
     
@@ -118,6 +139,29 @@ class Direction(str, Enum):
     BELOW = "below"
 
 
+class RoundingDirection(str, Enum):
+    """Rounding direction for quantization operations.
+    
+    Used in price/size quantization to determine rounding strategy.
+    """
+    UP = "up"
+    DOWN = "down"
+    NEAREST = "nearest"
+
+
+class FollowUpRevealDirection(str, Enum):
+    """Direction strategy for follow-up orders after stealth order reveals/fills.
+    
+    Used to determine how follow-up stealth orders should be configured when
+    a previous order transitions to the exchange or fills.
+    
+    - SAME: Create follow-up order with same side (BUY stays BUY, SELL stays SELL)
+    - OPPOSITE: Flip the side (BUY becomes SELL, SELL becomes BUY)
+    """
+    SAME = "same"
+    OPPOSITE = "opposite"
+
+
 # ============================================================================
 # STEALTH ORDER CONDITIONS
 # ============================================================================
@@ -171,6 +215,9 @@ class ChannelType(str, Enum):
     Authenticated channels:
     - USER: Order and position updates
     - FUTURES_BALANCE_SUMMARY: Futures account balance
+    
+    Control messages:
+    - SUBSCRIPTIONS: Subscription acknowledgment/change notification
     """
     # Public channels
     TICKER = "ticker"
@@ -184,6 +231,9 @@ class ChannelType(str, Enum):
     # Authenticated channels
     USER = "user"
     FUTURES_BALANCE_SUMMARY = "futures_balance_summary"
+    
+    # Control messages
+    SUBSCRIPTIONS = "subscriptions"
 
 
 class RiskManagementType(str, Enum):

@@ -25,6 +25,7 @@ from database.order import (
     insert_order_move,
 )
 from configuration import OrderBook
+from core.enums import OrderStatus
 
 
 class TestMoveManager:
@@ -49,7 +50,7 @@ class TestMoveManager:
             target_movement_type="P",
             max_order_replacement=11,
             current_order_replacement=0,
-            status="CANCELLED"
+            status=OrderStatus.CANCELLED.value
         )
         return client_order_id
 
@@ -212,7 +213,7 @@ class TestMoveManager:
             size=1.0,
             price=42000.0,
             target_movement=0.005,
-            status="OPEN"
+            status=OrderStatus.OPEN.value
         )
 
         history = move_manager.get_move_history(unmoved_id)
@@ -237,7 +238,7 @@ class TestMoveDatabase:
             size=1.0,
             price=42000.0,
             target_movement=0.005,
-            status="CANCELLED"
+            status=OrderStatus.CANCELLED.value
         )
 
         insert_order_parent(
@@ -247,7 +248,7 @@ class TestMoveDatabase:
             size=0.5,
             price=43000.0,
             target_movement=0.01,
-            status="PENDING"
+            status=OrderStatus.PENDING.value
         )
 
         return original_id, new_id
@@ -296,7 +297,7 @@ class TestMoveDatabase:
             size=2.0,
             price=41000.0,
             target_movement=0.003,
-            status="PENDING"
+            status=OrderStatus.PENDING.value
         )
 
         insert_order_move(original_id, new_id, reason="first_move")
@@ -343,7 +344,7 @@ class TestMoveDatabase:
             size=1.0,
             price=42000.0,
             target_movement=0.005,
-            status="OPEN"
+            status=OrderStatus.OPEN.value
         )
 
         assert has_order_moved(unmoved_id) is False
@@ -365,7 +366,7 @@ class TestMoveIntegration:
             size=original_size,
             price=original_price,
             target_movement=0.005,
-            status="CANCELLED"
+            status=OrderStatus.CANCELLED.value
         )
 
         # Move the order
@@ -409,7 +410,7 @@ class TestMoveIntegration:
             size=1.0,
             price=42000.0,
             target_movement=0.005,
-            status="CANCELLED"
+            status=OrderStatus.CANCELLED.value
         )
 
         result = move_manager.move_order(
@@ -450,7 +451,7 @@ class TestPendingMoves:
             size=1.0,
             price=42000.0,
             target_movement=0.005,
-            status="OPEN"
+            status=OrderStatus.OPEN.value
         )
         return client_order_id
 

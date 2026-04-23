@@ -21,13 +21,14 @@ from websockets.server import WebSocketServerProtocol
 
 # Import REST client for order placement
 try:
-    from configuration import REST_CLIENT
+    from configuration import REST_CLIENT, rest_get_products
     REST_CLIENT_AVAILABLE = True
 except ImportError:
     REST_CLIENT_AVAILABLE = False
 
 # Use custom logging service
 from logging_service import get_logger
+from core.enums import FollowUpRevealDirection
 
 logger = get_logger("DashboardServer")
 
@@ -109,7 +110,7 @@ async def _async_broadcast_state():
             "timestamp": datetime.utcnow().isoformat(),
         }
     
-    message = json.dumps(payload)
+    message = json.dumps(payload, cls=CustomJSONEncoder)
     
     for client in connected_clients.copy():
         try:
@@ -137,7 +138,7 @@ async def broadcast_state(websocket: WebSocketServerProtocol = None):
             "timestamp": datetime.utcnow().isoformat(),
         }
     
-    message = json.dumps(payload)
+    message = json.dumps(payload, cls=CustomJSONEncoder)
     
     if websocket:
         # Send to single client
@@ -316,7 +317,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     limit_price=order['limit_price'],
                     reveal_condition=order['reveal_condition'],
                     sizing_strategy=order.get('sizing_strategy', {}),
-                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', 'opposite'),
+                    parent_order_id=order.get('parent_order_id'),  # Support parent-child relationships for order spans
+                    follow_up_reveal_direction=order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                     notes=order.get('notes', ''),
                     max_order_replacements=order.get('max_order_replacements'),
                     target_movement=order.get('target_movement', 0.002),
@@ -408,7 +410,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             try:
                 from database.order import update_stealth_order_target_movement, get_stealth_order_by_id
                 
-                # Update in database
+                # Update in database (order_parent table is source of truth for target_movement)
                 success = update_stealth_order_target_movement(
                     stealth_order_id=stealth_order_id,
                     target_movement=target_movement,
@@ -416,8 +418,13 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 )
                 
                 if success:
-                    # Get updated order data
-                    order_data = get_stealth_order_by_id(stealth_order_id)
+                    # Sync to in-memory cache for fast access
+                    if stealth_order_bridge:
+                        stealth_order_bridge.stealth_manager.sync_target_movement_to_cache(
+                            stealth_order_id,
+                            target_movement,
+                            target_movement_type
+                        )
                     
                     # Update in-memory state if available
                     with state_lock:
@@ -462,6 +469,75 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to update target movement: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+        
+        elif msg_type == "update_parent_target_movement":
+            # Update target movement for a parent order
+            parent_order_id = data.get("parent_order_id")
+            target_movement = data.get("target_movement")
+            target_movement_type = data.get("target_movement_type", "P")
+            
+            if not parent_order_id:
+                response = {
+                    "type": "error",
+                    "message": "Missing parent_order_id"
+                }
+                await websocket.send(json.dumps(response))
+                return
+            
+            try:
+                from database.order import update_parent_order_target_movement, get_parent_order
+                
+                # Update in database (order_parent table is source of truth for target_movement)
+                success = update_parent_order_target_movement(
+                    parent_order_id=parent_order_id,
+                    target_movement=target_movement,
+                    target_movement_type=target_movement_type
+                )
+                
+                if success:
+                    # Sync to in-memory cache for fast access
+                    if stealth_order_bridge:
+                        stealth_order_bridge.stealth_manager.sync_target_movement_to_cache(
+                            parent_order_id,
+                            target_movement,
+                            target_movement_type
+                        )
+                    
+                    response = {
+                        "type": "parent_target_movement_updated",
+                        "parent_order_id": parent_order_id,
+                        "target_movement": target_movement,
+                        "target_movement_type": target_movement_type
+                    }
+                    
+                    add_log_entry("INFO", f"Parent order target_movement updated: {parent_order_id} = {target_movement}{target_movement_type}")
+                    logger.info(f"Parent order target_movement updated: {parent_order_id} = {target_movement}{target_movement_type}")
+                    
+                    # Broadcast to all clients
+                    message = json.dumps(response, cls=CustomJSONEncoder)
+                    for client in connected_clients.copy():
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.discard(client)
+                    
+                    await websocket.send(json.dumps({"type": "update_success", "message": "Parent target movement updated"}))
+                else:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to update parent order: {parent_order_id}"
+                    }
+                    add_log_entry("ERROR", f"Failed to update parent target_movement: {parent_order_id}")
+                    await websocket.send(json.dumps(response))
+                
+            except Exception as e:
+                logger.error(f"Failed to update parent target_movement: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update parent target movement: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Parent target_movement update failed: {str(e)}")
                 await websocket.send(json.dumps(response))
         
         elif msg_type == "clear_all_stealth_orders":
@@ -824,6 +900,75 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         elif msg_type == "ping":
             response = {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
             await websocket.send(json.dumps(response))
+        
+        elif msg_type == "update_products_list":
+            # Update products.json with latest data from REST API
+            logger.info("Products list update requested")
+            
+            try:
+                result = update_products_json_from_api()
+                
+                if result["success"]:
+                    response = {
+                        "type": "products_list_updated",
+                        "status": "success",
+                        "message": result["message"],
+                        "derivatives_count": result["derivatives_count"],
+                        "spot_count": result["spot_count"],
+                        "metadata_count": result["metadata_count"],
+                    }
+                    add_log_entry("INFO", f"Products list updated: {result['derivatives_count']} derivatives, {result['spot_count']} spot products")
+                    logger.info(f"Products updated successfully: {result['derivatives_count']} derivatives, {result['spot_count']} spot")
+                else:
+                    response = {
+                        "type": "products_list_updated",
+                        "status": "error",
+                        "message": result["message"],
+                        "derivatives_count": 0,
+                        "spot_count": 0,
+                        "metadata_count": 0,
+                    }
+                    add_log_entry("ERROR", f"Products list update failed: {result['message']}")
+                
+                # Send response to requesting client
+                await websocket.send(json.dumps(response))
+                
+                # If successful, broadcast updated products to all clients
+                if result["success"]:
+                    try:
+                        products_file = Path(__file__).parent / "products.json"
+                        if products_file.exists():
+                            with open(products_file, 'r') as f:
+                                products_data = json.load(f)
+                                broadcast_payload = {
+                                    "type": "products_list",
+                                    "derivatives": products_data.get("derivatives", []),
+                                    "spot": products_data.get("spot", []),
+                                    "metadata": products_data.get("metadata", {}),
+                                }
+                                
+                                # Broadcast to all connected clients
+                                message = json.dumps(broadcast_payload)
+                                for client in connected_clients.copy():
+                                    try:
+                                        await client.send(message)
+                                    except websockets.exceptions.ConnectionClosed:
+                                        connected_clients.discard(client)
+                    except Exception as e:
+                        logger.error(f"Failed to broadcast updated products: {e}")
+                
+            except Exception as e:
+                logger.error(f"Products list update failed: {str(e)}")
+                response = {
+                    "type": "products_list_updated",
+                    "status": "error",
+                    "message": f"Failed to update products: {str(e)}",
+                    "derivatives_count": 0,
+                    "spot_count": 0,
+                    "metadata_count": 0,
+                }
+                add_log_entry("ERROR", f"Products update exception: {str(e)}")
+                await websocket.send(json.dumps(response))
             
     except json.JSONDecodeError:
         logger.error(f"Invalid JSON received: {message}")
@@ -869,11 +1014,12 @@ def update_engine_status(status_data: Dict[str, Any]):
 
 
 def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
-    """Add log entry to dashboard and print to console."""
-    # Print to console immediately
-    print(f"[{level}] {message}")
+    """Add log entry to dashboard for UI display and storage.
     
-    # Also store in engine state for UI
+    Note: Console output is handled by Python's logging module, not here.
+    This function only stores the log entry in engine_state for the dashboard UI.
+    """
+    # Store in engine state for UI
     with state_lock:
         entry = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -886,6 +1032,113 @@ def add_log_entry(level: str, message: str, context: Dict[str, Any] = None):
         if len(engine_state["logs"]) > max_logs:
             engine_state["logs"] = engine_state["logs"][-max_logs:]
     _trigger_broadcast()
+
+
+def update_products_json_from_api() -> Dict[str, Any]:
+    """Update products.json with the latest data from Coinbase REST API.
+    
+    Fetches current product metadata for derivatives and spot products,
+    organizes them by type, and updates the products.json file while
+    preserving the ticker_to_trading mapping if it exists.
+    
+    Returns:
+        Dictionary with status information:
+        {
+            "success": bool,
+            "message": str,
+            "derivatives_count": int,
+            "spot_count": int,
+            "metadata_count": int
+        }
+    
+    Raises:
+        Exception: If REST API call fails
+    """
+    try:
+        # Fetch all products from REST API
+        api_products = rest_get_products()
+        logger.info(f"Fetched {len(api_products)} products from REST API")
+        
+        # Separate derivatives and spot products
+        derivatives = []
+        spot = []
+        metadata = {}
+        
+        for product_id, product_data in api_products.items():
+            # Determine product type
+            product_type = product_data.get("product_type", "").upper()
+            
+            if product_type == "PERPETUAL_FUTURE" or product_type == "FUTURE":
+                derivatives.append(product_id)
+            else:
+                # Default to SPOT for any other type
+                spot.append(product_id)
+            
+            # Extract metadata for this product
+            metadata[product_id] = {
+                "type": product_type if product_type in ["SPOT", "FUTURE", "PERPETUAL_FUTURE"] else "UNKNOWN",
+                "base_currency": product_data.get("base_currency"),
+                "quote_currency": product_data.get("quote_currency"),
+                "base_increment": str(product_data.get("base_increment", "")),
+                "quote_increment": str(product_data.get("quote_increment", "")),
+                "price_increment": str(product_data.get("price_increment", "")),
+                "display_name": product_data.get("display_name"),
+                "status": product_data.get("status"),
+                "mid_price": product_data.get("mid_price"),
+                "trading_disabled": product_data.get("trading_disabled", False),
+                "contract_size": str(product_data.get("contract_size", "")) if "contract_size" in product_data else None,
+                "expiry": product_data.get("expiry"),
+            }
+        
+        # Load existing products.json to preserve ticker_to_trading mapping
+        products_file = Path(__file__).parent / "products.json"
+        existing_data = {}
+        
+        if products_file.exists():
+            try:
+                with open(products_file, 'r') as f:
+                    existing_data = json.load(f)
+            except Exception as e:
+                logger.warning(f"Could not read existing products.json: {e}")
+        
+        # Build the updated products data with desired key order
+        # Put spot and derivatives at the top (human-managed), then metadata
+        updated_data = {}
+        updated_data["spot"] = sorted(spot)
+        updated_data["derivatives"] = sorted(derivatives)
+        
+        # Preserve ticker_to_trading mapping if it exists
+        if "ticker_to_trading" in existing_data:
+            updated_data["ticker_to_trading"] = existing_data["ticker_to_trading"]
+        
+        # Add metadata last
+        updated_data["metadata"] = metadata
+        
+        # Write updated data to products.json (preserve key order, don't sort)
+        with open(products_file, 'w') as f:
+            json.dump(updated_data, f, indent=2)
+        
+        logger.info(f"Updated products.json: {len(derivatives)} derivatives, {len(spot)} spot, {len(metadata)} metadata entries")
+        
+        return {
+            "success": True,
+            "message": f"Successfully updated products.json with {len(api_products)} products",
+            "derivatives_count": len(derivatives),
+            "spot_count": len(spot),
+            "metadata_count": len(metadata),
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to update products.json: {str(e)}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "message": error_msg,
+            "derivatives_count": 0,
+            "spot_count": 0,
+            "metadata_count": 0,
+        }
+
 
 
 async def _async_broadcast_ticker(ticker_data: Dict[str, Any]):
@@ -1040,15 +1293,68 @@ async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
     """Send current stealth orders to a client."""
     try:
         with state_lock:
+            # Enrich stealth orders with parent target_movement
+            enriched_orders = _enrich_stealth_orders_with_parent_data(engine_state["stealth_orders"])
+            
             payload = {
                 "type": "stealth_orders_snapshot",
-                "orders": engine_state["stealth_orders"],
+                "orders": enriched_orders,
                 "timestamp": datetime.utcnow().isoformat(),
             }
         
         await websocket.send(json.dumps(payload, cls=CustomJSONEncoder))
     except Exception as e:
         logger.error(f"Failed to send stealth orders snapshot: {e}")
+
+
+def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str, Any]:
+    """Enrich stealth orders with parent-related data.
+    
+    Args:
+        orders: Dictionary of stealth_order_id -> order_data
+    
+    Returns:
+        Same dictionary enriched with:
+        - For child orders: parent_target_movement, parent_target_movement_type, parent_max_order_replacements
+        - For parent orders: max_order_replacements from order_parent table
+    """
+    from database.order import get_parent_order
+    
+    enriched = {}
+    for order_id, order_data in orders.items():
+        enriched_order = order_data.copy() if isinstance(order_data, dict) else dict(order_data)
+        
+        # Check if this is a parent or child order
+        parent_order_id = enriched_order.get("parent_order_id")
+        
+        if parent_order_id:
+            # Child order: get parent's data by parent_order_id
+            try:
+                parent_data = get_parent_order(parent_order_id)
+                if parent_data:
+                    enriched_order["parent_target_movement"] = parent_data.get("target_movement")
+                    enriched_order["parent_target_movement_type"] = parent_data.get("target_movement_type", "P")
+                    enriched_order["parent_max_order_replacements"] = parent_data.get("max_order_replacement", 0)
+            except Exception as e:
+                logger.debug(f"Failed to enrich order {order_id} with parent data: {e}")
+        else:
+            # Parent order: look it up in order_parent using stealth_order_id as client_order_id
+            # to get max_order_replacements (target_movement is already in stealth_order)
+            try:
+                parent_data = get_parent_order(order_id)
+                if parent_data:
+                    enriched_order["max_order_replacements"] = parent_data.get("max_order_replacement", 0)
+                    # Also ensure we have the parent's target movement for consistent UI display
+                    if not enriched_order.get("target_movement"):
+                        enriched_order["target_movement"] = parent_data.get("target_movement")
+                    if not enriched_order.get("target_movement_type"):
+                        enriched_order["target_movement_type"] = parent_data.get("target_movement_type", "P")
+            except Exception as e:
+                logger.debug(f"Failed to enrich parent order {order_id}: {e}")
+        
+        enriched[order_id] = enriched_order
+    
+    return enriched
 
 
 async def broadcast_stealth_order_update(update: Dict[str, Any]):
@@ -1082,14 +1388,17 @@ async def _stealth_orders_refresh_loop():
                     # Get fresh orders from manager in JSON-serializable format
                     serialized_orders = stealth_order_bridge.stealth_manager.get_serializable_orders()
                     
+                    # Enrich with parent target_movement data
+                    enriched_orders = _enrich_stealth_orders_with_parent_data(serialized_orders)
+                    
                     with state_lock:
-                        # Update with serialized orders
-                        engine_state["stealth_orders"] = serialized_orders
+                        # Update with enriched orders
+                        engine_state["stealth_orders"] = enriched_orders
                     
                     # Broadcast updated snapshot
                     payload = {
                         "type": "stealth_orders_snapshot",
-                        "orders": serialized_orders,
+                        "orders": enriched_orders,
                         "timestamp": datetime.utcnow().isoformat(),
                     }
                     
@@ -1122,6 +1431,16 @@ async def run_websocket_server(host: str = "localhost", port: int = 8765):
     server_event_loop = asyncio.get_event_loop()
     
     logger.info(f"Starting WebSocket server on ws://{host}:{port}")
+    
+    # Update products from REST API on startup
+    logger.info("Updating products list from REST API on startup...")
+    update_result = update_products_json_from_api()
+    if update_result["success"]:
+        logger.info(f"Initial products update: {update_result['derivatives_count']} derivatives, {update_result['spot_count']} spot products loaded")
+        add_log_entry("INFO", f"Products loaded: {update_result['derivatives_count']} derivatives, {update_result['spot_count']} spot")
+    else:
+        logger.warning(f"Initial products update failed: {update_result['message']}")
+        add_log_entry("WARNING", f"Products update failed: {update_result['message']}")
     
     # Start spread broadcast loop as background task
     asyncio.create_task(_spread_broadcast_loop())

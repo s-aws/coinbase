@@ -2,7 +2,7 @@
 
 from typing import Optional, Dict, Any
 
-from core.enums import ProductType
+from core.enums import ProductType, OrderSide
 from core.models import Order, Product
 from calculation.formatter import safe_float
 
@@ -28,7 +28,7 @@ def normalize_product_type(order: Dict[str, Any], products: Optional[Dict[str, P
         'FUTURE'
     """
     product_type = str(order.get("product_type") or "").upper()
-    if product_type in {"SPOT", "FUTURE"}:
+    if product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
         return product_type
     
     product_id = order.get("product_id")
@@ -37,7 +37,7 @@ def normalize_product_type(order: Dict[str, Any], products: Optional[Dict[str, P
         if isinstance(product, Product):
             return product.product_type.value
         configured_product_type = str(product.get("product_type") or "").upper()
-        if configured_product_type in {"SPOT", "FUTURE"}:
+        if configured_product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
             return configured_product_type
     
     if product_id and product_id.endswith("-CDE"):
@@ -107,7 +107,7 @@ def resolve_order_side(order: Dict[str, Any]) -> Optional[str]:
         value = order.get(field)
         if value:
             side = str(value).upper().strip()
-            if side in ("BUY", "SELL"):
+            if side in (OrderSide.BUY.value, OrderSide.SELL.value):
                 return side
     
     return None

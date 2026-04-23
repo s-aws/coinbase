@@ -1,6 +1,7 @@
 """Calculation utilities - Formatting and quantization functions."""
 
 from typing import Union
+from core.enums import RoundingDirection
 
 
 def safe_float(value: Union[str, int, float, None], default: float = 0.0) -> float:
@@ -93,7 +94,7 @@ def quantize_to_increment(
     if increment_float <= 0:
         raise ValueError("increment must be greater than 0")
     
-    if direction not in {"up", "down", "nearest"}:
+    if direction not in {RoundingDirection.UP.value, RoundingDirection.DOWN.value, RoundingDirection.NEAREST.value}:
         raise ValueError(f"Unsupported direction: {direction}")
     
     remainder = value % increment_float
@@ -101,10 +102,10 @@ def quantize_to_increment(
     if remainder == 0:
         return value
     
-    if direction == "down":
+    if direction == RoundingDirection.DOWN.value:
         return value - remainder
     
-    if direction == "up":
+    if direction == RoundingDirection.UP.value:
         return value + (increment_float - remainder)
     
     # nearest

@@ -60,12 +60,13 @@ from configuration import (
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus
 from calculation.resolver import resolve_order_size, resolve_order_side
 from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
+from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
@@ -79,6 +80,16 @@ except ImportError:
     def update_engine_status(*args, **kwargs): pass
     def broadcast_ticker(*args, **kwargs): pass
     def record_spread_tick(*args, **kwargs): pass
+
+# Lot tracking integration (optional - will fail gracefully if not available)
+try:
+    from business.post_fill_hook import on_order_filled as post_fill_hook_on_order_filled
+    from integration.fill_event_hooks import get_global_fill_event_hook_registry
+    LOT_TRACKING_AVAILABLE = True
+except ImportError:
+    LOT_TRACKING_AVAILABLE = False
+    def post_fill_hook_on_order_filled(*args, **kwargs): pass
+    def get_global_fill_event_hook_registry(): return None
 
 
 class OrderEngine:
@@ -141,6 +152,7 @@ class OrderEngine:
         max_seen_event_buckets=3,
         queue_maxsize=10000,
         stealth_order_bridge=None,
+        websocket_hooks=None,
     ) -> None:
         """Initialize the OrderEngine with configuration and state.
         
@@ -157,6 +169,7 @@ class OrderEngine:
             max_seen_event_buckets: Number of dedup buckets (default 3).
             queue_maxsize: Max size for event queues (default 10000).
             stealth_order_bridge: Optional StealthOrderBridge for market data updates.
+            websocket_hooks: Optional WebSocketHookRegistry for extensibility (default: global registry).
         """
         self.orderbook = orderbook
         self.db_helper = db_helper
@@ -165,6 +178,9 @@ class OrderEngine:
         self.api_secret = api_secret
         self.order_post_only = order_post_only
         self.stealth_order_bridge = stealth_order_bridge
+        
+        # WebSocket hook registry for extensible message handling
+        self.websocket_hooks = websocket_hooks or get_global_hook_registry()
 
         self.websocket_thread_maximum = websocket_thread_maximum
         self.max_rotate_seen_events_bucket_seconds = max_rotate_seen_events_bucket_seconds
@@ -172,8 +188,8 @@ class OrderEngine:
         self.queue_maxsize = queue_maxsize
 
         self.ticker = {}
-        self.ticker_lock = threading.Lock()
-        self.orderbook_lock = threading.Lock()
+        self.ticker_lock = threading.RLock()
+        self.orderbook_lock = threading.RLock()
 
         self.event_executor = ThreadPoolExecutor(
             max_workers=max_workers,
@@ -210,6 +226,29 @@ class OrderEngine:
             max_dedup_buckets=max_seen_event_buckets,
             dedup_bucket_duration_secs=max_rotate_seen_events_bucket_seconds,
         )
+        
+        # Profit Tracking: FeeManager and ProfitValidator for profitable order validation
+        from configuration import REST_CLIENT
+        from calculation.fee_manager import FeeManager
+        from calculation.profit_validator import ProfitValidator
+        
+        self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
+        self.profit_validator = ProfitValidator(fee_manager=self.fee_manager)
+
+        # Lot Tracking Integration: Initialize fill ledger and hook registry
+        self.fill_repo = None
+        self.fill_event_hooks = None
+        if LOT_TRACKING_AVAILABLE:
+            try:
+                from business.post_fill_hook import initialize_fill_ledger
+                self.fill_repo = initialize_fill_ledger(self.db_helper.DB_CLIENT)
+                # Initialize fill event hook registry
+                self.fill_event_hooks = get_global_fill_event_hook_registry()
+                # Register default post-fill hook for recording fills
+                self._register_default_fill_hook()
+            except Exception as e:
+                # Log but don't fail - lot tracking is optional
+                self.log_message("warning", f"Failed to initialize fill ledger: {e}")
 
         self.websocket_events = {
             "SNAPSHOT": {
@@ -467,7 +506,7 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.positions["FUTURE"] = refreshed_positions
 
-    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None) -> tuple:
+    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None) -> tuple:
         """Resolve if an order is a parent or find its parent.
         
         Returns (is_parent: bool, parent_client_order_id: str).
@@ -478,6 +517,8 @@ class OrderEngine:
             order: Order data (required if create_parent=True).
             create_parent: Whether to create parent entry if not found.
             status: Order status (for parent creation).
+            stealth_order: Optional stealth order dict with target_movement/target_movement_type
+                          to use instead of defaults. Used when revealing stealth orders.
         
         Returns:
             Tuple (is_parent, parent_client_order_id).
@@ -490,12 +531,12 @@ class OrderEngine:
         is_parent = False
         parent_client_order_id = None
 
-        if client_order_id in self.orderbook.parent_order_ids:
+        if self.is_parent_order(client_order_id):
             is_parent = True
             parent_client_order_id = client_order_id
 
-        elif client_order_id in self.orderbook.child_order_ids:
-            parent_client_order_id = self.orderbook.child_order_ids[client_order_id]
+        elif self.is_child_order(client_order_id):
+            parent_client_order_id = self.get_parent_of_child(client_order_id)
 
         elif create_parent and order is not None:
             max_order_replacement = getattr(
@@ -504,11 +545,20 @@ class OrderEngine:
                 DEFAULT_MAX_ORDER_REPLACEMENT,
             )
 
+            # ✅ FIX: Use stealth order's target_movement if available (for revealed orders)
+            # This preserves the target_movement configured when the stealth order was created
+            if stealth_order and stealth_order.get("target_movement"):
+                target_movement_value = stealth_order["target_movement"]
+                target_movement_type = stealth_order.get("target_movement_type", "P")
+            else:
+                target_movement_value = self.resolve_profit_target(order)
+                target_movement_type = "P"
+
             self.orderbook.parent_order_ids[client_order_id] = {
                 "orders": [],
                 "target_movement": {
-                    "movement": self.resolve_profit_target(order),
-                    "type": "P",
+                    "movement": target_movement_value,
+                    "type": target_movement_type,
                 },
                 "max_order_replacement": max_order_replacement,
                 "current_order_replacement": 0,
@@ -531,6 +581,7 @@ class OrderEngine:
                 target_movement=float(
                     self.orderbook.parent_order_ids[client_order_id]["target_movement"]["movement"]
                 ),
+                target_movement_type=self.orderbook.parent_order_ids[client_order_id]["target_movement"]["type"],
                 status=status or order.get("status"),
                 max_order_replacement=self.orderbook.parent_order_ids[client_order_id]["max_order_replacement"],
                 current_order_replacement=self.orderbook.parent_order_ids[client_order_id]["current_order_replacement"],
@@ -541,6 +592,54 @@ class OrderEngine:
             parent_client_order_id = client_order_id
 
         return is_parent, parent_client_order_id
+
+    def is_parent_order(self, client_order_id: str) -> bool:
+        """Check if a client_order_id is a parent order.
+        
+        Args:
+            client_order_id: Order ID to check.
+        
+        Returns:
+            True if parent, False if child or not found.
+        """
+        with self.orderbook_lock:
+            return client_order_id in self.orderbook.parent_order_ids
+
+    def _is_parent_order_unlocked(self, client_order_id: str) -> bool:
+        """Internal: Check if order is parent (assumes lock already held)."""
+        return client_order_id in self.orderbook.parent_order_ids
+
+    def is_child_order(self, client_order_id: str) -> bool:
+        """Check if a client_order_id is a child order.
+        
+        Args:
+            client_order_id: Order ID to check.
+        
+        Returns:
+            True if child, False if parent or not found.
+        """
+        with self.orderbook_lock:
+            return client_order_id in self.orderbook.child_order_ids
+
+    def _is_child_order_unlocked(self, client_order_id: str) -> bool:
+        """Internal: Check if order is child (assumes lock already held)."""
+        return client_order_id in self.orderbook.child_order_ids
+
+    def get_parent_of_child(self, child_client_order_id: str) -> str | None:
+        """Get the parent ID of a child order.
+        
+        Args:
+            child_client_order_id: Child order ID to resolve.
+        
+        Returns:
+            Parent order ID if child exists, None otherwise.
+        """
+        with self.orderbook_lock:
+            return self.orderbook.child_order_ids.get(child_client_order_id)
+
+    def _get_parent_of_child_unlocked(self, child_client_order_id: str) -> str | None:
+        """Internal: Get parent of child (assumes lock already held)."""
+        return self.orderbook.child_order_ids.get(child_client_order_id)
 
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:
         """Atomically claim processing rights for a follow-up order.
@@ -610,9 +709,10 @@ class OrderEngine:
     def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
         """Register a child order under a parent in the orderbook.
         
-        Maintains bidirectional mappings:
+        Maintains bidirectional mappings and increments replacement count:
         - parent_order_ids[parent][orders] list contains child
         - child_order_ids[child] points to parent
+        - Increments parent's current_order_replacement counter
         
         Args:
             child_client_order_id: The child order to register.
@@ -623,7 +723,7 @@ class OrderEngine:
         
         Example:
             >>> engine.register_child_order('child_123', 'parent_123')
-            >>> # Now child_123 is tracked as child of parent_123
+            >>> # Now child_123 is tracked as child of parent_123 and count is incremented
         """
         with self.orderbook_lock:
             # Ensure parent entry exists
@@ -642,9 +742,27 @@ class OrderEngine:
             # Add child to parent's orders list if not already there
             if child_client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id]["orders"]:
                 self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+                
+                # ✅ INCREMENT replacement count when adding a new child
+                self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
             
             # Map child to parent
             self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
+        
+        # ✅ ALSO increment in database for persistence
+        from database.order import increment_order_parent_replacement_count
+        new_count = increment_order_parent_replacement_count(parent_client_order_id)
+        
+        if new_count is not None:
+            self.log_message(
+                "order",
+                self.build_event_log_payload(
+                    "child_order_registered",
+                    parent_client_order_id=parent_client_order_id,
+                    child_client_order_id=child_client_order_id,
+                    new_replacement_count=new_count,
+                ),
+            )
 
     def _update_dashboard_order_status(self, client_order_id: str, order: dict, status: str) -> None:
         """Update dashboard with current order status.
@@ -706,8 +824,8 @@ class OrderEngine:
             ...     # Just track it, don't create follow-ups
         """
         return (
-            client_order_id not in self.orderbook.parent_order_ids
-            and client_order_id not in self.orderbook.child_order_ids
+            not self.is_parent_order(client_order_id)
+            and not self.is_child_order(client_order_id)
         )
 
     def _handle_external_order_tracking(
@@ -842,7 +960,7 @@ class OrderEngine:
 
             if any((
                 "events" not in json_msg,
-                channel == "subscriptions",
+                channel == ChannelType.SUBSCRIPTIONS.value,
                 not channel,
                 channel not in self.event_queue,
             )):
@@ -933,12 +1051,25 @@ class OrderEngine:
         
         Updates in-memory futures positions.
         
+        Flow:
+        1. Call PRE-hooks on RAW snapshot
+        2. Call normalizers (can enrich with computed fields)
+        3. Process positions and update orderbook
+        4. Call POST-hooks on NORMALIZED snapshot
+        
         Args:
             snapshot: Event dict with 'positions' key.
         
         Returns:
             None
         """
+        # Step 1: Call pre-processor hooks for snapshot (on raw data)
+        self.websocket_hooks.call_pre_snapshot(snapshot)
+        
+        # Step 2: Call normalizers to transform/enrich snapshot
+        self.websocket_hooks.call_snapshot_normalizers(snapshot)
+        
+        # Step 3: Process positions
         for _, items in snapshot["positions"].items():
             if not items:
                 continue
@@ -961,11 +1092,21 @@ class OrderEngine:
                         position=self.orderbook.positions["FUTURE"][item["product_id"]],
                     ),
                 )
+        
+        # Step 4: Call post-processor hooks for snapshot
+        self.websocket_hooks.call_post_snapshot(snapshot)
 
     def process_user_order(self, order: dict) -> None:
         """Process order event (state transitions).
         
         Updates orderbook, dispatches to fill/cancel handlers, persists to DB.
+        
+        Flow:
+        1. Call PRE-hooks on RAW order (Coinbase fields as-is)
+        2. Normalize order (handle field variations, add computed fields)
+        3. Store normalized order in orderbook
+        4. Process status transitions
+        5. Call POST-hooks on NORMALIZED order
         
         Args:
             order: Order event dict.
@@ -976,13 +1117,23 @@ class OrderEngine:
         client_order_id = order.get("client_order_id")
         status = order.get("status")
 
+        # Step 1: Call PRE-hooks on RAW order (before any normalization)
+        # This allows extensions to see Coinbase fields as-is
+        self.websocket_hooks.call_pre_order_status(status, order)
+
+        # Step 2: Normalize order
         normalized_order = deepcopy(order)
         normalized_order["product_type"] = self.normalize_product_type(normalized_order)
+        
+        # Call extensible order normalizers (can modify fields, add computed values, etc.)
+        self.websocket_hooks.call_order_normalizers(normalized_order)
+        
         outstanding_hold_amount = safe_float(
             normalized_order.get("outstanding_hold_amount"),
             default=0.0,
         )
 
+        # Step 3: Store normalized order in orderbook
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
@@ -997,15 +1148,12 @@ class OrderEngine:
             )
             return
 
-        order = normalized_order
-
+        # Step 4: Process status transitions
         try:
-            if client_order_id in self.orderbook.child_order_ids:
-                self.db_helper.update_order_child_status(
-                    client_order_id=client_order_id,
-                    status=status,
-                )
-            elif client_order_id in self.orderbook.parent_order_ids:
+            # NOTE: All child orders in this system are stealth orders (stored in stealth_orders table).
+            # Stealth orders are managed by StealthOrderManager, not via order_child table updates.
+            # Therefore, we only update parent orders (stored in order_parent table).
+            if self.is_parent_order(client_order_id):
                 self.db_helper.update_order_parent_status(
                     client_order_id=client_order_id,
                     status=status,
@@ -1016,8 +1164,8 @@ class OrderEngine:
                 self.build_event_log_payload(
                     "database_order_status_update_failed",
                     error=str(e),
-                    source=self.build_order_log_context(order),
-                    **self.include_debug_fields(raw_order=order),
+                    source=self.build_order_log_context(normalized_order),
+                    **self.include_debug_fields(raw_order=normalized_order),
                 ),
             )
 
@@ -1032,24 +1180,28 @@ class OrderEngine:
                 "error",
                 self.build_event_log_payload(
                     "order_failed",
-                    source=self.build_order_log_context(order),
-                    **self.include_debug_fields(raw_order=order),
+                    source=self.build_order_log_context(normalized_order),
+                    **self.include_debug_fields(raw_order=normalized_order),
                 ),
             )
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.OPEN:
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.CANCELLED:
-            self.handle_cancelled_order(order)
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self.handle_cancelled_order(normalized_order)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.FILLED:
-            self.handle_filled_order(order)
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self.handle_filled_order(normalized_order)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
 
         self.log_message(
@@ -1057,7 +1209,7 @@ class OrderEngine:
             self.build_event_log_payload(
                 "unrecognized_order_status",
                 status=status,
-                source=self.build_order_log_context(order),
+                source=self.build_order_log_context(normalized_order),
             ),
         )
 
@@ -1194,17 +1346,22 @@ class OrderEngine:
         """Get current and max replacement counts for a parent order.
         
         Args:
-            parent_client_order_id: Parent order ID.
+            parent_client_order_id: Parent order ID (or child ID, will be resolved).
         
         Returns:
             Dict with 'max_order_replacement' and 'current_order_replacement' keys.
         """
         with self.orderbook_lock:
-            parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
+            # If this is a child ID, resolve to the actual parent
+            actual_parent_id = parent_client_order_id
+            if self._is_child_order_unlocked(parent_client_order_id):
+                actual_parent_id = self._get_parent_of_child_unlocked(parent_client_order_id)
+            
+            parent = self.orderbook.parent_order_ids.get(actual_parent_id, {})
 
             return {
-                "max_order_replacement": int(parent["max_order_replacement"]),
-                "current_order_replacement": int(parent["current_order_replacement"]),
+                "max_order_replacement": int(parent.get("max_order_replacement", 0)),
+                "current_order_replacement": int(parent.get("current_order_replacement", 0)),
             }
 
     def can_create_follow_up_order(self, parent_client_order_id: str) -> tuple:
@@ -1382,6 +1539,14 @@ class OrderEngine:
 
             # All orders are stealth orders - create stealth follow-up on cancel
             try:
+                # Update the original stealth order status to CANCELLED
+                if original_stealth_order:
+                    self.stealth_order_bridge.stealth_manager.update_execution(
+                        stealth_order_id=original_stealth_order["stealth_order_id"],
+                        executed_size=0.0,
+                        order_status=StealthOrderStatus.CANCELLED.value
+                    )
+                
                 follow_up_price = float(order_template["start_price"])
                 
                 # Build reveal condition for the follow-up (use same as filled orders)
@@ -1390,11 +1555,11 @@ class OrderEngine:
                     "delay_seconds": 0  # Immediate reveal on cancel follow-up
                 }
                 
-                # Get target_movement from parent order (stored in order_parent table)
+                # Get target_movement from parent order (source of truth)
                 from database.order import get_parent_order
                 parent_order_data = get_parent_order(parent_client_order_id)
                 parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                parent_target_movement_type = parent_order_data.get("target_movement_type", "P") if parent_order_data else "P"
+                parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
                 
                 stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
                     original_stealth_order_id=client_order_id,
@@ -1541,6 +1706,29 @@ class OrderEngine:
                 "error": error_msg
             }
 
+    def _register_default_fill_hook(self) -> None:
+        """Register the default post-fill hook for recording fills to ledger.
+        
+        This hook is called after a fill is recorded and logs the fill event.
+        It's registered as a non-blocking post-fill hook.
+        
+        Returns:
+            None
+        """
+        def default_post_fill_hook(fill_data: dict, trade_id: str) -> None:
+            """Default post-fill hook: log the recorded fill."""
+            try:
+                self.log_message(
+                    "info",
+                    f"[LOT-TRACK] Fill hook recorded: {trade_id} {fill_data.get('side')} {fill_data.get('quantity')} {fill_data.get('instrument')} @ {fill_data.get('price')}, fees={fill_data.get('fees')}, client_order={fill_data.get('client_order_id')}"
+                )
+            except Exception as e:
+                # Log but don't fail - this is non-blocking
+                self.log_message("warning", f"[LOT-TRACK] Failed to log fill: {e}")
+        
+        if self.fill_event_hooks:
+            self.fill_event_hooks.register_post_fill(default_post_fill_hook)
+
     def handle_filled_order(self, order: dict) -> None:
         """Handle a filled order by creating a follow-up if allowed.
         
@@ -1554,20 +1742,6 @@ class OrderEngine:
             None
         """
         client_order_id = order["client_order_id"]
-
-        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
-        # This must happen before any other processing to prevent race conditions
-        if not self.claim_follow_up_processing("filled", client_order_id):
-            self.log_message(
-                "warning",
-                self.build_follow_up_log_payload(
-                    "follow_up_already_claimed",
-                    source_order=order,
-                    parent_client_order_id=None,
-                    details={"reason": "filled_order_follow_up_already_claimed"},
-                ),
-            )
-            return
 
         # CRITICAL: Check for stealth order BEFORE marking as external
         # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
@@ -1586,16 +1760,149 @@ class OrderEngine:
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = self._is_external_order(client_order_id)
 
+        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger FIRST
+        # ⚠️ CRITICAL: Must happen BEFORE claim_follow_up_processing check
+        # Reason: Fill recording is idempotent (via trade_id UNIQUE constraint)
+        # so it's safe to record even if we process this order again.
+        # But we only want to create follow-ups once (hence the claim check below).
+        if self.fill_repo and LOT_TRACKING_AVAILABLE:
+            try:
+                order_side = resolve_order_side(order) or "BUY"
+                product_id = order.get("product_id", "UNKNOWN")
+                
+                # Resolve filled_size with proper fallback strategy:
+                # 1. Try websocket fields: cumulative_quantity, leaves_quantity, filled_size, size, base_size
+                # 2. Fall back to orderbook accumulated state
+                # 3. Fall back to database original order size
+                filled_size = resolve_order_size(order)  # Tries fields 1 above
+                
+                if filled_size <= 0 and client_order_id in self.orderbook.order:
+                    # Fallback: try accumulated order state in orderbook
+                    accumulated_order = self.orderbook.order[client_order_id]
+                    filled_size = resolve_order_size(accumulated_order)
+                
+                if filled_size <= 0:
+                    # Fallback: try to get from database
+                    try:
+                        parent_order_data = self.db_helper.get_parent_order(client_order_id)
+                        if parent_order_data:
+                            filled_size = safe_float(parent_order_data.get("size"), default=0.0)
+                    except Exception:
+                        pass  # DB query failed, use 0
+                
+                # If still no size, skip recording this fill (will log error below)
+                if filled_size <= 0:
+                    self.log_message("warning", f"[LOT-TRACK] Could not determine fill size for {client_order_id}, skipping fill record")
+                else:
+                    # Resolve fill price with proper fallback
+                    filled_price = float(order.get("price", order.get("avg_price", order.get("limit_price", 0))))
+                    
+                    # Fees: try multiple field names from websocket
+                    fees = safe_float(order.get("total_fees"), default=0.0)
+                    if fees <= 0:
+                        fees = float(order.get("fee_details", {}).get("total", 0)) if isinstance(order.get("fee_details"), dict) else 0.0
+                    
+                    # Build fill data for hooks (passed by reference to pre-fill hooks)
+                    fill_data = {
+                        "instrument": product_id,
+                        "side": order_side,
+                        "quantity": filled_size,
+                        "price": filled_price,
+                        "fees": fees,
+                        "client_order_id": client_order_id,
+                        "timestamp": get_local_now(),
+                        "commission_percentage": 0.0,
+                        "trade_id": order.get("id")  # Exchange order ID as trade_id for dedup
+                    }
+                    
+                    # 🪝 PRE-FILL HOOKS: Validate/enrich fill before recording
+                    # Extensions can raise exceptions to block recording or modify fill_data
+                    try:
+                        if self.fill_event_hooks:
+                            self.fill_event_hooks.call_pre_fill_hooks(fill_data)
+                    except Exception as hook_error:
+                        # Pre-fill hook validation failed - don't record fill
+                        self.log_message("warning", f"[LOT-TRACK] Pre-fill hook blocked recording: {str(hook_error)}")
+                        fill_data = None  # Signal that recording should be skipped
+                    
+                    # Record the fill if pre-hooks didn't block it
+                    if fill_data is not None:
+                        record_success = post_fill_hook_on_order_filled(
+                            fill_repo=self.fill_repo,
+                            product_id=fill_data["instrument"],
+                            side=fill_data["side"],
+                            quantity=fill_data["quantity"],
+                            price=fill_data["price"],
+                            fees=fill_data["fees"],
+                            client_order_id=fill_data["client_order_id"],
+                            trade_id=fill_data["trade_id"],
+                            timestamp=fill_data["timestamp"],
+                            commission_pct=fill_data["commission_percentage"]
+                        )
+                        
+                        # 🪝 POST-FILL HOOKS: Log/track fill after recording
+                        # Exceptions here are logged but don't affect fill recording
+                        if record_success and fill_data["trade_id"]:
+                            try:
+                                if self.fill_event_hooks:
+                                    self.fill_event_hooks.call_post_fill_hooks(fill_data, fill_data["trade_id"])
+                            except Exception as hook_error:
+                                # Post-fill hook error - log but don't fail (fill is already recorded)
+                                self.log_message("warning", f"[LOT-TRACK] Post-fill hook exception: {str(hook_error)}")
+            except Exception as e:
+                # Log but don't block - lot tracking failure shouldn't stop order processing
+                self.log_message("warning", f"[LOT-TRACK] Failed to record fill: {type(e).__name__}: {e}")
+
+        # CRITICAL: Claim follow-up processing NOW, after fill is recorded
+        # This prevents duplicate follow-up orders while allowing fill recording even if claim fails
+        if not self.claim_follow_up_processing("filled", client_order_id):
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=None,
+                    details={"reason": "filled_order_follow_up_already_claimed"},
+                ),
+            )
+            return
+
         with self.orderbook_lock:
             if self.orderbook.should_replace["FILLED"] is not True:
                 return
+
+            # ✅ FIX: For stealth-revealed orders, get target_movement from the stealth order's entry
+            stealth_target_movement = None
+            if original_stealth_order:
+                # The stealth order's target_movement is stored in order_parent with client_order_id=stealth_order_id
+                parent_order_data = self.db_helper.get_parent_order(
+                    original_stealth_order["stealth_order_id"]
+                )
+                if parent_order_data:
+                    # ✅ Use safe_float to handle Decimal type from database (imported at module level)
+                    target_mv = safe_float(parent_order_data.get("target_movement"))
+                    stealth_target_movement = {
+                        "target_movement": target_mv if target_mv > 0 else None,
+                        "target_movement_type": parent_order_data.get("target_movement_type", "P")
+                    }
 
             _, parent_client_order_id = self.resolve_parent_client_order_id(
                 client_order_id,
                 order=order,
                 create_parent=True,
-                status="FILLED",
+                status=OrderStatus.FILLED.value,
+                stealth_order=stealth_target_movement,
             )
+            
+            # 🔧 CRITICAL FIX: If a new parent was created (order became its own parent),
+            # but this stealth order has an explicit parent_order_id, use that instead.
+            # This ensures stealth follow-ups use the correct parent's replacement count.
+            if original_stealth_order and parent_client_order_id == client_order_id:
+                explicit_parent = original_stealth_order.get("parent_order_id")
+                if explicit_parent and explicit_parent != client_order_id:
+                    parent_client_order_id = explicit_parent
+                    # Register the child retroactively if needed
+                    self.register_child_order(client_order_id, parent_client_order_id)
 
         # For external orders, just track them but don't create follow-ups
         # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
@@ -1670,6 +1977,80 @@ class OrderEngine:
             # If this is a stealth order follow-up, create a stealth order instead of a regular order
             if original_stealth_order:
                 try:
+                    # Check profitability BEFORE creating follow-up order
+                    filled_price = float(order.get("price", order.get("avg_price", 0)))
+                    follow_up_price = float(order_template["start_price"])
+                    # ✅ FIX: Use helper to resolve order_side (checks "order_side" then "side")
+                    order_side = resolve_order_side(order) or "BUY"
+                    order_size = float(order_template["order_base_size"])
+                    product_type = self.normalize_product_type(order)
+                    product_id = order.get("product_id")
+                    
+                    # Get current position side for FUTURE/PERPETUAL
+                    position_side = None
+                    if product_type in ('FUTURE', 'PERPETUAL'):
+                        position_side = self.orderbook.get_position_side(product_id)
+                    
+                    # Debug: Log what position_side we detected
+                    self.log_message(
+                        "info",
+                        {
+                            "event": "profitability_check_debug",
+                            "filled_price": filled_price,
+                            "follow_up_price": follow_up_price,
+                            "parent_side": order_side,
+                            "position_side": position_side,
+                            "product_type": product_type,
+                            "product_id": product_id,
+                        }
+                    )
+                    
+                    # Validate profitability
+                    if self.profit_validator:
+                        # Get contract_size for futures products if needed
+                        contract_size = None
+                        if product_type in ('FUTURE', 'PERPETUAL'):
+                            product_data = self.orderbook.product.get(product_id, {})
+                            contract_size = safe_float(
+                                product_data.get("future_product_details", {}).get("contract_size"),
+                                default=1.0
+                            )
+                        
+                        profit_result = self.profit_validator.is_profitable(
+                            filled_price=filled_price,
+                            follow_up_price=follow_up_price,
+                            side=order_side,
+                            order_size=order_size,
+                            product_type=product_type,
+                            position_side=position_side,
+                            contract_size=contract_size
+                        )
+                        
+                        if not profit_result["is_profitable"]:
+                            self.log_message(
+                                "warning",
+                                {
+                                    "event": "follow_up_order_skipped_unprofitable",
+                                    "parent_client_order_id": parent_client_order_id,
+                                    "product_id": product_id,
+                                    "filled_price": filled_price,
+                                    "follow_up_price": follow_up_price,
+                                    "gross_profit": profit_result.get("gross_profit", 0),
+                                    "total_fees": profit_result.get("total_fees", 0),
+                                    "net_profit": profit_result.get("net_profit", 0),
+                                }
+                            )
+                            self.complete_follow_up_processing("filled", client_order_id)
+                            return
+                    
+                    # Update the original stealth order status to EXECUTED
+                    filled_size = float(order.get("filled_size", order_template["order_base_size"]))
+                    self.stealth_order_bridge.stealth_manager.update_execution(
+                        stealth_order_id=original_stealth_order["stealth_order_id"],
+                        executed_size=filled_size,
+                        order_status=StealthOrderStatus.EXECUTED.value
+                    )
+                    
                     # This is a stealth order fill - create a stealth follow-up instead of a regular order
                     follow_up_price = float(order_template["start_price"])
                     
@@ -1688,28 +2069,27 @@ class OrderEngine:
                     
                     # Build the reveal condition for the follow-up using configurable direction
                     follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
-                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", "opposite")
+                    direction_choice = original_stealth_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value)
                     
                     if follow_up_reveal_condition.get("type") == "price":
                         # Set threshold to the ACTUAL price where we plan to place the new order
                         # Use float conversion to ensure numeric precision
                         follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
                         
-                        if direction_choice == "opposite":
+                        if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
                             # Flip direction (below → above, above → below)
                             if "direction" in follow_up_reveal_condition:
-                                follow_up_reveal_condition["direction"] = "above" if follow_up_reveal_condition.get("direction") == "below" else "below"
-                        elif direction_choice in ["above", "below"]:
-                            # Use explicit direction
-                            follow_up_reveal_condition["direction"] = direction_choice
-                        # else: "same" - keep original direction unchanged
+                                follow_up_reveal_condition["direction"] = Direction.ABOVE.value if follow_up_reveal_condition.get("direction") == Direction.BELOW.value else Direction.BELOW.value
+                        elif direction_choice == FollowUpRevealDirection.SAME.value:
+                            # Keep original direction unchanged
+                            pass
+                        # else: Unknown direction choice, keep original
                     
-                    # Create the stealth follow-up order (hidden, not revealed yet)
-                    # Get target_movement from parent order (stored in order_parent table)
+                    # Use parent order's target_movement (source of truth)
                     from database.order import get_parent_order
                     parent_order_data = get_parent_order(parent_client_order_id)
                     parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-                    parent_target_movement_type = parent_order_data.get("target_movement_type", "P") if parent_order_data else "P"
+                    parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
                     
                     # Debug: Log the exact reveal condition being set
                     self.log_message(
@@ -1801,7 +2181,7 @@ class OrderEngine:
                 "orders": [],
                 "target_movement": {
                     "movement": float(parent["target_movement"]),
-                    "type": parent.get("target_movement_type", "P"),
+                    "type": parent.get("target_movement_type", TargetMovementType.PERCENTAGE.value),
                 },
                 "max_order_replacement": int(parent["max_order_replacement"]),
                 "current_order_replacement": int(parent["current_order_replacement"]),
@@ -1890,10 +2270,10 @@ class OrderEngine:
         
         # Then update in-memory structures atomically
         with self.orderbook_lock:
-            old_parent = self.orderbook.child_order_ids.get(child_client_order_id)
+            old_parent = self._get_parent_of_child_unlocked(child_client_order_id)
             
             # Remove from old parent's children list
-            if old_parent and old_parent in self.orderbook.parent_order_ids:
+            if old_parent and self._is_parent_order_unlocked(old_parent):
                 children_list = self.orderbook.parent_order_ids[old_parent].get("orders", [])
                 if child_client_order_id in children_list:
                     children_list.remove(child_client_order_id)
@@ -2039,7 +2419,7 @@ class OrderEngine:
             while True:
                 event = self.event_queue[channel].get()
                 try:
-                    if channel == "ticker":
+                    if channel == ChannelType.TICKER.value:
                         with self.ticker_lock:
                             self.log_message(
                                 "ticker",
@@ -2064,7 +2444,7 @@ class OrderEngine:
                                 if self.stealth_order_bridge and product_id:
                                     self.stealth_order_bridge.process_ticker_update(product_id, tickr)
 
-                    elif channel == "user":
+                    elif channel == ChannelType.USER.value:
                         self.log_message(
                             "user",
                             self.build_event_log_payload(
@@ -2165,6 +2545,9 @@ class OrderEngine:
                 target=self.generate_process_event_worker(channel),
                 daemon=True,
             ).start()
+        
+        # Start fee manager (fetches taker fees from Coinbase API, refreshes hourly)
+        self.fee_manager.start()
 
         for websocket in range(self.websocket_thread_maximum):
             threading.Thread(

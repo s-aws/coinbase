@@ -128,7 +128,7 @@ class OrderProcessor:
         """
         status = order.get("status")
         filled_size = safe_float(order.get("filled_size"), default=0.0)
-        return status == "FILLED" and filled_size > 0
+        return status == OrderStatus.FILLED.value and filled_size > 0
 
     @staticmethod
     def is_cancelled_order(order: dict) -> bool:
@@ -146,7 +146,7 @@ class OrderProcessor:
             >>> processor.is_cancelled_order(order)
             True
         """
-        return order.get("status") == "CANCELLED"
+        return order.get("status") == OrderStatus.CANCELLED.value
 
     @staticmethod
     def is_open_order(order: dict) -> bool:
@@ -165,7 +165,7 @@ class OrderProcessor:
             True
         """
         status = order.get("status")
-        return status in ("OPEN", "PENDING")
+        return status in (OrderStatus.OPEN.value, OrderStatus.PENDING.value)
 
     @staticmethod
     def order_matches_product(order: dict, product_id: str) -> bool:
