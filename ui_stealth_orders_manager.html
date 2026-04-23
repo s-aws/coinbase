@@ -1372,25 +1372,15 @@
             });
 
             // Filter out parent orders that don't meet display criteria:
-            // 1. Don't show cancelled parents with no children
-            // 2. Don't show parents that only have cancelled children
+            // Show a parent if: (parent is active: PENDING or HIDDEN) OR (parent has at least one active child)
+            // When showing a parent, display all of its children regardless of their status
             const filteredParentOrders = parentOrders.filter(parentOrder => {
+                const isParentActive = parentOrder.status === 'PENDING' || parentOrder.status === 'HIDDEN';
                 const children = childOrdersByParent[parentOrder.stealth_order_id] || [];
+                const hasActiveChild = children.some(child => child.status === 'PENDING' || child.status === 'HIDDEN');
                 
-                // If parent is cancelled and has no children, filter it out
-                if (parentOrder.status === 'CANCELLED' && children.length === 0) {
-                    return false;
-                }
-                
-                // If parent only has cancelled children, filter it out
-                if (children.length > 0) {
-                    const hasNonCancelledChild = children.some(child => child.status !== 'CANCELLED');
-                    if (!hasNonCancelledChild) {
-                        return false;
-                    }
-                }
-                
-                return true;
+                // Show parent if parent is active OR if parent has at least one active child
+                return isParentActive || hasActiveChild;
             });
 
             // Render function for order row
