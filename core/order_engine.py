@@ -172,8 +172,8 @@ class OrderEngine:
         self.queue_maxsize = queue_maxsize
 
         self.ticker = {}
-        self.ticker_lock = threading.Lock()
-        self.orderbook_lock = threading.Lock()
+        self.ticker_lock = threading.RLock()
+        self.orderbook_lock = threading.RLock()
 
         self.event_executor = ThreadPoolExecutor(
             max_workers=max_workers,
@@ -574,6 +574,10 @@ class OrderEngine:
         with self.orderbook_lock:
             return client_order_id in self.orderbook.parent_order_ids
 
+    def _is_parent_order_unlocked(self, client_order_id: str) -> bool:
+        """Internal: Check if order is parent (assumes lock already held)."""
+        return client_order_id in self.orderbook.parent_order_ids
+
     def is_child_order(self, client_order_id: str) -> bool:
         """Check if a client_order_id is a child order.
         
@@ -586,6 +590,10 @@ class OrderEngine:
         with self.orderbook_lock:
             return client_order_id in self.orderbook.child_order_ids
 
+    def _is_child_order_unlocked(self, client_order_id: str) -> bool:
+        """Internal: Check if order is child (assumes lock already held)."""
+        return client_order_id in self.orderbook.child_order_ids
+
     def get_parent_of_child(self, child_client_order_id: str) -> str | None:
         """Get the parent ID of a child order.
         
@@ -597,6 +605,10 @@ class OrderEngine:
         """
         with self.orderbook_lock:
             return self.orderbook.child_order_ids.get(child_client_order_id)
+
+    def _get_parent_of_child_unlocked(self, child_client_order_id: str) -> str | None:
+        """Internal: Get parent of child (assumes lock already held)."""
+        return self.orderbook.child_order_ids.get(child_client_order_id)
 
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:
         """Atomically claim processing rights for a follow-up order.
@@ -1272,12 +1284,12 @@ class OrderEngine:
         Returns:
             Dict with 'max_order_replacement' and 'current_order_replacement' keys.
         """
-        # If this is a child ID, resolve to the actual parent
-        actual_parent_id = parent_client_order_id
-        if self.is_child_order(parent_client_order_id):
-            actual_parent_id = self.get_parent_of_child(parent_client_order_id)
-        
         with self.orderbook_lock:
+            # If this is a child ID, resolve to the actual parent
+            actual_parent_id = parent_client_order_id
+            if self._is_child_order_unlocked(parent_client_order_id):
+                actual_parent_id = self._get_parent_of_child_unlocked(parent_client_order_id)
+            
             parent = self.orderbook.parent_order_ids.get(actual_parent_id, {})
 
             return {
@@ -2076,10 +2088,10 @@ class OrderEngine:
         
         # Then update in-memory structures atomically
         with self.orderbook_lock:
-            old_parent = self.get_parent_of_child(child_client_order_id)
+            old_parent = self._get_parent_of_child_unlocked(child_client_order_id)
             
             # Remove from old parent's children list
-            if old_parent and self.is_parent_order(old_parent):
+            if old_parent and self._is_parent_order_unlocked(old_parent):
                 children_list = self.orderbook.parent_order_ids[old_parent].get("orders", [])
                 if child_client_order_id in children_list:
                     children_list.remove(child_client_order_id)
