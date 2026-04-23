@@ -80,6 +80,14 @@ except ImportError:
     def broadcast_ticker(*args, **kwargs): pass
     def record_spread_tick(*args, **kwargs): pass
 
+# Lot tracking integration (optional - will fail gracefully if not available)
+try:
+    from business.post_fill_hook import on_order_filled as post_fill_hook_on_order_filled
+    LOT_TRACKING_AVAILABLE = True
+except ImportError:
+    LOT_TRACKING_AVAILABLE = False
+    def post_fill_hook_on_order_filled(*args, **kwargs): pass
+
 
 class OrderEngine:
     """Multithreaded trading engine for Coinbase Advanced API order management.
@@ -218,6 +226,16 @@ class OrderEngine:
         
         self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
         self.profit_validator = ProfitValidator(fee_manager=self.fee_manager)
+
+        # Lot Tracking Integration: Initialize fill ledger for recording fills
+        self.fill_repo = None
+        if LOT_TRACKING_AVAILABLE:
+            try:
+                from business.post_fill_hook import initialize_fill_ledger
+                self.fill_repo = initialize_fill_ledger(self.db_helper)
+            except Exception as e:
+                # Log but don't fail - lot tracking is optional
+                self.log_message("warning", f"Failed to initialize fill ledger: {e}")
 
         self.websocket_events = {
             "SNAPSHOT": {
@@ -1683,6 +1701,34 @@ class OrderEngine:
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = self._is_external_order(client_order_id)
+
+        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger
+        if self.fill_repo and LOT_TRACKING_AVAILABLE:
+            try:
+                filled_price = float(order.get("price", order.get("avg_price", 0)))
+                filled_size = float(order.get("filled_size", order.get("size", 0)))
+                order_side = resolve_order_side(order) or "BUY"
+                product_id = order.get("product_id", "UNKNOWN")
+                
+                # Fees can vary; get from order or default to 0
+                fees = float(order.get("fee_details", {}).get("total", 0)) if isinstance(order.get("fee_details"), dict) else 0.0
+                
+                # Record the fill non-blockingly
+                post_fill_hook_on_order_filled(
+                    fill_repo=self.fill_repo,
+                    product_id=product_id,
+                    side=order_side,
+                    quantity=filled_size,
+                    price=filled_price,
+                    fees=fees,
+                    client_order_id=client_order_id,
+                    trade_id=order.get("id"),  # Exchange order ID as trade_id for dedup
+                    timestamp=get_local_now(),
+                    commission_pct=0.0
+                )
+            except Exception as e:
+                # Log but don't block - lot tracking failure shouldn't stop order processing
+                self.log_message("warning", f"[LOT-TRACK] Failed to record fill: {type(e).__name__}: {e}")
 
         with self.orderbook_lock:
             if self.orderbook.should_replace["FILLED"] is not True:

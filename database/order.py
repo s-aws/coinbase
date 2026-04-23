@@ -1681,7 +1681,7 @@ def execute_pending_move(
         
     Example:
         >>> result = execute_pending_move(
-        ...     original_parent_client_order_id="old_parent_uuid",
+        ...     original_parent_client_order_id="0_parent_uuid",
         ...     new_parent_client_order_id="new_parent_uuid"
         ... )
         >>> if result > 0:
@@ -1709,3 +1709,449 @@ def execute_pending_move(
     except Exception as e:
         logger.error(f"Error executing pending move for {original_parent_client_order_id}: {type(e).__name__}: {e}")
         return 0
+
+
+def create_fill_ledger_table() -> None:
+    """
+    Create the fill_ledger table for lot-based profit tracking.
+    
+    Immutable append-only ledger of all fills (both partial and complete).
+    Used as source of truth for reconstructing position lots and calculating profits.
+    
+    Table columns:
+    - id: Auto-increment primary key
+    - trade_id: Unique trade ID from exchange (UUID UNIQUE)
+    - instrument: Product ID (e.g., 'BTC-USDC')
+    - side: Order side ('BUY' or 'SELL')
+    - quantity: Amount filled (DECIMAL(16,8) for precision)
+    - price: Fill price (DECIMAL(16,2))
+    - timestamp: When the fill occurred
+    - fees: Transaction fees paid
+    - commission_percentage: Commission rate applied
+    - client_order_id: Reference to order_parent.client_order_id (for traceability)
+    - created_at: When the record was created
+    
+    Indexes for query performance:
+    - instrument: Fast lookup by product
+    - timestamp: Time-range queries for reporting
+    - client_order_id: Cross-reference with orders
+    - UNIQUE(trade_id): Prevents duplicate fills
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS fill_ledger (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        trade_id UUID UNIQUE NOT NULL,
+        instrument VARCHAR(32) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+        quantity DECIMAL(16, 8) NOT NULL,
+        price DECIMAL(16, 2) NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
+        fees DECIMAL(16, 8) DEFAULT 0,
+        commission_percentage DECIMAL(5, 4) DEFAULT 0,
+        client_order_id VARCHAR(40)
+    );
+    CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+    CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("fill_ledger table done.")
+
+
+def insert_fill_record(
+    trade_id: str,
+    instrument: str,
+    side: str,
+    quantity: float,
+    price: float,
+    timestamp,
+    fees: float = 0.0,
+    commission_percentage: float = 0.0,
+    client_order_id: str = None
+) -> Optional[int]:
+    """
+    Insert a fill record into the fill_ledger table.
+    
+    Creates an append-only record of a filled order (partial or complete).
+    
+    Args:
+        trade_id: Unique trade ID from exchange (UUID)
+        instrument: Product ID (e.g., 'BTC-USDC')
+        side: 'BUY' or 'SELL'
+        quantity: Amount filled (float)
+        price: Fill price (float)
+        timestamp: When the fill occurred
+        fees: Transaction fees paid (default 0.0)
+        commission_percentage: Commission rate as decimal (default 0.0)
+        client_order_id: Reference to order_parent.client_order_id (optional)
+    
+    Returns:
+        The inserted fill record's database ID if successful, None if failed.
+    """
+    query = """
+    INSERT INTO fill_ledger (
+        trade_id,
+        instrument,
+        side,
+        quantity,
+        price,
+        timestamp,
+        fees,
+        commission_percentage,
+        client_order_id
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    RETURNING id
+    """
+    params = (
+        trade_id,
+        instrument,
+        side,
+        quantity,
+        price,
+        timestamp,
+        fees,
+        commission_percentage,
+        client_order_id
+    )
+    
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            inserted_id = results[0]["id"]
+            logger.info(
+                f"✓ Fill recorded: {trade_id} ({instrument} {side} {quantity} @ {price}, "
+                f"fees: {fees}, commission: {commission_percentage})"
+            )
+            return inserted_id
+        return None
+    except Exception as e:
+        logger.error(f"✗ Error inserting fill record {trade_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Fill details - instrument: {instrument}, side: {side}, quantity: {quantity}, price: {price}")
+        return None
+
+
+def get_fills_by_instrument(instrument: str) -> List[Dict[str, Any]]:
+    """
+    Retrieve all fills for a given instrument.
+    
+    Args:
+        instrument: Product ID (e.g., 'BTC-USDC')
+    
+    Returns:
+        List of fill records for the instrument, ordered by timestamp.
+    """
+    query = """
+    SELECT * FROM fill_ledger 
+    WHERE instrument = %s 
+    ORDER BY timestamp ASC
+    """
+    return DB_CLIENT.execute_query(query, (instrument,))
+
+
+def get_fills_by_order(client_order_id: str) -> List[Dict[str, Any]]:
+    """
+    Retrieve all fills for a specific order.
+    
+    Args:
+        client_order_id: The client_order_id to look up
+    
+    Returns:
+        List of fill records for the order, ordered by timestamp.
+    """
+    query = """
+    SELECT * FROM fill_ledger 
+    WHERE client_order_id = %s 
+    ORDER BY timestamp ASC
+    """
+    return DB_CLIENT.execute_query(query, (client_order_id,))
+
+
+def get_fills_since(instrument: str, since_timestamp) -> List[Dict[str, Any]]:
+    """
+    Retrieve fills for an instrument since a given timestamp.
+    
+    Useful for incremental updates and reporting.
+    
+    Args:
+        instrument: Product ID (e.g., 'BTC-USDC')
+        since_timestamp: Start time for the range query
+    
+    Returns:
+        List of fill records since the timestamp, ordered by timestamp.
+    """
+    query = """
+    SELECT * FROM fill_ledger 
+    WHERE instrument = %s AND timestamp >= %s 
+    ORDER BY timestamp ASC
+    """
+    return DB_CLIENT.execute_query(query, (instrument, since_timestamp))
+
+
+def create_conditional_orders_table() -> None:
+    """
+    Create the conditional_orders table for persistent conditional order storage.
+    
+    Stores conditional orders that must survive engine restarts.
+    Conditional orders wait for market conditions before submission.
+    
+    Table columns:
+    - id: Auto-increment primary key
+    - conditional_order_id: Unique UUID for the conditional order
+    - base_order_id: Reference to order_parent.client_order_id (FK, on delete cascade)
+    - product_id: Product ID (e.g., 'BTC-USDC')
+    - side: Order side ('BUY' or 'SELL')
+    - size: Order size/quantity (DECIMAL(16,8))
+    - price: Order price (DECIMAL(16,2))
+    - min_profitable_price: Minimum profitable exit price (DECIMAL(16,2))
+    - status: ConditionalOrderStatus enum as VARCHAR
+    - created_at: When the conditional order was created
+    - submitted_at: When submitted to exchange (NULL until submitted)
+    - filled_at: When fully filled (NULL until filled)
+    - execution_price: Actual execution price (NULL until filled)
+    - notes: Optional additional details
+    
+    Indexes for query performance:
+    - product_id: Fast lookup by product
+    - status: Query awaiting orders for evaluation
+    - conditional_order_id: UNIQUE for PK
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS conditional_orders (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        conditional_order_id UUID UNIQUE NOT NULL,
+        base_order_id VARCHAR(40) NOT NULL,
+        product_id VARCHAR(32) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+        size DECIMAL(16, 8) NOT NULL,
+        price DECIMAL(16, 2) NOT NULL,
+        min_profitable_price DECIMAL(16, 2) NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'AWAITING_CONDITION',
+        submitted_at TIMESTAMP,
+        filled_at TIMESTAMP,
+        execution_price DECIMAL(16, 2),
+        notes TEXT,
+        FOREIGN KEY (base_order_id) REFERENCES order_parent(client_order_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_conditional_orders_product_id ON conditional_orders(product_id);
+    CREATE INDEX IF NOT EXISTS idx_conditional_orders_status ON conditional_orders(status);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("conditional_orders table done.")
+
+
+def insert_conditional_order(
+    conditional_order_id: str,
+    base_order_id: str,
+    product_id: str,
+    side: str,
+    size: float,
+    price: float,
+    min_profitable_price: float,
+    notes: str = None
+) -> Optional[int]:
+    """
+    Insert a conditional order into persistent storage.
+    
+    Args:
+        conditional_order_id: Unique UUID for this conditional order
+        base_order_id: Reference to order_parent.client_order_id
+        product_id: Product ID (e.g., 'BTC-USDC')
+        side: 'BUY' or 'SELL'
+        size: Order size (float)
+        price: Order price (float)
+        min_profitable_price: Minimum profitable exit price (float)
+        notes: Optional additional context
+    
+    Returns:
+        The inserted conditional order's database ID if successful, None if failed.
+    """
+    query = """
+    INSERT INTO conditional_orders (
+        conditional_order_id,
+        base_order_id,
+        product_id,
+        side,
+        size,
+        price,
+        min_profitable_price,
+        notes,
+        status
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'AWAITING_CONDITION')
+    RETURNING id
+    """
+    params = (
+        conditional_order_id,
+        base_order_id,
+        product_id,
+        side,
+        size,
+        price,
+        min_profitable_price,
+        notes
+    )
+    
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            inserted_id = results[0]["id"]
+            logger.info(
+                f"✓ Conditional order inserted: {conditional_order_id} "
+                f"({product_id} {side} {size} @ {price}, min_profit: {min_profitable_price})"
+            )
+            return inserted_id
+        return None
+    except Exception as e:
+        logger.error(f"✗ Error inserting conditional order {conditional_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Conditional order details - product: {product_id}, side: {side}, size: {size}, price: {price}")
+        return None
+
+
+def get_conditional_order(conditional_order_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve a conditional order by ID.
+    
+    Args:
+        conditional_order_id: The UUID of the conditional order
+    
+    Returns:
+        Conditional order dict if found, None otherwise.
+    """
+    query = """
+    SELECT * FROM conditional_orders 
+    WHERE conditional_order_id = %s
+    """
+    results = DB_CLIENT.execute_query(query, (conditional_order_id,))
+    return results[0] if results else None
+
+
+def get_awaiting_conditional_orders(product_id: str = None) -> List[Dict[str, Any]]:
+    """
+    Retrieve all conditional orders awaiting condition evaluation.
+    
+    Args:
+        product_id: Optional filter by product ID. If None, returns all awaiting orders.
+    
+    Returns:
+        List of conditional orders with status='AWAITING_CONDITION'.
+    """
+    if product_id:
+        query = """
+        SELECT * FROM conditional_orders 
+        WHERE status = 'AWAITING_CONDITION' AND product_id = %s 
+        ORDER BY created_at ASC
+        """
+        return DB_CLIENT.execute_query(query, (product_id,))
+    else:
+        query = """
+        SELECT * FROM conditional_orders 
+        WHERE status = 'AWAITING_CONDITION' 
+        ORDER BY created_at ASC
+        """
+        return DB_CLIENT.execute_query(query)
+
+
+def update_conditional_order_status(
+    conditional_order_id: str,
+    status: str
+) -> int:
+    """
+    Update the status of a conditional order.
+    
+    Args:
+        conditional_order_id: The UUID of the conditional order
+        status: New status value (e.g., 'CONDITION_MET', 'SUBMITTED', 'FILLED')
+    
+    Returns:
+        Number of rows updated (0 or 1).
+    """
+    query = """
+    UPDATE conditional_orders 
+    SET status = %s 
+    WHERE conditional_order_id = %s
+    """
+    result = DB_CLIENT.execute_update(query, (status, conditional_order_id))
+    if result > 0:
+        logger.info(f"Conditional order status updated: {conditional_order_id} -> {status}")
+    return result
+
+
+def mark_conditional_submitted(conditional_order_id: str) -> int:
+    """
+    Mark a conditional order as submitted to the exchange.
+    
+    Sets status='SUBMITTED' and submitted_at=CURRENT_TIMESTAMP.
+    
+    Args:
+        conditional_order_id: The UUID of the conditional order
+    
+    Returns:
+        Number of rows updated (0 or 1).
+    """
+    query = """
+    UPDATE conditional_orders 
+    SET status = 'SUBMITTED', 
+        submitted_at = CURRENT_TIMESTAMP
+    WHERE conditional_order_id = %s
+    """
+    result = DB_CLIENT.execute_update(query, (conditional_order_id,))
+    if result > 0:
+        logger.info(f"Conditional order marked submitted: {conditional_order_id}")
+    return result
+
+
+def mark_conditional_filled(
+    conditional_order_id: str,
+    execution_price: float
+) -> int:
+    """
+    Mark a conditional order as filled.
+    
+    Sets status='FILLED', filled_at=CURRENT_TIMESTAMP, and execution_price.
+    
+    Args:
+        conditional_order_id: The UUID of the conditional order
+        execution_price: The actual execution price (float)
+    
+    Returns:
+        Number of rows updated (0 or 1).
+    """
+    query = """
+    UPDATE conditional_orders 
+    SET status = 'FILLED', 
+        filled_at = CURRENT_TIMESTAMP,
+        execution_price = %s
+    WHERE conditional_order_id = %s
+    """
+    result = DB_CLIENT.execute_update(query, (execution_price, conditional_order_id))
+    if result > 0:
+        logger.info(f"Conditional order marked filled: {conditional_order_id} @ {execution_price}")
+    return result
+
+
+def cancel_conditional_order(conditional_order_id: str) -> int:
+    """
+    Cancel a conditional order.
+    
+    Sets status='CANCELLED'.
+    
+    Args:
+        conditional_order_id: The UUID of the conditional order
+    
+    Returns:
+        Number of rows updated (0 or 1).
+    """
+    query = """
+    UPDATE conditional_orders 
+    SET status = 'CANCELLED' 
+    WHERE conditional_order_id = %s
+    """
+    result = DB_CLIENT.execute_update(query, (conditional_order_id,))
+    if result > 0:
+        logger.info(f"Conditional order cancelled: {conditional_order_id}")
+    return result

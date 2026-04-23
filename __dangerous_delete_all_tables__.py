@@ -32,6 +32,8 @@ from database.order import (
     create_stealth_order_snapshots_table,
     create_stealth_order_reveal_history_table,
     create_order_moves_table,
+    create_fill_ledger_table,
+    create_conditional_orders_table,
 )
 from psycopg2 import sql
 
@@ -127,6 +129,8 @@ def main() -> None:
             create_stealth_order_snapshots_table()
             create_stealth_order_reveal_history_table()
             create_order_moves_table()
+            create_fill_ledger_table()
+            create_conditional_orders_table()
             
             print("\n✓ All tables recreated successfully!")
         except Exception as e:

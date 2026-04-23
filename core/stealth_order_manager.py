@@ -23,6 +23,7 @@ from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 from core.enums import FollowUpRevealDirection, StealthOrderStatus
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
+from logging_service import get_logger
 
 
 class StealthOrderManager:
@@ -53,19 +54,31 @@ class StealthOrderManager:
         
         Args:
             db_client: Database client for persistence
-            log_callback: Optional logging callback (log_type, message). Defaults to print fallback.
+            log_callback: Optional logging callback (log_type, message). Defaults to proper logging_service.
         """
         self.db_client = db_client
+        self.logger = get_logger("StealthOrderManager")
         self.log_callback = log_callback or self._default_log
         self.in_memory_orders = {}  # For caching/quick access
         self._market_cache = {}  # Market data cache: product_id -> market_data
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
     
     def _default_log(self, log_type: str, message: str):
-        """Fallback logging if no callback provided."""
+        """Log using proper logging_service with timestamps."""
         if isinstance(message, (dict, list)):
             message = json.dumps(message, sort_keys=True, default=str)
-        print(f"[{log_type.upper()}] {message}")
+        
+        log_type_lower = log_type.lower()
+        if log_type_lower in ('debug',):
+            self.logger.debug(message)
+        elif log_type_lower in ('info',):
+            self.logger.info(message)
+        elif log_type_lower in ('warning',):
+            self.logger.warning(message)
+        elif log_type_lower in ('error',):
+            self.logger.error(message)
+        else:
+            self.logger.info(message)
 
     
     def create_stealth_order(
@@ -190,6 +203,11 @@ class StealthOrderManager:
         # Persist to database
         self._save_stealth_order_to_db(order_data)
         
+        # 📊 LOT-TRACKING: Log stealth order creation
+        reveal_type = reveal_condition.get("type", "time_delay")
+        reveal_delay = reveal_condition.get("delay_seconds", 0) if reveal_type == "time_delay" else "N/A"
+        self.log_callback("info", f"[LOT-TRACK] Stealth order created: {stealth_order_id} ({side} {total_size} {product_id} @ {limit_price}, reveal_type={reveal_type}, delay={reveal_delay}s)")
+        
         # UNIFIED TRACKING: Insert into order_parent table (for both parent and child orders)
         # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
         if parent_order_id:
@@ -255,6 +273,9 @@ class StealthOrderManager:
             order["condition_confirmed_at"] = datetime.utcnow()
             order["status"] = StealthOrderStatus.TRIGGERED.value
             self._update_stealth_order(order)
+            # 📊 LOT-TRACKING: Log condition met
+            market_price = market_data.get("price", "unknown") if market_data else "unknown"
+            self.log_callback("info", f"[LOT-TRACK] Stealth order condition met: {order['stealth_order_id']} ({order['side']} {order['total_size']} {order['product_id']} @ {order['limit_price']}, market_price={market_price})")
         elif not condition_met and order.get("condition_first_met_at") is None:
             # First time condition partially met
             if reason and ("watching" in reason or "waiting" in reason):
@@ -336,6 +357,9 @@ class StealthOrderManager:
             placed_order_id = client_order_id
             placement_success = True
             
+            # 📊 LOT-TRACKING: Log order placement
+            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {order['limit_price']}, exchange_order_id={exchange_order_id})")
+            
             self.log_callback("info", {
                 "event": "stealth_order_slice_placed_successfully",
                 "stealth_order_id": order['stealth_order_id'],
@@ -406,6 +430,9 @@ class StealthOrderManager:
         order["executed_size"] = float(executed_size)
         order["status"] = order_status
         order["updated_at"] = datetime.utcnow()
+        
+        # 📊 LOT-TRACKING: Log execution
+        self.log_callback("info", f"[LOT-TRACK] Stealth order executed: {stealth_order_id} ({order['side']} {executed_size} of {order['total_size']} {order['product_id']}, status={order_status})")
         
         self._update_stealth_order(order)
     
