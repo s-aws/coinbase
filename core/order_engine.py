@@ -500,12 +500,12 @@ class OrderEngine:
         is_parent = False
         parent_client_order_id = None
 
-        if client_order_id in self.orderbook.parent_order_ids:
+        if self.is_parent_order(client_order_id):
             is_parent = True
             parent_client_order_id = client_order_id
 
-        elif client_order_id in self.orderbook.child_order_ids:
-            parent_client_order_id = self.orderbook.child_order_ids[client_order_id]
+        elif self.is_child_order(client_order_id):
+            parent_client_order_id = self.get_parent_of_child(client_order_id)
 
         elif create_parent and order is not None:
             max_order_replacement = getattr(
@@ -561,6 +561,42 @@ class OrderEngine:
             parent_client_order_id = client_order_id
 
         return is_parent, parent_client_order_id
+
+    def is_parent_order(self, client_order_id: str) -> bool:
+        """Check if a client_order_id is a parent order.
+        
+        Args:
+            client_order_id: Order ID to check.
+        
+        Returns:
+            True if parent, False if child or not found.
+        """
+        with self.orderbook_lock:
+            return client_order_id in self.orderbook.parent_order_ids
+
+    def is_child_order(self, client_order_id: str) -> bool:
+        """Check if a client_order_id is a child order.
+        
+        Args:
+            client_order_id: Order ID to check.
+        
+        Returns:
+            True if child, False if parent or not found.
+        """
+        with self.orderbook_lock:
+            return client_order_id in self.orderbook.child_order_ids
+
+    def get_parent_of_child(self, child_client_order_id: str) -> str | None:
+        """Get the parent ID of a child order.
+        
+        Args:
+            child_client_order_id: Child order ID to resolve.
+        
+        Returns:
+            Parent order ID if child exists, None otherwise.
+        """
+        with self.orderbook_lock:
+            return self.orderbook.child_order_ids.get(child_client_order_id)
 
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:
         """Atomically claim processing rights for a follow-up order.
@@ -745,8 +781,8 @@ class OrderEngine:
             ...     # Just track it, don't create follow-ups
         """
         return (
-            client_order_id not in self.orderbook.parent_order_ids
-            and client_order_id not in self.orderbook.child_order_ids
+            not self.is_parent_order(client_order_id)
+            and not self.is_child_order(client_order_id)
         )
 
     def _handle_external_order_tracking(
@@ -1042,7 +1078,7 @@ class OrderEngine:
             # NOTE: All child orders in this system are stealth orders (stored in stealth_orders table).
             # Stealth orders are managed by StealthOrderManager, not via order_child table updates.
             # Therefore, we only update parent orders (stored in order_parent table).
-            if client_order_id in self.orderbook.parent_order_ids:
+            if self.is_parent_order(client_order_id):
                 self.db_helper.update_order_parent_status(
                     client_order_id=client_order_id,
                     status=status,
@@ -1231,17 +1267,22 @@ class OrderEngine:
         """Get current and max replacement counts for a parent order.
         
         Args:
-            parent_client_order_id: Parent order ID.
+            parent_client_order_id: Parent order ID (or child ID, will be resolved).
         
         Returns:
             Dict with 'max_order_replacement' and 'current_order_replacement' keys.
         """
+        # If this is a child ID, resolve to the actual parent
+        actual_parent_id = parent_client_order_id
+        if self.is_child_order(parent_client_order_id):
+            actual_parent_id = self.get_parent_of_child(parent_client_order_id)
+        
         with self.orderbook_lock:
-            parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
+            parent = self.orderbook.parent_order_ids.get(actual_parent_id, {})
 
             return {
-                "max_order_replacement": int(parent["max_order_replacement"]),
-                "current_order_replacement": int(parent["current_order_replacement"]),
+                "max_order_replacement": int(parent.get("max_order_replacement", 0)),
+                "current_order_replacement": int(parent.get("current_order_replacement", 0)),
             }
 
     def can_create_follow_up_order(self, parent_client_order_id: str) -> tuple:
@@ -1658,6 +1699,16 @@ class OrderEngine:
                 status=OrderStatus.FILLED.value,
                 stealth_order=stealth_target_movement,
             )
+            
+            # 🔧 CRITICAL FIX: If a new parent was created (order became its own parent),
+            # but this stealth order has an explicit parent_order_id, use that instead.
+            # This ensures stealth follow-ups use the correct parent's replacement count.
+            if original_stealth_order and parent_client_order_id == client_order_id:
+                explicit_parent = original_stealth_order.get("parent_order_id")
+                if explicit_parent and explicit_parent != client_order_id:
+                    parent_client_order_id = explicit_parent
+                    # Register the child retroactively if needed
+                    self.register_child_order(client_order_id, parent_client_order_id)
 
         # For external orders, just track them but don't create follow-ups
         # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
@@ -2025,10 +2076,10 @@ class OrderEngine:
         
         # Then update in-memory structures atomically
         with self.orderbook_lock:
-            old_parent = self.orderbook.child_order_ids.get(child_client_order_id)
+            old_parent = self.get_parent_of_child(child_client_order_id)
             
             # Remove from old parent's children list
-            if old_parent and old_parent in self.orderbook.parent_order_ids:
+            if old_parent and self.is_parent_order(old_parent):
                 children_list = self.orderbook.parent_order_ids[old_parent].get("orders", [])
                 if child_client_order_id in children_list:
                     children_list.remove(child_client_order_id)
