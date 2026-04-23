@@ -1371,6 +1371,28 @@
                 childOrdersByParent[childOrder.parent_order_id].push(childOrder);
             });
 
+            // Filter out parent orders that don't meet display criteria:
+            // 1. Don't show cancelled parents with no children
+            // 2. Don't show parents that only have cancelled children
+            const filteredParentOrders = parentOrders.filter(parentOrder => {
+                const children = childOrdersByParent[parentOrder.stealth_order_id] || [];
+                
+                // If parent is cancelled and has no children, filter it out
+                if (parentOrder.status === 'CANCELLED' && children.length === 0) {
+                    return false;
+                }
+                
+                // If parent only has cancelled children, filter it out
+                if (children.length > 0) {
+                    const hasNonCancelledChild = children.some(child => child.status !== 'CANCELLED');
+                    if (!hasNonCancelledChild) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+
             // Render function for order row
             const renderOrderRow = (order, isChild = false, parentId = null) => {
                 const revealedPct = order.total_size > 0 
@@ -1472,7 +1494,7 @@
 
             // Build HTML with parents and children
             let html = '';
-            parentOrders.forEach(parentOrder => {
+            filteredParentOrders.forEach(parentOrder => {
                 // Add parent row
                 html += renderOrderRow(parentOrder, false);
                 
