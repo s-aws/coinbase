@@ -66,6 +66,7 @@ from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
+from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
@@ -83,10 +84,12 @@ except ImportError:
 # Lot tracking integration (optional - will fail gracefully if not available)
 try:
     from business.post_fill_hook import on_order_filled as post_fill_hook_on_order_filled
+    from integration.fill_event_hooks import get_global_fill_event_hook_registry
     LOT_TRACKING_AVAILABLE = True
 except ImportError:
     LOT_TRACKING_AVAILABLE = False
     def post_fill_hook_on_order_filled(*args, **kwargs): pass
+    def get_global_fill_event_hook_registry(): return None
 
 
 class OrderEngine:
@@ -149,6 +152,7 @@ class OrderEngine:
         max_seen_event_buckets=3,
         queue_maxsize=10000,
         stealth_order_bridge=None,
+        websocket_hooks=None,
     ) -> None:
         """Initialize the OrderEngine with configuration and state.
         
@@ -165,6 +169,7 @@ class OrderEngine:
             max_seen_event_buckets: Number of dedup buckets (default 3).
             queue_maxsize: Max size for event queues (default 10000).
             stealth_order_bridge: Optional StealthOrderBridge for market data updates.
+            websocket_hooks: Optional WebSocketHookRegistry for extensibility (default: global registry).
         """
         self.orderbook = orderbook
         self.db_helper = db_helper
@@ -173,6 +178,9 @@ class OrderEngine:
         self.api_secret = api_secret
         self.order_post_only = order_post_only
         self.stealth_order_bridge = stealth_order_bridge
+        
+        # WebSocket hook registry for extensible message handling
+        self.websocket_hooks = websocket_hooks or get_global_hook_registry()
 
         self.websocket_thread_maximum = websocket_thread_maximum
         self.max_rotate_seen_events_bucket_seconds = max_rotate_seen_events_bucket_seconds
@@ -227,12 +235,17 @@ class OrderEngine:
         self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
         self.profit_validator = ProfitValidator(fee_manager=self.fee_manager)
 
-        # Lot Tracking Integration: Initialize fill ledger for recording fills
+        # Lot Tracking Integration: Initialize fill ledger and hook registry
         self.fill_repo = None
+        self.fill_event_hooks = None
         if LOT_TRACKING_AVAILABLE:
             try:
                 from business.post_fill_hook import initialize_fill_ledger
                 self.fill_repo = initialize_fill_ledger(self.db_helper)
+                # Initialize fill event hook registry
+                self.fill_event_hooks = get_global_fill_event_hook_registry()
+                # Register default post-fill hook for recording fills
+                self._register_default_fill_hook()
             except Exception as e:
                 # Log but don't fail - lot tracking is optional
                 self.log_message("warning", f"Failed to initialize fill ledger: {e}")
@@ -1038,12 +1051,25 @@ class OrderEngine:
         
         Updates in-memory futures positions.
         
+        Flow:
+        1. Call PRE-hooks on RAW snapshot
+        2. Call normalizers (can enrich with computed fields)
+        3. Process positions and update orderbook
+        4. Call POST-hooks on NORMALIZED snapshot
+        
         Args:
             snapshot: Event dict with 'positions' key.
         
         Returns:
             None
         """
+        # Step 1: Call pre-processor hooks for snapshot (on raw data)
+        self.websocket_hooks.call_pre_snapshot(snapshot)
+        
+        # Step 2: Call normalizers to transform/enrich snapshot
+        self.websocket_hooks.call_snapshot_normalizers(snapshot)
+        
+        # Step 3: Process positions
         for _, items in snapshot["positions"].items():
             if not items:
                 continue
@@ -1066,11 +1092,21 @@ class OrderEngine:
                         position=self.orderbook.positions["FUTURE"][item["product_id"]],
                     ),
                 )
+        
+        # Step 4: Call post-processor hooks for snapshot
+        self.websocket_hooks.call_post_snapshot(snapshot)
 
     def process_user_order(self, order: dict) -> None:
         """Process order event (state transitions).
         
         Updates orderbook, dispatches to fill/cancel handlers, persists to DB.
+        
+        Flow:
+        1. Call PRE-hooks on RAW order (Coinbase fields as-is)
+        2. Normalize order (handle field variations, add computed fields)
+        3. Store normalized order in orderbook
+        4. Process status transitions
+        5. Call POST-hooks on NORMALIZED order
         
         Args:
             order: Order event dict.
@@ -1081,13 +1117,23 @@ class OrderEngine:
         client_order_id = order.get("client_order_id")
         status = order.get("status")
 
+        # Step 1: Call PRE-hooks on RAW order (before any normalization)
+        # This allows extensions to see Coinbase fields as-is
+        self.websocket_hooks.call_pre_order_status(status, order)
+
+        # Step 2: Normalize order
         normalized_order = deepcopy(order)
         normalized_order["product_type"] = self.normalize_product_type(normalized_order)
+        
+        # Call extensible order normalizers (can modify fields, add computed values, etc.)
+        self.websocket_hooks.call_order_normalizers(normalized_order)
+        
         outstanding_hold_amount = safe_float(
             normalized_order.get("outstanding_hold_amount"),
             default=0.0,
         )
 
+        # Step 3: Store normalized order in orderbook
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
@@ -1102,8 +1148,7 @@ class OrderEngine:
             )
             return
 
-        order = normalized_order
-
+        # Step 4: Process status transitions
         try:
             # NOTE: All child orders in this system are stealth orders (stored in stealth_orders table).
             # Stealth orders are managed by StealthOrderManager, not via order_child table updates.
@@ -1119,8 +1164,8 @@ class OrderEngine:
                 self.build_event_log_payload(
                     "database_order_status_update_failed",
                     error=str(e),
-                    source=self.build_order_log_context(order),
-                    **self.include_debug_fields(raw_order=order),
+                    source=self.build_order_log_context(normalized_order),
+                    **self.include_debug_fields(raw_order=normalized_order),
                 ),
             )
 
@@ -1135,24 +1180,28 @@ class OrderEngine:
                 "error",
                 self.build_event_log_payload(
                     "order_failed",
-                    source=self.build_order_log_context(order),
-                    **self.include_debug_fields(raw_order=order),
+                    source=self.build_order_log_context(normalized_order),
+                    **self.include_debug_fields(raw_order=normalized_order),
                 ),
             )
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.OPEN:
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.CANCELLED:
-            self.handle_cancelled_order(order)
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self.handle_cancelled_order(normalized_order)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.FILLED:
-            self.handle_filled_order(order)
-            self._update_dashboard_order_status(client_order_id, order, status)
+            self.handle_filled_order(normalized_order)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
 
         self.log_message(
@@ -1160,7 +1209,7 @@ class OrderEngine:
             self.build_event_log_payload(
                 "unrecognized_order_status",
                 status=status,
-                source=self.build_order_log_context(order),
+                source=self.build_order_log_context(normalized_order),
             ),
         )
 
@@ -1657,6 +1706,29 @@ class OrderEngine:
                 "error": error_msg
             }
 
+    def _register_default_fill_hook(self) -> None:
+        """Register the default post-fill hook for recording fills to ledger.
+        
+        This hook is called after a fill is recorded and logs the fill event.
+        It's registered as a non-blocking post-fill hook.
+        
+        Returns:
+            None
+        """
+        def default_post_fill_hook(fill_data: dict, trade_id: str) -> None:
+            """Default post-fill hook: log the recorded fill."""
+            try:
+                self.log_message(
+                    "info",
+                    f"[LOT-TRACK] Fill hook recorded: {trade_id} {fill_data.get('side')} {fill_data.get('quantity')} {fill_data.get('instrument')} @ {fill_data.get('price')}, fees={fill_data.get('fees')}, client_order={fill_data.get('client_order_id')}"
+                )
+            except Exception as e:
+                # Log but don't fail - this is non-blocking
+                self.log_message("warning", f"[LOT-TRACK] Failed to log fill: {e}")
+        
+        if self.fill_event_hooks:
+            self.fill_event_hooks.register_post_fill(default_post_fill_hook)
+
     def handle_filled_order(self, order: dict) -> None:
         """Handle a filled order by creating a follow-up if allowed.
         
@@ -1702,30 +1774,91 @@ class OrderEngine:
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = self._is_external_order(client_order_id)
 
-        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger
+        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger using hook registry
         if self.fill_repo and LOT_TRACKING_AVAILABLE:
             try:
-                filled_price = float(order.get("price", order.get("avg_price", 0)))
-                filled_size = float(order.get("filled_size", order.get("size", 0)))
                 order_side = resolve_order_side(order) or "BUY"
                 product_id = order.get("product_id", "UNKNOWN")
                 
-                # Fees can vary; get from order or default to 0
-                fees = float(order.get("fee_details", {}).get("total", 0)) if isinstance(order.get("fee_details"), dict) else 0.0
+                # Resolve filled_size with proper fallback strategy:
+                # 1. Try websocket fields: cumulative_quantity, leaves_quantity, filled_size, size, base_size
+                # 2. Fall back to orderbook accumulated state
+                # 3. Fall back to database original order size
+                filled_size = resolve_order_size(order)  # Tries fields 1 above
                 
-                # Record the fill non-blockingly
-                post_fill_hook_on_order_filled(
-                    fill_repo=self.fill_repo,
-                    product_id=product_id,
-                    side=order_side,
-                    quantity=filled_size,
-                    price=filled_price,
-                    fees=fees,
-                    client_order_id=client_order_id,
-                    trade_id=order.get("id"),  # Exchange order ID as trade_id for dedup
-                    timestamp=get_local_now(),
-                    commission_pct=0.0
-                )
+                if filled_size <= 0 and client_order_id in self.orderbook.order:
+                    # Fallback: try accumulated order state in orderbook
+                    accumulated_order = self.orderbook.order[client_order_id]
+                    filled_size = resolve_order_size(accumulated_order)
+                
+                if filled_size <= 0:
+                    # Fallback: try to get from database
+                    try:
+                        parent_order_data = self.db_helper.get_parent_order(client_order_id)
+                        if parent_order_data:
+                            filled_size = safe_float(parent_order_data.get("size"), default=0.0)
+                    except Exception:
+                        pass  # DB query failed, use 0
+                
+                # If still no size, skip recording this fill (will log error below)
+                if filled_size <= 0:
+                    self.log_message("warning", f"[LOT-TRACK] Could not determine fill size for {client_order_id}, skipping fill record")
+                else:
+                    # Resolve fill price with proper fallback
+                    filled_price = float(order.get("price", order.get("avg_price", order.get("limit_price", 0))))
+                    
+                    # Fees: try multiple field names from websocket
+                    fees = safe_float(order.get("total_fees"), default=0.0)
+                    if fees <= 0:
+                        fees = float(order.get("fee_details", {}).get("total", 0)) if isinstance(order.get("fee_details"), dict) else 0.0
+                    
+                    # Build fill data for hooks (passed by reference to pre-fill hooks)
+                    fill_data = {
+                        "instrument": product_id,
+                        "side": order_side,
+                        "quantity": filled_size,
+                        "price": filled_price,
+                        "fees": fees,
+                        "client_order_id": client_order_id,
+                        "timestamp": get_local_now(),
+                        "commission_percentage": 0.0,
+                        "trade_id": order.get("id")  # Exchange order ID as trade_id for dedup
+                    }
+                    
+                    # 🪝 PRE-FILL HOOKS: Validate/enrich fill before recording
+                    # Extensions can raise exceptions to block recording or modify fill_data
+                    try:
+                        if self.fill_event_hooks:
+                            self.fill_event_hooks.call_pre_fill_hooks(fill_data)
+                    except Exception as hook_error:
+                        # Pre-fill hook validation failed - don't record fill
+                        self.log_message("warning", f"[LOT-TRACK] Pre-fill hook blocked recording: {str(hook_error)}")
+                        fill_data = None  # Signal that recording should be skipped
+                    
+                    # Record the fill if pre-hooks didn't block it
+                    if fill_data is not None:
+                        record_success = post_fill_hook_on_order_filled(
+                            fill_repo=self.fill_repo,
+                            product_id=fill_data["instrument"],
+                            side=fill_data["side"],
+                            quantity=fill_data["quantity"],
+                            price=fill_data["price"],
+                            fees=fill_data["fees"],
+                            client_order_id=fill_data["client_order_id"],
+                            trade_id=fill_data["trade_id"],
+                            timestamp=fill_data["timestamp"],
+                            commission_pct=fill_data["commission_percentage"]
+                        )
+                        
+                        # 🪝 POST-FILL HOOKS: Log/track fill after recording
+                        # Exceptions here are logged but don't affect fill recording
+                        if record_success and fill_data["trade_id"]:
+                            try:
+                                if self.fill_event_hooks:
+                                    self.fill_event_hooks.call_post_fill_hooks(fill_data, fill_data["trade_id"])
+                            except Exception as hook_error:
+                                # Post-fill hook error - log but don't fail (fill is already recorded)
+                                self.log_message("warning", f"[LOT-TRACK] Post-fill hook exception: {str(hook_error)}")
             except Exception as e:
                 # Log but don't block - lot tracking failure shouldn't stop order processing
                 self.log_message("warning", f"[LOT-TRACK] Failed to record fill: {type(e).__name__}: {e}")

@@ -1,7 +1,35 @@
 """
 Lot-Based Profit Configuration.
 
-Configuration settings for the lot tracking and profit-aware execution system.
+This module manages configuration settings for the lot tracking and profit-aware
+execution system. It provides:
+
+- Default profit margin targets for new lots
+- Lot selection strategies (FIFO, LIFO, BEST_PROFIT)
+- Conditional execution modes (ADVISORY, ENFORCING)
+- Product-specific and strategy-specific profit targets
+- Fill ledger retention and auto-append policies
+- Configuration query functions with fallback defaults
+
+The system enables sophisticated position management by tracking individual fills
+(lots) and evaluating profit viability before executing orders. This prevents
+unprofitable trades when fees would exceed expected gains.
+
+Example:
+    >>> from business.lot_config import get_profit_target_for_product
+    >>> profit_target = get_profit_target_for_product('BTC-USDC')
+    >>> profit_target
+    0.5
+    
+    >>> from business.lot_config import LOT_EXIT_STRATEGY
+    >>> LOT_EXIT_STRATEGY
+    'FIFO'
+
+Architecture:
+    - Lots are created from fills (business/fill_ledger.py)
+    - Exit strategy determines which lots to sell (business/lot_builder.py)
+    - Profit targets validate viability (calculation/profit_validator.py)
+    - Conditional execution enforces constraints (business/conditional_execution.py)
 """
 
 # ============================================================================

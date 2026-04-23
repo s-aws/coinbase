@@ -48,13 +48,14 @@ class StealthOrderManager:
     - Parent:Child order relationships (1:Many)
     """
     
-    def __init__(self, db_client, log_callback=None):
+    def __init__(self, db_client, log_callback=None, order_placement_hooks=None):
         """
         Initialize StealthOrderManager.
         
         Args:
             db_client: Database client for persistence
             log_callback: Optional logging callback (log_type, message). Defaults to proper logging_service.
+            order_placement_hooks: Optional OrderPlacementHookRegistry for pre/post submission hooks.
         """
         self.db_client = db_client
         self.logger = get_logger("StealthOrderManager")
@@ -62,6 +63,12 @@ class StealthOrderManager:
         self.in_memory_orders = {}  # For caching/quick access
         self._market_cache = {}  # Market data cache: product_id -> market_data
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
+        
+        # Order placement hooks for extensibility
+        if order_placement_hooks is None:
+            from integration.order_placement_hooks import get_global_placement_hook_registry
+            order_placement_hooks = get_global_placement_hook_registry()
+        self.order_placement_hooks = order_placement_hooks
     
     def _default_log(self, log_type: str, message: str):
         """Log using proper logging_service with timestamps."""
@@ -340,22 +347,80 @@ class StealthOrderManager:
             # This creates the direct link: stealth_order_id → placed order → fill event
             client_order_id = order["stealth_order_id"]
             
+            # Build order dict for hooks (before REST submission)
+            order_for_submission = {
+                "product_id": order["product_id"],
+                "side": order["side"],
+                "limit_price": order["limit_price"],
+                "base_size": slice_size,
+                "client_order_id": client_order_id,
+                "post_only": False,
+                "stealth_order_id": stealth_order_id,
+            }
+            
+            # 🪝 PRE-SUBMISSION HOOKS: Validate/modify order before REST submission
+            # Extensions can raise exceptions to block placement or modify order fields
+            try:
+                self.order_placement_hooks.call_pre_submission_hooks(order_for_submission)
+            except Exception as hook_error:
+                # Hook validation failed - don't submit order
+                placed_order_id = str(uuid.uuid4())  # Fallback for tracking
+                placement_error = f"Pre-submission hook blocked: {str(hook_error)}"
+                placement_success = False
+                
+                self.log_callback("warning", {
+                    "event": "stealth_order_submission_blocked_by_hook",
+                    "stealth_order_id": stealth_order_id,
+                    "size": slice_size,
+                    "product_id": order["product_id"],
+                    "block_reason": placement_error,
+                })
+                
+                # Record the blocked reveal event and return
+                reveal_event = {
+                    "reveal_number": len(order["revealed_orders"]) + 1,
+                    "revealed_size": 0,  # No size placed
+                    "placed_order_id": placed_order_id,
+                    "placement_success": False,
+                    "placement_error": placement_error,
+                    "reveal_time": datetime.utcnow(),
+                    "market_price": self._get_current_market_data(order["product_id"]).get("price"),
+                }
+                order["revealed_orders"].append(reveal_event)
+                order["updated_at"] = datetime.utcnow()
+                self._update_stealth_order(order)
+                self._record_reveal_event(order, reveal_event)
+                return None
+            
             # Place order directly on the exchange via REST API
             # ⚠️ CRITICAL: Do NOT call create_limit_order_span() here as it creates another stealth order!
             # Use REST_CLIENT.place_limit_order() which is purpose-built for this
             order_result = REST_CLIENT.place_limit_order(
-                product_id=order["product_id"],
-                side=order["side"],
-                limit_price=str(order["limit_price"]),
-                base_size=str(slice_size),
-                client_order_id=client_order_id,
-                post_only=False
+                product_id=order_for_submission["product_id"],
+                side=order_for_submission["side"],
+                limit_price=str(order_for_submission["limit_price"]),
+                base_size=str(order_for_submission["base_size"]),
+                client_order_id=order_for_submission["client_order_id"],
+                post_only=order_for_submission["post_only"]
             )
             
             # ✓ Use the client_order_id we sent (stealth_order_id)
             # When fill event arrives with this client_order_id, it links directly to stealth order
             placed_order_id = client_order_id
             placement_success = True
+            
+            # 🪝 POST-SUBMISSION HOOKS: Log/track submission after REST call succeeds
+            # Exceptions here are logged but don't affect placement
+            try:
+                self.order_placement_hooks.call_post_submission_hooks(order_for_submission, order_result)
+            except Exception as hook_error:
+                # Post-hook error - log but don't fail (order is already placed)
+                self.log_callback("warning", {
+                    "event": "post_submission_hook_exception",
+                    "stealth_order_id": stealth_order_id,
+                    "error": str(hook_error),
+                    "note": "Order was placed successfully, but post-submission hook failed"
+                })
             
             # 📊 LOT-TRACKING: Log order placement
             self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {order['limit_price']}, exchange_order_id={exchange_order_id})")
