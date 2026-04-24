@@ -17,6 +17,22 @@ from business.event_processor import EventProcessor
 class EventBridge:
     """Wraps EventProcessor to provide OrderEngine event interface.
     
+    Extension pattern:
+    To customize deduplication logic or add event routing rules, extend or compose
+    this class. The wrapped EventProcessor provides core dedup; add behavior without
+    modifying its internals.
+    
+    Example: custom event filtering
+        >>> class FilteringEventBridge(EventBridge):
+        ...     def should_process_event(self, event):
+        ...         if self.is_duplicate_event(event):
+        ...             return False
+        ...         # Add product whitelist filter
+        ...         product_id = event.get('product_id')
+        ...         if product_id not in ['BTC-USDC', 'ETH-USDC']:
+        ...             return False
+        ...         return True
+    
     Attributes:
         processor: EventProcessor instance for deduplication and routing.
     """

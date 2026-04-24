@@ -17,6 +17,19 @@ from business.order_processor import OrderProcessor
 class ProcessorBridge:
     """Wraps OrderProcessor to provide OrderEngine processing interface.
     
+    Extension pattern:
+    To add custom validation or enrichment logic, extend this class and override
+    methods. The wrapped OrderProcessor is read-only.
+    
+    Example: custom order validation
+        >>> class ValidatingProcessorBridge(ProcessorBridge):
+        ...     def build_order_context(self, order, include_debug=False):
+        ...         context = super().build_order_context(order, include_debug)
+        ...         # Add custom fields for audit trail
+        ...         context['validated_at'] = datetime.utcnow()
+        ...         context['validator_version'] = '2.1'
+        ...         return context
+    
     Attributes:
         processor: OrderProcessor instance for validation and enrichment.
     """

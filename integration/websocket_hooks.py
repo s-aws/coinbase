@@ -52,6 +52,22 @@ class WebSocketHookRegistry:
         self._snapshot_normalizers: List[Callable] = []
         self._logger = logging.getLogger(__name__)
     
+    # Extension example:
+    # >>> def validate_filled_order_before_processing(order):
+    # ...     if order.get('cumulative_quantity', 0) == 0:
+    # ...         raise ValueError("Received FILLED event with zero quantity")
+    # >>> hooks.register_pre_order_status('FILLED', validate_filled_order_before_processing)
+    #
+    # >>> def record_fill_to_metrics(order):
+    # ...     metrics.increment(f'order.{order["product_id"]}.filled')
+    # >>> hooks.register_post_order_status('FILLED', record_fill_to_metrics)
+    #
+    # >>> def validate_position_snapshot(snapshot):
+    # ...     for pos in snapshot.get('positions', []):
+    # ...         if pos.get('size', 0) < 0:
+    # ...             raise ValueError(f"Negative position size: {pos['size']}")
+    # >>> hooks.register_pre_snapshot(validate_position_snapshot)
+    
     # --- Order Status Hooks ---
     
     def register_pre_order_status(self, status: str, callback: Callable) -> None:

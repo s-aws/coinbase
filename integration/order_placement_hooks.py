@@ -44,6 +44,18 @@ class OrderPlacementHookRegistry:
         self._post_submission_hooks: List[Callable[[Dict[str, Any], Any], None]] = []
         self._lock = threading.RLock()
     
+    # Extension example:
+    # >>> def risk_limit_check(order):
+    # ...     max_size = 10.0
+    # ...     if order['size'] > max_size:
+    # ...         raise ValueError(f"Order size {order['size']} exceeds max {max_size}")
+    # >>> registry.register_pre_submission(risk_limit_check)
+    #
+    # >>> def log_submission(order, result):
+    # ...     if result.get('success'):
+    # ...         logging.info(f"Order {order['client_order_id']} submitted as {result['order_id']}")
+    # >>> registry.register_post_submission(log_submission)
+    
     def register_pre_submission(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Register a hook to run BEFORE REST API submission.
         
