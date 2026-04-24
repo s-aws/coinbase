@@ -14,6 +14,22 @@ Design:
 - Non-blocking: Logging failures don't block order processing
 - Idempotent: Safe to call multiple times for same fill
 - Recoverable: Database persistence enables replay/recovery
+
+Example:
+    >>> from business.post_fill_hook import initialize_fill_ledger, on_order_filled
+    >>>
+    >>> fill_repo = initialize_fill_ledger(db_client)
+    >>> ok = on_order_filled(
+    ...     fill_repo=fill_repo,
+    ...     product_id='BTC-USDC',
+    ...     side='BUY',
+    ...     quantity=0.1,
+    ...     price=42100.0,
+    ...     fees=0.45,
+    ...     client_order_id='client-order-123',
+    ... )
+    >>> ok
+    True
 """
 
 from typing import Optional, Dict, Any

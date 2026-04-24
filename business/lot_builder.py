@@ -13,6 +13,16 @@ Design Pattern:
 
 The lot builder is stateless - it derives lots from the fill ledger
 on demand, ensuring consistency without maintaining separate state.
+
+Example:
+    >>> from business.fill_ledger import FillLedgerRepository
+    >>> from business.lot_builder import PositionLotBuilder
+    >>>
+    >>> repo = FillLedgerRepository(db_client)
+    >>> builder = PositionLotBuilder(repo)
+    >>> position = builder.build_position_by_product('BTC-USDC', profit_target_pct=0.5)
+    >>> position.instrument
+    'BTC-USDC'
 """
 
 from typing import List, Dict, Optional

@@ -14,6 +14,24 @@ Architecture:
 - FillLedger (dataclass): Immutable fill record
 - FillLedgerRepository: Data access layer
 - Database: fill_ledger table (append-only)
+
+Example:
+    >>> from business.fill_ledger import FillLedger, FillLedgerRepository
+    >>> from core.constants import get_local_now
+    >>>
+    >>> repo = FillLedgerRepository(db_client)
+    >>> fill = FillLedger(
+    ...     trade_id='trade-001',
+    ...     instrument='BTC-USDC',
+    ...     side='BUY',
+    ...     quantity=0.25,
+    ...     price=42000.0,
+    ...     timestamp=get_local_now(),
+    ...     fees=1.25,
+    ...     client_order_id='client-order-123',
+    ... )
+    >>> repo.append_fill(fill)
+    True
 """
 
 from dataclasses import dataclass, field

@@ -17,6 +17,23 @@ The interceptor acts as a decision-support layer, providing:
 
 This enables the existing order engine to continue unchanged while
 gaining profit-aware capabilities.
+
+Example:
+    >>> from business.fill_ledger import FillLedgerRepository
+    >>> from business.order_interception_layer import OrderInterceptionLayer
+    >>> from core.enums import OrderSide
+    >>>
+    >>> repo = FillLedgerRepository(db_client)
+    >>> layer = OrderInterceptionLayer(repo, profit_margin_pct=0.5, strategy_mode='ADVISORY')
+    >>> enriched_order, meta = layer.intercept_order(
+    ...     product_id='BTC-USDC',
+    ...     side=OrderSide.SELL,
+    ...     size=0.1,
+    ...     price=43000.0,
+    ...     market_price=43010.0,
+    ... )
+    >>> 'product_id' in enriched_order
+    True
 """
 
 from typing import Dict, List, Optional, Tuple
