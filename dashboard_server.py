@@ -190,21 +190,37 @@ def _build_investor_storyboard_snapshot(
         
         # Use fill_ledger table which has actual execution data
         # fill_ledger has: trade_id, instrument, side, quantity, price, timestamp, fees, commission_percentage, client_order_id
-        query = """
-        SELECT 
-            timestamp as event_time,
-            price,
-            quantity as size,
-            instrument as product_id
-        FROM fill_ledger
-        WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
-            AND price IS NOT NULL
-            AND quantity IS NOT NULL
-        ORDER BY timestamp
-        """
-        
+        if product_id:
+            query = """
+            SELECT 
+                timestamp as event_time,
+                price,
+                quantity as size,
+                instrument as product_id
+            FROM fill_ledger
+            WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
+                AND price IS NOT NULL
+                AND quantity IS NOT NULL
+                AND instrument = %s
+            ORDER BY timestamp
+            """
+        else:
+            query = """
+            SELECT 
+                timestamp as event_time,
+                price,
+                quantity as size,
+                instrument as product_id
+            FROM fill_ledger
+            WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
+                AND price IS NOT NULL
+                AND quantity IS NOT NULL
+            ORDER BY timestamp
+            """
+
         try:
-            results = db.execute_query(query, (window_minutes,))
+            params = (window_minutes, product_id) if product_id else (window_minutes,)
+            results = db.execute_query(query, params)
             
             # Convert results to candlesticks (group by time buckets in Python)
             from collections import defaultdict
@@ -462,11 +478,24 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             # Send current stealth orders snapshot
             await send_stealth_orders_snapshot(websocket)
         
+        elif msg_type == "request_storyboard_products":
+            # Return distinct product IDs available in fill_ledger
+            try:
+                from database.database import PostgresDB
+                db = PostgresDB()
+                rows = db.execute_query("SELECT DISTINCT instrument FROM fill_ledger ORDER BY instrument")
+                db.disconnect()
+                products = [r["instrument"] for r in rows]
+            except Exception as e:
+                logger.warning(f"Could not fetch storyboard products: {e}")
+                products = []
+            await websocket.send(json.dumps({"type": "storyboard_products", "products": products}))
+
         elif msg_type == "request_investor_storyboard":
             # Send investor storyboard snapshot
             params = data.get("params", {})
-            window_minutes = params.get("window_minutes", 60)
-            bucket_seconds = params.get("bucket_seconds", 60)
+            window_minutes = params.get("window_minutes", 10080)
+            bucket_seconds = params.get("bucket_seconds", None)
             product_id = params.get("product_id", None)
             
             snapshot = _build_investor_storyboard_snapshot(

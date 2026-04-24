@@ -341,8 +341,11 @@
             const [connectionStatus, setConnectionStatus] = useState("Connecting...");
             const [isConnected, setIsConnected] = useState(false);
             const [windowMinutes, setWindowMinutes] = useState(10080); // default 7 days
+            const [products, setProducts] = useState([]);
+            const [selectedProduct, setSelectedProduct] = useState(null);
             const wsRef = useRef(null);
             const windowMinutesRef = useRef(10080);
+            const selectedProductRef = useRef(null);
             const frameRef = useRef(0);
 
             // Generate placeholder data when no real data available
@@ -400,17 +403,24 @@
                         params: {
                             window_minutes: windowMinutesRef.current,
                             bucket_seconds: null,
-                            product_id: null
+                            product_id: selectedProductRef.current
                         }
                     }));
+                    // Fetch available products for the selector
+                    console.log('[WS] Requesting storyboard products...');
+                    wsRef.current.send(JSON.stringify({ type: "request_storyboard_products" }));
                 };
 
                 wsRef.current.onmessage = (event) => {
                     try {
                         const msg = JSON.parse(event.data);
+                        console.log('[WS] Received message type:', msg.type);
                         
                         if (msg.type === "investor_storyboard" && msg.candles) {
                             setCandles(msg.candles);
+                        } else if (msg.type === "storyboard_products" && msg.products) {
+                            console.log('[WS] Got products:', msg.products);
+                            setProducts(msg.products);
                         }
                     } catch (e) {
                         console.error("Failed to parse message:", e);
@@ -439,15 +449,16 @@
                 };
             }, [connect]);
 
-            const requestRefresh = (mins) => {
+            const requestRefresh = (mins, pid) => {
                 const w = mins !== undefined ? mins : windowMinutesRef.current;
+                const p = pid !== undefined ? pid : selectedProductRef.current;
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                     wsRef.current.send(JSON.stringify({
                         type: "request_investor_storyboard",
                         params: {
                             window_minutes: w,
                             bucket_seconds: null,
-                            product_id: null
+                            product_id: p
                         }
                     }));
                 }
@@ -456,7 +467,13 @@
             const handleWindowChange = (mins) => {
                 windowMinutesRef.current = mins;
                 setWindowMinutes(mins);
-                requestRefresh(mins);
+                requestRefresh(mins, undefined);
+            };
+
+            const handleProductChange = (pid) => {
+                selectedProductRef.current = pid;
+                setSelectedProduct(pid);
+                requestRefresh(undefined, pid);
             };
 
             const latest = displayCandles[displayCandles.length - 1];
@@ -488,6 +505,18 @@
                                 {label}
                             </button>
                         ))}
+                        {products.length > 0 && (
+                            <select
+                                value={selectedProduct || ''}
+                                onChange={(e) => handleProductChange(e.target.value || null)}
+                                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '14px', cursor: 'pointer' }}
+                            >
+                                <option value="">All Products</option>
+                                {products.map(p => (
+                                    <option key={p} value={p}>{p}</option>
+                                ))}
+                            </select>
+                        )}
                         <button onClick={() => requestRefresh()}>↻ Refresh</button>
                         <div className={`status ${isConnected ? 'connected' : 'error'}`}>
                             ● {connectionStatus}
