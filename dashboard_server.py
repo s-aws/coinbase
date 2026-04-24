@@ -196,7 +196,8 @@ def _build_investor_storyboard_snapshot(
                 timestamp as event_time,
                 price,
                 quantity as size,
-                instrument as product_id
+                instrument as product_id,
+                client_order_id
             FROM fill_ledger
             WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
                 AND price IS NOT NULL
@@ -210,7 +211,8 @@ def _build_investor_storyboard_snapshot(
                 timestamp as event_time,
                 price,
                 quantity as size,
-                instrument as product_id
+                instrument as product_id,
+                client_order_id
             FROM fill_ledger
             WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
                 AND price IS NOT NULL
@@ -221,7 +223,27 @@ def _build_investor_storyboard_snapshot(
         try:
             params = (window_minutes, product_id) if product_id else (window_minutes,)
             results = db.execute_query(query, params)
-            
+
+            # Build mapping: client_order_id -> parent_order_id.
+            # Stealth orders map to their parent; parent orders map to themselves.
+            stealth_parents = db.execute_query(
+                "SELECT stealth_order_id, parent_order_id FROM stealth_orders WHERE parent_order_id IS NOT NULL"
+            )
+            parent_orders = db.execute_query(
+                "SELECT client_order_id FROM order_parent WHERE client_order_id IS NOT NULL"
+            )
+            client_to_parent = {}
+            for row in parent_orders:
+                client_order_id = row.get('client_order_id')
+                if client_order_id:
+                    client_to_parent[client_order_id] = client_order_id
+
+            for row in stealth_parents:
+                stealth_order_id = row.get('stealth_order_id')
+                parent_order_id = row.get('parent_order_id')
+                if stealth_order_id and parent_order_id:
+                    client_to_parent[stealth_order_id] = parent_order_id
+
             # Convert results to candlesticks (group by time buckets in Python)
             from collections import defaultdict
             buckets = defaultdict(list)
@@ -233,13 +255,19 @@ def _build_investor_storyboard_snapshot(
                     if not event_time:
                         continue
                     
+                    # Get parent order ID for grouping
+                    client_order_id = row.get('client_order_id')
+                    parent_order_id = client_to_parent.get(client_order_id)  # None if not a stealth order
+                    
                     # Round to nearest bucket_seconds
                     timestamp_seconds = int(event_time.timestamp())
                     bucket_index = timestamp_seconds // bucket_seconds
                     buckets[bucket_index].append({
                         'price': safe_float(row.get('price'), 0),
                         'size': safe_float(row.get('size'), 0),
-                        'time': event_time
+                        'time': event_time,
+                        'client_order_id': client_order_id,
+                        'parent_order_id': parent_order_id,
                     })
                 except Exception as e:
                     logger.debug(f"Error processing event: {e}")
@@ -251,6 +279,23 @@ def _build_investor_storyboard_snapshot(
                 prices = [e['price'] for e in buckets[bucket_index]]
                 sizes = [e['size'] for e in buckets[bucket_index]]
                 times = [e['time'] for e in buckets[bucket_index]]
+                parent_volume_by_id = defaultdict(float)
+                for event in buckets[bucket_index]:
+                    parent_order_id = event.get('parent_order_id')
+                    if parent_order_id:
+                        parent_volume_by_id[parent_order_id] += safe_float(event.get('size'), 0)
+
+                group_slices = [
+                    {
+                        'group_id': parent_order_id,
+                        'volume': volume,
+                    }
+                    for parent_order_id, volume in sorted(
+                        parent_volume_by_id.items(),
+                        key=lambda item: (-item[1], item[0]),
+                    )
+                ]
+                group_id = group_slices[0]['group_id'] if group_slices else None
                 
                 if not prices:
                     continue
@@ -263,6 +308,8 @@ def _build_investor_storyboard_snapshot(
                     'low': min(prices) if prices else 0,
                     'close': prices[-1] if prices else 0,
                     'volume': sum(sizes) if sizes else 0,
+                    'group_id': group_id,  # Parent order ID for chaining
+                    'group_slices': group_slices,
                 }
                 candles.append(candle)
             

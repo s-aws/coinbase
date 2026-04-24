@@ -158,7 +158,7 @@
             return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
         }
 
-        function TradingPriceAnimation({ candles, onLoopComplete }) {
+            function TradingPriceAnimation({ candles, onLoopComplete, isLooping }) {
             const [isPlaying, setIsPlaying] = useState(true);
             const [frame, setFrame] = useState(1);  // Start at first candle
             const rafRef = useRef(null);
@@ -194,6 +194,42 @@
             };
             const volumeY = (volume) => HEIGHT - PADDING.bottom + 48 - (volume / Math.max(1, maxVolume)) * 54;
 
+            // Generate consistent colors for group IDs
+            const getGroupColor = (groupId) => {
+                if (!groupId) return null;
+                    const colors = [
+                        '#FF1744',
+                        '#00E676',
+                        '#2979F3',
+                        '#FFD600',
+                        '#FF00FF',
+                        '#00BCD4',
+                        '#FF6D00',
+                        '#651FFF',
+                    ];
+                const hash = groupId.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
+                return colors[Math.abs(hash) % colors.length];
+            };
+
+            // Build parent order chains for dotted lines
+            const groupChains = {};  // groupId -> array of consecutive indices
+            let currentChain = null;
+            let currentGroupId = null;
+            for (let i = 0; i < visible.length; i++) {
+                const gid = visible[i].group_id;
+                if (gid && gid === currentGroupId) {
+                    currentChain.push(i);
+                } else if (gid) {
+                    if (!groupChains[gid]) groupChains[gid] = [];
+                    currentChain = [i];
+                    groupChains[gid].push(currentChain);
+                    currentGroupId = gid;
+                } else {
+                    currentChain = null;
+                    currentGroupId = null;
+                }
+            }
+
             const linePoints = visible.map((d, idx) => ({ x: x(idx), y: y(d.close) }));
             const linePath = buildPath(linePoints);
 
@@ -206,15 +242,22 @@
                     // This makes animation run longer (more time per candle reveal)
                     if (time - lastRef.current > 500) {
                         setFrame((current) => {
-                            // Animate from 1 to data.length, then loop back to 1
-                            const next = current >= data.length ? 1 : current + 1;
-                            
-                            // Detect loop completion: transition from last frame back to first
-                            if (current >= data.length && next === 1 && onLoopComplete) {
-                                onLoopComplete();
+                            if (data.length <= 1) {
+                                return data.length || 1;
                             }
-                            
-                            return next;
+
+                            if (current >= data.length) {
+                                if (isLooping) {
+                                    if (onLoopComplete) {
+                                        onLoopComplete();
+                                    }
+                                    return 1;
+                                }
+
+                                return data.length;
+                            }
+
+                            return current + 1;
                         });
                         lastRef.current = time;
                     }
@@ -223,7 +266,7 @@
 
                 rafRef.current = requestAnimationFrame(tick);
                 return () => cancelAnimationFrame(rafRef.current);
-            }, [isPlaying, data.length, onLoopComplete]);
+            }, [isPlaying, data.length, onLoopComplete, isLooping]);
 
             const priceTicks = Array.from({ length: 6 }, (_, i) => minPrice + ((maxPrice - minPrice) / 5) * i).reverse();
             const timeTicks = Array.from({ length: Math.min(7, data.length) }, (_, i) => Math.floor(i * (data.length - 1) / 6));
@@ -271,6 +314,27 @@
                         <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={HEIGHT - PADDING.bottom + 48} y2={HEIGHT - PADDING.bottom + 48} stroke="#334155" />
                         <line x1={PADDING.left} x2={PADDING.left} y1={PADDING.top} y2={HEIGHT - PADDING.bottom + 48} stroke="#334155" />
 
+                        {/* Parent order group connector lines (subtle) */}
+                        {Object.entries(groupChains).map(([groupId, chains]) => {
+                            const color = getGroupColor(groupId);
+                            return chains.map((chain, chainIdx) => 
+                                chain.length > 1 ? (
+                                    <line
+                                        key={`chain-${groupId}-${chainIdx}`}
+                                        x1={x(chain[0])}
+                                        y1={y(visible[chain[0]].close)}
+                                        x2={x(chain[chain.length - 1])}
+                                        y2={y(visible[chain[chain.length - 1]].close)}
+                                        stroke={color}
+                                        strokeWidth="1"
+                                        strokeDasharray="3 3"
+                                        opacity="0.2"
+                                        style={{ pointerEvents: 'none' }}
+                                    />
+                                ) : null
+                            );
+                        })}
+
                         {/* Candlesticks */}
                         {visible.map((d, arrayIndex) => {
                             const cx = x(arrayIndex);
@@ -279,12 +343,55 @@
                             const bodyTop = y(Math.max(d.open, d.close));
                             const bodyHeight = Math.max(3, Math.abs(y(d.open) - y(d.close)));
                             const candleWidth = 8;
+                            const volumeBarColor = d.group_id ? getGroupColor(d.group_id) : (rising ? "#16a34a" : "#dc2626");
+                            const markerWidth = 12;
+                            const markerHeight = 8;
+                            const markerY = Math.max(PADDING.top + 4, y(d.high) - 14);
+                            const groupSlices = Array.isArray(d.group_slices) ? d.group_slices : [];
+                            const totalGroupVolume = groupSlices.reduce((sum, slice) => sum + (slice.volume || 0), 0);
 
                             return (
                                 <g key={d.index} style={{ opacity: 0, animation: `fadeIn 0.22s ease-out 0s forwards` }}>
                                     <line x1={cx} x2={cx} y1={y(d.high)} y2={y(d.low)} stroke={candleColor} strokeWidth="1.6" />
                                     <rect x={cx - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} rx="1.5" fill={candleColor} opacity="0.92" />
-                                    <rect x={cx - candleWidth / 2} y={volumeY(d.volume)} width={candleWidth} height={HEIGHT - PADDING.bottom + 48 - volumeY(d.volume)} rx="2" fill={rising ? "#16a34a" : "#dc2626"} opacity="0.35" />
+                                    {/* Volume bar colored by parent order (if exists) */}
+                                    <rect x={cx - candleWidth / 2} y={volumeY(d.volume)} width={candleWidth} height={HEIGHT - PADDING.bottom + 48 - volumeY(d.volume)} rx="2" fill={volumeBarColor} opacity="0.7" />
+                                    {groupSlices.length > 0 && (
+                                        <g>
+                                            <rect
+                                                x={cx - markerWidth / 2}
+                                                y={markerY}
+                                                width={markerWidth}
+                                                height={markerHeight}
+                                                rx="2"
+                                                fill="#020617"
+                                                stroke="#cbd5e1"
+                                                strokeWidth="0.8"
+                                                opacity="0.95"
+                                            />
+                                            {groupSlices.map((slice, sliceIndex) => {
+                                                const previousVolume = groupSlices
+                                                    .slice(0, sliceIndex)
+                                                    .reduce((sum, currentSlice) => sum + (currentSlice.volume || 0), 0);
+                                                const sliceWidth = totalGroupVolume > 0
+                                                    ? (slice.volume / totalGroupVolume) * markerWidth
+                                                    : markerWidth / groupSlices.length;
+
+                                                return (
+                                                    <rect
+                                                        key={`${d.index}-${slice.group_id}`}
+                                                        x={cx - markerWidth / 2 + previousVolume / Math.max(totalGroupVolume, 1) * markerWidth}
+                                                        y={markerY}
+                                                        width={Math.max(1.5, sliceWidth)}
+                                                        height={markerHeight}
+                                                        rx={sliceIndex === 0 || sliceIndex === groupSlices.length - 1 ? '2' : '0'}
+                                                        fill={getGroupColor(slice.group_id)}
+                                                        opacity="0.95"
+                                                    />
+                                                );
+                                            })}
+                                        </g>
+                                    )}
                                 </g>
                             );
                         })}
@@ -332,6 +439,39 @@
                             to { opacity: 1; }
                         }
                     `}</style>
+
+                    {/* Parent Order Legend */}
+                    {(() => {
+                        // Collect unique group_ids from visible candles
+                        const uniqueGroups = [...new Set(visible.map(d => d.group_id).filter(Boolean))];
+                        if (uniqueGroups.length === 0) return null;
+                        
+                        return (
+                            <div style={{ marginTop: '20px', padding: '12px 16px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Parent Orders
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                                    {uniqueGroups.map((gid, idx) => (
+                                        <div key={gid} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div
+                                                style={{
+                                                    width: '12px',
+                                                    height: '12px',
+                                                    borderRadius: '2px',
+                                                    background: getGroupColor(gid),
+                                                    opacity: '0.85',
+                                                }}
+                                            />
+                                            <span style={{ fontSize: '12px', color: '#e2e8f0' }}>
+                                                Order {String.fromCharCode(65 + (idx % 26))}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             );
         }
@@ -340,6 +480,7 @@
             const [candles, setCandles] = useState([]);
             const [connectionStatus, setConnectionStatus] = useState("Connecting...");
             const [isConnected, setIsConnected] = useState(false);
+            const [isLooping, setIsLooping] = useState(true);
             const [windowMinutes, setWindowMinutes] = useState(10080); // default 7 days
             const [products, setProducts] = useState([]);
             const [selectedProduct, setSelectedProduct] = useState(null);
@@ -505,6 +646,12 @@
                                 {label}
                             </button>
                         ))}
+                        <button
+                            onClick={() => setIsLooping(current => !current)}
+                            style={isLooping ? { background: '#334155', borderColor: '#38bdf8', color: '#38bdf8' } : {}}
+                        >
+                            {isLooping ? 'Loop: On' : 'Loop: Off'}
+                        </button>
                         {products.length > 0 && (
                             <select
                                 value={selectedProduct || ''}
@@ -560,7 +707,7 @@
                         </div>
                     </div>
 
-                    <TradingPriceAnimation candles={displayCandles} onLoopComplete={requestRefresh} />
+                    <TradingPriceAnimation candles={displayCandles} onLoopComplete={requestRefresh} isLooping={isLooping} />
 
                     <div className="metrics-grid">
                         <div className="metric-card">
