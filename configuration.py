@@ -1038,6 +1038,7 @@ class Subscription():
         "heartbeats",
         "user",
         "ticker",
+        "futures_balance_summary",
     ]
 
 ORDERBOOK = OrderBook()

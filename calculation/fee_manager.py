@@ -1,40 +1,37 @@
-"""Fee Manager - Dynamic fee rate fetching from Coinbase API with hourly refresh.
+"""Fee Manager - Dynamic fee rate fetching with market-regime adaptation.
 
-Maintains current taker fee rates from the Coinbase API and applies 4x multiplier
-to ensure we capture enough revenue to cover costs and profit.
+Maintains the current taker fee rate from Coinbase and applies a configurable
+multiplier for profitability checks. The effective rate is adapted by market
+regime so follow-up spacing and fee sensitivity can react to:
+
+- futures margin window state (intraday vs overnight)
+- rolling volume regime (short-term vs long-term)
 
 CRITICAL: Fee Charging Model
-=============================
+============================
 
-Fees are charged ONLY when orders close (fill on exchange):
-1. Parent order closes → Coinbase charges base fee on that order
-2. Follow-up order closes → Coinbase charges base fee on that order
-3. Total: 2 fees (one per order close), NOT 4 fees
+Fees are charged only when orders close on exchange fills:
+1. Parent order closes -> Coinbase charges base fee on that close
+2. Follow-up order closes -> Coinbase charges base fee on that close
+3. Total: 2 close fees (one per close), not duplicated per side
 
-We apply 4x multiplier to the BASE fee rate, not separately on each side:
-- Base fee (from Coinbase): 0.6% (0.0060)
-- Our markup: 4x multiplier
-- Effective fee for validation: 0.6% × 4 = 2.4% (0.024)
-- Total cost for round trip: 2 × 0.024 = 4.8% (NOT 2×2×!)
+Base model:
+- Base fee source: Coinbase transaction summary taker fee rate
+- Default multiplier: 2.0x
+- Default effective fee (without regime factor): base x 2.0
 
-Example of WRONG calculation (AVOID):
-  ❌ Fee on buy = price × size × base × 2
-  ❌ Fee on sell = price × size × base × 2
-  ❌ Total = price × size × base × 4  (WRONG!)
-
-Example of CORRECT calculation (CURRENT):
-  ✓ Effective fee = base × 4 = 0.024
-  ✓ Fee on buy = price × size × 0.024 (once, not twice)
-  ✓ Fee on sell = price × size × 0.024 (once, not twice)
-  ✓ Total = 2 × (price × size × 0.024) = correct!
+Regime adaptation:
+- Overnight/low-volume regimes reduce spacing and effective fee factor
+- High-volume regimes widen spacing and increase effective fee factor
 
 Architecture:
-- Fetches taker_fee_rate from REST API (via transaction_summary)
-- Caches the base rate with timestamp tracking
-- Returns (base_rate × 4) for profit validation
-- Refreshes hourly in background thread
-- Thread-safe access via lock
-- Fallback to conservative default if API fails
+- Fetches taker_fee_rate from REST API (transaction_summary)
+- Caches fee state with timestamp tracking
+- Tracks rolling volume EWMA per product from ticker updates
+- Tracks overnight margin state from futures balance summary updates
+- Returns adaptive fee and spacing multipliers for existing order logic
+- Refreshes base fee hourly in a background thread
+- Thread-safe access via RLock
 """
 
 import threading
@@ -49,30 +46,43 @@ class FeeManager:
     """Manages dynamic fee rates from Coinbase API with caching and auto-refresh.
     
     Features:
-    - Fetches actual taker fees from Coinbase transaction_summary endpoint
-    - Multiplies base fee by 2x (1x each way) for profit validation
+    - Fetches taker fees from Coinbase transaction_summary endpoint
+    - Applies base multiplier (default 2x) for profit validation
+    - Adapts fee and spacing factors from margin-window + volume regime
     - Auto-refreshes hourly in background thread
-    - Thread-safe access with RWLock
+    - Thread-safe access with RLock
     - Fallback to conservative default if API unavailable
-    - Detailed logging of fee updates
+    - Structured logging for fee and regime state changes
     
     Example:
         >>> manager = FeeManager(rest_client, log_callback=engine.log_message)
-        >>> manager.start()  # Start hourly refresh thread
-        >>> 
-        >>> # Get current effective fee for profit validation
-        >>> effective_fee = manager.get_effective_fee_rate()
-        >>> print(f"Effective fee (base * 2x): {effective_fee:.6f}")
-        
-        >>> # Get individual fees
-        >>> base_fee = manager.get_taker_fee_rate()
-        >>> profit_fee = manager.get_profit_validation_fee_rate()
+        >>> manager.start()  # Starts hourly REST fee refresh
+        >>>
+        >>> # Feed real-time market regime signals from websocket handlers
+        >>> manager.update_volume_signal("BTC-USDC", volume_24h=1450000.0)
+        >>> manager.update_margin_window_type("FCM_MARGIN_WINDOW_TYPE_OVERNIGHT")
+        >>>
+        >>> # Consume adaptive multipliers in existing follow-up/validation path
+        >>> target_multiplier = manager.get_target_movement_multiplier("BTC-USDC")
+        >>> effective_fee = manager.get_profit_validation_fee_rate("BTC-USDC")
+        >>> info = manager.get_fee_info("BTC-USDC")
+        >>> print(target_multiplier, effective_fee, info["volume_ratio"])
     """
     
-    # Conservative defaults (0.6% taker + 2x multiplier = 1.2%)
+    # Conservative defaults (0.6% taker, 2x base multiplier)
     DEFAULT_TAKER_FEE_RATE = 0.0060  # 0.6% from API documentation
     DEFAULT_MULTIPLIER = 2.0
     REFRESH_INTERVAL_SECONDS = 3600  # 1 hour
+
+    # Volume regime smoothing constants
+    VOLUME_FAST_ALPHA = 0.20
+    VOLUME_SLOW_ALPHA = 0.03
+
+    # Safety clamps for adaptive factors
+    TARGET_MOVEMENT_MIN_FACTOR = 0.75
+    TARGET_MOVEMENT_MAX_FACTOR = 1.40
+    FEE_REGIME_MIN_FACTOR = 0.80
+    FEE_REGIME_MAX_FACTOR = 1.40
     
     def __init__(self, rest_client, log_callback=None):
         """Initialize FeeManager.
@@ -94,6 +104,11 @@ class FeeManager:
         self._running = False
         self._fetch_error_count = 0
         self._max_consecutive_errors = 3  # Fall back to default after 3 errors
+
+        # Adaptive market regime state (updated from websocket data).
+        self._current_margin_window_type = None
+        self._overnight_margin_active = False
+        self._volume_ewma = {}  # product_id -> {fast, slow, ratio, volume_1m, timestamp}
     
     def _default_log(self, log_type: str, message: str):
         """Fallback logging if no callback provided."""
@@ -175,7 +190,7 @@ class FeeManager:
                     "event": "taker_fee_rate_updated",
                     "old_rate": old_rate,
                     "new_rate": taker_fee,
-                    "effective_profit_fee": taker_fee * self.DEFAULT_MULTIPLIER,
+                    "effective_profit_fee_baseline": taker_fee * self.DEFAULT_MULTIPLIER,
                     "timestamp": self._last_updated.isoformat()
                 })
             else:
@@ -230,34 +245,172 @@ class FeeManager:
         """
         with self._lock:
             return self._taker_fee_rate
+
+    @staticmethod
+    def _clamp(value: float, min_value: float, max_value: float) -> float:
+        return max(min_value, min(max_value, value))
+
+    def _resolve_volume_ratio_unlocked(self, product_id: Optional[str]) -> float:
+        if product_id and product_id in self._volume_ewma:
+            return self._volume_ewma[product_id].get("ratio", 1.0)
+
+        if self._volume_ewma:
+            ratios = [state.get("ratio", 1.0) for state in self._volume_ewma.values()]
+            return sum(ratios) / len(ratios)
+
+        return 1.0
+
+    def _derive_regime_factors_unlocked(self, product_id: Optional[str] = None) -> Dict[str, float]:
+        """Compute adaptive multipliers from margin + volume regime."""
+        volume_ratio = self._resolve_volume_ratio_unlocked(product_id)
+
+        target_factor = 0.85 if self._overnight_margin_active else 1.0
+        fee_factor = 0.90 if self._overnight_margin_active else 1.0
+
+        # Low liquidity: keep follow-ups closer and use a lighter effective fee.
+        if volume_ratio < 0.85:
+            target_factor *= 0.90
+            fee_factor *= 0.92
+        # High liquidity/activity: widen spacing and charge higher effective fee.
+        elif volume_ratio > 1.15:
+            high_volume_strength = volume_ratio - 1.15
+            target_factor *= min(1.25, 1.0 + (high_volume_strength * 0.35))
+            fee_factor *= min(1.30, 1.0 + (high_volume_strength * 0.50))
+
+        target_factor = self._clamp(
+            target_factor,
+            self.TARGET_MOVEMENT_MIN_FACTOR,
+            self.TARGET_MOVEMENT_MAX_FACTOR,
+        )
+        fee_factor = self._clamp(
+            fee_factor,
+            self.FEE_REGIME_MIN_FACTOR,
+            self.FEE_REGIME_MAX_FACTOR,
+        )
+
+        return {
+            "target_movement_factor": target_factor,
+            "fee_factor": fee_factor,
+            "volume_ratio": volume_ratio,
+            "overnight_margin_active": self._overnight_margin_active,
+            "margin_window_type": self._current_margin_window_type,
+        }
+
+    def update_volume_signal(self, product_id: str, volume_24h: float) -> None:
+        """Update rolling volume regime for a product from ticker volume_24_h."""
+        if not product_id:
+            return
+
+        volume_24h_float = safe_float(volume_24h, default=0.0)
+        if volume_24h_float <= 0:
+            return
+
+        volume_1m = volume_24h_float / 1440.0
+
+        with self._lock:
+            state = self._volume_ewma.get(product_id)
+            if not state:
+                fast = volume_1m
+                slow = volume_1m
+            else:
+                prev_fast = state.get("fast", volume_1m)
+                prev_slow = state.get("slow", volume_1m)
+                fast = (self.VOLUME_FAST_ALPHA * volume_1m) + ((1.0 - self.VOLUME_FAST_ALPHA) * prev_fast)
+                slow = (self.VOLUME_SLOW_ALPHA * volume_1m) + ((1.0 - self.VOLUME_SLOW_ALPHA) * prev_slow)
+
+            ratio = fast / slow if slow > 0 else 1.0
+            ratio = self._clamp(ratio, 0.50, 2.00)
+
+            self._volume_ewma[product_id] = {
+                "fast": fast,
+                "slow": slow,
+                "ratio": ratio,
+                "volume_1m": volume_1m,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+    def update_margin_window_type(self, margin_window_type: Optional[str]) -> bool:
+        """Update margin window regime state from futures balance summary feed."""
+        if not margin_window_type:
+            return False
+
+        normalized = str(margin_window_type).upper()
+        overnight_active = "OVERNIGHT" in normalized
+        log_payload = None
+
+        with self._lock:
+            changed = (
+                self._current_margin_window_type != normalized
+                or self._overnight_margin_active != overnight_active
+            )
+
+            self._current_margin_window_type = normalized
+            self._overnight_margin_active = overnight_active
+
+            if changed:
+                log_payload = {
+                    "event": "margin_window_regime_updated",
+                    "margin_window_type": self._current_margin_window_type,
+                    "overnight_margin_active": self._overnight_margin_active,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+
+        if log_payload is not None:
+            self.log_callback("info", log_payload)
+
+        return changed
+
+    def update_margin_window_from_summary(self, fcm_balance_summary: dict) -> bool:
+        """Best-effort extractor for active margin window type from summary payload."""
+        if not isinstance(fcm_balance_summary, dict):
+            return False
+
+        candidates = (
+            fcm_balance_summary.get("margin_window_type"),
+            fcm_balance_summary.get("current_margin_window_type"),
+            fcm_balance_summary.get("active_margin_window_type"),
+            fcm_balance_summary.get("active_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("active_margin_window_measure"), dict) else None,
+            fcm_balance_summary.get("intraday_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("intraday_margin_window_measure"), dict) else None,
+        )
+
+        for candidate in candidates:
+            if candidate:
+                return self.update_margin_window_type(candidate)
+
+        return False
+
+    def get_target_movement_multiplier(self, product_id: Optional[str] = None) -> float:
+        """Get adaptive multiplier for follow-up target movement percentages."""
+        with self._lock:
+            factors = self._derive_regime_factors_unlocked(product_id)
+            return factors["target_movement_factor"]
     
-    def get_profit_validation_fee_rate(self) -> float:
-        """Get effective fee rate for profit validation (base * 4x).
-        
-        This is the fee rate used by ProfitValidator to ensure we charge
-        at least 4x the base taker fee (2x each way on buy + sell).
-        
-        Returns:
-            Fee rate as decimal (e.g., 0.024 for 2.4% when base is 0.6%)
+    def get_profit_validation_fee_rate(self, product_id: Optional[str] = None) -> float:
+        """Get adaptive effective fee rate for profit validation.
+
+        Effective fee = base taker fee x default multiplier x regime fee factor.
         """
         with self._lock:
-            return self._taker_fee_rate * self.DEFAULT_MULTIPLIER
+            base_effective_fee = self._taker_fee_rate * self.DEFAULT_MULTIPLIER
+            regime_factors = self._derive_regime_factors_unlocked(product_id)
+            return base_effective_fee * regime_factors["fee_factor"]
     
-    def get_fee_info(self) -> Dict[str, Any]:
+    def get_fee_info(self, product_id: Optional[str] = None) -> Dict[str, Any]:
         """Get comprehensive fee information.
         
         Returns:
             Dict with keys:
             - taker_fee_rate: Base taker fee rate (e.g., 0.0060)
-            - profit_validation_fee_rate: 4x multiplied rate (e.g., 0.024)
-            - multiplier: Applied multiplier (4.0)
+            - profit_validation_fee_rate: Adaptive effective rate
+            - multiplier: Applied base multiplier (2.0)
             - last_updated: Timestamp of last successful API call
             - is_stale: Whether data is considered stale
             - fee_per_trade_1btc: Example fee for 1 BTC at $50,000
         """
         with self._lock:
             base_fee = self._taker_fee_rate
-            effective_fee = base_fee * self.DEFAULT_MULTIPLIER
+            factors = self._derive_regime_factors_unlocked(product_id)
+            effective_fee = (base_fee * self.DEFAULT_MULTIPLIER) * factors["fee_factor"]
             
             # Example: Cost for 1 BTC at $50,000
             example_btc_price = 50000.0
@@ -268,11 +421,16 @@ class FeeManager:
                 "taker_fee_rate": base_fee,
                 "profit_validation_fee_rate": effective_fee,
                 "multiplier": self.DEFAULT_MULTIPLIER,
+                "target_movement_factor": factors["target_movement_factor"],
+                "fee_regime_factor": factors["fee_factor"],
+                "volume_ratio": factors["volume_ratio"],
+                "overnight_margin_active": factors["overnight_margin_active"],
+                "margin_window_type": factors["margin_window_type"],
                 "last_updated": self._last_updated.isoformat() if self._last_updated else None,
                 "is_stale": self.is_stale(),
                 "fee_per_trade_1btc_base": example_cost_base,
                 "fee_per_trade_1btc_effective": example_cost_effective,
-                "note": "Effective fee is 4x base (2x each way) to ensure profitability"
+                "note": "Effective fee uses base x multiplier x regime fee factor"
             }
     
     def validate_fee_freshness(self, max_age_seconds: int = 7200) -> Dict[str, Any]:
@@ -307,17 +465,12 @@ class FeeManager:
                 "remediation": None if is_fresh else "Call refresh_fee_rate() to update"
             }
     
-    def explain_fee_multiplier(self) -> Dict[str, Any]:
-        """Explain the fee multiplier calculation (for verification and debugging).
-        
-        Shows exactly how the 4x multiplier is applied to the CLOSE order only.
-        
-        Returns:
-            Dict with detailed breakdown
-        """
+    def explain_fee_multiplier(self, product_id: Optional[str] = None) -> Dict[str, Any]:
+        """Explain fee and regime factor calculation for verification/debugging."""
         with self._lock:
             base_fee = self._taker_fee_rate
-            effective_fee = base_fee * self.DEFAULT_MULTIPLIER
+            factors = self._derive_regime_factors_unlocked(product_id)
+            effective_fee = (base_fee * self.DEFAULT_MULTIPLIER) * factors["fee_factor"]
             
             # Example: BUY @ $50,000 (open), SELL @ $52,500 (close)
             example_open_price = 50000.0
@@ -337,8 +490,13 @@ class FeeManager:
             return {
                 "base_fee_from_coinbase": base_fee,
                 "multiplier_applied": self.DEFAULT_MULTIPLIER,
+                "fee_regime_factor": factors["fee_factor"],
+                "target_movement_factor": factors["target_movement_factor"],
+                "volume_ratio": factors["volume_ratio"],
+                "overnight_margin_active": factors["overnight_margin_active"],
+                "margin_window_type": factors["margin_window_type"],
                 "effective_fee_rate": effective_fee,
-                "calculation_method": "effective = base × 4, applied ONCE on the close order",
+                "calculation_method": "effective = base x base_multiplier x regime_factor, applied on close",
                 "example": {
                     "open_price": example_open_price,
                     "close_price": example_close_price,
@@ -350,5 +508,5 @@ class FeeManager:
                     "total_fees_for_round_trip": total_example,
                     "note": "Fee is charged ONLY when the position is closed, not when opened"
                 },
-                "warning": "If you see fees on BOTH the open and close order, that's incorrect. Only close order is charged."
+                "warning": "If you see fees on both open and close orders, behavior is incorrect. Only close is charged."
             }

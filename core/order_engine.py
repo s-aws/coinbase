@@ -67,6 +67,7 @@ from configuration import (
     calculate_new_order_move_from_snapshot,
     apply_calculated_position_update,
     get_futures_positions,
+    get_trading_product_id,
 )
 
 from core.constants import get_local_now
@@ -1081,6 +1082,25 @@ class OrderEngine:
                 ),
             )
 
+    def process_futures_balance_summary_event(self, event: dict) -> None:
+        """Process futures balance summary event and update fee regime state."""
+        if not self.fee_manager:
+            return
+
+        if not isinstance(event, dict):
+            return
+
+        fcm_balance_summary = event.get("fcm_balance_summary")
+        if isinstance(fcm_balance_summary, dict):
+            self.fee_manager.update_margin_window_from_summary(fcm_balance_summary)
+
+            # Prefer explicit active-window fields when present.
+            for key in ("margin_window_type", "current_margin_window_type", "active_margin_window_type"):
+                margin_window_type = fcm_balance_summary.get(key)
+                if margin_window_type:
+                    self.fee_manager.update_margin_window_type(margin_window_type)
+                    break
+
     def process_user_snapshot(self, snapshot: dict) -> None:
         """Process position snapshot from websocket.
         
@@ -1375,7 +1395,26 @@ class OrderEngine:
         """
         with self.orderbook_lock:
             parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
-            return deepcopy(parent.get("target_movement"))
+            target_movement = deepcopy(parent.get("target_movement"))
+
+        if not target_movement:
+            return target_movement
+
+        if target_movement.get("type") != TargetMovementType.PERCENTAGE.value:
+            return target_movement
+
+        product_id = None
+        with self.orderbook_lock:
+            parent_order = self.orderbook.order.get(parent_client_order_id, {})
+            if isinstance(parent_order, dict):
+                product_id = parent_order.get("product_id")
+
+        if self.fee_manager:
+            movement_value = safe_float(target_movement.get("movement"), default=0.0)
+            adaptive_multiplier = self.fee_manager.get_target_movement_multiplier(product_id)
+            target_movement["movement"] = movement_value * adaptive_multiplier
+
+        return target_movement
 
     def resolve_parent_replacement_state(self, parent_client_order_id: str) -> dict:
         """Get current and max replacement counts for a parent order.
@@ -2058,6 +2097,7 @@ class OrderEngine:
                             order_size=order_size,
                             product_type=product_type,
                             position_side=position_side,
+                            product_id=product_id,
                             contract_size=contract_size
                         )
                         
@@ -2465,6 +2505,7 @@ class OrderEngine:
                             )
                             for tickr in event["tickers"]:
                                 self.ticker[tickr["product_id"]] = tickr
+                                trading_product_id = get_trading_product_id(tickr.get("product_id"))
                                 # Broadcast to price chart
                                 price = float(tickr.get("price", 0))
                                 product_id = tickr.get("product_id")
@@ -2479,6 +2520,13 @@ class OrderEngine:
                                 if self.stealth_order_bridge and product_id:
                                     self.stealth_order_bridge.process_ticker_update(product_id, tickr)
 
+                                # Feed adaptive volume regime in FeeManager.
+                                if self.fee_manager and trading_product_id:
+                                    self.fee_manager.update_volume_signal(
+                                        trading_product_id,
+                                        safe_float(tickr.get("volume_24_h"), default=0.0),
+                                    )
+
                     elif channel == ChannelType.USER.value:
                         self.log_message(
                             "user",
@@ -2488,6 +2536,9 @@ class OrderEngine:
                             ),
                         )
                         self.event_executor.submit(self.process_user_event, event)
+
+                    elif channel == ChannelType.FUTURES_BALANCE_SUMMARY.value:
+                        self.process_futures_balance_summary_event(event)
 
                 finally:
                     self.event_queue[channel].task_done()
@@ -2547,11 +2598,7 @@ class OrderEngine:
         self.load_parent_child_order_ids(force_log=True)
         
         # Update dashboard with initial engine status
-        update_engine_status({
-            "running": True,
-            "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
-            "event_queue_depth": 0,
-        })
+        update_engine_status(self._build_engine_status_payload(event_queue_depth=0))
         add_log_entry("INFO", "Trading engine started")
 
         threading.Thread(
@@ -2604,11 +2651,7 @@ class OrderEngine:
                 # Calculate total events in all queues
                 total_queue_depth = sum(q.qsize() for q in self.event_queue.values())
                 
-                update_engine_status({
-                    "running": True,
-                    "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
-                    "event_queue_depth": total_queue_depth,
-                })
+                update_engine_status(self._build_engine_status_payload(event_queue_depth=total_queue_depth))
                 
                 sleep(5)
             except Exception as e:
@@ -2617,6 +2660,34 @@ class OrderEngine:
                     error=str(e),
                 ))
                 sleep(5)
+
+    def _build_engine_status_payload(self, event_queue_depth: int) -> dict:
+        """Build dashboard engine status payload with adaptive fee regime metrics."""
+        payload = {
+            "running": True,
+            "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
+            "event_queue_depth": event_queue_depth,
+        }
+
+        if not self.fee_manager:
+            return payload
+
+        try:
+            fee_info = self.fee_manager.get_fee_info()
+            payload.update({
+                "taker_fee_rate": fee_info.get("taker_fee_rate"),
+                "effective_fee_rate": fee_info.get("profit_validation_fee_rate"),
+                "target_movement_factor": fee_info.get("target_movement_factor"),
+                "fee_regime_factor": fee_info.get("fee_regime_factor"),
+                "volume_ratio": fee_info.get("volume_ratio"),
+                "overnight_margin_active": fee_info.get("overnight_margin_active"),
+                "margin_window_type": fee_info.get("margin_window_type"),
+            })
+        except Exception:
+            # Keep status updates resilient if fee telemetry is temporarily unavailable.
+            pass
+
+        return payload
 
     def run_forever(self) -> None:
         """Start all background threads and loop forever.

@@ -7,13 +7,13 @@ Fee Charging Model (CRITICAL):
 - Fees are charged ONLY when orders CLOSE on the exchange
 - Open orders (establishing position) have NO fee yet
 - Close orders (exiting position) incur TWO fee types:
-  1. Percentage fee (taker fee × 4x multiplier)
+    1. Percentage fee (adaptive taker fee from FeeManager)
   2. Mandatory fixed fee (FUTURE/PERPETUAL only: $0.15 per contract)
 
 Fee Components by Product Type:
-- SPOT: Only percentage fee (0.6% × 4 = 2.4%)
-- FUTURE: Percentage fee (2.4%) + Mandatory $0.15 per contract
-- PERPETUAL: Percentage fee (2.4%) + Mandatory $0.15 per contract
+- SPOT: Only percentage fee (adaptive effective rate)
+- FUTURE: Percentage fee + Mandatory $0.15 per contract
+- PERPETUAL: Percentage fee + Mandatory $0.15 per contract
 
 What constitutes "open" vs "close" depends on product type:
 - SPOT: BUY=open, SELL=close (always)
@@ -26,8 +26,8 @@ charged when the close order fills.
 
 Example (SPOT: BUY @$50K, SELL @$52.5K):
     Parent BUY fills @$50,000 (OPEN, no fee yet)
-    Fee rate: 2.4% (0.6% base × 4x)
-    Fee when SELL closes: $52,500 × 0.024 = $1,260
+    Fee rate: adaptive effective rate (typically near base × 2)
+    Fee when SELL closes: $52,500 × effective_fee_rate
     Gross profit: $52,500 - $50,000 = $2,500
     Net profit: $2,500 - $1,260 = $1,240 ✓ PROFITABLE
 
@@ -35,7 +35,7 @@ Example (FUTURE SHORT position: SELL @$50K, BUY @$48.5K with 5 contracts):
     Account is SHORT, so SELL=open, BUY=close
     Parent SELL fills @$50,000 (OPEN for SHORT, no fee yet)
     Fee when BUY closes:
-      - Percentage: $48,500 × 0.024 = $1,164
+    - Percentage: $48,500 × effective_fee_rate
       - Mandatory: $0.15 × 5 contracts = $0.75
       - Total: $1,164.75
     Gross profit: ($50,000 - $48,500) × 5 = $7,500
@@ -86,7 +86,7 @@ class ProfitValidator:
     Ensures follow-up orders will be profitable after accounting for:
     - Fee charged when close order fills (not open order)
     - Correct identification of open vs close orders for the product type
-    - Base taker fee multiplied by 4x
+    - Adaptive taker fee from FeeManager
     - (Future work: Margin/liquidation checks for leveraged products)
     
     Thread-safe: Can be called from multiple threads with same fee_manager instance.
@@ -102,17 +102,13 @@ class ProfitValidator:
         """
         self.fee_manager = fee_manager
     
-    def _get_fee_rate(self) -> float:
-        """Get current effective fee rate (4x multiplied).
-        
-        Returns:
-            Fee rate as decimal (e.g., 0.024 for 2.4%)
-        """
+    def _get_fee_rate(self, product_id: str = None) -> float:
+        """Get current effective fee rate (adaptive base multiplier model)."""
         if self.fee_manager:
-            return self.fee_manager.get_profit_validation_fee_rate()
+            return self.fee_manager.get_profit_validation_fee_rate(product_id=product_id)
         else:
-            # Fallback to conservative default (0.6% * 4)
-            return 0.024
+            # Fallback to conservative default (0.6% * 2)
+            return 0.012
     
     def is_profitable(self,
         filled_price: float,
@@ -122,6 +118,7 @@ class ProfitValidator:
         min_profit_margin: float = 0.0,
         product_type: str = 'SPOT',
         position_side: str = None,
+        product_id: str = None,
         contract_size: float = None
     ) -> Dict[str, Any]:
         """
@@ -164,19 +161,19 @@ class ProfitValidator:
         
         But we only validate against the FOLLOW-UP/CLOSE fee, not both:
         - Profit = (follow_up_price - filled_price) × size
-        - Fee charged = follow_up_price × size × (base_fee × 4)
+        - Fee charged = follow_up_price × size × effective_fee_rate
         - Net profit = Profit - Fee_on_close_only
         
-        We require: Net profit > 0 (profit must exceed 4x Coinbase fee on close)
+        We require: Net profit > 0 (profit must exceed close-order fees)
         
         Example with real numbers:
             Parent BUY fills @$50,000 × 1 BTC (open position)
             Follow-up SELL @$52,500 × 1 BTC (close position)
             Base Coinbase fee: 0.6%
-            Effective fee (4x): 2.4%
+            Effective fee: adaptive effective_rate
             
             NO fee on parent buy (it's the open order)
-            Fee on follow-up sell (close): $52,500 × 1 × 0.024 = $1,260
+            Fee on follow-up sell (close): $52,500 × 1 × effective_fee_rate
             
             Gross profit: $52,500 - $50,000 = $2,500
             Total fees: $1,260 (only on close)
@@ -247,8 +244,8 @@ class ProfitValidator:
             f"Determined: OPEN={open_side}, CLOSE={close_side}"
         )
         
-        # Get the effective fee rate (base_fee_rate × 4)
-        fee_rate = self._get_fee_rate()
+        # Get the effective fee rate (base_fee_rate x multiplier x regime_factor)
+        fee_rate = self._get_fee_rate(product_id=product_id)
         
         # For FUTURE/PERPETUAL products, order_size is in "number of contracts"
         # We need to convert to actual position size (in BTC/units) for fee calculation
@@ -369,7 +366,7 @@ class ProfitValidator:
             filled_price: Original fill price (the OPEN order)
             side: Parent order side ('BUY' or 'SELL') - should match open_side
             order_size: Size of both orders
-            fee_rate: Effective fee rate (already multiplied by 4x)
+            fee_rate: Effective fee rate (already includes multiplier/regime)
             open_side: The side that opens positions (default 'BUY')
             close_side: The side that closes positions (default 'SELL')
         
@@ -407,7 +404,7 @@ class ProfitValidator:
             filled_price: Original fill price (open order)
             side: Parent order side ('BUY' or 'SELL') - should match open_side
             order_size: Size of both orders
-            fee_rate: Effective fee rate (already multiplied by 4x)
+            fee_rate: Effective fee rate (already includes multiplier/regime)
             min_profit: Minimum desired profit in USD
             open_side: The side that opens positions (default 'BUY')
             close_side: The side that closes positions (default 'SELL')
@@ -486,8 +483,8 @@ class ProfitValidator:
         
         # Add validation status and remediation
         result["is_valid"] = True
-        result["fee_rate_base"] = self._get_fee_rate() / 4.0  # Show base rate too
-        result["multiplier"] = 4.0
+        result["fee_rate_base"] = self._get_fee_rate() / 2.0  # Show base rate too
+        result["multiplier"] = 2.0
         result["parent_filled_price"] = parent_filled_price
         result["follow_up_proposed_price"] = follow_up_price
         result["order_size"] = order_size
@@ -517,7 +514,7 @@ class ProfitValidator:
         Returns a dict showing:
         - base_fee_rate: From Coinbase API (e.g., 0.006 for 0.6%)
         - multiplier: Applied multiplier (4.0)
-        - effective_fee_rate: base × multiplier (e.g., 0.024 for 2.4%)
+        - effective_fee_rate: base × multiplier × regime_factor
         - fee_on_open: Cost when parent order (open) fills - ZERO
         - fee_on_close: Cost when follow-up order (close) fills
         - total_fees: Sum of both (just the close fee)
@@ -535,7 +532,7 @@ class ProfitValidator:
         
         # Back-calculate the base rate (we store it as multiplied)
         # This is for clarity - to show base vs effective
-        base_fee = fee_rate_effective / 4.0
+        base_fee = fee_rate_effective / 2.0
         
         # OPEN order (parent): NO FEE CHARGED
         fee_on_open = 0.0
@@ -551,7 +548,7 @@ FEE CALCULATION BREAKDOWN (OPEN vs CLOSE)
 ==========================================
 
 Base Coinbase taker fee: {base_fee:.4%}
-Our multiplier: 4x
+Base multiplier: 2x (then adjusted by regime factor)
 Effective fee for validation: {fee_rate_effective:.4%}
 
 Order sizes: {order_size} units
