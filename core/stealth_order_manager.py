@@ -424,6 +424,12 @@ class StealthOrderManager:
                 "client_order_id": client_order_id,
                 "post_only": False,
                 "stealth_order_id": stealth_order_id,
+                "parent_order_id": order.get("parent_order_id"),
+                "reason": order.get("reason"),
+                "reveal_number": len(order.get("revealed_orders", [])) + 1,
+                "reveal_condition_type": order.get("reveal_condition_type"),
+                "reveal_condition_json": order.get("reveal_condition_json"),
+                "condition_confirmed_at": order.get("condition_confirmed_at").isoformat() if hasattr(order.get("condition_confirmed_at"), "isoformat") else order.get("condition_confirmed_at"),
             }
             
             # 🪝 PRE-SUBMISSION HOOKS: Validate/modify order before REST submission

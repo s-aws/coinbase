@@ -7,6 +7,7 @@ replacement tracking, and status updates.
 It manages the parent-child order relationship for the trading engine.
 """
 
+import json
 from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
@@ -1891,6 +1892,147 @@ def create_fill_ledger_table() -> None:
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("fill_ledger table done.")
+
+
+def create_order_event_stream_table() -> None:
+    """Create append-only order_event_stream table for timeline reconstruction.
+
+    This table captures a normalized event timeline across order submission,
+    status transitions, stealth reveal triggers, and fill persistence hooks.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS order_event_stream (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        event_id UUID UNIQUE NOT NULL,
+        event_time_exchange TIMESTAMP,
+        event_time_ingested TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        product_id VARCHAR(32),
+        client_order_id VARCHAR(64),
+        order_id VARCHAR(64),
+        parent_client_order_id VARCHAR(64),
+        stealth_order_id VARCHAR(64),
+        event_type VARCHAR(64) NOT NULL,
+        event_status_from VARCHAR(32),
+        event_status_to VARCHAR(32),
+        side VARCHAR(10),
+        price DECIMAL(18, 8),
+        size DECIMAL(18, 8),
+        cumulative_filled_size DECIMAL(18, 8),
+        leaves_size DECIMAL(18, 8),
+        fee DECIMAL(18, 8),
+        fee_currency VARCHAR(16),
+        trigger_type VARCHAR(64),
+        trigger_payload_json JSONB,
+        source_channel VARCHAR(64),
+        raw_payload_json JSONB,
+        idempotency_key VARCHAR(200) UNIQUE
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_event_stream_event_time_exchange ON order_event_stream(event_time_exchange);
+    CREATE INDEX IF NOT EXISTS idx_order_event_stream_client_order_id ON order_event_stream(client_order_id);
+    CREATE INDEX IF NOT EXISTS idx_order_event_stream_event_type ON order_event_stream(event_type);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("order_event_stream table done.")
+
+
+def insert_order_event(
+    event_id: str,
+    event_type: str,
+    source_channel: str,
+    event_time_exchange=None,
+    product_id: str = None,
+    client_order_id: str = None,
+    order_id: str = None,
+    parent_client_order_id: str = None,
+    stealth_order_id: str = None,
+    event_status_from: str = None,
+    event_status_to: str = None,
+    side: str = None,
+    price: float = None,
+    size: float = None,
+    cumulative_filled_size: float = None,
+    leaves_size: float = None,
+    fee: float = None,
+    fee_currency: str = None,
+    trigger_type: str = None,
+    trigger_payload_json: Dict[str, Any] = None,
+    raw_payload_json: Dict[str, Any] = None,
+    idempotency_key: str = None,
+) -> Optional[int]:
+    """Insert one immutable event record into order_event_stream.
+
+    Returns inserted row id, or None when conflict/no-op/error.
+    """
+    query = """
+    INSERT INTO order_event_stream (
+        event_id,
+        event_time_exchange,
+        product_id,
+        client_order_id,
+        order_id,
+        parent_client_order_id,
+        stealth_order_id,
+        event_type,
+        event_status_from,
+        event_status_to,
+        side,
+        price,
+        size,
+        cumulative_filled_size,
+        leaves_size,
+        fee,
+        fee_currency,
+        trigger_type,
+        trigger_payload_json,
+        source_channel,
+        raw_payload_json,
+        idempotency_key
+    )
+    VALUES (
+        %s, %s, %s, %s, %s, %s, %s,
+        %s, %s, %s, %s, %s, %s, %s,
+        %s, %s, %s, %s, %s::jsonb, %s,
+        %s::jsonb, %s
+    )
+    ON CONFLICT (idempotency_key) DO NOTHING
+    RETURNING id
+    """
+
+    params = (
+        event_id,
+        event_time_exchange,
+        product_id,
+        client_order_id,
+        order_id,
+        parent_client_order_id,
+        stealth_order_id,
+        event_type,
+        event_status_from,
+        event_status_to,
+        side,
+        price,
+        size,
+        cumulative_filled_size,
+        leaves_size,
+        fee,
+        fee_currency,
+        trigger_type,
+        json.dumps(trigger_payload_json or {}),
+        source_channel,
+        json.dumps(raw_payload_json or {}),
+        idempotency_key,
+    )
+
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            return results[0].get("id")
+        return None
+    except Exception as e:
+        logger.error(f"Error inserting order event {event_type} ({event_id}): {type(e).__name__}: {e}")
+        return None
 
 
 def insert_fill_record(

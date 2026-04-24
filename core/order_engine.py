@@ -77,6 +77,7 @@ from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
 from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
+from integration.order_placement_hooks import get_global_placement_hook_registry
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
@@ -249,6 +250,7 @@ class OrderEngine:
         # Lot Tracking Integration: Initialize fill ledger and hook registry
         self.fill_repo = None
         self.fill_event_hooks = None
+        self.event_stream_publisher = None
         if LOT_TRACKING_AVAILABLE:
             try:
                 from business.post_fill_hook import initialize_fill_ledger
@@ -260,6 +262,9 @@ class OrderEngine:
             except Exception as e:
                 # Log but don't fail - lot tracking is optional
                 self.log_message("warning", f"Failed to initialize fill ledger: {e}")
+
+        # Reconstructive timeline event stream integration via existing hooks.
+        self._initialize_event_stream_integration()
 
         self.websocket_events = {
             "SNAPSHOT": {
@@ -284,6 +289,25 @@ class OrderEngine:
         }
 
         self.orderbook.db_helper = self.db_helper
+
+    def _initialize_event_stream_integration(self) -> None:
+        """Initialize order event stream and wire it into existing hook registries."""
+        try:
+            from business.order_event_stream import OrderEventStreamPublisher
+
+            self.event_stream_publisher = OrderEventStreamPublisher(self.db_helper)
+            order_placement_hooks = get_global_placement_hook_registry()
+            self.event_stream_publisher.register_hook_integrations(
+                websocket_hooks=self.websocket_hooks,
+                fill_event_hooks=self.fill_event_hooks,
+                order_placement_hooks=order_placement_hooks,
+            )
+            if self.event_stream_publisher.enabled:
+                self.log_message("info", "[EVENT-STREAM] Hook integration enabled")
+            else:
+                self.log_message("warning", "[EVENT-STREAM] Integration disabled (table init failed)")
+        except Exception as e:
+            self.log_message("warning", f"[EVENT-STREAM] Integration init failed: {e}")
 
     def log_message(self, log_type: str, message) -> None:
         """Log a message if the log type is enabled.

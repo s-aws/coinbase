@@ -34,6 +34,7 @@ from database.order import (
     create_order_moves_table,
     create_fill_ledger_table,
     create_conditional_orders_table,
+    create_order_event_stream_table,
 )
 from psycopg2 import sql
 
@@ -131,7 +132,7 @@ def main() -> None:
             create_order_moves_table()
             create_fill_ledger_table()
             create_conditional_orders_table()
-            
+            create_order_event_stream_table()
             print("\n✓ All tables recreated successfully!")
         except Exception as e:
             print(f"\n✗ Error creating tables: {type(e).__name__}: {e}")
