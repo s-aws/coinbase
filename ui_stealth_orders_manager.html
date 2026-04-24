@@ -857,6 +857,38 @@
                     </div>
                 </div>
 
+                <!-- Adaptive Regime Metrics -->
+                <div class="section">
+                    <h2>⚙️ Regime Metrics</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Effective Fee</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #7ba3ff;" id="metric-effective-fee">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Base Taker Fee</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #51cf66;" id="metric-taker-fee">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Target Factor</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #ffd43b;" id="metric-target-factor">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Fee Factor</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #ff8787;" id="metric-fee-factor">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Volume Ratio</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #74c0fc;" id="metric-volume-ratio">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Margin Window</div>
+                            <div style="font-size: 12px; font-weight: bold; color: #c0eb75;" id="metric-margin-window">--</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 10px; color: #888;" id="metric-overnight-flag">Overnight: --</div>
+                </div>
+
                 <!-- Clear All Orders Section -->
                 <div class="section">
                     <h2>🗑️ Management</h2>
@@ -1148,6 +1180,7 @@
         let refreshInterval = null;
         let refreshCountdown = 5;
         let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
+        let engineStatusData = {};
 
         function initWebSocket() {
             try {
@@ -1175,6 +1208,10 @@
                         console.log(`Loaded ${allProducts.length} products from WebSocket`);
                     } else if (data.type === "state_update") {
                         // Initial state or periodic update from server
+                        if (data.data && data.data.engine_status) {
+                            engineStatusData = data.data.engine_status || {};
+                            updateRegimeMetrics(engineStatusData);
+                        }
                         if (data.data && data.data.stealth_orders) {
                             ordersData = data.data.stealth_orders || {};
                             console.log("Received state update with stealth orders:", ordersData);
@@ -1324,6 +1361,45 @@
                 status.textContent = '●';
                 status.style.color = '#ff6b6b';
             }
+        }
+
+        function formatPercent(value, digits = 3) {
+            const num = parseFloat(value);
+            if (!isFinite(num)) return '--';
+            return (num * 100).toFixed(digits) + '%';
+        }
+
+        function formatFactor(value, digits = 3) {
+            const num = parseFloat(value);
+            if (!isFinite(num)) return '--';
+            return num.toFixed(digits) + 'x';
+        }
+
+        function updateRegimeMetrics(status) {
+            const effectiveFeeEl = document.getElementById('metric-effective-fee');
+            const takerFeeEl = document.getElementById('metric-taker-fee');
+            const targetFactorEl = document.getElementById('metric-target-factor');
+            const feeFactorEl = document.getElementById('metric-fee-factor');
+            const volumeRatioEl = document.getElementById('metric-volume-ratio');
+            const marginWindowEl = document.getElementById('metric-margin-window');
+            const overnightFlagEl = document.getElementById('metric-overnight-flag');
+
+            if (!status || typeof status !== 'object') {
+                return;
+            }
+
+            effectiveFeeEl.textContent = formatPercent(status.effective_fee_rate, 3);
+            takerFeeEl.textContent = formatPercent(status.taker_fee_rate, 3);
+            targetFactorEl.textContent = formatFactor(status.target_movement_factor, 3);
+            feeFactorEl.textContent = formatFactor(status.fee_regime_factor, 3);
+
+            const volumeRatio = parseFloat(status.volume_ratio);
+            volumeRatioEl.textContent = isFinite(volumeRatio) ? volumeRatio.toFixed(3) : '--';
+
+            marginWindowEl.textContent = status.margin_window_type || '--';
+
+            const overnight = status.overnight_margin_active;
+            overnightFlagEl.textContent = `Overnight: ${overnight === true ? 'Yes' : overnight === false ? 'No' : '--'}`;
         }
 
         function updateProductDropdown() {

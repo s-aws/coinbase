@@ -45,6 +45,13 @@ engine_state = {
         "running": False,
         "threads_active": 0,
         "event_queue_depth": 0,
+        "taker_fee_rate": None,
+        "effective_fee_rate": None,
+        "target_movement_factor": None,
+        "fee_regime_factor": None,
+        "volume_ratio": None,
+        "overnight_margin_active": None,
+        "margin_window_type": None,
         "last_update": None,
     },
     "logs": [],  # Recent log entries

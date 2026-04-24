@@ -29,17 +29,17 @@ Example (SPOT: BUY @$50K, SELL @$52.5K):
     Fee rate: adaptive effective rate (typically near base × 2)
     Fee when SELL closes: $52,500 × effective_fee_rate
     Gross profit: $52,500 - $50,000 = $2,500
-    Net profit: $2,500 - $1,260 = $1,240 ✓ PROFITABLE
+    Net profit: $2,500 - close_fee_amount ✓ PROFITABLE when positive
 
 Example (FUTURE SHORT position: SELL @$50K, BUY @$48.5K with 5 contracts):
     Account is SHORT, so SELL=open, BUY=close
     Parent SELL fills @$50,000 (OPEN for SHORT, no fee yet)
     Fee when BUY closes:
-    - Percentage: $48,500 × effective_fee_rate
+            - Percentage: $48,500 × effective_fee_rate
       - Mandatory: $0.15 × 5 contracts = $0.75
-      - Total: $1,164.75
+            - Total: percentage_fee + mandatory_fee
     Gross profit: ($50,000 - $48,500) × 5 = $7,500
-    Net profit: $7,500 - $1,164.75 = $6,335.25 ✓ PROFITABLE
+        Net profit: gross_profit - total_fees ✓ PROFITABLE when positive
 """
 
 from typing import Dict, Any, Optional
@@ -155,9 +155,9 @@ class ProfitValidator:
         
         For BUY parent → SELL follow-up:
             - Parent BUY @ $50,000: OPEN, no fee yet
-            - Parent BUY fills: fee charged = $50,000 × size × base_fee
+            - Parent BUY fills: no close fee is charged yet
             - Follow-up SELL @ $52,500: OPEN, no fee yet
-            - Follow-up SELL fills: fee charged = $52,500 × size × base_fee
+            - Follow-up SELL fills: fee charged = $52,500 × size × effective_fee_rate
         
         But we only validate against the FOLLOW-UP/CLOSE fee, not both:
         - Profit = (follow_up_price - filled_price) × size
@@ -176,8 +176,8 @@ class ProfitValidator:
             Fee on follow-up sell (close): $52,500 × 1 × effective_fee_rate
             
             Gross profit: $52,500 - $50,000 = $2,500
-            Total fees: $1,260 (only on close)
-            Net profit: $2,500 - $1,260 = $1,240 ✓ PROFITABLE
+            Total fees: close_fee_amount (only on close)
+            Net profit: $2,500 - close_fee_amount ✓ PROFITABLE when positive
         
         Args:
             filled_price: Price at which parent order filled (the OPEN position)
@@ -203,7 +203,7 @@ class ProfitValidator:
             - total_fees: Total fees charged on close order (percentage + mandatory)
             - percentage_fees: Percentage-based fee component
             - mandatory_fees: Fixed fee component (FUTURE/PERPETUAL only)
-            - fee_rate_applied: Effective fee rate used (base × 4)
+            - fee_rate_applied: Effective fee rate used (base × multiplier × regime)
             - breakeven_price: Price needed to break even
             - minimum_viable_price: Price needed to meet min_profit_margin
             - open_side: Which side is the OPEN order
@@ -276,7 +276,7 @@ class ProfitValidator:
         
         # TODO: Change to DEBUG level logging
         logger.info(
-            f"Fee rate applied | Base fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
+            f"Fee rate applied | Effective fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
             f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
             f"Calculated percentage fee: ${percentage_fees:.2f}"
         )
@@ -513,7 +513,7 @@ class ProfitValidator:
         
         Returns a dict showing:
         - base_fee_rate: From Coinbase API (e.g., 0.006 for 0.6%)
-        - multiplier: Applied multiplier (4.0)
+        - multiplier: Applied base multiplier (2.0)
         - effective_fee_rate: base × multiplier × regime_factor
         - fee_on_open: Cost when parent order (open) fills - ZERO
         - fee_on_close: Cost when follow-up order (close) fills
@@ -572,7 +572,7 @@ Profit calculation:
         
         return {
             "base_fee_rate": base_fee,
-            "multiplier": 4.0,
+            "multiplier": 2.0,
             "effective_fee_rate": fee_rate_effective,
             "fee_on_open": fee_on_open,
             "fee_on_close": fee_on_close,
