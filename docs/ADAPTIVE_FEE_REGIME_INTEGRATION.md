@@ -50,6 +50,9 @@ Ticker path integration:
 Futures balance summary integration:
 - existing worker switch handles FUTURES_BALANCE_SUMMARY channel
 - message is parsed and forwarded to FeeManager margin-window updater
+- margin window precedence is active-first to avoid stale generic values:
+  - preferred: active_margin_window_type, current_margin_window_type
+  - fallback: margin_window_type
 - locations:
   - core/order_engine.py:1085
   - core/order_engine.py:2540

@@ -365,11 +365,14 @@ class FeeManager:
         if not isinstance(fcm_balance_summary, dict):
             return False
 
+        # Prefer explicit active/current signals first. Some payloads include
+        # "margin_window_type" as a static/default value (often INTRADAY).
         candidates = (
-            fcm_balance_summary.get("margin_window_type"),
-            fcm_balance_summary.get("current_margin_window_type"),
             fcm_balance_summary.get("active_margin_window_type"),
+            fcm_balance_summary.get("current_margin_window_type"),
             fcm_balance_summary.get("active_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("active_margin_window_measure"), dict) else None,
+            fcm_balance_summary.get("margin_window_type"),
+            fcm_balance_summary.get("overnight_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("overnight_margin_window_measure"), dict) else None,
             fcm_balance_summary.get("intraday_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("intraday_margin_window_measure"), dict) else None,
         )
 

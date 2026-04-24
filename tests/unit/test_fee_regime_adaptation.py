@@ -116,6 +116,25 @@ def test_order_engine_process_futures_balance_summary_updates_margin_state():
     assert info["margin_window_type"] == "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT"
 
 
+def test_order_engine_process_futures_balance_summary_prefers_active_window_type():
+    engine = _create_engine_for_unit_tests()
+    manager = FeeManager(StubRestClient(), log_callback=lambda *_: None)
+    engine.fee_manager = manager
+
+    event = {
+        "fcm_balance_summary": {
+            "margin_window_type": "FCM_MARGIN_WINDOW_TYPE_INTRADAY",
+            "active_margin_window_type": "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT",
+        }
+    }
+
+    engine.process_futures_balance_summary_event(event)
+
+    info = manager.get_fee_info()
+    assert info["overnight_margin_active"] is True
+    assert info["margin_window_type"] == "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT"
+
+
 def test_engine_status_payload_includes_fee_regime_metrics():
     engine = _create_engine_for_unit_tests()
     manager = FeeManager(StubRestClient(), log_callback=lambda *_: None)
