@@ -339,7 +339,7 @@
             border: 1px solid #444;
             border-radius: 8px;
             padding: 24px;
-            max-width: 400px;
+            max-width: 460px;
             width: 90%;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
             animation: slideIn 0.3s ease;
@@ -887,7 +887,7 @@
     <div id="editParentTargetMovementModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Edit Target Movement</h2>
+                <h2>Edit Parent Values</h2>
                 <button type="button" class="modal-close" onclick="closeEditParentTargetMovementModal()">&times;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 15px;">
@@ -902,9 +902,23 @@
                         <option value="A">Absolute Amount</option>
                     </select>
                 </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Max Followups</label>
+                    <input type="number" id="editParentMaxFollowups" placeholder="11" step="1" min="0">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Threshold (Price Conditions)</label>
+                    <input type="number" id="editParentPriceThreshold" placeholder="0.00" step="0.01" min="0">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Hold Duration &mdash; seconds (Price Conditions)</label>
+                    <input type="number" id="editParentHoldDuration" placeholder="2" step="1" min="0">
+                </div>
                 <div style="font-size: 12px; color: #aaa;">
                     <strong>Percentage (%):</strong> Enter as decimal (e.g., 0.002 = 0.2%, 0.05 = 5%)<br>
-                    <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)
+                    <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)<br>
+                    <strong>Max Followups:</strong> Non-negative whole number<br>
+                    <strong>Threshold / Hold Duration:</strong> Only editable for price reveal conditions
                 </div>
             </div>
             <div class="modal-footer">
@@ -1195,14 +1209,59 @@
                         // Update all stealth orders with this parent
                         const parentOrderId = data.parent_order_id;
                         Object.values(ordersData).forEach(order => {
-                            if (order.parent_order_id === parentOrderId) {
+                            if (order.stealth_order_id === parentOrderId || order.parent_order_id === parentOrderId) {
                                 order.parent_target_movement = data.target_movement;
                                 order.parent_target_movement_type = data.target_movement_type;
+                                if (order.stealth_order_id === parentOrderId) {
+                                    order.target_movement = data.target_movement;
+                                    order.target_movement_type = data.target_movement_type;
+                                }
                             }
                         });
                         showMessage(`Parent target movement updated to ${data.target_movement}${data.target_movement_type === 'A' ? ' (Abs)' : '%'}`, 'success');
                         updateOrdersTable();
                         updateStats();
+                    } else if (data.type === "parent_order_updated") {
+                        const updated = data.order;
+                        if (updated && updated.client_order_id && ordersData[updated.client_order_id]) {
+                            const existing = ordersData[updated.client_order_id];
+                            existing.max_order_replacements = updated.max_order_replacement;
+                            if (updated.target_movement !== undefined) {
+                                existing.target_movement = updated.target_movement;
+                            }
+                            if (updated.target_movement_type !== undefined) {
+                                existing.target_movement_type = updated.target_movement_type;
+                            }
+
+                            Object.values(ordersData).forEach(order => {
+                                if (order.parent_order_id === updated.client_order_id) {
+                                    order.parent_target_movement = updated.target_movement;
+                                    order.parent_target_movement_type = updated.target_movement_type || order.parent_target_movement_type || 'P';
+                                    order.parent_max_order_replacements = updated.max_order_replacement;
+                                }
+                            });
+
+                            showMessage('Parent max followups updated', 'success');
+                            updateOrdersTable();
+                            updateStats();
+                        }
+                    } else if (data.type === "stealth_threshold_updated") {
+                        const stealthOrderId = data.stealth_order_id;
+                        const threshold = data.price_threshold;
+                        const holdDuration = data.hold_duration_seconds;
+
+                        if (ordersData[stealthOrderId]) {
+                            const revealJson = ordersData[stealthOrderId].reveal_condition_json || {};
+                            revealJson.price_threshold = threshold;
+                            if (holdDuration !== null && holdDuration !== undefined) {
+                                revealJson.hold_duration_seconds = holdDuration;
+                            }
+                            ordersData[stealthOrderId].reveal_condition_json = revealJson;
+                            const holdMsg = holdDuration !== null && holdDuration !== undefined
+                                ? `, hold=${holdDuration}s` : '';
+                            showMessage(`Threshold updated to ${threshold}${holdMsg}`, 'success');
+                            updateOrdersTable();
+                        }
                     } else if (data.type === "stealth_order_cancelled") {
                         // Handle stealth order cancellation
                         const stealth_order_id = data.stealth_order_id;
@@ -1558,7 +1617,7 @@
                         <td>
                             <div class="action-buttons">
                                 ${isParent
-                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}')" class="edit-btn" title="Edit target movement">⚙️</button>`
+                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}', ${order.max_order_replacements || 0}, ${order.reveal_condition_json && order.reveal_condition_json.price_threshold !== undefined ? order.reveal_condition_json.price_threshold : 'null'}, '${order.reveal_condition_type || ''}', ${order.reveal_condition_json && order.reveal_condition_json.hold_duration_seconds !== undefined ? order.reveal_condition_json.hold_duration_seconds : 'null'})" class="edit-btn" title="Edit parent values">⚙️</button>`
                                     : ''}
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
                                     ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn">Cancel</button>`
@@ -2017,17 +2076,32 @@
         }
 
         // Modal functions for editing parent target movement
-        function openEditParentTargetMovementModal(parentOrderId, currentValue, currentType) {
+        function openEditParentTargetMovementModal(parentOrderId, currentValue, currentType, currentMaxFollowups, currentThreshold, revealConditionType, currentHoldDuration) {
             const modal = document.getElementById('editParentTargetMovementModal');
             const valueInput = document.getElementById('editParentTargetMovementValue');
             const typeSelect = document.getElementById('editParentTargetMovementType');
+            const maxFollowupsInput = document.getElementById('editParentMaxFollowups');
+            const thresholdInput = document.getElementById('editParentPriceThreshold');
+            const holdDurationInput = document.getElementById('editParentHoldDuration');
             
             // Store the parent order ID for later use
             modal.dataset.parentOrderId = parentOrderId;
+            modal.dataset.revealConditionType = revealConditionType || '';
             
             // Populate with current values (use raw DB values)
             valueInput.value = currentValue || '';
             typeSelect.value = currentType || 'P';
+            maxFollowupsInput.value = Number.isInteger(Number(currentMaxFollowups)) ? currentMaxFollowups : 0;
+
+            const isPriceCondition = (revealConditionType || '').toLowerCase() === 'price';
+
+            thresholdInput.disabled = !isPriceCondition;
+            thresholdInput.value = currentThreshold || '';
+            thresholdInput.placeholder = isPriceCondition ? '0.00' : 'N/A for non-price condition';
+
+            holdDurationInput.disabled = !isPriceCondition;
+            holdDurationInput.value = (currentHoldDuration !== null && currentHoldDuration !== undefined && String(currentHoldDuration) !== 'null') ? currentHoldDuration : '';
+            holdDurationInput.placeholder = isPriceCondition ? '2' : 'N/A for non-price condition';
             
             // Show modal
             modal.classList.add('show');
@@ -2040,6 +2114,7 @@
             
             // Clear stored order ID
             delete modal.dataset.parentOrderId;
+            delete modal.dataset.revealConditionType;
         }
 
         function confirmEditParentTargetMovement() {
@@ -2047,9 +2122,19 @@
             const parentOrderId = modal.dataset.parentOrderId;
             const value = document.getElementById('editParentTargetMovementValue').value;
             const type = document.getElementById('editParentTargetMovementType').value;
+            const maxFollowupsRaw = document.getElementById('editParentMaxFollowups').value;
+            const thresholdRaw = document.getElementById('editParentPriceThreshold').value;
+            const holdDurationRaw = document.getElementById('editParentHoldDuration').value;
+            const revealConditionType = (modal.dataset.revealConditionType || '').toLowerCase();
             
             if (!parentOrderId) {
                 showMessage('Error: No parent order selected', 'error');
+                return;
+            }
+
+            const parentOrder = ordersData[parentOrderId];
+            if (!parentOrder) {
+                showMessage('Error: Parent order not found in current state', 'error');
                 return;
             }
             
@@ -2064,22 +2149,84 @@
                 showMessage('Target movement cannot be negative', 'error');
                 return;
             }
+
+            if (!['P', 'A'].includes(type)) {
+                showMessage('Target movement type must be P or A', 'error');
+                return;
+            }
+
+            if (maxFollowupsRaw === '' || Number.isNaN(Number(maxFollowupsRaw))) {
+                showMessage('Please enter a valid max followups value', 'error');
+                return;
+            }
+
+            const maxFollowups = Number(maxFollowupsRaw);
+            if (!Number.isInteger(maxFollowups) || maxFollowups < 0) {
+                showMessage('Max followups must be a non-negative whole number', 'error');
+                return;
+            }
             
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 showMessage('Not connected to server', 'error');
                 return;
             }
+
+            if (revealConditionType === 'price') {
+                if (thresholdRaw === '' || Number.isNaN(Number(thresholdRaw))) {
+                    showMessage('Please enter a valid threshold for price reveal conditions', 'error');
+                    return;
+                }
+
+                const threshold = Number(thresholdRaw);
+                if (threshold <= 0) {
+                    showMessage('Threshold must be greater than 0', 'error');
+                    return;
+                }
+
+                if (holdDurationRaw !== '' && !Number.isNaN(Number(holdDurationRaw))) {
+                    const holdDuration = Number(holdDurationRaw);
+                    if (!Number.isInteger(holdDuration) || holdDuration < 0) {
+                        showMessage('Hold duration must be a non-negative whole number of seconds', 'error');
+                        return;
+                    }
+                }
+            }
             
             try {
-                // Send value directly without conversion (same format as form)
+                // Update target movement via dedicated endpoint.
                 ws.send(JSON.stringify({
                     type: "update_parent_target_movement",
                     parent_order_id: parentOrderId,
                     target_movement: numValue,
                     target_movement_type: type
                 }));
+
+                // Update max replacements via parent order update endpoint.
+                ws.send(JSON.stringify({
+                    type: "update_parent_order",
+                    order: {
+                        client_order_id: parentOrderId,
+                        product_id: parentOrder.product_id,
+                        size: parseFloat(parentOrder.total_size || 0),
+                        price: parseFloat(parentOrder.limit_price || 0),
+                        target_movement: numValue,
+                        max_order_replacement: maxFollowups,
+                        status: parentOrder.status || 'PENDING'
+                    }
+                }));
+
+                if (revealConditionType === 'price') {
+                    ws.send(JSON.stringify({
+                        type: "update_stealth_price_threshold",
+                        stealth_order_id: parentOrderId,
+                        price_threshold: Number(thresholdRaw),
+                        hold_duration_seconds: holdDurationRaw !== '' && !Number.isNaN(Number(holdDurationRaw))
+                            ? Number(holdDurationRaw)
+                            : null
+                    }));
+                }
                 
-                showMessage(`Parent target movement updated to ${numValue}${type === 'A' ? ' (Abs)' : '%'}`, 'success');
+                showMessage(`Parent values update sent: target=${numValue}${type === 'A' ? ' (Abs)' : '%'}, max followups=${maxFollowups}`, 'success');
                 closeEditParentTargetMovementModal();
             } catch (error) {
                 showMessage(`Error: ${error.message}`, 'error');

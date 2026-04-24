@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
-from typing import Set, Dict, Any
+from typing import Set, Dict, Any, Optional
 import websockets
 from websockets.server import WebSocketServerProtocol
 
@@ -470,6 +470,143 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
                 await websocket.send(json.dumps(response))
+
+        elif msg_type == "update_stealth_price_threshold":
+            # Update price threshold for a price-based stealth order
+            stealth_order_id = data.get("stealth_order_id")
+            price_threshold = data.get("price_threshold")
+            hold_duration_seconds = data.get("hold_duration_seconds")  # optional
+
+            if not stealth_order_id:
+                response = {
+                    "type": "error",
+                    "message": "Missing stealth_order_id"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            if price_threshold is None:
+                response = {
+                    "type": "error",
+                    "message": "Missing price_threshold"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            try:
+                threshold = float(price_threshold)
+            except (TypeError, ValueError):
+                response = {
+                    "type": "error",
+                    "message": "price_threshold must be numeric"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            if threshold <= 0:
+                response = {
+                    "type": "error",
+                    "message": "price_threshold must be greater than 0"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            # Validate optional hold_duration_seconds
+            hold_secs = None
+            if hold_duration_seconds is not None:
+                try:
+                    hold_secs = int(hold_duration_seconds)
+                    if hold_secs < 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    response = {
+                        "type": "error",
+                        "message": "hold_duration_seconds must be a non-negative integer"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+            try:
+                from database.order import get_stealth_order_by_id, update_stealth_order_price_threshold
+
+                existing = get_stealth_order_by_id(stealth_order_id)
+                if not existing:
+                    response = {
+                        "type": "error",
+                        "message": f"Stealth order not found: {stealth_order_id}"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+                if str(existing.get("reveal_condition_type", "")).lower() != "price":
+                    response = {
+                        "type": "error",
+                        "message": "Threshold updates are only supported for price reveal conditions"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+                success = update_stealth_order_price_threshold(
+                    stealth_order_id=stealth_order_id,
+                    price_threshold=threshold,
+                    hold_duration_seconds=hold_secs,
+                )
+
+                if not success:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to update threshold for stealth order: {stealth_order_id}"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+                # Sync in-memory cache
+                if stealth_order_bridge:
+                    in_mem = stealth_order_bridge.stealth_manager.in_memory_orders.get(stealth_order_id)
+                    if in_mem is not None:
+                        reveal_json = in_mem.get("reveal_condition_json") or {}
+                        reveal_json["price_threshold"] = threshold
+                        if hold_secs is not None:
+                            reveal_json["hold_duration_seconds"] = hold_secs
+                        in_mem["reveal_condition_json"] = reveal_json
+
+                # Sync state payload cache
+                with state_lock:
+                    if stealth_order_id in engine_state["stealth_orders"]:
+                        state_order = engine_state["stealth_orders"][stealth_order_id]
+                        reveal_json = state_order.get("reveal_condition_json") or {}
+                        reveal_json["price_threshold"] = threshold
+                        if hold_secs is not None:
+                            reveal_json["hold_duration_seconds"] = hold_secs
+                        state_order["reveal_condition_json"] = reveal_json
+
+                response = {
+                    "type": "stealth_threshold_updated",
+                    "stealth_order_id": stealth_order_id,
+                    "price_threshold": threshold,
+                    "hold_duration_seconds": hold_secs,
+                }
+
+                add_log_entry("INFO", f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))
+                logger.info(f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))
+
+                message = json.dumps(response, cls=CustomJSONEncoder)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+
+                await websocket.send(json.dumps({"type": "update_success", "message": "Threshold updated"}))
+
+            except Exception as e:
+                logger.error(f"Failed to update stealth threshold: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update threshold: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Stealth threshold update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
         
         elif msg_type == "update_parent_target_movement":
             # Update target movement for a parent order
@@ -779,7 +916,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 await websocket.send(json.dumps(response))
                 logger.info(f"Sent {len(result or [])} move records to client")
-                
+
             except Exception as e:
                 logger.error(f"Failed to fetch move history: {e}")
                 response = {

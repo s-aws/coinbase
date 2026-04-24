@@ -198,6 +198,42 @@ def update_stealth_order_target_movement(stealth_order_id: str, target_movement:
         return False
 
 
+def update_stealth_order_price_threshold(stealth_order_id: str, price_threshold: float) -> bool:
+    """Update price_threshold inside reveal_condition_json for a price-based stealth order.
+
+    Args:
+        stealth_order_id: UUID of the stealth order.
+        price_threshold: New price threshold value.
+
+    Returns:
+        True if update successful, False otherwise.
+    """
+    try:
+        query = """
+        UPDATE stealth_orders
+        SET reveal_condition_json = jsonb_set(
+                COALESCE(reveal_condition_json, '{}'::jsonb),
+                '{price_threshold}',
+                to_jsonb(%s::numeric),
+                true
+            ),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE stealth_order_id = %s
+          AND reveal_condition_type = 'price'
+        """
+
+        rows_affected = DB_CLIENT.execute_update(
+            query,
+            (price_threshold, stealth_order_id)
+        )
+
+        return rows_affected > 0
+    except Exception as e:
+        logger.error(f"✗ Error updating stealth order threshold {stealth_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Update params - price_threshold: {price_threshold}")
+        return False
+
+
 def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
     """
     Get a stealth order by its ID.
