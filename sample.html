@@ -1,0 +1,370 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+function IconActivity({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 12h-4l-3 8L9 4l-3 8H2" />
+    </svg>
+  );
+}
+
+function IconTrendingUp({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M14 7h7v7" />
+    </svg>
+  );
+}
+
+function IconTrendingDown({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7l6 6 4-4 8 8" />
+      <path d="M14 17h7v-7" />
+    </svg>
+  );
+}
+
+function IconPause({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  );
+}
+
+function IconPlay({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+const WIDTH = 1100;
+const HEIGHT = 560;
+const PADDING = { top: 36, right: 78, bottom: 82, left: 68 };
+const PLOT_W = WIDTH - PADDING.left - PADDING.right;
+const PLOT_H = HEIGHT - PADDING.top - PADDING.bottom;
+const CANDLE_COUNT = 72;
+
+function seededRandom(seed) {
+  let value = seed;
+  return () => {
+    value = (value * 9301 + 49297) % 233280;
+    return value / 233280;
+  };
+}
+
+function generateMarketData(seed = 42, count = CANDLE_COUNT) {
+  const random = seededRandom(seed);
+  const data = [];
+  let price = 186.25;
+
+  for (let i = 0; i < count; i++) {
+    const drift = Math.sin(i / 7) * 0.28 + Math.cos(i / 15) * 0.18;
+    const shock = (random() - 0.48) * 3.3;
+    const open = price;
+    const close = Math.max(92, open + drift + shock);
+    const high = Math.max(open, close) + random() * 2.6 + 0.4;
+    const low = Math.min(open, close) - random() * 2.4 - 0.4;
+    const volume = Math.round(32000 + random() * 82000 + Math.abs(close - open) * 13000);
+
+    data.push({
+      index: i,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      label: `${String(9 + Math.floor(i / 6)).padStart(2, "0")}:${String((i % 6) * 10).padStart(2, "0")}`,
+    });
+
+    price = close;
+  }
+
+  return data;
+}
+
+function formatPrice(value) {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildPath(points) {
+  return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+}
+
+export default function TradingPriceAnimation() {
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [frame, setFrame] = useState(28);
+  const [seed, setSeed] = useState(42);
+  const rafRef = useRef(null);
+  const lastRef = useRef(0);
+
+  const data = useMemo(() => generateMarketData(seed), [seed]);
+  const visible = data.slice(0, frame);
+  const latest = visible[visible.length - 1] ?? data[0];
+  const previous = visible[visible.length - 2] ?? latest;
+  const change = latest.close - previous.close;
+  const changePct = previous.close ? (change / previous.close) * 100 : 0;
+  const isUp = change >= 0;
+
+  const minPrice = Math.min(...data.map((d) => d.low)) - 2;
+  const maxPrice = Math.max(...data.map((d) => d.high)) + 2;
+  const maxVolume = Math.max(...data.map((d) => d.volume));
+
+  const x = (i) => PADDING.left + (i / (CANDLE_COUNT - 1)) * PLOT_W;
+  const y = (price) => PADDING.top + ((maxPrice - price) / (maxPrice - minPrice)) * PLOT_H;
+  const volumeY = (volume) => HEIGHT - PADDING.bottom + 48 - (volume / maxVolume) * 54;
+
+  const linePoints = visible.map((d) => ({ x: x(d.index), y: y(d.close) }));
+  const linePath = buildPath(linePoints);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const tick = (time) => {
+      if (!lastRef.current) lastRef.current = time;
+      if (time - lastRef.current > 165) {
+        setFrame((current) => (current >= CANDLE_COUNT ? 18 : current + 1));
+        lastRef.current = time;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [isPlaying]);
+
+  const priceTicks = Array.from({ length: 6 }, (_, i) => minPrice + ((maxPrice - minPrice) / 5) * i).reverse();
+  const timeTicks = [0, 12, 24, 36, 48, 60, 71];
+
+  return (
+    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-sm text-slate-400">
+              <IconActivity className="h-4 w-4" />
+              Live market simulation
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight">Trading Price Fluctuation</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-400">
+              Animated OHLC candlestick chart with moving close-price trace, volume, price axis, time axis, and market-style quote panel.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button
+              className="rounded-2xl bg-slate-800 px-5 text-slate-100 hover:bg-slate-700"
+              onClick={() => setIsPlaying((v) => !v)}
+            >
+              {isPlaying ? <IconPause className="mr-2 h-4 w-4" /> : <IconPlay className="mr-2 h-4 w-4" />}
+              {isPlaying ? "Pause" : "Play"}
+            </Button>
+            <Button
+              className="rounded-2xl bg-slate-800 px-5 text-slate-100 hover:bg-slate-700"
+              onClick={() => {
+                setSeed((s) => s + 17);
+                setFrame(22);
+              }}
+            >
+              New session
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
+          <Card className="overflow-hidden rounded-3xl border-slate-800 bg-slate-900/80 shadow-2xl shadow-black/30">
+            <CardContent className="p-0">
+              <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-full w-full">
+                <defs>
+                  <linearGradient id="lineGlow" x1="0" x2="1" y1="0" y2="0">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity="0.95" />
+                  </linearGradient>
+                  <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                    <feMerge>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="#020617" />
+
+                {priceTicks.map((tick) => (
+                  <g key={tick}>
+                    <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={y(tick)} y2={y(tick)} stroke="#1e293b" strokeWidth="1" />
+                    <text x={WIDTH - PADDING.right + 14} y={y(tick) + 4} fill="#94a3b8" fontSize="12">
+                      {formatPrice(tick)}
+                    </text>
+                  </g>
+                ))}
+
+                {timeTicks.map((tick) => (
+                  <g key={tick}>
+                    <line x1={x(tick)} x2={x(tick)} y1={PADDING.top} y2={HEIGHT - PADDING.bottom + 48} stroke="#0f172a" strokeWidth="1" />
+                    <text x={x(tick) - 17} y={HEIGHT - 22} fill="#64748b" fontSize="12">
+                      {data[tick]?.label}
+                    </text>
+                  </g>
+                ))}
+
+                <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={HEIGHT - PADDING.bottom + 48} y2={HEIGHT - PADDING.bottom + 48} stroke="#334155" />
+                <line x1={PADDING.left} x2={PADDING.left} y1={PADDING.top} y2={HEIGHT - PADDING.bottom + 48} stroke="#334155" />
+
+                {visible.map((d) => {
+                  const cx = x(d.index);
+                  const rising = d.close >= d.open;
+                  const candleColor = rising ? "#22c55e" : "#ef4444";
+                  const bodyTop = y(Math.max(d.open, d.close));
+                  const bodyHeight = Math.max(3, Math.abs(y(d.open) - y(d.close)));
+                  const candleWidth = 8;
+
+                  return (
+                    <motion.g
+                      key={d.index}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      <line x1={cx} x2={cx} y1={y(d.high)} y2={y(d.low)} stroke={candleColor} strokeWidth="1.6" />
+                      <rect
+                        x={cx - candleWidth / 2}
+                        y={bodyTop}
+                        width={candleWidth}
+                        height={bodyHeight}
+                        rx="1.5"
+                        fill={rising ? "#22c55e" : "#ef4444"}
+                        opacity="0.92"
+                      />
+                      <rect
+                        x={cx - candleWidth / 2}
+                        y={volumeY(d.volume)}
+                        width={candleWidth}
+                        height={HEIGHT - PADDING.bottom + 48 - volumeY(d.volume)}
+                        rx="2"
+                        fill={rising ? "#16a34a" : "#dc2626"}
+                        opacity="0.35"
+                      />
+                    </motion.g>
+                  );
+                })}
+
+                {linePath && (
+                  <motion.path
+                    d={linePath}
+                    fill="none"
+                    stroke="url(#lineGlow)"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    filter="url(#glow)"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 0.55, ease: "easeOut" }}
+                  />
+                )}
+
+                {latest && (
+                  <motion.g key={`latest-${frame}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
+                    <line
+                      x1={PADDING.left}
+                      x2={WIDTH - PADDING.right}
+                      y1={y(latest.close)}
+                      y2={y(latest.close)}
+                      stroke={isUp ? "#22c55e" : "#ef4444"}
+                      strokeWidth="1.5"
+                      strokeDasharray="6 6"
+                      opacity="0.7"
+                    />
+                    <rect
+                      x={WIDTH - PADDING.right + 8}
+                      y={y(latest.close) - 14}
+                      width="64"
+                      height="28"
+                      rx="8"
+                      fill={isUp ? "#16a34a" : "#dc2626"}
+                    />
+                    <text x={WIDTH - PADDING.right + 18} y={y(latest.close) + 5} fill="white" fontSize="12" fontWeight="700">
+                      {formatPrice(latest.close)}
+                    </text>
+                    <circle cx={x(latest.index)} cy={y(latest.close)} r="5" fill={isUp ? "#22c55e" : "#ef4444"} filter="url(#glow)" />
+                  </motion.g>
+                )}
+
+                <text x={PADDING.left} y="24" fill="#e2e8f0" fontSize="14" fontWeight="700">
+                  SHDX / USD · 1m
+                </text>
+                <text x={PADDING.left + 126} y="24" fill="#64748b" fontSize="12">
+                  OHLC market visualization
+                </text>
+              </svg>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-5">
+            <Card className="rounded-3xl border-slate-800 bg-slate-900/80 shadow-xl shadow-black/20">
+              <CardContent className="space-y-5 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-slate-400">Last price</div>
+                    <div className="mt-1 text-3xl font-semibold">${formatPrice(latest.close)}</div>
+                  </div>
+                  <div className={`rounded-2xl p-3 ${isUp ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                    {isUp ? <IconTrendingUp className="h-7 w-7" /> : <IconTrendingDown className="h-7 w-7" />}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-2xl bg-slate-950/70 p-4">
+                    <div className="text-slate-500">Change</div>
+                    <div className={isUp ? "mt-1 font-semibold text-emerald-400" : "mt-1 font-semibold text-red-400"}>
+                      {isUp ? "+" : ""}{change.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/70 p-4">
+                    <div className="text-slate-500">Change %</div>
+                    <div className={isUp ? "mt-1 font-semibold text-emerald-400" : "mt-1 font-semibold text-red-400"}>
+                      {isUp ? "+" : ""}{changePct.toFixed(2)}%
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/70 p-4">
+                    <div className="text-slate-500">High</div>
+                    <div className="mt-1 font-semibold">${formatPrice(latest.high)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/70 p-4">
+                    <div className="text-slate-500">Low</div>
+                    <div className="mt-1 font-semibold">${formatPrice(latest.low)}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-3xl border-slate-800 bg-slate-900/80 shadow-xl shadow-black/20">
+              <CardContent className="p-6">
+                <div className="text-sm font-semibold text-slate-200">Industry chart conventions included</div>
+                <div className="mt-4 space-y-3 text-sm text-slate-400">
+                  <div>• OHLC candlesticks: open, high, low, close</div>
+                  <div>• Green/red price direction encoding</div>
+                  <div>• Right-aligned price scale</div>
+                  <div>• Bottom time scale</div>
+                  <div>• Volume bars below price action</div>
+                  <div>• Live last-price guide line</div>
+                  <div>• Quote panel with latest market values</div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

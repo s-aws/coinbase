@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investor Trading Execution Storyboard</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        #root {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #334155;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background: #1e293b;
+            color: #e2e8f0;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #334155;
+            border-color: #475569;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .chart-container {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #22c55e;
+        }
+
+        .metric-value.down {
+            color: #ef4444;
+        }
+
+        .status {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-top: 10px;
+            background: #0f172a;
+            color: #64748b;
+        }
+
+        .status.connected {
+            background: #16a34a;
+            color: #dcfce7;
+        }
+
+        .status.error {
+            background: #dc2626;
+            color: #fee2e2;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        const WIDTH = 1100;
+        const HEIGHT = 560;
+        const PADDING = { top: 36, right: 78, bottom: 82, left: 68 };
+        const PLOT_W = WIDTH - PADDING.left - PADDING.right;
+        const PLOT_H = HEIGHT - PADDING.top - PADDING.bottom;
+
+        function formatPrice(value) {
+            return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function buildPath(points) {
+            return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+        }
+
+        function TradingPriceAnimation({ candles, onLoopComplete }) {
+            const [isPlaying, setIsPlaying] = useState(true);
+            const [frame, setFrame] = useState(1);  // Start at first candle
+            const rafRef = useRef(null);
+            const lastRef = useRef(0);
+            const prevFrameRef = useRef(0);  // Track previous frame to detect loop completion
+
+            // Reset animation to first candle whenever new data arrives
+            useEffect(() => {
+                setFrame(1);
+                lastRef.current = 0;
+            }, [candles]);
+
+            const data = candles || [];
+            const visible = data.slice(0, frame);
+            const latest = visible[visible.length - 1] || data[0];
+            const previous = visible[visible.length - 2] || latest;
+            const change = (latest?.close || 0) - (previous?.close || 0);
+            const changePct = previous?.close ? (change / previous.close) * 100 : 0;
+            const isUp = change >= 0;
+
+            // Calculate price range with safeguards
+            const prices = data.flatMap(d => [d.low || 0, d.high || 0, d.close || 0, d.open || 0]).filter(p => isFinite(p) && p !== null);
+            const minPrice = prices.length > 0 ? Math.min(...prices) - 2 : 90;
+            const maxPrice = prices.length > 0 ? Math.max(...prices) + 2 : 110;
+            const priceRange = Math.max(0.01, maxPrice - minPrice); // Prevent division by zero
+            const maxVolume = Math.max(...data.map(d => d.volume || 0));
+
+            const x = (arrayIndex) => PADDING.left + (arrayIndex / (Math.max(1, data.length - 1))) * PLOT_W;
+            const y = (price) => {
+                const normalized = (maxPrice - price) / priceRange;
+                const result = PADDING.top + normalized * PLOT_H;
+                return isFinite(result) ? result : PADDING.top + PLOT_H / 2;
+            };
+            const volumeY = (volume) => HEIGHT - PADDING.bottom + 48 - (volume / Math.max(1, maxVolume)) * 54;
+
+            const linePoints = visible.map((d, idx) => ({ x: x(idx), y: y(d.close) }));
+            const linePath = buildPath(linePoints);
+
+            useEffect(() => {
+                if (!isPlaying) return;
+
+                const tick = (time) => {
+                    if (!lastRef.current) lastRef.current = time;
+                    // Slower animation: advance every 500ms instead of 165ms
+                    // This makes animation run longer (more time per candle reveal)
+                    if (time - lastRef.current > 500) {
+                        setFrame((current) => {
+                            // Animate from 1 to data.length, then loop back to 1
+                            const next = current >= data.length ? 1 : current + 1;
+                            
+                            // Detect loop completion: transition from last frame back to first
+                            if (current >= data.length && next === 1 && onLoopComplete) {
+                                onLoopComplete();
+                            }
+                            
+                            return next;
+                        });
+                        lastRef.current = time;
+                    }
+                    rafRef.current = requestAnimationFrame(tick);
+                };
+
+                rafRef.current = requestAnimationFrame(tick);
+                return () => cancelAnimationFrame(rafRef.current);
+            }, [isPlaying, data.length, onLoopComplete]);
+
+            const priceTicks = Array.from({ length: 6 }, (_, i) => minPrice + ((maxPrice - minPrice) / 5) * i).reverse();
+            const timeTicks = Array.from({ length: Math.min(7, data.length) }, (_, i) => Math.floor(i * (data.length - 1) / 6));
+
+            return (
+                <div className="chart-container">
+                    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
+                        <defs>
+                            <linearGradient id="lineGlow" x1="0" x2="1" y1="0" y2="0">
+                                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
+                                <stop offset="100%" stopColor="#22c55e" stopOpacity="0.95" />
+                            </linearGradient>
+                            <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+                                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                                <feMerge>
+                                    <feMergeNode in="coloredBlur" />
+                                    <feMergeNode in="SourceGraphic" />
+                                </feMerge>
+                            </filter>
+                        </defs>
+
+                        <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="#020617" />
+
+                        {/* Price ticks */}
+                        {priceTicks.map((tick) => (
+                            <g key={`price-${tick}`}>
+                                <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={y(tick)} y2={y(tick)} stroke="#1e293b" strokeWidth="1" />
+                                <text x={WIDTH - PADDING.right + 14} y={y(tick) + 4} fill="#94a3b8" fontSize="12">
+                                    {formatPrice(tick)}
+                                </text>
+                            </g>
+                        ))}
+
+                        {/* Time ticks */}
+                        {timeTicks.map((tick) => (
+                            <g key={`time-${tick}`}>
+                                <line x1={x(tick)} x2={x(tick)} y1={PADDING.top} y2={HEIGHT - PADDING.bottom + 48} stroke="#0f172a" strokeWidth="1" />
+                                <text x={x(tick) - 17} y={HEIGHT - 22} fill="#64748b" fontSize="12">
+                                    {data[tick]?.label || `T+${tick}`}
+                                </text>
+                            </g>
+                        ))}
+
+                        {/* Axes */}
+                        <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={HEIGHT - PADDING.bottom + 48} y2={HEIGHT - PADDING.bottom + 48} stroke="#334155" />
+                        <line x1={PADDING.left} x2={PADDING.left} y1={PADDING.top} y2={HEIGHT - PADDING.bottom + 48} stroke="#334155" />
+
+                        {/* Candlesticks */}
+                        {visible.map((d, arrayIndex) => {
+                            const cx = x(arrayIndex);
+                            const rising = d.close >= d.open;
+                            const candleColor = rising ? "#22c55e" : "#ef4444";
+                            const bodyTop = y(Math.max(d.open, d.close));
+                            const bodyHeight = Math.max(3, Math.abs(y(d.open) - y(d.close)));
+                            const candleWidth = 8;
+
+                            return (
+                                <g key={d.index} style={{ opacity: 0, animation: `fadeIn 0.22s ease-out 0s forwards` }}>
+                                    <line x1={cx} x2={cx} y1={y(d.high)} y2={y(d.low)} stroke={candleColor} strokeWidth="1.6" />
+                                    <rect x={cx - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} rx="1.5" fill={candleColor} opacity="0.92" />
+                                    <rect x={cx - candleWidth / 2} y={volumeY(d.volume)} width={candleWidth} height={HEIGHT - PADDING.bottom + 48 - volumeY(d.volume)} rx="2" fill={rising ? "#16a34a" : "#dc2626"} opacity="0.35" />
+                                </g>
+                            );
+                        })}
+
+                        {/* Price line */}
+                        {linePath && (
+                            <path
+                                d={linePath}
+                                fill="none"
+                                stroke="url(#lineGlow)"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                filter="url(#glow)"
+                                style={{ opacity: 0, animation: `fadeIn 0.55s ease-out 0.1s forwards` }}
+                            />
+                        )}
+
+                        {/* Current price indicator */}
+                        {latest && (() => {
+                            const latestIndex = visible.length - 1;
+                            return (
+                                <g key={`latest-${frame}`}>
+                                    <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={y(latest.close)} y2={y(latest.close)} stroke={isUp ? "#22c55e" : "#ef4444"} strokeWidth="1.5" strokeDasharray="6 6" opacity="0.7" />
+                                    <rect x={WIDTH - PADDING.right + 8} y={y(latest.close) - 14} width="64" height="28" rx="8" fill={isUp ? "#16a34a" : "#dc2626"} />
+                                    <text x={WIDTH - PADDING.right + 18} y={y(latest.close) + 5} fill="white" fontSize="12" fontWeight="700">
+                                        {formatPrice(latest.close)}
+                                    </text>
+                                    <circle cx={x(latestIndex)} cy={y(latest.close)} r="5" fill={isUp ? "#22c55e" : "#ef4444"} filter="url(#glow)" />
+                                </g>
+                            );
+                        })()}
+
+                        <text x={PADDING.left} y="24" fill="#e2e8f0" fontSize="14" fontWeight="700">
+                            Trading Execution · Live
+                        </text>
+                        <text x={PADDING.left + 200} y="24" fill="#64748b" fontSize="12">
+                            OHLC candlestick animation
+                        </text>
+                    </svg>
+
+                    <style>{`
+                        @keyframes fadeIn {
+                            from { opacity: 0; }
+                            to { opacity: 1; }
+                        }
+                    `}</style>
+                </div>
+            );
+        }
+
+        function InvestorStoryboard() {
+            const [candles, setCandles] = useState([]);
+            const [connectionStatus, setConnectionStatus] = useState("Connecting...");
+            const [isConnected, setIsConnected] = useState(false);
+            const [windowMinutes, setWindowMinutes] = useState(10080); // default 7 days
+            const wsRef = useRef(null);
+            const windowMinutesRef = useRef(10080);
+            const frameRef = useRef(0);
+
+            // Generate placeholder data when no real data available
+            const placeholderCandles = () => {
+                const candles = [];
+                let price = 100.0;
+                for (let i = 0; i < 20; i++) {
+                    const drift = (Math.random() - 0.5) * 3;
+                    price = Math.max(50, price + drift);
+                    candles.push({
+                        index: i,
+                        label: `${String(9 + Math.floor(i / 6)).padStart(2, '0')}:${String((i % 6) * 10).padStart(2, '0')}`,
+                        open: price,
+                        high: price + Math.abs((Math.random() - 0.5) * 2),
+                        low: price - Math.abs((Math.random() - 0.5) * 2),
+                        close: price + (Math.random() - 0.5) * 1,
+                        volume: Math.round(Math.random() * 40000 + 5000),
+                    });
+                }
+                return candles;
+            };
+
+            // Initialize with placeholder data
+            const displayCandles = candles.length > 0 ? candles : placeholderCandles();
+
+            const connect = useCallback(() => {
+                // Determine WebSocket URL
+                let wsUrl;
+                if (window.location.host) {
+                    // Normal web context
+                    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+                    wsUrl = `${protocol}//${window.location.host}`;
+                } else {
+                    // File:// context or missing host - use default localhost
+                    wsUrl = "ws://localhost:8765";
+                }
+                
+                setConnectionStatus(`Connecting to ${wsUrl}...`);
+                
+                try {
+                    wsRef.current = new WebSocket(wsUrl);
+                } catch (e) {
+                    setConnectionStatus(`Connection Failed: ${e.message}`);
+                    setIsConnected(false);
+                    return;
+                }
+                
+                wsRef.current.onopen = () => {
+                    setConnectionStatus("Connected");
+                    setIsConnected(true);
+                    
+                    // Request initial snapshot
+                    wsRef.current.send(JSON.stringify({
+                        type: "request_investor_storyboard",
+                        params: {
+                            window_minutes: windowMinutesRef.current,
+                            bucket_seconds: null,
+                            product_id: null
+                        }
+                    }));
+                };
+
+                wsRef.current.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        
+                        if (msg.type === "investor_storyboard" && msg.candles) {
+                            setCandles(msg.candles);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse message:", e);
+                    }
+                };
+
+                wsRef.current.onerror = (error) => {
+                    setConnectionStatus("Connection Error - Is dashboard_server running?");
+                    setIsConnected(false);
+                    console.error("WebSocket error:", error);
+                };
+
+                wsRef.current.onclose = () => {
+                    setConnectionStatus("Disconnected");
+                    setIsConnected(false);
+                };
+            }, []);
+
+            useEffect(() => {
+                connect();
+                
+                return () => {
+                    if (wsRef.current) {
+                        wsRef.current.close();
+                    }
+                };
+            }, [connect]);
+
+            const requestRefresh = (mins) => {
+                const w = mins !== undefined ? mins : windowMinutesRef.current;
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        type: "request_investor_storyboard",
+                        params: {
+                            window_minutes: w,
+                            bucket_seconds: null,
+                            product_id: null
+                        }
+                    }));
+                }
+            };
+
+            const handleWindowChange = (mins) => {
+                windowMinutesRef.current = mins;
+                setWindowMinutes(mins);
+                requestRefresh(mins);
+            };
+
+            const latest = displayCandles[displayCandles.length - 1];
+            const previous = displayCandles[displayCandles.length - 2] || latest;
+            const change = (latest?.close || 0) - (previous?.close || 0);
+            const changePct = previous?.close ? (change / previous.close) * 100 : 0;
+            const isUp = change >= 0;
+
+            return (
+                <div>
+                    <div className="header">
+                        <h1>Trading Execution Storyboard</h1>
+                        <p>Real-time visualization of order execution dynamics for executive oversight</p>
+                    </div>
+
+                    <div className="controls">
+                        {[
+                            { label: '1H',  mins: 60 },
+                            { label: '6H',  mins: 360 },
+                            { label: '24H', mins: 1440 },
+                            { label: '7D',  mins: 10080 },
+                            { label: '30D', mins: 43200 },
+                        ].map(({ label, mins }) => (
+                            <button
+                                key={label}
+                                onClick={() => handleWindowChange(mins)}
+                                style={windowMinutes === mins ? { background: '#334155', borderColor: '#22c55e', color: '#22c55e' } : {}}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                        <button onClick={() => requestRefresh()}>↻ Refresh</button>
+                        <div className={`status ${isConnected ? 'connected' : 'error'}`}>
+                            ● {connectionStatus}
+                        </div>
+                    </div>
+
+                    {!isConnected && candles.length === 0 && (
+                        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginBottom: '20px', color: '#94a3b8' }}>
+                            <strong>ℹ️ Not Connected</strong> — Showing placeholder data. To connect to live data:
+                            <ol style={{ marginTop: '10px', marginLeft: '20px', fontSize: '14px' }}>
+                                <li>Start dashboard server: <code style={{ background: '#0f172a', padding: '2px 6px', borderRadius: '3px' }}>python dashboard_server.py</code></li>
+                                <li>Refresh this page or navigate from the main dashboard</li>
+                            </ol>
+                        </div>
+                    )}
+
+                    <div className="metrics-grid">
+                        <div className="metric-card">
+                            <div className="metric-label">Latest Price</div>
+                            <div className="metric-value">
+                                ${formatPrice(latest?.close || 0)}
+                            </div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Change</div>
+                            <div className={`metric-value ${isUp ? '' : 'down'}`}>
+                                {isUp ? '+' : ''}{change.toFixed(2)}
+                            </div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Change %</div>
+                            <div className={`metric-value ${isUp ? '' : 'down'}`}>
+                                {isUp ? '+' : ''}{changePct.toFixed(2)}%
+                            </div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Volume (Latest)</div>
+                            <div className="metric-value">
+                                {(latest?.volume || 0).toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+
+                    <TradingPriceAnimation candles={displayCandles} onLoopComplete={requestRefresh} />
+
+                    <div className="metrics-grid">
+                        <div className="metric-card">
+                            <div className="metric-label">Candles Displayed</div>
+                            <div className="metric-value">{displayCandles.length}</div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">High (Window)</div>
+                            <div className="metric-value">
+                                ${formatPrice(Math.max(...displayCandles.map(c => c.high || 0)) || 0)}
+                            </div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Low (Window)</div>
+                            <div className="metric-value">
+                                ${formatPrice(Math.min(...displayCandles.map(c => c.low || 0)) || 0)}
+                            </div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Total Volume</div>
+                            <div className="metric-value">
+                                {displayCandles.reduce((sum, c) => sum + (c.volume || 0), 0).toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<InvestorStoryboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>

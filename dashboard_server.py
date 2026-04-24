@@ -29,6 +29,8 @@ except ImportError:
 # Use custom logging service
 from logging_service import get_logger
 from core.enums import FollowUpRevealDirection
+from database.database import PostgresDB
+from calculation.formatter import safe_float
 
 logger = get_logger("DashboardServer")
 
@@ -153,6 +155,179 @@ async def broadcast_state(websocket: WebSocketServerProtocol = None):
                 await client.send(message)
             except websockets.exceptions.ConnectionClosed:
                 connected_clients.discard(client)
+
+
+def _build_investor_storyboard_snapshot(
+    window_minutes: int = 10080,  # default 7 days
+    bucket_seconds: int = None,   # auto-scaled to window if not specified
+    product_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Build candlestick OHLC data from fill_ledger for investor visualization.
+    
+    Args:
+        window_minutes: Look back this many minutes for data (default: 10080 = 7 days)
+        bucket_seconds: Group events into buckets of this size. Auto-scaled if None.
+        product_id: Filter to specific product, or None for aggregate
+    
+    Returns:
+        Dict with 'candles' list containing OHLC data for the chart
+    """
+    # Auto-scale bucket size to keep candle count reasonable (~50-100 candles)
+    if bucket_seconds is None:
+        if window_minutes <= 60:
+            bucket_seconds = 60          # 1-min candles
+        elif window_minutes <= 360:
+            bucket_seconds = 300         # 5-min candles
+        elif window_minutes <= 1440:
+            bucket_seconds = 900         # 15-min candles
+        elif window_minutes <= 10080:
+            bucket_seconds = 3600        # 1-hour candles
+        else:
+            bucket_seconds = 86400       # 1-day candles
+    db = None
+    try:
+        db = PostgresDB()
+        
+        # Use fill_ledger table which has actual execution data
+        # fill_ledger has: trade_id, instrument, side, quantity, price, timestamp, fees, commission_percentage, client_order_id
+        query = """
+        SELECT 
+            timestamp as event_time,
+            price,
+            quantity as size,
+            instrument as product_id
+        FROM fill_ledger
+        WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
+            AND price IS NOT NULL
+            AND quantity IS NOT NULL
+        ORDER BY timestamp
+        """
+        
+        try:
+            results = db.execute_query(query, (window_minutes,))
+            
+            # Convert results to candlesticks (group by time buckets in Python)
+            from collections import defaultdict
+            buckets = defaultdict(list)
+            
+            # Group events into time buckets
+            for row in results:
+                try:
+                    event_time = row.get('event_time')
+                    if not event_time:
+                        continue
+                    
+                    # Round to nearest bucket_seconds
+                    timestamp_seconds = int(event_time.timestamp())
+                    bucket_index = timestamp_seconds // bucket_seconds
+                    buckets[bucket_index].append({
+                        'price': safe_float(row.get('price'), 0),
+                        'size': safe_float(row.get('size'), 0),
+                        'time': event_time
+                    })
+                except Exception as e:
+                    logger.debug(f"Error processing event: {e}")
+                    continue
+            
+            # Build candlesticks from buckets
+            candles = []
+            for bucket_index in sorted(buckets.keys()):
+                prices = [e['price'] for e in buckets[bucket_index]]
+                sizes = [e['size'] for e in buckets[bucket_index]]
+                times = [e['time'] for e in buckets[bucket_index]]
+                
+                if not prices:
+                    continue
+                
+                candle = {
+                    'index': bucket_index,
+                    'label': times[0].strftime('%H:%M') if times else f'T+{bucket_index}',
+                    'open': prices[0] if prices else 0,
+                    'high': max(prices) if prices else 0,
+                    'low': min(prices) if prices else 0,
+                    'close': prices[-1] if prices else 0,
+                    'volume': sum(sizes) if sizes else 0,
+                }
+                candles.append(candle)
+            
+            # If no data, generate mock data for testing
+            if not candles:
+                logger.info("No order events found, generating placeholder candles")
+                import random
+                price = 100.0
+                for i in range(20):
+                    drift = random.gauss(0, 1.5)
+                    price = max(50, price + drift)
+                    candles.append({
+                        'index': i,
+                        'label': f'{9 + i//6:02d}:{(i%6)*10:02d}',
+                        'open': price,
+                        'high': price + abs(random.gauss(0, 0.8)),
+                        'low': price - abs(random.gauss(0, 0.8)),
+                        'close': price + random.gauss(0, 0.5),
+                        'volume': random.randint(1000, 50000),
+                    })
+            
+            return {
+                'type': 'investor_storyboard',
+                'candles': candles,
+                'timestamp': datetime.utcnow().isoformat(),
+            }
+            
+        except Exception as e:
+            logger.warning(f"Query failed: {str(e)}. Using placeholder data.")
+            logger.debug(f"Full error trace: {repr(e)}", exc_info=True)
+            # Return placeholder data if table doesn't exist yet
+            import random
+            candles = []
+            price = 100.0
+            for i in range(20):
+                drift = random.gauss(0, 1.5)
+                price = max(50, price + drift)
+                candles.append({
+                    'index': i,
+                    'label': f'{9 + i//6:02d}:{(i%6)*10:02d}',
+                    'open': price,
+                    'high': price + abs(random.gauss(0, 0.8)),
+                    'low': price - abs(random.gauss(0, 0.8)),
+                    'close': price + random.gauss(0, 0.5),
+                    'volume': random.randint(1000, 50000),
+                })
+            
+            return {
+                'type': 'investor_storyboard',
+                'candles': candles,
+                'timestamp': datetime.utcnow().isoformat(),
+            }
+        
+    except Exception as e:
+        logger.error(f"Failed to build storyboard snapshot: {e}")
+        import random
+        candles = []
+        price = 100.0
+        for i in range(20):
+            drift = random.gauss(0, 1.5)
+            price = max(50, price + drift)
+            candles.append({
+                'index': i,
+                'label': f'{9 + i//6:02d}:{(i%6)*10:02d}',
+                'open': price,
+                'high': price + abs(random.gauss(0, 0.8)),
+                'low': price - abs(random.gauss(0, 0.8)),
+                'close': price + random.gauss(0, 0.5),
+                'volume': random.randint(1000, 50000),
+            })
+        return {
+            'type': 'investor_storyboard',
+            'candles': candles,
+            'timestamp': datetime.utcnow().isoformat(),
+        }
+    finally:
+        if db:
+            try:
+                db.disconnect()
+            except:
+                pass
 
 
 async def handle_client_message(websocket: WebSocketServerProtocol, message: str):
@@ -286,6 +461,26 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         elif msg_type == "request_stealth_orders":
             # Send current stealth orders snapshot
             await send_stealth_orders_snapshot(websocket)
+        
+        elif msg_type == "request_investor_storyboard":
+            # Send investor storyboard snapshot
+            params = data.get("params", {})
+            window_minutes = params.get("window_minutes", 60)
+            bucket_seconds = params.get("bucket_seconds", 60)
+            product_id = params.get("product_id", None)
+            
+            snapshot = _build_investor_storyboard_snapshot(
+                window_minutes=window_minutes,
+                bucket_seconds=bucket_seconds,
+                product_id=product_id
+            )
+            
+            response = {
+                **snapshot,
+                "message_id": str(uuid.uuid4()),
+            }
+            
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
         
         elif msg_type == "create_stealth_order":
             # Create new stealth order

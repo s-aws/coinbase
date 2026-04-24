@@ -81,7 +81,7 @@ class PostgresDB:
             Error: If connection fails due to invalid credentials or database unavailable.
         """
         try:
-            logger.info(f"Attempting connection to PostgreSQL at {self.host}:{self.port} (db: {self.database})")
+            logger.debug(f"Attempting connection to PostgreSQL at {self.host}:{self.port} (db: {self.database})")
             self._conn = psycopg2.connect(
                 host=self.host,
                 port=self.port,
@@ -89,7 +89,7 @@ class PostgresDB:
                 user=self.user,
                 password=self.password
             )
-            logger.info(f"Successfully connected to PostgreSQL at {self.host}:{self.port}")
+            logger.debug(f"Successfully connected to PostgreSQL at {self.host}:{self.port}")
         except Error as e:
             logger.error(f"Failed to connect to PostgreSQL at {self.host}:{self.port}: {type(e).__name__}: {e}")
             raise
@@ -103,7 +103,7 @@ class PostgresDB:
         """
         if self._conn:
             self._conn.close()
-            logger.info("Disconnected from PostgreSQL")
+            logger.debug("Disconnected from PostgreSQL")
     
     @contextmanager
     def get_cursor(self):
