@@ -50,7 +50,7 @@ class FeeManager:
     
     Features:
     - Fetches actual taker fees from Coinbase transaction_summary endpoint
-    - Multiplies base fee by 4x (2x each way) for profit validation
+    - Multiplies base fee by 2x (1x each way) for profit validation
     - Auto-refreshes hourly in background thread
     - Thread-safe access with RWLock
     - Fallback to conservative default if API unavailable
@@ -62,16 +62,16 @@ class FeeManager:
         >>> 
         >>> # Get current effective fee for profit validation
         >>> effective_fee = manager.get_effective_fee_rate()
-        >>> print(f"Effective fee (base * 4x): {effective_fee:.6f}")
+        >>> print(f"Effective fee (base * 2x): {effective_fee:.6f}")
         
         >>> # Get individual fees
         >>> base_fee = manager.get_taker_fee_rate()
         >>> profit_fee = manager.get_profit_validation_fee_rate()
     """
     
-    # Conservative defaults (0.6% taker + 4x multiplier = 2.4%)
+    # Conservative defaults (0.6% taker + 2x multiplier = 1.2%)
     DEFAULT_TAKER_FEE_RATE = 0.0060  # 0.6% from API documentation
-    DEFAULT_MULTIPLIER = 4.0
+    DEFAULT_MULTIPLIER = 2.0
     REFRESH_INTERVAL_SECONDS = 3600  # 1 hour
     
     def __init__(self, rest_client, log_callback=None):
