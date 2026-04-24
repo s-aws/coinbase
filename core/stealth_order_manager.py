@@ -29,34 +29,34 @@ Extension points:
 - Extend sizing_strategy handling for advanced execution profiles.
 
 Example: immediate reveal order
-        >>> order_id = manager.create_stealth_order(
-        ...     product_id='BTC-USDC',
-        ...     side='BUY',
-        ...     total_size=0.25,
-        ...     limit_price=42000.0,
-        ...     reveal_condition={'type': 'time_delay', 'delay_seconds': 0},
-        ... )
+    >>> order_id = manager.create_stealth_order(
+    ...     product_id='BTC-USDC',
+    ...     side='BUY',
+    ...     total_size=0.25,
+    ...     limit_price=42000.0,
+    ...     reveal_condition={'type': 'time_delay', 'delay_seconds': 0},
+    ... )
 
 Example: price-triggered reveal order
-        >>> order_id = manager.create_stealth_order(
-        ...     product_id='BTC-USDC',
-        ...     side='SELL',
-        ...     total_size=0.25,
-        ...     limit_price=42500.0,
-        ...     reveal_condition={
-        ...         'type': 'price_threshold',
-        ...         'price_threshold': 42400.0,
-        ...         'direction': 'above',
-        ...         'hold_duration_seconds': 2,
-        ...     },
-        ...     follow_up_reveal_direction='opposite',
-        ... )
+    >>> order_id = manager.create_stealth_order(
+    ...     product_id='BTC-USDC',
+    ...     side='SELL',
+    ...     total_size=0.25,
+    ...     limit_price=42500.0,
+    ...     reveal_condition={
+    ...         'type': 'price_threshold',
+    ...         'price_threshold': 42400.0,
+    ...         'direction': 'above',
+    ...         'hold_duration_seconds': 2,
+    ...     },
+    ...     follow_up_reveal_direction='opposite',
+    ... )
 
 Example: evaluate and reveal from scheduler loop
-        >>> should_reveal, reason = manager.should_trigger_reveal(order_id)
-        >>> if should_reveal:
-        ...     client_order_id = manager.reveal_order_slice(order_id)
-        ...     assert isinstance(client_order_id, str)
+    >>> should_reveal, reason = manager.should_trigger_reveal(order_id)
+    >>> if should_reveal:
+    ...     client_order_id = manager.reveal_order_slice(order_id)
+    ...     assert isinstance(client_order_id, str)
 """
 
 
@@ -73,25 +73,47 @@ from logging_service import get_logger
 
 
 class StealthOrderManager:
-    """Manages the complete lifecycle of all orders with automated reveal conditions.
-    
-    ARCHITECTURE: This is now the ONLY order creation and management system.
-    All orders flow through this system:
-    - Orders start in HIDDEN state with a reveal_condition
-    - The reveal_condition controls when/how orders transition to the exchange
-    - A reveal_condition with delay=0 creates immediate reveals (traditional orders)
-    - More complex conditions enable sophisticated trading strategies
-    
-    The term "stealth" is internal - from the API perspective, these are just orders
-    with configurable reveal timing.
-    
-    Features:
-    - Create orders with flexible reveal conditions (time-based, price-based, etc.)
-    - Evaluate conditions in real-time
-    - Adaptive sizing (volume-proportional reveals)
-    - Track execution and history
-    - Database integration
-    - Parent:Child order relationships (1:Many)
+    """Unified order creation manager with condition-driven reveal lifecycle.
+
+    All parent and follow-up orders are created through this class and begin in
+    hidden/pending lifecycle states until reveal conditions are satisfied.
+
+    Runtime responsibilities:
+    - Persist order intent and lifecycle metadata.
+    - Evaluate reveal conditions via evaluator factory.
+    - Submit revealed slices to exchange through placement flow.
+    - Track revealed/remaining/executed quantities.
+    - Maintain parent-child linkage metadata for downstream order engine logic.
+    - Expose hook points for pre/post order placement business rules.
+
+    Integration guidance:
+    - Use this manager to create both immediate and delayed orders.
+    - Prefer client_order_id (stealth_order_id) for internal orchestration.
+    - Add new reveal behaviors by extending evaluator types, not by branching
+        parallel creation paths.
+
+    Example: extending evaluator types
+        >>> # In business/stealth_condition_evaluator.py
+        >>> class LiquidityWallEvaluator(ConditionEvaluator):
+        ...     def evaluate(self, market_data, condition_config, order_data):
+        ...         wall_size = condition_config.get('wall_size', 0)
+        ...         bid_size = market_data.get('best_bid_size', 0)
+        ...         return (bid_size >= wall_size, f'bid_size={bid_size}, wall_size={wall_size}')
+        >>>
+        >>> # Register in get_evaluator()
+        >>> # evaluators['liquidity_wall'] = LiquidityWallEvaluator
+        >>>
+        >>> # Then use the new condition type when creating an order
+        >>> order_id = manager.create_stealth_order(
+        ...     product_id='BTC-USDC',
+        ...     side='BUY',
+        ...     total_size=0.5,
+        ...     limit_price=42000.0,
+        ...     reveal_condition={
+        ...         'type': 'liquidity_wall',
+        ...         'wall_size': 25.0,
+        ...     },
+        ... )
     """
     
     def __init__(self, db_client, log_callback=None, order_placement_hooks=None):

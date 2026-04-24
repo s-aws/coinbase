@@ -1,59 +1,55 @@
-"""OrderEngine - Multithreaded event-driven order lifecycle engine.
+"""OrderEngine - multithreaded event-driven order lifecycle engine.
 
-This module is the runtime coordinator between Coinbase WebSocket events,
-thread-safe in-memory state, and persistent order/position tracking.
+This module coordinates Coinbase WebSocket events, thread-safe in-memory state,
+and persistent order/position tracking.
 
 Current feature set:
-- Real-time user/ticker WebSocket ingestion and channel queue fan-out.
-- Event deduplication using rolling hash buckets (via EventBridge).
-- Thread-safe orderbook mutation (RLock-protected state transitions).
-- Parent-child lifecycle management with flat hierarchy enforcement.
-- Follow-up creation for FILLED/CANCELLED flows using target movement rules.
+- Real-time user/ticker ingestion and channel queue fan-out.
+- Event deduplication via rolling hash buckets (EventBridge).
+- RLock-protected orderbook mutations.
+- Parent-child lifecycle management with flat hierarchy semantics.
+- Follow-up generation for FILLED/CANCELLED flows using target movement rules.
 - Stealth order integration via StealthOrderBridge and reveal-linked fills.
-- Optional lot tracking and post-fill hooks for ledger + analytics pipelines.
+- Optional lot tracking via post-fill hooks.
 - Optional dashboard broadcasting for orders, positions, ticker, and logs.
-- Calculation and processing helpers via CalculatorBridge/ProcessorBridge.
+- Calculation/processing helpers through CalculatorBridge and ProcessorBridge.
 
 Critical ID semantics:
-- Use client_order_id for all internal tracking and parent-child relationships.
-- Map to order_id only for logging (order_id can change on replacement).
+- Use client_order_id for all internal tracking and parent-child linkage.
+- Use order_id only for exchange-facing operations and external references.
 
 Extension points:
-- websocket_hooks: Register custom WebSocket message handlers without
-    modifying the core event loop.
-- fill_event_hooks: Register post-fill business hooks for persistence,
-    notifications, risk, or analytics.
-- logging_flags and build_event_log_payload(): add structured observability
-    without changing execution logic.
+- websocket_hooks: add custom WebSocket message handlers without forking core loops.
+- fill_event_hooks: add post-fill business integrations (risk, analytics, persistence).
+- logging_flags + structured payload builders: increase observability safely.
 
 Example: initialize and run
-        >>> from core.order_engine import OrderEngine
-        >>> engine = OrderEngine(
-        ...     orderbook=ORDERBOOK,
-        ...     db_helper=DB_HELPER,
-        ...     subscription=Subscription,
-        ...     api_key=API_KEY,
-        ...     api_secret=API_SECRET,
-        ...     order_post_only=ORDER_POST_ONLY,
-        ...     websocket_thread_maximum=2,
-        ...     max_workers=8,
-        ... )
-        >>> engine.logging_flags['order'] = True
-        >>> engine.run_forever()
+    >>> from core.order_engine import OrderEngine
+    >>> engine = OrderEngine(
+    ...     orderbook=ORDERBOOK,
+    ...     db_helper=DB_HELPER,
+    ...     subscription=Subscription,
+    ...     api_key=API_KEY,
+    ...     api_secret=API_SECRET,
+    ...     order_post_only=ORDER_POST_ONLY,
+    ...     websocket_thread_maximum=2,
+    ...     max_workers=8,
+    ... )
+    >>> engine.logging_flags['order'] = True
+    >>> engine.run_forever()
 
 Example: register a custom fill hook
-        >>> def my_fill_hook(fill_context: dict) -> None:
-        ...     # Custom business integration: risk check, audit sink, metrics, etc.
-        ...     return
-        >>> if engine.fill_event_hooks:
-        ...     engine.fill_event_hooks.register('my_fill_hook', my_fill_hook)
+    >>> def my_fill_hook(fill_context: dict) -> None:
+    ...     return
+    >>> if engine.fill_event_hooks:
+    ...     engine.fill_event_hooks.register('my_fill_hook', my_fill_hook)
 
-Example: resolve parent linkage for an incoming fill
-        >>> is_parent, parent_id = engine.resolve_parent_client_order_id(
-        ...     client_order_id='550e8400-e29b-41d4-a716-446655440000'
-        ... )
-        >>> isinstance(is_parent, bool) and isinstance(parent_id, str)
-        True
+Example: resolve parent linkage
+    >>> is_parent, parent_id = engine.resolve_parent_client_order_id(
+    ...     client_order_id='550e8400-e29b-41d4-a716-446655440000'
+    ... )
+    >>> isinstance(is_parent, bool)
+    True
 """
 
 import json
@@ -109,9 +105,8 @@ except ImportError:
 class OrderEngine:
     """Multithreaded trading engine for Coinbase Advanced API order management.
     
-    Orchestrates real-time order processing, parent-child order relationship tracking,
-    and automatic follow-up order creation. Handles all threading, state management,
-    and event deduplication.
+    Orchestrates realtime event processing, parent-child tracking, follow-up
+    creation, and optional business integrations (dashboard, lot tracking, hooks).
     
     Attributes:
         orderbook: OrderBook instance (source-of-truth for orders/positions).
@@ -135,6 +130,8 @@ class OrderEngine:
         proc_bridge: ProcessorBridge instance for order processing.
         evt_bridge: EventBridge instance for event deduplication and bucket rotation.
         websocket_events: Event type schemas (internal reference).
+        websocket_hooks: Registry for WebSocket extension hooks.
+        fill_event_hooks: Registry for post-fill extension hooks.
     
     Example:
         >>> from core.order_engine import OrderEngine
@@ -148,8 +145,8 @@ class OrderEngine:
         ...     websocket_thread_maximum=2,
         ...     max_workers=8
         ... )
-        >>> engine.logging_flags['order'] = True  # Enable order logging
-        >>> engine.run_forever()  # Start all background threads and loop
+        >>> engine.logging_flags['order'] = True
+        >>> engine.run_forever()
     """
 
     def __init__(
