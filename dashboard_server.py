@@ -817,11 +817,34 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     await websocket.send(json.dumps(response))
                     return
 
-                success = update_stealth_order_price_threshold(
-                    stealth_order_id=stealth_order_id,
-                    price_threshold=threshold,
-                    hold_duration_seconds=hold_secs,
-                )
+                hold_duration_persisted = hold_secs is None
+                try:
+                    if hold_secs is None:
+                        success = update_stealth_order_price_threshold(
+                            stealth_order_id=stealth_order_id,
+                            price_threshold=threshold,
+                        )
+                    else:
+                        success = update_stealth_order_price_threshold(
+                            stealth_order_id=stealth_order_id,
+                            price_threshold=threshold,
+                            hold_duration_seconds=hold_secs,
+                        )
+                        hold_duration_persisted = True
+                except TypeError as type_err:
+                    # Backward compatibility for stale/legacy runtime where the helper
+                    # still accepts only (stealth_order_id, price_threshold).
+                    if "unexpected keyword argument 'hold_duration_seconds'" not in str(type_err):
+                        raise
+
+                    logger.warning(
+                        "update_stealth_order_price_threshold loaded without hold_duration_seconds support; retrying threshold-only update"
+                    )
+                    success = update_stealth_order_price_threshold(
+                        stealth_order_id=stealth_order_id,
+                        price_threshold=threshold,
+                    )
+                    hold_duration_persisted = False
 
                 if not success:
                     response = {
@@ -837,7 +860,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     if in_mem is not None:
                         reveal_json = in_mem.get("reveal_condition_json") or {}
                         reveal_json["price_threshold"] = threshold
-                        if hold_secs is not None:
+                        if hold_secs is not None and hold_duration_persisted:
                             reveal_json["hold_duration_seconds"] = hold_secs
                         in_mem["reveal_condition_json"] = reveal_json
 
@@ -847,7 +870,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         state_order = engine_state["stealth_orders"][stealth_order_id]
                         reveal_json = state_order.get("reveal_condition_json") or {}
                         reveal_json["price_threshold"] = threshold
-                        if hold_secs is not None:
+                        if hold_secs is not None and hold_duration_persisted:
                             reveal_json["hold_duration_seconds"] = hold_secs
                         state_order["reveal_condition_json"] = reveal_json
 
@@ -855,7 +878,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "stealth_threshold_updated",
                     "stealth_order_id": stealth_order_id,
                     "price_threshold": threshold,
-                    "hold_duration_seconds": hold_secs,
+                    "hold_duration_seconds": hold_secs if hold_duration_persisted else None,
                 }
 
                 add_log_entry("INFO", f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))

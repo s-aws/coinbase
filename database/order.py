@@ -198,39 +198,64 @@ def update_stealth_order_target_movement(stealth_order_id: str, target_movement:
         return False
 
 
-def update_stealth_order_price_threshold(stealth_order_id: str, price_threshold: float) -> bool:
-    """Update price_threshold inside reveal_condition_json for a price-based stealth order.
+def update_stealth_order_price_threshold(stealth_order_id: str, price_threshold: float, hold_duration_seconds: Optional[int] = None) -> bool:
+    """Update price_threshold and optional hold_duration_seconds for a price-based stealth order.
 
     Args:
         stealth_order_id: UUID of the stealth order.
         price_threshold: New price threshold value.
+        hold_duration_seconds: Optional hold duration seconds to persist in reveal_condition_json.
 
     Returns:
         True if update successful, False otherwise.
     """
     try:
-        query = """
-        UPDATE stealth_orders
-        SET reveal_condition_json = jsonb_set(
-                COALESCE(reveal_condition_json, '{}'::jsonb),
-                '{price_threshold}',
-                to_jsonb(%s::numeric),
-                true
-            ),
-            updated_at = CURRENT_TIMESTAMP
-        WHERE stealth_order_id = %s
-          AND reveal_condition_type = 'price'
-        """
+        if hold_duration_seconds is not None:
+            query = """
+            UPDATE stealth_orders
+            SET reveal_condition_json = jsonb_set(
+                    jsonb_set(
+                        COALESCE(reveal_condition_json, '{}'::jsonb),
+                        '{price_threshold}',
+                        to_jsonb(%s::numeric),
+                        true
+                    ),
+                    '{hold_duration_seconds}',
+                    to_jsonb(%s::int),
+                    true
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE stealth_order_id = %s
+              AND reveal_condition_type = 'price'
+            """
 
-        rows_affected = DB_CLIENT.execute_update(
-            query,
-            (price_threshold, stealth_order_id)
-        )
+            rows_affected = DB_CLIENT.execute_update(
+                query,
+                (price_threshold, hold_duration_seconds, stealth_order_id)
+            )
+        else:
+            query = """
+            UPDATE stealth_orders
+            SET reveal_condition_json = jsonb_set(
+                    COALESCE(reveal_condition_json, '{}'::jsonb),
+                    '{price_threshold}',
+                    to_jsonb(%s::numeric),
+                    true
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE stealth_order_id = %s
+              AND reveal_condition_type = 'price'
+            """
+
+            rows_affected = DB_CLIENT.execute_update(
+                query,
+                (price_threshold, stealth_order_id)
+            )
 
         return rows_affected > 0
     except Exception as e:
         logger.error(f"✗ Error updating stealth order threshold {stealth_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Update params - price_threshold: {price_threshold}")
+        logger.debug(f"  Update params - price_threshold: {price_threshold}, hold_duration_seconds: {hold_duration_seconds}")
         return False
 
 
