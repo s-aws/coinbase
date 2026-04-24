@@ -1,17 +1,63 @@
-"""Stealth Order Manager - The unified order creation and lifecycle system.
+"""StealthOrderManager - unified order creation and reveal lifecycle control.
 
-All orders in the system flow through this manager with automated reveal conditions.
-Orders are created in HIDDEN state and automatically revealed based on their
-reveal_condition (time-based, price-based, or immediate).
+This module is the authoritative order creation path for both immediate and
+condition-based execution. Orders are persisted, tracked in memory, evaluated
+against reveal conditions, and then submitted as exchange limit orders.
 
-Key Concepts:
-- reveal_condition: Controls when/how an order transitions from HIDDEN to PENDING to FILLED
-- delay_seconds: For time-based reveals (0 = immediate, 300 = 5 minutes, etc.)
-- price_condition: For price-based reveals (reveal when price drops below X, etc.)
-- Parent:Child Relationships: 1:Many - one parent order can have many follow-ups
+Current feature set:
+- Unified create_stealth_order() flow for parent and child/follow-up orders.
+- Reveal condition support via evaluator factory:
+    - time_delay (including immediate delay_seconds=0)
+    - price threshold conditions
+    - other evaluators provided by business.stealth_condition_evaluator
+- Condition state tracking (first met, confirmed, status transitions).
+- Adaptive slice sizing with per-order sizing strategy metadata.
+- Pre/post submission hook pipeline for policy enforcement and enrichment.
+- In-memory cache plus database persistence for restart resilience.
+- Parent-child integration through order_parent table writes.
+- O(1) revealed-order reverse lookup with _placed_order_index.
 
-The term "stealth" reflects the internal implementation but from the API perspective,
-all orders are just orders with configurable reveal timing. """
+Critical ID semantics:
+- stealth_order_id is used as client_order_id for internal lifecycle linkage.
+- revealed_orders keeps both client_order_id and exchange order_id context.
+- Internal lookups and follow-up orchestration should key off client_order_id.
+
+Extension points:
+- Add or customize reveal types in business.stealth_condition_evaluator.
+- Register order_placement_hooks for pre-submission validation or post-submit
+    side effects.
+- Extend sizing_strategy handling for advanced execution profiles.
+
+Example: immediate reveal order
+        >>> order_id = manager.create_stealth_order(
+        ...     product_id='BTC-USDC',
+        ...     side='BUY',
+        ...     total_size=0.25,
+        ...     limit_price=42000.0,
+        ...     reveal_condition={'type': 'time_delay', 'delay_seconds': 0},
+        ... )
+
+Example: price-triggered reveal order
+        >>> order_id = manager.create_stealth_order(
+        ...     product_id='BTC-USDC',
+        ...     side='SELL',
+        ...     total_size=0.25,
+        ...     limit_price=42500.0,
+        ...     reveal_condition={
+        ...         'type': 'price_threshold',
+        ...         'price_threshold': 42400.0,
+        ...         'direction': 'above',
+        ...         'hold_duration_seconds': 2,
+        ...     },
+        ...     follow_up_reveal_direction='opposite',
+        ... )
+
+Example: evaluate and reveal from scheduler loop
+        >>> should_reveal, reason = manager.should_trigger_reveal(order_id)
+        >>> if should_reveal:
+        ...     client_order_id = manager.reveal_order_slice(order_id)
+        ...     assert isinstance(client_order_id, str)
+"""
 
 
 import uuid

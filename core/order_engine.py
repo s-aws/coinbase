@@ -1,45 +1,59 @@
-"""OrderEngine - Multithreaded trading engine for Coinbase Advanced API.
+"""OrderEngine - Multithreaded event-driven order lifecycle engine.
 
-Core responsibilities:
-- Real-time order event processing via WebSocket
-- Parent-child order relationship lifecycle management  
-- Automatic follow-up order creation on fills/cancellations
-- Position tracking for derivatives
-- Thread-safe orderbook state synchronization with database
+This module is the runtime coordinator between Coinbase WebSocket events,
+thread-safe in-memory state, and persistent order/position tracking.
 
-ARCHITECTURE: Unified Order System
-===================================
+Current feature set:
+- Real-time user/ticker WebSocket ingestion and channel queue fan-out.
+- Event deduplication using rolling hash buckets (via EventBridge).
+- Thread-safe orderbook mutation (RLock-protected state transitions).
+- Parent-child lifecycle management with flat hierarchy enforcement.
+- Follow-up creation for FILLED/CANCELLED flows using target movement rules.
+- Stealth order integration via StealthOrderBridge and reveal-linked fills.
+- Optional lot tracking and post-fill hooks for ledger + analytics pipelines.
+- Optional dashboard broadcasting for orders, positions, ticker, and logs.
+- Calculation and processing helpers via CalculatorBridge/ProcessorBridge.
 
-All orders flow through StealthOrderManager with automated reveal conditions:
-- Orders are created via StealthOrderManager.create_stealth_order()
-- Orders start in HIDDEN state with a reveal_condition
-- Conditions are evaluated continuously (time-based, price-based, immediate)
-- When condition is met, order transitions to PENDING, then to FILLED/CANCELLED
-- OrderEngine processes fill events and creates follow-up orders
+Critical ID semantics:
+- Use client_order_id for all internal tracking and parent-child relationships.
+- Map to order_id only for logging (order_id can change on replacement).
 
-Parent:Child Order Relationships (1:Many)
-=========================================
+Extension points:
+- websocket_hooks: Register custom WebSocket message handlers without
+    modifying the core event loop.
+- fill_event_hooks: Register post-fill business hooks for persistence,
+    notifications, risk, or analytics.
+- logging_flags and build_event_log_payload(): add structured observability
+    without changing execution logic.
 
-The system enforces a 1:Many parent-child relationship:
-- ONE parent order can have MANY child orders (follow-ups)
-- Parent: The initial order that triggers follow-up creation
-- Child: Orders created when parent fills or is cancelled
-- Example: 
-  - Create parent order: BUY 10 @ $40,000 (via reveal condition)
-  - Parent fills
-  - OrderEngine detects fill and creates follow-up child: SELL 10 @ $41,000
-  
-Data Structures:
-- order_parent_ids: Dict[parent_id → {orders: [child_ids], ...}]
-- child_order_ids: Dict[child_id → parent_id]
+Example: initialize and run
+        >>> from core.order_engine import OrderEngine
+        >>> engine = OrderEngine(
+        ...     orderbook=ORDERBOOK,
+        ...     db_helper=DB_HELPER,
+        ...     subscription=Subscription,
+        ...     api_key=API_KEY,
+        ...     api_secret=API_SECRET,
+        ...     order_post_only=ORDER_POST_ONLY,
+        ...     websocket_thread_maximum=2,
+        ...     max_workers=8,
+        ... )
+        >>> engine.logging_flags['order'] = True
+        >>> engine.run_forever()
 
-This module maintains:
-- Live WebSocket connection for real-time order updates
-- Parent-child order relationships and lifecycle
-- Automatic follow-up creation logic
-- Order deduplication with thread-safe event processing
-- In-memory orderbook state synchronized with PostgreSQL
-- Position tracking for futures contracts
+Example: register a custom fill hook
+        >>> def my_fill_hook(fill_context: dict) -> None:
+        ...     # Custom business integration: risk check, audit sink, metrics, etc.
+        ...     return
+        >>> if engine.fill_event_hooks:
+        ...     engine.fill_event_hooks.register('my_fill_hook', my_fill_hook)
+
+Example: resolve parent linkage for an incoming fill
+        >>> is_parent, parent_id = engine.resolve_parent_client_order_id(
+        ...     client_order_id='550e8400-e29b-41d4-a716-446655440000'
+        ... )
+        >>> isinstance(is_parent, bool) and isinstance(parent_id, str)
+        True
 """
 
 import json
