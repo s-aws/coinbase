@@ -46,7 +46,7 @@ from typing import Dict, Any, Optional
 import logging
 from calculation.formatter import safe_float
 from configuration import determine_open_close_sides
-from core.enums import OrderSide, ProductType
+from core.enums import OrderSide, ProductType, TargetMovementType
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,59 @@ class ProfitValidator:
         else:
             # Fallback to conservative default (0.6% * 2)
             return 0.012
+
+    def derive_follow_up_price_from_target(
+        self,
+        parent_filled_price: float,
+        parent_side: str,
+        target_movement: float,
+        target_movement_type: str = TargetMovementType.PERCENTAGE.value,
+    ) -> Optional[float]:
+        """Derive follow-up close price from target movement configuration.
+
+        This is the shared conversion used by reveal-time revalidation and any
+        other flow that starts with entry price + target movement (P/A).
+
+        Args:
+            parent_filled_price: Entry/open price.
+            parent_side: Parent/open side (BUY/SELL).
+            target_movement: Target movement value (> 0).
+            target_movement_type: TargetMovementType.PERCENTAGE ('P') or ABSOLUTE ('A').
+
+        Returns:
+            Derived follow-up price, or None if inputs are invalid.
+        """
+        side_raw = str(parent_side or "").upper()
+        try:
+            side = OrderSide(side_raw)
+        except ValueError:
+            return None
+
+        filled_price = safe_float(parent_filled_price, default=0.0)
+        movement = safe_float(target_movement, default=0.0)
+        if filled_price <= 0 or movement <= 0:
+            return None
+
+        movement_type_raw = str(
+            target_movement_type or TargetMovementType.PERCENTAGE.value
+        ).upper()
+        try:
+            movement_type = TargetMovementType(movement_type_raw)
+        except ValueError:
+            movement_type = TargetMovementType.PERCENTAGE
+
+        if movement_type == TargetMovementType.ABSOLUTE:
+            return (
+                filled_price + movement
+                if side == OrderSide.BUY
+                else filled_price - movement
+            )
+
+        return (
+            filled_price * (1 + movement)
+            if side == OrderSide.BUY
+            else filled_price * (1 - movement)
+        )
     
     def is_profitable(self,
         filled_price: float,
@@ -454,7 +507,7 @@ class ProfitValidator:
                 "remediation": "Check order size calculation"
             }
         
-        if parent_side not in ("BUY", "SELL"):
+        if parent_side not in (OrderSide.BUY.value, OrderSide.SELL.value):
             return {
                 "is_valid": False,
                 "is_profitable": False,

@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from core.enums import StealthLifecycleEvent, StealthOrderStatus
+from core.models import RevealExecutionPlan
 from core.stealth_order_manager import StealthOrderManager
 
 
@@ -475,6 +476,90 @@ class TestRevealHistoryMarketPersistence:
         assert params[8] == 77806.0
         assert params[9] == 2.0
         assert params[10] == 321.5
+
+
+class TestRevealProfitabilityValidation:
+    """Validate reveal-time profitability checks and API contract usage."""
+
+    def test_validate_reveal_profitability_uses_parent_side_and_price_projection(self):
+        captured = {}
+        helper_calls = {}
+
+        class FakeProfitValidator:
+            def derive_follow_up_price_from_target(self, **kwargs):
+                helper_calls.update(kwargs)
+                parent_price = kwargs["parent_filled_price"]
+                movement = kwargs["target_movement"]
+                return parent_price * (1 - movement)
+
+            def validate_order_profitability(self, **kwargs):
+                captured.update(kwargs)
+                return {"is_profitable": True, "net_profit": 12.34}
+
+        manager = StealthOrderManager(db_client=None, profit_validator=FakeProfitValidator())
+        stealth_order_id = "aa1e8400-e29b-41d4-a716-446655440000"
+        manager.in_memory_orders[stealth_order_id] = {
+            "stealth_order_id": stealth_order_id,
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "total_size": "2.5",
+            "target_movement": "0.01",
+            "target_movement_type": "P",
+        }
+
+        reveal_plan = RevealExecutionPlan(
+            configured_limit_price=51000.0,
+            submitted_limit_price=50000.0,
+            reveal_pricing_policy="configured_limit",
+            reveal_price_source="configured_limit",
+            fallback_used=False,
+        )
+
+        is_profitable, reason = manager._validate_reveal_profitability(stealth_order_id, reveal_plan)
+
+        assert is_profitable is True
+        assert reason is None
+        assert helper_calls["parent_side"] == "SELL"
+        assert helper_calls["target_movement_type"] == "P"
+        assert captured["parent_side"] == "SELL"
+        assert captured["parent_filled_price"] == 50000.0
+        assert captured["order_size"] == 2.5
+        # SELL + 1% target => follow-up BUY at 99% of entry
+        assert captured["follow_up_price"] == 49500.0
+
+    def test_validate_reveal_profitability_blocks_unprofitable_reveal(self):
+        class FakeProfitValidator:
+            def derive_follow_up_price_from_target(self, **kwargs):
+                parent_price = kwargs["parent_filled_price"]
+                movement = kwargs["target_movement"]
+                return parent_price * (1 + movement)
+
+            def validate_order_profitability(self, **kwargs):
+                return {"is_profitable": False, "net_profit": -5.0}
+
+        manager = StealthOrderManager(db_client=None, profit_validator=FakeProfitValidator())
+        stealth_order_id = "aa2e8400-e29b-41d4-a716-446655440000"
+        manager.in_memory_orders[stealth_order_id] = {
+            "stealth_order_id": stealth_order_id,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "total_size": 1.0,
+            "target_movement": 0.005,
+            "target_movement_type": "P",
+        }
+
+        reveal_plan = RevealExecutionPlan(
+            configured_limit_price=50000.0,
+            submitted_limit_price=50000.0,
+            reveal_pricing_policy="configured_limit",
+            reveal_price_source="configured_limit",
+            fallback_used=False,
+        )
+
+        is_profitable, reason = manager._validate_reveal_profitability(stealth_order_id, reveal_plan)
+
+        assert is_profitable is False
+        assert "would not meet profit target" in reason
 
 
 # Run tests with: pytest tests/unit/test_stealth_order_manager.py -v

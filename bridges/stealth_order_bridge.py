@@ -44,7 +44,6 @@ class StealthOrderBridge:
             self.stealth_manager.log_callback = order_engine.log_message
         self.evaluation_thread = None
         self.running = False
-        self.lock = threading.Lock()
     
     def start(self):
         """Start background evaluation and reconciliation threads.

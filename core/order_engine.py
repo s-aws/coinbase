@@ -1584,10 +1584,13 @@ class OrderEngine:
             return
 
         with self.orderbook_lock:
-            if self.orderbook.should_replace["CANCELLED"] is not True:
-                self.release_follow_up_processing("cancelled", client_order_id)
-                return
-            is_parent, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+            should_replace_cancelled = self.orderbook.should_replace["CANCELLED"] is True
+
+        if not should_replace_cancelled:
+            self.release_follow_up_processing("cancelled", client_order_id)
+            return
+
+        _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
         # Check for pending move (automation) - executes instead of normal follow-up
         from database.order import has_pending_move
@@ -2004,43 +2007,45 @@ class OrderEngine:
             return
 
         with self.orderbook_lock:
-            if self.orderbook.should_replace["FILLED"] is not True:
-                return
+            should_replace_filled = self.orderbook.should_replace["FILLED"] is True
 
-            # ✅ FIX: For stealth-revealed orders, get target_movement from the stealth order's entry
-            stealth_target_movement = None
-            if original_stealth_order:
-                # The stealth order's target_movement is stored in order_parent with client_order_id=stealth_order_id
-                parent_order_data = self.db_helper.get_parent_order(
-                    original_stealth_order["stealth_order_id"]
-                )
-                if parent_order_data:
-                    # ✅ Use safe_float to handle Decimal type from database (imported at module level)
-                    target_mv = safe_float(parent_order_data.get("target_movement"))
-                    stealth_target_movement = {
-                        "target_movement": target_mv if target_mv > 0 else None,
-                        "target_movement_type": parent_order_data.get("target_movement_type", "P")
-                    }
+        if not should_replace_filled:
+            return
 
-                self._seed_parent_order_cache_from_db(client_order_id)
-
-            _, parent_client_order_id = self.resolve_parent_client_order_id(
-                client_order_id,
-                order=order,
-                create_parent=True,
-                status=OrderStatus.FILLED.value,
-                stealth_order=stealth_target_movement,
+        # ✅ FIX: For stealth-revealed orders, get target_movement from the stealth order's entry
+        stealth_target_movement = None
+        if original_stealth_order:
+            # The stealth order's target_movement is stored in order_parent with client_order_id=stealth_order_id
+            parent_order_data = self.db_helper.get_parent_order(
+                original_stealth_order["stealth_order_id"]
             )
-            
-            # 🔧 CRITICAL FIX: If a new parent was created (order became its own parent),
-            # but this stealth order has an explicit parent_order_id, use that instead.
-            # This ensures stealth follow-ups use the correct parent's replacement count.
-            if original_stealth_order and parent_client_order_id == client_order_id:
-                explicit_parent = original_stealth_order.get("parent_order_id")
-                if explicit_parent and explicit_parent != client_order_id:
-                    parent_client_order_id = explicit_parent
-                    # Register the child retroactively if needed
-                    self.register_child_order(client_order_id, parent_client_order_id)
+            if parent_order_data:
+                # ✅ Use safe_float to handle Decimal type from database (imported at module level)
+                target_mv = safe_float(parent_order_data.get("target_movement"))
+                stealth_target_movement = {
+                    "target_movement": target_mv if target_mv > 0 else None,
+                    "target_movement_type": parent_order_data.get("target_movement_type", "P")
+                }
+
+            self._seed_parent_order_cache_from_db(client_order_id)
+
+        _, parent_client_order_id = self.resolve_parent_client_order_id(
+            client_order_id,
+            order=order,
+            create_parent=True,
+            status=OrderStatus.FILLED.value,
+            stealth_order=stealth_target_movement,
+        )
+        
+        # 🔧 CRITICAL FIX: If a new parent was created (order became its own parent),
+        # but this stealth order has an explicit parent_order_id, use that instead.
+        # This ensures stealth follow-ups use the correct parent's replacement count.
+        if original_stealth_order and parent_client_order_id == client_order_id:
+            explicit_parent = original_stealth_order.get("parent_order_id")
+            if explicit_parent and explicit_parent != client_order_id:
+                parent_client_order_id = explicit_parent
+                # Register the child retroactively if needed
+                self.register_child_order(client_order_id, parent_client_order_id)
 
         # For external orders, just track them but don't create follow-ups
         # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)

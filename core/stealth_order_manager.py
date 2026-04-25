@@ -65,8 +65,15 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
-from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
-from core.enums import FollowUpRevealDirection, RevealPricingPolicy, RevealPriceSource, StealthLifecycleEvent, StealthOrderStatus
+from configuration import DEFAULT_MAX_ORDER_REPLACEMENT, safe_float
+from core.enums import (
+    FollowUpRevealDirection,
+    OrderSide,
+    RevealPricingPolicy,
+    RevealPriceSource,
+    StealthLifecycleEvent,
+    StealthOrderStatus,
+)
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 from logging_service import get_logger
@@ -311,17 +318,71 @@ class StealthOrderManager:
             return False, "Stealth order not found"
         
         try:
-            # Use the submitted price from the plan, not the configured limit
-            is_profitable = self.profit_validator.validate_order_profitability(
-                side=order.get("side", ""),
-                size=float(order.get("total_size", 0.0)),
-                entry_price=reveal_execution_plan.submitted_limit_price,
-                target_movement=float(order.get("target_movement", 0.0)),
-                target_movement_type=order.get("target_movement_type", "P"),
+            parent_side_raw = str(order.get("side") or "").upper()
+            try:
+                parent_side = OrderSide(parent_side_raw)
+            except ValueError:
+                self.logger.warning(
+                    "Skipping reveal profitability validation due to invalid side "
+                    f"for {stealth_order_id}: side={parent_side_raw}"
+                )
+                return True, None
+
+            order_size = safe_float(order.get("total_size"), default=0.0)
+            parent_filled_price = safe_float(reveal_execution_plan.submitted_limit_price, default=0.0)
+            target_movement = safe_float(order.get("target_movement"), default=0.0)
+            target_movement_type = order.get("target_movement_type")
+
+            if target_movement <= 0:
+                # No explicit target configured, do not block reveal.
+                return True, None
+
+            if order_size <= 0 or parent_filled_price <= 0:
+                # Invalid input should not block reveal; fail open and log for diagnosis.
+                self.logger.warning(
+                    "Skipping reveal profitability validation due to invalid input "
+                    f"for {stealth_order_id}: side={parent_side.value}, size={order_size}, price={parent_filled_price}"
+                )
+                return True, None
+
+            if not hasattr(self.profit_validator, "derive_follow_up_price_from_target"):
+                self.logger.warning(
+                    "Profit validator missing derive_follow_up_price_from_target; "
+                    f"skipping reveal profitability validation for {stealth_order_id}"
+                )
+                return True, None
+
+            follow_up_price = self.profit_validator.derive_follow_up_price_from_target(
+                parent_filled_price=parent_filled_price,
+                parent_side=parent_side.value,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
             )
+            if follow_up_price is None or follow_up_price <= 0:
+                self.logger.warning(
+                    "Skipping reveal profitability validation due to invalid derived follow-up price "
+                    f"for {stealth_order_id}: side={parent_side.value}, price={parent_filled_price}, "
+                    f"movement={target_movement}, movement_type={target_movement_type}"
+                )
+                return True, None
+
+            validation = self.profit_validator.validate_order_profitability(
+                parent_filled_price=parent_filled_price,
+                parent_side=parent_side.value,
+                follow_up_price=follow_up_price,
+                order_size=order_size,
+                min_margin_pct=0.0,
+            )
+
+            is_profitable = bool(validation.get("is_profitable", False))
             
             if not is_profitable:
-                return False, f"Reveal price {reveal_execution_plan.submitted_limit_price} would not meet profit target"
+                net_profit = safe_float(validation.get("net_profit"), default=0.0)
+                return (
+                    False,
+                    f"Reveal price {reveal_execution_plan.submitted_limit_price} would not meet profit target "
+                    f"(projected net profit: {net_profit:.8f})",
+                )
             
             return True, None
             
