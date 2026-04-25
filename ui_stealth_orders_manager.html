@@ -1521,22 +1521,7 @@
                             );
                             // Refresh snapshot to pick up new limit_price in state
                             if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ type: 'get_stealth_orders' }));
-                            }
-                        }
-                    } else if (data.type === "reprice_now_result") {
-                        const sid = data.stealth_order_id;
-                        if (data.error) {
-                            showMessage(`Reprice failed: ${data.error}`, 'error');
-                        } else {
-                            showMessage(
-                                data.processed > 0
-                                    ? `⟳ Repriced ${sid.substring(0, 8)}…`
-                                    : `⟳ No change needed for ${sid.substring(0, 8)}…`,
-                                data.processed > 0 ? 'success' : 'info'
-                            );
-                            if (ws && ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ type: 'get_stealth_orders' }));
+                                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
                             }
                         }
                     } else if (data.type === "stealth_order_cancelled") {
@@ -1944,9 +1929,6 @@
                                       </div>`
                                     : `<span style="color: #999; font-size: 12px;">${order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
                                 }
-                                ${(order.anchor_repricing_policy_json && order.anchor_repricing_policy_json.enabled && ['HIDDEN','PENDING','TRIGGERED','REVEALED'].includes(order.status))
-                                    ? `<button onclick="repriceNow('${order.stealth_order_id}')" class="reprice-btn" title="Force repricing now">⟳</button>`
-                                    : ''}
                                 ${(order.anchor_repricing_policy_json && order.anchor_repricing_policy_json.enabled && ['HIDDEN','PENDING','TRIGGERED','REVEALED'].includes(order.status))
                                     ? `<button onclick="repriceNow('${order.stealth_order_id}')" class="reprice-btn" title="Force repricing now">⟳</button>`
                                     : ''}
