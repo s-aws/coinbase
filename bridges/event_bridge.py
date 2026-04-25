@@ -109,13 +109,12 @@ class EventBridge:
             ...     # Skip processing
             ...     pass
         """
+
         if self.processor.is_duplicate_event(event):
             raise DuplicateEventError(
-                error_type="DuplicateEventDetected",
-                message=f"Event already processed and seen before",
+                message="Event already processed and seen before",
                 event_hash=self.processor.hash_event(event),
             )
-
     def rotate_dedup_buckets(self) -> None:
         """Rotate event deduplication buckets (shift old events out).
         
