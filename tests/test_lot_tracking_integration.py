@@ -13,6 +13,7 @@ modifying core order engine logic.
 """
 
 import unittest
+import uuid
 from datetime import datetime, timedelta
 from business.fill_ledger import FillLedger, FillLedgerRepository
 from business.position_lot import PositionLot, Position
@@ -69,14 +70,16 @@ class TestFillLedger(unittest.TestCase):
         try:
             with self.db.get_cursor() as cursor:
                 cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
         except Exception as e:
             # Table might already exist, that's ok
             pass
     
     def test_append_fill(self):
         """Test appending a fill to ledger."""
+        trade_id = str(uuid.uuid4())
         fill = FillLedger(
-            trade_id="test-trade-1",
+            trade_id=trade_id,
             instrument="BTC-USDC",
             side="BUY",
             quantity=0.1,
@@ -90,7 +93,7 @@ class TestFillLedger(unittest.TestCase):
         self.assertTrue(result)
         
         # Verify we can retrieve it
-        retrieved = self.fill_repo.get_fill_by_trade_id("test-trade-1")
+        retrieved = self.fill_repo.get_fill_by_trade_id(trade_id)
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.quantity, 0.1)
         self.assertEqual(retrieved.price, 50000.0)
@@ -100,7 +103,7 @@ class TestFillLedger(unittest.TestCase):
         # Insert multiple fills
         for i in range(3):
             fill = FillLedger(
-                trade_id=f"test-trade-{i}",
+                trade_id=str(uuid.uuid4()),
                 instrument="BTC-USDC",
                 side="BUY" if i % 2 == 0 else "SELL",
                 quantity=0.1 + i * 0.01,
@@ -153,6 +156,7 @@ class TestPositionLotBuilder(unittest.TestCase):
         try:
             with self.db.get_cursor() as cursor:
                 cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
         except Exception:
             pass
     
@@ -167,7 +171,7 @@ class TestPositionLotBuilder(unittest.TestCase):
         
         for i, (instrument, side, qty, price, fees) in enumerate(fills_data):
             fill = FillLedger(
-                trade_id=f"lot-test-{i}",
+                trade_id=str(uuid.uuid4()),
                 instrument=instrument,
                 side=side,
                 quantity=qty,
@@ -252,7 +256,7 @@ class TestProfitThresholdEngine(unittest.TestCase):
         targets, meta = self.engine.compute_execution_targets(
             position=position,
             exit_quantity=0.15,
-            market_price=50300.0,
+            market_price=50500.0,
             strategy='FIFO'
         )
         
@@ -295,6 +299,7 @@ class TestOrderInterceptionLayer(unittest.TestCase):
         try:
             with self.db.get_cursor() as cursor:
                 cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
         except Exception:
             pass
     
@@ -356,6 +361,7 @@ class TestConditionalExecution(unittest.TestCase):
         try:
             with self.db.get_cursor() as cursor:
                 cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
         except Exception:
             pass
     
