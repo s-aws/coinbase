@@ -91,6 +91,10 @@ if __name__ == "__main__":
     # Update stealth bridge with engine reference if it exists
     if stealth_bridge:
         stealth_bridge.order_engine = engine
+        # Use the engine's shared ProfitValidator for reveal-time revalidation.
+        if hasattr(engine, "profit_validator"):
+            stealth_bridge.stealth_manager.profit_validator = engine.profit_validator
+            logger.info("StealthOrderManager wired with OrderEngine profit_validator")
 
     orchestrator = OrderEngineOrchestrator(engine)
     
