@@ -716,6 +716,7 @@ class StealthOrderManager:
             RevealExecutionPlan with pricing decision, or None if order not found
         """
         from core.models import RevealExecutionPlan
+        from core.enums import OrderSide, RevealPriceSource
         
         order = self._get_stealth_order(stealth_order_id)
         if not order:
@@ -729,15 +730,38 @@ class StealthOrderManager:
             reveal_condition=order.get("reveal_condition_json"),
         )
         
+        configured_limit_price = float(order.get("limit_price", 0.0))
+        
         submitted_limit_price, reveal_price_source, fallback_used = self._resolve_reveal_limit_price(
             side=order.get("side", ""),
-            configured_limit_price=float(order.get("limit_price", 0.0)),
+            configured_limit_price=configured_limit_price,
             market_data=market_data,
             reveal_pricing_policy=reveal_pricing_policy,
         )
         
+        # === GUARD: never submit a price worse than the configured target ===
+        # When a pricing policy (e.g., top_of_book) would produce a price that erodes
+        # the user's target margin (BUY higher / SELL lower than configured), fall back
+        # to the configured limit price. This preserves the user's intent while still
+        # allowing the policy to improve the price when market conditions are favourable.
+        side_raw = str(order.get("side") or "").upper()
+        if configured_limit_price > 0 and submitted_limit_price > 0:
+            policy_price_is_worse = (
+                (side_raw == OrderSide.BUY.value and submitted_limit_price > configured_limit_price)
+                or (side_raw == OrderSide.SELL.value and submitted_limit_price < configured_limit_price)
+            )
+            if policy_price_is_worse:
+                self.logger.debug(
+                    f"Reveal pricing policy {reveal_pricing_policy} produced {submitted_limit_price} "
+                    f"worse than configured {configured_limit_price} for {side_raw} "
+                    f"({stealth_order_id}); falling back to configured limit price"
+                )
+                submitted_limit_price = configured_limit_price
+                reveal_price_source = RevealPriceSource.CONFIGURED_LIMIT.value
+                fallback_used = True
+        
         plan = RevealExecutionPlan(
-            configured_limit_price=float(order.get("limit_price", 0.0)),
+            configured_limit_price=configured_limit_price,
             submitted_limit_price=submitted_limit_price,
             reveal_pricing_policy=reveal_pricing_policy,
             reveal_price_source=reveal_price_source,

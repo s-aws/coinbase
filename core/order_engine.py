@@ -1368,6 +1368,9 @@ class OrderEngine:
             >>> engine.register_child_order('child_123', 'parent_123')
             >>> # Now child_123 is tracked as child of parent_123 and count is incremented
         """
+        # Flag to track if this is a new registration
+        is_new_child = False
+        
         with self.orderbook_lock:
             # Ensure parent entry exists
             if parent_client_order_id not in self.orderbook.parent_order_ids:
@@ -1388,22 +1391,42 @@ class OrderEngine:
                 
                 # ✅ INCREMENT replacement count when adding a new child
                 self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
+                is_new_child = True
             
             # Map child to parent
             self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
         
-        # ✅ ALSO increment in database for persistence
-        from database.order import increment_order_parent_replacement_count
-        new_count = increment_order_parent_replacement_count(parent_client_order_id)
-        
-        if new_count is not None:
-            self.log_message(
+        # ✅ ONLY increment in database if this is actually a new child registration
+        # CRITICAL: Do not increment if child was already registered - prevents duplicate counts
+        if is_new_child:
+            from database.order import increment_order_parent_replacement_count
+            new_count = increment_order_parent_replacement_count(parent_client_order_id)
+            
+            if new_count is not None:
+                self.log_message(
                 "order",
                 self.build_event_log_payload(
                     "child_order_registered",
                     parent_client_order_id=parent_client_order_id,
                     child_client_order_id=child_client_order_id,
                     new_replacement_count=new_count,
+                ),
+            )
+        else:
+            # ⚠️ REGRESSION DETECTOR: register_child_order() was called for a (child, parent) pair
+            # that was already registered. This is almost always a bug — most likely a duplicate
+            # call site in the event handling path. The DB increment is correctly skipped here,
+            # but surface the duplicate so the offending caller can be fixed.
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "child_order_register_duplicate_skipped",
+                    parent_client_order_id=parent_client_order_id,
+                    child_client_order_id=child_client_order_id,
+                    details={
+                        "reason": "child_already_registered_under_parent",
+                        "action": "db_increment_skipped",
+                    },
                 ),
             )
 
@@ -2174,10 +2197,17 @@ class OrderEngine:
             original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
                 client_order_id
             )
-        
-        # If this is a stealth-revealed order, register it in the orderbook
-        # Now safe to do after claiming processing rights
-        if original_stealth_order and original_stealth_order.get("parent_order_id"):
+
+        # If this is a stealth-revealed order, register it in the orderbook.
+        # NOTE: Follow-ups created by our engine are already registered at creation time
+        # (via stealth follow-up creation paths). Only register here as a safety net for
+        # orphaned/recovered stealth orders that were never registered. The is_child_order()
+        # guard prevents the redundant call so the regression detector warning stays meaningful.
+        if (
+            original_stealth_order
+            and original_stealth_order.get("parent_order_id")
+            and not self.is_child_order(client_order_id)
+        ):
             parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
             self.register_child_order(client_order_id, parent_client_order_id_stealth)
 
@@ -2520,10 +2550,17 @@ class OrderEngine:
             original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
                 client_order_id
             )
-        
-        # If this is a stealth-revealed order, register it in the orderbook
-        # Now safe to do after claiming processing rights
-        if original_stealth_order and original_stealth_order.get("parent_order_id"):
+
+        # If this is a stealth-revealed order, register it in the orderbook.
+        # NOTE: Follow-ups created by our engine are already registered at creation time
+        # (via stealth follow-up creation paths). Only register here as a safety net for
+        # orphaned/recovered stealth orders that were never registered. The is_child_order()
+        # guard prevents the redundant call so the regression detector warning stays meaningful.
+        if (
+            original_stealth_order
+            and original_stealth_order.get("parent_order_id")
+            and not self.is_child_order(client_order_id)
+        ):
             parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
             self.register_child_order(client_order_id, parent_client_order_id_stealth)
 
@@ -2666,8 +2703,8 @@ class OrderEngine:
             explicit_parent = original_stealth_order.get("parent_order_id")
             if explicit_parent and explicit_parent != client_order_id:
                 parent_client_order_id = explicit_parent
-                # Register the child retroactively if needed
-                self.register_child_order(client_order_id, parent_client_order_id)
+                # NOTE: Child registration already happened at line 2528, so don't call again here
+                # Calling twice would cause duplicate replacement count increments
 
         # For external orders, just track them but don't create follow-ups
         # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
