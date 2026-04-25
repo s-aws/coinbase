@@ -24,6 +24,10 @@ class OrderStatus(str, Enum):
     """Status of an order throughout its lifecycle.
     
     From Coinbase API: PENDING, OPEN, FILLED, CANCELLED, EXPIRED, FAILED
+
+    Engine event statuses also routed through order processing:
+    - UPDATE: Incremental websocket update for an existing order
+    - SNAPSHOT: Initial websocket snapshot payload
     """
     PENDING = "PENDING"
     OPEN = "OPEN"
@@ -32,6 +36,8 @@ class OrderStatus(str, Enum):
     EXPIRED = "EXPIRED"
     FAILED = "FAILED"
     CANCEL_QUEUED = "CANCEL_QUEUED"
+    UPDATE = "UPDATE"
+    SNAPSHOT = "SNAPSHOT"
 
 
 class StealthOrderStatus(str, Enum):
@@ -231,6 +237,38 @@ class WebSocketEventType(str, Enum):
     SNAPSHOT = "snapshot"
     UPDATE = "update"
     PATCH = "patch"
+
+
+class EventTriggerType(str, Enum):
+    """Trigger categories for audit/event-stream payloads."""
+    STEALTH_CONDITION = "stealth_condition"
+    FOLLOW_UP = "follow_up"
+
+
+class EventSourceChannel(str, Enum):
+    """Named source channels for order_event_stream rows."""
+    PLACEMENT_PRE_HOOK   = "placement_pre_hook"
+    WS_USER              = "ws_user"
+    FILL_HOOK            = "fill_hook"
+    REST_SUBMIT          = "rest_submit"
+    PLACEMENT_POST_HOOK  = "placement_post_hook"
+    ORDER_STATE_HOOK     = "order_state_hook"
+    STEALTH_LIFECYCLE_HOOK = "stealth_lifecycle_hook"
+
+
+class EventStreamType(str, Enum):
+    """Static event_type values written to order_event_stream.
+
+    Dynamic values (e.g. ``stealth_<lifecycle_event>`` and ``order_<status>``)
+    are derived from existing enums at runtime and are NOT listed here.
+    """
+    STEALTH_CONDITION_MET    = "stealth_condition_met"
+    FILL_RECORDED            = "fill_recorded"
+    ORDER_SUBMITTED          = "order_submitted"
+    STEALTH_REVEALED         = "stealth_revealed"
+    STEALTH_FOLLOW_UP_CREATED = "stealth_follow_up_created"
+    INVENTORY_OPENED         = "inventory_opened"
+    INVENTORY_CLOSED         = "inventory_closed"
 
 
 class ChannelType(str, Enum):

@@ -12,6 +12,14 @@ to work unchanged.
 import uuid
 from typing import Any, Dict, Optional
 
+from core.enums import (
+    EventSourceChannel,
+    EventStreamType,
+    EventTriggerType,
+    OrderStateEvent,
+    OrderStatus,
+    StealthOrderStatus,
+)
 from calculation.formatter import safe_float
 from logging_service import get_logger
 
@@ -165,7 +173,13 @@ class OrderEventStreamPublisher:
             return
 
         if websocket_hooks:
-            for status in ["OPEN", "PENDING", "FILLED", "CANCELLED", "FAILED"]:
+            for status in [
+                OrderStatus.OPEN,
+                OrderStatus.PENDING,
+                OrderStatus.FILLED,
+                OrderStatus.CANCELLED,
+                OrderStatus.FAILED,
+            ]:
                 websocket_hooks.register_post_order_status(
                     status,
                     self._build_post_status_hook(status),
@@ -197,30 +211,33 @@ class OrderEventStreamPublisher:
         key = f"stealth:condition_met:{stealth_order_id}:{reveal_number}"
         payload = dict(order)
         payload["client_order_id"] = order.get("client_order_id") or stealth_order_id
-        payload["trigger_type"] = order.get("reveal_condition_type") or "stealth_condition"
+        payload["trigger_type"] = (
+            order.get("reveal_condition_type")
+            or EventTriggerType.STEALTH_CONDITION.value
+        )
         payload["trigger_payload"] = {
             "condition_confirmed_at": order.get("condition_confirmed_at"),
             "reveal_number": reveal_number,
             "reveal_condition": order.get("reveal_condition_json"),
         }
         self.publish_event(
-            event_type="stealth_condition_met",
-            source_channel="placement_pre_hook",
+            event_type=EventStreamType.STEALTH_CONDITION_MET.value,
+            source_channel=EventSourceChannel.PLACEMENT_PRE_HOOK.value,
             payload=payload,
             idempotency_key=key,
-            status_to="TRIGGERED",
+            status_to=StealthOrderStatus.TRIGGERED.value,
         )
 
-    def _build_post_status_hook(self, status: str):
+    def _build_post_status_hook(self, status: OrderStatus):
         def _hook(order: Dict[str, Any]) -> None:
             client_order_id = order.get("client_order_id")
-            key = f"ws:{status}:{client_order_id}:{order.get('status')}"
+            key = f"ws:{status.value}:{client_order_id}:{order.get('status')}"
             self.publish_event(
-                event_type=f"order_{status.lower()}",
-                source_channel="ws_user",
+                event_type=f"order_{status.value.lower()}",
+                source_channel=EventSourceChannel.WS_USER.value,
                 payload=order,
                 idempotency_key=key,
-                status_to=status,
+                status_to=status.value,
             )
 
         return _hook
@@ -230,11 +247,11 @@ class OrderEventStreamPublisher:
         payload = dict(fill_data)
         payload["trade_id"] = trade_id
         self.publish_event(
-            event_type="fill_recorded",
-            source_channel="fill_hook",
+            event_type=EventStreamType.FILL_RECORDED.value,
+            source_channel=EventSourceChannel.FILL_HOOK.value,
             payload=payload,
             idempotency_key=key,
-            status_to="FILLED",
+            status_to=OrderStatus.FILLED.value,
         )
 
     def _post_submission_hook(self, order: Dict[str, Any], result: Any) -> None:
@@ -250,11 +267,11 @@ class OrderEventStreamPublisher:
         client_order_id = payload.get("client_order_id")
         key = f"submit:{client_order_id}:{order_id}"
         self.publish_event(
-            event_type="order_submitted",
-            source_channel="rest_submit",
+            event_type=EventStreamType.ORDER_SUBMITTED.value,
+            source_channel=EventSourceChannel.REST_SUBMIT.value,
             payload=payload,
             idempotency_key=key,
-            status_to="PENDING",
+            status_to=StealthOrderStatus.PENDING.value,
         )
 
         stealth_order_id = payload.get("stealth_order_id")
@@ -262,35 +279,38 @@ class OrderEventStreamPublisher:
             reveal_number = payload.get("reveal_number", 1)
             reveal_key = f"stealth:revealed:{stealth_order_id}:{reveal_number}"
             reveal_payload = dict(payload)
-            reveal_payload["trigger_type"] = payload.get("reveal_condition_type") or "stealth_condition"
+            reveal_payload["trigger_type"] = (
+                payload.get("reveal_condition_type")
+                or EventTriggerType.STEALTH_CONDITION.value
+            )
             reveal_payload["trigger_payload"] = {
                 "reveal_number": reveal_number,
                 "reveal_condition": payload.get("reveal_condition_json"),
                 "condition_confirmed_at": payload.get("condition_confirmed_at"),
             }
             self.publish_event(
-                event_type="stealth_revealed",
-                source_channel="placement_post_hook",
+                event_type=EventStreamType.STEALTH_REVEALED.value,
+                source_channel=EventSourceChannel.PLACEMENT_POST_HOOK.value,
                 payload=reveal_payload,
                 idempotency_key=reveal_key,
-                status_to="REVEALED",
+                status_to=StealthOrderStatus.REVEALED.value,
             )
 
             if payload.get("reason") == "follow_up_replacement":
                 follow_up_key = f"stealth:follow_up_created:{stealth_order_id}:{reveal_number}"
                 follow_up_payload = dict(payload)
-                follow_up_payload["trigger_type"] = "follow_up"
+                follow_up_payload["trigger_type"] = EventTriggerType.FOLLOW_UP.value
                 follow_up_payload["trigger_payload"] = {
                     "parent_order_id": payload.get("parent_order_id"),
                     "reason": payload.get("reason"),
                     "reveal_number": reveal_number,
                 }
                 self.publish_event(
-                    event_type="stealth_follow_up_created",
-                    source_channel="placement_post_hook",
+                    event_type=EventStreamType.STEALTH_FOLLOW_UP_CREATED.value,
+                    source_channel=EventSourceChannel.PLACEMENT_POST_HOOK.value,
                     payload=follow_up_payload,
                     idempotency_key=follow_up_key,
-                    status_to="PENDING",
+                    status_to=StealthOrderStatus.PENDING.value,
                 )
 
     # ------------------------------------------------------------------
@@ -311,11 +331,11 @@ class OrderEventStreamPublisher:
             "created_at": str(getattr(order, "created_at", "")),
         }
         self.publish_event(
-            event_type="inventory_opened",
-            source_channel="order_state_hook",
+            event_type=EventStreamType.INVENTORY_OPENED.value,
+            source_channel=EventSourceChannel.ORDER_STATE_HOOK.value,
             payload=payload,
             idempotency_key=key,
-            status_to="OPENED",
+            status_to=OrderStateEvent.OPENED.value,
         )
 
     def _order_state_closed_hook(self, order, event) -> None:
@@ -332,8 +352,8 @@ class OrderEventStreamPublisher:
             "product_type": str(getattr(order, "product_type", "")),
         }
         self.publish_event(
-            event_type="inventory_closed",
-            source_channel="order_state_hook",
+            event_type=EventStreamType.INVENTORY_CLOSED.value,
+            source_channel=EventSourceChannel.ORDER_STATE_HOOK.value,
             payload=payload,
             idempotency_key=key,
             status_to=event_str,
@@ -375,7 +395,7 @@ class OrderEventStreamPublisher:
 
         self.publish_event(
             event_type=event_type,
-            source_channel="stealth_lifecycle_hook",
+            source_channel=EventSourceChannel.STEALTH_LIFECYCLE_HOOK.value,
             payload=payload,
             idempotency_key=key,
             status_to=event_str,

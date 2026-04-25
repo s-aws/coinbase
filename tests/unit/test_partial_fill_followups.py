@@ -396,3 +396,55 @@ def test_partial_fill_concurrent_duplicate_events_create_followup_once():
         min_order_size=0.01,
         follow_ups_due=2,
     )
+
+
+def test_process_user_order_update_routes_through_partial_fill_handler():
+    engine = _build_engine_for_partial_fill_tests()
+
+    engine._handle_partial_fill_if_enabled = Mock()
+    engine._update_dashboard_order_status = Mock()
+    engine.websocket_hooks.call_post_order_status = Mock()
+
+    order = {
+        "client_order_id": "child-update-1",
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "status": "UPDATE",
+        "cumulative_quantity": "0.01",
+    }
+
+    engine.process_user_order(order)
+
+    engine._handle_partial_fill_if_enabled.assert_called_once_with(
+        order["client_order_id"],
+        engine.orderbook.order[order["client_order_id"]],
+    )
+    engine._update_dashboard_order_status.assert_called_once()
+    engine.websocket_hooks.call_post_order_status.assert_called_once()
+
+
+def test_finalize_partial_fill_progress_cleans_up_per_order_lock():
+    engine = _build_engine_for_partial_fill_tests()
+
+    client_order_id = "child-finalize-1"
+    engine._partial_fill_state[client_order_id] = {
+        "parent_client_order_id": "parent-finalize-1",
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "original_order_size": 1.0,
+        "min_order_size": 0.01,
+        "last_cumulative_qty_processed": 0.01,
+        "carry_remainder_qty": 0.0,
+        "last_number_of_fills_seen": 1,
+        "last_completion_pct_seen": 10.0,
+        "partial_follow_ups_created": 1,
+    }
+
+    # Ensure lock exists before finalize
+    _ = engine._get_partial_fill_order_lock(client_order_id)
+    assert client_order_id in engine._partial_fill_order_locks
+
+    engine._finalize_partial_fill_progress(client_order_id, "FINALIZED")
+
+    assert client_order_id not in engine._partial_fill_state
+    assert client_order_id not in engine._partial_fill_order_locks

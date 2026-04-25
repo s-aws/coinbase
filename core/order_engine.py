@@ -478,6 +478,11 @@ class OrderEngine:
         with self._partial_fill_state_lock:
             self._partial_fill_state.pop(client_order_id, None)
 
+        # Release per-order lock bookkeeping after terminal states so lock-map
+        # does not grow unbounded in long-running processes.
+        with self._partial_fill_order_locks_guard:
+            self._partial_fill_order_locks.pop(client_order_id, None)
+
         try:
             from database.order import finalize_partial_fill_progress
             finalize_partial_fill_progress(client_order_id, terminal_status)
@@ -1817,7 +1822,7 @@ class OrderEngine:
                 ),
             )
 
-        if status == "SNAPSHOT":
+        if status == OrderStatus.SNAPSHOT:
             return
         if status == OrderStatus.CANCEL_QUEUED:
             return
@@ -1839,6 +1844,11 @@ class OrderEngine:
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.OPEN:
+            self._handle_partial_fill_if_enabled(client_order_id, normalized_order)
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
+            return
+        if status == OrderStatus.UPDATE:
             self._handle_partial_fill_if_enabled(client_order_id, normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
