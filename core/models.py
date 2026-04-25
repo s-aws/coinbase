@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from core.enums import OrderSide, OrderStatus, ProductType, RevealPricingPolicy, TargetMovementType
+from core.enums import OrderSide, OrderStatus, ProductType, RevealPricingPolicy, RevealPriceSource, TargetMovementType
 
 
 @dataclass
@@ -171,7 +171,7 @@ class RevealExecutionPlan:
     configured_limit_price: float
     submitted_limit_price: float
     reveal_pricing_policy: str  # RevealPricingPolicy enum value as string
-    reveal_price_source: str
+    reveal_price_source: str  # RevealPriceSource enum value as string
     fallback_used: bool
     market_source: Optional[str] = None
     market_bid: Optional[float] = None

@@ -66,7 +66,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
-from core.enums import FollowUpRevealDirection, RevealPricingPolicy, StealthLifecycleEvent, StealthOrderStatus
+from core.enums import FollowUpRevealDirection, RevealPricingPolicy, RevealPriceSource, StealthLifecycleEvent, StealthOrderStatus
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 from logging_service import get_logger
@@ -203,7 +203,7 @@ class StealthOrderManager:
         Returns:
             (submitted_limit_price, reveal_price_source, fallback_used)
         """
-        reveal_price_source = "configured_limit"
+        reveal_price_source = RevealPriceSource.CONFIGURED_LIMIT.value
         fallback_used = False
         
         market_source = market_data.get("source")
@@ -218,12 +218,12 @@ class StealthOrderManager:
             if market_source == "ticker":
                 try:
                     if normalized_side == "BUY" and market_ask is not None and float(market_ask) > 0:
-                        return float(market_ask), "ticker_best_ask", False
+                        return float(market_ask), RevealPriceSource.TICKER_BEST_ASK.value, False
                     if normalized_side == "SELL" and market_bid is not None and float(market_bid) > 0:
-                        return float(market_bid), "ticker_best_bid", False
+                        return float(market_bid), RevealPriceSource.TICKER_BEST_BID.value, False
                 except (TypeError, ValueError):
                     pass
-            return configured_limit_price, "configured_limit", True
+            return configured_limit_price, RevealPriceSource.CONFIGURED_LIMIT.value, True
         
         if reveal_pricing_policy == "midpoint":
             if market_source == "ticker":
@@ -231,12 +231,12 @@ class StealthOrderManager:
                     if (market_bid is not None and market_ask is not None and 
                         float(market_bid) > 0 and float(market_ask) > 0):
                         midpoint = (float(market_bid) + float(market_ask)) / 2.0
-                        return midpoint, "ticker_midpoint", False
+                        return midpoint, RevealPriceSource.TICKER_MIDPOINT.value, False
                 except (TypeError, ValueError):
                     pass
-            return configured_limit_price, "configured_limit", True
+            return configured_limit_price, RevealPriceSource.CONFIGURED_LIMIT.value, True
         
-        return configured_limit_price, "configured_limit", True
+        return configured_limit_price, RevealPriceSource.CONFIGURED_LIMIT.value, True
 
     def build_reveal_execution_plan(
         self,

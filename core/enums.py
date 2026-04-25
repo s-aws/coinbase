@@ -176,6 +176,25 @@ class RevealPricingPolicy(str, Enum):
     MIDPOINT = "midpoint"
 
 
+class RevealPriceSource(str, Enum):
+    """Source of the price used when revealing a stealth order.
+    
+    Indicates how the submitted limit price was determined at reveal time.
+    Used for audit trails and understanding reveal execution decisions.
+    
+    - CONFIGURED_LIMIT: Used original limit price from order creation (fallback or direct use)
+    - TICKER_BEST_BID: Used best bid from ticker (SELL orders with TOP_OF_BOOK policy)
+    - TICKER_BEST_ASK: Used best ask from ticker (BUY orders with TOP_OF_BOOK policy)
+    - TICKER_MIDPOINT: Used midpoint between bid/ask (MIDPOINT policy)
+    - UNAVAILABLE: Market data unavailable, fell back to configured limit
+    """
+    CONFIGURED_LIMIT = "configured_limit"
+    TICKER_BEST_BID = "ticker_best_bid"
+    TICKER_BEST_ASK = "ticker_best_ask"
+    TICKER_MIDPOINT = "ticker_midpoint"
+    UNAVAILABLE = "unavailable"
+
+
 # ============================================================================
 # STEALTH ORDER CONDITIONS
 # ============================================================================
