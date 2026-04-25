@@ -1824,15 +1824,69 @@ async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
             # Enrich stealth orders with parent target_movement
             enriched_orders = _enrich_stealth_orders_with_parent_data(engine_state["stealth_orders"])
             
+            # Phase 3: Calculate repricing statistics
+            repricing_stats = _calculate_repricing_statistics(enriched_orders)
+            
             payload = {
                 "type": "stealth_orders_snapshot",
                 "orders": enriched_orders,
+                "repricing_stats": repricing_stats,
                 "timestamp": datetime.utcnow().isoformat(),
             }
         
         await websocket.send(json.dumps(payload, cls=CustomJSONEncoder))
     except Exception as e:
         logger.error(f"Failed to send stealth orders snapshot: {e}")
+
+
+def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
+    """Calculate repricing statistics from stealth orders.
+    
+    Returns:
+        {
+            "active_repricing_count": int,
+            "total_reprices_executed": int,
+            "breakdown_by_source": {
+                "last_trade": int,
+                "midpoint": int,
+                "top_of_book": int,
+            },
+        }
+    """
+    active_count = 0
+    total_executed = 0
+    breakdown = {
+        "last_trade": 0,
+        "midpoint": 0,
+        "top_of_book": 0,
+    }
+    
+    for order_data in orders.values():
+        if not isinstance(order_data, dict):
+            continue
+        
+        # Check if repricing is enabled
+        policy = order_data.get("anchor_repricing_policy_json") or {}
+        if not policy.get("enabled"):
+            continue
+        
+        active_count += 1
+        
+        # Count reprices executed from state
+        state = order_data.get("anchor_repricing_state_json") or {}
+        history = state.get("reprice_history") or []
+        total_executed += len(history)
+        
+        # Breakdown by reference source
+        source = policy.get("reference_price_source", "midpoint")
+        if source in breakdown:
+            breakdown[source] += 1
+    
+    return {
+        "active_repricing_count": active_count,
+        "total_reprices_executed": total_executed,
+        "breakdown_by_source": breakdown,
+    }
 
 
 def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str, Any]:

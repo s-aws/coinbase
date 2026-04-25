@@ -478,6 +478,64 @@ class StateInconsistencyError(StateManagementError):
 # TYPE ALIASES FOR COMMON PATTERNS
 # ============================================================================
 
+class AnchorRepricingError(StealthOrderError):
+    """Anchor repricing operation failed.
+    
+    Raised when:
+    - Market data invalid or unavailable for repricing
+    - Reference price cannot be determined
+    - Repricing guardrails block placement
+    - Post-only enforcement fails
+    
+    Recovery: Check market data, review policy constraints, retry or escalate.
+    """
+    
+    def __init__(
+        self,
+        message: str,
+        stealth_order_id: Optional[str] = None,
+        reference_price: Optional[float] = None,
+        policy: Optional[str] = None
+    ):
+        """
+        Args:
+            message: Error description
+            stealth_order_id: Order ID for correlation
+            reference_price: Reference price that was attempted (for debugging)
+            policy: Repricing policy name (e.g., 'midpoint', 'last_trade')
+        """
+        self.stealth_order_id = stealth_order_id
+        self.reference_price = reference_price
+        self.policy = policy
+        super().__init__(message)
+
+
+class AnchorRepricingGuardrailError(AnchorRepricingError):
+    """Repricing guardrails prevented order placement.
+    
+    Raised when repricing logic determines placement would violate constraints:
+    - Post-only price check failed (would cross bid/ask)
+    - Price would exceed max boundary
+    - Not enough time elapsed since last reprice
+    - Hourly reprice limit exceeded
+    
+    Recovery: Adjust policy constraints or wait for next repricing window.
+    """
+    
+    def __init__(
+        self,
+        message: str,
+        guardrail_type: str,  # "post_only", "max_boundary", "cooldown", "rate_limit"
+        stealth_order_id: Optional[str] = None
+    ):
+        self.guardrail_type = guardrail_type
+        super().__init__(message, stealth_order_id=stealth_order_id)
+
+
+# ============================================================================
+# TYPE ALIASES FOR COMMON PATTERNS
+# ============================================================================
+
 # Use these for type hints on functions that may raise specific exceptions
 OrderRelatedError = (
     OrderProcessingError | StealthOrderError | DatabaseError | StateManagementError
@@ -485,6 +543,10 @@ OrderRelatedError = (
 
 RevealRelatedError = (
     RevealConditionEvaluationError | RevealPricingError | RevealOrderSliceError
+)
+
+RepricingRelatedError = (
+    AnchorRepricingError | AnchorRepricingGuardrailError
 )
 
 APIRelatedError = APIError | WebSocketError

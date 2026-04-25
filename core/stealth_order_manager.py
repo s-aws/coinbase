@@ -331,6 +331,25 @@ class StealthOrderManager:
             1,
         )
 
+        # Phase 2: Extended guardrails for adaptive repricing
+        volatility_sensitivity = max(
+            min(safe_float(policy.get("volatility_sensitivity"), default=1.0), 2.0),
+            0.1,
+        )
+        max_reprice_window_seconds = max(
+            int(safe_float(policy.get("max_reprice_window_seconds"), default=600.0)),
+            min_reprice_interval_seconds,
+        )
+        require_minimum_volume = max(
+            safe_float(policy.get("require_minimum_volume"), default=0.0),
+            0.0,
+        )
+        enable_spread_monitoring = bool(policy.get("enable_spread_monitoring", False))
+        max_spread_bps = max(
+            safe_float(policy.get("max_spread_bps"), default=50.0),
+            0.0,
+        )
+
         return {
             "enabled": True,
             "reference_price_source": reference_price_source,
@@ -347,6 +366,12 @@ class StealthOrderManager:
             "post_only_required": bool(policy.get("post_only_required", True)),
             "converge_to_target": bool(policy.get("converge_to_target", True)),
             "inherit_to_follow_ups": bool(policy.get("inherit_to_follow_ups", True)),
+            # Phase 2: Adaptive + spread guardrails
+            "volatility_sensitivity": volatility_sensitivity,
+            "max_reprice_window_seconds": max_reprice_window_seconds,
+            "require_minimum_volume": require_minimum_volume,
+            "enable_spread_monitoring": enable_spread_monitoring,
+            "max_spread_bps": max_spread_bps,
         }
 
     @staticmethod
@@ -437,6 +462,7 @@ class StealthOrderManager:
         desired_price: float,
         current_price: float,
         force_due: bool,
+        market_data: Optional[Dict[str, Any]] = None,
     ) -> bool:
         price_delta = abs(float(desired_price) - float(current_price))
         min_price_change = safe_float(policy.get("min_price_change"), default=0.0)
@@ -464,6 +490,23 @@ class StealthOrderManager:
         if len(recent) >= int(policy.get("max_reprices_per_hour", 20)):
             return True
 
+        # Phase 2: Spread monitoring guardrail
+        if policy.get("enable_spread_monitoring") and market_data:
+            bid = safe_float(market_data.get("bid"), default=None)
+            ask = safe_float(market_data.get("ask"), default=None)
+            if bid and ask and bid > 0 and ask > 0:
+                spread_bps = ((ask - bid) / ((bid + ask) / 2.0)) * 10000.0
+                max_spread_bps = safe_float(policy.get("max_spread_bps"), default=50.0)
+                if spread_bps > max_spread_bps:
+                    return True
+
+        # Phase 2: Volume requirement guardrail
+        require_minimum_volume = safe_float(policy.get("require_minimum_volume"), default=0.0)
+        if require_minimum_volume > 0 and market_data:
+            volume_1m = safe_float(market_data.get("volume_1m"), default=0.0)
+            if volume_1m < require_minimum_volume:
+                return True
+
         return False
 
     def _next_anchor_reprice_seconds(
@@ -472,19 +515,37 @@ class StealthOrderManager:
         current_price: float,
         target_price: float,
         max_boundary_price: float,
+        market_data: Optional[Dict[str, Any]] = None,
     ) -> int:
+        """Calculate next repricing interval, with volatility adjustment."""
         if policy.get("update_mode") == "fixed":
             return int(policy.get("fixed_interval_seconds", 60))
 
+        # Adaptive timing based on price gaps
         target_gap = abs(current_price - target_price)
         max_gap = abs(current_price - max_boundary_price)
         if max_gap <= 0:
-            return 60
-        if target_gap <= max(0.01, abs(target_price) * 0.0005):
-            return 300
-        if target_gap < max_gap:
-            return 120
-        return 60
+            interval = 60
+        elif target_gap <= max(0.01, abs(target_price) * 0.0005):
+            interval = 300
+        elif target_gap < max_gap:
+            interval = 120
+        else:
+            interval = 60
+
+        # Phase 2: Volatility-based adjustment
+        if market_data:
+            bid = safe_float(market_data.get("bid"), default=None)
+            ask = safe_float(market_data.get("ask"), default=None)
+            if bid and ask and bid > 0 and ask > 0:
+                spread_pct = ((ask - bid) / ((bid + ask) / 2.0)) * 10000.0
+                volatility_sensitivity = safe_float(policy.get("volatility_sensitivity"), default=1.0)
+                if spread_pct > 50:  # High volatility (>50 bps)
+                    interval = int(interval * volatility_sensitivity)
+        
+        # Hard cap from max_reprice_window_seconds
+        max_window = int(policy.get("max_reprice_window_seconds", 600))
+        return min(interval, max_window)
 
     def _placement_client_order_id_for_order(self, order: Dict[str, Any]) -> str:
         policy = order.get("anchor_repricing_policy_json") or {}
@@ -524,7 +585,7 @@ class StealthOrderManager:
             return False
 
         force_due = reprice_reason == "outside_max_boundary"
-        if self._should_skip_anchor_reprice(state, policy, desired_price, current_price, force_due):
+        if self._should_skip_anchor_reprice(state, policy, desired_price, current_price, force_due, market_data):
             return False
 
         from configuration import REST_CLIENT
@@ -594,7 +655,7 @@ class StealthOrderManager:
         state["last_reprice_at"] = now
         state["reprice_reason"] = reprice_reason
         state.setdefault("reprice_history", []).append(now.isoformat())
-        state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_price, max_boundary_price))).isoformat()
+        state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_price, max_boundary_price, market_data))).isoformat()
 
         order["anchor_repricing_state_json"] = state
         order["limit_price"] = desired_price
@@ -665,7 +726,7 @@ class StealthOrderManager:
             })
 
             if order.get("status") in {StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value}:
-                if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max):
+                if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max, market_data):
                     order["limit_price"] = desired_price
                     order["updated_at"] = now
                     state["current_logical_limit_price"] = desired_price
@@ -674,7 +735,7 @@ class StealthOrderManager:
                     state.setdefault("reprice_history", []).append(now.isoformat())
                     processed += 1
 
-                state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_prices["target_price"], max_boundary_price))).isoformat()
+                state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_prices["target_price"], max_boundary_price, market_data))).isoformat()
                 order["anchor_repricing_state_json"] = state
                 self._update_stealth_order(order)
                 continue
@@ -692,7 +753,7 @@ class StealthOrderManager:
                 ):
                     processed += 1
                 else:
-                    state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, current_price, target_prices["target_price"], max_boundary_price))).isoformat()
+                    state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, current_price, target_prices["target_price"], max_boundary_price, market_data))).isoformat()
                     order["anchor_repricing_state_json"] = state
                     self._update_stealth_order(order)
 

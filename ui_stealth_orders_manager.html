@@ -720,6 +720,15 @@
                     <span class="stat-label">Connection</span>
                     <span class="stat-value" id="connection-status" style="color: #ff6b6b;">●</span>
                 </div>
+                <!-- Phase 3: Repricing statistics -->
+                <div class="stat" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 4px;">
+                    <span class="stat-label">⟳ Repricing</span>
+                    <span class="stat-value" id="stat-repricing-active" style="color: #fff;">0</span>
+                </div>
+                <div class="stat" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 4px;">
+                    <span class="stat-label">Lifetime Reprices</span>
+                    <span class="stat-value" id="stat-repricing-total" style="color: #fff;">0</span>
+                </div>
             </div>
         </header>
 
@@ -1440,6 +1449,13 @@
                             const firstOrder = Object.values(ordersData)[0];
                             console.log("Sample order structure:", firstOrder);
                         }
+                        
+                        // Phase 3: Handle repricing statistics
+                        if (data.repricing_stats) {
+                            document.getElementById('stat-repricing-active').textContent = data.repricing_stats.active_repricing_count || 0;
+                            document.getElementById('stat-repricing-total').textContent = data.repricing_stats.total_reprices_executed || 0;
+                        }
+                        
                         updateOrdersTable();
                         updateStats();
                     } else if (data.type === "stealth_order_created") {
