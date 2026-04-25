@@ -300,6 +300,9 @@ class OrderEngine:
             )
 
             self.event_stream_publisher = OrderEventStreamPublisher(self.db_helper)
+            self.event_stream_publisher.set_fee_info_provider(
+                self.fee_manager.get_fee_info if self.fee_manager else None
+            )
             order_placement_hooks = get_global_placement_hook_registry()
             self.event_stream_publisher.register_hook_integrations(
                 websocket_hooks=self.websocket_hooks,

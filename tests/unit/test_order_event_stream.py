@@ -157,3 +157,46 @@ def test_stealth_lifecycle_hook_skips_snapshot_for_created(monkeypatch):
     )
 
     assert called["snapshot"] == 0
+
+
+def test_publish_event_enriches_payload_with_fee_manager_audit():
+    db_helper = FakeDBHelper()
+    publisher = OrderEventStreamPublisher(db_helper)
+
+    publisher.set_fee_info_provider(
+        lambda product_id=None: {
+            "taker_fee_rate": 0.006,
+            "profit_validation_fee_rate": 0.012,
+            "target_movement_factor": 1.1,
+            "fee_regime_factor": 1.2,
+            "volume_ratio": 0.75,
+            "overnight_margin_active": False,
+            "margin_window_type": "INTRADAY",
+            "last_updated": "2026-04-25T06:30:00",
+            "is_stale": False,
+            "product_echo": product_id,
+        }
+    )
+
+    ok = publisher.publish_event(
+        event_type="order_open",
+        source_channel="ws_user",
+        payload={
+            "client_order_id": "cid-1",
+            "product_id": "BTC-USDC",
+            "trigger_payload": {"reason": "unit_test"},
+        },
+        idempotency_key="ws:OPEN:cid-1:OPEN",
+        status_to="OPEN",
+    )
+
+    assert ok is True
+    assert len(db_helper.inserted_events) == 1
+
+    inserted = db_helper.inserted_events[0]
+    fee_audit = inserted["raw_payload_json"].get("fee_manager_audit")
+    assert fee_audit is not None
+    assert fee_audit["product_id"] == "BTC-USDC"
+    assert fee_audit["taker_fee_rate"] == 0.006
+    assert fee_audit["margin_window_type"] == "INTRADAY"
+    assert inserted["trigger_payload_json"]["fee_manager_audit"]["fee_regime_factor"] == 1.2

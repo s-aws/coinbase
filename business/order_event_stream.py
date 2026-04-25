@@ -25,7 +25,42 @@ class OrderEventStreamPublisher:
     def __init__(self, db_helper) -> None:
         self.db_helper = db_helper
         self.enabled = False
+        self._fee_info_provider = None
         self._initialize_table()
+
+    def set_fee_info_provider(self, provider) -> None:
+        """Register optional callback returning fee context for DB audit payloads."""
+        self._fee_info_provider = provider if callable(provider) else None
+
+    def _build_fee_manager_audit_context(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Build fee-manager snapshot for audit enrichment when provider is available."""
+        if not callable(self._fee_info_provider):
+            return None
+
+        product_id = payload.get("product_id") or payload.get("instrument")
+        try:
+            fee_info = self._fee_info_provider(product_id=product_id)
+        except TypeError:
+            fee_info = self._fee_info_provider()
+        except Exception as exc:
+            logger.warning(f"Failed to capture fee-manager audit context: {exc}")
+            return None
+
+        if not isinstance(fee_info, dict):
+            return None
+
+        return {
+            "product_id": product_id,
+            "taker_fee_rate": safe_float(fee_info.get("taker_fee_rate"), default=None),
+            "profit_validation_fee_rate": safe_float(fee_info.get("profit_validation_fee_rate"), default=None),
+            "target_movement_factor": safe_float(fee_info.get("target_movement_factor"), default=None),
+            "fee_regime_factor": safe_float(fee_info.get("fee_regime_factor"), default=None),
+            "volume_ratio": safe_float(fee_info.get("volume_ratio"), default=None),
+            "overnight_margin_active": fee_info.get("overnight_margin_active"),
+            "margin_window_type": fee_info.get("margin_window_type"),
+            "last_updated": fee_info.get("last_updated"),
+            "is_stale": fee_info.get("is_stale"),
+        }
 
     def _initialize_table(self) -> None:
         try:
@@ -55,6 +90,17 @@ class OrderEventStreamPublisher:
             client_order_id = payload.get("client_order_id")
             parent_client_order_id = payload.get("parent_order_id")
             product_id = payload.get("product_id") or payload.get("instrument")
+            fee_manager_audit = self._build_fee_manager_audit_context(payload)
+
+            trigger_payload = payload.get("trigger_payload")
+            if isinstance(trigger_payload, dict):
+                trigger_payload = dict(trigger_payload)
+                if fee_manager_audit is not None:
+                    trigger_payload["fee_manager_audit"] = fee_manager_audit
+
+            raw_payload = dict(payload)
+            if fee_manager_audit is not None:
+                raw_payload["fee_manager_audit"] = fee_manager_audit
 
             inserted_id = self.db_helper.insert_order_event(
                 event_id=event_id,
@@ -76,8 +122,8 @@ class OrderEventStreamPublisher:
                 fee=safe_float(payload.get("fees") or payload.get("total_fees"), default=None),
                 fee_currency=payload.get("fee_currency"),
                 trigger_type=payload.get("trigger_type"),
-                trigger_payload_json=payload.get("trigger_payload"),
-                raw_payload_json=payload,
+                trigger_payload_json=trigger_payload,
+                raw_payload_json=raw_payload,
                 idempotency_key=idempotency_key,
             )
             return inserted_id is not None
