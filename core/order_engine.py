@@ -2152,25 +2152,9 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
-        # CRITICAL: Check for stealth order BEFORE marking as external
-        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
-        original_stealth_order = None
-        if self.stealth_order_bridge:
-            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
-                client_order_id
-            )
-        
-        # If this is a stealth-revealed order, register it in the orderbook first
-        if original_stealth_order and original_stealth_order.get("parent_order_id"):
-            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
-            self.register_child_order(client_order_id, parent_client_order_id_stealth)
-
-        # Check if this is an external order (not created by our engine)
-        # External orders are ones we didn't place, so we shouldn't create follow-ups
-        is_external_order = self._is_external_order(client_order_id)
-
-        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
-        # This must happen before any other processing to prevent race conditions
+        # CRITICAL: Claim follow-up processing FIRST to prevent race conditions
+        # Must happen BEFORE any other processing (including registration) to ensure
+        # atomicity and prevent duplicate follow-up creation in concurrent scenarios
         if not self.claim_follow_up_processing("cancelled", client_order_id):
             self.log_message(
                 "warning",
@@ -2182,6 +2166,24 @@ class OrderEngine:
                 ),
             )
             return
+
+        # CRITICAL: Check for stealth order BEFORE marking as external
+        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
+        original_stealth_order = None
+        if self.stealth_order_bridge:
+            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
+            )
+        
+        # If this is a stealth-revealed order, register it in the orderbook
+        # Now safe to do after claiming processing rights
+        if original_stealth_order and original_stealth_order.get("parent_order_id"):
+            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+            self.register_child_order(client_order_id, parent_client_order_id_stealth)
+
+        # Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        is_external_order = self._is_external_order(client_order_id)
 
         # For external orders, just track them but don't create follow-ups
         if is_external_order:
@@ -2492,6 +2494,25 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
+        # CRITICAL: Claim follow-up processing FIRST to prevent race conditions
+        # Must happen BEFORE any other processing (including registration, fill recording) 
+        # to ensure atomicity and prevent duplicate follow-up creation in concurrent scenarios
+        #
+        # Note: We claim BEFORE fill recording (even though fill recording is idempotent
+        # via trade_id constraint), because we want to prevent concurrent threads from both
+        # creating follow-ups while fill recording can safely happen multiple times
+        if not self.claim_follow_up_processing("filled", client_order_id):
+            self.log_message(
+                "warning",
+                self.build_follow_up_log_payload(
+                    "follow_up_already_claimed",
+                    source_order=order,
+                    parent_client_order_id=None,
+                    details={"reason": "filled_order_follow_up_already_claimed"},
+                ),
+            )
+            return
+
         # CRITICAL: Check for stealth order BEFORE marking as external
         # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
         original_stealth_order = None
@@ -2500,7 +2521,8 @@ class OrderEngine:
                 client_order_id
             )
         
-        # If this is a stealth-revealed order, register it in the orderbook first
+        # If this is a stealth-revealed order, register it in the orderbook
+        # Now safe to do after claiming processing rights
         if original_stealth_order and original_stealth_order.get("parent_order_id"):
             parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
             self.register_child_order(client_order_id, parent_client_order_id_stealth)
@@ -2508,9 +2530,6 @@ class OrderEngine:
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = self._is_external_order(client_order_id)
-
-        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger FIRST
-        # ⚠️ CRITICAL: Must happen BEFORE claim_follow_up_processing check
         # Reason: Fill recording is idempotent (via trade_id UNIQUE constraint)
         # so it's safe to record even if we process this order again.
         # But we only want to create follow-ups once (hence the claim check below).
@@ -2601,20 +2620,6 @@ class OrderEngine:
             except Exception as e:
                 # Log but don't block - lot tracking failure shouldn't stop order processing
                 self.log_message("warning", f"[LOT-TRACK] Failed to record fill: {type(e).__name__}: {e}")
-
-        # CRITICAL: Claim follow-up processing NOW, after fill is recorded
-        # This prevents duplicate follow-up orders while allowing fill recording even if claim fails
-        if not self.claim_follow_up_processing("filled", client_order_id):
-            self.log_message(
-                "warning",
-                self.build_follow_up_log_payload(
-                    "follow_up_already_claimed",
-                    source_order=order,
-                    parent_client_order_id=None,
-                    details={"reason": "filled_order_follow_up_already_claimed"},
-                ),
-            )
-            return
 
         with self.orderbook_lock:
             should_replace_filled = self.orderbook.should_replace["FILLED"] is True
