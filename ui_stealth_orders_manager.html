@@ -793,6 +793,18 @@
                         </div>
 
                         <div class="form-group">
+                            <label>Reveal Pricing Policy</label>
+                            <select id="reveal_pricing_policy">
+                                <option value="top_of_book" selected>Top of Book</option>
+                                <option value="configured_limit">Configured Limit</option>
+                                <option value="midpoint">Midpoint</option>
+                            </select>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Controls the limit price used when the hidden order is revealed to the exchange.
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Sizing Strategy</label>
                             <select id="sizing_strategy" onchange="updateSizingFields()">
                                 <option value="fixed">Fixed (All at once)</option>
@@ -2065,6 +2077,7 @@
                 limit_price: parseFloat(document.getElementById('limit_price').value),
                 reveal_condition: buildRevealCondition(),
                 follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
+                reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
                 sizing_strategy: {
                     type: document.getElementById('sizing_strategy').value
                 },
@@ -2140,6 +2153,7 @@
                 limit_price: order.limit_price,
                 reveal_condition: order.reveal_condition_json,
                 follow_up_reveal_direction: order.follow_up_reveal_direction || 'opposite',
+                reveal_pricing_policy: order.reveal_pricing_policy || (order.reveal_condition_json && order.reveal_condition_json.reveal_pricing_policy) || 'top_of_book',
                 sizing_strategy: {strategy: "equal_slices"},
                 notes: `Follow-up hidden order from ${orderID}`
             };
