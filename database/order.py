@@ -77,11 +77,16 @@ def create_order_parent_table() -> None:
         price NUMERIC NOT NULL,
         status VARCHAR(20) NOT NULL,
         parent_order_id VARCHAR(40),
+        allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE"
+        )
         print("order_parent table done.")
 
 
@@ -595,7 +600,8 @@ def insert_order_parent(
     max_order_replacement: int = 0,
     current_order_replacement: int = 0,
     status: str = "pending",
-    parent_order_id: Optional[str] = None
+    parent_order_id: Optional[str] = None,
+    allow_partial_fills: bool = False,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
     
@@ -639,9 +645,10 @@ def insert_order_parent(
         target_movement_type,
         max_order_replacement,
         current_order_replacement,
-        parent_order_id
+        parent_order_id,
+        allow_partial_fills
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     params = (
@@ -656,6 +663,7 @@ def insert_order_parent(
         int(max_order_replacement),
         int(current_order_replacement),
         parent_order_id,
+        bool(allow_partial_fills),
     )
 
     try:
@@ -2888,3 +2896,200 @@ def cancel_conditional_order(conditional_order_id: str) -> int:
     if result > 0:
         logger.info(f"Conditional order cancelled: {conditional_order_id}")
     return result
+
+
+# ---------------------------------------------------------------------------
+# partial_fill_progress table – restart-resilient partial fill watermarks
+# ---------------------------------------------------------------------------
+
+def create_partial_fill_progress_table() -> None:
+    """Create the partial_fill_progress table for restart-resilient partial fill tracking.
+
+    Each row holds the high-watermark state for one active order that has been
+    enabled for partial-fill follow-up creation.  The row is upserted on every
+    OPEN/UPDATE event that advances the cumulative fill and cleared (status set
+    to FINALIZED or CANCELLED) when the order reaches a terminal state.
+
+    Table columns:
+        client_order_id               – FK to order_parent; also the natural PK
+        parent_client_order_id        – root parent for flat hierarchy linking
+        product_id                    – trading pair (informational)
+        side                          – BUY / SELL
+        original_order_size           – total size of the placed child order
+        min_order_size                – minimum base increment for the product
+        last_cumulative_qty_processed – highest cumulative_quantity seen and acted on
+        carry_remainder_qty           – sub-minimum accumulator carried forward
+        last_number_of_fills_seen     – dedup helper; mirrors number_of_fills field
+        last_completion_pct_seen      – completion_percentage watermark (0-100)
+        partial_follow_ups_created    – count of follow-up orders spawned so far
+        status                        – ACTIVE | FINALIZED | CANCELLED
+        created_at / updated_at       – timestamps
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS partial_fill_progress (
+        id SERIAL PRIMARY KEY,
+        client_order_id VARCHAR(40) NOT NULL UNIQUE,
+        parent_client_order_id VARCHAR(40),
+        product_id VARCHAR(32),
+        side VARCHAR(10),
+        original_order_size NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        min_order_size NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        last_cumulative_qty_processed NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        carry_remainder_qty NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        last_number_of_fills_seen INTEGER NOT NULL DEFAULT 0,
+        last_completion_pct_seen NUMERIC(7, 4) NOT NULL DEFAULT 0,
+        partial_follow_ups_created INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_order_id) REFERENCES order_parent(client_order_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_partial_fill_progress_status
+        ON partial_fill_progress (status);
+    CREATE INDEX IF NOT EXISTS idx_partial_fill_progress_parent
+        ON partial_fill_progress (parent_client_order_id);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("partial_fill_progress table done.")
+
+
+def upsert_partial_fill_progress(
+    client_order_id: str,
+    parent_client_order_id: Optional[str],
+    product_id: Optional[str],
+    side: Optional[str],
+    original_order_size: float,
+    min_order_size: float,
+    last_cumulative_qty_processed: float,
+    carry_remainder_qty: float,
+    last_number_of_fills_seen: int,
+    last_completion_pct_seen: float,
+    partial_follow_ups_created: int,
+) -> bool:
+    """Insert or update the partial-fill watermark for a single child order.
+
+    Uses INSERT … ON CONFLICT (client_order_id) DO UPDATE so both the initial
+    row creation and every subsequent watermark advance are handled atomically.
+
+    Returns:
+        True on success, False on error.
+    """
+    query = """
+    INSERT INTO partial_fill_progress (
+        client_order_id,
+        parent_client_order_id,
+        product_id,
+        side,
+        original_order_size,
+        min_order_size,
+        last_cumulative_qty_processed,
+        carry_remainder_qty,
+        last_number_of_fills_seen,
+        last_completion_pct_seen,
+        partial_follow_ups_created,
+        status,
+        updated_at
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'ACTIVE', CURRENT_TIMESTAMP)
+    ON CONFLICT (client_order_id) DO UPDATE SET
+        last_cumulative_qty_processed = EXCLUDED.last_cumulative_qty_processed,
+        carry_remainder_qty           = EXCLUDED.carry_remainder_qty,
+        last_number_of_fills_seen     = EXCLUDED.last_number_of_fills_seen,
+        last_completion_pct_seen      = EXCLUDED.last_completion_pct_seen,
+        partial_follow_ups_created    = EXCLUDED.partial_follow_ups_created,
+        original_order_size           = EXCLUDED.original_order_size,
+        min_order_size                = EXCLUDED.min_order_size,
+        status                        = 'ACTIVE',
+        updated_at                    = CURRENT_TIMESTAMP
+    """
+    params = (
+        client_order_id,
+        parent_client_order_id,
+        product_id,
+        side,
+        original_order_size,
+        min_order_size,
+        last_cumulative_qty_processed,
+        carry_remainder_qty,
+        last_number_of_fills_seen,
+        last_completion_pct_seen,
+        partial_follow_ups_created,
+    )
+    try:
+        DB_CLIENT.execute_update(query, params)
+        logger.debug(
+            f"[PARTIAL-FILL] Progress upserted: {client_order_id} "
+            f"cumulative={last_cumulative_qty_processed} carry={carry_remainder_qty}"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] upsert_partial_fill_progress failed for {client_order_id}: {type(e).__name__}: {e}")
+        return False
+
+
+def get_partial_fill_progress(client_order_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve the current partial-fill watermark row for a single child order.
+
+    Returns:
+        Dict of column values, or None if no row exists.
+    """
+    query = """
+    SELECT * FROM partial_fill_progress
+    WHERE client_order_id = %s
+    LIMIT 1
+    """
+    try:
+        results = DB_CLIENT.execute_query(query, (client_order_id,))
+        return results[0] if results else None
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] get_partial_fill_progress failed for {client_order_id}: {type(e).__name__}: {e}")
+        return None
+
+
+def get_all_active_partial_fill_progress() -> List[Dict[str, Any]]:
+    """Retrieve all ACTIVE partial-fill watermark rows for engine restart hydration.
+
+    Returns:
+        List of dicts; empty list on error or when no active rows exist.
+    """
+    query = """
+    SELECT * FROM partial_fill_progress
+    WHERE status = 'ACTIVE'
+    ORDER BY created_at ASC
+    """
+    try:
+        return DB_CLIENT.execute_query(query) or []
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] get_all_active_partial_fill_progress failed: {type(e).__name__}: {e}")
+        return []
+
+
+def finalize_partial_fill_progress(client_order_id: str, status: str) -> bool:
+    """Mark a partial-fill progress row as terminal (FINALIZED or CANCELLED).
+
+    Called when the originating order reaches a terminal exchange status so the
+    engine no longer needs to track it across restarts.
+
+    Args:
+        client_order_id: The child order whose progress row to close.
+        status:          Terminal status string – 'FINALIZED' or 'CANCELLED'.
+
+    Returns:
+        True if a row was updated, False otherwise.
+    """
+    query = """
+    UPDATE partial_fill_progress
+    SET status = %s,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE client_order_id = %s
+      AND status = 'ACTIVE'
+    """
+    try:
+        rows = DB_CLIENT.execute_update(query, (status, client_order_id))
+        if rows > 0:
+            logger.info(f"[PARTIAL-FILL] Progress finalized: {client_order_id} -> {status}")
+        return rows > 0
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] finalize_partial_fill_progress failed for {client_order_id}: {type(e).__name__}: {e}")
+        return False

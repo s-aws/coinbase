@@ -159,6 +159,103 @@ def resolve_profit_move_pct(
     return 0.0
 
 
+def resolve_cumulative_filled(order: Dict[str, Any]) -> float:
+    """Resolve how much of an order has been cumulatively filled so far.
+
+    Uses ``cumulative_quantity`` as the primary source (Coinbase WebSocket field
+    meaning "amount filled in base currency").  Falls back to deriving the value
+    from ``completion_percentage`` × ``base_size`` when the primary field is
+    absent or zero, which covers edge-case payloads that omit the field.
+
+    This function is intentionally separate from ``resolve_order_size`` because
+    that function prioritises ``leaves_quantity`` (remaining), which is incorrect
+    for computing partial-fill progress watermarks.
+
+    Args:
+        order: Order dictionary from a Coinbase WebSocket OPEN or UPDATE event.
+
+    Returns:
+        Cumulative filled quantity as a float, or 0.0 if not determinable.
+
+    Examples:
+        >>> resolve_cumulative_filled({'cumulative_quantity': '1.5'})
+        1.5
+        >>> resolve_cumulative_filled({'completion_percentage': '50', 'base_size': '3.0'})
+        1.5
+        >>> resolve_cumulative_filled({})
+        0.0
+    """
+    cumulative = safe_float(order.get("cumulative_quantity"), default=0.0)
+    if cumulative > 0.0:
+        return cumulative
+
+    # Fallback: derive from completion_percentage × base_size
+    completion_pct = safe_float(order.get("completion_percentage"), default=0.0)
+    base_size = safe_float(order.get("base_size") or order.get("size"), default=0.0)
+    if completion_pct > 0.0 and base_size > 0.0:
+        return (completion_pct / 100.0) * base_size
+
+    return 0.0
+
+
+def resolve_remaining_size(order: Dict[str, Any]) -> float:
+    """Resolve how much of an order is still unfilled (remaining quantity).
+
+    Uses ``leaves_quantity`` as the primary source, with ``base_size`` as a
+    fallback for order snapshots that may not carry the field.
+
+    Args:
+        order: Order dictionary from a Coinbase WebSocket event.
+
+    Returns:
+        Remaining unfilled quantity as a float, or 0.0 if not determinable.
+
+    Examples:
+        >>> resolve_remaining_size({'leaves_quantity': '0.5'})
+        0.5
+        >>> resolve_remaining_size({'base_size': '2.0'})
+        2.0
+        >>> resolve_remaining_size({})
+        0.0
+    """
+    leaves = safe_float(order.get("leaves_quantity"), default=0.0)
+    if leaves > 0.0:
+        return leaves
+
+    return safe_float(order.get("base_size") or order.get("size"), default=0.0)
+
+
+def resolve_partial_fill_delta(
+    current_cumulative: float,
+    last_watermark: float,
+) -> float:
+    """Compute the new fill quantity since the last recorded watermark.
+
+    Enforces monotonicity: returns 0.0 if ``current_cumulative`` has not
+    advanced beyond ``last_watermark``, guarding against out-of-order or
+    duplicate WebSocket events.
+
+    Args:
+        current_cumulative: Latest ``cumulative_quantity`` from the exchange.
+        last_watermark:     The last ``cumulative_quantity`` that was acted on,
+                            stored in ``_partial_fill_state`` / DB.
+
+    Returns:
+        The non-negative delta (new fill since last watermark), or 0.0 if no
+        advancement.
+
+    Examples:
+        >>> resolve_partial_fill_delta(1.5, 1.0)
+        0.5
+        >>> resolve_partial_fill_delta(1.0, 1.0)
+        0.0
+        >>> resolve_partial_fill_delta(0.9, 1.0)   # out-of-order / duplicate
+        0.0
+    """
+    delta = current_cumulative - last_watermark
+    return delta if delta > 0.0 else 0.0
+
+
 def extract_order_price(order: Dict[str, Any]) -> Optional[float]:
     """Extract the price from an order, preferring limit_price over avg_price.
     

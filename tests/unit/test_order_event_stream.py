@@ -12,6 +12,7 @@ class FakeDBHelper:
         self.created_lifecycle_history_table = False
         self.created_reveal_history_table = False
         self.created_snapshots_table = False
+        self.created_partial_fill_progress_table = False
         self.inserted_events = []
 
     def create_order_event_stream_table(self):
@@ -25,6 +26,9 @@ class FakeDBHelper:
 
     def create_stealth_order_snapshots_table(self):
         self.created_snapshots_table = True
+
+    def create_partial_fill_progress_table(self):
+        self.created_partial_fill_progress_table = True
 
     def insert_order_event(self, **kwargs):
         self.inserted_events.append(kwargs)

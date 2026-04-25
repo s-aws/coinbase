@@ -68,6 +68,7 @@ class OrderEventStreamPublisher:
             self.db_helper.create_stealth_order_lifecycle_history_table()
             self.db_helper.create_stealth_order_reveal_history_table()
             self.db_helper.create_stealth_order_snapshots_table()
+            self.db_helper.create_partial_fill_progress_table()
             self.enabled = True
             logger.info("order_event_stream integration enabled")
         except Exception as exc:
