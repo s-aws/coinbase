@@ -162,7 +162,7 @@ class RevealExecutionPlan:
         configured_limit_price: Original limit price from stealth order creation
         submitted_limit_price: Actual limit price that will be submitted to exchange
         reveal_pricing_policy: Policy that determined the price (enum value as string)
-        reveal_price_source: How the price was sourced (ticker_best_ask, ticker_best_bid, configured_limit, etc.)
+        reveal_price_source: How the price was sourced (RevealPriceSource enum value, e.g. ticker_best_ask)
         fallback_used: Whether configured limit was used as fallback (market data unavailable)
         market_source: Source of market data (ticker, snapshot, unavailable)
         market_bid: Best bid price at reveal time
