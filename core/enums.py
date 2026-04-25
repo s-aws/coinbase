@@ -162,6 +162,20 @@ class FollowUpRevealDirection(str, Enum):
     OPPOSITE = "opposite"
 
 
+class RevealPricingPolicy(str, Enum):
+    """Pricing policy for stealth order reveal.
+    
+    Determines what price to use when revealing a stealth order to the exchange.
+    
+    - CONFIGURED_LIMIT: Use the limit price specified at order creation
+    - TOP_OF_BOOK: Use current best bid (SELL) or best ask (BUY) from ticker
+    - MIDPOINT: Use midpoint between current bid and ask
+    """
+    CONFIGURED_LIMIT = "configured_limit"
+    TOP_OF_BOOK = "top_of_book"
+    MIDPOINT = "midpoint"
+
+
 # ============================================================================
 # STEALTH ORDER CONDITIONS
 # ============================================================================

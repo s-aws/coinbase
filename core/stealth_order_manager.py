@@ -66,7 +66,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
-from core.enums import FollowUpRevealDirection, StealthLifecycleEvent, StealthOrderStatus
+from core.enums import FollowUpRevealDirection, RevealPricingPolicy, StealthLifecycleEvent, StealthOrderStatus
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 from logging_service import get_logger
@@ -257,7 +257,8 @@ class StealthOrderManager:
         stealth_order_id: Optional[str] = None,
         max_order_replacements: Optional[int] = None,
         target_movement: float = 0.002,
-        target_movement_type: str = "P"
+        target_movement_type: str = "P",
+        reveal_pricing_policy: Optional[str] = None,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -289,6 +290,8 @@ class StealthOrderManager:
             max_order_replacements: Maximum number of follow-up orders allowed (default: from config)
             target_movement: Target profit/movement percentage (default: 0.0)
             target_movement_type: Type of target ('P' for percentage, 'A' for absolute, default 'P')
+            reveal_pricing_policy: Per-order reveal pricing policy (configured_limit, top_of_book, midpoint).
+                                  If None, defaults to configured_limit.
             
         Returns:
             order_id (UUID string) - Used as client_order_id for all internal tracking
@@ -347,6 +350,7 @@ class StealthOrderManager:
             "visibility_score": 0.0,
             "reveal_condition_type": reveal_condition.get("type", "time_delay"),
             "reveal_condition_json": reveal_condition,
+            "reveal_pricing_policy": reveal_pricing_policy or "configured_limit",
             "follow_up_reveal_direction": follow_up_reveal_direction or FollowUpRevealDirection.OPPOSITE.value,
             "sizing_strategy_json": sizing_strategy or {"type": "fixed"},
             "parent_order_id": parent_order_id,
@@ -1051,6 +1055,7 @@ class StealthOrderManager:
         limit_price: float,
         reveal_condition: Optional[Dict[str, Any]] = None,
         follow_up_reveal_direction: Optional[str] = None,
+        reveal_pricing_policy: Optional[str] = None,
         notes: str = "",
         target_movement: Optional[float] = None,
         target_movement_type: str = "P"
@@ -1069,6 +1074,7 @@ class StealthOrderManager:
                                        Accepts enum or string value. If None, inherits from original.
                                        - SAME: Keep same side (BUY stays BUY, SELL stays SELL)
                                        - OPPOSITE: Flip side (BUY becomes SELL, SELL becomes BUY)
+            reveal_pricing_policy: Optional pricing policy override. If None, inherits from original order.
             notes: Additional notes
             target_movement: Optional override for target movement. If not provided, uses original's target_movement.
             target_movement_type: Type for target movement ('P' or 'A'). Default 'P'.
@@ -1082,6 +1088,8 @@ class StealthOrderManager:
         
         # Use provided reveal condition or inherit from original
         follow_up_condition = reveal_condition if reveal_condition is not None else original_order.get("reveal_condition_json", {})
+        inherited_pricing_policy = original_order.get("reveal_pricing_policy") or "configured_limit"
+        effective_pricing_policy = reveal_pricing_policy or inherited_pricing_policy
         
         # Use provided target movement or inherit from original
         follow_up_target_movement = target_movement if target_movement is not None else original_order.get("target_movement")
@@ -1099,6 +1107,7 @@ class StealthOrderManager:
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
             parent_order_id=original_order.get("parent_order_id") or original_stealth_order_id,
             follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value),
+            reveal_pricing_policy=effective_pricing_policy,
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
         )
