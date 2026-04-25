@@ -295,6 +295,9 @@ class OrderEngine:
         """Initialize order event stream and wire it into existing hook registries."""
         try:
             from business.order_event_stream import OrderEventStreamPublisher
+            from integration.stealth_lifecycle_hooks import (
+                get_global_stealth_lifecycle_hook_registry,
+            )
 
             self.event_stream_publisher = OrderEventStreamPublisher(self.db_helper)
             order_placement_hooks = get_global_placement_hook_registry()
@@ -302,6 +305,7 @@ class OrderEngine:
                 websocket_hooks=self.websocket_hooks,
                 fill_event_hooks=self.fill_event_hooks,
                 order_placement_hooks=order_placement_hooks,
+                stealth_lifecycle_hooks=get_global_stealth_lifecycle_hook_registry(),
             )
             if self.event_stream_publisher.enabled:
                 self.log_message("info", "[EVENT-STREAM] Hook integration enabled")
@@ -1182,6 +1186,7 @@ class OrderEngine:
         
         # Call extensible order normalizers (can modify fields, add computed values, etc.)
         self.websocket_hooks.call_order_normalizers(normalized_order)
+        self._sync_stealth_exchange_order_id(normalized_order)
         
         outstanding_hold_amount = safe_float(
             normalized_order.get("outstanding_hold_amount"),
@@ -1267,6 +1272,59 @@ class OrderEngine:
                 source=self.build_order_log_context(normalized_order),
             ),
         )
+
+    def _sync_stealth_exchange_order_id(self, order: dict) -> None:
+        """Backfill exchange_order_id for stealth audit rows when websocket data arrives."""
+        if not self.stealth_order_bridge:
+            return
+
+        client_order_id = order.get("client_order_id")
+        exchange_order_id = order.get("order_id")
+        if not client_order_id or not exchange_order_id:
+            return
+
+        stealth_manager = getattr(self.stealth_order_bridge, "stealth_manager", None)
+        if not stealth_manager:
+            return
+
+        try:
+            stealth_manager.sync_exchange_order_id_for_placed_order(
+                client_order_id,
+                exchange_order_id,
+            )
+        except Exception as exc:
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "stealth_exchange_order_id_sync_failed",
+                    source=self.build_order_log_context(order),
+                    error=str(exc),
+                ),
+            )
+
+    def _seed_parent_order_cache_from_db(self, client_order_id: str) -> bool:
+        """Hydrate in-memory parent metadata for stealth orders already persisted at creation."""
+        if self.is_parent_order(client_order_id):
+            return True
+        if not self.db_helper or not hasattr(self.db_helper, "get_parent_order"):
+            return False
+
+        parent_order = self.db_helper.get_parent_order(client_order_id)
+        if not parent_order:
+            return False
+
+        with self.orderbook_lock:
+            self.orderbook.parent_order_ids[client_order_id] = {
+                "orders": list(self.orderbook.parent_order_ids.get(client_order_id, {}).get("orders", [])),
+                "target_movement": {
+                    "movement": safe_float(parent_order.get("target_movement"), default=0.0),
+                    "type": parent_order.get("target_movement_type", "P"),
+                },
+                "max_order_replacement": int(parent_order.get("max_order_replacement") or DEFAULT_MAX_ORDER_REPLACEMENT),
+                "current_order_replacement": int(parent_order.get("current_order_replacement") or 0),
+                "parent_id": parent_order.get("id"),
+            }
+        return True
 
     def apply_position_update(self, order_template: dict) -> None:
         """Apply position update from order template to orderbook.
@@ -1960,6 +2018,8 @@ class OrderEngine:
                         "target_movement_type": parent_order_data.get("target_movement_type", "P")
                     }
 
+                self._seed_parent_order_cache_from_db(client_order_id)
+
             _, parent_client_order_id = self.resolve_parent_client_order_id(
                 client_order_id,
                 order=order,
@@ -2139,7 +2199,8 @@ class OrderEngine:
                         "bid": fill_price,
                         "ask": fill_price,
                         "volume_1m": 0,
-                        "time": get_local_now()
+                        "time": get_local_now(),
+                        "source": "synthetic_follow_up_seed",
                     }
                     
                     # Build the reveal condition for the follow-up using configurable direction

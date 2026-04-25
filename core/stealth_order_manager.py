@@ -185,6 +185,16 @@ class StealthOrderManager:
             from integration.stealth_lifecycle_hooks import (
                 get_global_stealth_lifecycle_hook_registry,
             )
+            market_data = self._get_current_market_data(order_data.get("product_id", ""))
+            market_bid = market_data.get("bid")
+            market_ask = market_data.get("ask")
+            market_spread = market_data.get("market_spread")
+            if market_spread is None and market_bid is not None and market_ask is not None:
+                try:
+                    market_spread = float(market_ask) - float(market_bid)
+                except (TypeError, ValueError):
+                    market_spread = None
+
             context: Dict[str, Any] = {
                 "product_id": order_data.get("product_id", ""),
                 "side": order_data.get("side", ""),
@@ -197,8 +207,23 @@ class StealthOrderManager:
                 "limit_price": float(order_data.get("limit_price", 0.0)),
                 "reason": order_data.get("reason", ""),
                 "parent_order_id": order_data.get("parent_order_id"),
+                "status": order_data.get("status"),
+                "remaining_size": float(order_data.get("remaining_size", 0.0)),
+                "executed_size": float(order_data.get("executed_size", 0.0)),
+                "reveal_condition_type": order_data.get("reveal_condition_type"),
+                "reveal_condition": order_data.get("reveal_condition_json"),
+                "condition_first_met_at": order_data.get("condition_first_met_at"),
+                "condition_confirmed_at": order_data.get("condition_confirmed_at"),
+                "revealed_count": len(order_data.get("revealed_orders", [])),
+                "market_price": market_data.get("price"),
+                "market_bid": market_bid,
+                "market_ask": market_ask,
+                "market_spread": market_spread,
+                "market_volume_1m": market_data.get("volume_1m"),
+                "market_source": market_data.get("source"),
                 "timestamp": datetime.utcnow(),
                 "placed_order_id": None,
+                "exchange_order_id": None,
                 "failure_reason": None,
             }
             if extra:
@@ -403,6 +428,9 @@ class StealthOrderManager:
         
         # Get current market data (would come from OrderEngine's market data)
         market_data = self._get_current_market_data(order["product_id"])
+        market_source = market_data.get("source", "unknown")
+        if market_source != "ticker":
+            return False, f"Waiting for live ticker market data (source={market_source})"
         
         # Get evaluator for this condition type
         condition_type = order.get("reveal_condition_type", "time_delay")
@@ -565,6 +593,10 @@ class StealthOrderManager:
                 client_order_id=order_for_submission["client_order_id"],
                 post_only=order_for_submission["post_only"]
             )
+
+            if isinstance(order_result, dict):
+                success_response = order_result.get("success_response") or {}
+                exchange_order_id = success_response.get("order_id") or order_result.get("order_id")
             
             # ✓ Use the client_order_id we sent (stealth_order_id)
             # When fill event arrives with this client_order_id, it links directly to stealth order
@@ -591,6 +623,7 @@ class StealthOrderManager:
                 "event": "stealth_order_slice_placed_successfully",
                 "stealth_order_id": order['stealth_order_id'],
                 "client_order_id": placed_order_id,
+                "exchange_order_id": exchange_order_id,
                 "size": slice_size,
                 "product_id": order["product_id"],
                 "limit_price": order["limit_price"]
@@ -601,7 +634,11 @@ class StealthOrderManager:
                 stealth_order_id=stealth_order_id,
                 event=StealthLifecycleEvent.REVEAL_SUCCEEDED,
                 order_data=order,
-                extra={"placed_order_id": placed_order_id, "size": slice_size},
+                extra={
+                    "placed_order_id": placed_order_id,
+                    "exchange_order_id": exchange_order_id,
+                    "size": slice_size,
+                },
             )
         except Exception as e:
             # ✗ EXCEPTION DURING PLACEMENT
@@ -630,6 +667,7 @@ class StealthOrderManager:
             "reveal_number": len(order["revealed_orders"]) + 1,
             "revealed_size": slice_size,
             "placed_order_id": placed_order_id,
+            "exchange_order_id": exchange_order_id,
             "placement_success": placement_success,  # ✓ Track if actually placed on exchange
             "placement_error": placement_error,      # Error message if failed
             "reveal_time": datetime.utcnow(),
@@ -670,14 +708,59 @@ class StealthOrderManager:
         if not order:
             return
         
+        placed_order_id = None
+        exchange_order_id = None
+        revealed_orders = order.get("revealed_orders") or []
+        if revealed_orders and isinstance(revealed_orders[-1], dict):
+            placed_order_id = revealed_orders[-1].get("placed_order_id")
+            exchange_order_id = revealed_orders[-1].get("exchange_order_id")
+
         order["executed_size"] = float(executed_size)
-        order["status"] = order_status
         order["updated_at"] = datetime.utcnow()
+
+        if order_status == StealthOrderStatus.EXECUTED.value:
+            self._update_stealth_order(order)
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.FILL_RECEIVED,
+                order_data=order,
+                extra={
+                    "size": float(executed_size),
+                    "placed_order_id": placed_order_id,
+                    "exchange_order_id": exchange_order_id,
+                    "status": StealthOrderStatus.REVEALED.value,
+                },
+            )
+
+        order["status"] = order_status
         
         # 📊 LOT-TRACKING: Log execution
         self.log_callback("info", f"[LOT-TRACK] Stealth order executed: {stealth_order_id} ({order['side']} {executed_size} of {order['total_size']} {order['product_id']}, status={order_status})")
         
         self._update_stealth_order(order)
+
+        if order_status == StealthOrderStatus.EXECUTED.value:
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.EXECUTED,
+                order_data=order,
+                extra={
+                    "size": float(executed_size),
+                    "placed_order_id": placed_order_id,
+                    "exchange_order_id": exchange_order_id,
+                },
+            )
+        elif order_status == StealthOrderStatus.CANCELLED.value:
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.CANCELLED,
+                order_data=order,
+                extra={
+                    "size": float(executed_size),
+                    "placed_order_id": placed_order_id,
+                    "exchange_order_id": exchange_order_id,
+                },
+            )
     
     def cancel_stealth_order(self, stealth_order_id: str, reason: str = "User cancelled") -> bool:
         """
@@ -783,6 +866,7 @@ class StealthOrderManager:
             "bid": 0,
             "ask": 0,
             "volume_1m": 0,
+            "source": "unavailable",
         }
     
     def _get_market_volume(self, product_id: str, seconds: int) -> float:
@@ -889,6 +973,56 @@ class StealthOrderManager:
             Stealth order dict if found, None otherwise
         """
         return self._placed_order_index.get(placed_order_id)
+
+    def sync_exchange_order_id_for_placed_order(self, placed_order_id: str, exchange_order_id: str) -> bool:
+        """Backfill audit-only exchange_order_id once websocket data provides it."""
+        if not placed_order_id or not exchange_order_id:
+            return False
+
+        order = self.find_stealth_order_by_placed_order_id(placed_order_id)
+        if not order:
+            return False
+
+        updated = False
+        revealed_orders = order.get("revealed_orders") or []
+        for reveal_event in reversed(revealed_orders):
+            if not isinstance(reveal_event, dict):
+                continue
+            if reveal_event.get("placed_order_id") != placed_order_id:
+                continue
+            existing_exchange_order_id = reveal_event.get("exchange_order_id")
+            if existing_exchange_order_id == exchange_order_id:
+                return True
+            if existing_exchange_order_id:
+                return False
+            reveal_event["exchange_order_id"] = exchange_order_id
+            order["updated_at"] = datetime.utcnow()
+            self._update_stealth_order(order)
+            updated = True
+            break
+
+        if self.db_client:
+            try:
+                from database.order import update_stealth_audit_exchange_order_id
+
+                update_stealth_audit_exchange_order_id(
+                    stealth_order_id=order["stealth_order_id"],
+                    placed_order_id=placed_order_id,
+                    exchange_order_id=exchange_order_id,
+                )
+            except Exception as exc:
+                self.log_callback(
+                    "warning",
+                    {
+                        "event": "stealth_exchange_order_id_audit_sync_failed",
+                        "stealth_order_id": order.get("stealth_order_id"),
+                        "placed_order_id": placed_order_id,
+                        "exchange_order_id": exchange_order_id,
+                        "error": str(exc),
+                    },
+                )
+
+        return updated
     
     def create_follow_up_stealth_order(
         self,
@@ -1171,13 +1305,14 @@ class StealthOrderManager:
             self.db_client.execute_update(
                 """INSERT INTO stealth_order_reveal_history
                    (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id, 
-                    reveal_trigger_reason, reveal_trigger_data)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                                        exchange_order_id, reveal_trigger_reason, reveal_trigger_data)
+                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                 (stealth_order_id,
                  reveal_event.get('reveal_number', 1),
                  reveal_event.get('revealed_size', 0),
                  reveal_event.get('placement_price'),
                  reveal_event.get('placed_order_id'),
+                                 reveal_event.get('exchange_order_id'),
                  f"Price below {reveal_event.get('target_price', 'unknown')}",
                  json.dumps({
                      'market_price': reveal_event.get('market_price'),

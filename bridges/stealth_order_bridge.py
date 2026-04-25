@@ -237,6 +237,7 @@ class StealthOrderBridge:
             "ask": safe_float(ticker_data.get("best_ask"), 0),
             "volume_1m": safe_float(ticker_data.get("volume_24_h"), 0) / 1440,  # Approximate 1m volume
             "time": datetime.utcnow(),
+            "source": "ticker",
         }
         
         # Store market data in cache for evaluators

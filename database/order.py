@@ -18,6 +18,20 @@ logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
 
 
+def _json_default_for_db(value: Any):
+    """Serialize common Python runtime types for JSONB database writes."""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    try:
+        from decimal import Decimal
+
+        if isinstance(value, Decimal):
+            return float(value)
+    except Exception:
+        pass
+    return str(value)
+
+
 def create_order_parent_table() -> None:
     """Create the order_parent table if it doesn't exist.
     
@@ -355,6 +369,90 @@ def create_stealth_order_snapshots_table() -> None:
         print("stealth_order_snapshots table done.")
 
 
+def insert_stealth_order_snapshot(
+    stealth_order_id: str,
+    lifecycle_event: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> Optional[int]:
+    """Insert an event-scoped stealth snapshot for audit replay.
+
+    Snapshots are intentionally written only at lifecycle milestones through the
+    existing lifecycle hook path to avoid adding parallel trigger paths.
+    """
+    context = dict(context or {})
+    try:
+        status = context.get("status")
+        if not status:
+            status_map = {
+                "CREATED": "HIDDEN",
+                "CONDITION_WATCHING": "PENDING",
+                "CONDITION_MET": "TRIGGERED",
+                "REVEAL_SUCCEEDED": "REVEALED",
+                "FILL_RECEIVED": "REVEALED",
+                "EXECUTED": "EXECUTED",
+                "CANCELLED": "CANCELLED",
+            }
+            status = status_map.get(lifecycle_event)
+
+        market_price = context.get("market_price")
+        market_bid = context.get("market_bid")
+        market_ask = context.get("market_ask")
+        market_spread = context.get("market_spread")
+        if market_spread is None and market_bid is not None and market_ask is not None:
+            try:
+                market_spread = float(market_ask) - float(market_bid)
+            except (TypeError, ValueError):
+                market_spread = None
+
+        if market_price is None:
+            reveal_condition = context.get("reveal_condition") or {}
+            if isinstance(reveal_condition, dict):
+                market_price = reveal_condition.get("current_price")
+
+        condition_met = lifecycle_event in {"CONDITION_MET", "REVEAL_SUCCEEDED", "FILL_RECEIVED", "EXECUTED"}
+
+        query = """
+        INSERT INTO stealth_order_snapshots (
+            stealth_order_id,
+            status,
+            revealed_size,
+            remaining_size,
+            executed_size,
+            condition_met,
+            condition_first_met_at,
+            market_price,
+            market_bid,
+            market_ask,
+            market_spread,
+            market_volume_1m
+        )
+        VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        params = (
+            stealth_order_id,
+            status,
+            context.get("size"),
+            context.get("remaining_size"),
+            context.get("executed_size"),
+            condition_met,
+            context.get("condition_first_met_at"),
+            market_price,
+            market_bid,
+            market_ask,
+            market_spread,
+            context.get("market_volume_1m"),
+        )
+        rows = DB_CLIENT.execute_query(query, params)
+        return rows[0]["id"] if rows else None
+    except Exception as exc:
+        logger.warning(
+            f"insert_stealth_order_snapshot failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return None
+
+
 def create_stealth_order_reveal_history_table() -> None:
     """Create the stealth_order_reveal_history table if it doesn't exist.
     
@@ -370,6 +468,7 @@ def create_stealth_order_reveal_history_table() -> None:
         - revealed_size: Size placed in this reveal event
         - placement_price: Price at which order was placed
         - placed_order_id: UUID of the actual order placed on exchange
+        - exchange_order_id: External Coinbase order UUID for audit/reference only
         - market_price: Market price when reveal occurred
         - market_bid: Bid price when reveal occurred
         - market_ask: Ask price when reveal occurred
@@ -406,6 +505,7 @@ def create_stealth_order_reveal_history_table() -> None:
         revealed_size DECIMAL(16, 8) NOT NULL,
         placement_price DECIMAL(16, 2),
         placed_order_id UUID,
+        exchange_order_id VARCHAR(64),
         
         market_price DECIMAL(16, 2),
         market_bid DECIMAL(16, 2),
@@ -422,7 +522,66 @@ def create_stealth_order_reveal_history_table() -> None:
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE stealth_order_reveal_history ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
+        )
         print("stealth_order_reveal_history table done.")
+
+
+def create_stealth_order_lifecycle_history_table() -> None:
+    """Create the stealth_order_lifecycle_history table if it doesn't exist.
+
+    Stores one immutable row per stealth lifecycle transition so state changes can
+    be audited without reconstructing them from mixed event sources.
+
+    Table Schema:
+        - stealth_order_id: UUID reference to the stealth order
+        - lifecycle_event: StealthLifecycleEvent value (e.g. CONDITION_MET)
+        - previous_lifecycle_event: Previously persisted event, if any
+        - status_from / status_to: Derived stealth order statuses for the transition
+        - event_time: UTC timestamp supplied by the lifecycle hook context
+        - product_id / side / size / total_size / limit_price: event facts
+        - reason / parent_order_id / placed_order_id / exchange_order_id / failure_reason: context
+        - context_json: full event context payload for later inspection
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS stealth_order_lifecycle_history (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        stealth_order_id UUID NOT NULL,
+        lifecycle_event VARCHAR(64) NOT NULL,
+        previous_lifecycle_event VARCHAR(64),
+        status_from VARCHAR(32),
+        status_to VARCHAR(32),
+        event_time TIMESTAMP,
+
+        product_id VARCHAR(32),
+        side VARCHAR(10),
+        size DECIMAL(18, 8),
+        total_size DECIMAL(18, 8),
+        limit_price DECIMAL(18, 8),
+
+        reason VARCHAR(255),
+        parent_order_id UUID,
+        placed_order_id UUID,
+        exchange_order_id VARCHAR(64),
+        failure_reason VARCHAR(512),
+        context_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+        FOREIGN KEY (stealth_order_id) REFERENCES stealth_orders(stealth_order_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_stealth_lifecycle_history_order_id
+        ON stealth_order_lifecycle_history (stealth_order_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_stealth_lifecycle_history_event
+        ON stealth_order_lifecycle_history (lifecycle_event);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE stealth_order_lifecycle_history ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
+        )
+        print("stealth_order_lifecycle_history table done.")
 
 
 def insert_order_parent(
@@ -2086,9 +2245,9 @@ def insert_order_event(
         fee,
         fee_currency,
         trigger_type,
-        json.dumps(trigger_payload_json or {}),
+        json.dumps(trigger_payload_json or {}, default=_json_default_for_db),
         source_channel,
-        json.dumps(raw_payload_json or {}),
+        json.dumps(raw_payload_json or {}, default=_json_default_for_db),
         idempotency_key,
     )
 
@@ -2410,6 +2569,180 @@ def update_stealth_order_lifecycle_event(
             f"{type(exc).__name__}: {exc}"
         )
         return False
+
+
+def insert_stealth_order_lifecycle_event(
+    stealth_order_id: str,
+    lifecycle_event: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> Optional[int]:
+    """Insert one immutable lifecycle transition row for a stealth order.
+
+    The previous lifecycle event is read from the current stealth_orders row so the
+    audit history preserves transition direction without relying on in-memory state.
+    """
+    context = dict(context or {})
+
+    status_map = {
+        "CREATED": "HIDDEN",
+        "CONDITION_WATCHING": "PENDING",
+        "CONDITION_MET": "TRIGGERED",
+        "REVEAL_ATTEMPTED": "TRIGGERED",
+        "PLACEMENT_BLOCKED": "TRIGGERED",
+        "REVEAL_FAILED": "TRIGGERED",
+        "REVEAL_SUCCEEDED": "REVEALED",
+        "FILL_RECEIVED": "REVEALED",
+        "EXECUTED": "EXECUTED",
+        "CANCELLED": "CANCELLED",
+    }
+
+    try:
+        existing_rows = DB_CLIENT.execute_query(
+            """
+            SELECT last_lifecycle_event
+            FROM stealth_orders
+            WHERE stealth_order_id = %s
+            """,
+            (stealth_order_id,),
+        )
+        previous_event = existing_rows[0].get("last_lifecycle_event") if existing_rows else None
+        status_from = status_map.get(previous_event) if previous_event else None
+        status_to = context.get("status") or status_map.get(lifecycle_event)
+
+        query = """
+        INSERT INTO stealth_order_lifecycle_history (
+            stealth_order_id,
+            lifecycle_event,
+            previous_lifecycle_event,
+            status_from,
+            status_to,
+            event_time,
+            product_id,
+            side,
+            size,
+            total_size,
+            limit_price,
+            reason,
+            parent_order_id,
+            placed_order_id,
+            exchange_order_id,
+            failure_reason,
+            context_json
+        )
+        VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
+        )
+        RETURNING id
+        """
+
+        params = (
+            stealth_order_id,
+            lifecycle_event,
+            previous_event,
+            status_from,
+            status_to,
+            context.get("timestamp"),
+            context.get("product_id"),
+            context.get("side"),
+            context.get("size"),
+            context.get("total_size"),
+            context.get("limit_price"),
+            context.get("reason"),
+            context.get("parent_order_id"),
+            context.get("placed_order_id"),
+            context.get("exchange_order_id"),
+            context.get("failure_reason"),
+            json.dumps(context, default=str),
+        )
+
+        with DB_CLIENT.get_cursor() as cursor:
+            cursor.execute(query, params)
+            result = cursor.fetchone()
+            return result[0] if result else None
+    except Exception as exc:
+        logger.error(
+            f"insert_stealth_order_lifecycle_event failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return None
+
+
+def update_stealth_audit_exchange_order_id(
+    stealth_order_id: str,
+    placed_order_id: str,
+    exchange_order_id: str,
+) -> bool:
+    """Backfill audit-only exchange_order_id onto stealth history rows.
+
+    Internal orchestration continues to use client_order_id/placed_order_id.
+    This helper only enriches audit surfaces once Coinbase later provides the
+    external exchange order UUID via websocket events.
+    """
+    if not stealth_order_id or not placed_order_id or not exchange_order_id:
+        return False
+
+    try:
+        column_rows = DB_CLIENT.execute_query(
+            """
+            SELECT table_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND column_name = 'exchange_order_id'
+              AND table_name IN ('stealth_order_lifecycle_history', 'stealth_order_reveal_history')
+            """
+        )
+        tables_with_column = {row["table_name"] for row in column_rows}
+
+        updated = False
+        if "stealth_order_lifecycle_history" in tables_with_column:
+            lifecycle_rows = DB_CLIENT.execute_update(
+                """
+                UPDATE stealth_order_lifecycle_history
+                SET exchange_order_id = %s
+                WHERE stealth_order_id = %s
+                  AND placed_order_id = %s
+                  AND COALESCE(exchange_order_id, '') = ''
+                """,
+                (exchange_order_id, stealth_order_id, placed_order_id),
+            )
+            updated = updated or lifecycle_rows > 0
+
+        if "stealth_order_reveal_history" in tables_with_column:
+            reveal_rows = DB_CLIENT.execute_update(
+                """
+                UPDATE stealth_order_reveal_history
+                SET exchange_order_id = %s
+                WHERE stealth_order_id = %s
+                  AND placed_order_id = %s
+                  AND COALESCE(exchange_order_id, '') = ''
+                """,
+                (exchange_order_id, stealth_order_id, placed_order_id),
+            )
+            updated = updated or reveal_rows > 0
+
+        return updated
+    except Exception as exc:
+        logger.error(
+            f"update_stealth_audit_exchange_order_id failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return False
+
+
+def get_stealth_order_lifecycle_history(
+    stealth_order_id: str,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Return lifecycle transition history for a stealth order, newest first."""
+    query = """
+    SELECT *
+    FROM stealth_order_lifecycle_history
+    WHERE stealth_order_id = %s
+    ORDER BY created_at DESC, id DESC
+    LIMIT %s
+    """
+    return DB_CLIENT.execute_query(query, (stealth_order_id, limit))
 
 
 def get_conditional_order(conditional_order_id: str) -> Optional[Dict[str, Any]]:

@@ -30,6 +30,7 @@ from database.database import PostgresDB
 from database.order import (
     create_order_parent_table,
     create_stealth_orders_table,
+    create_stealth_order_lifecycle_history_table,
     create_stealth_order_snapshots_table,
     create_stealth_order_reveal_history_table,
     create_order_moves_table,
@@ -128,6 +129,7 @@ def main() -> None:
         try:
             create_order_parent_table()
             create_stealth_orders_table()
+            create_stealth_order_lifecycle_history_table()
             create_stealth_order_snapshots_table()
             create_stealth_order_reveal_history_table()
             create_order_moves_table()

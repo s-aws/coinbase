@@ -30,6 +30,9 @@ class OrderEventStreamPublisher:
     def _initialize_table(self) -> None:
         try:
             self.db_helper.create_order_event_stream_table()
+            self.db_helper.create_stealth_order_lifecycle_history_table()
+            self.db_helper.create_stealth_order_reveal_history_table()
+            self.db_helper.create_stealth_order_snapshots_table()
             self.enabled = True
             logger.info("order_event_stream integration enabled")
         except Exception as exc:
@@ -300,11 +303,16 @@ class OrderEventStreamPublisher:
 
         Two side effects:
         1. Writes an immutable row to order_event_stream for the play-by-play audit trail.
-        2. Calls update_stealth_order_lifecycle_event() to persist last_lifecycle_event
+        2. Writes a dedicated row to stealth_order_lifecycle_history for state-change audit.
+        3. Calls update_stealth_order_lifecycle_event() to persist last_lifecycle_event
            and failure_reason on the stealth_orders row, enabling restart rebuild.
         """
         from core.enums import StealthLifecycleEvent
-        from database.order import update_stealth_order_lifecycle_event
+        from database.order import (
+            insert_stealth_order_snapshot,
+            insert_stealth_order_lifecycle_event,
+            update_stealth_order_lifecycle_event,
+        )
 
         event_str = event.value if hasattr(event, "value") else str(event)
         event_type = f"stealth_{event_str.lower()}"
@@ -325,6 +333,36 @@ class OrderEventStreamPublisher:
             idempotency_key=key,
             status_to=event_str,
         )
+
+        try:
+            insert_stealth_order_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                lifecycle_event=event_str,
+                context=context,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"[OrderEventStream] Failed to write lifecycle history "
+                f"{event_str} for {stealth_order_id}: {exc}"
+            )
+
+        # Event-scoped snapshots for reveal-timing forensics.
+        if event_str in {
+            StealthLifecycleEvent.CONDITION_WATCHING.value,
+            StealthLifecycleEvent.CONDITION_MET.value,
+            StealthLifecycleEvent.REVEAL_SUCCEEDED.value,
+        }:
+            try:
+                insert_stealth_order_snapshot(
+                    stealth_order_id=stealth_order_id,
+                    lifecycle_event=event_str,
+                    context=context,
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"[OrderEventStream] Failed to write lifecycle snapshot "
+                    f"{event_str} for {stealth_order_id}: {exc}"
+                )
 
         # Persist last_lifecycle_event (and failure_reason if present) to DB
         # so OrderInventory.rebuild_from_database() can restore state after restart.
