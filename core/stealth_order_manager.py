@@ -116,7 +116,7 @@ class StealthOrderManager:
         ... )
     """
     
-    def __init__(self, db_client, log_callback=None, order_placement_hooks=None):
+    def __init__(self, db_client, log_callback=None, order_placement_hooks=None, profit_validator=None):
         """
         Initialize StealthOrderManager.
         
@@ -124,6 +124,7 @@ class StealthOrderManager:
             db_client: Database client for persistence
             log_callback: Optional logging callback (log_type, message). Defaults to proper logging_service.
             order_placement_hooks: Optional OrderPlacementHookRegistry for pre/post submission hooks.
+            profit_validator: Optional ProfitValidator for reveal-time profitability revalidation.
         """
         self.db_client = db_client
         self.logger = get_logger("StealthOrderManager")
@@ -131,6 +132,7 @@ class StealthOrderManager:
         self.in_memory_orders = {}  # For caching/quick access
         self._market_cache = {}  # Market data cache: product_id -> market_data
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
+        self.profit_validator = profit_validator
         
         # Order placement hooks for extensibility
         if order_placement_hooks is None:
@@ -154,6 +156,181 @@ class StealthOrderManager:
             self.logger.error(message)
         else:
             self.logger.info(message)
+
+    def _normalize_reveal_pricing_policy(
+        self,
+        reveal_pricing_policy: Optional[str],
+        reveal_condition: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Resolve effective reveal pricing policy with validation.
+
+        Precedence:
+        1) explicit reveal_pricing_policy argument
+        2) reveal_condition["reveal_pricing_policy"]
+        3) default "configured_limit"
+        
+        Returns:
+            Validated policy string (configured_limit, top_of_book, or midpoint)
+        """
+        candidate = reveal_pricing_policy
+        if candidate is None and isinstance(reveal_condition, dict):
+            candidate = reveal_condition.get("reveal_pricing_policy")
+        
+        if candidate is None:
+            candidate = "configured_limit"
+        
+        candidate_value = str(candidate).strip().lower()
+        allowed_values = {"configured_limit", "top_of_book", "midpoint"}
+        
+        if candidate_value not in allowed_values:
+            self.logger.warning(
+                f"Invalid reveal_pricing_policy: {candidate}. Using configured_limit. "
+                f"Allowed: {sorted(allowed_values)}"
+            )
+            return "configured_limit"
+        
+        return candidate_value
+
+    def _resolve_reveal_limit_price(
+        self,
+        side: str,
+        configured_limit_price: float,
+        market_data: Dict[str, Any],
+        reveal_pricing_policy: str,
+    ) -> Tuple[float, str, bool]:
+        """Resolve reveal limit price based on policy.
+
+        Returns:
+            (submitted_limit_price, reveal_price_source, fallback_used)
+        """
+        reveal_price_source = "configured_limit"
+        fallback_used = False
+        
+        market_source = market_data.get("source")
+        market_bid = market_data.get("bid")
+        market_ask = market_data.get("ask")
+        normalized_side = str(side or "").upper()
+        
+        if reveal_pricing_policy == "configured_limit":
+            return configured_limit_price, reveal_price_source, fallback_used
+        
+        if reveal_pricing_policy == "top_of_book":
+            if market_source == "ticker":
+                try:
+                    if normalized_side == "BUY" and market_ask is not None and float(market_ask) > 0:
+                        return float(market_ask), "ticker_best_ask", False
+                    if normalized_side == "SELL" and market_bid is not None and float(market_bid) > 0:
+                        return float(market_bid), "ticker_best_bid", False
+                except (TypeError, ValueError):
+                    pass
+            return configured_limit_price, "configured_limit", True
+        
+        if reveal_pricing_policy == "midpoint":
+            if market_source == "ticker":
+                try:
+                    if (market_bid is not None and market_ask is not None and 
+                        float(market_bid) > 0 and float(market_ask) > 0):
+                        midpoint = (float(market_bid) + float(market_ask)) / 2.0
+                        return midpoint, "ticker_midpoint", False
+                except (TypeError, ValueError):
+                    pass
+            return configured_limit_price, "configured_limit", True
+        
+        return configured_limit_price, "configured_limit", True
+
+    def build_reveal_execution_plan(
+        self,
+        stealth_order_id: str,
+        market_data: Optional[Dict[str, Any]] = None,
+    ) -> Optional['RevealExecutionPlan']:
+        """Build reveal execution plan for a stealth order.
+
+        Determines the limit price that will be used when revealing the order
+        based on the order's reveal_pricing_policy and current market conditions.
+        
+        Args:
+            stealth_order_id: ID of stealth order to plan reveal for
+            market_data: Optional override for market data (default: uses _market_cache)
+            
+        Returns:
+            RevealExecutionPlan with pricing decision, or None if order not found
+        """
+        from core.models import RevealExecutionPlan
+        
+        order = self._get_stealth_order(stealth_order_id)
+        if not order:
+            return None
+        
+        if market_data is None:
+            market_data = self._get_current_market_data(order.get("product_id", ""))
+        
+        reveal_pricing_policy = self._normalize_reveal_pricing_policy(
+            reveal_pricing_policy=order.get("reveal_pricing_policy"),
+            reveal_condition=order.get("reveal_condition_json"),
+        )
+        
+        submitted_limit_price, reveal_price_source, fallback_used = self._resolve_reveal_limit_price(
+            side=order.get("side", ""),
+            configured_limit_price=float(order.get("limit_price", 0.0)),
+            market_data=market_data,
+            reveal_pricing_policy=reveal_pricing_policy,
+        )
+        
+        plan = RevealExecutionPlan(
+            configured_limit_price=float(order.get("limit_price", 0.0)),
+            submitted_limit_price=submitted_limit_price,
+            reveal_pricing_policy=reveal_pricing_policy,
+            reveal_price_source=reveal_price_source,
+            fallback_used=fallback_used,
+            market_source=market_data.get("source"),
+            market_bid=market_data.get("bid"),
+            market_ask=market_data.get("ask"),
+        )
+        
+        return plan
+
+    def _validate_reveal_profitability(
+        self,
+        stealth_order_id: str,
+        reveal_execution_plan: 'RevealExecutionPlan',
+    ) -> Tuple[bool, Optional[str]]:
+        """Validate profitability at reveal time using updated market data.
+
+        Checks if the order will still be profitable after fees using the
+        submitted_limit_price from the reveal plan and current market conditions.
+        
+        Returns:
+            (is_profitable, failure_reason) - failure_reason is None if profitable
+        """
+        if not self.profit_validator:
+            # No validator configured, assume profitable
+            return True, None
+        
+        order = self._get_stealth_order(stealth_order_id)
+        if not order:
+            return False, "Stealth order not found"
+        
+        try:
+            # Use the submitted price from the plan, not the configured limit
+            is_profitable = self.profit_validator.validate_order_profitability(
+                side=order.get("side", ""),
+                size=float(order.get("total_size", 0.0)),
+                entry_price=reveal_execution_plan.submitted_limit_price,
+                target_movement=float(order.get("target_movement", 0.0)),
+                target_movement_type=order.get("target_movement_type", "P"),
+            )
+            
+            if not is_profitable:
+                return False, f"Reveal price {reveal_execution_plan.submitted_limit_price} would not meet profit target"
+            
+            return True, None
+            
+        except Exception as e:
+            # Validation error - log but don't block reveal
+            self.logger.warning(
+                f"Profitability revalidation failed for {stealth_order_id}: {e}"
+            )
+            return True, None
 
     def _dispatch_lifecycle_event(
         self,
@@ -499,6 +676,12 @@ class StealthOrderManager:
         """
         Reveal next slice of hidden order based on adaptive sizing.
         
+        Integrates reveal execution planning:
+        - Builds reveal execution plan based on pricing policy
+        - Validates profitability at reveal time (if validator configured)
+        - Uses plan's submitted price for order placement
+        - Records plan details in reveal event audit trail
+        
         Returns:
             client_order_id if slice was placed, None otherwise
         """
@@ -513,17 +696,44 @@ class StealthOrderManager:
         if slice_size <= 0:
             return None
         
+        # === PHASE 1: Build reveal execution plan ===
+        # Determines what price to use for reveal based on policy and market conditions
+        reveal_plan = self.build_reveal_execution_plan(stealth_order_id)
+        if not reveal_plan:
+            # Plan builder failed - shouldn't happen, but fail safely
+            return None
+        
+        # === PHASE 2: Validate profitability at reveal time ===
+        # Checks if order will still meet profit target using reveal plan's price
+        if self.profit_validator:
+            is_profitable, profit_reason = self._validate_reveal_profitability(
+                stealth_order_id=stealth_order_id,
+                reveal_execution_plan=reveal_plan,
+            )
+            if not is_profitable:
+                # Order would not be profitable with reveal price - block it
+                self.log_callback("warning", {
+                    "event": "stealth_order_reveal_blocked_by_profitability",
+                    "stealth_order_id": stealth_order_id,
+                    "reason": profit_reason,
+                    "reveal_price": reveal_plan.submitted_limit_price,
+                    "configured_price": reveal_plan.configured_limit_price,
+                })
+                return None
+        
         # Place actual limit order on exchange (NOT stealth - this IS the revealed placement)
         # Use REST API directly - DO NOT create another stealth order!
         placed_order_id = None
         placement_success = False
         placement_error = None
         exchange_order_id = None
+        
+        # Get full market data (includes price, volume, source) - separate from plan's pricing decision
         market_data = self._get_current_market_data(order["product_id"]) or {}
-        market_bid = market_data.get("bid")
-        market_ask = market_data.get("ask")
-        market_spread = market_data.get("market_spread")
-        if market_spread is None and market_bid is not None and market_ask is not None:
+        market_bid = reveal_plan.market_bid or market_data.get("bid")
+        market_ask = reveal_plan.market_ask or market_data.get("ask")
+        market_spread = None
+        if market_bid is not None and market_ask is not None:
             try:
                 market_spread = float(market_ask) - float(market_bid)
             except (TypeError, ValueError):
@@ -537,10 +747,11 @@ class StealthOrderManager:
             client_order_id = order["stealth_order_id"]
             
             # Build order dict for hooks (before REST submission)
+            # Use the plan's submitted price, not the configured price
             order_for_submission = {
                 "product_id": order["product_id"],
                 "side": order["side"],
-                "limit_price": order["limit_price"],
+                "limit_price": reveal_plan.submitted_limit_price,  # ← Use plan's price
                 "base_size": slice_size,
                 "client_order_id": client_order_id,
                 "post_only": False,
@@ -551,6 +762,8 @@ class StealthOrderManager:
                 "reveal_condition_type": order.get("reveal_condition_type"),
                 "reveal_condition_json": order.get("reveal_condition_json"),
                 "condition_confirmed_at": order.get("condition_confirmed_at").isoformat() if hasattr(order.get("condition_confirmed_at"), "isoformat") else order.get("condition_confirmed_at"),
+                "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,  # Include policy info
+                "reveal_price_source": reveal_plan.reveal_price_source,  # Include source info
             }
             
             # 🪝 PRE-SUBMISSION HOOKS: Validate/modify order before REST submission
@@ -593,6 +806,11 @@ class StealthOrderManager:
                     "market_spread": market_spread,
                     "market_volume_1m": market_data.get("volume_1m"),
                     "market_source": market_data.get("source"),
+                    "configured_limit_price": reveal_plan.configured_limit_price,
+                    "submitted_limit_price": reveal_plan.submitted_limit_price,
+                    "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+                    "reveal_price_source": reveal_plan.reveal_price_source,
+                    "reveal_price_fallback_used": reveal_plan.fallback_used,
                 }
                 order["revealed_orders"].append(reveal_event)
                 order["updated_at"] = datetime.utcnow()
@@ -635,7 +853,7 @@ class StealthOrderManager:
                 })
             
             # 📊 LOT-TRACKING: Log order placement
-            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {order['limit_price']}, exchange_order_id={exchange_order_id})")
+            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {reveal_plan.submitted_limit_price}, reveal_policy={reveal_plan.reveal_pricing_policy}, exchange_order_id={exchange_order_id})")
             
             self.log_callback("info", {
                 "event": "stealth_order_slice_placed_successfully",
@@ -644,7 +862,10 @@ class StealthOrderManager:
                 "exchange_order_id": exchange_order_id,
                 "size": slice_size,
                 "product_id": order["product_id"],
-                "limit_price": order["limit_price"]
+                "configured_limit_price": reveal_plan.configured_limit_price,
+                "submitted_limit_price": reveal_plan.submitted_limit_price,
+                "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+                "reveal_price_source": reveal_plan.reveal_price_source,
             })
 
             # 🔔 LIFECYCLE HOOK: REVEAL_SUCCEEDED
@@ -680,7 +901,7 @@ class StealthOrderManager:
                 extra={"failure_reason": placement_error, "size": slice_size},
         )
         
-        # Record reveal event with placement status tracking
+        # Record reveal event with placement status tracking and plan audit trail
         reveal_event = {
             "reveal_number": len(order["revealed_orders"]) + 1,
             "revealed_size": slice_size,
@@ -695,6 +916,12 @@ class StealthOrderManager:
             "market_spread": market_spread,
             "market_volume_1m": market_data.get("volume_1m"),
             "market_source": market_data.get("source"),
+            # Reveal execution plan audit trail (for post-reveal analysis/profitability recheck)
+            "configured_limit_price": reveal_plan.configured_limit_price,
+            "submitted_limit_price": reveal_plan.submitted_limit_price,
+            "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+            "reveal_price_source": reveal_plan.reveal_price_source,
+            "reveal_price_fallback_used": reveal_plan.fallback_used,
         }
         
         order["revealed_orders"].append(reveal_event)
