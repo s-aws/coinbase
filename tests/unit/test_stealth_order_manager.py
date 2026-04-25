@@ -309,12 +309,24 @@ class TestRevealAuditExchangeOrderId:
         manager._dispatch_lifecycle_event = lambda stealth_order_id, event, order_data, extra=None: captured.__setitem__(
             "dispatch", (event, dict(extra or {}))
         )
-        manager._get_current_market_data = lambda product_id: {"price": 50100.0}
+        manager._get_current_market_data = lambda product_id: {
+            "price": 50100.0,
+            "bid": 50099.5,
+            "ask": 50100.5,
+            "volume_1m": 88.2,
+            "source": "ticker",
+        }
 
         placed_order_id = manager.reveal_order_slice(stealth_order_id)
 
         assert placed_order_id == stealth_order_id
         assert captured["reveal_event"]["exchange_order_id"] == "exchange-oid-123"
+        assert captured["reveal_event"]["market_price"] == 50100.0
+        assert captured["reveal_event"]["market_bid"] == 50099.5
+        assert captured["reveal_event"]["market_ask"] == 50100.5
+        assert captured["reveal_event"]["market_spread"] == 1.0
+        assert captured["reveal_event"]["market_volume_1m"] == 88.2
+        assert captured["reveal_event"]["market_source"] == "ticker"
         assert captured["dispatch"][0] == StealthLifecycleEvent.REVEAL_SUCCEEDED
         assert captured["dispatch"][1]["exchange_order_id"] == "exchange-oid-123"
 
@@ -414,6 +426,55 @@ class TestLifecycleContextMarketFields:
         assert captured["context"]["market_spread"] == 2.0
         assert captured["context"]["market_volume_1m"] == 123.45
         assert captured["context"]["market_source"] == "ticker"
+
+
+class TestRevealHistoryMarketPersistence:
+    """Ensure reveal history inserts persist market fields into dedicated columns."""
+
+    def test_record_reveal_event_persists_market_fields(self):
+        captured = {}
+
+        class FakeDB:
+            def execute_update(self, query, params):
+                captured["query"] = query
+                captured["params"] = params
+                return 1
+
+        manager = StealthOrderManager(db_client=FakeDB())
+
+        order = {
+            "stealth_order_id": "990e8400-e29b-41d4-a716-446655440000",
+        }
+        reveal_event = {
+            "reveal_number": 1,
+            "revealed_size": 1.0,
+            "placement_price": 77800.0,
+            "placed_order_id": "990e8400-e29b-41d4-a716-446655440000",
+            "exchange_order_id": "x-oid-123",
+            "market_price": 77805.0,
+            "market_bid": 77804.0,
+            "market_ask": 77806.0,
+            "market_spread": 2.0,
+            "market_volume_1m": 321.5,
+            "market_source": "ticker",
+            "reveal_time": datetime.utcnow(),
+        }
+
+        manager._record_reveal_event(order, reveal_event)
+
+        query = captured["query"]
+        assert "market_price" in query
+        assert "market_bid" in query
+        assert "market_ask" in query
+        assert "market_spread" in query
+        assert "market_volume_1m" in query
+
+        params = captured["params"]
+        assert params[6] == 77805.0
+        assert params[7] == 77804.0
+        assert params[8] == 77806.0
+        assert params[9] == 2.0
+        assert params[10] == 321.5
 
 
 # Run tests with: pytest tests/unit/test_stealth_order_manager.py -v

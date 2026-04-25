@@ -515,6 +515,15 @@ class StealthOrderManager:
         placement_success = False
         placement_error = None
         exchange_order_id = None
+        market_data = self._get_current_market_data(order["product_id"]) or {}
+        market_bid = market_data.get("bid")
+        market_ask = market_data.get("ask")
+        market_spread = market_data.get("market_spread")
+        if market_spread is None and market_bid is not None and market_ask is not None:
+            try:
+                market_spread = float(market_ask) - float(market_bid)
+            except (TypeError, ValueError):
+                market_spread = None
         
         try:
             from configuration import REST_CLIENT
@@ -574,7 +583,12 @@ class StealthOrderManager:
                     "placement_success": False,
                     "placement_error": placement_error,
                     "reveal_time": datetime.utcnow(),
-                    "market_price": self._get_current_market_data(order["product_id"]).get("price"),
+                    "market_price": market_data.get("price"),
+                    "market_bid": market_bid,
+                    "market_ask": market_ask,
+                    "market_spread": market_spread,
+                    "market_volume_1m": market_data.get("volume_1m"),
+                    "market_source": market_data.get("source"),
                 }
                 order["revealed_orders"].append(reveal_event)
                 order["updated_at"] = datetime.utcnow()
@@ -671,7 +685,12 @@ class StealthOrderManager:
             "placement_success": placement_success,  # ✓ Track if actually placed on exchange
             "placement_error": placement_error,      # Error message if failed
             "reveal_time": datetime.utcnow(),
-            "market_price": self._get_current_market_data(order["product_id"]).get("price"),
+            "market_price": market_data.get("price"),
+            "market_bid": market_bid,
+            "market_ask": market_ask,
+            "market_spread": market_spread,
+            "market_volume_1m": market_data.get("volume_1m"),
+            "market_source": market_data.get("source"),
         }
         
         order["revealed_orders"].append(reveal_event)
@@ -1304,18 +1323,29 @@ class StealthOrderManager:
             
             self.db_client.execute_update(
                 """INSERT INTO stealth_order_reveal_history
-                   (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id, 
-                                        exchange_order_id, reveal_trigger_reason, reveal_trigger_data)
-                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                   (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id,
+                    exchange_order_id, market_price, market_bid, market_ask, market_spread, market_volume_1m,
+                    reveal_trigger_reason, reveal_trigger_data)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (stealth_order_id,
                  reveal_event.get('reveal_number', 1),
                  reveal_event.get('revealed_size', 0),
                  reveal_event.get('placement_price'),
                  reveal_event.get('placed_order_id'),
-                                 reveal_event.get('exchange_order_id'),
+                 reveal_event.get('exchange_order_id'),
+                 reveal_event.get('market_price'),
+                 reveal_event.get('market_bid'),
+                 reveal_event.get('market_ask'),
+                 reveal_event.get('market_spread'),
+                 reveal_event.get('market_volume_1m'),
                  f"Price below {reveal_event.get('target_price', 'unknown')}",
                  json.dumps({
                      'market_price': reveal_event.get('market_price'),
+                     'market_bid': reveal_event.get('market_bid'),
+                     'market_ask': reveal_event.get('market_ask'),
+                     'market_spread': reveal_event.get('market_spread'),
+                     'market_volume_1m': reveal_event.get('market_volume_1m'),
+                     'market_source': reveal_event.get('market_source'),
                      'reveal_time': reveal_event.get('reveal_time').isoformat() if hasattr(reveal_event.get('reveal_time'), 'isoformat') else None
                  }))
             )
