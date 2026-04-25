@@ -25,6 +25,7 @@ from hashlib import sha256
 import json
 from typing import List, Dict, Set, Any, Optional
 from queue import Queue
+from core.exceptions import WebSocketMessageError, DuplicateEventError
 
 
 class EventProcessor:
@@ -57,6 +58,9 @@ class EventProcessor:
         Returns:
             Hexadecimal SHA256 hash string.
         
+        Raises:
+            WebSocketMessageError: If event cannot be serialized to JSON.
+        
         Examples:
             >>> processor = EventProcessor()
             >>> event1 = {'type': 'filled', 'order_id': '123'}
@@ -64,8 +68,15 @@ class EventProcessor:
             >>> processor.hash_event(event1) == processor.hash_event(event2)
             True
         """
-        event_string = json.dumps(event, sort_keys=True, default=str)
-        return sha256(event_string.encode()).hexdigest()
+        try:
+            event_string = json.dumps(event, sort_keys=True, default=str)
+            return sha256(event_string.encode()).hexdigest()
+        except (TypeError, ValueError) as e:
+            raise WebSocketMessageError(
+                error_type="EventSerializationError",
+                message=f"Failed to serialize event for hashing: {str(e)}",
+                raw_data=str(event),
+            )
 
     def is_duplicate_event(self, event: dict) -> bool:
         """Check if an event has been seen before.

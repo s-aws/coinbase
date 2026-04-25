@@ -12,6 +12,7 @@ Example:
 """
 
 from business.event_processor import EventProcessor
+from core.exceptions import DuplicateEventError, WebSocketMessageError
 
 
 class EventBridge:
@@ -86,6 +87,34 @@ class EventBridge:
             >>> bridge.mark_event_seen({'type': 'filled', 'id': '123'})
         """
         self.processor.mark_event_seen(event)
+
+    def check_duplicate_strict(self, event: dict) -> None:
+        """Check for duplicate event and raise exception if found.
+        
+        Provides strict duplicate checking for critical events where
+        duplicates must not be processed. Normal flow uses is_duplicate_event()
+        with continue, this is for exception-based handling.
+        
+        Args:
+            event: Event dict to check.
+        
+        Raises:
+            DuplicateEventError: If event has been seen before.
+        
+        Example:
+            >>> bridge = EventBridge()
+            >>> try:
+            ...     bridge.check_duplicate_strict({'type': 'filled', 'id': '123'})
+            ... except DuplicateEventError:
+            ...     # Skip processing
+            ...     pass
+        """
+        if self.processor.is_duplicate_event(event):
+            raise DuplicateEventError(
+                error_type="DuplicateEventDetected",
+                message=f"Event already processed and seen before",
+                event_hash=self.processor.hash_event(event),
+            )
 
     def rotate_dedup_buckets(self) -> None:
         """Rotate event deduplication buckets (shift old events out).

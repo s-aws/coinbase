@@ -12,6 +12,7 @@ from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
+from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
 logger = get_logger("OrderDB")
@@ -293,6 +294,10 @@ def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
     
     Returns:
         Dictionary with stealth order data or None if not found
+    
+    Raises:
+        DatabaseConnectionError: If database connection fails.
+        OrderPersistenceError: If query execution fails.
     """
     try:
         query = """
@@ -303,8 +308,19 @@ def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
         results = DB_CLIENT.execute_query(query, (stealth_order_id,))
         return results[0] if results else None
     except Exception as e:
-        logger.error(f"✗ Error fetching stealth order {stealth_order_id}: {type(e).__name__}: {e}")
-        return None
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while fetching stealth order",
+                stealth_order_id=stealth_order_id,
+            )
+        else:
+            raise OrderPersistenceError(
+                error_type="PersistenceQueryError",
+                message=f"Failed to fetch stealth order {stealth_order_id}: {str(e)}",
+                stealth_order_id=stealth_order_id,
+            )
 
 
 def create_stealth_order_snapshots_table() -> None:
@@ -625,7 +641,7 @@ def insert_order_parent(
         The inserted order's database ID if successful, None if failed.
     
     Raises:
-        Exception: If database insertion fails.
+        OrderPersistenceError: If database insertion fails.
     """
     # Check if parent order already exists (handles race condition with multiple threads)
     existing_parent = get_parent_order(client_order_id)
@@ -676,9 +692,19 @@ def insert_order_parent(
         logger.warning(f"Failed to retrieve inserted order ID for: {client_order_id} - query executed but no result returned")
         return None
     except Exception as e:
-        logger.error(f"✗ Error inserting parent order {client_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Failed insert params - product: {product_id}, side: {side}, size: {size}, price: {price}, target_movement: {target_movement}")
-        return None
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while inserting parent order",
+                client_order_id=client_order_id,
+            )
+        else:
+            raise OrderPersistenceError(
+                error_type="InsertionError",
+                message=f"Failed to insert parent order {client_order_id}: {str(e)}",
+                client_order_id=client_order_id,
+            )
 
 
 def insert_order_parent_batch(
@@ -767,10 +793,29 @@ def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
     
     Returns:
         Parent order dict if found, None otherwise.
+    
+    Raises:
+        DatabaseConnectionError: If database connection fails.
+        OrderPersistenceError: If query execution fails unexpectedly.
     """
-    query = "SELECT * FROM order_parent WHERE client_order_id = %s"
-    results = DB_CLIENT.execute_query(query, (client_order_id,))
-    return results[0] if results else None
+    try:
+        query = "SELECT * FROM order_parent WHERE client_order_id = %s"
+        results = DB_CLIENT.execute_query(query, (client_order_id,))
+        return results[0] if results else None
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while fetching parent order",
+                client_order_id=client_order_id,
+            )
+        else:
+            raise OrderPersistenceError(
+                error_type="PersistenceQueryError",
+                message=f"Failed to retrieve parent order {client_order_id}: {str(e)}",
+                client_order_id=client_order_id,
+            )
 
 
 def update_parent_order_target_movement(parent_order_id: str, target_movement: Optional[float], target_movement_type: str = "P") -> bool:
@@ -783,6 +828,10 @@ def update_parent_order_target_movement(parent_order_id: str, target_movement: O
     
     Returns:
         True if update successful, False otherwise
+    
+    Raises:
+        DatabaseTransactionError: If update transaction fails.
+        DatabaseConnectionError: If database connection fails.
     
     Example:
         >>> update_parent_order_target_movement(
@@ -807,9 +856,19 @@ def update_parent_order_target_movement(parent_order_id: str, target_movement: O
         
         return rows_affected > 0
     except Exception as e:
-        logger.error(f"✗ Error updating parent order target_movement {parent_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Update params - target_movement: {target_movement}, type: {target_movement_type}")
-        return False
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while updating parent order",
+                client_order_id=parent_order_id,
+            )
+        else:
+            raise DatabaseTransactionError(
+                error_type="UpdateTransactionError",
+                message=f"Failed to update parent order target_movement: {str(e)}",
+                client_order_id=parent_order_id,
+            )
 
 
 def get_stealth_children_for_parent(parent_order_id: str) -> List[Dict[str, Any]]:
