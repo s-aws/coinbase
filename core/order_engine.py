@@ -274,6 +274,8 @@ class OrderEngine:
         # Hydrated from DB at startup via _hydrate_partial_fill_state_from_db().
         self._partial_fill_state: dict = {}
         self._partial_fill_state_lock = threading.RLock()
+        self._partial_fill_order_locks: dict = {}
+        self._partial_fill_order_locks_guard = threading.RLock()
 
         # Reconstructive timeline event stream integration via existing hooks.
         self._initialize_event_stream_integration()
@@ -543,6 +545,20 @@ class OrderEngine:
             self.log_message("warning", f"[PARTIAL-FILL] allow_partial_fills DB lookup failed for {parent_id}: {e}")
         return False
 
+    def _get_partial_fill_order_lock(self, client_order_id: str):
+        """Return (and lazily create) the per-order partial-fill lock.
+
+        This lock serializes partial-fill handling for the same client_order_id so
+        concurrent duplicate OPEN/UPDATE events cannot race into duplicate follow-up
+        creation.
+        """
+        with self._partial_fill_order_locks_guard:
+            lock = self._partial_fill_order_locks.get(client_order_id)
+            if lock is None:
+                lock = threading.RLock()
+                self._partial_fill_order_locks[client_order_id] = lock
+            return lock
+
     def _create_partial_fill_follow_up(
         self,
         client_order_id: str,
@@ -702,112 +718,136 @@ class OrderEngine:
         from logging_service import get_logger
 
         logger = get_logger("OrderEngine")
-        product_id = order.get("product_id")
-        cumulative = resolve_cumulative_filled(order)
+        order_lock = self._get_partial_fill_order_lock(client_order_id)
 
-        with self._partial_fill_state_lock:
-            state = dict(self._partial_fill_state.get(client_order_id) or {})
+        with order_lock:
+            product_id = order.get("product_id")
+            cumulative = resolve_cumulative_filled(order)
 
-        if not state:
-            # One-time opt-in check: resolve parent, then check flag
-            parent_id = self.get_parent_of_child(client_order_id) or client_order_id
-            if not self._get_parent_allow_partial_fills(parent_id):
+            with self._partial_fill_state_lock:
+                state = dict(self._partial_fill_state.get(client_order_id) or {})
+
+            if not state:
+                # One-time opt-in check: resolve parent, then check flag
+                parent_id = self.get_parent_of_child(client_order_id) or client_order_id
+                if not self._get_parent_allow_partial_fills(parent_id):
+                    logger.debug(
+                        "[PARTIAL-FILL] Skipped (opt-out): client_order_id=%s parent_client_order_id=%s",
+                        client_order_id,
+                        parent_id,
+                    )
+                    return
+                if cumulative <= 0.0:
+                    logger.debug(
+                        "[PARTIAL-FILL] Skipped (no cumulative fill yet): client_order_id=%s cumulative=%s",
+                        client_order_id,
+                        cumulative,
+                    )
+                    return  # No fill yet — defer initialisation until first fill event
+
+                # Lazy-initialise the watermark entry
+                min_order_size = self._resolve_min_order_size(product_id)
+                remaining = resolve_remaining_size(order)
+                original_order_size = remaining + cumulative
+                state = {
+                    "parent_client_order_id": parent_id,
+                    "product_id": product_id,
+                    "side": resolve_order_side(order),
+                    "original_order_size": original_order_size,
+                    "min_order_size": min_order_size,
+                    "last_cumulative_qty_processed": 0.0,
+                    "carry_remainder_qty": 0.0,
+                    "last_number_of_fills_seen": 0,
+                    "last_completion_pct_seen": 0.0,
+                    "partial_follow_ups_created": 0,
+                }
+
+                if self.event_stream_publisher and self.event_stream_publisher.enabled:
+                    self.event_stream_publisher.publish_event(
+                        event_type="partial_fill_detected",
+                        source_channel="order_engine_open_handler",
+                        payload={
+                            "client_order_id": client_order_id,
+                            "parent_order_id": parent_id,
+                            "product_id": product_id,
+                            "side": state["side"],
+                            "cumulative_quantity": cumulative,
+                        },
+                        idempotency_key=f"partial_fill_detected:{client_order_id}:{cumulative}",
+                        status_to=OrderStatus.OPEN.value,
+                    )
+
+            delta = resolve_partial_fill_delta(cumulative, state["last_cumulative_qty_processed"])
+
+            min_size = state["min_order_size"]
+            if min_size <= 0.0:
                 logger.debug(
-                    "[PARTIAL-FILL] Skipped (opt-out): client_order_id=%s parent_client_order_id=%s",
+                    "[PARTIAL-FILL] Skipped (min size unavailable): client_order_id=%s product_id=%s",
                     client_order_id,
-                    parent_id,
+                    product_id,
                 )
-                return
-            if cumulative <= 0.0:
+                return  # Product metadata unavailable — safe no-op
+
+            carry = state["carry_remainder_qty"] + (delta if delta > 0.0 else 0.0)
+            if delta <= 0.0 and carry < min_size:
                 logger.debug(
-                    "[PARTIAL-FILL] Skipped (no cumulative fill yet): client_order_id=%s cumulative=%s",
+                    "[PARTIAL-FILL] Skipped (no new delta and below min): client_order_id=%s "
+                    "last_watermark=%s cumulative=%s carry=%s min_size=%s",
                     client_order_id,
+                    state["last_cumulative_qty_processed"],
                     cumulative,
+                    carry,
+                    min_size,
                 )
-                return  # No fill yet — defer initialisation until first fill event
+                return  # No new progress and nothing queued from prior carry
 
-            # Lazy-initialise the watermark entry
-            min_order_size = self._resolve_min_order_size(product_id)
-            remaining = resolve_remaining_size(order)
-            original_order_size = remaining + cumulative
-            state = {
-                "parent_client_order_id": parent_id,
-                "product_id": product_id,
-                "side": resolve_order_side(order),
-                "original_order_size": original_order_size,
-                "min_order_size": min_order_size,
-                "last_cumulative_qty_processed": 0.0,
-                "carry_remainder_qty": 0.0,
-                "last_number_of_fills_seen": 0,
-                "last_completion_pct_seen": 0.0,
-                "partial_follow_ups_created": 0,
-            }
+            number_of_fills = int(order.get("number_of_fills") or 0)
+            completion_pct = safe_float(order.get("completion_percentage"), default=0.0)
 
-            if self.event_stream_publisher and self.event_stream_publisher.enabled:
-                self.event_stream_publisher.publish_event(
-                    event_type="partial_fill_detected",
-                    source_channel="order_engine_open_handler",
-                    payload={
-                        "client_order_id": client_order_id,
-                        "parent_order_id": parent_id,
-                        "product_id": product_id,
-                        "side": state["side"],
-                        "cumulative_quantity": cumulative,
-                    },
-                    idempotency_key=f"partial_fill_detected:{client_order_id}:{cumulative}",
-                    status_to=OrderStatus.OPEN.value,
+            follow_ups_due = int(carry / min_size)
+            created_units = 0
+            if follow_ups_due > 0:
+                created_units = self._create_partial_fill_follow_up(
+                    client_order_id=client_order_id,
+                    parent_client_order_id=state["parent_client_order_id"],
+                    min_order_size=min_size,
+                    follow_ups_due=follow_ups_due,
                 )
 
-        delta = resolve_partial_fill_delta(cumulative, state["last_cumulative_qty_processed"])
+                logger.debug(
+                    "[PARTIAL-FILL] Follow-up evaluation: client_order_id=%s follow_ups_due=%s "
+                    "follow_ups_created=%s carry_before=%s min_size=%s",
+                    client_order_id,
+                    follow_ups_due,
+                    created_units,
+                    carry,
+                    min_size,
+                )
 
-        min_size = state["min_order_size"]
-        if min_size <= 0.0:
-            logger.debug(
-                "[PARTIAL-FILL] Skipped (min size unavailable): client_order_id=%s product_id=%s",
-                client_order_id,
-                product_id,
-            )
-            return  # Product metadata unavailable — safe no-op
+                if self.event_stream_publisher and self.event_stream_publisher.enabled:
+                    self.event_stream_publisher.publish_event(
+                        event_type="partial_fill_follow_up_queued",
+                        source_channel="order_engine_open_handler",
+                        payload={
+                            "client_order_id": client_order_id,
+                            "parent_order_id": state["parent_client_order_id"],
+                            "product_id": product_id,
+                            "side": state["side"],
+                            "cumulative_quantity": cumulative,
+                            "follow_ups_due": follow_ups_due,
+                            "follow_ups_created": created_units,
+                            "min_order_size": min_size,
+                        },
+                        idempotency_key=(
+                            f"partial_fill_follow_up_queued:{client_order_id}:{cumulative}:"
+                            f"{follow_ups_due}:{created_units}"
+                        ),
+                        status_to=OrderStatus.OPEN.value,
+                    )
 
-        carry = state["carry_remainder_qty"] + (delta if delta > 0.0 else 0.0)
-        if delta <= 0.0 and carry < min_size:
-            logger.debug(
-                "[PARTIAL-FILL] Skipped (no new delta and below min): client_order_id=%s "
-                "last_watermark=%s cumulative=%s carry=%s min_size=%s",
-                client_order_id,
-                state["last_cumulative_qty_processed"],
-                cumulative,
-                carry,
-                min_size,
-            )
-            return  # No new progress and nothing queued from prior carry
-
-        number_of_fills = int(order.get("number_of_fills") or 0)
-        completion_pct = safe_float(order.get("completion_percentage"), default=0.0)
-
-        follow_ups_due = int(carry / min_size)
-        created_units = 0
-        if follow_ups_due > 0:
-            created_units = self._create_partial_fill_follow_up(
-                client_order_id=client_order_id,
-                parent_client_order_id=state["parent_client_order_id"],
-                min_order_size=min_size,
-                follow_ups_due=follow_ups_due,
-            )
-
-            logger.debug(
-                "[PARTIAL-FILL] Follow-up evaluation: client_order_id=%s follow_ups_due=%s "
-                "follow_ups_created=%s carry_before=%s min_size=%s",
-                client_order_id,
-                follow_ups_due,
-                created_units,
-                carry,
-                min_size,
-            )
-
-            if self.event_stream_publisher and self.event_stream_publisher.enabled:
+            if follow_ups_due <= 0 and self.event_stream_publisher and self.event_stream_publisher.enabled:
                 self.event_stream_publisher.publish_event(
-                    event_type="partial_fill_follow_up_queued",
+                    event_type="partial_fill_below_min_accumulated",
                     source_channel="order_engine_open_handler",
                     payload={
                         "client_order_id": client_order_id,
@@ -815,73 +855,52 @@ class OrderEngine:
                         "product_id": product_id,
                         "side": state["side"],
                         "cumulative_quantity": cumulative,
-                        "follow_ups_due": follow_ups_due,
-                        "follow_ups_created": created_units,
+                        "delta": delta,
+                        "carry_quantity": carry,
                         "min_order_size": min_size,
                     },
-                    idempotency_key=(
-                        f"partial_fill_follow_up_queued:{client_order_id}:{cumulative}:"
-                        f"{follow_ups_due}:{created_units}"
-                    ),
+                    idempotency_key=f"partial_fill_below_min:{client_order_id}:{cumulative}:{carry}",
                     status_to=OrderStatus.OPEN.value,
                 )
 
-        if follow_ups_due <= 0 and self.event_stream_publisher and self.event_stream_publisher.enabled:
-            self.event_stream_publisher.publish_event(
-                event_type="partial_fill_below_min_accumulated",
-                source_channel="order_engine_open_handler",
-                payload={
-                    "client_order_id": client_order_id,
-                    "parent_order_id": state["parent_client_order_id"],
-                    "product_id": product_id,
-                    "side": state["side"],
-                    "cumulative_quantity": cumulative,
-                    "delta": delta,
-                    "carry_quantity": carry,
-                    "min_order_size": min_size,
-                },
-                idempotency_key=f"partial_fill_below_min:{client_order_id}:{cumulative}:{carry}",
-                status_to=OrderStatus.OPEN.value,
-            )
+            new_carry = carry - (created_units * min_size)
+            new_follow_ups_created = state["partial_follow_ups_created"] + created_units
 
-        new_carry = carry - (created_units * min_size)
-        new_follow_ups_created = state["partial_follow_ups_created"] + created_units
-
-        self._save_partial_fill_progress(
-            client_order_id=client_order_id,
-            parent_client_order_id=state["parent_client_order_id"],
-            product_id=product_id,
-            side=state["side"],
-            original_order_size=state["original_order_size"],
-            min_order_size=min_size,
-            cumulative_qty=cumulative,
-            carry_remainder=new_carry,
-            number_of_fills=number_of_fills,
-            completion_pct=completion_pct,
-            follow_ups_created=new_follow_ups_created,
-        )
-
-        # Single INFO summary for each processed partial-fill event.
-        self.log_message(
-            "order",
-            self.build_event_log_payload(
-                "partial_fill_summary",
+            self._save_partial_fill_progress(
                 client_order_id=client_order_id,
                 parent_client_order_id=state["parent_client_order_id"],
                 product_id=product_id,
                 side=state["side"],
-                cumulative_quantity=cumulative,
-                delta=delta,
+                original_order_size=state["original_order_size"],
                 min_order_size=min_size,
-                carry_before=state["carry_remainder_qty"],
-                carry_after=new_carry,
-                follow_ups_due=follow_ups_due,
-                follow_ups_created=created_units,
-                total_follow_ups_created=new_follow_ups_created,
+                cumulative_qty=cumulative,
+                carry_remainder=new_carry,
                 number_of_fills=number_of_fills,
-                completion_percentage=completion_pct,
-            ),
-        )
+                completion_pct=completion_pct,
+                follow_ups_created=new_follow_ups_created,
+            )
+
+            # Single INFO summary for each processed partial-fill event.
+            self.log_message(
+                "order",
+                self.build_event_log_payload(
+                    "partial_fill_summary",
+                    client_order_id=client_order_id,
+                    parent_client_order_id=state["parent_client_order_id"],
+                    product_id=product_id,
+                    side=state["side"],
+                    cumulative_quantity=cumulative,
+                    delta=delta,
+                    min_order_size=min_size,
+                    carry_before=state["carry_remainder_qty"],
+                    carry_after=new_carry,
+                    follow_ups_due=follow_ups_due,
+                    follow_ups_created=created_units,
+                    total_follow_ups_created=new_follow_ups_created,
+                    number_of_fills=number_of_fills,
+                    completion_percentage=completion_pct,
+                ),
+            )
 
     def log_message(self, log_type: str, message) -> None:
         """Log a message if the log type is enabled.

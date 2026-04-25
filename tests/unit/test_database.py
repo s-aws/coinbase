@@ -162,7 +162,7 @@ class TestRepositoryQueries:
             if o["product_id"] == product
         )
         
-        assert total_revealed == 0.3
+        assert total_revealed == pytest.approx(0.3, abs=1e-12)
 
 
 class TestOrderPersistence:

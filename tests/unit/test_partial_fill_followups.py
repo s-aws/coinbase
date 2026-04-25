@@ -1,5 +1,6 @@
 """Unit tests for partial-fill follow-up creation and persistence math."""
 
+import threading
 from math import isclose
 from unittest.mock import Mock
 
@@ -322,3 +323,76 @@ def test_partial_fill_equal_watermark_event_does_not_create_duplicate_followup()
     engine._create_partial_fill_follow_up.assert_not_called()
     engine._save_partial_fill_progress.assert_not_called()
     assert publisher.publish_event.call_count == 0
+
+
+def test_partial_fill_concurrent_duplicate_events_create_followup_once():
+    engine = _build_engine_for_partial_fill_tests()
+
+    client_order_id = "child-7"
+    parent_client_order_id = "parent-7"
+
+    engine._partial_fill_state[client_order_id] = {
+        "parent_client_order_id": parent_client_order_id,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "original_order_size": 1.0,
+        "min_order_size": 0.01,
+        "last_cumulative_qty_processed": 0.0,
+        "carry_remainder_qty": 0.0,
+        "last_number_of_fills_seen": 0,
+        "last_completion_pct_seen": 0.0,
+        "partial_follow_ups_created": 0,
+    }
+
+    def _fake_save_partial_fill_progress(**kwargs):
+        with engine._partial_fill_state_lock:
+            engine._partial_fill_state[client_order_id] = {
+                "parent_client_order_id": kwargs["parent_client_order_id"],
+                "product_id": kwargs["product_id"],
+                "side": kwargs["side"],
+                "original_order_size": kwargs["original_order_size"],
+                "min_order_size": kwargs["min_order_size"],
+                "last_cumulative_qty_processed": kwargs["cumulative_qty"],
+                "carry_remainder_qty": kwargs["carry_remainder"],
+                "last_number_of_fills_seen": kwargs["number_of_fills"],
+                "last_completion_pct_seen": kwargs["completion_pct"],
+                "partial_follow_ups_created": kwargs["follow_ups_created"],
+            }
+
+    engine._save_partial_fill_progress = Mock(side_effect=_fake_save_partial_fill_progress)
+    engine._create_partial_fill_follow_up = Mock(return_value=2)
+
+    publisher = Mock()
+    publisher.enabled = True
+    engine.event_stream_publisher = publisher
+
+    order = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "cumulative_quantity": "0.02",
+        "number_of_fills": 1,
+        "completion_percentage": "20",
+    }
+
+    barrier = threading.Barrier(2)
+
+    def _worker():
+        barrier.wait()
+        engine._handle_partial_fill_if_enabled(client_order_id, order)
+
+    t1 = threading.Thread(target=_worker)
+    t2 = threading.Thread(target=_worker)
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    # Both threads processed the same event payload; lock serialization ensures
+    # follow-up creation happens only once.
+    engine._create_partial_fill_follow_up.assert_called_once_with(
+        client_order_id=client_order_id,
+        parent_client_order_id=parent_client_order_id,
+        min_order_size=0.01,
+        follow_ups_due=2,
+    )
