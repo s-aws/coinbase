@@ -5,6 +5,7 @@ from math import isclose
 from unittest.mock import Mock
 
 from configuration import OrderBook
+from core.enums import OrderStatus
 from core.order_engine import OrderEngine
 
 
@@ -19,6 +20,8 @@ def _build_engine_for_partial_fill_tests() -> OrderEngine:
     orderbook.product = {
         "BTC-USDC": {
             "base_increment": "0.01",
+            "quote_increment": "0.01",
+            "price_increment": "0.01",
             "future_product_details": {"contract_size": "1"},
         }
     }
@@ -197,7 +200,7 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
         )
     )
     engine.resolve_parent_target_movement = Mock(return_value={"movement": 0.001, "type": "P"})
-    engine.compute_order_template = Mock(
+    engine.compute_partial_fill_order_template = Mock(
         return_value={
             "start_price": "100.0",
             "side": "BUY",
@@ -448,3 +451,28 @@ def test_finalize_partial_fill_progress_cleans_up_per_order_lock():
 
     assert client_order_id not in engine._partial_fill_state
     assert client_order_id not in engine._partial_fill_order_locks
+
+
+def test_partial_fill_template_keeps_side_stable_when_snapshot_status_is_filled():
+    engine = _build_engine_for_partial_fill_tests()
+
+    client_order_id = "child-filled-snapshot-1"
+    engine.orderbook.order[client_order_id] = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USDC",
+        "status": OrderStatus.FILLED.value,
+        "order_side": "BUY",
+        "side": "BUY",
+        "limit_price": "100.0",
+        "avg_price": "100.0",
+        "size": "1.0",
+        "filled_size": "1.0",
+    }
+
+    # Baseline behavior on terminal status flips BUY -> SELL.
+    baseline_template = engine.compute_order_template(client_order_id)
+    assert baseline_template["side"] == "SELL"
+
+    # Partial-fill behavior must remain stable and keep BUY side semantics.
+    partial_template = engine.compute_partial_fill_order_template(client_order_id)
+    assert partial_template["side"] == "BUY"

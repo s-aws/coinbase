@@ -512,6 +512,55 @@ class OrderEngine:
                 status_to=terminal_status,
             )
 
+    def _resolve_filled_follow_up_size_after_partials(
+        self,
+        client_order_id: str,
+        proposed_follow_up_size: float,
+    ) -> tuple[float, dict | None]:
+        """Adjust FILLED follow-up size by subtracting already-created partial follow-up units.
+
+        Partial fills can spawn follow-up size in advance (tracked in partial_fill_progress).
+        When the same order later reaches FILLED, creating another full-size follow-up would
+        over-allocate total follow-up size. This helper caps FILLED follow-up size to the
+        remaining unallocated size.
+
+        Returns:
+            Tuple of (adjusted_size, details_dict_or_none).
+        """
+        if proposed_follow_up_size <= 0.0:
+            return 0.0, None
+
+        try:
+            from database.order import get_partial_fill_progress
+        except Exception:
+            return proposed_follow_up_size, None
+
+        progress = get_partial_fill_progress(client_order_id)
+        if not progress:
+            return proposed_follow_up_size, None
+
+        original_order_size = safe_float(progress.get("original_order_size"), default=0.0)
+        min_order_size = safe_float(progress.get("min_order_size"), default=0.0)
+        partial_follow_ups_created = int(progress.get("partial_follow_ups_created") or 0)
+
+        if original_order_size <= 0.0 or min_order_size <= 0.0 or partial_follow_ups_created <= 0:
+            return proposed_follow_up_size, None
+
+        allocated_by_partial_follow_ups = partial_follow_ups_created * min_order_size
+        remaining_follow_up_size = max(0.0, original_order_size - allocated_by_partial_follow_ups)
+        adjusted_size = min(proposed_follow_up_size, remaining_follow_up_size)
+
+        details = {
+            "original_order_size": original_order_size,
+            "min_order_size": min_order_size,
+            "partial_follow_ups_created": partial_follow_ups_created,
+            "allocated_by_partial_follow_ups": allocated_by_partial_follow_ups,
+            "remaining_follow_up_size": remaining_follow_up_size,
+            "proposed_follow_up_size": proposed_follow_up_size,
+            "adjusted_follow_up_size": adjusted_size,
+        }
+        return adjusted_size, details
+
     def _resolve_min_order_size(self, product_id: str) -> float:
         """Return the base_increment (minimum tradeable quantity) for a product.
 
@@ -625,7 +674,7 @@ class OrderEngine:
                 return 0
 
             target_movement = self.resolve_parent_target_movement(parent_client_order_id)
-            order_template = self.compute_order_template(
+            order_template = self.compute_partial_fill_order_template(
                 client_order_id,
                 target_movement=target_movement,
             )
@@ -2019,6 +2068,41 @@ class OrderEngine:
             target_movement=target_movement,
         )
 
+    def compute_partial_fill_order_template(self, client_order_id: str, target_movement: dict = None) -> dict:
+        """Compute partial-fill follow-up template using non-terminal order status semantics.
+
+        During hold-clear windows, FILLED events can temporarily land in the in-memory
+        order snapshot before follow-up processing for partial fills completes. If we use
+        terminal status here, template generation flips the side as if the lifecycle is
+        complete. For partial-fill follow-ups we want stable, in-flight semantics.
+        """
+        snapshot = self.get_orderbook_snapshot()
+        order = snapshot["order"].get(client_order_id)
+        if not order:
+            return {}
+
+        if self.normalize_product_type(order) == ProductType.FUTURE:
+            product_id = order.get("product_id")
+            if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
+                self.refresh_positions_if_needed(product_id)
+                snapshot = self.get_orderbook_snapshot()
+                order = snapshot["order"].get(client_order_id)
+                if not order:
+                    return {}
+
+        order_status = str(order.get("status") or "").upper()
+        if order_status in {OrderStatus.FILLED.value, OrderStatus.CANCELLED.value}:
+            # Keep partial-follow-up template side stable until lifecycle is terminally processed.
+            order_copy = deepcopy(order)
+            order_copy["status"] = OrderStatus.OPEN.value
+            snapshot["order"][client_order_id] = order_copy
+
+        return calculate_new_order_move_from_snapshot(
+            snapshot,
+            order_id=client_order_id,
+            target_movement=target_movement,
+        )
+
     def child_order_already_exists(self, parent_client_order_id: str, order_template: dict) -> bool:
         """Check if a child order matching the template already exists.
         
@@ -2775,6 +2859,41 @@ class OrderEngine:
                 self.complete_follow_up_processing("filled", client_order_id)
                 return
 
+            proposed_follow_up_size = safe_float(order_template.get("order_base_size"), default=0.0)
+            adjusted_follow_up_size, partial_adjustment_details = self._resolve_filled_follow_up_size_after_partials(
+                client_order_id=client_order_id,
+                proposed_follow_up_size=proposed_follow_up_size,
+            )
+
+            if partial_adjustment_details:
+                self.log_message(
+                    "order",
+                    self.build_event_log_payload(
+                        "filled_follow_up_size_adjusted_by_partial_progress",
+                        client_order_id=client_order_id,
+                        parent_client_order_id=parent_client_order_id,
+                        **partial_adjustment_details,
+                    ),
+                )
+
+            if adjusted_follow_up_size <= 0.0:
+                self.log_message(
+                    "order",
+                    self.build_follow_up_log_payload(
+                        "follow_up_skipped_already_covered_by_partial_follow_ups",
+                        source_order=order,
+                        parent_client_order_id=parent_client_order_id,
+                        details=partial_adjustment_details or {
+                            "reason": "adjusted_follow_up_size_non_positive",
+                            "proposed_follow_up_size": proposed_follow_up_size,
+                        },
+                    ),
+                )
+                self.complete_follow_up_processing("filled", client_order_id)
+                return
+
+            order_template["order_base_size"] = adjusted_follow_up_size
+
             # Use the stealth order already found at the start of this function
             # If this is a stealth order follow-up, create a stealth order instead of a regular order
             if original_stealth_order:
@@ -2912,7 +3031,7 @@ class OrderEngine:
                     stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
                         original_stealth_order_id=original_stealth_order["stealth_order_id"],
                         side=order_template["side"],
-                        total_size=order_template["order_base_size"],
+                        total_size=adjusted_follow_up_size,
                         limit_price=follow_up_price,
                         reveal_condition=follow_up_reveal_condition,
                         follow_up_reveal_direction=direction_choice,
@@ -2937,6 +3056,7 @@ class OrderEngine:
                             } if parent_target_movement else None,
                             "product_id": product_id,
                             "side": order_template["side"],
+                            "follow_up_size": adjusted_follow_up_size,
                             "reveal_condition": follow_up_reveal_condition,
                             "follow_up_reveal_direction": direction_choice,
                         }
