@@ -831,6 +831,16 @@
                         </div>
 
                         <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                <input type="checkbox" id="allow_partial_fills" checked style="cursor: pointer; width: 14px; height: 14px;">
+                                <span>Enable Partial Fills</span>
+                            </label>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Automatically create follow-up orders when partial fills occur
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Target Movement Type</label>
                             <select id="target_movement_type">
                                 <option value="P">Percentage (%)</option>
@@ -1893,6 +1903,7 @@
                 condition_type: document.getElementById('condition_type').value,
                 sizing_strategy: document.getElementById('sizing_strategy').value,
                 notes: document.getElementById('notes').value,
+                allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 timestamp: Date.now()
             };
             
@@ -1976,6 +1987,12 @@
                 }
             });
             
+            // Restore checkbox fields
+            const checkboxElement = document.getElementById('allow_partial_fills');
+            if (checkboxElement && entry['allow_partial_fills'] !== undefined) {
+                checkboxElement.checked = entry['allow_partial_fills'];
+            }
+            
             // Update condition fields based on condition_type
             updateConditionFields();
             
@@ -2020,6 +2037,12 @@
                             element.value = formData[fieldId];
                         }
                     });
+                    
+                    // Restore checkbox fields
+                    const checkboxElement = document.getElementById('allow_partial_fills');
+                    if (checkboxElement && formData['allow_partial_fills'] !== undefined) {
+                        checkboxElement.checked = formData['allow_partial_fills'];
+                    }
                     
                     // Restore condition-specific field values
                     setTimeout(() => {
@@ -2069,6 +2092,7 @@
             const maxReplacements = document.getElementById('max_order_replacements').value;
             const targetMovement = document.getElementById('target_movement').value;
             const targetMovementType = document.getElementById('target_movement_type').value;
+            const allowPartialFills = document.getElementById('allow_partial_fills').checked;
 
             const order = {
                 product_id: document.getElementById('product_id').value,
@@ -2084,6 +2108,7 @@
                 max_order_replacements: maxReplacements ? parseInt(maxReplacements) : null,
                 target_movement: targetMovement ? parseFloat(targetMovement) : 0.0,
                 target_movement_type: targetMovementType,
+                allow_partial_fills: allowPartialFills,
                 notes: document.getElementById('notes').value
             };
 
@@ -2155,6 +2180,7 @@
                 follow_up_reveal_direction: order.follow_up_reveal_direction || 'opposite',
                 reveal_pricing_policy: order.reveal_pricing_policy || (order.reveal_condition_json && order.reveal_condition_json.reveal_pricing_policy) || 'top_of_book',
                 sizing_strategy: {strategy: "equal_slices"},
+                allow_partial_fills: order.allow_partial_fills !== undefined ? order.allow_partial_fills : true,
                 notes: `Follow-up hidden order from ${orderID}`
             };
             
