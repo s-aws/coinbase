@@ -1700,6 +1700,7 @@ class OrderEngine:
                     limit_price=follow_up_price,
                     reveal_condition=reveal_condition,
                     follow_up_reveal_direction="same",
+                    reveal_pricing_policy=None,  # Inherit from original
                     notes=f"Auto follow-up from cancelled order",
                     target_movement=parent_target_movement,
                     target_movement_type=parent_target_movement_type
@@ -2248,6 +2249,7 @@ class OrderEngine:
                         limit_price=follow_up_price,
                         reveal_condition=follow_up_reveal_condition,
                         follow_up_reveal_direction=direction_choice,
+                        reveal_pricing_policy=None,  # Inherit from original
                         notes=f"Auto follow-up from stealth order reveal",
                         target_movement=parent_target_movement,
                         target_movement_type=parent_target_movement_type
