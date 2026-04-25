@@ -29,20 +29,49 @@ class TestFillLedger(unittest.TestCase):
     
     def setUp(self):
         """Set up test database."""
-        # Note: This uses a test database. Ensure DB is configured for testing.
+        # Note: This uses a test database on port 9876 with same DB name as production
         self.db = PostgresDB(
             host="127.0.0.1",
             port=9876,  # Test database port
-            database="test_db",
+            database="postgres",
             user="postgres",
             password="postgres"
         )
+        # Initialize tables on test database
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
     
     def tearDown(self):
         """Clean up test database."""
         # Optional: truncate table for clean state
         pass
+    
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            trade_id UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+        except Exception as e:
+            # Table might already exist, that's ok
+            pass
     
     def test_append_fill(self):
         """Test appending a fill to ledger."""
@@ -96,9 +125,36 @@ class TestPositionLotBuilder(unittest.TestCase):
     
     def setUp(self):
         """Set up test infrastructure."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="test_db")
+        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.builder = PositionLotBuilder(self.fill_repo)
+    
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            trade_id UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+        except Exception:
+            pass
     
     def test_build_lots_fifo(self):
         """Test FIFO lot construction."""
@@ -211,9 +267,36 @@ class TestOrderInterceptionLayer(unittest.TestCase):
     
     def setUp(self):
         """Set up interception layer."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="test_db")
+        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.layer = OrderInterceptionLayer(self.fill_repo, profit_margin_pct=0.5)
+    
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            trade_id UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+        except Exception:
+            pass
     
     def test_intercept_exit_order(self):
         """Test order interception for exit orders."""
@@ -244,10 +327,37 @@ class TestConditionalExecution(unittest.TestCase):
     
     def setUp(self):
         """Set up conditional execution wrapper."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="test_db")
+        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.interception = OrderInterceptionLayer(self.fill_repo)
         self.wrapper = ConditionalExecutionWrapper(self.interception)
+    
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            trade_id UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+        except Exception:
+            pass
     
     def test_wrap_with_profit_condition(self):
         """Test wrapping order with profit condition."""

@@ -29,6 +29,7 @@ except ImportError:
 # Use custom logging service
 from logging_service import get_logger
 from core.enums import FollowUpRevealDirection
+from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
 from database.database import PostgresDB
 from calculation.formatter import safe_float
 
@@ -401,10 +402,23 @@ def _build_investor_storyboard_snapshot(
 
 
 async def handle_client_message(websocket: WebSocketServerProtocol, message: str):
-    """Handle incoming messages from client."""
+    """Handle incoming messages from client.
+    
+    Raises:
+        WebSocketMessageError: If message parsing fails or required fields missing
+        OrderCreationError: If order placement fails
+        CoinbaseAPIError: If API call fails
+    """
     try:
-        data = json.loads(message)
+        # Parse incoming message
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError as e:
+            raise WebSocketMessageError(f"Invalid JSON: {e}", raw_data=message)
+        
         msg_type = data.get("type")
+        if not msg_type:
+            raise WebSocketMessageError("Missing 'type' field in message", raw_data=message)
         
         # DEBUG: Log all incoming messages
         logger.debug(f"[HANDLER] Received message type: {msg_type}")
@@ -455,36 +469,40 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         elif hasattr(error_response, 'error'):
                             error_msg = error_response.error
                     
-                    response = {
-                        "type": "order_response",
-                        "status": "error",
-                        "message": f"Order failed: {error_msg}",
-                    }
-                    add_log_entry("ERROR", f"Order failed for {order_params.get('product_id')}: {error_msg}")
-                else:
-                    # Order successful
-                    order_id = None
-                    if hasattr(result, 'order_id'):
-                        order_id = result.order_id
-                    elif isinstance(result_dict, dict):
-                        order_id = result_dict.get('order_id')
-                    
-                    response = {
-                        "type": "order_response",
-                        "status": "success",
-                        "message": "Order created",
-                        "order_id": order_id,
-                    }
-                    add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
+                    raise CoinbaseAPIError(
+                        f"Order creation failed: {error_msg}",
+                        api_error_code="order_creation_failed"
+                    )
                 
-            except Exception as e:
-                logger.error(f"Order placement failed: {str(e)}")
+                # Order successful
+                order_id = None
+                if hasattr(result, 'order_id'):
+                    order_id = result.order_id
+                elif isinstance(result_dict, dict):
+                    order_id = result_dict.get('order_id')
+                
+                response = {
+                    "type": "order_response",
+                    "status": "success",
+                    "message": "Order created",
+                    "order_id": order_id,
+                }
+                add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
+                
+            except CoinbaseAPIError as e:
+                logger.error(f"API error during order placement: {str(e)}")
                 response = {
                     "type": "order_response",
                     "status": "error",
                     "message": str(e),
                 }
-                add_log_entry("ERROR", f"Order placement failed: {str(e)}")
+                add_log_entry("ERROR", f"API error: {str(e)}")
+            except Exception as e:
+                logger.error(f"Order placement failed: {type(e).__name__}: {str(e)}")
+                raise OrderCreationError(
+                    f"Failed to place order: {e}",
+                    client_order_id=client_order_id if 'client_order_id' in locals() else None
+                ) from e
             
             await websocket.send(json.dumps(response))
             

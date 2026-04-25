@@ -72,6 +72,14 @@ from configuration import (
 
 from core.constants import get_local_now
 from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel
+from core.exceptions import (
+    OrderProcessingError,
+    OrderCalculationError,
+    OrderCreationError,
+    FollowUpOrderError,
+    WebSocketMessageError,
+    CoinbaseAPIError,
+)
 from calculation.resolver import (
     resolve_order_size,
     resolve_order_side,

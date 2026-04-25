@@ -528,6 +528,9 @@ class TestRevealProfitabilityValidation:
         assert captured["follow_up_price"] == 49500.0
 
     def test_validate_reveal_profitability_blocks_unprofitable_reveal(self):
+        """Test that unprofitable reveals raise RevealPricingError."""
+        from core.exceptions import RevealPricingError
+        
         class FakeProfitValidator:
             def derive_follow_up_price_from_target(self, **kwargs):
                 parent_price = kwargs["parent_filled_price"]
@@ -556,10 +559,12 @@ class TestRevealProfitabilityValidation:
             fallback_used=False,
         )
 
-        is_profitable, reason = manager._validate_reveal_profitability(stealth_order_id, reveal_plan)
-
-        assert is_profitable is False
-        assert "would not meet profit target" in reason
+        # Should raise RevealPricingError when unprofitable
+        with pytest.raises(RevealPricingError) as exc_info:
+            manager._validate_reveal_profitability(stealth_order_id, reveal_plan)
+        
+        assert "would not meet profit target" in str(exc_info.value)
+        assert exc_info.value.stealth_order_id == stealth_order_id
 
 
 # Run tests with: pytest tests/unit/test_stealth_order_manager.py -v

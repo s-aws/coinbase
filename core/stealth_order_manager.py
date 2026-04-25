@@ -74,6 +74,13 @@ from core.enums import (
     StealthLifecycleEvent,
     StealthOrderStatus,
 )
+from core.exceptions import (
+    RevealPricingError,
+    RevealConditionEvaluationError,
+    RevealOrderSliceError,
+    StealthOrderNotFoundError,
+    StealthOrderPersistenceError,
+)
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 from logging_service import get_logger
@@ -306,6 +313,9 @@ class StealthOrderManager:
         Checks if the order will still be profitable after fees using the
         submitted_limit_price from the reveal plan and current market conditions.
         
+        Raises:
+            RevealPricingError: If profitability validation fails (fallback_used=True)
+        
         Returns:
             (is_profitable, failure_reason) - failure_reason is None if profitable
         """
@@ -315,7 +325,11 @@ class StealthOrderManager:
         
         order = self._get_stealth_order(stealth_order_id)
         if not order:
-            return False, "Stealth order not found"
+            raise RevealPricingError(
+                "Stealth order not found during profitability validation",
+                stealth_order_id=stealth_order_id,
+                fallback_used=False
+            )
         
         try:
             parent_side_raw = str(order.get("side") or "").upper()
@@ -378,14 +392,22 @@ class StealthOrderManager:
             
             if not is_profitable:
                 net_profit = safe_float(validation.get("net_profit"), default=0.0)
-                return (
-                    False,
+                failure_msg = (
                     f"Reveal price {reveal_execution_plan.submitted_limit_price} would not meet profit target "
-                    f"(projected net profit: {net_profit:.8f})",
+                    f"(projected net profit: {net_profit:.8f})"
+                )
+                raise RevealPricingError(
+                    failure_msg,
+                    configured_price=reveal_execution_plan.configured_limit_price,
+                    fallback_used=reveal_execution_plan.fallback_used,
+                    stealth_order_id=stealth_order_id
                 )
             
             return True, None
             
+        except RevealPricingError:
+            # Re-raise known exceptions
+            raise
         except Exception as e:
             # Validation error - log but don't block reveal
             self.logger.warning(
@@ -738,8 +760,7 @@ class StealthOrderManager:
         return condition_met, reason
     
     def reveal_order_slice(self, stealth_order_id: str) -> Optional[str]:
-        """
-        Reveal next slice of hidden order based on adaptive sizing.
+        """Reveal next slice of hidden order based on adaptive sizing.
         
         Integrates reveal execution planning:
         - Builds reveal execution plan based on pricing policy
@@ -749,42 +770,77 @@ class StealthOrderManager:
         
         Returns:
             client_order_id if slice was placed, None otherwise
+            
+        Raises:
+            RevealPricingError: If profitability validation fails
+            RevealOrderSliceError: If order slice operation fails
         """
-        order = self._get_stealth_order(stealth_order_id)
-        
-        if not order:
-            return None
-        
-        # Calculate slice size
-        slice_size = self._calculate_reveal_size(order)
-        
-        if slice_size <= 0:
-            return None
-        
-        # === PHASE 1: Build reveal execution plan ===
-        # Determines what price to use for reveal based on policy and market conditions
-        reveal_plan = self.build_reveal_execution_plan(stealth_order_id)
-        if not reveal_plan:
-            # Plan builder failed - shouldn't happen, but fail safely
-            return None
-        
-        # === PHASE 2: Validate profitability at reveal time ===
-        # Checks if order will still meet profit target using reveal plan's price
-        if self.profit_validator:
-            is_profitable, profit_reason = self._validate_reveal_profitability(
-                stealth_order_id=stealth_order_id,
-                reveal_execution_plan=reveal_plan,
-            )
-            if not is_profitable:
-                # Order would not be profitable with reveal price - block it
-                self.log_callback("warning", {
-                    "event": "stealth_order_reveal_blocked_by_profitability",
-                    "stealth_order_id": stealth_order_id,
-                    "reason": profit_reason,
-                    "reveal_price": reveal_plan.submitted_limit_price,
-                    "configured_price": reveal_plan.configured_limit_price,
-                })
+        try:
+            order = self._get_stealth_order(stealth_order_id)
+            
+            if not order:
+                raise RevealOrderSliceError(
+                    f"Stealth order not found: {stealth_order_id}"
+                )
+            
+            # Calculate slice size
+            slice_size = self._calculate_reveal_size(order)
+            
+            if slice_size <= 0:
                 return None
+            
+            # === PHASE 1: Build reveal execution plan ===
+            # Determines what price to use for reveal based on policy and market conditions
+            reveal_plan = self.build_reveal_execution_plan(stealth_order_id)
+            if not reveal_plan:
+                raise RevealOrderSliceError(
+                    "Failed to build reveal execution plan",
+                )
+            
+            # === PHASE 2: Validate profitability at reveal time ===
+            # Checks if order will still meet profit target using reveal plan's price
+            if self.profit_validator:
+                try:
+                    is_profitable, profit_reason = self._validate_reveal_profitability(
+                        stealth_order_id=stealth_order_id,
+                        reveal_execution_plan=reveal_plan,
+                    )
+                    if not is_profitable:
+                        # Order would not be profitable with reveal price - block it
+                        self.log_callback("warning", {
+                            "event": "stealth_order_reveal_blocked_by_profitability",
+                            "stealth_order_id": stealth_order_id,
+                            "reason": profit_reason,
+                            "reveal_price": reveal_plan.submitted_limit_price,
+                            "configured_price": reveal_plan.configured_limit_price,
+                        })
+                        return None
+                except RevealPricingError as e:
+                    # Profitability validation raised an error
+                    self.log_callback("warning", {
+                        "event": "stealth_order_profitability_validation_failed",
+                        "stealth_order_id": stealth_order_id,
+                        "reason": str(e),
+                        "fallback_used": e.fallback_used,
+                    })
+                    return None
+        except RevealOrderSliceError as e:
+            # Order not found or slice failed
+            self.log_callback("error", {
+                "event": "stealth_order_slice_error",
+                "stealth_order_id": stealth_order_id,
+                "error": str(e),
+            })
+            raise
+        except RevealPricingError as e:
+            # Pricing-related error
+            self.log_callback("error", {
+                "event": "stealth_order_reveal_pricing_error",
+                "stealth_order_id": stealth_order_id,
+                "error": str(e),
+                "fallback_used": e.fallback_used,
+            })
+            raise
         
         # Place actual limit order on exchange (NOT stealth - this IS the revealed placement)
         # Use REST API directly - DO NOT create another stealth order!
@@ -957,14 +1013,14 @@ class StealthOrderManager:
                 "exception": str(e),
                 "note": "Exception while placing order on exchange. Order was NOT placed."
             })
-
+            
             # 🔔 LIFECYCLE HOOK: REVEAL_FAILED
             self._dispatch_lifecycle_event(
                 stealth_order_id=stealth_order_id,
                 event=StealthLifecycleEvent.REVEAL_FAILED,
                 order_data=order,
                 extra={"failure_reason": placement_error, "size": slice_size},
-        )
+            )
         
         # Record reveal event with placement status tracking and plan audit trail
         reveal_event = {
@@ -1157,8 +1213,19 @@ class StealthOrderManager:
         tranche_pct = tranches[reveal_count]
         return order["total_size"] * tranche_pct - order["revealed_size"]
     
-    def _get_stealth_order(self, stealth_order_id: str) -> Optional[Dict[str, Any]]:
-        """Get stealth order from memory cache or database."""
+    def _get_stealth_order(self, stealth_order_id: str, raise_if_missing: bool = False) -> Optional[Dict[str, Any]]:
+        """Get stealth order from memory cache or database.
+        
+        Args:
+            stealth_order_id: ID of stealth order to retrieve
+            raise_if_missing: If True, raise StealthOrderNotFoundError instead of returning None
+            
+        Returns:
+            Stealth order dict or None if not found
+            
+        Raises:
+            StealthOrderNotFoundError: If raise_if_missing=True and order not found
+        """
         if stealth_order_id in self.in_memory_orders:
             return self.in_memory_orders[stealth_order_id]
         
@@ -1166,8 +1233,12 @@ class StealthOrderManager:
         order = self._load_stealth_order_from_db(stealth_order_id)
         if order:
             self.in_memory_orders[stealth_order_id] = order
+            return order
         
-        return order
+        if raise_if_missing:
+            raise StealthOrderNotFoundError("stealth_order_id", stealth_order_id)
+        
+        return None
     
     def _get_current_market_data(self, product_id: str) -> Dict[str, Any]:
         """Get current market data from cache (populated by StealthOrderBridge)."""
