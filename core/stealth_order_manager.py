@@ -252,6 +252,433 @@ class StealthOrderManager:
         
         return configured_limit_price, RevealPriceSource.CONFIGURED_LIMIT.value, True
 
+    def _normalize_anchor_repricing_policy(
+        self,
+        anchor_repricing_policy: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Normalize market-reference repricing policy.
+
+        Supported reference sources:
+        - last_trade
+        - midpoint
+        - top_of_book
+        """
+        policy = dict(anchor_repricing_policy or {})
+        enabled = bool(policy.get("enabled"))
+        if not enabled:
+            return {"enabled": False}
+
+        reference_price_source = str(
+            policy.get("reference_price_source") or "midpoint"
+        ).strip().lower()
+        if reference_price_source not in {"last_trade", "midpoint", "top_of_book"}:
+            reference_price_source = "midpoint"
+
+        distance_type = str(policy.get("distance_type") or "P").strip().upper()
+        if distance_type not in {"P", "A"}:
+            distance_type = "P"
+
+        target_distance = safe_float(policy.get("target_distance"), default=0.0)
+        max_distance = safe_float(policy.get("max_distance"), default=target_distance)
+        if target_distance <= 0:
+            return {"enabled": False}
+        if max_distance < target_distance:
+            max_distance = target_distance
+
+        update_mode = str(policy.get("update_mode") or "adaptive").strip().lower()
+        if update_mode not in {"adaptive", "fixed"}:
+            update_mode = "adaptive"
+
+        fixed_interval_seconds = int(
+            safe_float(policy.get("fixed_interval_seconds"), default=60.0)
+        )
+        if fixed_interval_seconds <= 0:
+            fixed_interval_seconds = 60
+
+        min_price_change = max(
+            safe_float(policy.get("min_price_change"), default=0.01),
+            0.0,
+        )
+        hysteresis_bps = max(
+            safe_float(policy.get("hysteresis_bps"), default=5.0),
+            0.0,
+        )
+        min_reprice_interval_seconds = max(
+            int(safe_float(policy.get("min_reprice_interval_seconds"), default=30.0)),
+            0,
+        )
+        max_reprices_per_hour = max(
+            int(safe_float(policy.get("max_reprices_per_hour"), default=20.0)),
+            1,
+        )
+
+        return {
+            "enabled": True,
+            "reference_price_source": reference_price_source,
+            "distance_type": distance_type,
+            "target_distance": target_distance,
+            "max_distance": max_distance,
+            "update_mode": update_mode,
+            "fixed_interval_seconds": fixed_interval_seconds,
+            "allow_revealed_reprice": bool(policy.get("allow_revealed_reprice", True)),
+            "min_price_change": min_price_change,
+            "hysteresis_bps": hysteresis_bps,
+            "min_reprice_interval_seconds": min_reprice_interval_seconds,
+            "max_reprices_per_hour": max_reprices_per_hour,
+            "post_only_required": bool(policy.get("post_only_required", True)),
+            "converge_to_target": bool(policy.get("converge_to_target", True)),
+            "inherit_to_follow_ups": bool(policy.get("inherit_to_follow_ups", True)),
+        }
+
+    @staticmethod
+    def _parse_runtime_datetime(value: Any) -> Optional[datetime]:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str) and value:
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                return None
+        return None
+
+    def _normalize_anchor_repricing_state(
+        self,
+        anchor_repricing_state: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        state = dict(anchor_repricing_state or {})
+        state.setdefault("reprice_history", [])
+        return state
+
+    def _resolve_reference_price(
+        self,
+        side: str,
+        market_data: Dict[str, Any],
+        policy: Dict[str, Any],
+    ) -> Tuple[Optional[float], str]:
+        reference_price_source = policy.get("reference_price_source", "midpoint")
+        price = safe_float(market_data.get("price"), default=None)
+        bid = safe_float(market_data.get("bid"), default=None)
+        ask = safe_float(market_data.get("ask"), default=None)
+        normalized_side = str(side or "").upper()
+
+        if reference_price_source == "last_trade" and price and price > 0:
+            return price, "ticker_last_trade"
+
+        if reference_price_source == "midpoint" and bid and ask and bid > 0 and ask > 0:
+            return (bid + ask) / 2.0, "ticker_midpoint"
+
+        if reference_price_source == "top_of_book":
+            if normalized_side == "BUY" and bid and bid > 0:
+                return bid, "ticker_best_bid"
+            if normalized_side == "SELL" and ask and ask > 0:
+                return ask, "ticker_best_ask"
+
+        if price and price > 0:
+            return price, "ticker_last_trade"
+        if bid and ask and bid > 0 and ask > 0:
+            return (bid + ask) / 2.0, "ticker_midpoint"
+        if bid and bid > 0:
+            return bid, "ticker_best_bid"
+        if ask and ask > 0:
+            return ask, "ticker_best_ask"
+        return None, "unavailable"
+
+    def _compute_reference_target_prices(
+        self,
+        side: str,
+        reference_price: float,
+        policy: Dict[str, Any],
+    ) -> Dict[str, float]:
+        if policy.get("distance_type") == "A":
+            target_distance = safe_float(policy.get("target_distance"), default=0.0)
+            max_distance = safe_float(policy.get("max_distance"), default=target_distance)
+        else:
+            target_distance = reference_price * safe_float(policy.get("target_distance"), default=0.0)
+            max_distance = reference_price * safe_float(policy.get("max_distance"), default=0.0)
+
+        normalized_side = str(side or "").upper()
+        if normalized_side == "BUY":
+            target_price = reference_price - target_distance
+            max_boundary_price = reference_price - max_distance
+        else:
+            target_price = reference_price + target_distance
+            max_boundary_price = reference_price + max_distance
+
+        return {
+            "target_price": float(target_price),
+            "max_boundary_price": float(max_boundary_price),
+            "target_distance_amount": float(target_distance),
+            "max_distance_amount": float(max_distance),
+        }
+
+    def _should_skip_anchor_reprice(
+        self,
+        state: Dict[str, Any],
+        policy: Dict[str, Any],
+        desired_price: float,
+        current_price: float,
+        force_due: bool,
+    ) -> bool:
+        price_delta = abs(float(desired_price) - float(current_price))
+        min_price_change = safe_float(policy.get("min_price_change"), default=0.0)
+        hysteresis_bps = safe_float(policy.get("hysteresis_bps"), default=0.0)
+        hysteresis_abs = abs(float(current_price)) * (hysteresis_bps / 10000.0)
+        if price_delta < max(min_price_change, hysteresis_abs):
+            return True
+
+        last_reprice_at = self._parse_runtime_datetime(state.get("last_reprice_at"))
+        min_interval = int(policy.get("min_reprice_interval_seconds", 0))
+        if not force_due and last_reprice_at is not None:
+            elapsed = (datetime.utcnow() - last_reprice_at).total_seconds()
+            if elapsed < min_interval:
+                return True
+
+        history = list(state.get("reprice_history") or [])
+        cutoff = datetime.utcnow() - timedelta(hours=1)
+        recent = [
+            ts for ts in history
+            if self._parse_runtime_datetime(ts) and self._parse_runtime_datetime(ts) >= cutoff
+        ]
+        state["reprice_history"] = [
+            ts.isoformat() if isinstance(ts, datetime) else ts for ts in recent
+        ]
+        if len(recent) >= int(policy.get("max_reprices_per_hour", 20)):
+            return True
+
+        return False
+
+    def _next_anchor_reprice_seconds(
+        self,
+        policy: Dict[str, Any],
+        current_price: float,
+        target_price: float,
+        max_boundary_price: float,
+    ) -> int:
+        if policy.get("update_mode") == "fixed":
+            return int(policy.get("fixed_interval_seconds", 60))
+
+        target_gap = abs(current_price - target_price)
+        max_gap = abs(current_price - max_boundary_price)
+        if max_gap <= 0:
+            return 60
+        if target_gap <= max(0.01, abs(target_price) * 0.0005):
+            return 300
+        if target_gap < max_gap:
+            return 120
+        return 60
+
+    def _placement_client_order_id_for_order(self, order: Dict[str, Any]) -> str:
+        policy = order.get("anchor_repricing_policy_json") or {}
+        if policy.get("enabled") and policy.get("allow_revealed_reprice", True):
+            return str(uuid.uuid4())
+        return order["stealth_order_id"]
+
+    def _mark_reveal_event_cancelled_for_reprice(
+        self,
+        order: Dict[str, Any],
+        placed_order_id: Optional[str],
+        reprice_reason: str,
+    ) -> None:
+        for reveal_event in reversed(order.get("revealed_orders") or []):
+            if not isinstance(reveal_event, dict):
+                continue
+            if reveal_event.get("placed_order_id") != placed_order_id:
+                continue
+            reveal_event["cancelled_for_reprice"] = True
+            reveal_event["reprice_reason"] = reprice_reason
+            break
+
+    def _apply_revealed_anchor_reprice(
+        self,
+        order: Dict[str, Any],
+        policy: Dict[str, Any],
+        state: Dict[str, Any],
+        market_data: Dict[str, Any],
+        desired_price: float,
+        target_price: float,
+        max_boundary_price: float,
+        reprice_reason: str,
+    ) -> bool:
+        exchange_order_id = state.get("active_exchange_order_id")
+        current_price = safe_float(state.get("active_exchange_price"), default=order.get("limit_price"))
+        if not exchange_order_id or current_price is None:
+            return False
+
+        force_due = reprice_reason == "outside_max_boundary"
+        if self._should_skip_anchor_reprice(state, policy, desired_price, current_price, force_due):
+            return False
+
+        from configuration import REST_CLIENT
+
+        bid = safe_float(market_data.get("bid"), default=None)
+        ask = safe_float(market_data.get("ask"), default=None)
+        normalized_side = str(order.get("side") or "").upper()
+        if policy.get("post_only_required", True):
+            if normalized_side == "BUY" and ask and desired_price >= ask:
+                return False
+            if normalized_side == "SELL" and bid and desired_price <= bid:
+                return False
+
+        REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
+
+        placement_client_order_id = str(uuid.uuid4())
+        order_result = REST_CLIENT.place_limit_order(
+            product_id=order["product_id"],
+            side=order["side"],
+            limit_price=str(desired_price),
+            base_size=str(order["remaining_size"]),
+            client_order_id=placement_client_order_id,
+            post_only=policy.get("post_only_required", True),
+        )
+        success_response = order_result.get("success_response") if isinstance(order_result, dict) else {}
+        new_exchange_order_id = (success_response or {}).get("order_id")
+
+        self._mark_reveal_event_cancelled_for_reprice(
+            order,
+            state.get("active_placement_client_order_id"),
+            reprice_reason,
+        )
+
+        reveal_event = {
+            "reveal_number": len(order.get("revealed_orders", [])) + 1,
+            "revealed_size": order.get("remaining_size", 0.0),
+            "placed_order_id": placement_client_order_id,
+            "placement_client_order_id": placement_client_order_id,
+            "exchange_order_id": new_exchange_order_id,
+            "placement_success": True,
+            "placement_status": "repriced",
+            "placement_error": None,
+            "cancelled_for_reprice": False,
+            "reveal_time": datetime.utcnow(),
+            "market_price": market_data.get("price"),
+            "market_bid": bid,
+            "market_ask": ask,
+            "market_spread": (ask - bid) if bid is not None and ask is not None else None,
+            "market_volume_1m": market_data.get("volume_1m"),
+            "market_source": market_data.get("source"),
+            "reference_price_source": state.get("last_reference_source"),
+            "reference_price": state.get("last_reference_price"),
+            "reference_bid": state.get("last_reference_bid"),
+            "reference_ask": state.get("last_reference_ask"),
+            "anchor_target_price": target_price,
+            "anchor_max_price": max_boundary_price,
+            "reprice_reason": reprice_reason,
+        }
+        order.setdefault("revealed_orders", []).append(reveal_event)
+        self._placed_order_index[placement_client_order_id] = order
+
+        now = datetime.utcnow()
+        state["active_placement_client_order_id"] = placement_client_order_id
+        state["active_exchange_order_id"] = new_exchange_order_id
+        state["active_exchange_price"] = desired_price
+        state["current_logical_limit_price"] = desired_price
+        state["last_reprice_at"] = now
+        state["reprice_reason"] = reprice_reason
+        state.setdefault("reprice_history", []).append(now.isoformat())
+        state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_price, max_boundary_price))).isoformat()
+
+        order["anchor_repricing_state_json"] = state
+        order["limit_price"] = desired_price
+        order["updated_at"] = now
+        self._update_stealth_order(order)
+        return True
+
+    def process_anchor_repricing_for_product(self, product_id: str) -> int:
+        """Apply ticker-anchored repricing for eligible stealth orders on one product."""
+        processed = 0
+        market_data = self._get_current_market_data(product_id)
+        if (market_data or {}).get("source") != "ticker":
+            return 0
+
+        for stealth_order_id in list(self._get_active_stealth_orders()):
+            order = self.in_memory_orders.get(stealth_order_id)
+            if not order or order.get("product_id") != product_id:
+                continue
+
+            policy = self._normalize_anchor_repricing_policy(order.get("anchor_repricing_policy_json"))
+            if not policy.get("enabled"):
+                continue
+
+            state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+            next_reprice_at = self._parse_runtime_datetime(state.get("next_reprice_at"))
+            if next_reprice_at and next_reprice_at > datetime.utcnow():
+                continue
+
+            reference_price, reference_source = self._resolve_reference_price(
+                order.get("side"),
+                market_data,
+                policy,
+            )
+            if reference_price is None or reference_price <= 0:
+                continue
+
+            target_prices = self._compute_reference_target_prices(
+                order.get("side"),
+                reference_price,
+                policy,
+            )
+
+            current_price = safe_float(
+                state.get("active_exchange_price") if order.get("status") == StealthOrderStatus.REVEALED.value else order.get("limit_price"),
+                default=order.get("limit_price"),
+            )
+            desired_price = target_prices["target_price"]
+            reprice_reason = "reference_price_updated"
+
+            normalized_side = str(order.get("side") or "").upper()
+            max_boundary_price = target_prices["max_boundary_price"]
+            outside_max = (
+                normalized_side == "BUY" and current_price < max_boundary_price
+            ) or (
+                normalized_side != "BUY" and current_price > max_boundary_price
+            )
+            if outside_max:
+                desired_price = max_boundary_price
+                reprice_reason = "outside_max_boundary"
+
+            now = datetime.utcnow()
+            state.update({
+                "last_reference_source": reference_source,
+                "last_reference_price": reference_price,
+                "last_reference_bid": safe_float(market_data.get("bid"), default=None),
+                "last_reference_ask": safe_float(market_data.get("ask"), default=None),
+                "last_reference_at": now.isoformat(),
+            })
+
+            if order.get("status") in {StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value}:
+                if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max):
+                    order["limit_price"] = desired_price
+                    order["updated_at"] = now
+                    state["current_logical_limit_price"] = desired_price
+                    state["last_reprice_at"] = now.isoformat()
+                    state["reprice_reason"] = reprice_reason
+                    state.setdefault("reprice_history", []).append(now.isoformat())
+                    processed += 1
+
+                state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_prices["target_price"], max_boundary_price))).isoformat()
+                order["anchor_repricing_state_json"] = state
+                self._update_stealth_order(order)
+                continue
+
+            if order.get("status") == StealthOrderStatus.REVEALED.value and policy.get("allow_revealed_reprice", True):
+                if self._apply_revealed_anchor_reprice(
+                    order,
+                    policy,
+                    state,
+                    market_data,
+                    desired_price,
+                    target_prices["target_price"],
+                    max_boundary_price,
+                    reprice_reason,
+                ):
+                    processed += 1
+                else:
+                    state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, current_price, target_prices["target_price"], max_boundary_price))).isoformat()
+                    order["anchor_repricing_state_json"] = state
+                    self._update_stealth_order(order)
+
+        return processed
+
     def build_reveal_execution_plan(
         self,
         stealth_order_id: str,
@@ -520,6 +947,7 @@ class StealthOrderManager:
         target_movement_type: str = "P",
         reveal_pricing_policy: Optional[str] = None,
         allow_partial_fills: bool = False,
+        anchor_repricing_policy: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -597,6 +1025,8 @@ class StealthOrderManager:
         if not stealth_order_id:
             stealth_order_id = str(uuid.uuid4())
         
+        normalized_anchor_repricing_policy = self._normalize_anchor_repricing_policy(anchor_repricing_policy)
+
         order_data = {
             "stealth_order_id": stealth_order_id,
             "created_at": datetime.utcnow(),
@@ -622,6 +1052,8 @@ class StealthOrderManager:
             "condition_first_met_at": None,
             "condition_confirmed_at": None,
             "allow_partial_fills": allow_partial_fills,
+            "anchor_repricing_policy_json": normalized_anchor_repricing_policy,
+            "anchor_repricing_state_json": self._normalize_anchor_repricing_state(None),
         }
         
         # Store in memory for quick access
@@ -863,9 +1295,7 @@ class StealthOrderManager:
         try:
             from configuration import REST_CLIENT
             
-            # ⚠️ CRITICAL: Use the stealth_order_id as client_order_id for the revealed order
-            # This creates the direct link: stealth_order_id → placed order → fill event
-            client_order_id = order["stealth_order_id"]
+            client_order_id = self._placement_client_order_id_for_order(order)
             
             # Build order dict for hooks (before REST submission)
             # Use the plan's submitted price, not the configured price
@@ -918,6 +1348,7 @@ class StealthOrderManager:
                     "reveal_number": len(order["revealed_orders"]) + 1,
                     "revealed_size": 0,  # No size placed
                     "placed_order_id": placed_order_id,
+                    "placement_client_order_id": placed_order_id,
                     "placement_success": False,
                     "placement_error": placement_error,
                     "reveal_time": datetime.utcnow(),
@@ -1027,8 +1458,10 @@ class StealthOrderManager:
             "reveal_number": len(order["revealed_orders"]) + 1,
             "revealed_size": slice_size,
             "placed_order_id": placed_order_id,
+            "placement_client_order_id": placed_order_id,
             "exchange_order_id": exchange_order_id,
             "placement_success": placement_success,  # ✓ Track if actually placed on exchange
+            "placement_status": "placed" if placement_success else "failed",
             "placement_error": placement_error,      # Error message if failed
             "reveal_time": datetime.utcnow(),
             "market_price": market_data.get("price"),
@@ -1055,6 +1488,13 @@ class StealthOrderManager:
         
         order["updated_at"] = datetime.utcnow()
         order["last_placement_at"] = datetime.utcnow()
+
+        anchor_state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+        anchor_state["active_placement_client_order_id"] = placed_order_id
+        anchor_state["active_exchange_order_id"] = exchange_order_id
+        anchor_state["active_exchange_price"] = reveal_plan.submitted_limit_price
+        anchor_state["current_logical_limit_price"] = reveal_plan.submitted_limit_price
+        order["anchor_repricing_state_json"] = anchor_state
         
         # Persist updates
         self._update_stealth_order(order)
@@ -1088,6 +1528,13 @@ class StealthOrderManager:
 
         order["executed_size"] = float(executed_size)
         order["updated_at"] = datetime.utcnow()
+        anchor_state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+        if order_status in {StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value}:
+            if anchor_state.get("active_placement_client_order_id") == placed_order_id:
+                anchor_state["active_placement_client_order_id"] = None
+                anchor_state["active_exchange_order_id"] = None
+                anchor_state["active_exchange_price"] = None
+                order["anchor_repricing_state_json"] = anchor_state
 
         if order_status == StealthOrderStatus.EXECUTED.value:
             self._update_stealth_order(order)
@@ -1382,6 +1829,10 @@ class StealthOrderManager:
             if existing_exchange_order_id:
                 return False
             reveal_event["exchange_order_id"] = exchange_order_id
+            anchor_state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+            if anchor_state.get("active_placement_client_order_id") == placed_order_id:
+                anchor_state["active_exchange_order_id"] = exchange_order_id
+                order["anchor_repricing_state_json"] = anchor_state
             order["updated_at"] = datetime.utcnow()
             self._update_stealth_order(order)
             updated = True
@@ -1453,6 +1904,9 @@ class StealthOrderManager:
         follow_up_condition = reveal_condition if reveal_condition is not None else original_order.get("reveal_condition_json", {})
         inherited_pricing_policy = original_order.get("reveal_pricing_policy") or "configured_limit"
         effective_pricing_policy = reveal_pricing_policy or inherited_pricing_policy
+        anchor_repricing_policy = original_order.get("anchor_repricing_policy_json") or {"enabled": False}
+        if not anchor_repricing_policy.get("inherit_to_follow_ups", True):
+            anchor_repricing_policy = {"enabled": False}
         
         # Use provided target movement or inherit from original
         follow_up_target_movement = target_movement if target_movement is not None else original_order.get("target_movement")
@@ -1472,7 +1926,8 @@ class StealthOrderManager:
             follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value),
             reveal_pricing_policy=effective_pricing_policy,
             reason="follow_up_replacement",
-            notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}"
+            notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}",
+            anchor_repricing_policy=anchor_repricing_policy,
         )
         
         # Set target movement on the new child order and persist to database
@@ -1497,8 +1952,9 @@ class StealthOrderManager:
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
                     limit_price, status, reveal_condition_type, reveal_condition_json, 
-                    sizing_strategy_json, reason, notes, parent_order_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                          sizing_strategy_json, reason, notes, parent_order_id,
+                          anchor_repricing_policy_json, anchor_repricing_state_json)
+                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -1511,7 +1967,9 @@ class StealthOrderManager:
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
-                 order.get('parent_order_id'))
+                  order.get('parent_order_id'),
+                  json.dumps(order.get('anchor_repricing_policy_json', {})),
+                  json.dumps(order.get('anchor_repricing_state_json', {})))
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
@@ -1536,11 +1994,18 @@ class StealthOrderManager:
                 }
                 for event in revealed_orders
             ])
+            anchor_repricing_state = order.get('anchor_repricing_state_json', {})
+            anchor_repricing_state_json = json.dumps({
+                key: value.isoformat() if hasattr(value, 'isoformat') else value
+                for key, value in dict(anchor_repricing_state or {}).items()
+            })
             
             self.db_client.execute_update(
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
-                       executed_size = %s, revealed_orders = %s, last_placement_at = %s
+                       executed_size = %s, revealed_orders = %s, last_placement_at = %s,
+                       limit_price = %s, anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
+                       updated_at = CURRENT_TIMESTAMP
                    WHERE stealth_order_id = %s""",
                 (order['status'],
                  order.get('revealed_size', 0),
@@ -1548,6 +2013,9 @@ class StealthOrderManager:
                  order.get('executed_size', 0),
                  revealed_orders_json,
                  last_placement,
+                 order.get('limit_price'),
+                 json.dumps(order.get('anchor_repricing_policy_json', {})),
+                 anchor_repricing_state_json,
                  order['stealth_order_id'])
             )
         except Exception as e:
@@ -1593,6 +2061,8 @@ class StealthOrderManager:
                     'notes': row.get('notes', ''),
                     'parent_order_id': row.get('parent_order_id'),
                     'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
+                    'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
+                    'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
                     'created_at': row.get('created_at'),
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
@@ -1662,6 +2132,8 @@ class StealthOrderManager:
                         'notes': row.get('notes', ''),
                         'parent_order_id': row.get('parent_order_id'),
                         'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
+                        'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
+                        'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
                         'created_at': row.get('created_at'),
                         'updated_at': row.get('updated_at'),
                         'visibility_score': float(row.get('visibility_score', 0.0)),

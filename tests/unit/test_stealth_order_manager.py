@@ -37,6 +37,28 @@ class TestStealthOrderCreation:
         order = stealth_order_factory(reveal_condition_json=custom_condition)
         assert order["reveal_condition_json"] == custom_condition
 
+    def test_create_stealth_order_normalizes_anchor_repricing_policy(self):
+        manager = StealthOrderManager(db_client=None)
+
+        stealth_order_id = manager.create_stealth_order(
+            product_id="BTC-USDC",
+            side="BUY",
+            total_size=1.0,
+            limit_price=100.0,
+            reveal_condition={"type": "time_delay", "delay_seconds": 60},
+            anchor_repricing_policy={
+                "enabled": True,
+                "reference_price_source": "midpoint",
+                "distance_type": "P",
+                "target_distance": 0.01,
+                "max_distance": 0.05,
+            },
+        )
+
+        order = manager.in_memory_orders[stealth_order_id]
+        assert order["anchor_repricing_policy_json"]["enabled"] is True
+        assert order["anchor_repricing_policy_json"]["reference_price_source"] == "midpoint"
+
 
 class TestStealthOrderStateTransitions:
     """Test order state transitions."""
@@ -162,6 +184,138 @@ class TestRevealConditions:
 
         assert condition_met is True
         assert manager.in_memory_orders[stealth_order_id]["condition_confirmed_at"] is not None
+
+
+class TestAnchorRepricing:
+    def test_hidden_order_reprices_from_midpoint_reference(self):
+        manager = StealthOrderManager(db_client=None)
+        stealth_order_id = "a91e8400-e29b-41d4-a716-446655440000"
+        manager.in_memory_orders[stealth_order_id] = {
+            "stealth_order_id": stealth_order_id,
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "total_size": 1.0,
+            "revealed_size": 0.0,
+            "remaining_size": 1.0,
+            "executed_size": 0.0,
+            "limit_price": 102.0,
+            "status": StealthOrderStatus.HIDDEN.value,
+            "reveal_condition_type": "time_delay",
+            "reveal_condition_json": {"type": "time_delay", "delay_seconds": 60},
+            "sizing_strategy_json": {"type": "fixed"},
+            "revealed_orders": [],
+            "anchor_repricing_policy_json": {
+                "enabled": True,
+                "reference_price_source": "midpoint",
+                "distance_type": "P",
+                "target_distance": 0.01,
+                "max_distance": 0.05,
+                "update_mode": "fixed",
+                "fixed_interval_seconds": 60,
+                "min_price_change": 0.01,
+                "hysteresis_bps": 0,
+                "min_reprice_interval_seconds": 0,
+                "max_reprices_per_hour": 20,
+                "allow_revealed_reprice": True,
+                "post_only_required": True,
+                "converge_to_target": True,
+                "inherit_to_follow_ups": True,
+            },
+            "anchor_repricing_state_json": {},
+        }
+        manager._market_cache["BTC-USDC"] = {
+            "product_id": "BTC-USDC",
+            "price": 100.0,
+            "bid": 99.0,
+            "ask": 101.0,
+            "volume_1m": 10.0,
+            "source": "ticker",
+        }
+
+        persisted_prices = []
+        manager._update_stealth_order = lambda order: persisted_prices.append(order["limit_price"])
+
+        processed = manager.process_anchor_repricing_for_product("BTC-USDC")
+
+        assert processed == 1
+        assert manager.in_memory_orders[stealth_order_id]["limit_price"] == 101.0
+        assert persisted_prices[-1] == 101.0
+
+    def test_revealed_order_reprices_with_fresh_placement_client_order_id(self, monkeypatch):
+        manager = StealthOrderManager(db_client=None)
+        stealth_order_id = "b91e8400-e29b-41d4-a716-446655440000"
+        manager.in_memory_orders[stealth_order_id] = {
+            "stealth_order_id": stealth_order_id,
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "total_size": 1.0,
+            "revealed_size": 1.0,
+            "remaining_size": 1.0,
+            "executed_size": 0.0,
+            "limit_price": 110.0,
+            "status": StealthOrderStatus.REVEALED.value,
+            "reveal_condition_type": "time_delay",
+            "reveal_condition_json": {"type": "time_delay", "delay_seconds": 0},
+            "sizing_strategy_json": {"type": "fixed"},
+            "revealed_orders": [{"placed_order_id": "placement-old", "exchange_order_id": "exchange-old"}],
+            "anchor_repricing_policy_json": {
+                "enabled": True,
+                "reference_price_source": "last_trade",
+                "distance_type": "P",
+                "target_distance": 0.01,
+                "max_distance": 0.05,
+                "update_mode": "fixed",
+                "fixed_interval_seconds": 60,
+                "min_price_change": 0.01,
+                "hysteresis_bps": 0,
+                "min_reprice_interval_seconds": 0,
+                "max_reprices_per_hour": 20,
+                "allow_revealed_reprice": True,
+                "post_only_required": True,
+                "converge_to_target": True,
+                "inherit_to_follow_ups": True,
+            },
+            "anchor_repricing_state_json": {
+                "active_placement_client_order_id": "placement-old",
+                "active_exchange_order_id": "exchange-old",
+                "active_exchange_price": 110.0,
+            },
+        }
+        manager._market_cache["BTC-USDC"] = {
+            "product_id": "BTC-USDC",
+            "price": 100.0,
+            "bid": 99.5,
+            "ask": 100.5,
+            "volume_1m": 10.0,
+            "source": "ticker",
+        }
+        manager._placed_order_index["placement-old"] = manager.in_memory_orders[stealth_order_id]
+
+        cancelled = []
+
+        monkeypatch.setattr(
+            "configuration.REST_CLIENT",
+            SimpleNamespace(
+                cancel_orders=lambda order_ids: cancelled.append(list(order_ids)) or [],
+                place_limit_order=lambda **kwargs: {
+                    "success_response": {
+                        "client_order_id": kwargs["client_order_id"],
+                        "order_id": "exchange-new",
+                    }
+                },
+            ),
+        )
+
+        manager._update_stealth_order = lambda order: None
+
+        processed = manager.process_anchor_repricing_for_product("BTC-USDC")
+
+        assert processed == 1
+        assert cancelled == [["exchange-old"]]
+        state = manager.in_memory_orders[stealth_order_id]["anchor_repricing_state_json"]
+        assert state["active_exchange_order_id"] == "exchange-new"
+        assert state["active_placement_client_order_id"] != "placement-old"
+        assert manager.in_memory_orders[stealth_order_id]["revealed_orders"][-1]["exchange_order_id"] == "exchange-new"
 
 
 class TestOrderSizing:

@@ -241,6 +241,7 @@ class StealthOrderBridge:
         
         # Store market data in cache for evaluators
         self._update_market_cache(trading_product_id, market_data)
+        self.stealth_manager.process_anchor_repricing_for_product(trading_product_id)
     
     def record_reveal_event(self, stealth_order_id: str, client_order_id: str, reason: str):
         """Record a reveal event to the database."""

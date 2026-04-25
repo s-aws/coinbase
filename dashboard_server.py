@@ -621,6 +621,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     target_movement=order.get('target_movement', 0.002),
                     target_movement_type=order.get('target_movement_type', 'P'),
                     allow_partial_fills=bool(order.get('allow_partial_fills', True)),
+                    anchor_repricing_policy=order.get('anchor_repricing_policy'),
                 )
                 
                 # Get the created order data and serialize for JSON
@@ -768,6 +769,75 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
                 await websocket.send(json.dumps(response))
+
+        elif msg_type == "reprice_now_stealth_order":
+            # Immediately trigger anchor repricing for a single stealth order,
+            # bypassing the next_reprice_at cooldown.
+            stealth_order_id = data.get("stealth_order_id")
+            if not stealth_order_id or not stealth_order_bridge:
+                await websocket.send(json.dumps({
+                    "type": "error",
+                    "message": "Missing stealth_order_id or system not initialised"
+                }))
+                return
+
+            try:
+                mgr = stealth_order_bridge.stealth_manager
+                order = mgr.in_memory_orders.get(stealth_order_id)
+                if not order:
+                    await websocket.send(json.dumps({
+                        "type": "reprice_now_result",
+                        "stealth_order_id": stealth_order_id,
+                        "processed": 0,
+                        "error": "Order not found"
+                    }))
+                    return
+
+                policy = mgr._normalize_anchor_repricing_policy(order.get("anchor_repricing_policy_json"))
+                if not policy.get("enabled"):
+                    await websocket.send(json.dumps({
+                        "type": "reprice_now_result",
+                        "stealth_order_id": stealth_order_id,
+                        "processed": 0,
+                        "error": "Anchor repricing not enabled for this order"
+                    }))
+                    return
+
+                active_statuses = {"HIDDEN", "PENDING", "TRIGGERED", "REVEALED"}
+                if order.get("status") not in active_statuses:
+                    await websocket.send(json.dumps({
+                        "type": "reprice_now_result",
+                        "stealth_order_id": stealth_order_id,
+                        "processed": 0,
+                        "error": f"Order status {order.get('status')} is not repriceable"
+                    }))
+                    return
+
+                # Clear the cooldown so process_anchor_repricing_for_product won't skip it
+                state = mgr._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+                state.pop("next_reprice_at", None)
+                order["anchor_repricing_state_json"] = state
+
+                product_id = order.get("product_id", "")
+                processed = mgr.process_anchor_repricing_for_product(product_id)
+
+                add_log_entry("INFO", f"Manual reprice triggered for {stealth_order_id}: processed={processed}")
+                logger.info(f"[REPRICE-NOW] {stealth_order_id} processed={processed}")
+
+                await websocket.send(json.dumps({
+                    "type": "reprice_now_result",
+                    "stealth_order_id": stealth_order_id,
+                    "processed": processed
+                }))
+
+            except Exception as e:
+                logger.error(f"reprice_now_stealth_order failed: {e}")
+                await websocket.send(json.dumps({
+                    "type": "reprice_now_result",
+                    "stealth_order_id": stealth_order_id,
+                    "processed": 0,
+                    "error": str(e)
+                }))
 
         elif msg_type == "update_stealth_price_threshold":
             # Update price threshold for a price-based stealth order

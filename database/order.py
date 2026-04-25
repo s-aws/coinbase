@@ -180,6 +180,12 @@ def create_stealth_orders_table() -> None:
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS anchor_repricing_policy_json JSONB DEFAULT '{}'::jsonb"
+        )
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS anchor_repricing_state_json JSONB DEFAULT '{}'::jsonb"
+        )
         print("stealth_orders table done.")
 
 
