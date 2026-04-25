@@ -153,6 +153,25 @@ class StealthOrderManager:
             from integration.order_placement_hooks import get_global_placement_hook_registry
             order_placement_hooks = get_global_placement_hook_registry()
         self.order_placement_hooks = order_placement_hooks
+        
+        # Ensure database schema is up to date with all migrations
+        self._ensure_schema_migrations()
+    
+    def _ensure_schema_migrations(self):
+        """Ensure stealth_orders table has all required columns including recent migrations.
+        
+        This runs the migration that adds anchor_repricing_policy_json and other new columns
+        if they don't already exist. Safe to call multiple times (uses IF NOT EXISTS).
+        """
+        if not self.db_client:
+            return
+        
+        try:
+            from database.order import create_stealth_orders_table
+            create_stealth_orders_table()
+            self.logger.debug("✓ Stealth order schema migration completed")
+        except Exception as e:
+            self.logger.warning(f"✗ Failed to run schema migration: {type(e).__name__}: {e}")
     
     def _default_log(self, log_type: str, message: str):
         """Log using proper logging_service with timestamps."""
@@ -2155,7 +2174,12 @@ class StealthOrderManager:
             return 0
     
     def _record_reveal_event(self, order: Dict[str, Any], reveal_event: Dict[str, Any]):
-        """Record reveal event to stealth_order_reveal_history table."""
+        """Record reveal event to stealth_order_reveal_history table.
+        
+        Uses UPSERT (INSERT ... ON CONFLICT) to handle idempotent recording.
+        If the same (stealth_order_id, reveal_number) is recorded twice, it updates
+        with the latest data instead of failing. This handles race conditions or retries.
+        """
         if not self.db_client:
             return
         
@@ -2165,33 +2189,49 @@ class StealthOrderManager:
             if not stealth_order_id:
                 return
             
+            reveal_number = reveal_event.get('reveal_number', 1)
+            revealed_size = reveal_event.get('revealed_size', 0)
+            placement_price = reveal_event.get('placement_price')
+            placed_order_id = reveal_event.get('placed_order_id')
+            exchange_order_id = reveal_event.get('exchange_order_id')
+            market_price = reveal_event.get('market_price')
+            market_bid = reveal_event.get('market_bid')
+            market_ask = reveal_event.get('market_ask')
+            market_spread = reveal_event.get('market_spread')
+            market_volume_1m = reveal_event.get('market_volume_1m')
+            trigger_reason = f"Price below {reveal_event.get('target_price', 'unknown')}"
+            trigger_data = json.dumps({
+                'market_price': market_price,
+                'market_bid': market_bid,
+                'market_ask': market_ask,
+                'market_spread': market_spread,
+                'market_volume_1m': market_volume_1m,
+                'market_source': reveal_event.get('market_source'),
+                'reveal_time': reveal_event.get('reveal_time').isoformat() if hasattr(reveal_event.get('reveal_time'), 'isoformat') else None
+            })
+            
+            # Use UPSERT to handle duplicate reveals (idempotent recording)
             self.db_client.execute_update(
                 """INSERT INTO stealth_order_reveal_history
                    (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id,
                     exchange_order_id, market_price, market_bid, market_ask, market_spread, market_volume_1m,
                     reveal_trigger_reason, reveal_trigger_data)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (stealth_order_id,
-                 reveal_event.get('reveal_number', 1),
-                 reveal_event.get('revealed_size', 0),
-                 reveal_event.get('placement_price'),
-                 reveal_event.get('placed_order_id'),
-                 reveal_event.get('exchange_order_id'),
-                 reveal_event.get('market_price'),
-                 reveal_event.get('market_bid'),
-                 reveal_event.get('market_ask'),
-                 reveal_event.get('market_spread'),
-                 reveal_event.get('market_volume_1m'),
-                 f"Price below {reveal_event.get('target_price', 'unknown')}",
-                 json.dumps({
-                     'market_price': reveal_event.get('market_price'),
-                     'market_bid': reveal_event.get('market_bid'),
-                     'market_ask': reveal_event.get('market_ask'),
-                     'market_spread': reveal_event.get('market_spread'),
-                     'market_volume_1m': reveal_event.get('market_volume_1m'),
-                     'market_source': reveal_event.get('market_source'),
-                     'reveal_time': reveal_event.get('reveal_time').isoformat() if hasattr(reveal_event.get('reveal_time'), 'isoformat') else None
-                 }))
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (stealth_order_id, reveal_number) DO UPDATE SET
+                       revealed_size = EXCLUDED.revealed_size,
+                       placement_price = EXCLUDED.placement_price,
+                       placed_order_id = EXCLUDED.placed_order_id,
+                       exchange_order_id = EXCLUDED.exchange_order_id,
+                       market_price = EXCLUDED.market_price,
+                       market_bid = EXCLUDED.market_bid,
+                       market_ask = EXCLUDED.market_ask,
+                       market_spread = EXCLUDED.market_spread,
+                       market_volume_1m = EXCLUDED.market_volume_1m,
+                       reveal_trigger_reason = EXCLUDED.reveal_trigger_reason,
+                       reveal_trigger_data = EXCLUDED.reveal_trigger_data""",
+                (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id,
+                 exchange_order_id, market_price, market_bid, market_ask, market_spread, market_volume_1m,
+                 trigger_reason, trigger_data)
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_reveal_event_recording_failed", "error": str(e)})
