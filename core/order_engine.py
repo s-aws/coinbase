@@ -71,7 +71,7 @@ from configuration import (
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel
 from calculation.resolver import (
     resolve_order_size,
     resolve_order_side,
@@ -458,8 +458,8 @@ class OrderEngine:
                 f"partial_fill_progress:{client_order_id}:{cumulative_qty}:{number_of_fills}"
             )
             self.event_stream_publisher.publish_event(
-                event_type="partial_fill_progress_updated",
-                source_channel="order_engine_open_handler",
+                event_type=EventStreamType.PARTIAL_FILL_PROGRESS_UPDATED.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
                 payload=audit_payload,
                 idempotency_key=idempotency_key,
                 status_to=OrderStatus.OPEN.value,
@@ -497,8 +497,8 @@ class OrderEngine:
             }
             idempotency_key = f"partial_fill_finalized:{client_order_id}:{terminal_status}"
             self.event_stream_publisher.publish_event(
-                event_type="partial_fill_finalized",
-                source_channel="order_engine_terminal_handler",
+                event_type=EventStreamType.PARTIAL_FILL_FINALIZED.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_TERMINAL.value,
                 payload=audit_payload,
                 idempotency_key=idempotency_key,
                 status_to=terminal_status,
@@ -769,8 +769,8 @@ class OrderEngine:
 
                 if self.event_stream_publisher and self.event_stream_publisher.enabled:
                     self.event_stream_publisher.publish_event(
-                        event_type="partial_fill_detected",
-                        source_channel="order_engine_open_handler",
+                        event_type=EventStreamType.PARTIAL_FILL_DETECTED.value,
+                        source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
                         payload={
                             "client_order_id": client_order_id,
                             "parent_order_id": parent_id,
@@ -831,8 +831,8 @@ class OrderEngine:
 
                 if self.event_stream_publisher and self.event_stream_publisher.enabled:
                     self.event_stream_publisher.publish_event(
-                        event_type="partial_fill_follow_up_queued",
-                        source_channel="order_engine_open_handler",
+                        event_type=EventStreamType.PARTIAL_FILL_FOLLOW_UP_QUEUED.value,
+                        source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
                         payload={
                             "client_order_id": client_order_id,
                             "parent_order_id": state["parent_client_order_id"],
@@ -852,8 +852,8 @@ class OrderEngine:
 
             if follow_ups_due <= 0 and self.event_stream_publisher and self.event_stream_publisher.enabled:
                 self.event_stream_publisher.publish_event(
-                    event_type="partial_fill_below_min_accumulated",
-                    source_channel="order_engine_open_handler",
+                    event_type=EventStreamType.PARTIAL_FILL_BELOW_MIN.value,
+                    source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
                     payload={
                         "client_order_id": client_order_id,
                         "parent_order_id": state["parent_client_order_id"],
@@ -1139,7 +1139,7 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.positions["FUTURE"] = refreshed_positions
 
-    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None) -> tuple:
+    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None, allow_partial_fills: bool = False) -> tuple:
         """Resolve if an order is a parent or find its parent.
         
         Returns (is_parent: bool, parent_client_order_id: str).
@@ -1195,6 +1195,7 @@ class OrderEngine:
                 },
                 "max_order_replacement": max_order_replacement,
                 "current_order_replacement": 0,
+                "allow_partial_fills": allow_partial_fills,
             }
 
             self.log_message(
@@ -1218,6 +1219,7 @@ class OrderEngine:
                 status=status or order.get("status"),
                 max_order_replacement=self.orderbook.parent_order_ids[client_order_id]["max_order_replacement"],
                 current_order_replacement=self.orderbook.parent_order_ids[client_order_id]["current_order_replacement"],
+                allow_partial_fills=allow_partial_fills,
             )
 
             self.orderbook.parent_order_ids[client_order_id]["parent_id"] = parent_id
@@ -2629,12 +2631,19 @@ class OrderEngine:
 
             self._seed_parent_order_cache_from_db(client_order_id)
 
+        # Resolve allow_partial_fills for parent creation:
+        # 1. Check in-memory cache (populated by startup rebuild or prior seeding)
+        # 2. Fall back to False
+        _cached_parent = self.orderbook.parent_order_ids.get(client_order_id, {})
+        _allow_partial_fills = bool(_cached_parent.get("allow_partial_fills", False))
+
         _, parent_client_order_id = self.resolve_parent_client_order_id(
             client_order_id,
             order=order,
             create_parent=True,
             status=OrderStatus.FILLED.value,
             stealth_order=stealth_target_movement,
+            allow_partial_fills=_allow_partial_fills,
         )
         
         # 🔧 CRITICAL FIX: If a new parent was created (order became its own parent),

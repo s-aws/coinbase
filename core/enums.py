@@ -247,13 +247,15 @@ class EventTriggerType(str, Enum):
 
 class EventSourceChannel(str, Enum):
     """Named source channels for order_event_stream rows."""
-    PLACEMENT_PRE_HOOK   = "placement_pre_hook"
-    WS_USER              = "ws_user"
-    FILL_HOOK            = "fill_hook"
-    REST_SUBMIT          = "rest_submit"
-    PLACEMENT_POST_HOOK  = "placement_post_hook"
-    ORDER_STATE_HOOK     = "order_state_hook"
-    STEALTH_LIFECYCLE_HOOK = "stealth_lifecycle_hook"
+    PLACEMENT_PRE_HOOK      = "placement_pre_hook"
+    WS_USER                 = "ws_user"
+    FILL_HOOK               = "fill_hook"
+    REST_SUBMIT             = "rest_submit"
+    PLACEMENT_POST_HOOK     = "placement_post_hook"
+    ORDER_STATE_HOOK        = "order_state_hook"
+    STEALTH_LIFECYCLE_HOOK  = "stealth_lifecycle_hook"
+    ORDER_ENGINE_OPEN       = "order_engine_open_handler"
+    ORDER_ENGINE_TERMINAL   = "order_engine_terminal_handler"
 
 
 class EventStreamType(str, Enum):
@@ -262,13 +264,18 @@ class EventStreamType(str, Enum):
     Dynamic values (e.g. ``stealth_<lifecycle_event>`` and ``order_<status>``)
     are derived from existing enums at runtime and are NOT listed here.
     """
-    STEALTH_CONDITION_MET    = "stealth_condition_met"
-    FILL_RECORDED            = "fill_recorded"
-    ORDER_SUBMITTED          = "order_submitted"
-    STEALTH_REVEALED         = "stealth_revealed"
-    STEALTH_FOLLOW_UP_CREATED = "stealth_follow_up_created"
-    INVENTORY_OPENED         = "inventory_opened"
-    INVENTORY_CLOSED         = "inventory_closed"
+    STEALTH_CONDITION_MET         = "stealth_condition_met"
+    FILL_RECORDED                 = "fill_recorded"
+    ORDER_SUBMITTED               = "order_submitted"
+    STEALTH_REVEALED              = "stealth_revealed"
+    STEALTH_FOLLOW_UP_CREATED     = "stealth_follow_up_created"
+    INVENTORY_OPENED              = "inventory_opened"
+    INVENTORY_CLOSED              = "inventory_closed"
+    PARTIAL_FILL_DETECTED         = "partial_fill_detected"
+    PARTIAL_FILL_PROGRESS_UPDATED = "partial_fill_progress_updated"
+    PARTIAL_FILL_FOLLOW_UP_QUEUED = "partial_fill_follow_up_queued"
+    PARTIAL_FILL_BELOW_MIN        = "partial_fill_below_min_accumulated"
+    PARTIAL_FILL_FINALIZED        = "partial_fill_finalized"
 
 
 class ChannelType(str, Enum):

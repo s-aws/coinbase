@@ -497,6 +497,7 @@ class StealthOrderManager:
         target_movement: float = 0.002,
         target_movement_type: str = "P",
         reveal_pricing_policy: Optional[str] = None,
+        allow_partial_fills: bool = False,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -598,6 +599,7 @@ class StealthOrderManager:
             "executed_size": 0.0,
             "condition_first_met_at": None,
             "condition_confirmed_at": None,
+            "allow_partial_fills": allow_partial_fills,
         }
         
         # Store in memory for quick access
@@ -633,7 +635,8 @@ class StealthOrderManager:
                 max_order_replacement=0,  # Children don't have follow-ups
                 current_order_replacement=0,
                 status=StealthOrderStatus.PENDING.value,
-                parent_order_id=parent_order_id
+                parent_order_id=parent_order_id,
+                allow_partial_fills=False,  # child orders never spawn partial-fill follow-ups
             )
         else:
             # This is a root order (no parent) - insert as parent
@@ -649,7 +652,8 @@ class StealthOrderManager:
                 target_movement_type=target_movement_type,
                 max_order_replacement=effective_max_replacements,
                 current_order_replacement=0,
-                status=StealthOrderStatus.PENDING.value
+                status=StealthOrderStatus.PENDING.value,
+                allow_partial_fills=allow_partial_fills,
             )
         
         return stealth_order_id

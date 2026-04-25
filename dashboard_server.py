@@ -601,7 +601,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     notes=order.get('notes', ''),
                     max_order_replacements=order.get('max_order_replacements'),
                     target_movement=order.get('target_movement', 0.002),
-                    target_movement_type=order.get('target_movement_type', 'P')
+                    target_movement_type=order.get('target_movement_type', 'P'),
+                    allow_partial_fills=bool(order.get('allow_partial_fills', False)),
                 )
                 
                 # Get the created order data and serialize for JSON
