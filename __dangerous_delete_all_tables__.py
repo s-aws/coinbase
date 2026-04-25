@@ -1,6 +1,7 @@
 """Drop all tables from the PostgreSQL database and recreate them.
 
 WARNING: This is a destructive operation. All data in the database will be permanently deleted.
+CRITICAL: Agents cannot run this script. It should only be executed manually by a developer with direct access to the database.
 
 Utility script to completely reset the database by dropping all tables from the public schema
 and then recreating all required tables with proper schema.

@@ -28,7 +28,7 @@ Usage:
 from typing import Dict, Optional, List, Any, Set
 from threading import Lock
 from core.models import Order, Position
-from core.enums import OrderStatus
+from core.enums import OrderStatus, OrderStateEvent
 from core.constants import SPOT_PRODUCT_IDS, DERIVATIVES_PRODUCT_IDS
 
 
@@ -89,6 +89,10 @@ class StateManager:
     
     def add_active_order(self, order: Order) -> None:
         """Track an active (open) order.
+
+        Dispatches OrderStateEvent.OPENED to the global OrderStateHookRegistry
+        AFTER releasing _lock to prevent lock-ordering deadlocks. Subscribers
+        (e.g. OrderInventory) may acquire their own locks freely.
         
         Args:
             order: The Order instance to track
@@ -100,9 +104,14 @@ class StateManager:
             self._active_orders[order.client_order_id] = order
             if self._order_repo:
                 self._order_repo.save_order(order)
+        # Dispatch OUTSIDE lock — prevents deadlock if subscriber acquires own lock
+        self._dispatch_order_state_opened(order)
     
     def mark_order_filled(self, order: Order) -> None:
         """Mark an order as filled and remove from active.
+
+        Dispatches OrderStateEvent.FILLED to the global OrderStateHookRegistry
+        AFTER releasing _lock. See add_active_order() for deadlock-safety rationale.
         
         Args:
             order: The Order instance that was filled
@@ -122,9 +131,14 @@ class StateManager:
             # Update repository
             if self._order_repo:
                 self._order_repo.update_order_status(client_id, 'FILLED')
+        # Dispatch OUTSIDE lock
+        self._dispatch_order_state_closed(order, OrderStateEvent.FILLED)
     
     def mark_order_cancelled(self, order: Order) -> None:
         """Mark an order as cancelled and remove from active.
+
+        Dispatches OrderStateEvent.CANCELLED to the global OrderStateHookRegistry
+        AFTER releasing _lock. See add_active_order() for deadlock-safety rationale.
         
         Args:
             order: The Order instance that was cancelled
@@ -144,6 +158,8 @@ class StateManager:
             # Update repository
             if self._order_repo:
                 self._order_repo.update_order_status(client_id, 'CANCELLED')
+        # Dispatch OUTSIDE lock
+        self._dispatch_order_state_closed(order, OrderStateEvent.CANCELLED)
     
     def get_order(self, client_order_id: str) -> Optional[Order]:
         """Retrieve an order from any state (active, filled, cancelled).
@@ -407,7 +423,33 @@ class StateManager:
     # ========================================================================
     # Private Helper Methods
     # ========================================================================
-    
+
+    def _dispatch_order_state_opened(self, order: Order) -> None:
+        """Fire OrderStateEvent.OPENED hooks (called OUTSIDE _lock).
+
+        Uses lazy import to avoid circular imports at module load time.
+        Exceptions from the registry are caught and logged; they never raise.
+        """
+        try:
+            from integration.order_state_hooks import get_global_order_state_hook_registry
+            get_global_order_state_hook_registry().call_on_opened(order)
+        except Exception as exc:
+            # Never let hook dispatch crash the caller
+            pass
+
+    def _dispatch_order_state_closed(self, order: Order, event: OrderStateEvent) -> None:
+        """Fire OrderStateEvent.FILLED/CANCELLED/EXPIRED hooks (called OUTSIDE _lock).
+
+        Uses lazy import to avoid circular imports at module load time.
+        Exceptions from the registry are caught and logged; they never raise.
+        """
+        try:
+            from integration.order_state_hooks import get_global_order_state_hook_registry
+            get_global_order_state_hook_registry().call_on_closed(order, event)
+        except Exception as exc:
+            # Never let hook dispatch crash the caller
+            pass
+
     def _infer_product_type(self, product_id: str) -> str:
         """Infer if product is SPOT or FUTURE from ID.
         

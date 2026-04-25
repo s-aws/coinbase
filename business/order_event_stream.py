@@ -1,7 +1,12 @@
 """Order event stream publisher and hook registration.
 
 Provides a thin integration layer that writes normalized lifecycle events
-through existing extension hooks (fill, websocket status, order submission).
+through existing extension hooks (fill, websocket status, order submission,
+order state, and stealth lifecycle).
+
+New hook integrations (order_state_hooks, stealth_lifecycle_hooks) are optional
+keyword arguments to register_hook_integrations() so existing callers continue
+to work unchanged.
 """
 
 import uuid
@@ -79,13 +84,32 @@ class OrderEventStreamPublisher:
 
     def register_hook_integrations(
         self,
-        websocket_hooks,
-        fill_event_hooks,
-        order_placement_hooks,
+        websocket_hooks=None,
+        fill_event_hooks=None,
+        order_placement_hooks=None,
+        order_state_hooks=None,
+        stealth_lifecycle_hooks=None,
     ) -> None:
         """Register publisher hooks on existing integration points.
 
         This function is intentionally idempotent at the DB layer via idempotency keys.
+
+        Args:
+            websocket_hooks:        WebSocketHookRegistry (optional).
+            fill_event_hooks:       FillEventHookRegistry (optional).
+            order_placement_hooks:  OrderPlacementHookRegistry (optional).
+            order_state_hooks:      OrderStateHookRegistry (optional). When provided,
+                                    the publisher registers post_opened and post_closed
+                                    subscribers that write inventory-change events to
+                                    order_event_stream (event_types: ``inventory_opened``,
+                                    ``inventory_closed``).
+            stealth_lifecycle_hooks: StealthLifecycleHookRegistry (optional). When
+                                    provided, every StealthLifecycleEvent transition is
+                                    written to order_event_stream under the event_type
+                                    ``stealth_<event_lower>`` (e.g. ``stealth_reveal_failed``).
+                                    Also persists last_lifecycle_event + failure_reason to
+                                    the stealth_orders table via
+                                    update_stealth_order_lifecycle_event().
         """
         if not self.enabled:
             return
@@ -103,6 +127,15 @@ class OrderEventStreamPublisher:
         if order_placement_hooks:
             order_placement_hooks.register_pre_submission(self._pre_submission_hook)
             order_placement_hooks.register_post_submission(self._post_submission_hook)
+
+        if order_state_hooks:
+            order_state_hooks.register_on_opened(self._order_state_opened_hook)
+            order_state_hooks.register_on_closed(self._order_state_closed_hook)
+
+        if stealth_lifecycle_hooks:
+            stealth_lifecycle_hooks.register_on_transition(
+                self._stealth_lifecycle_hook
+            )
 
     def _pre_submission_hook(self, order: Dict[str, Any]) -> None:
         """Emit stealth condition-met events before REST submission when applicable."""
@@ -209,3 +242,100 @@ class OrderEventStreamPublisher:
                     idempotency_key=follow_up_key,
                     status_to="PENDING",
                 )
+
+    # ------------------------------------------------------------------
+    # OrderStateHookRegistry handlers
+    # ------------------------------------------------------------------
+
+    def _order_state_opened_hook(self, order) -> None:
+        """Publish an inventory_opened event when an order becomes working."""
+        client_order_id = getattr(order, "client_order_id", None)
+        key = f"inventory:opened:{client_order_id}"
+        payload = {
+            "client_order_id": client_order_id,
+            "product_id": getattr(order, "product_id", None),
+            "side": getattr(order, "order_side", None),
+            "size": getattr(order, "size", None),
+            "price": getattr(order, "price", None),
+            "product_type": str(getattr(order, "product_type", "")),
+            "created_at": str(getattr(order, "created_at", "")),
+        }
+        self.publish_event(
+            event_type="inventory_opened",
+            source_channel="order_state_hook",
+            payload=payload,
+            idempotency_key=key,
+            status_to="OPENED",
+        )
+
+    def _order_state_closed_hook(self, order, event) -> None:
+        """Publish an inventory_closed event when an order exits the working state."""
+        client_order_id = getattr(order, "client_order_id", None)
+        event_str = event.value if hasattr(event, "value") else str(event)
+        key = f"inventory:closed:{client_order_id}:{event_str}"
+        payload = {
+            "client_order_id": client_order_id,
+            "product_id": getattr(order, "product_id", None),
+            "side": getattr(order, "order_side", None),
+            "size": getattr(order, "size", None),
+            "close_event": event_str,
+            "product_type": str(getattr(order, "product_type", "")),
+        }
+        self.publish_event(
+            event_type="inventory_closed",
+            source_channel="order_state_hook",
+            payload=payload,
+            idempotency_key=key,
+            status_to=event_str,
+        )
+
+    # ------------------------------------------------------------------
+    # StealthLifecycleHookRegistry handler
+    # ------------------------------------------------------------------
+
+    def _stealth_lifecycle_hook(
+        self, stealth_order_id: str, event, context: Dict[str, Any]
+    ) -> None:
+        """Publish a stealth lifecycle event to order_event_stream and persist to DB.
+
+        Two side effects:
+        1. Writes an immutable row to order_event_stream for the play-by-play audit trail.
+        2. Calls update_stealth_order_lifecycle_event() to persist last_lifecycle_event
+           and failure_reason on the stealth_orders row, enabling restart rebuild.
+        """
+        from core.enums import StealthLifecycleEvent
+        from database.order import update_stealth_order_lifecycle_event
+
+        event_str = event.value if hasattr(event, "value") else str(event)
+        event_type = f"stealth_{event_str.lower()}"
+        failure_reason = context.get("failure_reason")
+        key = (
+            f"stealth_lc:{stealth_order_id}:{event_str}:"
+            f"{context.get('placed_order_id', '')}:{context.get('timestamp', '')}"
+        )
+
+        payload = dict(context)
+        payload["stealth_order_id"] = stealth_order_id
+        payload["lifecycle_event"] = event_str
+
+        self.publish_event(
+            event_type=event_type,
+            source_channel="stealth_lifecycle_hook",
+            payload=payload,
+            idempotency_key=key,
+            status_to=event_str,
+        )
+
+        # Persist last_lifecycle_event (and failure_reason if present) to DB
+        # so OrderInventory.rebuild_from_database() can restore state after restart.
+        try:
+            update_stealth_order_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                lifecycle_event=event_str,
+                failure_reason=failure_reason,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"[OrderEventStream] Failed to persist lifecycle event "
+                f"{event_str} for {stealth_order_id}: {exc}"
+            )

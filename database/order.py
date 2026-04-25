@@ -149,8 +149,14 @@ def create_stealth_orders_table() -> None:
         target_movement_type VARCHAR(1),
         
         reason VARCHAR(255),
-        notes TEXT
+        notes TEXT,
+
+        -- Lifecycle inventory tracking (OrderInventory / StealthLifecycleHookRegistry)
+        last_lifecycle_event VARCHAR(64),
+        failure_reason       VARCHAR(512)
     );
+    CREATE INDEX IF NOT EXISTS idx_stealth_orders_last_lifecycle_event
+        ON stealth_orders (last_lifecycle_event);
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
@@ -2346,6 +2352,64 @@ def insert_conditional_order(
         logger.error(f"✗ Error inserting conditional order {conditional_order_id}: {type(e).__name__}: {e}")
         logger.debug(f"  Conditional order details - product: {product_id}, side: {side}, size: {size}, price: {price}")
         return None
+
+
+def update_stealth_order_lifecycle_event(
+    stealth_order_id: str,
+    lifecycle_event: str,
+    failure_reason: Optional[str] = None,
+) -> bool:
+    """Persist the most recent StealthLifecycleEvent for a stealth order.
+
+    Called by StealthOrderManager (via the stealth lifecycle hook dispatcher)
+    after each transition so the database reflects the current lifecycle state.
+    This enables OrderInventory.rebuild_from_database() to restore the
+    ``last_event`` and ``failure_reason`` fields after a restart.
+
+    Args:
+        stealth_order_id: UUID of the stealth order.
+        lifecycle_event:  StealthLifecycleEvent value string (e.g. 'REVEAL_FAILED').
+        failure_reason:   Human-readable failure reason for PLACEMENT_BLOCKED /
+                          REVEAL_FAILED events.  Pass None to leave existing value.
+
+    Returns:
+        True if the row was updated, False otherwise.
+
+    Example:
+        >>> update_stealth_order_lifecycle_event(
+        ...     stealth_order_id="550e8400-...",
+        ...     lifecycle_event="REVEAL_FAILED",
+        ...     failure_reason="Connection timeout to Coinbase REST API",
+        ... )
+        True
+    """
+    try:
+        if failure_reason is not None:
+            query = """
+            UPDATE stealth_orders
+            SET    last_lifecycle_event = %s,
+                   failure_reason       = %s,
+                   updated_at           = CURRENT_TIMESTAMP
+            WHERE  stealth_order_id = %s
+            """
+            params = (lifecycle_event, failure_reason, stealth_order_id)
+        else:
+            query = """
+            UPDATE stealth_orders
+            SET    last_lifecycle_event = %s,
+                   updated_at           = CURRENT_TIMESTAMP
+            WHERE  stealth_order_id = %s
+            """
+            params = (lifecycle_event, stealth_order_id)
+
+        rows = DB_CLIENT.execute_update(query, params)
+        return rows > 0
+    except Exception as exc:
+        logger.error(
+            f"update_stealth_order_lifecycle_event failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return False
 
 
 def get_conditional_order(conditional_order_id: str) -> Optional[Dict[str, Any]]:

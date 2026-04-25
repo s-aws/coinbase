@@ -66,7 +66,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
-from core.enums import FollowUpRevealDirection, StealthOrderStatus
+from core.enums import FollowUpRevealDirection, StealthLifecycleEvent, StealthOrderStatus
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 from logging_service import get_logger
@@ -154,6 +154,67 @@ class StealthOrderManager:
             self.logger.error(message)
         else:
             self.logger.info(message)
+
+    def _dispatch_lifecycle_event(
+        self,
+        stealth_order_id: str,
+        event: StealthLifecycleEvent,
+        order_data: Dict[str, Any],
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Fire StealthLifecycleEvent hooks via the global StealthLifecycleHookRegistry.
+
+        Builds the standard context dict from ``order_data`` and optional ``extra``
+        overrides, then calls the global registry. Exceptions are caught and logged
+        so that a misbehaving subscriber never disrupts the evaluation loop.
+
+        Context keys populated:
+            product_id, side, product_type (inferred), size, total_size,
+            limit_price, reason, parent_order_id, timestamp, placed_order_id,
+            failure_reason — all sourced from order_data or extra.
+
+        This method uses a lazy import to avoid circular imports at module load time.
+
+        Args:
+            stealth_order_id: UUID of the stealth order.
+            event:            The lifecycle event to dispatch.
+            order_data:       The stealth order dict from in_memory_orders.
+            extra:            Optional overrides / additions (e.g. failure_reason, size).
+        """
+        try:
+            from integration.stealth_lifecycle_hooks import (
+                get_global_stealth_lifecycle_hook_registry,
+            )
+            context: Dict[str, Any] = {
+                "product_id": order_data.get("product_id", ""),
+                "side": order_data.get("side", ""),
+                "product_type": "FUTURE" if any(
+                    s in order_data.get("product_id", "")
+                    for s in ("DEC", "JAN", "FEB", "MAR", "APR")
+                ) else "SPOT",
+                "size": float(order_data.get("revealed_size", 0.0)),
+                "total_size": float(order_data.get("total_size", 0.0)),
+                "limit_price": float(order_data.get("limit_price", 0.0)),
+                "reason": order_data.get("reason", ""),
+                "parent_order_id": order_data.get("parent_order_id"),
+                "timestamp": datetime.utcnow(),
+                "placed_order_id": None,
+                "failure_reason": None,
+            }
+            if extra:
+                context.update(extra)
+
+            get_global_stealth_lifecycle_hook_registry().call_on_transition(
+                stealth_order_id=stealth_order_id,
+                event=event,
+                context=context,
+            )
+        except Exception as exc:
+            # Never let lifecycle hook dispatch crash the caller
+            self.logger.warning(
+                f"[StealthOrderManager] _dispatch_lifecycle_event failed "
+                f"({event}) for {stealth_order_id}: {exc}"
+            )
 
     
     def create_stealth_order(
@@ -282,6 +343,13 @@ class StealthOrderManager:
         reveal_type = reveal_condition.get("type", "time_delay")
         reveal_delay = reveal_condition.get("delay_seconds", 0) if reveal_type == "time_delay" else "N/A"
         self.log_callback("info", f"[LOT-TRACK] Stealth order created: {stealth_order_id} ({side} {total_size} {product_id} @ {limit_price}, reveal_type={reveal_type}, delay={reveal_delay}s)")
+
+        # 🔔 LIFECYCLE HOOK: CREATED
+        self._dispatch_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            event=StealthLifecycleEvent.CREATED,
+            order_data=order_data,
+        )
         
         # UNIFIED TRACKING: Insert into order_parent table (for both parent and child orders)
         # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
@@ -351,12 +419,24 @@ class StealthOrderManager:
             # 📊 LOT-TRACKING: Log condition met
             market_price = market_data.get("price", "unknown") if market_data else "unknown"
             self.log_callback("info", f"[LOT-TRACK] Stealth order condition met: {order['stealth_order_id']} ({order['side']} {order['total_size']} {order['product_id']} @ {order['limit_price']}, market_price={market_price})")
+            # 🔔 LIFECYCLE HOOK: CONDITION_MET
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.CONDITION_MET,
+                order_data=order,
+            )
         elif not condition_met and order.get("condition_first_met_at") is None:
             # First time condition partially met
             if reason and ("watching" in reason or "waiting" in reason):
                 order["condition_first_met_at"] = datetime.utcnow()
                 order["status"] = StealthOrderStatus.PENDING.value
                 self._update_stealth_order(order)
+                # 🔔 LIFECYCLE HOOK: CONDITION_WATCHING
+                self._dispatch_lifecycle_event(
+                    stealth_order_id=stealth_order_id,
+                    event=StealthLifecycleEvent.CONDITION_WATCHING,
+                    order_data=order,
+                )
         
         return condition_met, reason
     
@@ -449,6 +529,14 @@ class StealthOrderManager:
                     "product_id": order["product_id"],
                     "block_reason": placement_error,
                 })
+
+                # 🔔 LIFECYCLE HOOK: PLACEMENT_BLOCKED
+                self._dispatch_lifecycle_event(
+                    stealth_order_id=stealth_order_id,
+                    event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                    order_data=order,
+                    extra={"failure_reason": placement_error, "size": slice_size},
+                )
                 
                 # Record the blocked reveal event and return
                 reveal_event = {
@@ -507,6 +595,14 @@ class StealthOrderManager:
                 "product_id": order["product_id"],
                 "limit_price": order["limit_price"]
             })
+
+            # 🔔 LIFECYCLE HOOK: REVEAL_SUCCEEDED
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.REVEAL_SUCCEEDED,
+                order_data=order,
+                extra={"placed_order_id": placed_order_id, "size": slice_size},
+            )
         except Exception as e:
             # ✗ EXCEPTION DURING PLACEMENT
             placed_order_id = str(uuid.uuid4())  # Fallback for tracking
@@ -520,6 +616,14 @@ class StealthOrderManager:
                 "exception": str(e),
                 "note": "Exception while placing order on exchange. Order was NOT placed."
             })
+
+            # 🔔 LIFECYCLE HOOK: REVEAL_FAILED
+            self._dispatch_lifecycle_event(
+                stealth_order_id=stealth_order_id,
+                event=StealthLifecycleEvent.REVEAL_FAILED,
+                order_data=order,
+                extra={"failure_reason": placement_error, "size": slice_size},
+        )
         
         # Record reveal event with placement status tracking
         reveal_event = {

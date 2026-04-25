@@ -250,6 +250,70 @@ class RiskManagementType(str, Enum):
 
 
 # ============================================================================
+# ORDER INVENTORY & LIFECYCLE TRACKING
+# ============================================================================
+
+class OrderStateEvent(str, Enum):
+    """Lifecycle event emitted when an exchange-visible order changes state.
+
+    Used by OrderStateHookRegistry to notify subscribers (e.g. OrderInventory)
+    of working-order transitions. These map directly to exchange-confirmed states.
+
+    - OPENED:    Order is now working on the exchange (OPEN/PENDING from WebSocket)
+    - FILLED:    Order fully filled on the exchange
+    - CANCELLED: Order cancelled (user-initiated or exchange-expired)
+    - EXPIRED:   Order expired (e.g. GTD time-in-force elapsed)
+
+    Integration:
+        Dispatched from StateManager AFTER its internal lock is released so that
+        subscribers never hold StateManager._lock, preventing any lock-ordering
+        deadlock. See data/order_inventory.py and integration/order_state_hooks.py.
+    """
+    OPENED    = "OPENED"
+    FILLED    = "FILLED"
+    CANCELLED = "CANCELLED"
+    EXPIRED   = "EXPIRED"
+
+
+class StealthLifecycleEvent(str, Enum):
+    """Fine-grained stealth order state-machine transition events.
+
+    Provides a complete play-by-play audit trail of every stealth order from
+    creation through final execution or failure. Stored in order_event_stream
+    via StealthLifecycleHookRegistry → OrderEventStreamPublisher.
+
+    State machine flow:
+        CREATED
+          └─► CONDITION_WATCHING  (condition partially met, watching for hold duration)
+                └─► CONDITION_MET (condition fully confirmed, order TRIGGERED)
+                      └─► REVEAL_ATTEMPTED
+                            ├─► PLACEMENT_BLOCKED  (pre-submission hook raised)  [terminal/retriable]
+                            ├─► REVEAL_FAILED      (REST exception / network error) [terminal/retriable]
+                            └─► REVEAL_SUCCEEDED   (slice placed on exchange books)
+                                  ├─► FILL_RECEIVED (fill event arrived from exchange)
+                                  ├─► EXECUTED      (all size filled)               [terminal]
+                                  └─► CANCELLED     (cancelled at any stage)        [terminal]
+
+    Integration:
+        Dispatched from StealthOrderManager at each transition point. Hooks are
+        called OUTSIDE any internal locks where possible. Subscribers receive a
+        context dict with product_id, side, product_type, size, limit_price, reason,
+        failure_reason (if applicable), placed_order_id (if applicable).
+        See integration/stealth_lifecycle_hooks.py and data/order_inventory.py.
+    """
+    CREATED            = "CREATED"             # create_stealth_order() persisted
+    CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met → PENDING
+    CONDITION_MET      = "CONDITION_MET"       # condition confirmed → TRIGGERED
+    REVEAL_ATTEMPTED   = "REVEAL_ATTEMPTED"    # slice placement about to be sent
+    PLACEMENT_BLOCKED  = "PLACEMENT_BLOCKED"   # pre-submission hook blocked placement
+    REVEAL_FAILED      = "REVEAL_FAILED"       # REST/network exception during placement
+    REVEAL_SUCCEEDED   = "REVEAL_SUCCEEDED"    # slice confirmed placed on exchange
+    FILL_RECEIVED      = "FILL_RECEIVED"       # fill event received for revealed slice
+    EXECUTED           = "EXECUTED"            # all size executed
+    CANCELLED          = "CANCELLED"           # order cancelled at any stage
+
+
+# ============================================================================
 # ORDER PROFIT TARGETS
 # ============================================================================
 
