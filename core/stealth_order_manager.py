@@ -927,7 +927,7 @@ class StealthOrderManager:
             )
 
         self.log_callback(
-            "info",
+            "debug",
             {
                 "event": "stealth_anchor_reprice_revealed_applied",
                 "stealth_order_id": order["stealth_order_id"],
