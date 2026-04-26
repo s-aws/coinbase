@@ -2147,34 +2147,32 @@ def execute_pending_move(
 def create_fill_ledger_table() -> None:
     """
     Create the fill_ledger table for lot-based profit tracking.
-    
-    Immutable append-only ledger of all fills (both partial and complete).
-    Used as source of truth for reconstructing position lots and calculating profits.
-    
-    Table columns:
-    - id: Auto-increment primary key
-    - trade_id: Unique trade ID from exchange (UUID UNIQUE)
-    - instrument: Product ID (e.g., 'BTC-USDC')
-    - side: Order side ('BUY' or 'SELL')
-    - quantity: Amount filled (DECIMAL(16,8) for precision)
-    - price: Fill price (DECIMAL(16,2))
-    - timestamp: When the fill occurred
-    - fees: Transaction fees paid
-    - commission_percentage: Commission rate applied
-    - client_order_id: Reference to order_parent.client_order_id (for traceability)
-    - created_at: When the record was created
-    
-    Indexes for query performance:
-    - instrument: Fast lookup by product
-    - timestamp: Time-range queries for reporting
-    - client_order_id: Cross-reference with orders
-    - UNIQUE(trade_id): Prevents duplicate fills
+
+    Immutable append-only ledger of all fills (both partial and complete),
+    derived from per-match cumulative-counter deltas on the WebSocket user channel.
+
+    Naming distinction (deliberate):
+        derived_trade_key   – synthetic, deterministic UUID5 keyed on
+                              (client_order_id, cumulative_quantity).
+                              Always present. Idempotency / dedup key.
+        exchange_trade_id   – authoritative trade id from REST historical/fills.
+                              NULL until reconciliation populates it.
+
+    Reconciliation lifecycle (``reconciliation_status``):
+        WS_DERIVED  – just inserted from WS counters; not yet checked against REST.
+        RECONCILED  – matched 1:1 with a REST historical/fills row.
+        MISMATCH    – REST disagrees with WS-derived rows; operator review needed.
+
+    Migration: idempotent ALTERs run after CREATE so existing deployments pick
+    up the rename + new columns without manual intervention.
     """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS fill_ledger (
         id SERIAL PRIMARY KEY,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        trade_id UUID UNIQUE NOT NULL,
+        derived_trade_key UUID UNIQUE NOT NULL,
+        exchange_trade_id UUID,
+        exchange_entry_id VARCHAR(80),
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
         quantity DECIMAL(16, 8) NOT NULL,
@@ -2182,15 +2180,172 @@ def create_fill_ledger_table() -> None:
         timestamp TIMESTAMP NOT NULL,
         fees DECIMAL(16, 8) DEFAULT 0,
         commission_percentage DECIMAL(5, 4) DEFAULT 0,
-        client_order_id VARCHAR(40)
+        client_order_id VARCHAR(40),
+        reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'WS_DERIVED'
+            CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH')),
+        reconciled_at TIMESTAMP
     );
+    -- Forward-migration for deployments that predate this schema.
+    ALTER TABLE fill_ledger RENAME COLUMN trade_id TO derived_trade_key;
+    """
+    # The RENAME is wrapped in its own try/except below because PostgreSQL has no
+    # ALTER ... RENAME ... IF EXISTS for columns. Also handle the additive
+    # columns idempotently with ADD COLUMN IF NOT EXISTS.
+    additive_migrations = """
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_trade_id UUID;
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_entry_id VARCHAR(80);
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(16)
+        NOT NULL DEFAULT 'WS_DERIVED';
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMP;
+    DO $$
+    BEGIN
+        ALTER TABLE fill_ledger
+            ADD CONSTRAINT fill_ledger_reconciliation_status_check
+            CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH'));
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END $$;
     CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
     CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
     CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_fill_ledger_exchange_trade_id
+        ON fill_ledger(exchange_trade_id) WHERE exchange_trade_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_fill_ledger_reconciliation_status
+        ON fill_ledger(reconciliation_status);
+    """
+    create_only = """
+    CREATE TABLE IF NOT EXISTS fill_ledger (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        derived_trade_key UUID UNIQUE NOT NULL,
+        exchange_trade_id UUID,
+        exchange_entry_id VARCHAR(80),
+        instrument VARCHAR(32) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+        quantity DECIMAL(16, 8) NOT NULL,
+        price DECIMAL(16, 2) NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
+        fees DECIMAL(16, 8) DEFAULT 0,
+        commission_percentage DECIMAL(5, 4) DEFAULT 0,
+        client_order_id VARCHAR(40),
+        reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'WS_DERIVED'
+            CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH')),
+        reconciled_at TIMESTAMP
+    );
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_only)
+        # Forward-migrate legacy column name only if it still exists.
+        # We pre-check via information_schema rather than wrapping ALTER ...
+        # RENAME in try/except, because a failed ALTER inside an open
+        # transaction aborts every subsequent statement.
+        cursor.execute(
+            """
+            SELECT 1 FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = 'fill_ledger'
+               AND column_name = 'trade_id'
+            """
+        )
+        if cursor.fetchone() is not None:
+            cursor.execute(
+                "ALTER TABLE fill_ledger RENAME COLUMN trade_id TO derived_trade_key;"
+            )
+        cursor.execute(additive_migrations)
+        print("fill_ledger table done.")
+
+
+def create_order_match_audit_table() -> None:
+    """Create append-only ``order_match_audit`` for full WS-snapshot history per order.
+
+    Every WS snapshot we process for a ``client_order_id`` is logged here in
+    ``snapshot_seq`` order with the absolute counters, the deltas we computed,
+    and the raw payload. Lets us reconstruct any past order's full WS history
+    end-to-end and is the audit substrate for the reconciliation job.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS order_match_audit (
+        id BIGSERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        client_order_id VARCHAR(40) NOT NULL,
+        snapshot_seq INTEGER NOT NULL,
+        cumulative_quantity DECIMAL(18, 8) NOT NULL,
+        filled_value DECIMAL(20, 8) NOT NULL,
+        total_fees DECIMAL(16, 8) NOT NULL,
+        number_of_fills INTEGER NOT NULL,
+        leaves_quantity DECIMAL(18, 8) NOT NULL,
+        outstanding_hold_amount DECIMAL(20, 8) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        derived_size_delta DECIMAL(18, 8) NOT NULL,
+        derived_value_delta DECIMAL(20, 8) NOT NULL,
+        derived_fee_delta DECIMAL(16, 8) NOT NULL,
+        derived_price DECIMAL(20, 8),
+        derived_trade_key UUID,
+        emitted_fill_ledger_row BOOLEAN NOT NULL DEFAULT FALSE,
+        raw_payload_json JSONB NOT NULL,
+        UNIQUE (client_order_id, snapshot_seq)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_match_audit_client_order
+        ON order_match_audit (client_order_id);
+    CREATE INDEX IF NOT EXISTS idx_order_match_audit_derived_trade_key
+        ON order_match_audit (derived_trade_key)
+        WHERE derived_trade_key IS NOT NULL;
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
-        print("fill_ledger table done.")
+        print("order_match_audit table done.")
+
+
+def insert_order_match_audit(
+    client_order_id: str,
+    snapshot_seq: int,
+    cumulative_quantity: float,
+    filled_value: float,
+    total_fees: float,
+    number_of_fills: int,
+    leaves_quantity: float,
+    outstanding_hold_amount: float,
+    status: str,
+    derived_size_delta: float,
+    derived_value_delta: float,
+    derived_fee_delta: float,
+    derived_price: Optional[float],
+    derived_trade_key: Optional[str],
+    emitted_fill_ledger_row: bool,
+    raw_payload_json: str,
+) -> Optional[int]:
+    """Insert one row into ``order_match_audit``. Idempotent on (client_order_id, snapshot_seq)."""
+    query = """
+    INSERT INTO order_match_audit (
+        client_order_id, snapshot_seq,
+        cumulative_quantity, filled_value, total_fees, number_of_fills,
+        leaves_quantity, outstanding_hold_amount, status,
+        derived_size_delta, derived_value_delta, derived_fee_delta,
+        derived_price, derived_trade_key, emitted_fill_ledger_row,
+        raw_payload_json
+    ) VALUES (
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
+    )
+    ON CONFLICT (client_order_id, snapshot_seq) DO NOTHING
+    RETURNING id
+    """
+    params = (
+        client_order_id, snapshot_seq,
+        cumulative_quantity, filled_value, total_fees, number_of_fills,
+        leaves_quantity, outstanding_hold_amount, status,
+        derived_size_delta, derived_value_delta, derived_fee_delta,
+        derived_price, derived_trade_key, emitted_fill_ledger_row,
+        raw_payload_json,
+    )
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        return results[0]["id"] if results else None
+    except Exception as e:
+        logger.error(
+            f"✗ Error inserting order_match_audit row for {client_order_id} "
+            f"seq={snapshot_seq}: {type(e).__name__}: {e}"
+        )
+        return None
 
 
 def create_order_event_stream_table() -> None:
@@ -2335,7 +2490,7 @@ def insert_order_event(
 
 
 def insert_fill_record(
-    trade_id: str,
+    derived_trade_key: str,
     instrument: str,
     side: str,
     quantity: float,
@@ -2343,30 +2498,39 @@ def insert_fill_record(
     timestamp,
     fees: float = 0.0,
     commission_percentage: float = 0.0,
-    client_order_id: str = None
+    client_order_id: str = None,
+    exchange_trade_id: Optional[str] = None,
+    exchange_entry_id: Optional[str] = None,
 ) -> Optional[int]:
     """
     Insert a fill record into the fill_ledger table.
-    
-    Creates an append-only record of a filled order (partial or complete).
-    
+
+    Append-only record of one derived match (a per-match cumulative-counter
+    delta on the WS user channel). Idempotent on ``derived_trade_key``: a
+    duplicate insert silently no-ops via the UNIQUE constraint.
+
     Args:
-        trade_id: Unique trade ID from exchange (UUID)
+        derived_trade_key: Synthetic UUID derived from
+            (client_order_id, cumulative_quantity). Always required.
         instrument: Product ID (e.g., 'BTC-USDC')
         side: 'BUY' or 'SELL'
-        quantity: Amount filled (float)
-        price: Fill price (float)
+        quantity: Amount filled in this match
+        price: Fill price for this match
         timestamp: When the fill occurred
-        fees: Transaction fees paid (default 0.0)
-        commission_percentage: Commission rate as decimal (default 0.0)
-        client_order_id: Reference to order_parent.client_order_id (optional)
-    
+        fees: Fees attributable to this match
+        commission_percentage: Commission rate as decimal
+        client_order_id: Originating order's client_order_id
+        exchange_trade_id: REST-confirmed exchange trade id (set by reconciler)
+        exchange_entry_id: REST-confirmed entry id (set by reconciler)
+
     Returns:
-        The inserted fill record's database ID if successful, None if failed.
+        The inserted row id on success, ``None`` on duplicate or error.
     """
     query = """
     INSERT INTO fill_ledger (
-        trade_id,
+        derived_trade_key,
+        exchange_trade_id,
+        exchange_entry_id,
         instrument,
         side,
         quantity,
@@ -2376,11 +2540,14 @@ def insert_fill_record(
         commission_percentage,
         client_order_id
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (derived_trade_key) DO NOTHING
     RETURNING id
     """
     params = (
-        trade_id,
+        derived_trade_key,
+        exchange_trade_id,
+        exchange_entry_id,
         instrument,
         side,
         quantity,
@@ -2388,22 +2555,27 @@ def insert_fill_record(
         timestamp,
         fees,
         commission_percentage,
-        client_order_id
+        client_order_id,
     )
-    
+
     try:
         results = DB_CLIENT.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
             logger.info(
-                f"✓ Fill recorded: {trade_id} ({instrument} {side} {quantity} @ {price}, "
+                f"✓ Fill recorded: {derived_trade_key} ({instrument} {side} {quantity} @ {price}, "
                 f"fees: {fees}, commission: {commission_percentage})"
             )
             return inserted_id
         return None
     except Exception as e:
-        logger.error(f"✗ Error inserting fill record {trade_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Fill details - instrument: {instrument}, side: {side}, quantity: {quantity}, price: {price}")
+        logger.error(
+            f"✗ Error inserting fill record {derived_trade_key}: {type(e).__name__}: {e}"
+        )
+        logger.debug(
+            f"  Fill details - instrument: {instrument}, side: {side}, "
+            f"quantity: {quantity}, price: {price}"
+        )
         return None
 
 

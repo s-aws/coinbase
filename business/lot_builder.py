@@ -103,7 +103,7 @@ class PositionLotBuilder:
                 lot.quantity += fill.quantity
                 lot.entry_value = lot.quantity * lot.entry_price
                 lot.fees += fill.fees
-                lot.source_fills.append(fill.trade_id)
+                lot.source_fills.append(fill.derived_trade_key)
                 
                 logger.debug(f"Extended lot {lot.lot_id}: now {lot.quantity} total")
         
@@ -150,7 +150,7 @@ class PositionLotBuilder:
             entry_timestamp=fill.timestamp,
             fees=fill.fees,
             target_profit_percentage=profit_target_pct,
-            source_fills=[fill.trade_id]
+            source_fills=[fill.derived_trade_key]
         )
         
         # Compute entry value and profit threshold
@@ -199,7 +199,7 @@ class PositionLotBuilder:
                 lot.quantity += fill.quantity
                 lot.entry_value = lot.quantity * lot.entry_price
                 lot.fees += fill.fees
-                lot.source_fills.append(fill.trade_id)
+                lot.source_fills.append(fill.derived_trade_key)
         
         return position
     

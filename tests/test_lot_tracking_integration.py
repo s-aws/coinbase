@@ -53,7 +53,7 @@ class TestFillLedger(unittest.TestCase):
         CREATE TABLE IF NOT EXISTS fill_ledger (
             id SERIAL PRIMARY KEY,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            trade_id UUID UNIQUE NOT NULL,
+            derived_trade_key UUID UNIQUE NOT NULL,
             instrument VARCHAR(32) NOT NULL,
             side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
             quantity DECIMAL(16, 8) NOT NULL,
@@ -79,7 +79,7 @@ class TestFillLedger(unittest.TestCase):
         """Test appending a fill to ledger."""
         trade_id = str(uuid.uuid4())
         fill = FillLedger(
-            trade_id=trade_id,
+            derived_trade_key=trade_id,
             instrument="BTC-USDC",
             side="BUY",
             quantity=0.1,
@@ -103,7 +103,7 @@ class TestFillLedger(unittest.TestCase):
         # Insert multiple fills
         for i in range(3):
             fill = FillLedger(
-                trade_id=str(uuid.uuid4()),
+                derived_trade_key=str(uuid.uuid4()),
                 instrument="BTC-USDC",
                 side="BUY" if i % 2 == 0 else "SELL",
                 quantity=0.1 + i * 0.01,
@@ -139,7 +139,7 @@ class TestPositionLotBuilder(unittest.TestCase):
         CREATE TABLE IF NOT EXISTS fill_ledger (
             id SERIAL PRIMARY KEY,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            trade_id UUID UNIQUE NOT NULL,
+            derived_trade_key UUID UNIQUE NOT NULL,
             instrument VARCHAR(32) NOT NULL,
             side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
             quantity DECIMAL(16, 8) NOT NULL,
@@ -171,7 +171,7 @@ class TestPositionLotBuilder(unittest.TestCase):
         
         for i, (instrument, side, qty, price, fees) in enumerate(fills_data):
             fill = FillLedger(
-                trade_id=str(uuid.uuid4()),
+                derived_trade_key=str(uuid.uuid4()),
                 instrument=instrument,
                 side=side,
                 quantity=qty,
@@ -282,7 +282,7 @@ class TestOrderInterceptionLayer(unittest.TestCase):
         CREATE TABLE IF NOT EXISTS fill_ledger (
             id SERIAL PRIMARY KEY,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            trade_id UUID UNIQUE NOT NULL,
+            derived_trade_key UUID UNIQUE NOT NULL,
             instrument VARCHAR(32) NOT NULL,
             side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
             quantity DECIMAL(16, 8) NOT NULL,
@@ -344,7 +344,7 @@ class TestConditionalExecution(unittest.TestCase):
         CREATE TABLE IF NOT EXISTS fill_ledger (
             id SERIAL PRIMARY KEY,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            trade_id UUID UNIQUE NOT NULL,
+            derived_trade_key UUID UNIQUE NOT NULL,
             instrument VARCHAR(32) NOT NULL,
             side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
             quantity DECIMAL(16, 8) NOT NULL,

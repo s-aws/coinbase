@@ -1,4 +1,12 @@
-"""Unit tests for partial-fill follow-up creation and persistence math."""
+"""Unit tests for the OrderEngine WS-derived progress pipeline.
+
+Exercises the post-Step-4 architecture where ``OrderProgressTracker`` is the
+single source of truth for cumulative-counter watermarks and the engine
+routes the resulting :class:`OrderSnapshotDelta` to:
+  * fill-ledger row generation,
+  * partial-fill follow-up creation,
+  * watermark persistence + audit emission.
+"""
 
 import threading
 from math import isclose
@@ -47,7 +55,149 @@ def _build_engine_for_partial_fill_tests() -> OrderEngine:
         order_post_only={"BUY": False, "SELL": False},
     )
 
+    # Avoid any incidental DB writes during unit tests.
+    engine._persist_progress_from_record = Mock()
+    engine._append_order_match_audit = Mock()
+
     return engine
+
+
+def _link_child_to_opted_in_parent(
+    engine: OrderEngine,
+    client_order_id: str,
+    parent_client_order_id: str,
+    *,
+    allow_partial_fills: bool = True,
+) -> None:
+    engine.orderbook.child_order_ids[client_order_id] = parent_client_order_id
+    engine.orderbook.parent_order_ids[parent_client_order_id] = {
+        "allow_partial_fills": allow_partial_fills,
+        "orders": [client_order_id],
+        "target_movement": {"movement": 0.001, "type": "P"},
+        "max_order_replacement": 11,
+        "current_order_replacement": 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# _process_ws_order_delta — fill ledger path
+# ---------------------------------------------------------------------------
+
+
+def test_process_ws_order_delta_emits_one_fill_per_cumulative_advance():
+    """Successive WS events with growing cumulative_quantity must produce one
+    derived fill per delta — never one row for the final cumulative total."""
+    engine = _build_engine_for_partial_fill_tests()
+    client_order_id = "parent-incremental-1"
+    _link_child_to_opted_in_parent(
+        engine, client_order_id, "parent-incremental-1-root", allow_partial_fills=False
+    )
+
+    fill_repo = Mock()
+    fill_repo.append_derived_fill = Mock(return_value=True)
+    engine.fill_repo = fill_repo
+    engine.fill_event_hooks = None
+
+    base_order = {
+        "client_order_id": client_order_id,
+        "product_id": "BIP-20DEC30-CDE",
+        "order_side": "SELL",
+        "avg_price": "78000",
+        "limit_price": "78000",
+    }
+
+    # Match 1: 1.0 @ 78000, total fees 0.228
+    e1 = dict(
+        base_order,
+        cumulative_quantity="1.0",
+        filled_value="78000",
+        total_fees="0.228",
+        number_of_fills=1,
+        status="OPEN",
+    )
+    engine._process_ws_order_delta(e1)
+
+    # Match 2: 4.0 @ 78000, total fees 1.14 (cumulative)
+    e2 = dict(
+        base_order,
+        cumulative_quantity="5.0",
+        filled_value="390000",
+        total_fees="1.14",
+        number_of_fills=2,
+        status="FILLED",
+    )
+    engine._process_ws_order_delta(e2)
+
+    assert fill_repo.append_derived_fill.call_count == 2
+
+    delta1 = fill_repo.append_derived_fill.call_args_list[0].args[0]
+    delta2 = fill_repo.append_derived_fill.call_args_list[1].args[0]
+
+    assert isclose(delta1.size_delta, 1.0)
+    assert isclose(delta1.derived_price, 78000.0)
+    assert isclose(delta1.fee_delta, 0.228, abs_tol=1e-9)
+
+    assert isclose(delta2.size_delta, 4.0)
+    assert isclose(delta2.derived_price, 78000.0)
+    assert isclose(delta2.fee_delta, 0.912, abs_tol=1e-9)
+
+    # Total preserved across the two derived rows.
+    assert isclose(delta1.size_delta + delta2.size_delta, 5.0)
+    assert isclose(delta1.fee_delta + delta2.fee_delta, 1.14, abs_tol=1e-9)
+
+
+def test_process_ws_order_delta_idempotent_on_repeated_event():
+    """Same WS snapshot delivered twice (e.g., reconnect replay) must produce
+    only one ledger row because the tracker's watermark refuses replays."""
+    engine = _build_engine_for_partial_fill_tests()
+    client_order_id = "parent-incremental-2"
+    _link_child_to_opted_in_parent(
+        engine, client_order_id, "parent-incremental-2-root", allow_partial_fills=False
+    )
+
+    fill_repo = Mock()
+    fill_repo.append_derived_fill = Mock(return_value=True)
+    engine.fill_repo = fill_repo
+    engine.fill_event_hooks = None
+
+    evt = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "cumulative_quantity": "0.5",
+        "filled_value": "21000",
+        "total_fees": "0.10",
+        "number_of_fills": 1,
+        "avg_price": "42000",
+        "limit_price": "42000",
+        "status": "OPEN",
+    }
+
+    engine._process_ws_order_delta(evt)
+    engine._process_ws_order_delta(evt)
+
+    # Second call sees no new cumulative delta and must not append.
+    assert fill_repo.append_derived_fill.call_count == 1
+
+
+def test_process_ws_order_delta_no_op_when_no_cumulative():
+    """Events without cumulative info (PENDING, snapshot pre-fill) must be ignored."""
+    engine = _build_engine_for_partial_fill_tests()
+
+    fill_repo = Mock()
+    fill_repo.append_derived_fill = Mock(return_value=True)
+    engine.fill_repo = fill_repo
+    engine.fill_event_hooks = None
+
+    delta = engine._process_ws_order_delta({"client_order_id": "nope"})
+    # Tracker still emits a delta on first sight (status alone). Fill ledger
+    # must NOT be touched because there is no size advance.
+    fill_repo.append_derived_fill.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Partial-fill follow-up routing
+# ---------------------------------------------------------------------------
 
 
 def test_partial_fill_below_min_accumulates_carry_and_emits_event():
@@ -55,17 +205,9 @@ def test_partial_fill_below_min_accumulates_carry_and_emits_event():
 
     client_order_id = "child-1"
     parent_client_order_id = "parent-1"
-    engine.orderbook.child_order_ids[client_order_id] = parent_client_order_id
-    engine.orderbook.parent_order_ids[parent_client_order_id] = {
-        "allow_partial_fills": True,
-        "orders": [client_order_id],
-        "target_movement": {"movement": 0.001, "type": "P"},
-        "max_order_replacement": 11,
-        "current_order_replacement": 0,
-    }
+    _link_child_to_opted_in_parent(engine, client_order_id, parent_client_order_id)
 
     engine._create_partial_fill_follow_up = Mock(return_value=0)
-    engine._save_partial_fill_progress = Mock()
 
     publisher = Mock()
     publisher.enabled = True
@@ -79,16 +221,14 @@ def test_partial_fill_below_min_accumulates_carry_and_emits_event():
         "leaves_quantity": "0.007",
         "number_of_fills": 1,
         "completion_percentage": "30",
+        "status": "OPEN",
     }
 
-    engine._handle_partial_fill_if_enabled(client_order_id, order)
+    engine._process_ws_order_delta(order)
 
     engine._create_partial_fill_follow_up.assert_not_called()
-    engine._save_partial_fill_progress.assert_called_once()
-
-    kwargs = engine._save_partial_fill_progress.call_args.kwargs
-    assert isclose(kwargs["carry_remainder"], 0.003, rel_tol=0.0, abs_tol=1e-12)
-    assert kwargs["follow_ups_created"] == 0
+    # Watermark persistence must run (at least once for the fresh delta).
+    assert engine._persist_progress_from_record.called
 
     event_types = [call.kwargs["event_type"] for call in publisher.publish_event.call_args_list]
     assert "partial_fill_detected" in event_types
@@ -100,22 +240,9 @@ def test_partial_fill_due_followups_uses_created_units_for_carry_math():
 
     client_order_id = "child-2"
     parent_client_order_id = "parent-2"
-
-    engine._partial_fill_state[client_order_id] = {
-        "parent_client_order_id": parent_client_order_id,
-        "product_id": "BTC-USDC",
-        "side": "BUY",
-        "original_order_size": 1.0,
-        "min_order_size": 0.01,
-        "last_cumulative_qty_processed": 0.0,
-        "carry_remainder_qty": 0.0,
-        "last_number_of_fills_seen": 0,
-        "last_completion_pct_seen": 0.0,
-        "partial_follow_ups_created": 0,
-    }
+    _link_child_to_opted_in_parent(engine, client_order_id, parent_client_order_id)
 
     engine._create_partial_fill_follow_up = Mock(return_value=1)
-    engine._save_partial_fill_progress = Mock()
 
     publisher = Mock()
     publisher.enabled = True
@@ -128,9 +255,11 @@ def test_partial_fill_due_followups_uses_created_units_for_carry_math():
         "cumulative_quantity": "0.035",
         "number_of_fills": 2,
         "completion_percentage": "35",
+        "status": "OPEN",
+        "leaves_quantity": "0.965",
     }
 
-    engine._handle_partial_fill_if_enabled(client_order_id, order)
+    engine._process_ws_order_delta(order)
 
     engine._create_partial_fill_follow_up.assert_called_once_with(
         client_order_id=client_order_id,
@@ -139,9 +268,11 @@ def test_partial_fill_due_followups_uses_created_units_for_carry_math():
         follow_ups_due=3,
     )
 
-    kwargs = engine._save_partial_fill_progress.call_args.kwargs
-    assert isclose(kwargs["carry_remainder"], 0.025, rel_tol=0.0, abs_tol=1e-12)
-    assert kwargs["follow_ups_created"] == 1
+    # Tracker must have consumed 1 unit (0.01) of carry. Remaining carry 0.025.
+    record = engine.order_progress_tracker.get_record(client_order_id)
+    assert record is not None
+    assert isclose(record.carry_remainder_qty, 0.025, abs_tol=1e-12)
+    assert record.partial_follow_ups_created == 1
 
     queued_calls = [
         call for call in publisher.publish_event.call_args_list
@@ -158,18 +289,11 @@ def test_partial_fill_opt_out_skips_processing():
 
     client_order_id = "child-3"
     parent_client_order_id = "parent-3"
-
-    engine.orderbook.child_order_ids[client_order_id] = parent_client_order_id
-    engine.orderbook.parent_order_ids[parent_client_order_id] = {
-        "allow_partial_fills": False,
-        "orders": [client_order_id],
-        "target_movement": {"movement": 0.001, "type": "P"},
-        "max_order_replacement": 11,
-        "current_order_replacement": 0,
-    }
+    _link_child_to_opted_in_parent(
+        engine, client_order_id, parent_client_order_id, allow_partial_fills=False
+    )
 
     engine._create_partial_fill_follow_up = Mock(return_value=0)
-    engine._save_partial_fill_progress = Mock()
 
     order = {
         "client_order_id": client_order_id,
@@ -179,12 +303,13 @@ def test_partial_fill_opt_out_skips_processing():
         "leaves_quantity": "0.08",
         "number_of_fills": 1,
         "completion_percentage": "20",
+        "status": "OPEN",
     }
 
-    engine._handle_partial_fill_if_enabled(client_order_id, order)
+    engine._process_ws_order_delta(order)
 
+    # Opt-out: no follow-up creation.
     engine._create_partial_fill_follow_up.assert_not_called()
-    engine._save_partial_fill_progress.assert_not_called()
 
 
 def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
@@ -239,27 +364,32 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
 
 
 def test_partial_fill_out_of_order_event_does_not_create_duplicate_followup():
+    """An out-of-order/regressing cumulative must never trigger follow-ups."""
     engine = _build_engine_for_partial_fill_tests()
 
     client_order_id = "child-5"
     parent_client_order_id = "parent-5"
+    _link_child_to_opted_in_parent(engine, client_order_id, parent_client_order_id)
 
-    # Existing processed state: watermark already advanced to 0.03
-    engine._partial_fill_state[client_order_id] = {
-        "parent_client_order_id": parent_client_order_id,
-        "product_id": "BTC-USDC",
-        "side": "BUY",
-        "original_order_size": 1.0,
-        "min_order_size": 0.01,
-        "last_cumulative_qty_processed": 0.03,
-        "carry_remainder_qty": 0.0,
-        "last_number_of_fills_seen": 2,
-        "last_completion_pct_seen": 30.0,
-        "partial_follow_ups_created": 3,
-    }
+    # Prime the tracker as if 0.03 cumulative has already been processed.
+    engine.order_progress_tracker.hydrate([
+        {
+            "client_order_id": client_order_id,
+            "parent_client_order_id": parent_client_order_id,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "original_order_size": 1.0,
+            "min_order_size": 0.01,
+            "last_cumulative_qty_processed": 0.03,
+            "carry_remainder_qty": 0.0,
+            "last_number_of_fills_seen": 2,
+            "last_completion_pct_seen": 30.0,
+            "partial_follow_ups_created": 3,
+        }
+    ])
 
     engine._create_partial_fill_follow_up = Mock(return_value=0)
-    engine._save_partial_fill_progress = Mock()
+    engine._persist_progress_from_record = Mock()
 
     publisher = Mock()
     publisher.enabled = True
@@ -273,13 +403,13 @@ def test_partial_fill_out_of_order_event_does_not_create_duplicate_followup():
         "cumulative_quantity": "0.02",
         "number_of_fills": 2,
         "completion_percentage": "20",
+        "status": "OPEN",
     }
 
-    engine._handle_partial_fill_if_enabled(client_order_id, order)
+    engine._process_ws_order_delta(order)
 
-    # No delta advancement -> no follow-up queueing and no watermark write
     engine._create_partial_fill_follow_up.assert_not_called()
-    engine._save_partial_fill_progress.assert_not_called()
+    engine._persist_progress_from_record.assert_not_called()
     assert publisher.publish_event.call_count == 0
 
 
@@ -288,23 +418,26 @@ def test_partial_fill_equal_watermark_event_does_not_create_duplicate_followup()
 
     client_order_id = "child-6"
     parent_client_order_id = "parent-6"
+    _link_child_to_opted_in_parent(engine, client_order_id, parent_client_order_id)
 
-    # Existing processed state: watermark already at 0.03
-    engine._partial_fill_state[client_order_id] = {
-        "parent_client_order_id": parent_client_order_id,
-        "product_id": "BTC-USDC",
-        "side": "BUY",
-        "original_order_size": 1.0,
-        "min_order_size": 0.01,
-        "last_cumulative_qty_processed": 0.03,
-        "carry_remainder_qty": 0.0,
-        "last_number_of_fills_seen": 2,
-        "last_completion_pct_seen": 30.0,
-        "partial_follow_ups_created": 3,
-    }
+    engine.order_progress_tracker.hydrate([
+        {
+            "client_order_id": client_order_id,
+            "parent_client_order_id": parent_client_order_id,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "original_order_size": 1.0,
+            "min_order_size": 0.01,
+            "last_cumulative_qty_processed": 0.03,
+            "carry_remainder_qty": 0.0,
+            "last_number_of_fills_seen": 2,
+            "last_completion_pct_seen": 30.0,
+            "partial_follow_ups_created": 3,
+        }
+    ])
 
     engine._create_partial_fill_follow_up = Mock(return_value=0)
-    engine._save_partial_fill_progress = Mock()
+    engine._persist_progress_from_record = Mock()
 
     publisher = Mock()
     publisher.enabled = True
@@ -318,13 +451,13 @@ def test_partial_fill_equal_watermark_event_does_not_create_duplicate_followup()
         "cumulative_quantity": "0.03",
         "number_of_fills": 2,
         "completion_percentage": "30",
+        "status": "OPEN",
     }
 
-    engine._handle_partial_fill_if_enabled(client_order_id, order)
+    engine._process_ws_order_delta(order)
 
-    # No advancement -> no follow-up queueing and no watermark write
     engine._create_partial_fill_follow_up.assert_not_called()
-    engine._save_partial_fill_progress.assert_not_called()
+    engine._persist_progress_from_record.assert_not_called()
     assert publisher.publish_event.call_count == 0
 
 
@@ -333,37 +466,26 @@ def test_partial_fill_concurrent_duplicate_events_create_followup_once():
 
     client_order_id = "child-7"
     parent_client_order_id = "parent-7"
+    _link_child_to_opted_in_parent(engine, client_order_id, parent_client_order_id)
 
-    engine._partial_fill_state[client_order_id] = {
-        "parent_client_order_id": parent_client_order_id,
-        "product_id": "BTC-USDC",
-        "side": "BUY",
-        "original_order_size": 1.0,
-        "min_order_size": 0.01,
-        "last_cumulative_qty_processed": 0.0,
-        "carry_remainder_qty": 0.0,
-        "last_number_of_fills_seen": 0,
-        "last_completion_pct_seen": 0.0,
-        "partial_follow_ups_created": 0,
-    }
+    engine.order_progress_tracker.hydrate([
+        {
+            "client_order_id": client_order_id,
+            "parent_client_order_id": parent_client_order_id,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "original_order_size": 1.0,
+            "min_order_size": 0.01,
+            "last_cumulative_qty_processed": 0.0,
+            "carry_remainder_qty": 0.0,
+            "last_number_of_fills_seen": 0,
+            "last_completion_pct_seen": 0.0,
+            "partial_follow_ups_created": 0,
+        }
+    ])
 
-    def _fake_save_partial_fill_progress(**kwargs):
-        with engine._partial_fill_state_lock:
-            engine._partial_fill_state[client_order_id] = {
-                "parent_client_order_id": kwargs["parent_client_order_id"],
-                "product_id": kwargs["product_id"],
-                "side": kwargs["side"],
-                "original_order_size": kwargs["original_order_size"],
-                "min_order_size": kwargs["min_order_size"],
-                "last_cumulative_qty_processed": kwargs["cumulative_qty"],
-                "carry_remainder_qty": kwargs["carry_remainder"],
-                "last_number_of_fills_seen": kwargs["number_of_fills"],
-                "last_completion_pct_seen": kwargs["completion_pct"],
-                "partial_follow_ups_created": kwargs["follow_ups_created"],
-            }
-
-    engine._save_partial_fill_progress = Mock(side_effect=_fake_save_partial_fill_progress)
     engine._create_partial_fill_follow_up = Mock(return_value=2)
+    engine._persist_progress_from_record = Mock()
 
     publisher = Mock()
     publisher.enabled = True
@@ -376,13 +498,14 @@ def test_partial_fill_concurrent_duplicate_events_create_followup_once():
         "cumulative_quantity": "0.02",
         "number_of_fills": 1,
         "completion_percentage": "20",
+        "status": "OPEN",
     }
 
     barrier = threading.Barrier(2)
 
     def _worker():
         barrier.wait()
-        engine._handle_partial_fill_if_enabled(client_order_id, order)
+        engine._process_ws_order_delta(order)
 
     t1 = threading.Thread(target=_worker)
     t2 = threading.Thread(target=_worker)
@@ -391,8 +514,8 @@ def test_partial_fill_concurrent_duplicate_events_create_followup_once():
     t1.join()
     t2.join()
 
-    # Both threads processed the same event payload; lock serialization ensures
-    # follow-up creation happens only once.
+    # Both threads processed the same event payload; tracker per-COID lock
+    # ensures follow-up creation happens only once.
     engine._create_partial_fill_follow_up.assert_called_once_with(
         client_order_id=client_order_id,
         parent_client_order_id=parent_client_order_id,
@@ -401,10 +524,15 @@ def test_partial_fill_concurrent_duplicate_events_create_followup_once():
     )
 
 
-def test_process_user_order_update_routes_through_partial_fill_handler():
+# ---------------------------------------------------------------------------
+# process_user_order routing
+# ---------------------------------------------------------------------------
+
+
+def test_process_user_order_update_routes_through_tracker():
     engine = _build_engine_for_partial_fill_tests()
 
-    engine._handle_partial_fill_if_enabled = Mock()
+    engine._process_ws_order_delta = Mock(return_value=None)
     engine._update_dashboard_order_status = Mock()
     engine.websocket_hooks.call_post_order_status = Mock()
 
@@ -418,61 +546,58 @@ def test_process_user_order_update_routes_through_partial_fill_handler():
 
     engine.process_user_order(order)
 
-    engine._handle_partial_fill_if_enabled.assert_called_once_with(
-        order["client_order_id"],
-        engine.orderbook.order[order["client_order_id"]],
-    )
+    engine._process_ws_order_delta.assert_called_once()
     engine._update_dashboard_order_status.assert_called_once()
     engine.websocket_hooks.call_post_order_status.assert_called_once()
 
 
-def test_finalize_partial_fill_progress_cleans_up_per_order_lock():
+def test_finalize_partial_fill_progress_drops_tracker_record():
     engine = _build_engine_for_partial_fill_tests()
 
     client_order_id = "child-finalize-1"
-    engine._partial_fill_state[client_order_id] = {
-        "parent_client_order_id": "parent-finalize-1",
-        "product_id": "BTC-USDC",
-        "side": "BUY",
-        "original_order_size": 1.0,
-        "min_order_size": 0.01,
-        "last_cumulative_qty_processed": 0.01,
-        "carry_remainder_qty": 0.0,
-        "last_number_of_fills_seen": 1,
-        "last_completion_pct_seen": 10.0,
-        "partial_follow_ups_created": 1,
-    }
+    engine.order_progress_tracker.hydrate([
+        {
+            "client_order_id": client_order_id,
+            "parent_client_order_id": "parent-finalize-1",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "original_order_size": 1.0,
+            "min_order_size": 0.01,
+            "last_cumulative_qty_processed": 0.01,
+            "carry_remainder_qty": 0.0,
+            "last_number_of_fills_seen": 1,
+            "last_completion_pct_seen": 10.0,
+            "partial_follow_ups_created": 1,
+        }
+    ])
 
-    # Ensure lock exists before finalize
-    _ = engine._get_partial_fill_order_lock(client_order_id)
-    assert client_order_id in engine._partial_fill_order_locks
+    assert engine.order_progress_tracker.get_record(client_order_id) is not None
 
     engine._finalize_partial_fill_progress(client_order_id, "FINALIZED")
 
-    assert client_order_id not in engine._partial_fill_state
-    assert client_order_id not in engine._partial_fill_order_locks
+    assert engine.order_progress_tracker.get_record(client_order_id) is None
 
 
-def test_partial_fill_template_keeps_side_stable_when_snapshot_status_is_filled():
+def test_partial_fill_template_flips_side_for_opposite_exit():
+    """Partial-fill follow-up must be the EXIT trade for the just-filled units:
+    opposite-side at a target-adjusted price, regardless of in-flight status."""
     engine = _build_engine_for_partial_fill_tests()
 
     client_order_id = "child-filled-snapshot-1"
     engine.orderbook.order[client_order_id] = {
         "client_order_id": client_order_id,
         "product_id": "BTC-USDC",
-        "status": OrderStatus.FILLED.value,
+        "status": OrderStatus.OPEN.value,  # mid-fill, not terminal
         "order_side": "BUY",
         "side": "BUY",
         "limit_price": "100.0",
         "avg_price": "100.0",
         "size": "1.0",
-        "filled_size": "1.0",
+        "filled_size": "0.5",
+        "leaves_quantity": "0.5",
     }
 
-    # Baseline behavior on terminal status flips BUY -> SELL.
-    baseline_template = engine.compute_order_template(client_order_id)
-    assert baseline_template["side"] == "SELL"
-
-    # Partial-fill behavior must remain stable and keep BUY side semantics.
     partial_template = engine.compute_partial_fill_order_template(client_order_id)
-    assert partial_template["side"] == "BUY"
+    assert partial_template["side"] == "SELL"
+    # Price moved up by profit target (BUY parent → SELL exit above entry).
+    assert float(partial_template["start_price"]) > 100.0

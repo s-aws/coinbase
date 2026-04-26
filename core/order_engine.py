@@ -54,10 +54,12 @@ Example: resolve parent linkage
 
 import json
 import threading
+import uuid
 from time import sleep
 from queue import Queue, Full
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from external import CoinbaseWebSocketClient
@@ -91,6 +93,7 @@ from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
+from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
 from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
 from integration.order_placement_hooks import get_global_placement_hook_registry
 
@@ -107,14 +110,16 @@ except ImportError:
     def broadcast_ticker(*args, **kwargs): pass
     def record_spread_tick(*args, **kwargs): pass
 
-# Lot tracking integration (optional - will fail gracefully if not available)
+# Lot tracking integration (optional - will fail gracefully if not available).
+# Note: production fills flow through OrderProgressTracker ->
+# FillLedgerRepository.append_derived_fill(delta); the legacy
+# post_fill_hook.on_order_filled helper is retained only for offline
+# backfill scripts and is no longer imported here.
 try:
-    from business.post_fill_hook import on_order_filled as post_fill_hook_on_order_filled
     from integration.fill_event_hooks import get_global_fill_event_hook_registry
     LOT_TRACKING_AVAILABLE = True
 except ImportError:
     LOT_TRACKING_AVAILABLE = False
-    def post_fill_hook_on_order_filled(*args, **kwargs): pass
     def get_global_fill_event_hook_registry(): return None
 
 
@@ -281,12 +286,18 @@ class OrderEngine:
                 # Log but don't fail - lot tracking is optional
                 self.log_message("warning", f"Failed to initialize fill ledger: {e}")
 
-        # Partial-fill progress: in-memory watermark state keyed by client_order_id.
-        # Hydrated from DB at startup via _hydrate_partial_fill_state_from_db().
-        self._partial_fill_state: dict = {}
-        self._partial_fill_state_lock = threading.RLock()
-        self._partial_fill_order_locks: dict = {}
-        self._partial_fill_order_locks_guard = threading.RLock()
+        # Single source of truth for all per-order WS-derived progress.
+        # Replaces the previous parallel ``_partial_fill_state`` and
+        # ``_fill_recording_state`` dicts. The tracker owns:
+        #   * the cumulative-counter watermark used to derive per-match fill
+        #     ledger rows, and
+        #   * the carry/min-size watermark used to spawn partial-fill
+        #     follow-up orders.
+        # Hydrated at startup via ``_hydrate_order_progress_tracker_from_db``.
+        self.order_progress_tracker = OrderProgressTracker(
+            min_order_size_resolver=self._resolve_min_order_size,
+            parent_resolver=lambda coid: self.get_parent_of_child(coid) or coid,
+        )
 
         # Reconstructive timeline event stream integration via existing hooks.
         self._initialize_event_stream_integration()
@@ -345,12 +356,12 @@ class OrderEngine:
     # Partial-fill persistence helpers
     # ------------------------------------------------------------------
 
-    def _hydrate_partial_fill_state_from_db(self) -> None:
-        """Load all ACTIVE partial-fill progress rows from DB into in-memory state.
+    def _hydrate_order_progress_tracker_from_db(self) -> None:
+        """Load ACTIVE ``partial_fill_progress`` rows into the tracker.
 
-        Called once at engine startup (inside start_background_threads) so that
-        in-flight partial fills survive restarts.  Each row is keyed by
-        client_order_id in self._partial_fill_state.
+        Called once at engine startup (inside ``start_background_threads``) so
+        that in-flight partial-fill watermarks survive restarts. Delegates the
+        actual record construction to ``OrderProgressTracker.hydrate``.
         """
         try:
             from database.order import get_all_active_partial_fill_progress
@@ -359,23 +370,7 @@ class OrderEngine:
             self.log_message("warning", f"[PARTIAL-FILL] Hydration failed: {e}")
             return
 
-        with self._partial_fill_state_lock:
-            self._partial_fill_state.clear()
-            for row in rows:
-                coid = row.get("client_order_id")
-                if coid:
-                    self._partial_fill_state[coid] = {
-                        "parent_client_order_id": row.get("parent_client_order_id"),
-                        "product_id": row.get("product_id"),
-                        "side": row.get("side"),
-                        "original_order_size": safe_float(row.get("original_order_size"), default=0.0),
-                        "min_order_size": safe_float(row.get("min_order_size"), default=0.0),
-                        "last_cumulative_qty_processed": safe_float(row.get("last_cumulative_qty_processed"), default=0.0),
-                        "carry_remainder_qty": safe_float(row.get("carry_remainder_qty"), default=0.0),
-                        "last_number_of_fills_seen": int(row.get("last_number_of_fills_seen") or 0),
-                        "last_completion_pct_seen": safe_float(row.get("last_completion_pct_seen"), default=0.0),
-                        "partial_follow_ups_created": int(row.get("partial_follow_ups_created") or 0),
-                    }
+        self.order_progress_tracker.hydrate(rows)
 
         self.log_message(
             "order",
@@ -385,85 +380,64 @@ class OrderEngine:
             ),
         )
 
-    def _save_partial_fill_progress(
+    def _persist_progress_from_record(
         self,
         client_order_id: str,
-        parent_client_order_id: str,
-        product_id: str,
-        side: str,
-        original_order_size: float,
-        min_order_size: float,
+        record,
         cumulative_qty: float,
-        carry_remainder: float,
         number_of_fills: int,
         completion_pct: float,
-        follow_ups_created: int,
     ) -> None:
-        """Upsert in-memory watermark and persist to DB, then emit audit event.
+        """Persist the tracker's per-order watermark to ``partial_fill_progress``.
 
-        This is the single write path for all partial-fill watermark advances.
-        It atomically updates both the in-memory dict and the DB row, then writes
-        an immutable row to order_event_stream for the audit trail.
+        The :class:`OrderProgressTracker` is the single source of truth for
+        in-memory state; this helper writes that state through to the database
+        and emits an immutable audit row to ``order_event_stream``.
 
         Args:
-            client_order_id:         Child order whose watermark is being updated.
-            parent_client_order_id:  Root parent (flat hierarchy).
-            product_id:              Trading pair.
-            side:                    BUY / SELL.
-            original_order_size:     Total size of the placed child order.
-            min_order_size:          Minimum base increment from product metadata.
-            cumulative_qty:          New high-watermark (cumulative_quantity from exchange).
-            carry_remainder:         Sub-minimum carry accumulator after this update.
-            number_of_fills:         number_of_fills value from the exchange event.
-            completion_pct:          completion_percentage (0-100) from the exchange event.
-            follow_ups_created:      Running count of follow-ups spawned so far.
+            client_order_id:    Order whose watermark to persist.
+            record:             Snapshot of the tracker's ``_WatermarkRecord``
+                                (already a copy returned by
+                                ``OrderProgressTracker.get_record``).
+            cumulative_qty:     Cumulative quantity from the latest snapshot.
+            number_of_fills:    ``number_of_fills`` from the latest snapshot.
+            completion_pct:     ``completion_percentage`` from the latest snapshot.
         """
-        with self._partial_fill_state_lock:
-            self._partial_fill_state[client_order_id] = {
-                "parent_client_order_id": parent_client_order_id,
-                "product_id": product_id,
-                "side": side,
-                "original_order_size": original_order_size,
-                "min_order_size": min_order_size,
-                "last_cumulative_qty_processed": cumulative_qty,
-                "carry_remainder_qty": carry_remainder,
-                "last_number_of_fills_seen": number_of_fills,
-                "last_completion_pct_seen": completion_pct,
-                "partial_follow_ups_created": follow_ups_created,
-            }
-
         try:
             from database.order import upsert_partial_fill_progress
             upsert_partial_fill_progress(
                 client_order_id=client_order_id,
-                parent_client_order_id=parent_client_order_id,
-                product_id=product_id,
-                side=side,
-                original_order_size=original_order_size,
-                min_order_size=min_order_size,
+                parent_client_order_id=record.parent_client_order_id,
+                product_id=record.product_id,
+                side=record.side,
+                original_order_size=record.original_order_size,
+                min_order_size=record.min_order_size,
                 last_cumulative_qty_processed=cumulative_qty,
-                carry_remainder_qty=carry_remainder,
+                carry_remainder_qty=record.carry_remainder_qty,
                 last_number_of_fills_seen=number_of_fills,
                 last_completion_pct_seen=completion_pct,
-                partial_follow_ups_created=follow_ups_created,
+                partial_follow_ups_created=record.partial_follow_ups_created,
             )
         except Exception as e:
-            self.log_message("error", f"[PARTIAL-FILL] DB upsert failed for {client_order_id}: {e}")
+            self.log_message(
+                "error",
+                f"[PARTIAL-FILL] DB upsert failed for {client_order_id}: {e}",
+            )
 
         # Emit immutable audit row to order_event_stream.
         if self.event_stream_publisher and self.event_stream_publisher.enabled:
             audit_payload = {
                 "client_order_id": client_order_id,
-                "parent_order_id": parent_client_order_id,
-                "product_id": product_id,
-                "side": side,
+                "parent_order_id": record.parent_client_order_id,
+                "product_id": record.product_id,
+                "side": record.side,
                 "cumulative_quantity": cumulative_qty,
-                "carry_remainder": carry_remainder,
+                "carry_remainder": record.carry_remainder_qty,
                 "number_of_fills": number_of_fills,
                 "completion_percentage": completion_pct,
-                "partial_follow_ups_created": follow_ups_created,
-                "original_order_size": original_order_size,
-                "min_order_size": min_order_size,
+                "partial_follow_ups_created": record.partial_follow_ups_created,
+                "original_order_size": record.original_order_size,
+                "min_order_size": record.min_order_size,
             }
             idempotency_key = (
                 f"partial_fill_progress:{client_order_id}:{cumulative_qty}:{number_of_fills}"
@@ -476,23 +450,146 @@ class OrderEngine:
                 status_to=OrderStatus.OPEN.value,
             )
 
-    def _finalize_partial_fill_progress(self, client_order_id: str, terminal_status: str) -> None:
-        """Remove in-memory watermark and mark DB row as terminal.
+    def _process_ws_order_delta(self, normalized_order: dict) -> Optional[OrderSnapshotDelta]:
+        """Single ingestion point for one WS order snapshot.
 
-        Called when an order reaches FILLED, CANCELLED, or FAILED status so that
-        the partial-fill progress row is no longer surfaced on restart hydration.
+        Replaces the previous parallel ``_record_incremental_fills`` and
+        ``_handle_partial_fill_if_enabled`` paths. Routes the resulting
+        :class:`OrderSnapshotDelta` to:
+          * fill-ledger row generation (always, when there is a real per-match
+            advance and lot-tracking is enabled),
+          * partial-fill follow-up creation (only when the parent has
+            ``allow_partial_fills=True``),
+          * watermark persistence to ``partial_fill_progress``,
+          * append-only audit insertion to ``order_match_audit``.
+
+        Args:
+            normalized_order: Normalised WS order dict produced by the
+                processor bridge for any status.
+
+        Returns:
+            The :class:`OrderSnapshotDelta` produced by the tracker, or
+            ``None`` when the snapshot carried no advance.
+        """
+        delta = self.order_progress_tracker.ingest(normalized_order)
+        if delta is None:
+            return None
+
+        client_order_id = delta.client_order_id
+
+        # 1. Per-match fill-ledger row + post/pre fill hooks.
+        if delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE:
+            self._append_derived_fill_with_hooks(delta)
+
+        # 2. Append-only audit row covering EVERY accepted snapshot.
+        self._append_order_match_audit(delta, normalized_order)
+
+        # 3. Persist watermark + emit progress audit event.
+        record = self.order_progress_tracker.get_record(client_order_id)
+        if record is not None:
+            self._persist_progress_from_record(
+                client_order_id=client_order_id,
+                record=record,
+                cumulative_qty=delta.cumulative_quantity,
+                number_of_fills=delta.number_of_fills,
+                completion_pct=delta.completion_percentage,
+            )
+
+            # 4. Conditionally create partial-fill follow-up(s).
+            #    Opt-in is parent-side; carry-vs-min check is delta-side.
+            if delta.is_new_match and not delta.is_terminal:
+                self._maybe_create_partial_fill_follow_up(delta, record)
+
+        return delta
+
+    def _append_derived_fill_with_hooks(self, delta: OrderSnapshotDelta) -> None:
+        """Run pre-fill hooks, append the derived fill row, then post-fill hooks."""
+        fill_data = {
+            "instrument": delta.product_id,
+            "side": delta.side,
+            "quantity": delta.size_delta,
+            "price": delta.derived_price,
+            "fees": delta.fee_delta,
+            "client_order_id": delta.client_order_id,
+            "timestamp": delta.observed_at,
+            "commission_percentage": 0.0,
+            "trade_id": delta.derived_trade_key,
+            "derived_trade_key": delta.derived_trade_key,
+        }
+
+        try:
+            if self.fill_event_hooks:
+                self.fill_event_hooks.call_pre_fill_hooks(fill_data)
+        except Exception as hook_error:
+            self.log_message(
+                "warning",
+                f"[LOT-TRACK] Pre-fill hook blocked recording: {hook_error}",
+            )
+            return
+
+        record_success = self.fill_repo.append_derived_fill(delta)
+
+        if record_success and self.fill_event_hooks:
+            try:
+                self.fill_event_hooks.call_post_fill_hooks(
+                    fill_data, delta.derived_trade_key
+                )
+            except Exception as hook_error:
+                self.log_message(
+                    "warning",
+                    f"[LOT-TRACK] Post-fill hook exception: {hook_error}",
+                )
+
+    def _append_order_match_audit(
+        self, delta: OrderSnapshotDelta, normalized_order: dict
+    ) -> None:
+        """Best-effort append of one row to ``order_match_audit``.
+
+        Failures are logged but do not block the WS pipeline — the audit table
+        is for forensic reconstruction, not transactional correctness.
+        """
+        try:
+            from database.order import insert_order_match_audit
+            insert_order_match_audit(
+                client_order_id=delta.client_order_id,
+                snapshot_seq=delta.snapshot_seq,
+                cumulative_quantity=delta.cumulative_quantity,
+                filled_value=delta.filled_value,
+                total_fees=delta.total_fees,
+                number_of_fills=delta.number_of_fills,
+                leaves_quantity=delta.leaves_quantity,
+                outstanding_hold_amount=delta.outstanding_hold_amount,
+                status=delta.status,
+                derived_size_delta=delta.size_delta,
+                derived_value_delta=delta.value_delta,
+                derived_fee_delta=delta.fee_delta,
+                derived_price=delta.derived_price if delta.is_new_match else None,
+                derived_trade_key=delta.derived_trade_key if delta.is_new_match else None,
+                emitted_fill_ledger_row=bool(
+                    delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE
+                ),
+                raw_payload_json=json.dumps(normalized_order, default=str),
+            )
+        except Exception as e:
+            self.log_message(
+                "warning",
+                f"[ORDER-MATCH-AUDIT] Insert failed for {delta.client_order_id} "
+                f"seq={delta.snapshot_seq}: {e}",
+            )
+
+    def _finalize_partial_fill_progress(self, client_order_id: str, terminal_status: str) -> None:
+        """Drop the order's tracker watermark and mark its DB row terminal.
+
+        Called when an order reaches FILLED, CANCELLED, or FAILED status so
+        that the partial-fill progress row is no longer surfaced on restart
+        hydration. The tracker owns the in-memory state; this method handles
+        the DB finalize and audit emission.
 
         Args:
             client_order_id:  The child order's client_order_id.
             terminal_status:  'FINALIZED' (filled) or 'CANCELLED'.
         """
-        with self._partial_fill_state_lock:
-            self._partial_fill_state.pop(client_order_id, None)
-
-        # Release per-order lock bookkeeping after terminal states so lock-map
-        # does not grow unbounded in long-running processes.
-        with self._partial_fill_order_locks_guard:
-            self._partial_fill_order_locks.pop(client_order_id, None)
+        self.order_progress_tracker.finalize(client_order_id, terminal_status)
 
         try:
             from database.order import finalize_partial_fill_progress
@@ -609,20 +706,6 @@ class OrderEngine:
         except Exception as e:
             self.log_message("warning", f"[PARTIAL-FILL] allow_partial_fills DB lookup failed for {parent_id}: {e}")
         return False
-
-    def _get_partial_fill_order_lock(self, client_order_id: str):
-        """Return (and lazily create) the per-order partial-fill lock.
-
-        This lock serializes partial-fill handling for the same client_order_id so
-        concurrent duplicate OPEN/UPDATE events cannot race into duplicate follow-up
-        creation.
-        """
-        with self._partial_fill_order_locks_guard:
-            lock = self._partial_fill_order_locks.get(client_order_id)
-            if lock is None:
-                lock = threading.RLock()
-                self._partial_fill_order_locks[client_order_id] = lock
-            return lock
 
     def _create_partial_fill_follow_up(
         self,
@@ -760,212 +843,196 @@ class OrderEngine:
             )
             return 0
 
-    def _handle_partial_fill_if_enabled(self, client_order_id: str, order: dict) -> None:
-        """Process a partial-fill watermark advance when the order is opted in.
+    def _maybe_create_partial_fill_follow_up(
+        self,
+        delta: OrderSnapshotDelta,
+        record,
+    ) -> None:
+        """Create partial-fill follow-up order(s) when carry has crossed min-size.
 
-        Called on every OPEN (and UPDATE) event.  Uses the in-memory
-        ``_partial_fill_state`` dict as the fast path; falls back to a single DB /
-        parent-cache lookup on the first OPEN event for each order.
+        Called from :meth:`_process_ws_order_delta` for every accepted snapshot
+        with a positive size advance. The opt-in check is parent-scoped; when
+        the parent has ``allow_partial_fills=False`` we still record the
+        watermark/audit but do not spawn a follow-up.
 
-          Flow:
-          1. If no active state entry exists, check whether the parent has
-              ``allow_partial_fills=True``.  Skip entirely if not opted in.
-          2. Resolve ``cumulative_quantity`` and compute the monotonic delta.
-          3. Accumulate delta into carry and compute how many min-size follow-up
-              units are due.
-          4. Create follow-up stealth order(s) up to replacement cap.
-          5. Persist updated watermark/carry via ``_save_partial_fill_progress``.
+        Carry-arithmetic invariants:
+          * ``record.carry_remainder_qty`` already includes ``delta.size_delta``
+            (the tracker accumulates it during ``ingest``).
+          * After we place ``created_units`` follow-ups, we hand the consumed
+            amount back to the tracker via ``consume_carry_units`` so the
+            in-memory and persisted state agree on what is left.
 
         Args:
-            client_order_id: The child order's ``client_order_id``.
-            order:           Normalised order dict from the WebSocket event.
+            delta:  Snapshot delta from :class:`OrderProgressTracker`.
+            record: Read-only snapshot of the per-order watermark from the
+                tracker (already a copy — safe to read but do not mutate).
         """
         from logging_service import get_logger
 
         logger = get_logger("OrderEngine")
-        order_lock = self._get_partial_fill_order_lock(client_order_id)
+        client_order_id = delta.client_order_id
 
-        with order_lock:
-            product_id = order.get("product_id")
-            cumulative = resolve_cumulative_filled(order)
+        if not self._get_parent_allow_partial_fills(record.parent_client_order_id):
+            logger.debug(
+                "[PARTIAL-FILL] Skipped (opt-out): client_order_id=%s parent_client_order_id=%s",
+                client_order_id,
+                record.parent_client_order_id,
+            )
+            return
 
-            with self._partial_fill_state_lock:
-                state = dict(self._partial_fill_state.get(client_order_id) or {})
+        product_id = delta.product_id
+        side = delta.side
+        cumulative = delta.cumulative_quantity
+        min_size = record.min_order_size
+        carry = record.carry_remainder_qty
+        size_delta = delta.size_delta
 
-            if not state:
-                # One-time opt-in check: resolve parent, then check flag
-                parent_id = self.get_parent_of_child(client_order_id) or client_order_id
-                if not self._get_parent_allow_partial_fills(parent_id):
-                    logger.debug(
-                        "[PARTIAL-FILL] Skipped (opt-out): client_order_id=%s parent_client_order_id=%s",
-                        client_order_id,
-                        parent_id,
-                    )
-                    return
-                if cumulative <= 0.0:
-                    logger.debug(
-                        "[PARTIAL-FILL] Skipped (no cumulative fill yet): client_order_id=%s cumulative=%s",
-                        client_order_id,
-                        cumulative,
-                    )
-                    return  # No fill yet — defer initialisation until first fill event
-
-                # Lazy-initialise the watermark entry
-                min_order_size = self._resolve_min_order_size(product_id)
-                remaining = resolve_remaining_size(order)
-                original_order_size = remaining + cumulative
-                state = {
-                    "parent_client_order_id": parent_id,
+        # First-event audit emission so dashboards can show "first partial fill"
+        # for an opted-in order.
+        if (
+            record.partial_follow_ups_created == 0
+            and record.last_cumulative_qty_processed > 0
+            and self.event_stream_publisher
+            and self.event_stream_publisher.enabled
+        ):
+            # ``last_cumulative_qty_processed`` was already advanced by ingest
+            # so the first time we get here the previous value (pre-advance)
+            # would have been 0; we can't easily reach back for it. Emit on
+            # the first delta seen — gate by snapshot_seq == 1.
+            pass
+        if delta.snapshot_seq == 1 and self.event_stream_publisher and self.event_stream_publisher.enabled:
+            self.event_stream_publisher.publish_event(
+                event_type=EventStreamType.PARTIAL_FILL_DETECTED.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
+                payload={
+                    "client_order_id": client_order_id,
+                    "parent_order_id": record.parent_client_order_id,
                     "product_id": product_id,
-                    "side": resolve_order_side(order),
-                    "original_order_size": original_order_size,
-                    "min_order_size": min_order_size,
-                    "last_cumulative_qty_processed": 0.0,
-                    "carry_remainder_qty": 0.0,
-                    "last_number_of_fills_seen": 0,
-                    "last_completion_pct_seen": 0.0,
-                    "partial_follow_ups_created": 0,
-                }
+                    "side": side,
+                    "cumulative_quantity": cumulative,
+                },
+                idempotency_key=f"partial_fill_detected:{client_order_id}:{cumulative}",
+                status_to=OrderStatus.OPEN.value,
+            )
 
-                if self.event_stream_publisher and self.event_stream_publisher.enabled:
-                    self.event_stream_publisher.publish_event(
-                        event_type=EventStreamType.PARTIAL_FILL_DETECTED.value,
-                        source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
-                        payload={
-                            "client_order_id": client_order_id,
-                            "parent_order_id": parent_id,
-                            "product_id": product_id,
-                            "side": state["side"],
-                            "cumulative_quantity": cumulative,
-                        },
-                        idempotency_key=f"partial_fill_detected:{client_order_id}:{cumulative}",
-                        status_to=OrderStatus.OPEN.value,
-                    )
+        if min_size <= 0.0:
+            logger.debug(
+                "[PARTIAL-FILL] Skipped (min size unavailable): client_order_id=%s product_id=%s",
+                client_order_id,
+                product_id,
+            )
+            return
 
-            delta = resolve_partial_fill_delta(cumulative, state["last_cumulative_qty_processed"])
+        if size_delta <= 0.0 and carry < min_size:
+            logger.debug(
+                "[PARTIAL-FILL] Skipped (no new delta and below min): client_order_id=%s "
+                "cumulative=%s carry=%s min_size=%s",
+                client_order_id,
+                cumulative,
+                carry,
+                min_size,
+            )
+            return
 
-            min_size = state["min_order_size"]
-            if min_size <= 0.0:
-                logger.debug(
-                    "[PARTIAL-FILL] Skipped (min size unavailable): client_order_id=%s product_id=%s",
-                    client_order_id,
-                    product_id,
-                )
-                return  # Product metadata unavailable — safe no-op
+        follow_ups_due = int(carry / min_size)
+        created_units = 0
+        if follow_ups_due > 0:
+            created_units = self._create_partial_fill_follow_up(
+                client_order_id=client_order_id,
+                parent_client_order_id=record.parent_client_order_id,
+                min_order_size=min_size,
+                follow_ups_due=follow_ups_due,
+            )
 
-            carry = state["carry_remainder_qty"] + (delta if delta > 0.0 else 0.0)
-            if delta <= 0.0 and carry < min_size:
-                logger.debug(
-                    "[PARTIAL-FILL] Skipped (no new delta and below min): client_order_id=%s "
-                    "last_watermark=%s cumulative=%s carry=%s min_size=%s",
-                    client_order_id,
-                    state["last_cumulative_qty_processed"],
-                    cumulative,
-                    carry,
-                    min_size,
-                )
-                return  # No new progress and nothing queued from prior carry
+            logger.debug(
+                "[PARTIAL-FILL] Follow-up evaluation: client_order_id=%s follow_ups_due=%s "
+                "follow_ups_created=%s carry_before=%s min_size=%s",
+                client_order_id,
+                follow_ups_due,
+                created_units,
+                carry,
+                min_size,
+            )
 
-            number_of_fills = int(order.get("number_of_fills") or 0)
-            completion_pct = safe_float(order.get("completion_percentage"), default=0.0)
-
-            follow_ups_due = int(carry / min_size)
-            created_units = 0
-            if follow_ups_due > 0:
-                created_units = self._create_partial_fill_follow_up(
-                    client_order_id=client_order_id,
-                    parent_client_order_id=state["parent_client_order_id"],
-                    min_order_size=min_size,
-                    follow_ups_due=follow_ups_due,
-                )
-
-                logger.debug(
-                    "[PARTIAL-FILL] Follow-up evaluation: client_order_id=%s follow_ups_due=%s "
-                    "follow_ups_created=%s carry_before=%s min_size=%s",
-                    client_order_id,
-                    follow_ups_due,
-                    created_units,
-                    carry,
-                    min_size,
-                )
-
-                if self.event_stream_publisher and self.event_stream_publisher.enabled:
-                    self.event_stream_publisher.publish_event(
-                        event_type=EventStreamType.PARTIAL_FILL_FOLLOW_UP_QUEUED.value,
-                        source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
-                        payload={
-                            "client_order_id": client_order_id,
-                            "parent_order_id": state["parent_client_order_id"],
-                            "product_id": product_id,
-                            "side": state["side"],
-                            "cumulative_quantity": cumulative,
-                            "follow_ups_due": follow_ups_due,
-                            "follow_ups_created": created_units,
-                            "min_order_size": min_size,
-                        },
-                        idempotency_key=(
-                            f"partial_fill_follow_up_queued:{client_order_id}:{cumulative}:"
-                            f"{follow_ups_due}:{created_units}"
-                        ),
-                        status_to=OrderStatus.OPEN.value,
-                    )
-
-            if follow_ups_due <= 0 and self.event_stream_publisher and self.event_stream_publisher.enabled:
+            if self.event_stream_publisher and self.event_stream_publisher.enabled:
                 self.event_stream_publisher.publish_event(
-                    event_type=EventStreamType.PARTIAL_FILL_BELOW_MIN.value,
+                    event_type=EventStreamType.PARTIAL_FILL_FOLLOW_UP_QUEUED.value,
                     source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
                     payload={
                         "client_order_id": client_order_id,
-                        "parent_order_id": state["parent_client_order_id"],
+                        "parent_order_id": record.parent_client_order_id,
                         "product_id": product_id,
-                        "side": state["side"],
+                        "side": side,
                         "cumulative_quantity": cumulative,
-                        "delta": delta,
-                        "carry_quantity": carry,
+                        "follow_ups_due": follow_ups_due,
+                        "follow_ups_created": created_units,
                         "min_order_size": min_size,
                     },
-                    idempotency_key=f"partial_fill_below_min:{client_order_id}:{cumulative}:{carry}",
+                    idempotency_key=(
+                        f"partial_fill_follow_up_queued:{client_order_id}:{cumulative}:"
+                        f"{follow_ups_due}:{created_units}"
+                    ),
                     status_to=OrderStatus.OPEN.value,
                 )
 
-            new_carry = carry - (created_units * min_size)
-            new_follow_ups_created = state["partial_follow_ups_created"] + created_units
-
-            self._save_partial_fill_progress(
-                client_order_id=client_order_id,
-                parent_client_order_id=state["parent_client_order_id"],
-                product_id=product_id,
-                side=state["side"],
-                original_order_size=state["original_order_size"],
-                min_order_size=min_size,
-                cumulative_qty=cumulative,
-                carry_remainder=new_carry,
-                number_of_fills=number_of_fills,
-                completion_pct=completion_pct,
-                follow_ups_created=new_follow_ups_created,
+        if follow_ups_due <= 0 and self.event_stream_publisher and self.event_stream_publisher.enabled:
+            self.event_stream_publisher.publish_event(
+                event_type=EventStreamType.PARTIAL_FILL_BELOW_MIN.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
+                payload={
+                    "client_order_id": client_order_id,
+                    "parent_order_id": record.parent_client_order_id,
+                    "product_id": product_id,
+                    "side": side,
+                    "cumulative_quantity": cumulative,
+                    "delta": size_delta,
+                    "carry_quantity": carry,
+                    "min_order_size": min_size,
+                },
+                idempotency_key=f"partial_fill_below_min:{client_order_id}:{cumulative}:{carry}",
+                status_to=OrderStatus.OPEN.value,
             )
 
-            # Single INFO summary for each processed partial-fill event.
-            self.log_message(
-                "order",
-                self.build_event_log_payload(
-                    "partial_fill_summary",
+        if created_units > 0:
+            # Hand the consumed units back to the tracker so the in-memory
+            # carry stays in sync with what was actually placed. This also
+            # increments ``partial_follow_ups_created`` on the tracker record
+            # so the next persistence cycle writes the new totals.
+            self.order_progress_tracker.consume_carry_units(client_order_id, created_units)
+            # Refresh persisted state to include the consumption + count.
+            updated_record = self.order_progress_tracker.get_record(client_order_id)
+            if updated_record is not None:
+                self._persist_progress_from_record(
                     client_order_id=client_order_id,
-                    parent_client_order_id=state["parent_client_order_id"],
-                    product_id=product_id,
-                    side=state["side"],
-                    cumulative_quantity=cumulative,
-                    delta=delta,
-                    min_order_size=min_size,
-                    carry_before=state["carry_remainder_qty"],
-                    carry_after=new_carry,
-                    follow_ups_due=follow_ups_due,
-                    follow_ups_created=created_units,
-                    total_follow_ups_created=new_follow_ups_created,
-                    number_of_fills=number_of_fills,
-                    completion_percentage=completion_pct,
-                ),
-            )
+                    record=updated_record,
+                    cumulative_qty=cumulative,
+                    number_of_fills=delta.number_of_fills,
+                    completion_pct=delta.completion_percentage,
+                )
+
+        # Single INFO summary for each processed partial-fill event.
+        new_carry = max(0.0, carry - (created_units * min_size))
+        new_follow_ups_created = record.partial_follow_ups_created + created_units
+        self.log_message(
+            "order",
+            self.build_event_log_payload(
+                "partial_fill_summary",
+                client_order_id=client_order_id,
+                parent_client_order_id=record.parent_client_order_id,
+                product_id=product_id,
+                side=side,
+                cumulative_quantity=cumulative,
+                delta=size_delta,
+                min_order_size=min_size,
+                carry_before=carry,
+                carry_after=new_carry,
+                follow_ups_due=follow_ups_due,
+                follow_ups_created=created_units,
+                total_follow_ups_created=new_follow_ups_created,
+                number_of_fills=delta.number_of_fills,
+                completion_percentage=delta.completion_percentage,
+            ),
+        )
 
     def log_message(self, log_type: str, message) -> None:
         """Log a message if the log type is enabled.
@@ -1875,6 +1942,15 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
+        # Step 3b: Single ingestion point for WS-derived progress.
+        # Routes to fill ledger, audit table, watermark persistence and
+        # partial-fill follow-up creation in one place — see
+        # _process_ws_order_delta. Idempotent (deterministic
+        # derived_trade_key); safe on every event regardless of status. Must
+        # run before _finalize_partial_fill_progress wipes state on terminal
+        # status.
+        self._process_ws_order_delta(normalized_order)
+
         if status == OrderStatus.FILLED and outstanding_hold_amount > 0:
             self.log_message(
                 "order",
@@ -1929,12 +2005,14 @@ class OrderEngine:
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.OPEN:
-            self._handle_partial_fill_if_enabled(client_order_id, normalized_order)
+            # Partial-fill follow-up creation already happened inside
+            # _process_ws_order_delta above; nothing more to do for OPEN here.
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.UPDATE:
-            self._handle_partial_fill_if_enabled(client_order_id, normalized_order)
+            # Same as OPEN: tracker has already routed any partial-fill
+            # follow-up. Just refresh dashboard + downstream hooks.
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
@@ -2072,12 +2150,17 @@ class OrderEngine:
         )
 
     def compute_partial_fill_order_template(self, client_order_id: str, target_movement: dict = None) -> dict:
-        """Compute partial-fill follow-up template using non-terminal order status semantics.
+        """Compute partial-fill follow-up template as the EXIT trade for the just-filled portion.
 
-        During hold-clear windows, FILLED events can temporarily land in the in-memory
-        order snapshot before follow-up processing for partial fills completes. If we use
-        terminal status here, template generation flips the side as if the lifecycle is
-        complete. For partial-fill follow-ups we want stable, in-flight semantics.
+        A partial fill means N units actually filled at the parent's price. The follow-up
+        for those units is the profit-taking exit, so it must be **opposite-side** at a
+        target-adjusted price (BUY parent → SELL exit; SELL parent → BUY exit).
+
+        We force ``status=FILLED`` in the snapshot copy so
+        ``calculate_new_order_move_from_snapshot`` flips the side and applies the
+        profit-target price move. The caller supplies its own ``follow_up_size``
+        (the partial quantity), so the template's size is unused and the FILLED-branch
+        position adjustment is harmless (caller does not apply ``position_update``).
         """
         snapshot = self.get_orderbook_snapshot()
         order = snapshot["order"].get(client_order_id)
@@ -2093,12 +2176,11 @@ class OrderEngine:
                 if not order:
                     return {}
 
-        order_status = str(order.get("status") or "").upper()
-        if order_status in {OrderStatus.FILLED.value, OrderStatus.CANCELLED.value}:
-            # Keep partial-follow-up template side stable until lifecycle is terminally processed.
-            order_copy = deepcopy(order)
-            order_copy["status"] = OrderStatus.OPEN.value
-            snapshot["order"][client_order_id] = order_copy
+        # Force FILLED semantics so the side flips to the exit trade and the
+        # profit-target price move is applied — same math as the post-FILLED follow-up.
+        order_copy = deepcopy(order)
+        order_copy["status"] = OrderStatus.FILLED.value
+        snapshot["order"][client_order_id] = order_copy
 
         return calculate_new_order_move_from_snapshot(
             snapshot,
@@ -2654,96 +2736,11 @@ class OrderEngine:
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
         is_external_order = self._is_external_order(client_order_id)
-        # Reason: Fill recording is idempotent (via trade_id UNIQUE constraint)
-        # so it's safe to record even if we process this order again.
-        # But we only want to create follow-ups once (hence the claim check below).
-        if self.fill_repo and LOT_TRACKING_AVAILABLE:
-            try:
-                order_side = resolve_order_side(order) or "BUY"
-                product_id = order.get("product_id", "UNKNOWN")
-                
-                # Resolve filled_size with proper fallback strategy:
-                # 1. Try websocket fields: cumulative_quantity, leaves_quantity, filled_size, size, base_size
-                # 2. Fall back to orderbook accumulated state
-                # 3. Fall back to database original order size
-                filled_size = resolve_order_size(order)  # Tries fields 1 above
-                
-                if filled_size <= 0 and client_order_id in self.orderbook.order:
-                    # Fallback: try accumulated order state in orderbook
-                    accumulated_order = self.orderbook.order[client_order_id]
-                    filled_size = resolve_order_size(accumulated_order)
-                
-                if filled_size <= 0:
-                    # Fallback: try to get from database
-                    try:
-                        parent_order_data = self.db_helper.get_parent_order(client_order_id)
-                        if parent_order_data:
-                            filled_size = safe_float(parent_order_data.get("size"), default=0.0)
-                    except Exception:
-                        pass  # DB query failed, use 0
-                
-                # If still no size, skip recording this fill (will log error below)
-                if filled_size <= 0:
-                    self.log_message("warning", f"[LOT-TRACK] Could not determine fill size for {client_order_id}, skipping fill record")
-                else:
-                    # Resolve fill price with proper fallback
-                    filled_price = float(order.get("price", order.get("avg_price", order.get("limit_price", 0))))
-                    
-                    # Fees: try multiple field names from websocket
-                    fees = safe_float(order.get("total_fees"), default=0.0)
-                    if fees <= 0:
-                        fees = float(order.get("fee_details", {}).get("total", 0)) if isinstance(order.get("fee_details"), dict) else 0.0
-                    
-                    # Build fill data for hooks (passed by reference to pre-fill hooks)
-                    fill_data = {
-                        "instrument": product_id,
-                        "side": order_side,
-                        "quantity": filled_size,
-                        "price": filled_price,
-                        "fees": fees,
-                        "client_order_id": client_order_id,
-                        "timestamp": get_local_now(),
-                        "commission_percentage": 0.0,
-                        "trade_id": order.get("id")  # Exchange order ID as trade_id for dedup
-                    }
-                    
-                    # 🪝 PRE-FILL HOOKS: Validate/enrich fill before recording
-                    # Extensions can raise exceptions to block recording or modify fill_data
-                    try:
-                        if self.fill_event_hooks:
-                            self.fill_event_hooks.call_pre_fill_hooks(fill_data)
-                    except Exception as hook_error:
-                        # Pre-fill hook validation failed - don't record fill
-                        self.log_message("warning", f"[LOT-TRACK] Pre-fill hook blocked recording: {str(hook_error)}")
-                        fill_data = None  # Signal that recording should be skipped
-                    
-                    # Record the fill if pre-hooks didn't block it
-                    if fill_data is not None:
-                        record_success = post_fill_hook_on_order_filled(
-                            fill_repo=self.fill_repo,
-                            product_id=fill_data["instrument"],
-                            side=fill_data["side"],
-                            quantity=fill_data["quantity"],
-                            price=fill_data["price"],
-                            fees=fill_data["fees"],
-                            client_order_id=fill_data["client_order_id"],
-                            trade_id=fill_data["trade_id"],
-                            timestamp=fill_data["timestamp"],
-                            commission_pct=fill_data["commission_percentage"]
-                        )
-                        
-                        # 🪝 POST-FILL HOOKS: Log/track fill after recording
-                        # Exceptions here are logged but don't affect fill recording
-                        if record_success and fill_data["trade_id"]:
-                            try:
-                                if self.fill_event_hooks:
-                                    self.fill_event_hooks.call_post_fill_hooks(fill_data, fill_data["trade_id"])
-                            except Exception as hook_error:
-                                # Post-fill hook error - log but don't fail (fill is already recorded)
-                                self.log_message("warning", f"[LOT-TRACK] Post-fill hook exception: {str(hook_error)}")
-            except Exception as e:
-                # Log but don't block - lot tracking failure shouldn't stop order processing
-                self.log_message("warning", f"[LOT-TRACK] Failed to record fill: {type(e).__name__}: {e}")
+
+        # NOTE: Per-match fill recording happens in process_user_order via
+        # _process_ws_order_delta, which derives one ledger row per real exchange
+        # match from cumulative-counter deltas. Do NOT add bulk single-row recording
+        # here — that collapsed N matches into 1 and corrupted lot accounting.
 
         with self.orderbook_lock:
             should_replace_filled = self.orderbook.should_replace["FILLED"] is True
@@ -3431,7 +3428,7 @@ class OrderEngine:
             None
         """
         self.load_parent_child_order_ids(force_log=True)
-        self._hydrate_partial_fill_state_from_db()
+        self._hydrate_order_progress_tracker_from_db()
 
         # Update dashboard with initial engine status
         update_engine_status(self._build_engine_status_payload(event_queue_depth=0))

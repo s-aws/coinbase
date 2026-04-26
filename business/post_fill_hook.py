@@ -15,7 +15,7 @@ Design:
 - Idempotent: Safe to call multiple times for same fill
 - Recoverable: Database persistence enables replay/recovery
 
-Example:
+Example (offline backfill — production uses OrderProgressTracker):
     >>> from business.post_fill_hook import initialize_fill_ledger, on_order_filled
     >>>
     >>> fill_repo = initialize_fill_ledger(db_client)
@@ -25,6 +25,7 @@ Example:
     ...     side='BUY',
     ...     quantity=0.1,
     ...     price=42100.0,
+    ...     trade_id='deterministic-derived-trade-key',  # REQUIRED
     ...     fees=0.45,
     ...     client_order_id='client-order-123',
     ... )
@@ -64,53 +65,62 @@ def on_order_filled(fill_repo: FillLedgerRepository,
                    side: str,
                    quantity: float,
                    price: float,
+                   trade_id: str,
                    fees: float = 0.0,
                    client_order_id: Optional[str] = None,
-                   trade_id: Optional[str] = None,
                    timestamp: Optional[Any] = None,
                    commission_pct: float = 0.0) -> bool:
-    """Hook called when an order fill occurs.
-    
-    This function should be called from the order engine whenever a fill
-    is detected. It records the fill in the immutable ledger and triggers
-    any dependent processes.
-    
+    """Backfill / demo helper that records a single fill into the ledger.
+
+    NOTE: The production WebSocket path does NOT call this function. The
+    `OrderEngine` derives per-match fills via `OrderProgressTracker` and
+    persists them through `FillLedgerRepository.append_derived_fill(delta)`,
+    where the idempotency key is a deterministic UUID5
+    (``uuid5(NAMESPACE_OID, f"coinbase-fill:{coid}:{cumulative}")``).
+
+    This helper is retained only for offline backfill scripts and demos,
+    and therefore REQUIRES the caller to supply ``trade_id`` (the
+    `derived_trade_key`). Generating a synthetic UUID here would silently
+    bypass the `ON CONFLICT (derived_trade_key) DO NOTHING` dedup and
+    inflate the ledger on retries.
+
     Args:
         fill_repo: FillLedgerRepository instance
         product_id: Trading pair (e.g., 'BTC-USDC')
         side: 'BUY' or 'SELL'
-        quantity: Amount filled
-        price: Fill price
-        fees: Fees paid (optional)
-        client_order_id: Client order ID (optional, for tracing)
-        trade_id: Exchange trade ID (optional, for deduplication)
-        timestamp: When fill occurred (optional, uses current time if not provided)
-        commission_pct: Commission rate (optional)
-    
+        quantity: Amount filled (> 0)
+        price: Fill price (>= 0)
+        trade_id: Deterministic derived_trade_key (REQUIRED, idempotency key)
+        fees: Fees paid
+        client_order_id: Client order id (for tracing)
+        timestamp: When the fill occurred (defaults to now)
+        commission_pct: Commission rate
+
     Returns:
-        True if fill was recorded, False on error
+        True if recorded, False on validation failure or persistence error.
     """
     # Validate inputs
+    if not trade_id:
+        logger.error(
+            "on_order_filled requires an explicit trade_id (derived_trade_key); "
+            "the synthetic-UUID fallback has been removed to preserve idempotency."
+        )
+        return False
     if not product_id or not side or quantity <= 0 or price < 0:
         logger.error(f"Invalid fill parameters: "
                     f"product_id={product_id}, side={side}, qty={quantity}, price={price}")
         return False
-    
+
     # Normalize side
     side = side.upper()
     if side not in ('BUY', 'SELL'):
         logger.error(f"Invalid side: {side}")
         return False
-    
-    # Generate trade_id if not provided (idempotency key)
-    if not trade_id:
-        import uuid
-        trade_id = str(uuid.uuid4())
-    
+
     # Create fill ledger record
     try:
         fill = FillLedger(
-            trade_id=trade_id,
+            derived_trade_key=trade_id,
             instrument=product_id,
             side=side,
             quantity=quantity,
@@ -142,28 +152,13 @@ def on_partial_fill(fill_repo: FillLedgerRepository,
                    side: str,
                    partial_quantity: float,
                    price: float,
+                   trade_id: str,
                    partial_fees: float = 0.0,
                    client_order_id: Optional[str] = None,
-                   trade_id: Optional[str] = None,
                    **kwargs) -> bool:
-    """Hook called when an order partially fills.
-    
-    Partial fills are treated the same as regular fills - each partial
-    is recorded separately in the ledger.
-    
-    Args:
-        fill_repo: FillLedgerRepository instance
-        product_id: Trading pair
-        side: 'BUY' or 'SELL'
-        partial_quantity: Amount of this partial fill
-        price: Fill price for this partial
-        partial_fees: Fees for this partial
-        client_order_id: Client order ID
-        trade_id: Unique fill identifier
-        **kwargs: Additional parameters (passed to on_order_filled)
-    
-    Returns:
-        True if recorded successfully
+    """Backfill helper for a single partial fill. See ``on_order_filled``.
+
+    ``trade_id`` (the derived_trade_key) is REQUIRED.
     """
     return on_order_filled(
         fill_repo=fill_repo,
@@ -171,9 +166,9 @@ def on_partial_fill(fill_repo: FillLedgerRepository,
         side=side,
         quantity=partial_quantity,
         price=price,
+        trade_id=trade_id,
         fees=partial_fees,
         client_order_id=client_order_id,
-        trade_id=trade_id,
         **kwargs
     )
 

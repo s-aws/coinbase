@@ -38,6 +38,7 @@ from database.order import (
     create_conditional_orders_table,
     create_order_event_stream_table,
     create_partial_fill_progress_table,
+    create_order_match_audit_table,
 )
 from psycopg2 import sql
 
@@ -138,6 +139,7 @@ def main() -> None:
             create_conditional_orders_table()
             create_order_event_stream_table()
             create_partial_fill_progress_table()
+            create_order_match_audit_table()
             print("\n✓ All tables recreated successfully!")
         except Exception as e:
             print(f"\n✗ Error creating tables: {type(e).__name__}: {e}")

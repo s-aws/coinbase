@@ -197,7 +197,7 @@ def _build_investor_storyboard_snapshot(
         db = PostgresDB()
         
         # Use fill_ledger table which has actual execution data
-        # fill_ledger has: trade_id, instrument, side, quantity, price, timestamp, fees, commission_percentage, client_order_id
+        # fill_ledger has: derived_trade_key, exchange_trade_id, instrument, side, quantity, price, timestamp, fees, commission_percentage, client_order_id
         if product_id:
             query = """
             SELECT 

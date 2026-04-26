@@ -74,7 +74,7 @@ def demo_stealth_order_lifecycle():
         # Step 4: Simulate order fill
         print("[STEP 4] Simulating order fill (ORDER FILLED at market)...")
         print("-" * 60)
-        from core.order_engine import post_fill_hook_on_order_filled
+        from business.post_fill_hook import on_order_filled as post_fill_hook_on_order_filled
         
         # Update stealth order execution status
         stealth_manager.update_execution(
