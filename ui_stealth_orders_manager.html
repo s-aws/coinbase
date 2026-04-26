@@ -851,6 +851,19 @@
                         </div>
 
                         <div id="anchor-repricing-fields" class="policy-panel hidden">
+
+                            <!-- How It Works concept box -->
+                            <div style="background: rgba(103,126,234,0.1); border: 1px solid rgba(103,126,234,0.35); border-radius: 5px; padding: 10px 12px; margin-bottom: 10px; font-size: 10px; color: #aaa; line-height: 1.6;">
+                                <div style="color: #7b9fff; font-weight: bold; margin-bottom: 5px; font-size: 11px;">📐 How Repricing Works</div>
+                                <div>Each ticker update computes a <b style="color:#e0e0e0;">reference price</b> (midpoint, last trade, or top of book). The order is then aimed at:</div>
+                                <div style="margin: 5px 0 5px 8px;">
+                                    <span style="color:#51cf66;">● Target</span> &nbsp;= reference ± <b>Target Distance</b> &nbsp;(ideal resting position)<br>
+                                    <span style="color:#ff922b;">● Boundary</span> = reference ± <b>Max Distance</b> &nbsp;(furthest allowed before forced reprice)
+                                </div>
+                                <div>For a <b style="color:#e0e0e0;">BUY</b>: order rests <i>below</i> the reference. For a <b style="color:#e0e0e0;">SELL</b>: order rests <i>above</i> it.</div>
+                                <div style="margin-top: 4px; color: #888;">If the order drifts past the boundary due to market movement, it is forced back to the boundary price on the next tick.</div>
+                            </div>
+
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Reference Price Source</label>
@@ -859,6 +872,10 @@
                                         <option value="last_trade">Last Trade</option>
                                         <option value="top_of_book">Top of Book</option>
                                     </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Ticker field used as the reference anchor.<br>
+                                        <b style="color:#888;">Midpoint</b> = (bid+ask)/2 &nbsp;·&nbsp; <b style="color:#888;">Top of Book</b> = best bid (BUY) or best ask (SELL)
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Distance Type</label>
@@ -866,16 +883,28 @@
                                         <option value="P" selected>Percentage (%)</option>
                                         <option value="A">Absolute Amount</option>
                                     </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        <b style="color:#888;">Percentage</b>: distances are fractions of the reference price (0.01 = 1%)<br>
+                                        <b style="color:#888;">Absolute</b>: distances are fixed dollar amounts (e.g. 50 = $50)
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Target Distance</label>
+                                    <label>Target Distance <span style="color:#51cf66;">●</span></label>
                                     <input type="number" id="anchor_target_distance" value="0.01" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Ideal distance from reference. The order is repriced <i>toward</i> this on every tick.<br>
+                                        <b style="color:#888;">Example (BUY, %)</b>: ref=40000, target=0.01 → order aims at 39600
+                                    </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Max Distance</label>
+                                    <label>Max Distance <span style="color:#ff922b;">●</span></label>
                                     <input type="number" id="anchor_max_distance" value="0.05" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Drift tolerance. If the market moves and the order exceeds this distance, it is forced back to the boundary.<br>
+                                        <b style="color:#888;">Example (BUY, %)</b>: ref=40000, max=0.05 → boundary at 38000. Must be ≥ target.
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-row">
@@ -885,6 +914,10 @@
                                         <option value="adaptive" selected>Adaptive</option>
                                         <option value="fixed">Fixed</option>
                                     </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        <b style="color:#888;">Adaptive</b>: reprice interval shortens when far from target, lengthens when close<br>
+                                        <b style="color:#888;">Fixed</b>: always wait exactly the interval below
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Fixed Interval Seconds</label>
@@ -893,26 +926,43 @@
                                         <option value="120">120</option>
                                         <option value="300">300</option>
                                     </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Only active when Update Mode is <b style="color:#888;">Fixed</b>. Sets the exact wait between reprice attempts.
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Min Price Change</label>
                                     <input type="number" id="anchor_min_price_change" value="0.01" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Minimum absolute price movement required to trigger a reprice. Prevents excessive churn from tiny fluctuations.<br>
+                                        <b style="color:#888;">E.g.</b> 0.01 = skip reprice if new price differs by less than $0.01
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Hysteresis (bps)</label>
                                     <input type="number" id="anchor_hysteresis_bps" value="5" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Basis-point dead zone relative to current price. Reprice is skipped if the change is less than this fraction of the current price.<br>
+                                        <b style="color:#888;">5 bps</b> at $40000 = skip if move &lt; $20
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Min Reprice Interval</label>
+                                    <label>Min Reprice Interval (sec)</label>
                                     <input type="number" id="anchor_min_reprice_interval_seconds" value="30" step="1" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Minimum seconds between reprices regardless of price movement. 0 = no limit.
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>Max Reprices / Hour</label>
                                     <input type="number" id="anchor_max_reprices_per_hour" value="20" step="1" min="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Hard cap on how many reprices are allowed in any rolling 60-minute window.
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -920,6 +970,9 @@
                                     <input type="checkbox" id="anchor_post_only_required" checked style="cursor: pointer; width: 14px; height: 14px;">
                                     <span>Require Post Only On Reprice</span>
                                 </label>
+                                <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                    When enabled, reprices that would cross the spread (taking liquidity) are skipped instead of executing as taker orders.
+                                </div>
                             </div>
                         </div>
 
@@ -1299,17 +1352,21 @@
             const state  = order.anchor_repricing_state_json  || {};
             if (!policy.enabled) return '';
 
-            const src   = policy.reference_price_source || 'midpoint';
-            const dist  = policy.distance_type === 'A'
-                ? `${policy.target_distance} abs`
-                : `${policy.target_distance}%`;
-            const maxD  = policy.distance_type === 'A'
-                ? `${policy.max_distance} abs`
-                : `${policy.max_distance}%`;
-            const refPx = state.last_reference_price != null
-                ? parseFloat(state.last_reference_price).toFixed(2) : '—';
-            const logPx = state.current_logical_limit_price != null
-                ? parseFloat(state.current_logical_limit_price).toFixed(2) : '—';
+            const src    = policy.reference_price_source || 'midpoint';
+            const isAbs  = policy.distance_type === 'A';
+            const side   = (order.side || '').toUpperCase();
+            const distLabel = isAbs
+                ? `${policy.target_distance} (abs)`
+                : `${(policy.target_distance * 100).toFixed(2)}%`;
+            const maxLabel = isAbs
+                ? `${policy.max_distance} (abs)`
+                : `${(policy.max_distance * 100).toFixed(2)}%`;
+
+            const refPx  = state.last_reference_price != null
+                ? parseFloat(state.last_reference_price) : null;
+            const curPx  = state.current_logical_limit_price != null
+                ? parseFloat(state.current_logical_limit_price)
+                : parseFloat(order.limit_price || 0);
             const lastAt = state.last_reprice_at
                 ? new Date(state.last_reprice_at).toLocaleTimeString() : '—';
             const reason = state.reprice_reason || '—';
@@ -1317,12 +1374,43 @@
             const nextAt = state.next_reprice_at
                 ? new Date(state.next_reprice_at).toLocaleTimeString() : '—';
 
+            // Compute target and boundary from reference price + policy
+            let targetPx = null, boundaryPx = null, zoneHtml = '';
+            if (refPx && refPx > 0) {
+                const tDist = isAbs
+                    ? policy.target_distance
+                    : refPx * policy.target_distance;
+                const mDist = isAbs
+                    ? policy.max_distance
+                    : refPx * policy.max_distance;
+                if (side === 'BUY') {
+                    targetPx   = refPx - tDist;
+                    boundaryPx = refPx - mDist;
+                } else {
+                    targetPx   = refPx + tDist;
+                    boundaryPx = refPx + mDist;
+                }
+
+                const atTarget    = curPx != null && Math.abs(curPx - targetPx) < 0.005 * refPx;
+                const outsideBound = curPx != null && (
+                    side === 'BUY' ? curPx < boundaryPx : curPx > boundaryPx
+                );
+                const statusColor = outsideBound ? '#ff6b6b' : atTarget ? '#51cf66' : '#ffd43b';
+                const statusText  = outsideBound ? '⚠ outside boundary' : atTarget ? '✓ at target' : '↔ tracking';
+
+                zoneHtml = `<div style="margin:4px 0; padding:5px 6px; background:rgba(0,0,0,0.3); border-radius:4px; font-family:monospace; font-size:10px; line-height:1.8;">` +
+                    `<div>Ref:      <b style="color:#aaa;">${refPx.toFixed(2)}</b></div>` +
+                    `<div>Target <span style="color:#51cf66;">●</span>  <b style="color:#51cf66;">${targetPx.toFixed(2)}</b> <span style="color:#666;">(${distLabel} from ref)</span></div>` +
+                    `<div>Boundary <span style="color:#ff922b;">●</span> <b style="color:#ff922b;">${boundaryPx.toFixed(2)}</b> <span style="color:#666;">(${maxLabel} from ref)</span></div>` +
+                    `<div>Current:  <b style="color:${statusColor};">${curPx != null ? curPx.toFixed(2) : '—'}</b> <span style="color:${statusColor};">${statusText}</span></div>` +
+                    `</div>`;
+            }
+
             return `<div style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">` +
-                `<div style="color: #60cdff; font-weight: 600; margin-bottom: 4px;">⟳ Market Repricing</div>` +
-                `<div>Src: ${src} | Dist: ${dist} | Max: ${maxD}</div>` +
-                `<div>Ref price: ${refPx} | Logical limit: ${logPx}</div>` +
-                `<div>Last reprice: ${lastAt} (${reason})</div>` +
-                `<div>Reprices: ${count} | Next eligible: ${nextAt}</div>` +
+                `<div style="color: #60cdff; font-weight: 600; margin-bottom: 4px;">⟳ Market Repricing (${src})</div>` +
+                zoneHtml +
+                `<div style="color:#888; font-size:10px;">Reprices: ${count} | Last: ${lastAt} (${reason})</div>` +
+                `<div style="color:#888; font-size:10px;">Next eligible: ${nextAt}</div>` +
                 `</div>`;
         }
 

@@ -218,3 +218,102 @@ class TestAnchorRepricingIntegration:
 
         assert processed == 0
         assert mgr.in_memory_orders[oid]["limit_price"] == 50_000.0
+
+    def test_unprofitable_reprice_is_blocked(self):
+        """Repricing should be skipped when profitability validator marks it unprofitable."""
+        mgr = _make_manager()
+        oid = _make_order(mgr, limit_price=50_000.0)
+        order = mgr.in_memory_orders[oid]
+        order["target_movement"] = 0.002
+        order["target_movement_type"] = "P"
+
+        mock_validator = MagicMock()
+        mock_validator.derive_follow_up_price_from_target.return_value = 49_000.0
+        mock_validator.validate_order_profitability.return_value = {
+            "is_profitable": False,
+            "net_profit": -5.25,
+        }
+        mgr.profit_validator = mock_validator
+
+        _set_ticker(mgr, "BTC-USDC", bid=49_800.0, ask=49_900.0)
+
+        processed = mgr.process_anchor_repricing_for_product("BTC-USDC")
+
+        order = mgr.in_memory_orders[oid]
+        state = order.get("anchor_repricing_state_json") or {}
+
+        assert processed == 0
+        assert order["limit_price"] == 50_000.0
+        assert state.get("reprice_reason") == "blocked_unprofitable"
+        assert "blocked_unprofitable" in str(state.get("last_profitability_block_reason"))
+
+    def test_reprice_quantizes_to_product_price_increment(self):
+        """Repriced values should snap to product price_increment tick size."""
+        policy = {
+            "enabled": True,
+            "reference_price_source": "midpoint",
+            "distance_type": "A",
+            "target_distance": 7.0,
+            "max_distance": 20.0,
+            "update_mode": "adaptive",
+            "fixed_interval_seconds": 60,
+            "min_price_change": 0.0,
+            "hysteresis_bps": 0,
+            "min_reprice_interval_seconds": 0,
+            "max_reprices_per_hour": 9999,
+            "post_only_required": False,
+            "allow_revealed_reprice": False,
+        }
+        mgr = _make_manager()
+        oid = _make_order(
+            mgr,
+            product_id="BIP-20DEC30-CDE",  # price_increment=5 in products.json
+            side="BUY",
+            limit_price=50_000.0,
+            policy=policy,
+        )
+        _set_ticker(mgr, "BIP-20DEC30-CDE", bid=49_850.1, ask=49_854.5)
+
+        processed = mgr.process_anchor_repricing_for_product("BIP-20DEC30-CDE")
+
+        order = mgr.in_memory_orders[oid]
+        assert processed == 1
+        assert order["limit_price"] % 5 == 0
+        # Midpoint = 49_852.3, target = 49_845.3, nearest 5 tick => 49_845.0
+        assert order["limit_price"] == 49_845.0
+
+    def test_boundary_clamp_quantization_keeps_buy_within_max_boundary(self):
+        """BUY boundary clamp should quantize upward so it does not remain beyond max boundary."""
+        policy = {
+            "enabled": True,
+            "reference_price_source": "midpoint",
+            "distance_type": "A",
+            "target_distance": 5.0,
+            "max_distance": 13.0,
+            "update_mode": "adaptive",
+            "fixed_interval_seconds": 60,
+            "min_price_change": 0.0,
+            "hysteresis_bps": 0,
+            "min_reprice_interval_seconds": 0,
+            "max_reprices_per_hour": 9999,
+            "post_only_required": False,
+            "allow_revealed_reprice": False,
+        }
+        mgr = _make_manager()
+        oid = _make_order(
+            mgr,
+            product_id="BIP-20DEC30-CDE",  # price_increment=5
+            side="BUY",
+            limit_price=49_970.0,  # below boundary so clamp path is taken
+            policy=policy,
+        )
+        _set_ticker(mgr, "BIP-20DEC30-CDE", bid=49_999.0, ask=50_001.0)  # midpoint=50_000
+
+        processed = mgr.process_anchor_repricing_for_product("BIP-20DEC30-CDE")
+
+        order = mgr.in_memory_orders[oid]
+        max_boundary = 50_000.0 - 13.0
+        assert processed == 1
+        assert order["limit_price"] % 5 == 0
+        assert order["limit_price"] >= max_boundary
+        assert order["limit_price"] == 49_990.0

@@ -304,7 +304,7 @@ class ProfitValidator:
         # We need to convert to actual position size (in BTC/units) for fee calculation
         # Gross profit and fees should be based on actual position size, not contract count
         effective_size = order_size
-        if product_type in ('FUTURE', 'PERPETUAL') and contract_size and contract_size > 0:
+        if product_type == ProductType.FUTURE.value and contract_size and contract_size > 0:
             effective_size = order_size * float(contract_size)
             # TODO: Change to DEBUG level logging
             logger.info(
@@ -339,7 +339,7 @@ class ProfitValidator:
         # SPOT products have no mandatory fee
         # Note: Uses raw constant; OrderBook pre-computes contract-size-adjusted fees
         mandatory_fees = 0.0
-        if product_type in ('FUTURE', 'PERPETUAL'):
+        if product_type == ProductType.FUTURE.value:
             mandatory_fees = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT * order_size
             # TODO: Change to DEBUG level logging
             logger.info(
@@ -483,7 +483,11 @@ class ProfitValidator:
                                     parent_side: str,
                                     follow_up_price: float,
                                     order_size: float,
-                                    min_margin_pct: float = 0.0) -> Dict[str, Any]:
+                                    min_margin_pct: float = 0.0,
+                                    product_type: str = None,
+                                    product_id: str = None,
+                                    position_side: str = None,
+                                    contract_size: float = None) -> Dict[str, Any]:
         """Comprehensive profitability validation with detailed reporting.
         
         Args:
@@ -492,10 +496,18 @@ class ProfitValidator:
             follow_up_price: Proposed price for follow-up
             order_size: Size of orders
             min_margin_pct: Minimum profit margin as percentage (e.g., 0.005 for 0.5%)
+            product_type: ProductType enum value ('SPOT', 'FUTURE', 'PERPETUAL'); defaults to SPOT
+            product_id: Trading pair ID (optional, used for fee rate lookup)
+            position_side: 'LONG' or 'SHORT' (optional, for futures only)
+            contract_size: Contract size for FUTURE/PERPETUAL (optional, e.g., 0.01 BTC)
         
         Returns:
             Dict with profitability assessment and remediation suggestions
         """
+        # Default product_type to SPOT if not provided
+        if product_type is None:
+            product_type = ProductType.SPOT.value
+        
         fee_rate = self._get_fee_rate()
         
         # Validate inputs
@@ -531,7 +543,11 @@ class ProfitValidator:
             follow_up_price=follow_up_price,
             side=parent_side,
             order_size=order_size,
-            min_profit_margin=min_profit
+            min_profit_margin=min_profit,
+            product_type=product_type,
+            product_id=product_id,
+            position_side=position_side,
+            contract_size=contract_size
         )
         
         # Add validation status and remediation

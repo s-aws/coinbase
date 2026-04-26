@@ -65,12 +65,21 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 
-from configuration import DEFAULT_MAX_ORDER_REPLACEMENT, safe_float
+from configuration import (
+    DEFAULT_MAX_ORDER_REPLACEMENT,
+    PRODUCT_METADATA,
+    get_trading_product_id,
+    normalize_product_type,
+    quantize_to_increment,
+    safe_float,
+)
 from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
+    ProductType,
     RevealPricingPolicy,
     RevealPriceSource,
+    RoundingDirection,
     StealthLifecycleEvent,
     StealthOrderStatus,
 )
@@ -455,6 +464,39 @@ class StealthOrderManager:
             "max_distance_amount": float(max_distance),
         }
 
+    def _quantize_reprice_price(
+        self,
+        product_id: str,
+        side: str,
+        price: float,
+        *,
+        boundary_enforced: bool = False,
+    ) -> float:
+        """Snap repricing price to product-specific minimum price increment.
+
+        For normal repricing, we use nearest tick to preserve intent.
+        For boundary-enforced repricing, use directional quantization so BUY
+        does not drift below boundary and SELL does not drift above boundary.
+        """
+        trading_product_id = get_trading_product_id(str(product_id or ""))
+        metadata = PRODUCT_METADATA.get(product_id) or PRODUCT_METADATA.get(trading_product_id) or {}
+        price_increment = metadata.get("price_increment")
+        if not price_increment:
+            return float(price)
+
+        normalized_side = str(side or "").upper()
+        direction = RoundingDirection.NEAREST.value
+        if boundary_enforced:
+            if normalized_side == OrderSide.BUY.value:
+                direction = RoundingDirection.UP.value
+            elif normalized_side == OrderSide.SELL.value:
+                direction = RoundingDirection.DOWN.value
+
+        try:
+            return float(quantize_to_increment(float(price), str(price_increment), direction=direction))
+        except (TypeError, ValueError):
+            return float(price)
+
     def _should_skip_anchor_reprice(
         self,
         state: Dict[str, Any],
@@ -546,6 +588,90 @@ class StealthOrderManager:
         # Hard cap from max_reprice_window_seconds
         max_window = int(policy.get("max_reprice_window_seconds", 600))
         return min(interval, max_window)
+
+    def _validate_anchor_reprice_profitability(
+        self,
+        order: Dict[str, Any],
+        candidate_entry_price: float,
+    ) -> Tuple[bool, Optional[str]]:
+        """Validate that repricing to candidate entry price remains profitable.
+
+        Uses the same ProfitValidator target-movement derivation used by reveal
+        revalidation, but evaluates a candidate repriced entry before applying it.
+
+        Returns:
+            (is_profitable, reason_if_blocked)
+        """
+        if not self.profit_validator:
+            return True, None
+
+        try:
+            side_raw = str(order.get("side") or "").upper()
+            try:
+                parent_side = OrderSide(side_raw)
+            except ValueError:
+                return True, None
+
+            target_movement = safe_float(order.get("target_movement"), default=0.0)
+            target_movement_type = order.get("target_movement_type")
+            if target_movement <= 0:
+                return True, None
+
+            order_size = safe_float(order.get("remaining_size"), default=0.0)
+            if order_size <= 0:
+                order_size = safe_float(order.get("total_size"), default=0.0)
+
+            entry_price = safe_float(candidate_entry_price, default=0.0)
+            if order_size <= 0 or entry_price <= 0:
+                return True, None
+
+            if not hasattr(self.profit_validator, "derive_follow_up_price_from_target"):
+                return True, None
+
+            follow_up_price = self.profit_validator.derive_follow_up_price_from_target(
+                parent_filled_price=entry_price,
+                parent_side=parent_side.value,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+            )
+            if follow_up_price is None or follow_up_price <= 0:
+                return True, None
+
+            # Extract product type and contract size for FUTURE/PERPETUAL products
+            product_id = order.get("product_id", "")
+            product_type = normalize_product_type(order, products=PRODUCT_METADATA)
+            contract_size = None
+            if product_type == ProductType.FUTURE.value:
+                product_metadata = PRODUCT_METADATA.get(product_id, {})
+                contract_size = safe_float(product_metadata.get("contract_size"), default=None)
+
+            validation = self.profit_validator.validate_order_profitability(
+                parent_filled_price=entry_price,
+                parent_side=parent_side.value,
+                follow_up_price=follow_up_price,
+                order_size=order_size,
+                min_margin_pct=0.0,
+                product_type=product_type,
+                product_id=product_id,
+                contract_size=contract_size,
+            )
+
+            is_profitable = bool(validation.get("is_profitable", False))
+            if is_profitable:
+                return True, None
+
+            net_profit = safe_float(validation.get("net_profit"), default=0.0)
+            return False, (
+                f"blocked_unprofitable: projected net profit {net_profit:.8f} "
+                f"at entry {entry_price}"
+            )
+        except Exception as exc:
+            # Validation issues should never break repricing loop.
+            self.logger.warning(
+                f"Anchor repricing profitability validation failed for "
+                f"{order.get('stealth_order_id')}: {exc}"
+            )
+            return True, None
 
     def _placement_client_order_id_for_order(self, order: Dict[str, Any]) -> str:
         policy = order.get("anchor_repricing_policy_json") or {}
@@ -716,6 +842,13 @@ class StealthOrderManager:
                 desired_price = max_boundary_price
                 reprice_reason = "outside_max_boundary"
 
+            desired_price = self._quantize_reprice_price(
+                order.get("product_id"),
+                order.get("side"),
+                desired_price,
+                boundary_enforced=outside_max,
+            )
+
             now = datetime.utcnow()
             state.update({
                 "last_reference_source": reference_source,
@@ -724,6 +857,28 @@ class StealthOrderManager:
                 "last_reference_ask": safe_float(market_data.get("ask"), default=None),
                 "last_reference_at": now.isoformat(),
             })
+
+            profitable, profitability_reason = self._validate_anchor_reprice_profitability(
+                order,
+                desired_price,
+            )
+            if not profitable:
+                state["reprice_reason"] = "blocked_unprofitable"
+                state["last_profitability_block_reason"] = profitability_reason
+                state["next_reprice_at"] = (
+                    now + timedelta(
+                        seconds=self._next_anchor_reprice_seconds(
+                            policy,
+                            current_price,
+                            target_prices["target_price"],
+                            max_boundary_price,
+                            market_data,
+                        )
+                    )
+                ).isoformat()
+                order["anchor_repricing_state_json"] = state
+                self._update_stealth_order(order)
+                continue
 
             if order.get("status") in {StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value}:
                 if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max, market_data):
@@ -911,12 +1066,23 @@ class StealthOrderManager:
                 )
                 return True, None
 
+            # Extract product type and contract size for FUTURE/PERPETUAL products
+            product_id = order.get("product_id", "")
+            product_type = normalize_product_type(order, products=PRODUCT_METADATA)
+            contract_size = None
+            if product_type == ProductType.FUTURE.value:
+                product_metadata = PRODUCT_METADATA.get(product_id, {})
+                contract_size = safe_float(product_metadata.get("contract_size"), default=None)
+
             validation = self.profit_validator.validate_order_profitability(
                 parent_filled_price=parent_filled_price,
                 parent_side=parent_side.value,
                 follow_up_price=follow_up_price,
                 order_size=order_size,
                 min_margin_pct=0.0,
+                product_type=product_type,
+                product_id=product_id,
+                contract_size=contract_size,
             )
 
             is_profitable = bool(validation.get("is_profitable", False))
