@@ -1889,13 +1889,6 @@ class OrderEngine:
         if isinstance(fcm_balance_summary, dict):
             self.fee_manager.update_margin_window_from_summary(fcm_balance_summary)
 
-            # Prefer explicit active/current fields before generic margin_window_type.
-            for key in ("active_margin_window_type", "current_margin_window_type", "margin_window_type"):
-                margin_window_type = fcm_balance_summary.get(key)
-                if margin_window_type:
-                    self.fee_manager.update_margin_window_type(margin_window_type)
-                    break
-
     def process_user_snapshot(self, snapshot: dict) -> None:
         """Process position snapshot from websocket.
         
