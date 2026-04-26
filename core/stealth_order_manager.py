@@ -63,7 +63,7 @@ Example: evaluate and reveal from scheduler loop
 import uuid
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Iterator, Optional, Tuple, List
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
@@ -76,6 +76,7 @@ from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
     OrderStatus,
+    RevealConditionType,
     RevealPricingPolicy,
     RevealPriceSource,
     RoundingDirection,
@@ -92,6 +93,38 @@ from core.exceptions import (
 from business.stealth_condition_evaluator import get_evaluator
 from database.order import insert_order_parent
 from logging_service import get_logger
+
+
+# ---------------------------------------------------------------------------
+# Reveal-condition price-tracking helpers
+# ---------------------------------------------------------------------------
+# Per condition type, the JSON keys that represent ABSOLUTE price levels and
+# therefore should track 1:1 with ``order["limit_price"]`` whenever anchor
+# repricing moves the limit. Spread / ratio / time-delay fields are
+# intentionally absent — they are not absolute prices.
+_REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE: Dict[str, Tuple[str, ...]] = {
+    RevealConditionType.PRICE_THRESHOLD.value: ("price_threshold",),
+    RevealConditionType.CUMULATIVE_VOLUME.value: ("price_level",),
+}
+
+
+def _iter_reveal_condition_price_fields(
+    condition: Any,
+) -> Iterator[Tuple[Dict[str, Any], str]]:
+    """Yield ``(parent_dict, key)`` for every absolute-price field in a condition tree.
+
+    Recurses into ``COMPOSITE`` conditions via the ``conditions`` list. Order
+    types with no absolute price field (TIME_DELAY, SPREAD, PRODUCT_RATIO)
+    yield nothing. Non-numeric values are skipped.
+    """
+    if not isinstance(condition, dict):
+        return
+    cond_type = str(condition.get("type") or "").lower()
+    for field in _REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE.get(cond_type, ()):
+        if isinstance(condition.get(field), (int, float)):
+            yield condition, field
+    for sub in condition.get("conditions") or ():
+        yield from _iter_reveal_condition_price_fields(sub)
 
 
 class StealthOrderManager:
@@ -400,6 +433,68 @@ class StealthOrderManager:
         state = dict(anchor_repricing_state or {})
         state.setdefault("reprice_history", [])
         return state
+
+    def _apply_reveal_condition_price_tracking(
+        self,
+        order: Dict[str, Any],
+        state: Dict[str, Any],
+        new_limit_price: float,
+    ) -> bool:
+        """Update reveal_condition price thresholds in lock-step with a reprice.
+
+        Preserves the original offset between every absolute-price field in
+        ``reveal_condition_json`` and ``order["limit_price"]``. The offsets are
+        captured lazily on first invocation (using the order's pre-reprice
+        limit_price as baseline) and persisted in
+        ``state["reveal_condition_price_offsets"]`` for subsequent reprices.
+
+        Designed to be extensible: future "do-not-cross" / minimum guards can
+        clamp the resulting threshold against a profit floor without changing
+        callers (see ``agent.md`` integrated-by-design pattern).
+
+        Args:
+            order:           The stealth order dict (mutated in place).
+            state:           The (already normalized) anchor_repricing_state dict
+                             — also mutated to persist offsets.
+            new_limit_price: The new ``limit_price`` that will be applied.
+
+        Returns:
+            True when at least one threshold field was updated, False otherwise
+            (no price-bearing fields, missing baseline, etc.).
+        """
+        reveal_condition = order.get("reveal_condition_json")
+        if not isinstance(reveal_condition, dict):
+            return False
+
+        baseline_limit = safe_float(order.get("limit_price"), default=None)
+        new_limit = safe_float(new_limit_price, default=None)
+        if baseline_limit is None or new_limit is None:
+            return False
+
+        # Lazy-init: snapshot offsets from baseline (pre-first-reprice values).
+        offsets = state.get("reveal_condition_price_offsets")
+        if not isinstance(offsets, dict):
+            offsets = {}
+            for parent, key in _iter_reveal_condition_price_fields(reveal_condition):
+                offsets[key] = float(parent[key]) - baseline_limit
+            state["reveal_condition_price_offsets"] = offsets
+
+        if not offsets:
+            return False
+
+        updated = False
+        for parent, key in _iter_reveal_condition_price_fields(reveal_condition):
+            offset = offsets.get(key)
+            if offset is None:
+                continue
+            new_value = new_limit + float(offset)
+            if parent[key] != new_value:
+                parent[key] = new_value
+                updated = True
+
+        if updated:
+            order["reveal_condition_json"] = reveal_condition
+        return updated
 
     def _resolve_reference_price(
         self,
@@ -776,6 +871,11 @@ class StealthOrderManager:
         state.setdefault("reprice_history", []).append(now.isoformat())
         state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_price, max_boundary_price, market_data))).isoformat()
 
+        # Track reveal_condition price thresholds in lock-step with the new limit.
+        # Must run BEFORE we mutate order["limit_price"] so the helper can read
+        # the pre-reprice limit as the offset baseline on first invocation.
+        self._apply_reveal_condition_price_tracking(order, state, desired_price)
+
         order["anchor_repricing_state_json"] = state
         order["limit_price"] = desired_price
         order["updated_at"] = now
@@ -875,6 +975,9 @@ class StealthOrderManager:
 
             if order.get("status") in {StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value}:
                 if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max, market_data):
+                    # Track reveal_condition price thresholds before mutating limit_price
+                    # so the helper can capture the pre-reprice baseline on first call.
+                    self._apply_reveal_condition_price_tracking(order, state, desired_price)
                     order["limit_price"] = desired_price
                     order["updated_at"] = now
                     state["current_logical_limit_price"] = desired_price

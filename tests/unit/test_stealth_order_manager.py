@@ -317,6 +317,126 @@ class TestAnchorRepricing:
         assert state["active_placement_client_order_id"] != "placement-old"
         assert manager.in_memory_orders[stealth_order_id]["revealed_orders"][-1]["exchange_order_id"] == "exchange-new"
 
+    def test_reprice_tracks_reveal_condition_price_threshold_with_offset(self):
+        """Reveal condition price_threshold tracks limit_price reprices, preserving original offset."""
+        manager = StealthOrderManager(db_client=None)
+        stealth_order_id = "c91e8400-e29b-41d4-a716-446655440000"
+        # Configured offset: threshold = limit + 5 (i.e., reveal when price reaches 5 above limit).
+        manager.in_memory_orders[stealth_order_id] = {
+            "stealth_order_id": stealth_order_id,
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "total_size": 1.0,
+            "revealed_size": 0.0,
+            "remaining_size": 1.0,
+            "executed_size": 0.0,
+            "limit_price": 100.0,
+            "status": StealthOrderStatus.HIDDEN.value,
+            "reveal_condition_type": "price",
+            "reveal_condition_json": {
+                "type": "price",
+                "price_threshold": 105.0,
+                "direction": "above",
+                "hold_duration_seconds": 0,
+            },
+            "sizing_strategy_json": {"type": "fixed"},
+            "revealed_orders": [],
+            "anchor_repricing_policy_json": {
+                "enabled": True,
+                "reference_price_source": "midpoint",
+                "distance_type": "P",
+                "target_distance": 0.01,
+                "max_distance": 0.05,
+                "update_mode": "fixed",
+                "fixed_interval_seconds": 60,
+                "min_price_change": 0.01,
+                "hysteresis_bps": 0,
+                "min_reprice_interval_seconds": 0,
+                "max_reprices_per_hour": 20,
+                "allow_revealed_reprice": False,
+                "post_only_required": True,
+                "converge_to_target": True,
+                "inherit_to_follow_ups": True,
+            },
+            "anchor_repricing_state_json": {},
+        }
+        # Midpoint = 99 → SELL target distance 0.01 above midpoint → 99 * 1.01 = 99.99 → 99.99
+        manager._market_cache["BTC-USDC"] = {
+            "product_id": "BTC-USDC",
+            "price": 99.0,
+            "bid": 98.0,
+            "ask": 100.0,
+            "volume_1m": 10.0,
+            "source": "ticker",
+        }
+        manager._update_stealth_order = lambda order: None
+
+        processed = manager.process_anchor_repricing_for_product("BTC-USDC")
+
+        assert processed == 1
+        order = manager.in_memory_orders[stealth_order_id]
+        new_limit = order["limit_price"]
+        assert new_limit != 100.0
+        # price_threshold must equal new_limit + original offset (5).
+        assert order["reveal_condition_json"]["price_threshold"] == new_limit + 5.0
+        # Offsets persisted for future reprices.
+        assert order["anchor_repricing_state_json"]["reveal_condition_price_offsets"] == {"price_threshold": 5.0}
+
+    def test_reprice_leaves_non_price_reveal_conditions_untouched(self):
+        """Time-delay / spread / ratio conditions carry no absolute price; reprice must not mutate them."""
+        manager = StealthOrderManager(db_client=None)
+        stealth_order_id = "d91e8400-e29b-41d4-a716-446655440000"
+        manager.in_memory_orders[stealth_order_id] = {
+            "stealth_order_id": stealth_order_id,
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "total_size": 1.0,
+            "revealed_size": 0.0,
+            "remaining_size": 1.0,
+            "executed_size": 0.0,
+            "limit_price": 100.0,
+            "status": StealthOrderStatus.HIDDEN.value,
+            "reveal_condition_type": "time_delay",
+            "reveal_condition_json": {"type": "time_delay", "delay_seconds": 60},
+            "sizing_strategy_json": {"type": "fixed"},
+            "revealed_orders": [],
+            "anchor_repricing_policy_json": {
+                "enabled": True,
+                "reference_price_source": "midpoint",
+                "distance_type": "P",
+                "target_distance": 0.01,
+                "max_distance": 0.05,
+                "update_mode": "fixed",
+                "fixed_interval_seconds": 60,
+                "min_price_change": 0.01,
+                "hysteresis_bps": 0,
+                "min_reprice_interval_seconds": 0,
+                "max_reprices_per_hour": 20,
+                "allow_revealed_reprice": False,
+                "post_only_required": True,
+                "converge_to_target": True,
+                "inherit_to_follow_ups": True,
+            },
+            "anchor_repricing_state_json": {},
+        }
+        manager._market_cache["BTC-USDC"] = {
+            "product_id": "BTC-USDC",
+            "price": 99.0,
+            "bid": 98.0,
+            "ask": 100.0,
+            "volume_1m": 10.0,
+            "source": "ticker",
+        }
+        manager._update_stealth_order = lambda order: None
+
+        manager.process_anchor_repricing_for_product("BTC-USDC")
+
+        order = manager.in_memory_orders[stealth_order_id]
+        # Time-delay condition still has delay_seconds=60, no price fields injected.
+        assert order["reveal_condition_json"] == {"type": "time_delay", "delay_seconds": 60}
+        # No offsets recorded since there were no price-bearing fields.
+        assert order["anchor_repricing_state_json"].get("reveal_condition_price_offsets") in (None, {})
+
 
 class TestOrderSizing:
     """Test order sizing and reveals."""
