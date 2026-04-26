@@ -75,6 +75,7 @@ from configuration import (
 from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
+    OrderStatus,
     RevealPricingPolicy,
     RevealPriceSource,
     RoundingDirection,
@@ -1646,7 +1647,43 @@ class StealthOrderManager:
             # When fill event arrives with this client_order_id, it links directly to stealth order
             placed_order_id = client_order_id
             placement_success = True
-            
+
+            # Ensure an order_parent row exists for the placement client_order_id BEFORE
+            # any WS event for it arrives. When anchor_repricing.allow_revealed_reprice=True
+            # the placement uuid differs from stealth_order_id, and was previously only
+            # created lazily in OrderEngine.handle_filled_order. WS events arriving before
+            # FILLED triggered FK violations on partial_fill_progress.client_order_id_fkey.
+            # insert_order_parent is idempotent (returns existing row id on duplicate), so
+            # the later lazy-create in handle_filled_order remains a safe no-op.
+            if placed_order_id != stealth_order_id:
+                try:
+                    insert_order_parent(
+                        client_order_id=placed_order_id,
+                        product_id=order["product_id"],
+                        side=order["side"],
+                        size=slice_size,
+                        price=reveal_plan.submitted_limit_price,
+                        target_movement=safe_float(order.get("target_movement"), default=0.0),
+                        target_movement_type=order.get("target_movement_type", "P"),
+                        max_order_replacement=int(order.get("max_order_replacements") or 0),
+                        current_order_replacement=0,
+                        status=OrderStatus.OPEN.value,
+                        parent_order_id=stealth_order_id,
+                        allow_partial_fills=bool(order.get("allow_partial_fills", False)),
+                    )
+                except Exception as parent_insert_error:
+                    # Do not abort placement on audit-row insert failure; downstream WS handling
+                    # will retry/log via the existing partial_fill_progress error path.
+                    self.log_callback(
+                        "warning",
+                        {
+                            "event": "reveal_placement_order_parent_insert_failed",
+                            "stealth_order_id": stealth_order_id,
+                            "placement_client_order_id": placed_order_id,
+                            "error": str(parent_insert_error),
+                        },
+                    )
+
             # 🪝 POST-SUBMISSION HOOKS: Log/track submission after REST call succeeds
             # Exceptions here are logged but don't affect placement
             try:
