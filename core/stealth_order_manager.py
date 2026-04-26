@@ -69,14 +69,12 @@ from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
     PRODUCT_METADATA,
     get_trading_product_id,
-    normalize_product_type,
     quantize_to_increment,
     safe_float,
 )
 from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
-    ProductType,
     RevealPricingPolicy,
     RevealPriceSource,
     RoundingDirection,
@@ -637,13 +635,9 @@ class StealthOrderManager:
             if follow_up_price is None or follow_up_price <= 0:
                 return True, None
 
-            # Extract product type and contract size for FUTURE/PERPETUAL products
+            # Validator auto-resolves product_type, contract_size, and position_side
+            # from product_id via its injected orderbook (single source of truth).
             product_id = order.get("product_id", "")
-            product_type = normalize_product_type(order, products=PRODUCT_METADATA)
-            contract_size = None
-            if product_type == ProductType.FUTURE.value:
-                product_metadata = PRODUCT_METADATA.get(product_id, {})
-                contract_size = safe_float(product_metadata.get("contract_size"), default=None)
 
             validation = self.profit_validator.validate_order_profitability(
                 parent_filled_price=entry_price,
@@ -651,9 +645,7 @@ class StealthOrderManager:
                 follow_up_price=follow_up_price,
                 order_size=order_size,
                 min_margin_pct=0.0,
-                product_type=product_type,
                 product_id=product_id,
-                contract_size=contract_size,
             )
 
             is_profitable = bool(validation.get("is_profitable", False))
@@ -1066,13 +1058,9 @@ class StealthOrderManager:
                 )
                 return True, None
 
-            # Extract product type and contract size for FUTURE/PERPETUAL products
+            # Validator auto-resolves product_type, contract_size, and position_side
+            # from product_id via its injected orderbook (single source of truth).
             product_id = order.get("product_id", "")
-            product_type = normalize_product_type(order, products=PRODUCT_METADATA)
-            contract_size = None
-            if product_type == ProductType.FUTURE.value:
-                product_metadata = PRODUCT_METADATA.get(product_id, {})
-                contract_size = safe_float(product_metadata.get("contract_size"), default=None)
 
             validation = self.profit_validator.validate_order_profitability(
                 parent_filled_price=parent_filled_price,
@@ -1080,9 +1068,7 @@ class StealthOrderManager:
                 follow_up_price=follow_up_price,
                 order_size=order_size,
                 min_margin_pct=0.0,
-                product_type=product_type,
                 product_id=product_id,
-                contract_size=contract_size,
             )
 
             is_profitable = bool(validation.get("is_profitable", False))

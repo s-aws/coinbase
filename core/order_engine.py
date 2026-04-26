@@ -260,7 +260,10 @@ class OrderEngine:
         from calculation.profit_validator import ProfitValidator
         
         self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
-        self.profit_validator = ProfitValidator(fee_manager=self.fee_manager)
+        self.profit_validator = ProfitValidator(
+            fee_manager=self.fee_manager,
+            orderbook=self.orderbook,
+        )
 
         # Lot Tracking Integration: Initialize fill ledger and hook registry
         self.fill_repo = None
@@ -2904,15 +2907,9 @@ class OrderEngine:
                     # ✅ FIX: Use helper to resolve order_side (checks "order_side" then "side")
                     order_side = resolve_order_side(order) or "BUY"
                     order_size = float(order_template["order_base_size"])
-                    product_type = self.normalize_product_type(order)
                     product_id = order.get("product_id")
-                    
-                    # Get current position side for FUTURE/PERPETUAL
-                    position_side = None
-                    if product_type in ('FUTURE', 'PERPETUAL'):
-                        position_side = self.orderbook.get_position_side(product_id)
-                    
-                    # Debug: Log what position_side we detected
+
+                    # Debug: Log what we're about to validate (product context auto-resolved by validator)
                     self.log_message(
                         "info",
                         {
@@ -2920,32 +2917,19 @@ class OrderEngine:
                             "filled_price": filled_price,
                             "follow_up_price": follow_up_price,
                             "parent_side": order_side,
-                            "position_side": position_side,
-                            "product_type": product_type,
                             "product_id": product_id,
                         }
                     )
                     
-                    # Validate profitability
+                    # Validate profitability — validator auto-resolves product_type,
+                    # contract_size, and position_side from product_id via injected orderbook.
                     if self.profit_validator:
-                        # Get contract_size for futures products if needed
-                        contract_size = None
-                        if product_type in ('FUTURE', 'PERPETUAL'):
-                            product_data = self.orderbook.product.get(product_id, {})
-                            contract_size = safe_float(
-                                product_data.get("future_product_details", {}).get("contract_size"),
-                                default=1.0
-                            )
-                        
                         profit_result = self.profit_validator.is_profitable(
                             filled_price=filled_price,
                             follow_up_price=follow_up_price,
                             side=order_side,
                             order_size=order_size,
-                            product_type=product_type,
-                            position_side=position_side,
                             product_id=product_id,
-                            contract_size=contract_size
                         )
                         
                         if not profit_result["is_profitable"]:

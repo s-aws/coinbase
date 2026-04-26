@@ -93,14 +93,88 @@ class ProfitValidator:
     Accounts for product type and position-specific open/close determination.
     """
     
-    def __init__(self, fee_manager=None):
+    def __init__(self, fee_manager=None, orderbook=None):
         """Initialize ProfitValidator.
         
         Args:
             fee_manager: Optional FeeManager instance for dynamic fee rates.
                         If None, uses conservative defaults.
+            orderbook: Optional OrderBook instance used to auto-resolve product
+                      context (product_type, contract_size, position_side) from
+                      a product_id. When provided, callers may pass only
+                      product_id and the validator will look up the rest.
+                      When omitted, callers must supply context explicitly.
         """
         self.fee_manager = fee_manager
+        self.orderbook = orderbook
+    
+    def _resolve_product_context(
+        self,
+        product_id: Optional[str],
+        order: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Resolve product_type, contract_size, and position_side from product_id.
+
+        Single source of truth for product context resolution. Used internally
+        by is_profitable() and validate_order_profitability() so callers don't
+        have to duplicate this logic across the codebase.
+
+        Resolution order for product_type:
+            1. order['product_type'] (if provided and valid)
+            2. orderbook.product[product_id]['product_type']
+            3. Suffix-based fallback: '-CDE' → FUTURE, else SPOT
+
+        contract_size: Resolved from orderbook.product[product_id]
+            ['future_product_details']['contract_size'] for FUTURE products.
+            None for SPOT or when unavailable.
+
+        position_side: Resolved via orderbook.get_position_side(product_id)
+            for FUTURE products. None for SPOT or when no position exists.
+
+        Args:
+            product_id: Trading pair identifier (e.g., 'BIP-20DEC30-CDE').
+            order: Optional order dict for product_type hint.
+
+        Returns:
+            Dict with keys: product_type, contract_size, position_side.
+        """
+        # Lazy import to avoid circular dependencies
+        from configuration import normalize_product_type as _normalize_product_type
+
+        # Resolve product_type from order hint or orderbook fallback
+        order_for_normalize = dict(order) if order else {}
+        if product_id and "product_id" not in order_for_normalize:
+            order_for_normalize["product_id"] = product_id
+        products = self.orderbook.product if self.orderbook else None
+        product_type = _normalize_product_type(order_for_normalize, products=products)
+
+        contract_size: Optional[float] = None
+        position_side: Optional[str] = None
+
+        if product_type == ProductType.FUTURE.value and self.orderbook and product_id:
+            product_data = self.orderbook.product.get(product_id, {})
+            raw_contract_size = (
+                product_data.get("future_product_details", {}).get("contract_size")
+                if isinstance(product_data, dict) else None
+            )
+            if raw_contract_size is not None:
+                try:
+                    candidate = float(raw_contract_size)
+                    if candidate > 0:
+                        contract_size = candidate
+                except (TypeError, ValueError):
+                    contract_size = None
+
+            try:
+                position_side = self.orderbook.get_position_side(product_id)
+            except Exception:
+                position_side = None
+
+        return {
+            "product_type": product_type,
+            "contract_size": contract_size,
+            "position_side": position_side,
+        }
     
     def _get_fee_rate(self, product_id: str = None) -> float:
         """Get current effective fee rate (adaptive base multiplier model)."""
@@ -169,7 +243,7 @@ class ProfitValidator:
         side: str,  # 'BUY' or 'SELL' - the parent order side
         order_size: float,
         min_profit_margin: float = 0.0,
-        product_type: str = 'SPOT',
+        product_type: str = None,
         position_side: str = None,
         product_id: str = None,
         contract_size: float = None
@@ -282,6 +356,24 @@ class ProfitValidator:
             ...     position_side='SHORT'      # SELL is open, BUY is close
             ... )
         """
+        # Auto-resolve product context from orderbook when caller didn't supply it.
+        # This is the single point that fills in missing product_type / contract_size /
+        # position_side, so callers only need to pass product_id (when an orderbook
+        # is wired in). Explicit args always win over auto-resolution.
+        if (product_type is None or contract_size is None or position_side is None) \
+                and self.orderbook is not None and product_id:
+            ctx = self._resolve_product_context(product_id)
+            if product_type is None:
+                product_type = ctx["product_type"]
+            if contract_size is None:
+                contract_size = ctx["contract_size"]
+            if position_side is None:
+                position_side = ctx["position_side"]
+        
+        # Final defaults if context still unresolved (no orderbook available)
+        if product_type is None:
+            product_type = ProductType.SPOT.value
+        
         # Determine which side is open/close based on product type and current position
         # Pass parent_order_side (the 'side' parameter) for context when position is closed
         open_side, close_side = determine_open_close_sides(
@@ -490,24 +582,24 @@ class ProfitValidator:
                                     contract_size: float = None) -> Dict[str, Any]:
         """Comprehensive profitability validation with detailed reporting.
         
+        When the validator was constructed with an orderbook, callers can pass
+        only product_id and the validator will auto-resolve product_type,
+        contract_size, and position_side. Explicit args always win.
+        
         Args:
             parent_filled_price: Price at which parent order filled
             parent_side: Side of parent order ('BUY' or 'SELL')
             follow_up_price: Proposed price for follow-up
             order_size: Size of orders
             min_margin_pct: Minimum profit margin as percentage (e.g., 0.005 for 0.5%)
-            product_type: ProductType enum value ('SPOT', 'FUTURE', 'PERPETUAL'); defaults to SPOT
-            product_id: Trading pair ID (optional, used for fee rate lookup)
-            position_side: 'LONG' or 'SHORT' (optional, for futures only)
-            contract_size: Contract size for FUTURE/PERPETUAL (optional, e.g., 0.01 BTC)
+            product_type: Optional ProductType value; auto-resolved from product_id if omitted
+            product_id: Trading pair ID (used for context auto-resolution and fee rate lookup)
+            position_side: Optional 'LONG'/'SHORT'; auto-resolved from product_id if omitted
+            contract_size: Optional contract size; auto-resolved from product_id if omitted
         
         Returns:
             Dict with profitability assessment and remediation suggestions
         """
-        # Default product_type to SPOT if not provided
-        if product_type is None:
-            product_type = ProductType.SPOT.value
-        
         fee_rate = self._get_fee_rate()
         
         # Validate inputs
@@ -538,6 +630,7 @@ class ProfitValidator:
         # Calculate profitability
         min_profit = parent_filled_price * min_margin_pct * order_size
         
+        # Pass through to is_profitable() which handles auto-resolution of product context
         result = self.is_profitable(
             filled_price=parent_filled_price,
             follow_up_price=follow_up_price,
