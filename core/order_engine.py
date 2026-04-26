@@ -1439,6 +1439,14 @@ class OrderEngine:
         if not root_parent:
             return
 
+        # Seed the root parent's in-memory metadata BEFORE registering, so
+        # downstream resolve_parent_target_movement / resolve_parent_replacement_state
+        # see the real configured values instead of an empty cache. Without this,
+        # follow-ups computed off the placement uuid's parent fall back to system
+        # defaults for target_movement, producing prices that erode the user's
+        # profit margin (root cause of follow_up_order_skipped_unprofitable).
+        self._seed_parent_order_cache_from_db(root_parent)
+
         self.register_child_order(client_order_id, root_parent)
 
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:

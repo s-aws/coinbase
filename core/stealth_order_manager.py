@@ -2400,7 +2400,8 @@ class StealthOrderManager:
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
-                       limit_price = %s, anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
+                       limit_price = %s, reveal_condition_json = %s,
+                       anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
                        updated_at = CURRENT_TIMESTAMP
                    WHERE stealth_order_id = %s""",
                 (order['status'],
@@ -2410,6 +2411,7 @@ class StealthOrderManager:
                  revealed_orders_json,
                  last_placement,
                  order.get('limit_price'),
+                 json.dumps(order.get('reveal_condition_json', {})),
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
                  order['stealth_order_id'])
