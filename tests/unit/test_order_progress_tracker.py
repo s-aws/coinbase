@@ -97,6 +97,36 @@ def test_ingest_two_matches_yields_two_deltas_with_correct_decomposition():
     assert d1.snapshot_seq == 1 and d2.snapshot_seq == 2
 
 
+def test_derived_price_uses_avg_price_not_value_over_size_for_futures():
+    """Regression: on futures contracts the WS ``filled_value`` is notional
+    (price × contracts × multiplier). Deriving price as ``value_delta /
+    size_delta`` would yield notional-per-contract (e.g. 784.40 instead of
+    78440.0 for a 0.01-multiplier nano-BTC future) and diverge from the rest
+    of the system, which reads price from ``avg_price`` / ``limit_price``.
+    The tracker must use the order's effective price directly."""
+    tracker = OrderProgressTracker()
+    # BIT futures: multiplier 0.01, BTC price 78440, 2 contracts filled
+    # → filled_value (notional, USD) = 78440 * 2 * 0.01 = 1568.80
+    delta = tracker.ingest(_evt(
+        client_order_id="coid-fut",
+        product_id="BIT-29MAY26-CDE",
+        cumulative_quantity="2",
+        filled_value="1568.80",
+        total_fees="0.45688",
+        number_of_fills=1,
+        leaves_quantity="3",
+        completion_percentage="40",
+        avg_price="78440",
+        limit_price="78440",
+    ))
+    assert delta is not None and delta.is_new_match
+    assert isclose(delta.size_delta, 2.0)
+    assert isclose(delta.derived_price, 78440.0)
+    # value_delta still carries the raw WS notional — it must NOT be
+    # arithmetically related to derived_price anymore.
+    assert isclose(delta.value_delta, 1568.80, abs_tol=1e-9)
+
+
 # ---------------------------------------------------------------------------
 # Terminal handling
 # ---------------------------------------------------------------------------

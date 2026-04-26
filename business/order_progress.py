@@ -70,6 +70,14 @@ class OrderSnapshotDelta:
     fee_delta: float
 
     # Derived helpers
+    # NOTE: ``derived_price`` is the order's effective price in quote currency
+    # (e.g. BTC price for a futures contract), sourced from
+    # ``avg_price``/``limit_price``/``price``. It is intentionally NOT
+    # ``value_delta / size_delta`` — on futures the WS ``filled_value`` is
+    # notional (price × contracts × multiplier), so that ratio would yield
+    # notional-per-contract and diverge from the rest of the system. ``value_delta``
+    # remains the raw notional delta from WS and has no arithmetic relationship
+    # to ``derived_price``.
     derived_price: float
     derived_trade_key: str
     snapshot_seq: int
@@ -204,16 +212,20 @@ class OrderProgressTracker:
             if not counters_advanced and not became_terminal:
                 return None
 
-            # Derive per-match price from value/size when available.
-            if size_delta > 0.0 and value_delta > 0.0:
-                derived_price = value_delta / size_delta
-            else:
-                derived_price = safe_float(
-                    normalized_order.get("avg_price")
-                    or normalized_order.get("limit_price")
-                    or normalized_order.get("price"),
-                    default=0.0,
-                )
+            # Per-match price = the order's effective price (e.g. BTC price for
+            # a futures contract), NOT notional/contract. WS ``filled_value`` is
+            # denominated in the quote currency and includes the contract
+            # multiplier on futures, so ``value_delta / size_delta`` would yield
+            # notional-per-contract, which is inconsistent with every other
+            # module (OrderCalculator, OrderProcessor, stealth pricing all read
+            # ``avg_price`` / ``limit_price`` directly). Use the same lookup
+            # here so the fill ledger and order-match audit stay consistent.
+            derived_price = safe_float(
+                normalized_order.get("avg_price")
+                or normalized_order.get("limit_price")
+                or normalized_order.get("price"),
+                default=0.0,
+            )
 
             derived_trade_key = str(uuid.uuid5(
                 uuid.NAMESPACE_OID,
