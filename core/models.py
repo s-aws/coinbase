@@ -167,6 +167,15 @@ class RevealExecutionPlan:
         market_source: Source of market data (ticker, snapshot, unavailable)
         market_bid: Best bid price at reveal time
         market_ask: Best ask price at reveal time
+        target_movement: Profit target (decimal, e.g. 0.003 for 0.3%) resolved
+            from the canonical ``order_parent`` row. Used by the reveal-time
+            profitability gate. ``None`` when no target is configured.
+        target_movement_type: ``'P'`` (percentage) or ``'A'`` (absolute);
+            paired with ``target_movement``. ``None`` when target is missing.
+        target_movement_source: Where ``target_movement`` was resolved from
+            (e.g. ``'order_parent'``, ``'stealth_order'``, ``'unavailable'``).
+            Recorded for audit so silent skips of the profitability gate are
+            traceable.
     """
     configured_limit_price: float
     submitted_limit_price: float
@@ -176,7 +185,10 @@ class RevealExecutionPlan:
     market_source: Optional[str] = None
     market_bid: Optional[float] = None
     market_ask: Optional[float] = None
-    
+    target_movement: Optional[float] = None
+    target_movement_type: Optional[str] = None
+    target_movement_source: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict for persistence/serialization."""
         return {
@@ -188,4 +200,7 @@ class RevealExecutionPlan:
             'market_source': self.market_source,
             'market_bid': self.market_bid,
             'market_ask': self.market_ask,
+            'target_movement': self.target_movement,
+            'target_movement_type': self.target_movement_type,
+            'target_movement_source': self.target_movement_source,
         }

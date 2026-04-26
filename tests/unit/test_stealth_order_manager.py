@@ -787,6 +787,9 @@ class TestRevealProfitabilityValidation:
             reveal_pricing_policy="configured_limit",
             reveal_price_source="configured_limit",
             fallback_used=False,
+            target_movement=0.01,
+            target_movement_type="P",
+            target_movement_source="order_parent",
         )
 
         is_profitable, reason = manager._validate_reveal_profitability(stealth_order_id, reveal_plan)
@@ -831,6 +834,9 @@ class TestRevealProfitabilityValidation:
             reveal_pricing_policy="configured_limit",
             reveal_price_source="configured_limit",
             fallback_used=False,
+            target_movement=0.005,
+            target_movement_type="P",
+            target_movement_source="order_parent",
         )
 
         # Should raise RevealPricingError when unprofitable

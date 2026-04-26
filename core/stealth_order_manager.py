@@ -91,7 +91,7 @@ from core.exceptions import (
     StealthOrderPersistenceError,
 )
 from business.stealth_condition_evaluator import get_evaluator
-from database.order import insert_order_parent
+from database.order import get_parent_order, insert_order_parent
 from logging_service import get_logger
 
 
@@ -1082,8 +1082,52 @@ class StealthOrderManager:
             market_bid=market_data.get("bid"),
             market_ask=market_data.get("ask"),
         )
-        
+
+        # Resolve canonical profit target from order_parent (single source of truth).
+        # The stealth_orders row may have NULL target_movement for root orders; the
+        # authoritative value lives on order_parent.
+        target_movement, target_movement_type, target_movement_source = \
+            self._resolve_target_movement_for_plan(stealth_order_id, order)
+        plan.target_movement = target_movement
+        plan.target_movement_type = target_movement_type
+        plan.target_movement_source = target_movement_source
+
         return plan
+
+    def _resolve_target_movement_for_plan(
+        self,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+    ) -> Tuple[Optional[float], Optional[str], str]:
+        """Resolve canonical (target_movement, target_movement_type, source).
+
+        Lookup precedence:
+        1. ``order_parent`` row (canonical) — keyed by ``stealth_order_id``.
+        2. In-memory stealth ``order`` dict (fallback if DB lookup fails).
+        3. ``unavailable`` — caller decides whether to skip the gate.
+        """
+        try:
+            parent_row = get_parent_order(stealth_order_id)
+        except Exception as exc:
+            self.logger.warning(
+                f"Failed to fetch order_parent for target_movement lookup "
+                f"({stealth_order_id}): {exc}"
+            )
+            parent_row = None
+
+        if parent_row is not None:
+            tm = safe_float(parent_row.get("target_movement"), default=0.0)
+            tm_type = parent_row.get("target_movement_type")
+            if tm > 0 and tm_type:
+                return tm, str(tm_type), "order_parent"
+
+        # Fallback: stealth_orders dict (rarely populated for root orders)
+        tm = safe_float(order.get("target_movement"), default=0.0)
+        tm_type = order.get("target_movement_type")
+        if tm > 0 and tm_type:
+            return tm, str(tm_type), "stealth_order"
+
+        return None, None, "unavailable"
 
     def _validate_reveal_profitability(
         self,
@@ -1126,11 +1170,17 @@ class StealthOrderManager:
 
             order_size = safe_float(order.get("total_size"), default=0.0)
             parent_filled_price = safe_float(reveal_execution_plan.submitted_limit_price, default=0.0)
-            target_movement = safe_float(order.get("target_movement"), default=0.0)
-            target_movement_type = order.get("target_movement_type")
+            # Use target resolved by the plan (canonical: order_parent row).
+            target_movement = safe_float(reveal_execution_plan.target_movement, default=0.0)
+            target_movement_type = reveal_execution_plan.target_movement_type
 
             if target_movement <= 0:
                 # No explicit target configured, do not block reveal.
+                self.logger.info(
+                    "Skipping reveal profitability validation: no target_movement "
+                    f"available for {stealth_order_id} "
+                    f"(source={reveal_execution_plan.target_movement_source})"
+                )
                 return True, None
 
             if order_size <= 0 or parent_filled_price <= 0:

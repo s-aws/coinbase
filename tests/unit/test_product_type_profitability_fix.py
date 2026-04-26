@@ -99,6 +99,9 @@ class TestStealthManagerPassesOnlyProductId:
             market_source="ticker",
             market_bid=77540.0,
             market_ask=77545.0,
+            target_movement=0.002,
+            target_movement_type="P",
+            target_movement_source="order_parent",
         )
 
         stealth_manager._validate_reveal_profitability(
