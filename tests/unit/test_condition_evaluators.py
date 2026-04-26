@@ -181,8 +181,7 @@ class TestProductRatioCondition:
         max_ratio = 17.0
         
         should_reveal = ratio < min_ratio
-        
-        assert should_reveal is False  # 14.29 is below 15.0
+        assert should_reveal is True  # 14.29 is below 15.0
     
     def test_ratio_ceiling_exceeded(self):
         """Reveal when ratio rises above maximum."""
@@ -259,7 +258,7 @@ class TestConditionEdgeCases:
         
         spread = ask - bid
         
-        assert spread == 0.001
+        assert spread == pytest.approx(0.001, abs=1e-12)
         assert spread < 0.01
     
     def test_zero_volume_at_price(self):

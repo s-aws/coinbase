@@ -13,6 +13,16 @@ Design Pattern:
 
 The lot builder is stateless - it derives lots from the fill ledger
 on demand, ensuring consistency without maintaining separate state.
+
+Example:
+    >>> from business.fill_ledger import FillLedgerRepository
+    >>> from business.lot_builder import PositionLotBuilder
+    >>>
+    >>> repo = FillLedgerRepository(db_client)
+    >>> builder = PositionLotBuilder(repo)
+    >>> position = builder.build_position_by_product('BTC-USDC', profit_target_pct=0.5)
+    >>> position.instrument
+    'BTC-USDC'
 """
 
 from typing import List, Dict, Optional
@@ -93,7 +103,7 @@ class PositionLotBuilder:
                 lot.quantity += fill.quantity
                 lot.entry_value = lot.quantity * lot.entry_price
                 lot.fees += fill.fees
-                lot.source_fills.append(fill.trade_id)
+                lot.source_fills.append(fill.derived_trade_key)
                 
                 logger.debug(f"Extended lot {lot.lot_id}: now {lot.quantity} total")
         
@@ -140,7 +150,7 @@ class PositionLotBuilder:
             entry_timestamp=fill.timestamp,
             fees=fill.fees,
             target_profit_percentage=profit_target_pct,
-            source_fills=[fill.trade_id]
+            source_fills=[fill.derived_trade_key]
         )
         
         # Compute entry value and profit threshold
@@ -189,7 +199,7 @@ class PositionLotBuilder:
                 lot.quantity += fill.quantity
                 lot.entry_value = lot.quantity * lot.entry_price
                 lot.fees += fill.fees
-                lot.source_fills.append(fill.trade_id)
+                lot.source_fills.append(fill.derived_trade_key)
         
         return position
     

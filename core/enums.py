@@ -24,6 +24,10 @@ class OrderStatus(str, Enum):
     """Status of an order throughout its lifecycle.
     
     From Coinbase API: PENDING, OPEN, FILLED, CANCELLED, EXPIRED, FAILED
+
+    Engine event statuses also routed through order processing:
+    - UPDATE: Incremental websocket update for an existing order
+    - SNAPSHOT: Initial websocket snapshot payload
     """
     PENDING = "PENDING"
     OPEN = "OPEN"
@@ -32,6 +36,8 @@ class OrderStatus(str, Enum):
     EXPIRED = "EXPIRED"
     FAILED = "FAILED"
     CANCEL_QUEUED = "CANCEL_QUEUED"
+    UPDATE = "UPDATE"
+    SNAPSHOT = "SNAPSHOT"
 
 
 class StealthOrderStatus(str, Enum):
@@ -162,6 +168,39 @@ class FollowUpRevealDirection(str, Enum):
     OPPOSITE = "opposite"
 
 
+class RevealPricingPolicy(str, Enum):
+    """Pricing policy for stealth order reveal.
+    
+    Determines what price to use when revealing a stealth order to the exchange.
+    
+    - CONFIGURED_LIMIT: Use the limit price specified at order creation
+    - TOP_OF_BOOK: Use current best bid (SELL) or best ask (BUY) from ticker
+    - MIDPOINT: Use midpoint between current bid and ask
+    """
+    CONFIGURED_LIMIT = "configured_limit"
+    TOP_OF_BOOK = "top_of_book"
+    MIDPOINT = "midpoint"
+
+
+class RevealPriceSource(str, Enum):
+    """Source of the price used when revealing a stealth order.
+    
+    Indicates how the submitted limit price was determined at reveal time.
+    Used for audit trails and understanding reveal execution decisions.
+    
+    - CONFIGURED_LIMIT: Used original limit price from order creation (fallback or direct use)
+    - TICKER_BEST_BID: Used best bid from ticker (SELL orders with TOP_OF_BOOK policy)
+    - TICKER_BEST_ASK: Used best ask from ticker (BUY orders with TOP_OF_BOOK policy)
+    - TICKER_MIDPOINT: Used midpoint between bid/ask (MIDPOINT policy)
+    - UNAVAILABLE: Market data unavailable, fell back to configured limit
+    """
+    CONFIGURED_LIMIT = "configured_limit"
+    TICKER_BEST_BID = "ticker_best_bid"
+    TICKER_BEST_ASK = "ticker_best_ask"
+    TICKER_MIDPOINT = "ticker_midpoint"
+    UNAVAILABLE = "unavailable"
+
+
 # ============================================================================
 # STEALTH ORDER CONDITIONS
 # ============================================================================
@@ -198,6 +237,45 @@ class WebSocketEventType(str, Enum):
     SNAPSHOT = "snapshot"
     UPDATE = "update"
     PATCH = "patch"
+
+
+class EventTriggerType(str, Enum):
+    """Trigger categories for audit/event-stream payloads."""
+    STEALTH_CONDITION = "stealth_condition"
+    FOLLOW_UP = "follow_up"
+
+
+class EventSourceChannel(str, Enum):
+    """Named source channels for order_event_stream rows."""
+    PLACEMENT_PRE_HOOK      = "placement_pre_hook"
+    WS_USER                 = "ws_user"
+    FILL_HOOK               = "fill_hook"
+    REST_SUBMIT             = "rest_submit"
+    PLACEMENT_POST_HOOK     = "placement_post_hook"
+    ORDER_STATE_HOOK        = "order_state_hook"
+    STEALTH_LIFECYCLE_HOOK  = "stealth_lifecycle_hook"
+    ORDER_ENGINE_OPEN       = "order_engine_open_handler"
+    ORDER_ENGINE_TERMINAL   = "order_engine_terminal_handler"
+
+
+class EventStreamType(str, Enum):
+    """Static event_type values written to order_event_stream.
+
+    Dynamic values (e.g. ``stealth_<lifecycle_event>`` and ``order_<status>``)
+    are derived from existing enums at runtime and are NOT listed here.
+    """
+    STEALTH_CONDITION_MET         = "stealth_condition_met"
+    FILL_RECORDED                 = "fill_recorded"
+    ORDER_SUBMITTED               = "order_submitted"
+    STEALTH_REVEALED              = "stealth_revealed"
+    STEALTH_FOLLOW_UP_CREATED     = "stealth_follow_up_created"
+    INVENTORY_OPENED              = "inventory_opened"
+    INVENTORY_CLOSED              = "inventory_closed"
+    PARTIAL_FILL_DETECTED         = "partial_fill_detected"
+    PARTIAL_FILL_PROGRESS_UPDATED = "partial_fill_progress_updated"
+    PARTIAL_FILL_FOLLOW_UP_QUEUED = "partial_fill_follow_up_queued"
+    PARTIAL_FILL_BELOW_MIN        = "partial_fill_below_min_accumulated"
+    PARTIAL_FILL_FINALIZED        = "partial_fill_finalized"
 
 
 class ChannelType(str, Enum):
@@ -247,6 +325,70 @@ class RiskManagementType(str, Enum):
     MANAGED_BY_FCM = "MANAGED_BY_FCM"
     MANAGED_BY_VENUE = "MANAGED_BY_VENUE"
     UNKNOWN_RISK_MANAGEMENT_TYPE = "UNKNOWN_RISK_MANAGEMENT_TYPE"
+
+
+# ============================================================================
+# ORDER INVENTORY & LIFECYCLE TRACKING
+# ============================================================================
+
+class OrderStateEvent(str, Enum):
+    """Lifecycle event emitted when an exchange-visible order changes state.
+
+    Used by OrderStateHookRegistry to notify subscribers (e.g. OrderInventory)
+    of working-order transitions. These map directly to exchange-confirmed states.
+
+    - OPENED:    Order is now working on the exchange (OPEN/PENDING from WebSocket)
+    - FILLED:    Order fully filled on the exchange
+    - CANCELLED: Order cancelled (user-initiated or exchange-expired)
+    - EXPIRED:   Order expired (e.g. GTD time-in-force elapsed)
+
+    Integration:
+        Dispatched from StateManager AFTER its internal lock is released so that
+        subscribers never hold StateManager._lock, preventing any lock-ordering
+        deadlock. See data/order_inventory.py and integration/order_state_hooks.py.
+    """
+    OPENED    = "OPENED"
+    FILLED    = "FILLED"
+    CANCELLED = "CANCELLED"
+    EXPIRED   = "EXPIRED"
+
+
+class StealthLifecycleEvent(str, Enum):
+    """Fine-grained stealth order state-machine transition events.
+
+    Provides a complete play-by-play audit trail of every stealth order from
+    creation through final execution or failure. Stored in order_event_stream
+    via StealthLifecycleHookRegistry → OrderEventStreamPublisher.
+
+    State machine flow:
+        CREATED
+          └─► CONDITION_WATCHING  (condition partially met, watching for hold duration)
+                └─► CONDITION_MET (condition fully confirmed, order TRIGGERED)
+                      └─► REVEAL_ATTEMPTED
+                            ├─► PLACEMENT_BLOCKED  (pre-submission hook raised)  [terminal/retriable]
+                            ├─► REVEAL_FAILED      (REST exception / network error) [terminal/retriable]
+                            └─► REVEAL_SUCCEEDED   (slice placed on exchange books)
+                                  ├─► FILL_RECEIVED (fill event arrived from exchange)
+                                  ├─► EXECUTED      (all size filled)               [terminal]
+                                  └─► CANCELLED     (cancelled at any stage)        [terminal]
+
+    Integration:
+        Dispatched from StealthOrderManager at each transition point. Hooks are
+        called OUTSIDE any internal locks where possible. Subscribers receive a
+        context dict with product_id, side, product_type, size, limit_price, reason,
+        failure_reason (if applicable), placed_order_id (if applicable).
+        See integration/stealth_lifecycle_hooks.py and data/order_inventory.py.
+    """
+    CREATED            = "CREATED"             # create_stealth_order() persisted
+    CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met → PENDING
+    CONDITION_MET      = "CONDITION_MET"       # condition confirmed → TRIGGERED
+    REVEAL_ATTEMPTED   = "REVEAL_ATTEMPTED"    # slice placement about to be sent
+    PLACEMENT_BLOCKED  = "PLACEMENT_BLOCKED"   # pre-submission hook blocked placement
+    REVEAL_FAILED      = "REVEAL_FAILED"       # REST/network exception during placement
+    REVEAL_SUCCEEDED   = "REVEAL_SUCCEEDED"    # slice confirmed placed on exchange
+    FILL_RECEIVED      = "FILL_RECEIVED"       # fill event received for revealed slice
+    EXECUTED           = "EXECUTED"            # all size executed
+    CANCELLED          = "CANCELLED"           # order cancelled at any stage
 
 
 # ============================================================================

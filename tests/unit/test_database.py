@@ -7,6 +7,8 @@ Tests data persistence, queries, and repository operations.
 import pytest
 from datetime import datetime, timezone
 
+import database.order as order_db
+
 
 class TestDatabaseOperations:
     """Test database CRUD operations."""
@@ -160,7 +162,7 @@ class TestRepositoryQueries:
             if o["product_id"] == product
         )
         
-        assert total_revealed == 0.3
+        assert total_revealed == pytest.approx(0.3, abs=1e-12)
 
 
 class TestOrderPersistence:
@@ -218,6 +220,84 @@ class TestOrderPersistence:
         # In real system, data written to DB before crash
         # On restart, query finds it
         assert "stealth_order_id" in order
+
+
+class TestOrderEventStreamPersistence:
+    """Test JSON serialization for order_event_stream database writes."""
+
+    def test_insert_order_event_serializes_datetime_payloads(self, monkeypatch):
+        captured = {}
+
+        def fake_execute_query(query, params):
+            captured["query"] = query
+            captured["params"] = params
+            return [{"id": 1}]
+
+        monkeypatch.setattr(order_db.DB_CLIENT, "execute_query", fake_execute_query)
+
+        timestamp = datetime(2026, 4, 25, 6, 23, 49, tzinfo=timezone.utc)
+        inserted = order_db.insert_order_event(
+            event_id="evt-123",
+            event_type="stealth_created",
+            source_channel="stealth_lifecycle_hook",
+            event_time_exchange=timestamp,
+            stealth_order_id="7390ab9c-f9f7-4cd7-b204-9bb9bb9bab12",
+            trigger_payload_json={"timestamp": timestamp},
+            raw_payload_json={"timestamp": timestamp, "created_at": timestamp},
+            idempotency_key="test:stealth_created:1",
+        )
+
+        assert inserted == 1
+        assert timestamp.isoformat() in captured["params"][18]
+        assert timestamp.isoformat() in captured["params"][20]
+
+    def test_insert_stealth_order_lifecycle_event_matches_placeholder_count(self, monkeypatch):
+        captured = {}
+
+        class FakeCursor:
+            def execute(self, query, params):
+                captured["query"] = query
+                captured["params"] = params
+                assert query.count("%s") == len(params)
+
+            def fetchone(self):
+                return [1]
+
+            def close(self):
+                return None
+
+        class FakeContextManager:
+            def __enter__(self):
+                return FakeCursor()
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(
+            order_db.DB_CLIENT,
+            "execute_query",
+            lambda query, params: [{"last_lifecycle_event": "CREATED"}],
+        )
+        monkeypatch.setattr(order_db.DB_CLIENT, "get_cursor", lambda: FakeContextManager())
+
+        inserted = order_db.insert_stealth_order_lifecycle_event(
+            stealth_order_id="550e8400-e29b-41d4-a716-446655440000",
+            lifecycle_event="REVEAL_SUCCEEDED",
+            context={
+                "timestamp": datetime(2026, 4, 25, 6, 37, 23, tzinfo=timezone.utc),
+                "product_id": "BIP-20DEC30-CDE",
+                "side": "SELL",
+                "size": 1.0,
+                "total_size": 1.0,
+                "limit_price": 77870.0,
+                "reason": "normal_placement",
+                "placed_order_id": "550e8400-e29b-41d4-a716-446655440000",
+                "exchange_order_id": "5c2d29f2-11e6-402b-bad9-93afbf7f3ee7",
+            },
+        )
+
+        assert inserted == 1
+        assert captured["query"].count("%s") == len(captured["params"])
 
 
 class TestDataIntegrity:

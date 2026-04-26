@@ -12,6 +12,28 @@ Design:
 - Recoverable: Conditional orders survive engine restarts
 
 This follows the same pattern as stealth orders but for profit constraints.
+
+Example:
+    >>> from business.conditional_execution import ConditionalExecutionWrapper
+    >>> from business.order_interception_layer import OrderInterceptionLayer
+    >>> from business.fill_ledger import FillLedgerRepository
+    >>> from core.enums import OrderSide
+    >>>
+    >>> fill_repo = FillLedgerRepository(db_client)
+    >>> layer = OrderInterceptionLayer(fill_repo, profit_margin_pct=0.5)
+    >>> wrapper = ConditionalExecutionWrapper(layer, db_client=db_client)
+    >>>
+    >>> conditional = wrapper.wrap_with_profit_condition(
+    ...     product_id='BTC-USDC',
+    ...     side=OrderSide.SELL,
+    ...     size=0.1,
+    ...     price=43000.0,
+    ...     min_profitable_price=42950.0,
+    ...     base_order_id='client-order-123',
+    ...     notes='Wait for profitable exit'
+    ... )
+    >>> conditional is not None
+    True
 """
 
 from typing import Dict, List, Optional

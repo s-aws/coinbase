@@ -1,5 +1,7 @@
 # Test Suite Documentation
 
+External test operations runbook: `docs/EXTERNAL_TESTING_RUNBOOK.md`
+
 Comprehensive regression testing suite for the Coinbase Advanced Trading Platform. This test structure follows enterprise standards (Google, Meta) for safe deployments across all project components.
 
 **Current Focus:** Stealth order management (foundation for other features)  
@@ -125,6 +127,12 @@ pytest tests/regression/ -v --tb=short
 - Testing API response handling and error cases
 - Regression testing after API changes
 
+**Current external coverage in this repo:**
+- Live REST contract checks in `tests/external/test_coinbase_api.py` for accounts/products/orders
+- WebSocket reference contract checks using `websocket_reference/`
+- Wrapper behavior checks for `external/coinbase_websocket.py` without network I/O
+- Optional live WebSocket ticker smoke test (explicit opt-in)
+
 **Examples (existing and future):**
 - `test_rest_api.py` - Accounts, order placement, cancellation, product lookup, conversions
 - `test_websocket.py` - Subscribe/unsubscribe, ticker updates, order fills
@@ -141,6 +149,17 @@ pytest tests/regression/ -v --tb=short
 **Run only external tests:**
 ```bash
 pytest tests/external/ -v -m external
+```
+
+**Run websocket external tests only (default includes safe skips):**
+```bash
+pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+```
+
+**Enable live websocket smoke test explicitly:**
+```bash
+export COINBASE_ENABLE_WEBSOCKET_EXTERNAL=true
+pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 ```
 
 **Skip external tests in normal development:**
@@ -331,6 +350,17 @@ export COINBASE_API_KEY=your_key
 export COINBASE_API_SECRET=your_secret
 pytest tests/external/ -v
 ```
+
+### Live websocket smoke test is skipped
+By default, live websocket smoke tests are disabled for safety.
+
+Enable them explicitly:
+```bash
+export COINBASE_ENABLE_WEBSOCKET_EXTERNAL=true
+pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+```
+
+If disabled, websocket tests still run deterministic contract/wrapper checks and skip only the live network scenarios.
 
 ### Database tests fail with "connection error"
 Tests use SQLite in-memory database. Ensure `database.py` supports `":memory:"` mode.

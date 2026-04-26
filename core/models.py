@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from core.enums import OrderSide, OrderStatus, ProductType, TargetMovementType
+from core.enums import OrderSide, OrderStatus, ProductType, RevealPricingPolicy, RevealPriceSource, TargetMovementType
 
 
 @dataclass
@@ -143,4 +143,49 @@ class FollowUpOrderTemplate:
             'mandatory_fee': self.mandatory_fee,
             'current_contract_count': self.current_contract_count,
             'position_update': self.position_update,
+        }
+
+
+@dataclass
+class RevealExecutionPlan:
+    """Plan for revealing a stealth order - captures pricing intent and market context.
+    
+    Encapsulates all information needed to execute a stealth order reveal, including
+    what price to submit, why that price was chosen, and current market context.
+    Used for:
+    - Pre-reveal planning and validation
+    - Reveal-time price resolution
+    - Post-reveal profitability revalidation
+    - Audit trail of reveal decisions
+    
+    Attributes:
+        configured_limit_price: Original limit price from stealth order creation
+        submitted_limit_price: Actual limit price that will be submitted to exchange
+        reveal_pricing_policy: Policy that determined the price (enum value as string)
+        reveal_price_source: How the price was sourced (RevealPriceSource enum value, e.g. ticker_best_ask)
+        fallback_used: Whether configured limit was used as fallback (market data unavailable)
+        market_source: Source of market data (ticker, snapshot, unavailable)
+        market_bid: Best bid price at reveal time
+        market_ask: Best ask price at reveal time
+    """
+    configured_limit_price: float
+    submitted_limit_price: float
+    reveal_pricing_policy: str  # RevealPricingPolicy enum value as string
+    reveal_price_source: str  # RevealPriceSource enum value as string
+    fallback_used: bool
+    market_source: Optional[str] = None
+    market_bid: Optional[float] = None
+    market_ask: Optional[float] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dict for persistence/serialization."""
+        return {
+            'configured_limit_price': self.configured_limit_price,
+            'submitted_limit_price': self.submitted_limit_price,
+            'reveal_pricing_policy': self.reveal_pricing_policy,
+            'reveal_price_source': self.reveal_price_source,
+            'fallback_used': self.fallback_used,
+            'market_source': self.market_source,
+            'market_bid': self.market_bid,
+            'market_ask': self.market_ask,
         }

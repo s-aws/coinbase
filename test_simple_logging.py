@@ -70,7 +70,7 @@ def test_logging():
         print("[SCENARIO 1] Recording a fill...")
         print("-" * 60)
         fill = FillLedger(
-            trade_id=str(uuid.uuid4()),
+            derived_trade_key=str(uuid.uuid4()),
             instrument="BTC-USDC",
             side="BUY",
             quantity=1.0,

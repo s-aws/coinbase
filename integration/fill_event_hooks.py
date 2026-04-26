@@ -46,6 +46,20 @@ class FillEventHookRegistry:
         self._post_fill_hooks: List[Callable[[Dict[str, Any], str], None]] = []
         self._lock = threading.RLock()
     
+    # Extension example:
+    # >>> def validate_fill_quantity(fill):
+    # ...     if fill['quantity'] <= 0:
+    # ...         raise ValueError("Fill quantity must be > 0")
+    # >>> registry.register_pre_fill(validate_fill_quantity)
+    #
+    # >>> def enrich_fill_with_lot(fill):
+    # ...     fill['lot_id'] = f"lot_{fill['client_order_id'][:8]}"
+    # >>> registry.register_pre_fill(enrich_fill_with_lot)
+    #
+    # >>> def publish_fill_event(fill, fill_id):
+    # ...     logging.info(f"Fill {fill_id}: {fill['side']} {fill['quantity']} @ {fill['price']}")
+    # >>> registry.register_post_fill(publish_fill_event)
+    
     def register_pre_fill(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Register a hook to run BEFORE fill recording to ledger.
         

@@ -44,7 +44,6 @@ class StealthOrderBridge:
             self.stealth_manager.log_callback = order_engine.log_message
         self.evaluation_thread = None
         self.running = False
-        self.lock = threading.Lock()
     
     def start(self):
         """Start background evaluation and reconciliation threads.
@@ -237,10 +236,12 @@ class StealthOrderBridge:
             "ask": safe_float(ticker_data.get("best_ask"), 0),
             "volume_1m": safe_float(ticker_data.get("volume_24_h"), 0) / 1440,  # Approximate 1m volume
             "time": datetime.utcnow(),
+            "source": "ticker",
         }
         
         # Store market data in cache for evaluators
         self._update_market_cache(trading_product_id, market_data)
+        self.stealth_manager.process_anchor_repricing_for_product(trading_product_id)
     
     def record_reveal_event(self, stealth_order_id: str, client_order_id: str, reason: str):
         """Record a reveal event to the database."""

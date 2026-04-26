@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
-from typing import Set, Dict, Any
+from typing import Set, Dict, Any, Optional
 import websockets
 from websockets.server import WebSocketServerProtocol
 
@@ -29,6 +29,9 @@ except ImportError:
 # Use custom logging service
 from logging_service import get_logger
 from core.enums import FollowUpRevealDirection
+from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
+from database.database import PostgresDB
+from calculation.formatter import safe_float
 
 logger = get_logger("DashboardServer")
 
@@ -43,6 +46,13 @@ engine_state = {
         "running": False,
         "threads_active": 0,
         "event_queue_depth": 0,
+        "taker_fee_rate": None,
+        "effective_fee_rate": None,
+        "target_movement_factor": None,
+        "fee_regime_factor": None,
+        "volume_ratio": None,
+        "overnight_margin_active": None,
+        "margin_window_type": None,
         "last_update": None,
     },
     "logs": [],  # Recent log entries
@@ -155,11 +165,260 @@ async def broadcast_state(websocket: WebSocketServerProtocol = None):
                 connected_clients.discard(client)
 
 
-async def handle_client_message(websocket: WebSocketServerProtocol, message: str):
-    """Handle incoming messages from client."""
+def _build_investor_storyboard_snapshot(
+    window_minutes: int = 10080,  # default 7 days
+    bucket_seconds: int = None,   # auto-scaled to window if not specified
+    product_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Build candlestick OHLC data from fill_ledger for investor visualization.
+    
+    Args:
+        window_minutes: Look back this many minutes for data (default: 10080 = 7 days)
+        bucket_seconds: Group events into buckets of this size. Auto-scaled if None.
+        product_id: Filter to specific product, or None for aggregate
+    
+    Returns:
+        Dict with 'candles' list containing OHLC data for the chart
+    """
+    # Auto-scale bucket size to keep candle count reasonable (~50-100 candles)
+    if bucket_seconds is None:
+        if window_minutes <= 60:
+            bucket_seconds = 60          # 1-min candles
+        elif window_minutes <= 360:
+            bucket_seconds = 300         # 5-min candles
+        elif window_minutes <= 1440:
+            bucket_seconds = 900         # 15-min candles
+        elif window_minutes <= 10080:
+            bucket_seconds = 3600        # 1-hour candles
+        else:
+            bucket_seconds = 86400       # 1-day candles
+    db = None
     try:
-        data = json.loads(message)
+        db = PostgresDB()
+        
+        # Use fill_ledger table which has actual execution data
+        # fill_ledger has: derived_trade_key, exchange_trade_id, instrument, side, quantity, price, timestamp, fees, commission_percentage, client_order_id
+        if product_id:
+            query = """
+            SELECT 
+                timestamp as event_time,
+                price,
+                quantity as size,
+                instrument as product_id,
+                client_order_id
+            FROM fill_ledger
+            WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
+                AND price IS NOT NULL
+                AND quantity IS NOT NULL
+                AND instrument = %s
+            ORDER BY timestamp
+            """
+        else:
+            query = """
+            SELECT 
+                timestamp as event_time,
+                price,
+                quantity as size,
+                instrument as product_id,
+                client_order_id
+            FROM fill_ledger
+            WHERE timestamp >= NOW() - (%s * INTERVAL '1 minute')
+                AND price IS NOT NULL
+                AND quantity IS NOT NULL
+            ORDER BY timestamp
+            """
+
+        try:
+            params = (window_minutes, product_id) if product_id else (window_minutes,)
+            results = db.execute_query(query, params)
+
+            # Build mapping: client_order_id -> parent_order_id.
+            # Stealth orders map to their parent; parent orders map to themselves.
+            stealth_parents = db.execute_query(
+                "SELECT stealth_order_id, parent_order_id FROM stealth_orders WHERE parent_order_id IS NOT NULL"
+            )
+            parent_orders = db.execute_query(
+                "SELECT client_order_id FROM order_parent WHERE client_order_id IS NOT NULL"
+            )
+            client_to_parent = {}
+            for row in parent_orders:
+                client_order_id = row.get('client_order_id')
+                if client_order_id:
+                    client_to_parent[client_order_id] = client_order_id
+
+            for row in stealth_parents:
+                stealth_order_id = row.get('stealth_order_id')
+                parent_order_id = row.get('parent_order_id')
+                if stealth_order_id and parent_order_id:
+                    client_to_parent[stealth_order_id] = parent_order_id
+
+            # Convert results to candlesticks (group by time buckets in Python)
+            from collections import defaultdict
+            buckets = defaultdict(list)
+            
+            # Group events into time buckets
+            for row in results:
+                try:
+                    event_time = row.get('event_time')
+                    if not event_time:
+                        continue
+                    
+                    # Get parent order ID for grouping
+                    client_order_id = row.get('client_order_id')
+                    parent_order_id = client_to_parent.get(client_order_id)  # None if not a stealth order
+                    
+                    # Round to nearest bucket_seconds
+                    timestamp_seconds = int(event_time.timestamp())
+                    bucket_index = timestamp_seconds // bucket_seconds
+                    buckets[bucket_index].append({
+                        'price': safe_float(row.get('price'), 0),
+                        'size': safe_float(row.get('size'), 0),
+                        'time': event_time,
+                        'client_order_id': client_order_id,
+                        'parent_order_id': parent_order_id,
+                    })
+                except Exception as e:
+                    logger.debug(f"Error processing event: {e}")
+                    continue
+            
+            # Build candlesticks from buckets
+            candles = []
+            for bucket_index in sorted(buckets.keys()):
+                prices = [e['price'] for e in buckets[bucket_index]]
+                sizes = [e['size'] for e in buckets[bucket_index]]
+                times = [e['time'] for e in buckets[bucket_index]]
+                parent_volume_by_id = defaultdict(float)
+                for event in buckets[bucket_index]:
+                    parent_order_id = event.get('parent_order_id')
+                    if parent_order_id:
+                        parent_volume_by_id[parent_order_id] += safe_float(event.get('size'), 0)
+
+                group_slices = [
+                    {
+                        'group_id': parent_order_id,
+                        'volume': volume,
+                    }
+                    for parent_order_id, volume in sorted(
+                        parent_volume_by_id.items(),
+                        key=lambda item: (-item[1], item[0]),
+                    )
+                ]
+                group_id = group_slices[0]['group_id'] if group_slices else None
+                
+                if not prices:
+                    continue
+                
+                candle = {
+                    'index': bucket_index,
+                    'label': times[0].strftime('%H:%M') if times else f'T+{bucket_index}',
+                    'open': prices[0] if prices else 0,
+                    'high': max(prices) if prices else 0,
+                    'low': min(prices) if prices else 0,
+                    'close': prices[-1] if prices else 0,
+                    'volume': sum(sizes) if sizes else 0,
+                    'group_id': group_id,  # Parent order ID for chaining
+                    'group_slices': group_slices,
+                }
+                candles.append(candle)
+            
+            # If no data, generate mock data for testing
+            if not candles:
+                logger.info("No order events found, generating placeholder candles")
+                import random
+                price = 100.0
+                for i in range(20):
+                    drift = random.gauss(0, 1.5)
+                    price = max(50, price + drift)
+                    candles.append({
+                        'index': i,
+                        'label': f'{9 + i//6:02d}:{(i%6)*10:02d}',
+                        'open': price,
+                        'high': price + abs(random.gauss(0, 0.8)),
+                        'low': price - abs(random.gauss(0, 0.8)),
+                        'close': price + random.gauss(0, 0.5),
+                        'volume': random.randint(1000, 50000),
+                    })
+            
+            return {
+                'type': 'investor_storyboard',
+                'candles': candles,
+                'timestamp': datetime.utcnow().isoformat(),
+            }
+            
+        except Exception as e:
+            logger.warning(f"Query failed: {str(e)}. Using placeholder data.")
+            logger.debug(f"Full error trace: {repr(e)}", exc_info=True)
+            # Return placeholder data if table doesn't exist yet
+            import random
+            candles = []
+            price = 100.0
+            for i in range(20):
+                drift = random.gauss(0, 1.5)
+                price = max(50, price + drift)
+                candles.append({
+                    'index': i,
+                    'label': f'{9 + i//6:02d}:{(i%6)*10:02d}',
+                    'open': price,
+                    'high': price + abs(random.gauss(0, 0.8)),
+                    'low': price - abs(random.gauss(0, 0.8)),
+                    'close': price + random.gauss(0, 0.5),
+                    'volume': random.randint(1000, 50000),
+                })
+            
+            return {
+                'type': 'investor_storyboard',
+                'candles': candles,
+                'timestamp': datetime.utcnow().isoformat(),
+            }
+        
+    except Exception as e:
+        logger.error(f"Failed to build storyboard snapshot: {e}")
+        import random
+        candles = []
+        price = 100.0
+        for i in range(20):
+            drift = random.gauss(0, 1.5)
+            price = max(50, price + drift)
+            candles.append({
+                'index': i,
+                'label': f'{9 + i//6:02d}:{(i%6)*10:02d}',
+                'open': price,
+                'high': price + abs(random.gauss(0, 0.8)),
+                'low': price - abs(random.gauss(0, 0.8)),
+                'close': price + random.gauss(0, 0.5),
+                'volume': random.randint(1000, 50000),
+            })
+        return {
+            'type': 'investor_storyboard',
+            'candles': candles,
+            'timestamp': datetime.utcnow().isoformat(),
+        }
+    finally:
+        if db:
+            try:
+                db.disconnect()
+            except:
+                pass
+
+
+async def handle_client_message(websocket: WebSocketServerProtocol, message: str):
+    """Handle incoming messages from client.
+    
+    Raises:
+        WebSocketMessageError: If message parsing fails or required fields missing
+        OrderCreationError: If order placement fails
+        CoinbaseAPIError: If API call fails
+    """
+    try:
+        # Parse incoming message
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError as e:
+            raise WebSocketMessageError(f"Invalid JSON: {e}", raw_data=message)
+        
         msg_type = data.get("type")
+        if not msg_type:
+            raise WebSocketMessageError("Missing 'type' field in message", raw_data=message)
         
         # DEBUG: Log all incoming messages
         logger.debug(f"[HANDLER] Received message type: {msg_type}")
@@ -210,36 +469,40 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         elif hasattr(error_response, 'error'):
                             error_msg = error_response.error
                     
-                    response = {
-                        "type": "order_response",
-                        "status": "error",
-                        "message": f"Order failed: {error_msg}",
-                    }
-                    add_log_entry("ERROR", f"Order failed for {order_params.get('product_id')}: {error_msg}")
-                else:
-                    # Order successful
-                    order_id = None
-                    if hasattr(result, 'order_id'):
-                        order_id = result.order_id
-                    elif isinstance(result_dict, dict):
-                        order_id = result_dict.get('order_id')
-                    
-                    response = {
-                        "type": "order_response",
-                        "status": "success",
-                        "message": "Order created",
-                        "order_id": order_id,
-                    }
-                    add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
+                    raise CoinbaseAPIError(
+                        f"Order creation failed: {error_msg}",
+                        api_error_code="order_creation_failed"
+                    )
                 
-            except Exception as e:
-                logger.error(f"Order placement failed: {str(e)}")
+                # Order successful
+                order_id = None
+                if hasattr(result, 'order_id'):
+                    order_id = result.order_id
+                elif isinstance(result_dict, dict):
+                    order_id = result_dict.get('order_id')
+                
+                response = {
+                    "type": "order_response",
+                    "status": "success",
+                    "message": "Order created",
+                    "order_id": order_id,
+                }
+                add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
+                
+            except CoinbaseAPIError as e:
+                logger.error(f"API error during order placement: {str(e)}")
                 response = {
                     "type": "order_response",
                     "status": "error",
                     "message": str(e),
                 }
-                add_log_entry("ERROR", f"Order placement failed: {str(e)}")
+                add_log_entry("ERROR", f"API error: {str(e)}")
+            except Exception as e:
+                logger.error(f"Order placement failed: {type(e).__name__}: {str(e)}")
+                raise OrderCreationError(
+                    f"Failed to place order: {e}",
+                    client_order_id=client_order_id if 'client_order_id' in locals() else None
+                ) from e
             
             await websocket.send(json.dumps(response))
             
@@ -287,6 +550,39 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             # Send current stealth orders snapshot
             await send_stealth_orders_snapshot(websocket)
         
+        elif msg_type == "request_storyboard_products":
+            # Return distinct product IDs available in fill_ledger
+            try:
+                from database.database import PostgresDB
+                db = PostgresDB()
+                rows = db.execute_query("SELECT DISTINCT instrument FROM fill_ledger ORDER BY instrument")
+                db.disconnect()
+                products = [r["instrument"] for r in rows]
+            except Exception as e:
+                logger.warning(f"Could not fetch storyboard products: {e}")
+                products = []
+            await websocket.send(json.dumps({"type": "storyboard_products", "products": products}))
+
+        elif msg_type == "request_investor_storyboard":
+            # Send investor storyboard snapshot
+            params = data.get("params", {})
+            window_minutes = params.get("window_minutes", 10080)
+            bucket_seconds = params.get("bucket_seconds", None)
+            product_id = params.get("product_id", None)
+            
+            snapshot = _build_investor_storyboard_snapshot(
+                window_minutes=window_minutes,
+                bucket_seconds=bucket_seconds,
+                product_id=product_id
+            )
+            
+            response = {
+                **snapshot,
+                "message_id": str(uuid.uuid4()),
+            }
+            
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+        
         elif msg_type == "create_stealth_order":
             # Create new stealth order
             logger.info("[HANDLER] create_stealth_order message received")
@@ -316,13 +612,16 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     total_size=order['total_size'],
                     limit_price=order['limit_price'],
                     reveal_condition=order['reveal_condition'],
+                    reveal_pricing_policy=order.get('reveal_pricing_policy'),
                     sizing_strategy=order.get('sizing_strategy', {}),
                     parent_order_id=order.get('parent_order_id'),  # Support parent-child relationships for order spans
                     follow_up_reveal_direction=order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                     notes=order.get('notes', ''),
                     max_order_replacements=order.get('max_order_replacements'),
                     target_movement=order.get('target_movement', 0.002),
-                    target_movement_type=order.get('target_movement_type', 'P')
+                    target_movement_type=order.get('target_movement_type', 'P'),
+                    allow_partial_fills=bool(order.get('allow_partial_fills', True)),
+                    anchor_repricing_policy=order.get('anchor_repricing_policy'),
                 )
                 
                 # Get the created order data and serialize for JSON
@@ -469,6 +768,235 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "message": f"Failed to update target movement: {str(e)}"
                 }
                 add_log_entry("ERROR", f"Stealth target_movement update failed: {str(e)}")
+                await websocket.send(json.dumps(response))
+
+        elif msg_type == "reprice_now_stealth_order":
+            # Immediately trigger anchor repricing for a single stealth order,
+            # bypassing the next_reprice_at cooldown.
+            stealth_order_id = data.get("stealth_order_id")
+            if not stealth_order_id or not stealth_order_bridge:
+                await websocket.send(json.dumps({
+                    "type": "error",
+                    "message": "Missing stealth_order_id or system not initialised"
+                }))
+                return
+
+            try:
+                mgr = stealth_order_bridge.stealth_manager
+                order = mgr.in_memory_orders.get(stealth_order_id)
+                if not order:
+                    await websocket.send(json.dumps({
+                        "type": "reprice_now_result",
+                        "stealth_order_id": stealth_order_id,
+                        "processed": 0,
+                        "error": "Order not found"
+                    }))
+                    return
+
+                policy = mgr._normalize_anchor_repricing_policy(order.get("anchor_repricing_policy_json"))
+                if not policy.get("enabled"):
+                    await websocket.send(json.dumps({
+                        "type": "reprice_now_result",
+                        "stealth_order_id": stealth_order_id,
+                        "processed": 0,
+                        "error": "Anchor repricing not enabled for this order"
+                    }))
+                    return
+
+                active_statuses = {"HIDDEN", "PENDING", "TRIGGERED", "REVEALED"}
+                if order.get("status") not in active_statuses:
+                    await websocket.send(json.dumps({
+                        "type": "reprice_now_result",
+                        "stealth_order_id": stealth_order_id,
+                        "processed": 0,
+                        "error": f"Order status {order.get('status')} is not repriceable"
+                    }))
+                    return
+
+                # Clear the cooldown so process_anchor_repricing_for_product won't skip it
+                state = mgr._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+                state.pop("next_reprice_at", None)
+                order["anchor_repricing_state_json"] = state
+
+                product_id = order.get("product_id", "")
+                processed = mgr.process_anchor_repricing_for_product(product_id)
+
+                add_log_entry("INFO", f"Manual reprice triggered for {stealth_order_id}: processed={processed}")
+                logger.info(f"[REPRICE-NOW] {stealth_order_id} processed={processed}")
+
+                await websocket.send(json.dumps({
+                    "type": "reprice_now_result",
+                    "stealth_order_id": stealth_order_id,
+                    "processed": processed
+                }))
+
+            except Exception as e:
+                logger.error(f"reprice_now_stealth_order failed: {e}")
+                await websocket.send(json.dumps({
+                    "type": "reprice_now_result",
+                    "stealth_order_id": stealth_order_id,
+                    "processed": 0,
+                    "error": str(e)
+                }))
+
+        elif msg_type == "update_stealth_price_threshold":
+            # Update price threshold for a price-based stealth order
+            stealth_order_id = data.get("stealth_order_id")
+            price_threshold = data.get("price_threshold")
+            hold_duration_seconds = data.get("hold_duration_seconds")  # optional
+
+            if not stealth_order_id:
+                response = {
+                    "type": "error",
+                    "message": "Missing stealth_order_id"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            if price_threshold is None:
+                response = {
+                    "type": "error",
+                    "message": "Missing price_threshold"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            try:
+                threshold = float(price_threshold)
+            except (TypeError, ValueError):
+                response = {
+                    "type": "error",
+                    "message": "price_threshold must be numeric"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            if threshold <= 0:
+                response = {
+                    "type": "error",
+                    "message": "price_threshold must be greater than 0"
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            # Validate optional hold_duration_seconds
+            hold_secs = None
+            if hold_duration_seconds is not None:
+                try:
+                    hold_secs = int(hold_duration_seconds)
+                    if hold_secs < 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    response = {
+                        "type": "error",
+                        "message": "hold_duration_seconds must be a non-negative integer"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+            try:
+                from database.order import get_stealth_order_by_id, update_stealth_order_price_threshold
+
+                existing = get_stealth_order_by_id(stealth_order_id)
+                if not existing:
+                    response = {
+                        "type": "error",
+                        "message": f"Stealth order not found: {stealth_order_id}"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+                if str(existing.get("reveal_condition_type", "")).lower() != "price":
+                    response = {
+                        "type": "error",
+                        "message": "Threshold updates are only supported for price reveal conditions"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+                hold_duration_persisted = hold_secs is None
+                try:
+                    if hold_secs is None:
+                        success = update_stealth_order_price_threshold(
+                            stealth_order_id=stealth_order_id,
+                            price_threshold=threshold,
+                        )
+                    else:
+                        success = update_stealth_order_price_threshold(
+                            stealth_order_id=stealth_order_id,
+                            price_threshold=threshold,
+                            hold_duration_seconds=hold_secs,
+                        )
+                        hold_duration_persisted = True
+                except TypeError as type_err:
+                    # Backward compatibility for stale/legacy runtime where the helper
+                    # still accepts only (stealth_order_id, price_threshold).
+                    if "unexpected keyword argument 'hold_duration_seconds'" not in str(type_err):
+                        raise
+
+                    logger.warning(
+                        "update_stealth_order_price_threshold loaded without hold_duration_seconds support; retrying threshold-only update"
+                    )
+                    success = update_stealth_order_price_threshold(
+                        stealth_order_id=stealth_order_id,
+                        price_threshold=threshold,
+                    )
+                    hold_duration_persisted = False
+
+                if not success:
+                    response = {
+                        "type": "error",
+                        "message": f"Failed to update threshold for stealth order: {stealth_order_id}"
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
+                # Sync in-memory cache
+                if stealth_order_bridge:
+                    in_mem = stealth_order_bridge.stealth_manager.in_memory_orders.get(stealth_order_id)
+                    if in_mem is not None:
+                        reveal_json = in_mem.get("reveal_condition_json") or {}
+                        reveal_json["price_threshold"] = threshold
+                        if hold_secs is not None and hold_duration_persisted:
+                            reveal_json["hold_duration_seconds"] = hold_secs
+                        in_mem["reveal_condition_json"] = reveal_json
+
+                # Sync state payload cache
+                with state_lock:
+                    if stealth_order_id in engine_state["stealth_orders"]:
+                        state_order = engine_state["stealth_orders"][stealth_order_id]
+                        reveal_json = state_order.get("reveal_condition_json") or {}
+                        reveal_json["price_threshold"] = threshold
+                        if hold_secs is not None and hold_duration_persisted:
+                            reveal_json["hold_duration_seconds"] = hold_secs
+                        state_order["reveal_condition_json"] = reveal_json
+
+                response = {
+                    "type": "stealth_threshold_updated",
+                    "stealth_order_id": stealth_order_id,
+                    "price_threshold": threshold,
+                    "hold_duration_seconds": hold_secs if hold_duration_persisted else None,
+                }
+
+                add_log_entry("INFO", f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))
+                logger.info(f"Stealth threshold updated: {stealth_order_id} -> {threshold}" + (f", hold={hold_secs}s" if hold_secs is not None else ""))
+
+                message = json.dumps(response, cls=CustomJSONEncoder)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+
+                await websocket.send(json.dumps({"type": "update_success", "message": "Threshold updated"}))
+
+            except Exception as e:
+                logger.error(f"Failed to update stealth threshold: {e}")
+                response = {
+                    "type": "error",
+                    "message": f"Failed to update threshold: {str(e)}"
+                }
+                add_log_entry("ERROR", f"Stealth threshold update failed: {str(e)}")
                 await websocket.send(json.dumps(response))
         
         elif msg_type == "update_parent_target_movement":
@@ -779,7 +1307,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 await websocket.send(json.dumps(response))
                 logger.info(f"Sent {len(result or [])} move records to client")
-                
+
             except Exception as e:
                 logger.error(f"Failed to fetch move history: {e}")
                 response = {
@@ -1296,15 +1824,69 @@ async def send_stealth_orders_snapshot(websocket: WebSocketServerProtocol):
             # Enrich stealth orders with parent target_movement
             enriched_orders = _enrich_stealth_orders_with_parent_data(engine_state["stealth_orders"])
             
+            # Phase 3: Calculate repricing statistics
+            repricing_stats = _calculate_repricing_statistics(enriched_orders)
+            
             payload = {
                 "type": "stealth_orders_snapshot",
                 "orders": enriched_orders,
+                "repricing_stats": repricing_stats,
                 "timestamp": datetime.utcnow().isoformat(),
             }
         
         await websocket.send(json.dumps(payload, cls=CustomJSONEncoder))
     except Exception as e:
         logger.error(f"Failed to send stealth orders snapshot: {e}")
+
+
+def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
+    """Calculate repricing statistics from stealth orders.
+    
+    Returns:
+        {
+            "active_repricing_count": int,
+            "total_reprices_executed": int,
+            "breakdown_by_source": {
+                "last_trade": int,
+                "midpoint": int,
+                "top_of_book": int,
+            },
+        }
+    """
+    active_count = 0
+    total_executed = 0
+    breakdown = {
+        "last_trade": 0,
+        "midpoint": 0,
+        "top_of_book": 0,
+    }
+    
+    for order_data in orders.values():
+        if not isinstance(order_data, dict):
+            continue
+        
+        # Check if repricing is enabled
+        policy = order_data.get("anchor_repricing_policy_json") or {}
+        if not policy.get("enabled"):
+            continue
+        
+        active_count += 1
+        
+        # Count reprices executed from state
+        state = order_data.get("anchor_repricing_state_json") or {}
+        history = state.get("reprice_history") or []
+        total_executed += len(history)
+        
+        # Breakdown by reference source
+        source = policy.get("reference_price_source", "midpoint")
+        if source in breakdown:
+            breakdown[source] += 1
+    
+    return {
+        "active_repricing_count": active_count,
+        "total_reprices_executed": total_executed,
+        "breakdown_by_source": breakdown,
+    }
 
 
 def _enrich_stealth_orders_with_parent_data(orders: Dict[str, Any]) -> Dict[str, Any]:

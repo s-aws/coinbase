@@ -12,6 +12,25 @@ Design:
 
 The lot builder maintains the single source of truth by deriving all lots
 from the fill ledger, enabling reconstruction at any historical point.
+
+Example:
+    >>> from datetime import datetime
+    >>> from business.position_lot import PositionLot, Position
+    >>> from core.enums import OrderSide
+    >>>
+    >>> lot = PositionLot(
+    ...     lot_id='lot-001',
+    ...     instrument='BTC-USDC',
+    ...     side=OrderSide.BUY,
+    ...     quantity=0.5,
+    ...     entry_price=42000.0,
+    ...     entry_timestamp=datetime.utcnow(),
+    ...     fees=2.0,
+    ...     target_profit_percentage=0.5,
+    ... )
+    >>> position = Position(instrument='BTC-USDC', lots=[lot])
+    >>> position.total_quantity
+    0.5
 """
 
 from dataclasses import dataclass, field

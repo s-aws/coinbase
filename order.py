@@ -149,7 +149,8 @@ def create_limit_order_span(
         start_price: float = 0.00992,
         post_only: bool = False,
         reveal_condition: dict = None,
-        sizing_strategy: dict = None) -> list:
+        sizing_strategy: dict = None,
+        reveal_pricing_policy: str = None) -> list:
     """Create a series of limit orders spanning a price range.
     
     ARCHITECTURE: ALL orders are created through the order system with automated
@@ -195,6 +196,8 @@ def create_limit_order_span(
                          }
         sizing_strategy: Strategy for adaptive reveals (default: fixed-size).
                         Example: {'type': 'volume_proportional', 'min_reveal': 0.1}
+        reveal_pricing_policy: Optional reveal pricing policy override for this order.
+                      Supported values: configured_limit, top_of_book, midpoint.
                          - 'same': Keep the original direction (default)
                          - 'opposite': Flip the direction (below→above, above→below)
                          - 'above'/'below': Explicitly set the direction
@@ -290,6 +293,7 @@ def create_limit_order_span(
             limit_price=start_price,
             reveal_condition=reveal_condition,
             sizing_strategy=sizing_strategy_dict,
+            reveal_pricing_policy=reveal_pricing_policy,
             reason="programmatic_order_placement",
             notes=f"Order span: {max_order_count} orders with price diff {order_price_difference}"
         )

@@ -143,5 +143,90 @@ def test_stealth_revealed_order_preserves_target_movement():
         print("✓ Test passed: Stealth order target_movement=0.005 was preserved correctly")
 
 
+def test_process_user_order_backfills_stealth_exchange_order_id_before_hold_return():
+    orderbook = Mock(spec=OrderBook)
+    orderbook.parent_order_ids = {}
+    orderbook.child_order_ids = {}
+    orderbook.order = {}
+    orderbook.positions = {"FUTURE": {}}
+    orderbook.should_replace = {"FILLED": True, "CANCELLED": True}
+    orderbook.default_max_order_replacement = 11
+    orderbook.profit_target = {"FUTURE": {"BUY": 0.0012, "SELL": 0.0012}, "SPOT": {"BUY": 0.004, "SELL": 0.004}}
+
+    db_helper = Mock()
+    subscription = Mock()
+    subscription.channels = []
+
+    engine = OrderEngine(
+        orderbook=orderbook,
+        db_helper=db_helper,
+        subscription=subscription,
+        api_key="test_key",
+        api_secret="test_secret",
+        order_post_only={"BUY": False, "SELL": False},
+    )
+
+    stealth_manager = Mock()
+    stealth_bridge = Mock()
+    stealth_bridge.stealth_manager = stealth_manager
+    engine.stealth_order_bridge = stealth_bridge
+    engine.normalize_product_type = Mock(return_value="FUTURE")
+
+    order = {
+        "client_order_id": str(uuid.uuid4()),
+        "order_id": str(uuid.uuid4()),
+        "product_id": "BIP-20DEC30-CDE",
+        "side": "SELL",
+        "status": OrderStatus.FILLED.value,
+        "outstanding_hold_amount": "10.5",
+    }
+
+    engine.process_user_order(order)
+
+    stealth_manager.sync_exchange_order_id_for_placed_order.assert_called_once_with(
+        order["client_order_id"],
+        order["order_id"],
+    )
+
+
+def test_seed_parent_order_cache_from_db_hydrates_existing_stealth_parent():
+    orderbook = Mock(spec=OrderBook)
+    orderbook.parent_order_ids = {}
+    orderbook.child_order_ids = {}
+    orderbook.order = {}
+    orderbook.positions = {"FUTURE": {}}
+    orderbook.should_replace = {"FILLED": True, "CANCELLED": True}
+    orderbook.default_max_order_replacement = 11
+    orderbook.profit_target = {"FUTURE": {"BUY": 0.0012, "SELL": 0.0012}, "SPOT": {"BUY": 0.004, "SELL": 0.004}}
+
+    db_helper = Mock()
+    db_helper.get_parent_order.return_value = {
+        "id": 3,
+        "client_order_id": "19b099e6-ea7d-4dbf-86a1-958d74bd4616",
+        "target_movement": 0.002,
+        "target_movement_type": "P",
+        "max_order_replacement": 11,
+        "current_order_replacement": 1,
+    }
+    subscription = Mock()
+    subscription.channels = []
+
+    engine = OrderEngine(
+        orderbook=orderbook,
+        db_helper=db_helper,
+        subscription=subscription,
+        api_key="test_key",
+        api_secret="test_secret",
+        order_post_only={"BUY": False, "SELL": False},
+    )
+
+    hydrated = engine._seed_parent_order_cache_from_db("19b099e6-ea7d-4dbf-86a1-958d74bd4616")
+
+    assert hydrated is True
+    assert orderbook.parent_order_ids["19b099e6-ea7d-4dbf-86a1-958d74bd4616"]["parent_id"] == 3
+    assert orderbook.parent_order_ids["19b099e6-ea7d-4dbf-86a1-958d74bd4616"]["target_movement"]["movement"] == 0.002
+    assert orderbook.parent_order_ids["19b099e6-ea7d-4dbf-86a1-958d74bd4616"]["current_order_replacement"] == 1
+
+
 if __name__ == "__main__":
     test_stealth_revealed_order_preserves_target_movement()

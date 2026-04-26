@@ -20,6 +20,19 @@ from calculation.formatter import safe_float, format_based_on_reference
 class CalculatorBridge:
     """Wraps OrderCalculator to provide OrderEngine calculation interface.
     
+    Extension pattern:
+    To customize profit calculations or add new calculation methods, extend this class
+    or wrap it with a decorator. Do not modify OrderCalculator directly.
+    
+    Example: custom profit adjustment
+        >>> class AdjustedCalculatorBridge(CalculatorBridge):
+        ...     def calculate_follow_up_price(self, parent, side, profit_pct):
+        ...         base_price = super().calculate_follow_up_price(parent, side, profit_pct)
+        ...         # Apply risk adjustment based on volatility
+        ...         market_vol = self.get_market_volatility(parent['product_id'])
+        ...         adjustment = 1.0 + (market_vol * 0.001)  # Reduce profit in high vol
+        ...         return base_price * adjustment
+    
     Attributes:
         calculator: OrderCalculator instance for computations.
     """

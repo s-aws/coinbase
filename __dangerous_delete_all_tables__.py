@@ -1,6 +1,7 @@
 """Drop all tables from the PostgreSQL database and recreate them.
 
 WARNING: This is a destructive operation. All data in the database will be permanently deleted.
+CRITICAL: Agents cannot run this script. It should only be executed manually by a developer with direct access to the database.
 
 Utility script to completely reset the database by dropping all tables from the public schema
 and then recreating all required tables with proper schema.
@@ -29,11 +30,15 @@ from database.database import PostgresDB
 from database.order import (
     create_order_parent_table,
     create_stealth_orders_table,
+    create_stealth_order_lifecycle_history_table,
     create_stealth_order_snapshots_table,
     create_stealth_order_reveal_history_table,
     create_order_moves_table,
     create_fill_ledger_table,
     create_conditional_orders_table,
+    create_order_event_stream_table,
+    create_partial_fill_progress_table,
+    create_order_match_audit_table,
 )
 from psycopg2 import sql
 
@@ -126,12 +131,15 @@ def main() -> None:
         try:
             create_order_parent_table()
             create_stealth_orders_table()
+            create_stealth_order_lifecycle_history_table()
             create_stealth_order_snapshots_table()
             create_stealth_order_reveal_history_table()
             create_order_moves_table()
             create_fill_ledger_table()
             create_conditional_orders_table()
-            
+            create_order_event_stream_table()
+            create_partial_fill_progress_table()
+            create_order_match_audit_table()
             print("\n✓ All tables recreated successfully!")
         except Exception as e:
             print(f"\n✗ Error creating tables: {type(e).__name__}: {e}")

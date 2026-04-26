@@ -7,13 +7,13 @@ Fee Charging Model (CRITICAL):
 - Fees are charged ONLY when orders CLOSE on the exchange
 - Open orders (establishing position) have NO fee yet
 - Close orders (exiting position) incur TWO fee types:
-  1. Percentage fee (taker fee × 4x multiplier)
+    1. Percentage fee (adaptive taker fee from FeeManager)
   2. Mandatory fixed fee (FUTURE/PERPETUAL only: $0.15 per contract)
 
 Fee Components by Product Type:
-- SPOT: Only percentage fee (0.6% × 4 = 2.4%)
-- FUTURE: Percentage fee (2.4%) + Mandatory $0.15 per contract
-- PERPETUAL: Percentage fee (2.4%) + Mandatory $0.15 per contract
+- SPOT: Only percentage fee (adaptive effective rate)
+- FUTURE: Percentage fee + Mandatory $0.15 per contract
+- PERPETUAL: Percentage fee + Mandatory $0.15 per contract
 
 What constitutes "open" vs "close" depends on product type:
 - SPOT: BUY=open, SELL=close (always)
@@ -26,27 +26,27 @@ charged when the close order fills.
 
 Example (SPOT: BUY @$50K, SELL @$52.5K):
     Parent BUY fills @$50,000 (OPEN, no fee yet)
-    Fee rate: 2.4% (0.6% base × 4x)
-    Fee when SELL closes: $52,500 × 0.024 = $1,260
+    Fee rate: adaptive effective rate (typically near base × 2)
+    Fee when SELL closes: $52,500 × effective_fee_rate
     Gross profit: $52,500 - $50,000 = $2,500
-    Net profit: $2,500 - $1,260 = $1,240 ✓ PROFITABLE
+    Net profit: $2,500 - close_fee_amount ✓ PROFITABLE when positive
 
 Example (FUTURE SHORT position: SELL @$50K, BUY @$48.5K with 5 contracts):
     Account is SHORT, so SELL=open, BUY=close
     Parent SELL fills @$50,000 (OPEN for SHORT, no fee yet)
     Fee when BUY closes:
-      - Percentage: $48,500 × 0.024 = $1,164
+            - Percentage: $48,500 × effective_fee_rate
       - Mandatory: $0.15 × 5 contracts = $0.75
-      - Total: $1,164.75
+            - Total: percentage_fee + mandatory_fee
     Gross profit: ($50,000 - $48,500) × 5 = $7,500
-    Net profit: $7,500 - $1,164.75 = $6,335.25 ✓ PROFITABLE
+        Net profit: gross_profit - total_fees ✓ PROFITABLE when positive
 """
 
 from typing import Dict, Any, Optional
 import logging
 from calculation.formatter import safe_float
 from configuration import determine_open_close_sides
-from core.enums import OrderSide, ProductType
+from core.enums import OrderSide, ProductType, TargetMovementType
 
 logger = logging.getLogger(__name__)
 
@@ -86,33 +86,156 @@ class ProfitValidator:
     Ensures follow-up orders will be profitable after accounting for:
     - Fee charged when close order fills (not open order)
     - Correct identification of open vs close orders for the product type
-    - Base taker fee multiplied by 4x
+    - Adaptive taker fee from FeeManager
     - (Future work: Margin/liquidation checks for leveraged products)
     
     Thread-safe: Can be called from multiple threads with same fee_manager instance.
     Accounts for product type and position-specific open/close determination.
     """
     
-    def __init__(self, fee_manager=None):
+    def __init__(self, fee_manager=None, orderbook=None):
         """Initialize ProfitValidator.
         
         Args:
             fee_manager: Optional FeeManager instance for dynamic fee rates.
                         If None, uses conservative defaults.
+            orderbook: Optional OrderBook instance used to auto-resolve product
+                      context (product_type, contract_size, position_side) from
+                      a product_id. When provided, callers may pass only
+                      product_id and the validator will look up the rest.
+                      When omitted, callers must supply context explicitly.
         """
         self.fee_manager = fee_manager
+        self.orderbook = orderbook
     
-    def _get_fee_rate(self) -> float:
-        """Get current effective fee rate (4x multiplied).
-        
+    def _resolve_product_context(
+        self,
+        product_id: Optional[str],
+        order: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Resolve product_type, contract_size, and position_side from product_id.
+
+        Single source of truth for product context resolution. Used internally
+        by is_profitable() and validate_order_profitability() so callers don't
+        have to duplicate this logic across the codebase.
+
+        Resolution order for product_type:
+            1. order['product_type'] (if provided and valid)
+            2. orderbook.product[product_id]['product_type']
+            3. Suffix-based fallback: '-CDE' → FUTURE, else SPOT
+
+        contract_size: Resolved from orderbook.product[product_id]
+            ['future_product_details']['contract_size'] for FUTURE products.
+            None for SPOT or when unavailable.
+
+        position_side: Resolved via orderbook.get_position_side(product_id)
+            for FUTURE products. None for SPOT or when no position exists.
+
+        Args:
+            product_id: Trading pair identifier (e.g., 'BIP-20DEC30-CDE').
+            order: Optional order dict for product_type hint.
+
         Returns:
-            Fee rate as decimal (e.g., 0.024 for 2.4%)
+            Dict with keys: product_type, contract_size, position_side.
         """
+        # Lazy import to avoid circular dependencies
+        from configuration import normalize_product_type as _normalize_product_type
+
+        # Resolve product_type from order hint or orderbook fallback
+        order_for_normalize = dict(order) if order else {}
+        if product_id and "product_id" not in order_for_normalize:
+            order_for_normalize["product_id"] = product_id
+        products = self.orderbook.product if self.orderbook else None
+        product_type = _normalize_product_type(order_for_normalize, products=products)
+
+        contract_size: Optional[float] = None
+        position_side: Optional[str] = None
+
+        if product_type == ProductType.FUTURE.value and self.orderbook and product_id:
+            product_data = self.orderbook.product.get(product_id, {})
+            raw_contract_size = (
+                product_data.get("future_product_details", {}).get("contract_size")
+                if isinstance(product_data, dict) else None
+            )
+            if raw_contract_size is not None:
+                try:
+                    candidate = float(raw_contract_size)
+                    if candidate > 0:
+                        contract_size = candidate
+                except (TypeError, ValueError):
+                    contract_size = None
+
+            try:
+                position_side = self.orderbook.get_position_side(product_id)
+            except Exception:
+                position_side = None
+
+        return {
+            "product_type": product_type,
+            "contract_size": contract_size,
+            "position_side": position_side,
+        }
+    
+    def _get_fee_rate(self, product_id: str = None) -> float:
+        """Get current effective fee rate (adaptive base multiplier model)."""
         if self.fee_manager:
-            return self.fee_manager.get_profit_validation_fee_rate()
+            return self.fee_manager.get_profit_validation_fee_rate(product_id=product_id)
         else:
-            # Fallback to conservative default (0.6% * 4)
-            return 0.024
+            # Fallback to conservative default (0.6% * 2)
+            return 0.012
+
+    def derive_follow_up_price_from_target(
+        self,
+        parent_filled_price: float,
+        parent_side: str,
+        target_movement: float,
+        target_movement_type: str = TargetMovementType.PERCENTAGE.value,
+    ) -> Optional[float]:
+        """Derive follow-up close price from target movement configuration.
+
+        This is the shared conversion used by reveal-time revalidation and any
+        other flow that starts with entry price + target movement (P/A).
+
+        Args:
+            parent_filled_price: Entry/open price.
+            parent_side: Parent/open side (BUY/SELL).
+            target_movement: Target movement value (> 0).
+            target_movement_type: TargetMovementType.PERCENTAGE ('P') or ABSOLUTE ('A').
+
+        Returns:
+            Derived follow-up price, or None if inputs are invalid.
+        """
+        side_raw = str(parent_side or "").upper()
+        try:
+            side = OrderSide(side_raw)
+        except ValueError:
+            return None
+
+        filled_price = safe_float(parent_filled_price, default=0.0)
+        movement = safe_float(target_movement, default=0.0)
+        if filled_price <= 0 or movement <= 0:
+            return None
+
+        movement_type_raw = str(
+            target_movement_type or TargetMovementType.PERCENTAGE.value
+        ).upper()
+        try:
+            movement_type = TargetMovementType(movement_type_raw)
+        except ValueError:
+            movement_type = TargetMovementType.PERCENTAGE
+
+        if movement_type == TargetMovementType.ABSOLUTE:
+            return (
+                filled_price + movement
+                if side == OrderSide.BUY
+                else filled_price - movement
+            )
+
+        return (
+            filled_price * (1 + movement)
+            if side == OrderSide.BUY
+            else filled_price * (1 - movement)
+        )
     
     def is_profitable(self,
         filled_price: float,
@@ -120,8 +243,9 @@ class ProfitValidator:
         side: str,  # 'BUY' or 'SELL' - the parent order side
         order_size: float,
         min_profit_margin: float = 0.0,
-        product_type: str = 'SPOT',
+        product_type: str = None,
         position_side: str = None,
+        product_id: str = None,
         contract_size: float = None
     ) -> Dict[str, Any]:
         """
@@ -158,29 +282,29 @@ class ProfitValidator:
         
         For BUY parent → SELL follow-up:
             - Parent BUY @ $50,000: OPEN, no fee yet
-            - Parent BUY fills: fee charged = $50,000 × size × base_fee
+            - Parent BUY fills: no close fee is charged yet
             - Follow-up SELL @ $52,500: OPEN, no fee yet
-            - Follow-up SELL fills: fee charged = $52,500 × size × base_fee
+            - Follow-up SELL fills: fee charged = $52,500 × size × effective_fee_rate
         
         But we only validate against the FOLLOW-UP/CLOSE fee, not both:
         - Profit = (follow_up_price - filled_price) × size
-        - Fee charged = follow_up_price × size × (base_fee × 4)
+        - Fee charged = follow_up_price × size × effective_fee_rate
         - Net profit = Profit - Fee_on_close_only
         
-        We require: Net profit > 0 (profit must exceed 4x Coinbase fee on close)
+        We require: Net profit > 0 (profit must exceed close-order fees)
         
         Example with real numbers:
             Parent BUY fills @$50,000 × 1 BTC (open position)
             Follow-up SELL @$52,500 × 1 BTC (close position)
             Base Coinbase fee: 0.6%
-            Effective fee (4x): 2.4%
+            Effective fee: adaptive effective_rate
             
             NO fee on parent buy (it's the open order)
-            Fee on follow-up sell (close): $52,500 × 1 × 0.024 = $1,260
+            Fee on follow-up sell (close): $52,500 × 1 × effective_fee_rate
             
             Gross profit: $52,500 - $50,000 = $2,500
-            Total fees: $1,260 (only on close)
-            Net profit: $2,500 - $1,260 = $1,240 ✓ PROFITABLE
+            Total fees: close_fee_amount (only on close)
+            Net profit: $2,500 - close_fee_amount ✓ PROFITABLE when positive
         
         Args:
             filled_price: Price at which parent order filled (the OPEN position)
@@ -206,7 +330,7 @@ class ProfitValidator:
             - total_fees: Total fees charged on close order (percentage + mandatory)
             - percentage_fees: Percentage-based fee component
             - mandatory_fees: Fixed fee component (FUTURE/PERPETUAL only)
-            - fee_rate_applied: Effective fee rate used (base × 4)
+            - fee_rate_applied: Effective fee rate used (base × multiplier × regime)
             - breakeven_price: Price needed to break even
             - minimum_viable_price: Price needed to meet min_profit_margin
             - open_side: Which side is the OPEN order
@@ -232,6 +356,24 @@ class ProfitValidator:
             ...     position_side='SHORT'      # SELL is open, BUY is close
             ... )
         """
+        # Auto-resolve product context from orderbook when caller didn't supply it.
+        # This is the single point that fills in missing product_type / contract_size /
+        # position_side, so callers only need to pass product_id (when an orderbook
+        # is wired in). Explicit args always win over auto-resolution.
+        if (product_type is None or contract_size is None or position_side is None) \
+                and self.orderbook is not None and product_id:
+            ctx = self._resolve_product_context(product_id)
+            if product_type is None:
+                product_type = ctx["product_type"]
+            if contract_size is None:
+                contract_size = ctx["contract_size"]
+            if position_side is None:
+                position_side = ctx["position_side"]
+        
+        # Final defaults if context still unresolved (no orderbook available)
+        if product_type is None:
+            product_type = ProductType.SPOT.value
+        
         # Determine which side is open/close based on product type and current position
         # Pass parent_order_side (the 'side' parameter) for context when position is closed
         open_side, close_side = determine_open_close_sides(
@@ -247,14 +389,14 @@ class ProfitValidator:
             f"Determined: OPEN={open_side}, CLOSE={close_side}"
         )
         
-        # Get the effective fee rate (base_fee_rate × 4)
-        fee_rate = self._get_fee_rate()
+        # Get the effective fee rate (base_fee_rate x multiplier x regime_factor)
+        fee_rate = self._get_fee_rate(product_id=product_id)
         
         # For FUTURE/PERPETUAL products, order_size is in "number of contracts"
         # We need to convert to actual position size (in BTC/units) for fee calculation
         # Gross profit and fees should be based on actual position size, not contract count
         effective_size = order_size
-        if product_type in ('FUTURE', 'PERPETUAL') and contract_size and contract_size > 0:
+        if product_type == ProductType.FUTURE.value and contract_size and contract_size > 0:
             effective_size = order_size * float(contract_size)
             # TODO: Change to DEBUG level logging
             logger.info(
@@ -279,7 +421,7 @@ class ProfitValidator:
         
         # TODO: Change to DEBUG level logging
         logger.info(
-            f"Fee rate applied | Base fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
+            f"Fee rate applied | Effective fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
             f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
             f"Calculated percentage fee: ${percentage_fees:.2f}"
         )
@@ -289,7 +431,7 @@ class ProfitValidator:
         # SPOT products have no mandatory fee
         # Note: Uses raw constant; OrderBook pre-computes contract-size-adjusted fees
         mandatory_fees = 0.0
-        if product_type in ('FUTURE', 'PERPETUAL'):
+        if product_type == ProductType.FUTURE.value:
             mandatory_fees = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT * order_size
             # TODO: Change to DEBUG level logging
             logger.info(
@@ -369,7 +511,7 @@ class ProfitValidator:
             filled_price: Original fill price (the OPEN order)
             side: Parent order side ('BUY' or 'SELL') - should match open_side
             order_size: Size of both orders
-            fee_rate: Effective fee rate (already multiplied by 4x)
+            fee_rate: Effective fee rate (already includes multiplier/regime)
             open_side: The side that opens positions (default 'BUY')
             close_side: The side that closes positions (default 'SELL')
         
@@ -407,7 +549,7 @@ class ProfitValidator:
             filled_price: Original fill price (open order)
             side: Parent order side ('BUY' or 'SELL') - should match open_side
             order_size: Size of both orders
-            fee_rate: Effective fee rate (already multiplied by 4x)
+            fee_rate: Effective fee rate (already includes multiplier/regime)
             min_profit: Minimum desired profit in USD
             open_side: The side that opens positions (default 'BUY')
             close_side: The side that closes positions (default 'SELL')
@@ -433,8 +575,16 @@ class ProfitValidator:
                                     parent_side: str,
                                     follow_up_price: float,
                                     order_size: float,
-                                    min_margin_pct: float = 0.0) -> Dict[str, Any]:
+                                    min_margin_pct: float = 0.0,
+                                    product_type: str = None,
+                                    product_id: str = None,
+                                    position_side: str = None,
+                                    contract_size: float = None) -> Dict[str, Any]:
         """Comprehensive profitability validation with detailed reporting.
+        
+        When the validator was constructed with an orderbook, callers can pass
+        only product_id and the validator will auto-resolve product_type,
+        contract_size, and position_side. Explicit args always win.
         
         Args:
             parent_filled_price: Price at which parent order filled
@@ -442,6 +592,10 @@ class ProfitValidator:
             follow_up_price: Proposed price for follow-up
             order_size: Size of orders
             min_margin_pct: Minimum profit margin as percentage (e.g., 0.005 for 0.5%)
+            product_type: Optional ProductType value; auto-resolved from product_id if omitted
+            product_id: Trading pair ID (used for context auto-resolution and fee rate lookup)
+            position_side: Optional 'LONG'/'SHORT'; auto-resolved from product_id if omitted
+            contract_size: Optional contract size; auto-resolved from product_id if omitted
         
         Returns:
             Dict with profitability assessment and remediation suggestions
@@ -457,7 +611,7 @@ class ProfitValidator:
                 "remediation": "Check order size calculation"
             }
         
-        if parent_side not in ("BUY", "SELL"):
+        if parent_side not in (OrderSide.BUY.value, OrderSide.SELL.value):
             return {
                 "is_valid": False,
                 "is_profitable": False,
@@ -476,18 +630,23 @@ class ProfitValidator:
         # Calculate profitability
         min_profit = parent_filled_price * min_margin_pct * order_size
         
+        # Pass through to is_profitable() which handles auto-resolution of product context
         result = self.is_profitable(
             filled_price=parent_filled_price,
             follow_up_price=follow_up_price,
             side=parent_side,
             order_size=order_size,
-            min_profit_margin=min_profit
+            min_profit_margin=min_profit,
+            product_type=product_type,
+            product_id=product_id,
+            position_side=position_side,
+            contract_size=contract_size
         )
         
         # Add validation status and remediation
         result["is_valid"] = True
-        result["fee_rate_base"] = self._get_fee_rate() / 4.0  # Show base rate too
-        result["multiplier"] = 4.0
+        result["fee_rate_base"] = self._get_fee_rate() / 2.0  # Show base rate too
+        result["multiplier"] = 2.0
         result["parent_filled_price"] = parent_filled_price
         result["follow_up_proposed_price"] = follow_up_price
         result["order_size"] = order_size
@@ -516,8 +675,8 @@ class ProfitValidator:
         
         Returns a dict showing:
         - base_fee_rate: From Coinbase API (e.g., 0.006 for 0.6%)
-        - multiplier: Applied multiplier (4.0)
-        - effective_fee_rate: base × multiplier (e.g., 0.024 for 2.4%)
+        - multiplier: Applied base multiplier (2.0)
+        - effective_fee_rate: base × multiplier × regime_factor
         - fee_on_open: Cost when parent order (open) fills - ZERO
         - fee_on_close: Cost when follow-up order (close) fills
         - total_fees: Sum of both (just the close fee)
@@ -535,7 +694,7 @@ class ProfitValidator:
         
         # Back-calculate the base rate (we store it as multiplied)
         # This is for clarity - to show base vs effective
-        base_fee = fee_rate_effective / 4.0
+        base_fee = fee_rate_effective / 2.0
         
         # OPEN order (parent): NO FEE CHARGED
         fee_on_open = 0.0
@@ -551,7 +710,7 @@ FEE CALCULATION BREAKDOWN (OPEN vs CLOSE)
 ==========================================
 
 Base Coinbase taker fee: {base_fee:.4%}
-Our multiplier: 4x
+Base multiplier: 2x (then adjusted by regime factor)
 Effective fee for validation: {fee_rate_effective:.4%}
 
 Order sizes: {order_size} units
@@ -575,7 +734,7 @@ Profit calculation:
         
         return {
             "base_fee_rate": base_fee,
-            "multiplier": 4.0,
+            "multiplier": 2.0,
             "effective_fee_rate": fee_rate_effective,
             "fee_on_open": fee_on_open,
             "fee_on_close": fee_on_close,

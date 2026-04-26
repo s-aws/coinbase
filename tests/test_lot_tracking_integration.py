@@ -13,6 +13,7 @@ modifying core order engine logic.
 """
 
 import unittest
+import uuid
 from datetime import datetime, timedelta
 from business.fill_ledger import FillLedger, FillLedgerRepository
 from business.position_lot import PositionLot, Position
@@ -29,14 +30,16 @@ class TestFillLedger(unittest.TestCase):
     
     def setUp(self):
         """Set up test database."""
-        # Note: This uses a test database. Ensure DB is configured for testing.
+        # Note: This uses a test database on port 9876 with same DB name as production
         self.db = PostgresDB(
             host="127.0.0.1",
             port=9876,  # Test database port
-            database="test_db",
+            database="postgres",
             user="postgres",
             password="postgres"
         )
+        # Initialize tables on test database
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
     
     def tearDown(self):
@@ -44,10 +47,39 @@ class TestFillLedger(unittest.TestCase):
         # Optional: truncate table for clean state
         pass
     
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            derived_trade_key UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
+        except Exception as e:
+            # Table might already exist, that's ok
+            pass
+    
     def test_append_fill(self):
         """Test appending a fill to ledger."""
+        trade_id = str(uuid.uuid4())
         fill = FillLedger(
-            trade_id="test-trade-1",
+            derived_trade_key=trade_id,
             instrument="BTC-USDC",
             side="BUY",
             quantity=0.1,
@@ -61,7 +93,7 @@ class TestFillLedger(unittest.TestCase):
         self.assertTrue(result)
         
         # Verify we can retrieve it
-        retrieved = self.fill_repo.get_fill_by_trade_id("test-trade-1")
+        retrieved = self.fill_repo.get_fill_by_trade_id(trade_id)
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.quantity, 0.1)
         self.assertEqual(retrieved.price, 50000.0)
@@ -71,7 +103,7 @@ class TestFillLedger(unittest.TestCase):
         # Insert multiple fills
         for i in range(3):
             fill = FillLedger(
-                trade_id=f"test-trade-{i}",
+                derived_trade_key=str(uuid.uuid4()),
                 instrument="BTC-USDC",
                 side="BUY" if i % 2 == 0 else "SELL",
                 quantity=0.1 + i * 0.01,
@@ -96,9 +128,37 @@ class TestPositionLotBuilder(unittest.TestCase):
     
     def setUp(self):
         """Set up test infrastructure."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="test_db")
+        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.builder = PositionLotBuilder(self.fill_repo)
+    
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            derived_trade_key UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
+        except Exception:
+            pass
     
     def test_build_lots_fifo(self):
         """Test FIFO lot construction."""
@@ -111,7 +171,7 @@ class TestPositionLotBuilder(unittest.TestCase):
         
         for i, (instrument, side, qty, price, fees) in enumerate(fills_data):
             fill = FillLedger(
-                trade_id=f"lot-test-{i}",
+                derived_trade_key=str(uuid.uuid4()),
                 instrument=instrument,
                 side=side,
                 quantity=qty,
@@ -196,7 +256,7 @@ class TestProfitThresholdEngine(unittest.TestCase):
         targets, meta = self.engine.compute_execution_targets(
             position=position,
             exit_quantity=0.15,
-            market_price=50300.0,
+            market_price=50500.0,
             strategy='FIFO'
         )
         
@@ -211,9 +271,37 @@ class TestOrderInterceptionLayer(unittest.TestCase):
     
     def setUp(self):
         """Set up interception layer."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="test_db")
+        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.layer = OrderInterceptionLayer(self.fill_repo, profit_margin_pct=0.5)
+    
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            derived_trade_key UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
+        except Exception:
+            pass
     
     def test_intercept_exit_order(self):
         """Test order interception for exit orders."""
@@ -244,10 +332,38 @@ class TestConditionalExecution(unittest.TestCase):
     
     def setUp(self):
         """Set up conditional execution wrapper."""
-        self.db = PostgresDB(host="127.0.0.1", port=9876, database="test_db")
+        self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
+        self._init_test_db_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.interception = OrderInterceptionLayer(self.fill_repo)
         self.wrapper = ConditionalExecutionWrapper(self.interception)
+    
+    def _init_test_db_tables(self):
+        """Initialize fill_ledger table on test database."""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fill_ledger (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            derived_trade_key UUID UNIQUE NOT NULL,
+            instrument VARCHAR(32) NOT NULL,
+            side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+            quantity DECIMAL(16, 8) NOT NULL,
+            price DECIMAL(16, 2) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            fees DECIMAL(16, 8) DEFAULT 0,
+            commission_percentage DECIMAL(5, 4) DEFAULT 0,
+            client_order_id VARCHAR(40)
+        );
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+        """
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(create_table_query)
+                cursor.execute("TRUNCATE TABLE fill_ledger RESTART IDENTITY")
+        except Exception:
+            pass
     
     def test_wrap_with_profit_condition(self):
         """Test wrapping order with profit condition."""

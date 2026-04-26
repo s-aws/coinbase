@@ -25,6 +25,7 @@ Example:
 from typing import Optional, Dict, Any
 from core.models import Order
 from core.enums import OrderStatus, OrderSide
+from core.exceptions import OrderProcessingError, OrderCalculationError
 from calculation.formatter import safe_float
 
 
@@ -53,6 +54,10 @@ class OrderProcessor:
             - filled_size
             - number_of_fills
         
+        Raises:
+            OrderProcessingError: If order dict is None or not a dict.
+            OrderCalculationError: If price calculations fail unexpectedly.
+        
         Examples:
             >>> processor = OrderProcessor()
             >>> order = {
@@ -71,38 +76,57 @@ class OrderProcessor:
             'BTC-USDC'
         """
         if not order:
-            return {}
+            raise OrderProcessingError(
+                error_type="InvalidOrderData",
+                message="Order dict cannot be None or empty",
+                client_order_id=None,
+            )
+        
+        if not isinstance(order, dict):
+            raise OrderProcessingError(
+                error_type="InvalidOrderData",
+                message=f"Order must be a dict, got {type(order).__name__}",
+                client_order_id=None,
+            )
 
-        # Try to get price (prefer limit_price, fallback to avg_price)
-        price = None
-        limit_price = safe_float(order.get("limit_price"), default=None)
-        if limit_price and limit_price > 0:
-            price = limit_price
-        else:
-            avg_price = safe_float(order.get("avg_price"), default=None)
-            if avg_price and avg_price > 0:
-                price = avg_price
+        try:
+            # Try to get price (prefer limit_price, fallback to avg_price)
+            price = None
+            limit_price = safe_float(order.get("limit_price"), default=None)
+            if limit_price and limit_price > 0:
+                price = limit_price
+            else:
+                avg_price = safe_float(order.get("avg_price"), default=None)
+                if avg_price and avg_price > 0:
+                    price = avg_price
 
-        context = {
-            "client_order_id": order.get("client_order_id"),
-            "order_id": order.get("order_id"),
-            "product_id": order.get("product_id"),
-            "side": order.get("order_side") or order.get("side"),
-            "status": order.get("status"),
-            "price": price,
-            "filled_size": safe_float(order.get("filled_size"), default=0.0),
-            "number_of_fills": order.get("number_of_fills", 0),
-        }
-
-        if include_debug:
-            context["debug"] = {
-                "time_in_force": order.get("time_in_force"),
-                "type": order.get("order_type") or order.get("type"),
-                "created_at": order.get("created_at"),
-                "total_fees": safe_float(order.get("total_fees"), default=0.0),
+            context = {
+                "client_order_id": order.get("client_order_id"),
+                "order_id": order.get("order_id"),
+                "product_id": order.get("product_id"),
+                "side": order.get("order_side") or order.get("side"),
+                "status": order.get("status"),
+                "price": price,
+                "filled_size": safe_float(order.get("filled_size"), default=0.0),
+                "number_of_fills": order.get("number_of_fills", 0),
             }
 
-        return {k: v for k, v in context.items() if v is not None}
+            if include_debug:
+                context["debug"] = {
+                    "time_in_force": order.get("time_in_force"),
+                    "type": order.get("order_type") or order.get("type"),
+                    "created_at": order.get("created_at"),
+                    "total_fees": safe_float(order.get("total_fees"), default=0.0),
+                }
+
+            return {k: v for k, v in context.items() if v is not None}
+        
+        except (ValueError, TypeError, AttributeError) as e:
+            raise OrderCalculationError(
+                error_type="PriceCalculationError",
+                message=f"Failed to build order context: {str(e)}",
+                client_order_id=order.get("client_order_id"),
+            )
 
     @staticmethod
     def is_filled_order(order: dict) -> bool:

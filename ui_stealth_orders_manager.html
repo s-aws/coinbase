@@ -295,6 +295,21 @@
             background: rgba(77, 171, 247, 0.1);
         }
 
+        button.reprice-btn {
+            background: transparent;
+            border: 1px solid #60cdff;
+            color: #60cdff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        button.reprice-btn:hover {
+            background: rgba(96, 205, 255, 0.15);
+        }
+
         button.edit-btn {
             color: #ffd700;
             border-color: #ffd700;
@@ -339,7 +354,7 @@
             border: 1px solid #444;
             border-radius: 8px;
             padding: 24px;
-            max-width: 400px;
+            max-width: 460px;
             width: 90%;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
             animation: slideIn 0.3s ease;
@@ -527,6 +542,18 @@
             margin-bottom: 0;
         }
 
+        .policy-panel {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .policy-panel.hidden {
+            display: none;
+        }
+
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -693,6 +720,15 @@
                     <span class="stat-label">Connection</span>
                     <span class="stat-value" id="connection-status" style="color: #ff6b6b;">●</span>
                 </div>
+                <!-- Phase 3: Repricing statistics -->
+                <div class="stat" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 4px;">
+                    <span class="stat-label">⟳ Repricing</span>
+                    <span class="stat-value" id="stat-repricing-active" style="color: #fff;">0</span>
+                </div>
+                <div class="stat" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 4px;">
+                    <span class="stat-label">Lifetime Reprices</span>
+                    <span class="stat-value" id="stat-repricing-total" style="color: #fff;">0</span>
+                </div>
             </div>
         </header>
 
@@ -793,6 +829,154 @@
                         </div>
 
                         <div class="form-group">
+                            <label>Reveal Pricing Policy</label>
+                            <select id="reveal_pricing_policy">
+                                <option value="top_of_book" selected>Top of Book</option>
+                                <option value="configured_limit">Configured Limit</option>
+                                <option value="midpoint">Midpoint</option>
+                            </select>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Controls the limit price used when the hidden order is revealed to the exchange.
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                <input type="checkbox" id="enable_anchor_repricing" style="cursor: pointer; width: 14px; height: 14px;">
+                                <span>Enable Market-Reference Repricing</span>
+                            </label>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Keeps the order a configurable distance away from a ticker-derived reference price.
+                            </div>
+                        </div>
+
+                        <div id="anchor-repricing-fields" class="policy-panel hidden">
+
+                            <!-- How It Works concept box -->
+                            <div style="background: rgba(103,126,234,0.1); border: 1px solid rgba(103,126,234,0.35); border-radius: 5px; padding: 10px 12px; margin-bottom: 10px; font-size: 10px; color: #aaa; line-height: 1.6;">
+                                <div style="color: #7b9fff; font-weight: bold; margin-bottom: 5px; font-size: 11px;">📐 How Repricing Works</div>
+                                <div>Each ticker update computes a <b style="color:#e0e0e0;">reference price</b> (midpoint, last trade, or top of book). The order is then aimed at:</div>
+                                <div style="margin: 5px 0 5px 8px;">
+                                    <span style="color:#51cf66;">● Target</span> &nbsp;= reference ± <b>Target Distance</b> &nbsp;(ideal resting position)<br>
+                                    <span style="color:#ff922b;">● Boundary</span> = reference ± <b>Max Distance</b> &nbsp;(furthest allowed before forced reprice)
+                                </div>
+                                <div>For a <b style="color:#e0e0e0;">BUY</b>: order rests <i>below</i> the reference. For a <b style="color:#e0e0e0;">SELL</b>: order rests <i>above</i> it.</div>
+                                <div style="margin-top: 4px; color: #888;">If the order drifts past the boundary due to market movement, it is forced back to the boundary price on the next tick.</div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Reference Price Source</label>
+                                    <select id="reference_price_source">
+                                        <option value="midpoint" selected>Midpoint</option>
+                                        <option value="last_trade">Last Trade</option>
+                                        <option value="top_of_book">Top of Book</option>
+                                    </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Ticker field used as the reference anchor.<br>
+                                        <b style="color:#888;">Midpoint</b> = (bid+ask)/2 &nbsp;·&nbsp; <b style="color:#888;">Top of Book</b> = best bid (BUY) or best ask (SELL)
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Distance Type</label>
+                                    <select id="anchor_distance_type">
+                                        <option value="P" selected>Percentage (%)</option>
+                                        <option value="A">Absolute Amount</option>
+                                    </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        <b style="color:#888;">Percentage</b>: distances are fractions of the reference price (0.01 = 1%)<br>
+                                        <b style="color:#888;">Absolute</b>: distances are fixed dollar amounts (e.g. 50 = $50)
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Target Distance <span style="color:#51cf66;">●</span></label>
+                                    <input type="number" id="anchor_target_distance" value="0.01" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Ideal distance from reference. The order is repriced <i>toward</i> this on every tick.<br>
+                                        <b style="color:#888;">Example (BUY, %)</b>: ref=40000, target=0.01 → order aims at 39600
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Distance <span style="color:#ff922b;">●</span></label>
+                                    <input type="number" id="anchor_max_distance" value="0.05" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Drift tolerance. If the market moves and the order exceeds this distance, it is forced back to the boundary.<br>
+                                        <b style="color:#888;">Example (BUY, %)</b>: ref=40000, max=0.05 → boundary at 38000. Must be ≥ target.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Update Mode</label>
+                                    <select id="anchor_update_mode" onchange="toggleAnchorFixedInterval()">
+                                        <option value="adaptive" selected>Adaptive</option>
+                                        <option value="fixed">Fixed</option>
+                                    </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        <b style="color:#888;">Adaptive</b>: reprice interval shortens when far from target, lengthens when close<br>
+                                        <b style="color:#888;">Fixed</b>: always wait exactly the interval below
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Fixed Interval Seconds</label>
+                                    <select id="anchor_fixed_interval_seconds" disabled>
+                                        <option value="60" selected>60</option>
+                                        <option value="120">120</option>
+                                        <option value="300">300</option>
+                                    </select>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Only active when Update Mode is <b style="color:#888;">Fixed</b>. Sets the exact wait between reprice attempts.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Min Price Change</label>
+                                    <input type="number" id="anchor_min_price_change" value="0.01" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Minimum absolute price movement required to trigger a reprice. Prevents excessive churn from tiny fluctuations.<br>
+                                        <b style="color:#888;">E.g.</b> 0.01 = skip reprice if new price differs by less than $0.01
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Hysteresis (bps)</label>
+                                    <input type="number" id="anchor_hysteresis_bps" value="5" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Basis-point dead zone relative to current price. Reprice is skipped if the change is less than this fraction of the current price.<br>
+                                        <b style="color:#888;">5 bps</b> at $40000 = skip if move &lt; $20
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Min Reprice Interval (sec)</label>
+                                    <input type="number" id="anchor_min_reprice_interval_seconds" value="30" step="1" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Minimum seconds between reprices regardless of price movement. 0 = no limit.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Reprices / Hour</label>
+                                    <input type="number" id="anchor_max_reprices_per_hour" value="20" step="1" min="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Hard cap on how many reprices are allowed in any rolling 60-minute window.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                    <input type="checkbox" id="anchor_post_only_required" checked style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>Require Post Only On Reprice</span>
+                                </label>
+                                <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                    When enabled, reprices that would cross the spread (taking liquidity) are skipped instead of executing as taker orders.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Sizing Strategy</label>
                             <select id="sizing_strategy" onchange="updateSizingFields()">
                                 <option value="fixed">Fixed (All at once)</option>
@@ -815,6 +999,16 @@
                                 <div style="font-size: 10px; color: #666; margin-top: 4px;">
                                     Profit target: Enter as decimal (0.002 = 0.2%, 0.05 = 5%)
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                <input type="checkbox" id="allow_partial_fills" checked style="cursor: pointer; width: 14px; height: 14px;">
+                                <span>Enable Partial Fills</span>
+                            </label>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Automatically create follow-up orders when partial fills occur
                             </div>
                         </div>
 
@@ -857,6 +1051,38 @@
                     </div>
                 </div>
 
+                <!-- Adaptive Regime Metrics -->
+                <div class="section">
+                    <h2>⚙️ Regime Metrics</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Effective Fee</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #7ba3ff;" id="metric-effective-fee">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Base Taker Fee</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #51cf66;" id="metric-taker-fee">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Target Factor</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #ffd43b;" id="metric-target-factor">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Fee Factor</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #ff8787;" id="metric-fee-factor">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Volume Ratio</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #74c0fc;" id="metric-volume-ratio">--</div>
+                        </div>
+                        <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                            <div style="color: #aaa; margin-bottom: 4px;">Margin Window</div>
+                            <div style="font-size: 12px; font-weight: bold; color: #c0eb75;" id="metric-margin-window">--</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 10px; color: #888;" id="metric-overnight-flag">Overnight: --</div>
+                </div>
+
                 <!-- Clear All Orders Section -->
                 <div class="section">
                     <h2>🗑️ Management</h2>
@@ -887,7 +1113,7 @@
     <div id="editParentTargetMovementModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Edit Target Movement</h2>
+                <h2>Edit Parent Values</h2>
                 <button type="button" class="modal-close" onclick="closeEditParentTargetMovementModal()">&times;</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 15px;">
@@ -902,9 +1128,23 @@
                         <option value="A">Absolute Amount</option>
                     </select>
                 </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Max Followups</label>
+                    <input type="number" id="editParentMaxFollowups" placeholder="11" step="1" min="0">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Threshold (Price Conditions)</label>
+                    <input type="number" id="editParentPriceThreshold" placeholder="0.00" step="0.01" min="0">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Hold Duration &mdash; seconds (Price Conditions)</label>
+                    <input type="number" id="editParentHoldDuration" placeholder="2" step="1" min="0">
+                </div>
                 <div style="font-size: 12px; color: #aaa;">
                     <strong>Percentage (%):</strong> Enter as decimal (e.g., 0.002 = 0.2%, 0.05 = 5%)<br>
-                    <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)
+                    <strong>Absolute Amount:</strong> Fixed dollar/USDC amount to move (e.g., 100 = $100)<br>
+                    <strong>Max Followups:</strong> Non-negative whole number<br>
+                    <strong>Threshold / Hold Duration:</strong> Only editable for price reveal conditions
                 </div>
             </div>
             <div class="modal-footer">
@@ -915,12 +1155,88 @@
     </div>
 
     <script>
+        /**
+         * Product Metadata Handler
+         * Shared utility for managing product metadata and updating form field step attributes
+         */
+        class ProductMetadataHandler {
+            constructor() {
+                this.productMetadata = {};
+            }
+
+            setProductMetadata(metadata) {
+                this.productMetadata = metadata || {};
+            }
+
+            getMetadata(productId) {
+                return this.productMetadata[productId] || null;
+            }
+
+            updateFieldSteps(productId, priceFieldId, sizeFieldId, additionalPriceFields = []) {
+                const metadata = this.getMetadata(productId);
+                
+                if (!metadata) {
+                    console.warn(`No metadata found for product: ${productId}`);
+                    return;
+                }
+
+                if (sizeFieldId) {
+                    const sizeField = document.getElementById(sizeFieldId);
+                    if (sizeField) {
+                        const baseIncrement = metadata.base_increment || "0.00000001";
+                        sizeField.step = baseIncrement;
+                        console.log(`Updated ${sizeFieldId} step to ${baseIncrement} (base_increment)`);
+                    }
+                }
+
+                if (priceFieldId) {
+                    const priceField = document.getElementById(priceFieldId);
+                    if (priceField) {
+                        const priceIncrement = metadata.price_increment || "0.01";
+                        priceField.step = priceIncrement;
+                        console.log(`Updated ${priceFieldId} step to ${priceIncrement} (price_increment)`);
+                    }
+                }
+
+                additionalPriceFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        const priceIncrement = metadata.price_increment || "0.01";
+                        field.step = priceIncrement;
+                        console.log(`Updated ${fieldId} step to ${priceIncrement} (price_increment)`);
+                    }
+                });
+            }
+
+            attachProductChangeListener(selectElementId, priceFieldId, sizeFieldId, additionalPriceFields = []) {
+                const selectElement = document.getElementById(selectElementId);
+                
+                if (!selectElement) {
+                    console.error(`Product dropdown not found: ${selectElementId}`);
+                    return;
+                }
+
+                selectElement.addEventListener('change', (event) => {
+                    const selectedProduct = event.target.value;
+                    if (selectedProduct) {
+                        this.updateFieldSteps(selectedProduct, priceFieldId, sizeFieldId, additionalPriceFields);
+                    }
+                });
+
+                if (selectElement.value) {
+                    this.updateFieldSteps(selectElement.value, priceFieldId, sizeFieldId, additionalPriceFields);
+                }
+            }
+        }
+
+        const productMetadataHandler = new ProductMetadataHandler();
+
         // Condition field templates
         const conditionTemplates = {
             price: `
                 <div class="condition-field">
                     <label>Price Threshold *</label>
-                    <input type="number" name="price_threshold" placeholder="0.00" step="0.01" required>
+                    <input type="number" id="condition_price_threshold" name="price_threshold" placeholder="0.00" step="0.01" required>
                 </div>
                 <div class="condition-field">
                     <label>Direction *</label>
@@ -932,13 +1248,13 @@
                 </div>
                 <div class="condition-field">
                     <label>Hold Duration (sec) *</label>
-                    <input type="number" name="hold_duration_seconds" placeholder="2" step="1" min="1" required>
+                    <input type="number" name="hold_duration_seconds" placeholder="2" step="1" min="0" required>
                 </div>
             `,
             cumulative_volume: `
                 <div class="condition-field">
                     <label>Price Level *</label>
-                    <input type="number" name="price_level" placeholder="0.00" step="0.01" required>
+                    <input type="number" id="condition_price_level" name="price_level" placeholder="0.00" step="0.01" required>
                 </div>
                 <div class="condition-field">
                     <label>Volume Threshold *</label>
@@ -1031,22 +1347,134 @@
             return details.length > 0 ? details.join('<br>') : '';
         }
 
+        function formatAnchorRepricingStateDetail(order) {
+            const policy = order.anchor_repricing_policy_json || {};
+            const state  = order.anchor_repricing_state_json  || {};
+            if (!policy.enabled) return '';
+
+            const src    = policy.reference_price_source || 'midpoint';
+            const isAbs  = policy.distance_type === 'A';
+            const side   = (order.side || '').toUpperCase();
+            const distLabel = isAbs
+                ? `${policy.target_distance} (abs)`
+                : `${(policy.target_distance * 100).toFixed(2)}%`;
+            const maxLabel = isAbs
+                ? `${policy.max_distance} (abs)`
+                : `${(policy.max_distance * 100).toFixed(2)}%`;
+
+            const refPx  = state.last_reference_price != null
+                ? parseFloat(state.last_reference_price) : null;
+            const curPx  = state.current_logical_limit_price != null
+                ? parseFloat(state.current_logical_limit_price)
+                : parseFloat(order.limit_price || 0);
+            const lastAt = state.last_reprice_at
+                ? new Date(state.last_reprice_at).toLocaleTimeString() : '—';
+            const reason = state.reprice_reason || '—';
+            const count  = (state.reprice_history || []).length;
+            const nextAt = state.next_reprice_at
+                ? new Date(state.next_reprice_at).toLocaleTimeString() : '—';
+
+            // Compute target and boundary from reference price + policy
+            let targetPx = null, boundaryPx = null, zoneHtml = '';
+            if (refPx && refPx > 0) {
+                const tDist = isAbs
+                    ? policy.target_distance
+                    : refPx * policy.target_distance;
+                const mDist = isAbs
+                    ? policy.max_distance
+                    : refPx * policy.max_distance;
+                if (side === 'BUY') {
+                    targetPx   = refPx - tDist;
+                    boundaryPx = refPx - mDist;
+                } else {
+                    targetPx   = refPx + tDist;
+                    boundaryPx = refPx + mDist;
+                }
+
+                const atTarget    = curPx != null && Math.abs(curPx - targetPx) < 0.005 * refPx;
+                const outsideBound = curPx != null && (
+                    side === 'BUY' ? curPx < boundaryPx : curPx > boundaryPx
+                );
+                const statusColor = outsideBound ? '#ff6b6b' : atTarget ? '#51cf66' : '#ffd43b';
+                const statusText  = outsideBound ? '⚠ outside boundary' : atTarget ? '✓ at target' : '↔ tracking';
+
+                zoneHtml = `<div style="margin:4px 0; padding:5px 6px; background:rgba(0,0,0,0.3); border-radius:4px; font-family:monospace; font-size:10px; line-height:1.8;">` +
+                    `<div>Ref:      <b style="color:#aaa;">${refPx.toFixed(2)}</b></div>` +
+                    `<div>Target <span style="color:#51cf66;">●</span>  <b style="color:#51cf66;">${targetPx.toFixed(2)}</b> <span style="color:#666;">(${distLabel} from ref)</span></div>` +
+                    `<div>Boundary <span style="color:#ff922b;">●</span> <b style="color:#ff922b;">${boundaryPx.toFixed(2)}</b> <span style="color:#666;">(${maxLabel} from ref)</span></div>` +
+                    `<div>Current:  <b style="color:${statusColor};">${curPx != null ? curPx.toFixed(2) : '—'}</b> <span style="color:${statusColor};">${statusText}</span></div>` +
+                    `</div>`;
+            }
+
+            return `<div style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">` +
+                `<div style="color: #60cdff; font-weight: 600; margin-bottom: 4px;">⟳ Market Repricing (${src})</div>` +
+                zoneHtml +
+                `<div style="color:#888; font-size:10px;">Reprices: ${count} | Last: ${lastAt} (${reason})</div>` +
+                `<div style="color:#888; font-size:10px;">Next eligible: ${nextAt}</div>` +
+                `</div>`;
+        }
+
         function createConditionTooltipHTML(order) {
             const conditionJson = order.reveal_condition_json || {};
             const type = order.reveal_condition_type || conditionJson.type || 'N/A';
-            const details = formatConditionDetails(conditionJson);
-            
-            if (!details) {
-                return `<span class="condition-type">${type}</span>`;
+            const detailParts = [];
+            const conditionDetails = formatConditionDetails(conditionJson);
+            if (conditionDetails) {
+                detailParts.push(conditionDetails);
+            }
+
+            const anchorDetail = formatAnchorRepricingStateDetail(order);
+            const details = detailParts.join('<br><br>');
+            const hasTooltip = details || anchorDetail;
+
+            const anchorPolicy = order.anchor_repricing_policy_json || {};
+            const repriceBadge = anchorPolicy.enabled
+                ? `<span title="Market-reference repricing active" style="color:#60cdff; font-size:11px; margin-left:4px; cursor:default;">⟳ ${anchorPolicy.reference_price_source || 'mid'}</span>`
+                : '';
+
+            if (!hasTooltip) {
+                return `<span class="condition-type">${type}${repriceBadge}</span>`;
             }
             
             return `<span class="condition-type">
-                ${type}
+                ${type}${repriceBadge}
                 <div class="condition-tooltip">
                     <div style="font-weight: 600; margin-bottom: 6px; color: #4ade80;">${type}</div>
-                    <div class="condition-details" style="white-space: normal; width: 220px;">${details}</div>
+                    <div class="condition-details" style="white-space: normal; width: 240px;">${details}${anchorDetail}</div>
                 </div>
             </span>`;
+        }
+
+        function toggleAnchorRepricingFields() {
+            const enabled = document.getElementById('enable_anchor_repricing').checked;
+            document.getElementById('anchor-repricing-fields').classList.toggle('hidden', !enabled);
+        }
+
+        function toggleAnchorFixedInterval() {
+            const updateMode = document.getElementById('anchor_update_mode').value;
+            document.getElementById('anchor_fixed_interval_seconds').disabled = updateMode !== 'fixed';
+        }
+
+        function buildAnchorRepricingPolicy() {
+            const enabled = document.getElementById('enable_anchor_repricing').checked;
+            if (!enabled) {
+                return { enabled: false };
+            }
+
+            return {
+                enabled: true,
+                reference_price_source: document.getElementById('reference_price_source').value,
+                distance_type: document.getElementById('anchor_distance_type').value,
+                target_distance: parseFloat(document.getElementById('anchor_target_distance').value),
+                max_distance: parseFloat(document.getElementById('anchor_max_distance').value),
+                update_mode: document.getElementById('anchor_update_mode').value,
+                fixed_interval_seconds: parseInt(document.getElementById('anchor_fixed_interval_seconds').value, 10),
+                min_price_change: parseFloat(document.getElementById('anchor_min_price_change').value),
+                hysteresis_bps: parseFloat(document.getElementById('anchor_hysteresis_bps').value),
+                min_reprice_interval_seconds: parseInt(document.getElementById('anchor_min_reprice_interval_seconds').value, 10),
+                max_reprices_per_hour: parseInt(document.getElementById('anchor_max_reprices_per_hour').value, 10),
+                post_only_required: document.getElementById('anchor_post_only_required').checked,
+            };
         }
 
         const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
@@ -1058,6 +1486,7 @@
         let refreshInterval = null;
         let refreshCountdown = 5;
         let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
+        let engineStatusData = {};
 
         function initWebSocket() {
             try {
@@ -1079,11 +1508,16 @@
                         // Receive products from WebSocket on initial connection
                         allProducts = [...(data.derivatives || []), ...(data.spot || [])].sort();
                         productMetadata = data.metadata || {};  // Store metadata
+                        productMetadataHandler.setProductMetadata(data.metadata);  // Update shared handler
                         updateProductDropdown();
                         addProductChangeListener();  // Add event listener for product selection
                         console.log(`Loaded ${allProducts.length} products from WebSocket`);
                     } else if (data.type === "state_update") {
                         // Initial state or periodic update from server
+                        if (data.data && data.data.engine_status) {
+                            engineStatusData = data.data.engine_status || {};
+                            updateRegimeMetrics(engineStatusData);
+                        }
                         if (data.data && data.data.stealth_orders) {
                             ordersData = data.data.stealth_orders || {};
                             console.log("Received state update with stealth orders:", ordersData);
@@ -1103,6 +1537,13 @@
                             const firstOrder = Object.values(ordersData)[0];
                             console.log("Sample order structure:", firstOrder);
                         }
+                        
+                        // Phase 3: Handle repricing statistics
+                        if (data.repricing_stats) {
+                            document.getElementById('stat-repricing-active').textContent = data.repricing_stats.active_repricing_count || 0;
+                            document.getElementById('stat-repricing-total').textContent = data.repricing_stats.total_reprices_executed || 0;
+                        }
+                        
                         updateOrdersTable();
                         updateStats();
                     } else if (data.type === "stealth_order_created") {
@@ -1118,14 +1559,75 @@
                         // Update all stealth orders with this parent
                         const parentOrderId = data.parent_order_id;
                         Object.values(ordersData).forEach(order => {
-                            if (order.parent_order_id === parentOrderId) {
+                            if (order.stealth_order_id === parentOrderId || order.parent_order_id === parentOrderId) {
                                 order.parent_target_movement = data.target_movement;
                                 order.parent_target_movement_type = data.target_movement_type;
+                                if (order.stealth_order_id === parentOrderId) {
+                                    order.target_movement = data.target_movement;
+                                    order.target_movement_type = data.target_movement_type;
+                                }
                             }
                         });
                         showMessage(`Parent target movement updated to ${data.target_movement}${data.target_movement_type === 'A' ? ' (Abs)' : '%'}`, 'success');
                         updateOrdersTable();
                         updateStats();
+                    } else if (data.type === "parent_order_updated") {
+                        const updated = data.order;
+                        if (updated && updated.client_order_id && ordersData[updated.client_order_id]) {
+                            const existing = ordersData[updated.client_order_id];
+                            existing.max_order_replacements = updated.max_order_replacement;
+                            if (updated.target_movement !== undefined) {
+                                existing.target_movement = updated.target_movement;
+                            }
+                            if (updated.target_movement_type !== undefined) {
+                                existing.target_movement_type = updated.target_movement_type;
+                            }
+
+                            Object.values(ordersData).forEach(order => {
+                                if (order.parent_order_id === updated.client_order_id) {
+                                    order.parent_target_movement = updated.target_movement;
+                                    order.parent_target_movement_type = updated.target_movement_type || order.parent_target_movement_type || 'P';
+                                    order.parent_max_order_replacements = updated.max_order_replacement;
+                                }
+                            });
+
+                            showMessage('Parent max followups updated', 'success');
+                            updateOrdersTable();
+                            updateStats();
+                        }
+                    } else if (data.type === "stealth_threshold_updated") {
+                        const stealthOrderId = data.stealth_order_id;
+                        const threshold = data.price_threshold;
+                        const holdDuration = data.hold_duration_seconds;
+
+                        if (ordersData[stealthOrderId]) {
+                            const revealJson = ordersData[stealthOrderId].reveal_condition_json || {};
+                            revealJson.price_threshold = threshold;
+                            if (holdDuration !== null && holdDuration !== undefined) {
+                                revealJson.hold_duration_seconds = holdDuration;
+                            }
+                            ordersData[stealthOrderId].reveal_condition_json = revealJson;
+                            const holdMsg = holdDuration !== null && holdDuration !== undefined
+                                ? `, hold=${holdDuration}s` : '';
+                            showMessage(`Threshold updated to ${threshold}${holdMsg}`, 'success');
+                            updateOrdersTable();
+                        }
+                    } else if (data.type === "reprice_now_result") {
+                        const sid = data.stealth_order_id;
+                        if (data.error) {
+                            showMessage(`Reprice failed: ${data.error}`, 'error');
+                        } else {
+                            showMessage(
+                                data.processed > 0
+                                    ? `⟳ Repriced order ${sid.substring(0, 8)}…`
+                                    : `⟳ No reprice needed for ${sid.substring(0, 8)}…`,
+                                data.processed > 0 ? 'success' : 'info'
+                            );
+                            // Refresh snapshot to pick up new limit_price in state
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+                            }
+                        }
                     } else if (data.type === "stealth_order_cancelled") {
                         // Handle stealth order cancellation
                         const stealth_order_id = data.stealth_order_id;
@@ -1188,6 +1690,45 @@
                 status.textContent = '●';
                 status.style.color = '#ff6b6b';
             }
+        }
+
+        function formatPercent(value, digits = 3) {
+            const num = parseFloat(value);
+            if (!isFinite(num)) return '--';
+            return (num * 100).toFixed(digits) + '%';
+        }
+
+        function formatFactor(value, digits = 3) {
+            const num = parseFloat(value);
+            if (!isFinite(num)) return '--';
+            return num.toFixed(digits) + 'x';
+        }
+
+        function updateRegimeMetrics(status) {
+            const effectiveFeeEl = document.getElementById('metric-effective-fee');
+            const takerFeeEl = document.getElementById('metric-taker-fee');
+            const targetFactorEl = document.getElementById('metric-target-factor');
+            const feeFactorEl = document.getElementById('metric-fee-factor');
+            const volumeRatioEl = document.getElementById('metric-volume-ratio');
+            const marginWindowEl = document.getElementById('metric-margin-window');
+            const overnightFlagEl = document.getElementById('metric-overnight-flag');
+
+            if (!status || typeof status !== 'object') {
+                return;
+            }
+
+            effectiveFeeEl.textContent = formatPercent(status.effective_fee_rate, 3);
+            takerFeeEl.textContent = formatPercent(status.taker_fee_rate, 3);
+            targetFactorEl.textContent = formatFactor(status.target_movement_factor, 3);
+            feeFactorEl.textContent = formatFactor(status.fee_regime_factor, 3);
+
+            const volumeRatio = parseFloat(status.volume_ratio);
+            volumeRatioEl.textContent = isFinite(volumeRatio) ? volumeRatio.toFixed(3) : '--';
+
+            marginWindowEl.textContent = status.margin_window_type || '--';
+
+            const overnight = status.overnight_margin_active;
+            overnightFlagEl.textContent = `Overnight: ${overnight === true ? 'Yes' : overnight === false ? 'No' : '--'}`;
         }
 
         function updateProductDropdown() {
@@ -1259,6 +1800,13 @@
                 const selectedProduct = e.target.value;
                 
                 if (selectedProduct && productMetadata[selectedProduct]) {
+                    // Update field step attributes based on product metadata
+                    productMetadataHandler.updateFieldSteps(
+                        selectedProduct,
+                        'limit_price',     // price field
+                        'total_size'       // size field
+                    );
+                    
                     // Get the base_increment (minimum size) for this product
                     const metadata = productMetadata[selectedProduct];
                     const minSizeValue = metadata.base_increment;
@@ -1270,6 +1818,15 @@
                     document.getElementById('total_size').value = formattedSize;
                 }
             });
+            
+            // Initial setup: attach shared handler listener for step updates
+            // This ensures steps are updated when product is programmatically changed
+            productMetadataHandler.attachProductChangeListener(
+                'product_id',      // product dropdown
+                'limit_price',     // price field
+                'total_size',      // size field
+                ['condition_price_threshold', 'condition_price_level']  // additional price fields in condition templates
+            );
         }
 
         function toggleAccordion(parentOrderId) {
@@ -1465,7 +2022,7 @@
                         <td>
                             <div class="action-buttons">
                                 ${isParent
-                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}')" class="edit-btn" title="Edit target movement">⚙️</button>`
+                                    ? `<button onclick="openEditParentTargetMovementModal('${order.stealth_order_id}', ${order.target_movement || 'null'}, '${order.target_movement_type || 'P'}', ${order.max_order_replacements || 0}, ${order.reveal_condition_json && order.reveal_condition_json.price_threshold !== undefined ? order.reveal_condition_json.price_threshold : 'null'}, '${order.reveal_condition_type || ''}', ${order.reveal_condition_json && order.reveal_condition_json.hold_duration_seconds !== undefined ? order.reveal_condition_json.hold_duration_seconds : 'null'})" class="edit-btn" title="Edit parent values">⚙️</button>`
                                     : ''}
                                 ${['HIDDEN', 'PENDING', 'TRIGGERED'].includes(order.status) 
                                     ? `<button onclick="cancelOrder('${order.stealth_order_id}')" class="cancel-btn">Cancel</button>`
@@ -1476,6 +2033,9 @@
                                       </div>`
                                     : `<span style="color: #999; font-size: 12px;">${order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
                                 }
+                                ${(order.anchor_repricing_policy_json && order.anchor_repricing_policy_json.enabled && ['HIDDEN','PENDING','TRIGGERED','REVEALED'].includes(order.status))
+                                    ? `<button onclick="repriceNow('${order.stealth_order_id}')" class="reprice-btn" title="Force repricing now">⟳</button>`
+                                    : ''}
                             </div>
                         </td>
                     </tr>
@@ -1577,6 +2137,18 @@
                 limit_price: document.getElementById('limit_price').value,
                 condition_type: document.getElementById('condition_type').value,
                 sizing_strategy: document.getElementById('sizing_strategy').value,
+                enable_anchor_repricing: document.getElementById('enable_anchor_repricing').checked,
+                reference_price_source: document.getElementById('reference_price_source').value,
+                anchor_distance_type: document.getElementById('anchor_distance_type').value,
+                anchor_target_distance: document.getElementById('anchor_target_distance').value,
+                anchor_max_distance: document.getElementById('anchor_max_distance').value,
+                anchor_update_mode: document.getElementById('anchor_update_mode').value,
+                anchor_fixed_interval_seconds: document.getElementById('anchor_fixed_interval_seconds').value,
+                anchor_min_price_change: document.getElementById('anchor_min_price_change').value,
+                anchor_hysteresis_bps: document.getElementById('anchor_hysteresis_bps').value,
+                anchor_min_reprice_interval_seconds: document.getElementById('anchor_min_reprice_interval_seconds').value,
+                anchor_max_reprices_per_hour: document.getElementById('anchor_max_reprices_per_hour').value,
+                anchor_post_only_required: document.getElementById('anchor_post_only_required').checked,
                 notes: document.getElementById('notes').value
             };
             
@@ -1652,7 +2224,20 @@
                 limit_price: document.getElementById('limit_price').value,
                 condition_type: document.getElementById('condition_type').value,
                 sizing_strategy: document.getElementById('sizing_strategy').value,
+                enable_anchor_repricing: document.getElementById('enable_anchor_repricing').checked,
+                reference_price_source: document.getElementById('reference_price_source').value,
+                anchor_distance_type: document.getElementById('anchor_distance_type').value,
+                anchor_target_distance: document.getElementById('anchor_target_distance').value,
+                anchor_max_distance: document.getElementById('anchor_max_distance').value,
+                anchor_update_mode: document.getElementById('anchor_update_mode').value,
+                anchor_fixed_interval_seconds: document.getElementById('anchor_fixed_interval_seconds').value,
+                anchor_min_price_change: document.getElementById('anchor_min_price_change').value,
+                anchor_hysteresis_bps: document.getElementById('anchor_hysteresis_bps').value,
+                anchor_min_reprice_interval_seconds: document.getElementById('anchor_min_reprice_interval_seconds').value,
+                anchor_max_reprices_per_hour: document.getElementById('anchor_max_reprices_per_hour').value,
+                anchor_post_only_required: document.getElementById('anchor_post_only_required').checked,
                 notes: document.getElementById('notes').value,
+                allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 timestamp: Date.now()
             };
             
@@ -1728,13 +2313,29 @@
             const entry = history[index];
             
             // Restore main fields
-            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes'];
+            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour'];
             mainFields.forEach(fieldId => {
                 const element = document.getElementById(fieldId);
                 if (element && entry[fieldId] !== undefined) {
                     element.value = entry[fieldId];
                 }
             });
+            
+            // Restore checkbox fields
+            const checkboxElement = document.getElementById('allow_partial_fills');
+            if (checkboxElement && entry['allow_partial_fills'] !== undefined) {
+                checkboxElement.checked = entry['allow_partial_fills'];
+            }
+            const anchorCheckbox = document.getElementById('enable_anchor_repricing');
+            if (anchorCheckbox && entry['enable_anchor_repricing'] !== undefined) {
+                anchorCheckbox.checked = entry['enable_anchor_repricing'];
+            }
+            const anchorPostOnly = document.getElementById('anchor_post_only_required');
+            if (anchorPostOnly && entry['anchor_post_only_required'] !== undefined) {
+                anchorPostOnly.checked = entry['anchor_post_only_required'];
+            }
+            toggleAnchorRepricingFields();
+            toggleAnchorFixedInterval();
             
             // Update condition fields based on condition_type
             updateConditionFields();
@@ -1773,13 +2374,29 @@
                     const formData = JSON.parse(savedData);
                     
                     // Restore main fields
-                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes'];
+                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour'];
                     mainFields.forEach(fieldId => {
                         const element = document.getElementById(fieldId);
                         if (element && formData[fieldId] !== undefined) {
                             element.value = formData[fieldId];
                         }
                     });
+                    
+                    // Restore checkbox fields
+                    const checkboxElement = document.getElementById('allow_partial_fills');
+                    if (checkboxElement && formData['allow_partial_fills'] !== undefined) {
+                        checkboxElement.checked = formData['allow_partial_fills'];
+                    }
+                    const anchorCheckbox = document.getElementById('enable_anchor_repricing');
+                    if (anchorCheckbox && formData['enable_anchor_repricing'] !== undefined) {
+                        anchorCheckbox.checked = formData['enable_anchor_repricing'];
+                    }
+                    const anchorPostOnly = document.getElementById('anchor_post_only_required');
+                    if (anchorPostOnly && formData['anchor_post_only_required'] !== undefined) {
+                        anchorPostOnly.checked = formData['anchor_post_only_required'];
+                    }
+                    toggleAnchorRepricingFields();
+                    toggleAnchorFixedInterval();
                     
                     // Restore condition-specific field values
                     setTimeout(() => {
@@ -1822,6 +2439,7 @@
         }
 
         document.getElementById('condition_type').addEventListener('change', updateConditionFields);
+        document.getElementById('enable_anchor_repricing').addEventListener('change', toggleAnchorRepricingFields);
 
         document.getElementById('create-order-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1829,6 +2447,7 @@
             const maxReplacements = document.getElementById('max_order_replacements').value;
             const targetMovement = document.getElementById('target_movement').value;
             const targetMovementType = document.getElementById('target_movement_type').value;
+            const allowPartialFills = document.getElementById('allow_partial_fills').checked;
 
             const order = {
                 product_id: document.getElementById('product_id').value,
@@ -1837,12 +2456,15 @@
                 limit_price: parseFloat(document.getElementById('limit_price').value),
                 reveal_condition: buildRevealCondition(),
                 follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
+                reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
                 sizing_strategy: {
                     type: document.getElementById('sizing_strategy').value
                 },
                 max_order_replacements: maxReplacements ? parseInt(maxReplacements) : null,
                 target_movement: targetMovement ? parseFloat(targetMovement) : 0.0,
                 target_movement_type: targetMovementType,
+                allow_partial_fills: allowPartialFills,
+                anchor_repricing_policy: buildAnchorRepricingPolicy(),
                 notes: document.getElementById('notes').value
             };
 
@@ -1912,7 +2534,10 @@
                 limit_price: order.limit_price,
                 reveal_condition: order.reveal_condition_json,
                 follow_up_reveal_direction: order.follow_up_reveal_direction || 'opposite',
+                reveal_pricing_policy: order.reveal_pricing_policy || (order.reveal_condition_json && order.reveal_condition_json.reveal_pricing_policy) || 'top_of_book',
                 sizing_strategy: {strategy: "equal_slices"},
+                allow_partial_fills: order.allow_partial_fills !== undefined ? order.allow_partial_fills : true,
+                anchor_repricing_policy: order.anchor_repricing_policy_json || { enabled: false },
                 notes: `Follow-up hidden order from ${orderID}`
             };
             
@@ -1923,18 +2548,44 @@
             }
         }
 
+        function repriceNow(orderID) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            ws.send(JSON.stringify({
+                type: "reprice_now_stealth_order",
+                stealth_order_id: orderID
+            }));
+        }
+
         // Modal functions for editing parent target movement
-        function openEditParentTargetMovementModal(parentOrderId, currentValue, currentType) {
+        function openEditParentTargetMovementModal(parentOrderId, currentValue, currentType, currentMaxFollowups, currentThreshold, revealConditionType, currentHoldDuration) {
             const modal = document.getElementById('editParentTargetMovementModal');
             const valueInput = document.getElementById('editParentTargetMovementValue');
             const typeSelect = document.getElementById('editParentTargetMovementType');
+            const maxFollowupsInput = document.getElementById('editParentMaxFollowups');
+            const thresholdInput = document.getElementById('editParentPriceThreshold');
+            const holdDurationInput = document.getElementById('editParentHoldDuration');
             
             // Store the parent order ID for later use
             modal.dataset.parentOrderId = parentOrderId;
+            modal.dataset.revealConditionType = revealConditionType || '';
             
             // Populate with current values (use raw DB values)
             valueInput.value = currentValue || '';
             typeSelect.value = currentType || 'P';
+            maxFollowupsInput.value = Number.isInteger(Number(currentMaxFollowups)) ? currentMaxFollowups : 0;
+
+            const isPriceCondition = (revealConditionType || '').toLowerCase() === 'price';
+
+            thresholdInput.disabled = !isPriceCondition;
+            thresholdInput.value = currentThreshold || '';
+            thresholdInput.placeholder = isPriceCondition ? '0.00' : 'N/A for non-price condition';
+
+            holdDurationInput.disabled = !isPriceCondition;
+            holdDurationInput.value = (currentHoldDuration !== null && currentHoldDuration !== undefined && String(currentHoldDuration) !== 'null') ? currentHoldDuration : '';
+            holdDurationInput.placeholder = isPriceCondition ? '2' : 'N/A for non-price condition';
             
             // Show modal
             modal.classList.add('show');
@@ -1947,6 +2598,7 @@
             
             // Clear stored order ID
             delete modal.dataset.parentOrderId;
+            delete modal.dataset.revealConditionType;
         }
 
         function confirmEditParentTargetMovement() {
@@ -1954,9 +2606,19 @@
             const parentOrderId = modal.dataset.parentOrderId;
             const value = document.getElementById('editParentTargetMovementValue').value;
             const type = document.getElementById('editParentTargetMovementType').value;
+            const maxFollowupsRaw = document.getElementById('editParentMaxFollowups').value;
+            const thresholdRaw = document.getElementById('editParentPriceThreshold').value;
+            const holdDurationRaw = document.getElementById('editParentHoldDuration').value;
+            const revealConditionType = (modal.dataset.revealConditionType || '').toLowerCase();
             
             if (!parentOrderId) {
                 showMessage('Error: No parent order selected', 'error');
+                return;
+            }
+
+            const parentOrder = ordersData[parentOrderId];
+            if (!parentOrder) {
+                showMessage('Error: Parent order not found in current state', 'error');
                 return;
             }
             
@@ -1971,22 +2633,84 @@
                 showMessage('Target movement cannot be negative', 'error');
                 return;
             }
+
+            if (!['P', 'A'].includes(type)) {
+                showMessage('Target movement type must be P or A', 'error');
+                return;
+            }
+
+            if (maxFollowupsRaw === '' || Number.isNaN(Number(maxFollowupsRaw))) {
+                showMessage('Please enter a valid max followups value', 'error');
+                return;
+            }
+
+            const maxFollowups = Number(maxFollowupsRaw);
+            if (!Number.isInteger(maxFollowups) || maxFollowups < 0) {
+                showMessage('Max followups must be a non-negative whole number', 'error');
+                return;
+            }
             
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 showMessage('Not connected to server', 'error');
                 return;
             }
+
+            if (revealConditionType === 'price') {
+                if (thresholdRaw === '' || Number.isNaN(Number(thresholdRaw))) {
+                    showMessage('Please enter a valid threshold for price reveal conditions', 'error');
+                    return;
+                }
+
+                const threshold = Number(thresholdRaw);
+                if (threshold <= 0) {
+                    showMessage('Threshold must be greater than 0', 'error');
+                    return;
+                }
+
+                if (holdDurationRaw !== '' && !Number.isNaN(Number(holdDurationRaw))) {
+                    const holdDuration = Number(holdDurationRaw);
+                    if (!Number.isInteger(holdDuration) || holdDuration < 0) {
+                        showMessage('Hold duration must be a non-negative whole number of seconds', 'error');
+                        return;
+                    }
+                }
+            }
             
             try {
-                // Send value directly without conversion (same format as form)
+                // Update target movement via dedicated endpoint.
                 ws.send(JSON.stringify({
                     type: "update_parent_target_movement",
                     parent_order_id: parentOrderId,
                     target_movement: numValue,
                     target_movement_type: type
                 }));
+
+                // Update max replacements via parent order update endpoint.
+                ws.send(JSON.stringify({
+                    type: "update_parent_order",
+                    order: {
+                        client_order_id: parentOrderId,
+                        product_id: parentOrder.product_id,
+                        size: parseFloat(parentOrder.total_size || 0),
+                        price: parseFloat(parentOrder.limit_price || 0),
+                        target_movement: numValue,
+                        max_order_replacement: maxFollowups,
+                        status: parentOrder.status || 'PENDING'
+                    }
+                }));
+
+                if (revealConditionType === 'price') {
+                    ws.send(JSON.stringify({
+                        type: "update_stealth_price_threshold",
+                        stealth_order_id: parentOrderId,
+                        price_threshold: Number(thresholdRaw),
+                        hold_duration_seconds: holdDurationRaw !== '' && !Number.isNaN(Number(holdDurationRaw))
+                            ? Number(holdDurationRaw)
+                            : null
+                    }));
+                }
                 
-                showMessage(`Parent target movement updated to ${numValue}${type === 'A' ? ' (Abs)' : '%'}`, 'success');
+                showMessage(`Parent values update sent: target=${numValue}${type === 'A' ? ' (Abs)' : '%'}, max followups=${maxFollowups}`, 'success');
                 closeEditParentTargetMovementModal();
             } catch (error) {
                 showMessage(`Error: ${error.message}`, 'error');
@@ -2043,6 +2767,8 @@
         // Initialize
         loadProductsFromJSON();  // Load all products at startup
         restoreFormValues();      // Restore last used form values
+        toggleAnchorRepricingFields();
+        toggleAnchorFixedInterval();
         setupAutoSave();          // Setup auto-save on input changes
         updateHistoryDisplay();   // Display saved entries history
         initWebSocket();

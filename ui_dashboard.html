@@ -319,7 +319,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📈 Trading Engine Dashboard</h1>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h1>📈 Trading Engine Dashboard</h1>
+                <a href="ui_investor_storyboard.html" style="padding: 8px 16px; background: #22c55e; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#16a34a'" onmouseout="this.style.background='#22c55e'">
+                    → Investor Storyboard
+                </a>
+            </div>
             <div class="connection-status">
                 <div class="status-indicator" id="connectionIndicator"></div>
                 <span id="connectionText">Connecting...</span>

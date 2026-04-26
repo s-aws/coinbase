@@ -43,6 +43,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Tuple, Optional
 from collections import defaultdict
 from core.enums import RevealConditionType, Direction
+from core.exceptions import RevealConditionEvaluationError
 
 
 class ConditionEvaluator(ABC):
@@ -82,6 +83,13 @@ class PriceThresholdEvaluator(ConditionEvaluator):
             "hold_duration_seconds": 2,
         }
         """
+        # Validate required configuration fields
+        
+        if "price_threshold" not in condition_config or condition_config.get("price_threshold") is None:
+            raise RevealConditionEvaluationError(
+                message="PriceThresholdEvaluator requires 'price_threshold' in condition config",
+                condition_type="PRICE_THRESHOLD"
+            )
         threshold = condition_config.get("price_threshold", 0)
         direction = condition_config.get("direction", Direction.BELOW.value)
         hold_duration = condition_config.get("hold_duration_seconds", 0)
@@ -136,6 +144,15 @@ class CumulativeVolumeEvaluator(ConditionEvaluator):
             "lookback_seconds": 30,
         }
         """
+        # Validate required configuration fields
+        
+        required_fields = ["product_id", "price_level", "volume_threshold"]
+        for field in required_fields:
+            if field not in condition_config or condition_config.get(field) is None:
+                raise RevealConditionEvaluationError(
+                    message=f"CumulativeVolumeEvaluator requires '{field}' in condition config",
+                    condition_type="CUMULATIVE_VOLUME"
+                )
         product_id = condition_config.get("product_id")
         price_level = condition_config.get("price_level", 0)
         volume_threshold = condition_config.get("volume_threshold", 0)
@@ -216,6 +233,13 @@ class SpreadEvaluator(ConditionEvaluator):
             "hold_duration_seconds": 1,
         }
         """
+        # Validate required configuration fields
+        
+        if "max_spread" not in condition_config or condition_config.get("max_spread") is None:
+            raise RevealConditionEvaluationError(
+                message="SpreadEvaluator requires 'max_spread' in condition config",
+                condition_type="SPREAD"
+            )
         max_spread = condition_config.get("max_spread", 999999)
         hold_duration = condition_config.get("hold_duration_seconds", 0)
         
@@ -260,6 +284,15 @@ class ProductRatioEvaluator(ConditionEvaluator):
             "direction": "below",      # Trigger when ratio falls below threshold
         }
         """
+        # Validate required configuration fields
+        
+        required_fields = ["product_a", "product_b", "ratio_threshold"]
+        for field in required_fields:
+            if field not in condition_config or condition_config.get(field) is None:
+                raise RevealConditionEvaluationError(
+                    message=f"ProductRatioEvaluator requires '{field}' in condition config",
+                    condition_type="PRODUCT_RATIO"
+                )
         price_a = market_data.get("price_a", 0)
         price_b = market_data.get("price_b", 0)
         threshold = condition_config.get("ratio_threshold", 0)
@@ -299,6 +332,13 @@ class CompositeEvaluator(ConditionEvaluator):
             ]
         }
         """
+        # Validate required configuration fields
+        
+        if "conditions" not in condition_config or not condition_config.get("conditions"):
+            raise RevealConditionEvaluationError(
+                message="CompositeEvaluator requires 'conditions' list in condition config",
+                condition_type="COMPOSITE"
+            )
         operator = condition_config.get("operator", "AND")
         conditions = condition_config.get("conditions", [])
         

@@ -28,6 +28,18 @@ class OrderEngineIntegration:
     - Order processing (validation, enrichment, context)
     - Event handling (deduplication, routing, filtering)
     
+    Extension pattern:
+    Extend this class to inject custom business logic without modifying the engine.
+    Each bridge is accessible and can be wrapped or extended independently.
+    
+    Example: custom integration with enhanced logging
+        >>> class LoggingIntegration(OrderEngineIntegration):
+        ...     def handle_filled_order(self, order):
+        ...         context = self.processor_bridge.build_order_context(order)
+        ...         logging.info(f"Filled: {context}")
+        ...         # Add custom business logic here (P&L calc, risk checks, etc.)
+        ...         return super().handle_filled_order(order)
+    
     Attributes:
         engine: Wrapped OrderEngine instance.
         calculator_bridge: CalculatorBridge for order calculations.

@@ -1,53 +1,65 @@
-"""OrderEngine - Multithreaded trading engine for Coinbase Advanced API.
+"""OrderEngine - multithreaded event-driven order lifecycle engine.
 
-Core responsibilities:
-- Real-time order event processing via WebSocket
-- Parent-child order relationship lifecycle management  
-- Automatic follow-up order creation on fills/cancellations
-- Position tracking for derivatives
-- Thread-safe orderbook state synchronization with database
+This module coordinates Coinbase WebSocket events, thread-safe in-memory state,
+and persistent order/position tracking.
 
-ARCHITECTURE: Unified Order System
-===================================
+Current feature set:
+- Real-time user/ticker ingestion and channel queue fan-out.
+- Event deduplication via rolling hash buckets (EventBridge).
+- RLock-protected orderbook mutations.
+- Parent-child lifecycle management with flat hierarchy semantics.
+- Follow-up generation for FILLED/CANCELLED flows using target movement rules.
+- Stealth order integration via StealthOrderBridge and reveal-linked fills.
+- Optional lot tracking via post-fill hooks.
+- Optional dashboard broadcasting for orders, positions, ticker, and logs.
+- Calculation/processing helpers through CalculatorBridge and ProcessorBridge.
 
-All orders flow through StealthOrderManager with automated reveal conditions:
-- Orders are created via StealthOrderManager.create_stealth_order()
-- Orders start in HIDDEN state with a reveal_condition
-- Conditions are evaluated continuously (time-based, price-based, immediate)
-- When condition is met, order transitions to PENDING, then to FILLED/CANCELLED
-- OrderEngine processes fill events and creates follow-up orders
+Critical ID semantics:
+- Use client_order_id for all internal tracking and parent-child linkage.
+- Use order_id only for exchange-facing operations and external references.
 
-Parent:Child Order Relationships (1:Many)
-=========================================
+Extension points:
+- websocket_hooks: add custom WebSocket message handlers without forking core loops.
+- fill_event_hooks: add post-fill business integrations (risk, analytics, persistence).
+- logging_flags + structured payload builders: increase observability safely.
 
-The system enforces a 1:Many parent-child relationship:
-- ONE parent order can have MANY child orders (follow-ups)
-- Parent: The initial order that triggers follow-up creation
-- Child: Orders created when parent fills or is cancelled
-- Example: 
-  - Create parent order: BUY 10 @ $40,000 (via reveal condition)
-  - Parent fills
-  - OrderEngine detects fill and creates follow-up child: SELL 10 @ $41,000
-  
-Data Structures:
-- order_parent_ids: Dict[parent_id → {orders: [child_ids], ...}]
-- child_order_ids: Dict[child_id → parent_id]
+Example: initialize and run
+    >>> from core.order_engine import OrderEngine
+    >>> engine = OrderEngine(
+    ...     orderbook=ORDERBOOK,
+    ...     db_helper=DB_HELPER,
+    ...     subscription=Subscription,
+    ...     api_key=API_KEY,
+    ...     api_secret=API_SECRET,
+    ...     order_post_only=ORDER_POST_ONLY,
+    ...     websocket_thread_maximum=2,
+    ...     max_workers=8,
+    ... )
+    >>> engine.logging_flags['order'] = True
+    >>> engine.run_forever()
 
-This module maintains:
-- Live WebSocket connection for real-time order updates
-- Parent-child order relationships and lifecycle
-- Automatic follow-up creation logic
-- Order deduplication with thread-safe event processing
-- In-memory orderbook state synchronized with PostgreSQL
-- Position tracking for futures contracts
+Example: register a custom fill hook
+    >>> def my_fill_hook(fill_context: dict) -> None:
+    ...     return
+    >>> if engine.fill_event_hooks:
+    ...     engine.fill_event_hooks.register('my_fill_hook', my_fill_hook)
+
+Example: resolve parent linkage
+    >>> is_parent, parent_id = engine.resolve_parent_client_order_id(
+    ...     client_order_id='550e8400-e29b-41d4-a716-446655440000'
+    ... )
+    >>> isinstance(is_parent, bool)
+    True
 """
 
 import json
 import threading
+import uuid
 from time import sleep
 from queue import Queue, Full
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from external import CoinbaseWebSocketClient
@@ -57,16 +69,33 @@ from configuration import (
     calculate_new_order_move_from_snapshot,
     apply_calculated_position_update,
     get_futures_positions,
+    get_trading_product_id,
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus
-from calculation.resolver import resolve_order_size, resolve_order_side
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel
+from core.exceptions import (
+    OrderProcessingError,
+    OrderCalculationError,
+    OrderCreationError,
+    FollowUpOrderError,
+    WebSocketMessageError,
+    CoinbaseAPIError,
+)
+from calculation.resolver import (
+    resolve_order_size,
+    resolve_order_side,
+    resolve_cumulative_filled,
+    resolve_remaining_size,
+    resolve_partial_fill_delta,
+)
 from calculation.formatter import safe_float
 from bridges.calculator_bridge import CalculatorBridge
 from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
+from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
 from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
+from integration.order_placement_hooks import get_global_placement_hook_registry
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
@@ -81,23 +110,24 @@ except ImportError:
     def broadcast_ticker(*args, **kwargs): pass
     def record_spread_tick(*args, **kwargs): pass
 
-# Lot tracking integration (optional - will fail gracefully if not available)
+# Lot tracking integration (optional - will fail gracefully if not available).
+# Note: production fills flow through OrderProgressTracker ->
+# FillLedgerRepository.append_derived_fill(delta); the legacy
+# post_fill_hook.on_order_filled helper is retained only for offline
+# backfill scripts and is no longer imported here.
 try:
-    from business.post_fill_hook import on_order_filled as post_fill_hook_on_order_filled
     from integration.fill_event_hooks import get_global_fill_event_hook_registry
     LOT_TRACKING_AVAILABLE = True
 except ImportError:
     LOT_TRACKING_AVAILABLE = False
-    def post_fill_hook_on_order_filled(*args, **kwargs): pass
     def get_global_fill_event_hook_registry(): return None
 
 
 class OrderEngine:
     """Multithreaded trading engine for Coinbase Advanced API order management.
     
-    Orchestrates real-time order processing, parent-child order relationship tracking,
-    and automatic follow-up order creation. Handles all threading, state management,
-    and event deduplication.
+    Orchestrates realtime event processing, parent-child tracking, follow-up
+    creation, and optional business integrations (dashboard, lot tracking, hooks).
     
     Attributes:
         orderbook: OrderBook instance (source-of-truth for orders/positions).
@@ -121,6 +151,8 @@ class OrderEngine:
         proc_bridge: ProcessorBridge instance for order processing.
         evt_bridge: EventBridge instance for event deduplication and bucket rotation.
         websocket_events: Event type schemas (internal reference).
+        websocket_hooks: Registry for WebSocket extension hooks.
+        fill_event_hooks: Registry for post-fill extension hooks.
     
     Example:
         >>> from core.order_engine import OrderEngine
@@ -134,8 +166,8 @@ class OrderEngine:
         ...     websocket_thread_maximum=2,
         ...     max_workers=8
         ... )
-        >>> engine.logging_flags['order'] = True  # Enable order logging
-        >>> engine.run_forever()  # Start all background threads and loop
+        >>> engine.logging_flags['order'] = True
+        >>> engine.run_forever()
     """
 
     def __init__(
@@ -233,11 +265,15 @@ class OrderEngine:
         from calculation.profit_validator import ProfitValidator
         
         self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
-        self.profit_validator = ProfitValidator(fee_manager=self.fee_manager)
+        self.profit_validator = ProfitValidator(
+            fee_manager=self.fee_manager,
+            orderbook=self.orderbook,
+        )
 
         # Lot Tracking Integration: Initialize fill ledger and hook registry
         self.fill_repo = None
         self.fill_event_hooks = None
+        self.event_stream_publisher = None
         if LOT_TRACKING_AVAILABLE:
             try:
                 from business.post_fill_hook import initialize_fill_ledger
@@ -249,6 +285,22 @@ class OrderEngine:
             except Exception as e:
                 # Log but don't fail - lot tracking is optional
                 self.log_message("warning", f"Failed to initialize fill ledger: {e}")
+
+        # Single source of truth for all per-order WS-derived progress.
+        # Replaces the previous parallel ``_partial_fill_state`` and
+        # ``_fill_recording_state`` dicts. The tracker owns:
+        #   * the cumulative-counter watermark used to derive per-match fill
+        #     ledger rows, and
+        #   * the carry/min-size watermark used to spawn partial-fill
+        #     follow-up orders.
+        # Hydrated at startup via ``_hydrate_order_progress_tracker_from_db``.
+        self.order_progress_tracker = OrderProgressTracker(
+            min_order_size_resolver=self._resolve_min_order_size,
+            parent_resolver=lambda coid: self.get_parent_of_child(coid) or coid,
+        )
+
+        # Reconstructive timeline event stream integration via existing hooks.
+        self._initialize_event_stream_integration()
 
         self.websocket_events = {
             "SNAPSHOT": {
@@ -273,6 +325,714 @@ class OrderEngine:
         }
 
         self.orderbook.db_helper = self.db_helper
+
+    def _initialize_event_stream_integration(self) -> None:
+        """Initialize order event stream and wire it into existing hook registries."""
+        try:
+            from business.order_event_stream import OrderEventStreamPublisher
+            from integration.stealth_lifecycle_hooks import (
+                get_global_stealth_lifecycle_hook_registry,
+            )
+
+            self.event_stream_publisher = OrderEventStreamPublisher(self.db_helper)
+            self.event_stream_publisher.set_fee_info_provider(
+                self.fee_manager.get_fee_info if self.fee_manager else None
+            )
+            order_placement_hooks = get_global_placement_hook_registry()
+            self.event_stream_publisher.register_hook_integrations(
+                websocket_hooks=self.websocket_hooks,
+                fill_event_hooks=self.fill_event_hooks,
+                order_placement_hooks=order_placement_hooks,
+                stealth_lifecycle_hooks=get_global_stealth_lifecycle_hook_registry(),
+            )
+            if self.event_stream_publisher.enabled:
+                self.log_message("info", "[EVENT-STREAM] Hook integration enabled")
+            else:
+                self.log_message("warning", "[EVENT-STREAM] Integration disabled (table init failed)")
+        except Exception as e:
+            self.log_message("warning", f"[EVENT-STREAM] Integration init failed: {e}")
+
+    # ------------------------------------------------------------------
+    # Partial-fill persistence helpers
+    # ------------------------------------------------------------------
+
+    def _hydrate_order_progress_tracker_from_db(self) -> None:
+        """Load ACTIVE ``partial_fill_progress`` rows into the tracker.
+
+        Called once at engine startup (inside ``start_background_threads``) so
+        that in-flight partial-fill watermarks survive restarts. Delegates the
+        actual record construction to ``OrderProgressTracker.hydrate``.
+        """
+        try:
+            from database.order import get_all_active_partial_fill_progress
+            rows = get_all_active_partial_fill_progress()
+        except Exception as e:
+            self.log_message("warning", f"[PARTIAL-FILL] Hydration failed: {e}")
+            return
+
+        self.order_progress_tracker.hydrate(rows)
+
+        self.log_message(
+            "order",
+            self.build_event_log_payload(
+                "partial_fill_state_hydrated",
+                active_rows=len(rows),
+            ),
+        )
+
+    def _persist_progress_from_record(
+        self,
+        client_order_id: str,
+        record,
+        cumulative_qty: float,
+        number_of_fills: int,
+        completion_pct: float,
+    ) -> None:
+        """Persist the tracker's per-order watermark to ``partial_fill_progress``.
+
+        The :class:`OrderProgressTracker` is the single source of truth for
+        in-memory state; this helper writes that state through to the database
+        and emits an immutable audit row to ``order_event_stream``.
+
+        Args:
+            client_order_id:    Order whose watermark to persist.
+            record:             Snapshot of the tracker's ``_WatermarkRecord``
+                                (already a copy returned by
+                                ``OrderProgressTracker.get_record``).
+            cumulative_qty:     Cumulative quantity from the latest snapshot.
+            number_of_fills:    ``number_of_fills`` from the latest snapshot.
+            completion_pct:     ``completion_percentage`` from the latest snapshot.
+        """
+        try:
+            from database.order import upsert_partial_fill_progress
+            upsert_partial_fill_progress(
+                client_order_id=client_order_id,
+                parent_client_order_id=record.parent_client_order_id,
+                product_id=record.product_id,
+                side=record.side,
+                original_order_size=record.original_order_size,
+                min_order_size=record.min_order_size,
+                last_cumulative_qty_processed=cumulative_qty,
+                carry_remainder_qty=record.carry_remainder_qty,
+                last_number_of_fills_seen=number_of_fills,
+                last_completion_pct_seen=completion_pct,
+                partial_follow_ups_created=record.partial_follow_ups_created,
+            )
+        except Exception as e:
+            self.log_message(
+                "error",
+                f"[PARTIAL-FILL] DB upsert failed for {client_order_id}: {e}",
+            )
+
+        # Emit immutable audit row to order_event_stream.
+        if self.event_stream_publisher and self.event_stream_publisher.enabled:
+            audit_payload = {
+                "client_order_id": client_order_id,
+                "parent_order_id": record.parent_client_order_id,
+                "product_id": record.product_id,
+                "side": record.side,
+                "cumulative_quantity": cumulative_qty,
+                "carry_remainder": record.carry_remainder_qty,
+                "number_of_fills": number_of_fills,
+                "completion_percentage": completion_pct,
+                "partial_follow_ups_created": record.partial_follow_ups_created,
+                "original_order_size": record.original_order_size,
+                "min_order_size": record.min_order_size,
+            }
+            idempotency_key = (
+                f"partial_fill_progress:{client_order_id}:{cumulative_qty}:{number_of_fills}"
+            )
+            self.event_stream_publisher.publish_event(
+                event_type=EventStreamType.PARTIAL_FILL_PROGRESS_UPDATED.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
+                payload=audit_payload,
+                idempotency_key=idempotency_key,
+                status_to=OrderStatus.OPEN.value,
+            )
+
+    def _process_ws_order_delta(self, normalized_order: dict) -> Optional[OrderSnapshotDelta]:
+        """Single ingestion point for one WS order snapshot.
+
+        Replaces the previous parallel ``_record_incremental_fills`` and
+        ``_handle_partial_fill_if_enabled`` paths. Routes the resulting
+        :class:`OrderSnapshotDelta` to:
+          * fill-ledger row generation (always, when there is a real per-match
+            advance and lot-tracking is enabled),
+          * partial-fill follow-up creation (only when the parent has
+            ``allow_partial_fills=True``),
+          * watermark persistence to ``partial_fill_progress``,
+          * append-only audit insertion to ``order_match_audit``.
+
+        Args:
+            normalized_order: Normalised WS order dict produced by the
+                processor bridge for any status.
+
+        Returns:
+            The :class:`OrderSnapshotDelta` produced by the tracker, or
+            ``None`` when the snapshot carried no advance.
+        """
+        delta = self.order_progress_tracker.ingest(normalized_order)
+        if delta is None:
+            return None
+
+        client_order_id = delta.client_order_id
+
+        # 1. Per-match fill-ledger row + post/pre fill hooks.
+        if delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE:
+            self._append_derived_fill_with_hooks(delta)
+
+        # 2. Append-only audit row covering EVERY accepted snapshot.
+        self._append_order_match_audit(delta, normalized_order)
+
+        # 3. Persist watermark + emit progress audit event.
+        record = self.order_progress_tracker.get_record(client_order_id)
+        if record is not None:
+            self._persist_progress_from_record(
+                client_order_id=client_order_id,
+                record=record,
+                cumulative_qty=delta.cumulative_quantity,
+                number_of_fills=delta.number_of_fills,
+                completion_pct=delta.completion_percentage,
+            )
+
+            # 4. Conditionally create partial-fill follow-up(s).
+            #    Opt-in is parent-side; carry-vs-min check is delta-side.
+            if delta.is_new_match and not delta.is_terminal:
+                self._maybe_create_partial_fill_follow_up(delta, record)
+
+        return delta
+
+    def _append_derived_fill_with_hooks(self, delta: OrderSnapshotDelta) -> None:
+        """Run pre-fill hooks, append the derived fill row, then post-fill hooks."""
+        fill_data = {
+            "instrument": delta.product_id,
+            "side": delta.side,
+            "quantity": delta.size_delta,
+            "price": delta.derived_price,
+            "fees": delta.fee_delta,
+            "client_order_id": delta.client_order_id,
+            "timestamp": delta.observed_at,
+            "commission_percentage": 0.0,
+            "trade_id": delta.derived_trade_key,
+            "derived_trade_key": delta.derived_trade_key,
+        }
+
+        try:
+            if self.fill_event_hooks:
+                self.fill_event_hooks.call_pre_fill_hooks(fill_data)
+        except Exception as hook_error:
+            self.log_message(
+                "warning",
+                f"[LOT-TRACK] Pre-fill hook blocked recording: {hook_error}",
+            )
+            return
+
+        record_success = self.fill_repo.append_derived_fill(delta)
+
+        if record_success and self.fill_event_hooks:
+            try:
+                self.fill_event_hooks.call_post_fill_hooks(
+                    fill_data, delta.derived_trade_key
+                )
+            except Exception as hook_error:
+                self.log_message(
+                    "warning",
+                    f"[LOT-TRACK] Post-fill hook exception: {hook_error}",
+                )
+
+    def _append_order_match_audit(
+        self, delta: OrderSnapshotDelta, normalized_order: dict
+    ) -> None:
+        """Best-effort append of one row to ``order_match_audit``.
+
+        Failures are logged but do not block the WS pipeline — the audit table
+        is for forensic reconstruction, not transactional correctness.
+        """
+        try:
+            from database.order import insert_order_match_audit
+            insert_order_match_audit(
+                client_order_id=delta.client_order_id,
+                snapshot_seq=delta.snapshot_seq,
+                cumulative_quantity=delta.cumulative_quantity,
+                filled_value=delta.filled_value,
+                total_fees=delta.total_fees,
+                number_of_fills=delta.number_of_fills,
+                leaves_quantity=delta.leaves_quantity,
+                outstanding_hold_amount=delta.outstanding_hold_amount,
+                status=delta.status,
+                derived_size_delta=delta.size_delta,
+                derived_value_delta=delta.value_delta,
+                derived_fee_delta=delta.fee_delta,
+                derived_price=delta.derived_price if delta.is_new_match else None,
+                derived_trade_key=delta.derived_trade_key if delta.is_new_match else None,
+                emitted_fill_ledger_row=bool(
+                    delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE
+                ),
+                raw_payload_json=json.dumps(normalized_order, default=str),
+            )
+        except Exception as e:
+            self.log_message(
+                "warning",
+                f"[ORDER-MATCH-AUDIT] Insert failed for {delta.client_order_id} "
+                f"seq={delta.snapshot_seq}: {e}",
+            )
+
+    def _finalize_partial_fill_progress(self, client_order_id: str, terminal_status: str) -> None:
+        """Drop the order's tracker watermark and mark its DB row terminal.
+
+        Called when an order reaches FILLED, CANCELLED, or FAILED status so
+        that the partial-fill progress row is no longer surfaced on restart
+        hydration. The tracker owns the in-memory state; this method handles
+        the DB finalize and audit emission.
+
+        Args:
+            client_order_id:  The child order's client_order_id.
+            terminal_status:  'FINALIZED' (filled) or 'CANCELLED'.
+        """
+        self.order_progress_tracker.finalize(client_order_id, terminal_status)
+
+        try:
+            from database.order import finalize_partial_fill_progress
+            finalize_partial_fill_progress(client_order_id, terminal_status)
+        except Exception as e:
+            self.log_message("warning", f"[PARTIAL-FILL] Finalize failed for {client_order_id}: {e}")
+
+        # Emit terminal audit row to order_event_stream.
+        if self.event_stream_publisher and self.event_stream_publisher.enabled:
+            audit_payload = {
+                "client_order_id": client_order_id,
+                "terminal_status": terminal_status,
+            }
+            idempotency_key = f"partial_fill_finalized:{client_order_id}:{terminal_status}"
+            self.event_stream_publisher.publish_event(
+                event_type=EventStreamType.PARTIAL_FILL_FINALIZED.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_TERMINAL.value,
+                payload=audit_payload,
+                idempotency_key=idempotency_key,
+                status_to=terminal_status,
+            )
+
+    def _resolve_filled_follow_up_size_after_partials(
+        self,
+        client_order_id: str,
+        proposed_follow_up_size: float,
+    ) -> tuple[float, dict | None]:
+        """Adjust FILLED follow-up size by subtracting already-created partial follow-up units.
+
+        Partial fills can spawn follow-up size in advance (tracked in partial_fill_progress).
+        When the same order later reaches FILLED, creating another full-size follow-up would
+        over-allocate total follow-up size. This helper caps FILLED follow-up size to the
+        remaining unallocated size.
+
+        Returns:
+            Tuple of (adjusted_size, details_dict_or_none).
+        """
+        if proposed_follow_up_size <= 0.0:
+            return 0.0, None
+
+        try:
+            from database.order import get_partial_fill_progress
+        except Exception:
+            return proposed_follow_up_size, None
+
+        progress = get_partial_fill_progress(client_order_id)
+        if not progress:
+            return proposed_follow_up_size, None
+
+        original_order_size = safe_float(progress.get("original_order_size"), default=0.0)
+        min_order_size = safe_float(progress.get("min_order_size"), default=0.0)
+        partial_follow_ups_created = int(progress.get("partial_follow_ups_created") or 0)
+
+        if original_order_size <= 0.0 or min_order_size <= 0.0 or partial_follow_ups_created <= 0:
+            return proposed_follow_up_size, None
+
+        allocated_by_partial_follow_ups = partial_follow_ups_created * min_order_size
+        remaining_follow_up_size = max(0.0, original_order_size - allocated_by_partial_follow_ups)
+        adjusted_size = min(proposed_follow_up_size, remaining_follow_up_size)
+
+        details = {
+            "original_order_size": original_order_size,
+            "min_order_size": min_order_size,
+            "partial_follow_ups_created": partial_follow_ups_created,
+            "allocated_by_partial_follow_ups": allocated_by_partial_follow_ups,
+            "remaining_follow_up_size": remaining_follow_up_size,
+            "proposed_follow_up_size": proposed_follow_up_size,
+            "adjusted_follow_up_size": adjusted_size,
+        }
+        return adjusted_size, details
+
+    def _resolve_min_order_size(self, product_id: str) -> float:
+        """Return the base_increment (minimum tradeable quantity) for a product.
+
+        Reads from the in-memory ``orderbook.product`` cache populated at startup.
+
+        Args:
+            product_id: Exchange product ID (e.g. 'BTC-USDC').
+
+        Returns:
+            Minimum order size as float, or 0.0 if product metadata is unavailable.
+        """
+        if not product_id:
+            return 0.0
+        from core.models import Product as _Product
+        product_meta = self.orderbook.product.get(product_id, {})
+        if isinstance(product_meta, _Product):
+            return safe_float(product_meta.base_increment, default=0.0)
+        return safe_float(product_meta.get("base_increment"), default=0.0)
+
+    def _get_parent_allow_partial_fills(self, parent_id: str) -> bool:
+        """Return whether partial-fill follow-ups are enabled for a parent order.
+
+        Reads from the in-memory ``orderbook.parent_order_ids`` cache first.  On
+        a cache miss (order not yet in memory) falls back to a single DB lookup,
+        which only happens once per new order lifecycle.
+
+        Args:
+            parent_id: The root parent ``client_order_id``.
+
+        Returns:
+            True if the parent was created with ``allow_partial_fills=True``.
+        """
+        with self.orderbook_lock:
+            parent = self.orderbook.parent_order_ids.get(parent_id, {})
+            if "allow_partial_fills" in parent:
+                return bool(parent["allow_partial_fills"])
+
+        # Cache miss: one-time DB lookup
+        try:
+            row = self.db_helper.get_parent_order(parent_id)
+            if row:
+                return bool(row.get("allow_partial_fills", False))
+        except Exception as e:
+            self.log_message("warning", f"[PARTIAL-FILL] allow_partial_fills DB lookup failed for {parent_id}: {e}")
+        return False
+
+    def _create_partial_fill_follow_up(
+        self,
+        client_order_id: str,
+        parent_client_order_id: str,
+        min_order_size: float,
+        follow_ups_due: int,
+    ) -> int:
+        """Create a stealth follow-up order for accumulated partial fills.
+
+        Returns how many minimum-size follow-up units were actually created.
+        """
+        if follow_ups_due <= 0 or min_order_size <= 0.0:
+            return 0
+        if not self.stealth_order_bridge:
+            return 0
+
+        try:
+            stealth_manager = self.stealth_order_bridge.stealth_manager
+            original_stealth_order = stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
+            )
+            if not original_stealth_order:
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "partial_fill_follow_up_skipped_no_stealth_parent",
+                        client_order_id=client_order_id,
+                        parent_client_order_id=parent_client_order_id,
+                    ),
+                )
+                return 0
+
+            can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
+            if not can_replace:
+                self.log_message(
+                    "order",
+                    self.build_event_log_payload(
+                        "partial_fill_follow_up_max_replacements_reached",
+                        client_order_id=client_order_id,
+                        parent_client_order_id=parent_client_order_id,
+                        details=replacement_details,
+                    ),
+                )
+                return 0
+
+            max_replacements = int(replacement_details.get("max_order_replacement", 0))
+            current_replacements = int(replacement_details.get("current_order_replacement", 0))
+            remaining_replacements = max(0, max_replacements - current_replacements)
+            units_to_create = min(follow_ups_due, remaining_replacements)
+            if units_to_create <= 0:
+                return 0
+
+            target_movement = self.resolve_parent_target_movement(parent_client_order_id)
+            order_template = self.compute_partial_fill_order_template(
+                client_order_id,
+                target_movement=target_movement,
+            )
+            if not order_template:
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "partial_fill_follow_up_template_compute_failed",
+                        client_order_id=client_order_id,
+                        parent_client_order_id=parent_client_order_id,
+                    ),
+                )
+                return 0
+
+            follow_up_price = float(order_template["start_price"])
+            follow_up_size = float(units_to_create * min_order_size)
+
+            follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
+            direction_choice = original_stealth_order.get(
+                "follow_up_reveal_direction",
+                FollowUpRevealDirection.OPPOSITE.value,
+            )
+
+            if follow_up_reveal_condition.get("type") == "price":
+                follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
+                if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
+                    if "direction" in follow_up_reveal_condition:
+                        follow_up_reveal_condition["direction"] = (
+                            Direction.ABOVE.value
+                            if follow_up_reveal_condition.get("direction") == Direction.BELOW.value
+                            else Direction.BELOW.value
+                        )
+
+            parent_order_data = self.db_helper.get_parent_order(parent_client_order_id)
+            parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
+            parent_target_movement_type = (
+                parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value)
+                if parent_order_data
+                else TargetMovementType.PERCENTAGE.value
+            )
+
+            stealth_follow_up_id = stealth_manager.create_follow_up_stealth_order(
+                original_stealth_order_id=original_stealth_order["stealth_order_id"],
+                side=order_template["side"],
+                total_size=follow_up_size,
+                limit_price=follow_up_price,
+                reveal_condition=follow_up_reveal_condition,
+                follow_up_reveal_direction=direction_choice,
+                reveal_pricing_policy=None,
+                notes=(
+                    f"Auto partial-fill follow-up ({units_to_create} x {min_order_size})"
+                ),
+                target_movement=parent_target_movement,
+                target_movement_type=parent_target_movement_type,
+            )
+
+            self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+            self.log_message(
+                "order",
+                self.build_event_log_payload(
+                    "partial_fill_follow_up_created",
+                    client_order_id=client_order_id,
+                    parent_client_order_id=parent_client_order_id,
+                    stealth_follow_up_id=stealth_follow_up_id,
+                    follow_up_units=units_to_create,
+                    follow_up_size=follow_up_size,
+                    follow_up_price=follow_up_price,
+                ),
+            )
+            return units_to_create
+        except Exception as e:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "partial_fill_follow_up_creation_failed",
+                    client_order_id=client_order_id,
+                    parent_client_order_id=parent_client_order_id,
+                    error=str(e),
+                ),
+            )
+            return 0
+
+    def _maybe_create_partial_fill_follow_up(
+        self,
+        delta: OrderSnapshotDelta,
+        record,
+    ) -> None:
+        """Create partial-fill follow-up order(s) when carry has crossed min-size.
+
+        Called from :meth:`_process_ws_order_delta` for every accepted snapshot
+        with a positive size advance. The opt-in check is parent-scoped; when
+        the parent has ``allow_partial_fills=False`` we still record the
+        watermark/audit but do not spawn a follow-up.
+
+        Carry-arithmetic invariants:
+          * ``record.carry_remainder_qty`` already includes ``delta.size_delta``
+            (the tracker accumulates it during ``ingest``).
+          * After we place ``created_units`` follow-ups, we hand the consumed
+            amount back to the tracker via ``consume_carry_units`` so the
+            in-memory and persisted state agree on what is left.
+
+        Args:
+            delta:  Snapshot delta from :class:`OrderProgressTracker`.
+            record: Read-only snapshot of the per-order watermark from the
+                tracker (already a copy — safe to read but do not mutate).
+        """
+        from logging_service import get_logger
+
+        logger = get_logger("OrderEngine")
+        client_order_id = delta.client_order_id
+
+        if not self._get_parent_allow_partial_fills(record.parent_client_order_id):
+            logger.debug(
+                "[PARTIAL-FILL] Skipped (opt-out): client_order_id=%s parent_client_order_id=%s",
+                client_order_id,
+                record.parent_client_order_id,
+            )
+            return
+
+        product_id = delta.product_id
+        side = delta.side
+        cumulative = delta.cumulative_quantity
+        min_size = record.min_order_size
+        carry = record.carry_remainder_qty
+        size_delta = delta.size_delta
+
+        # First-event audit emission so dashboards can show "first partial fill"
+        # for an opted-in order.
+        if (
+            record.partial_follow_ups_created == 0
+            and record.last_cumulative_qty_processed > 0
+            and self.event_stream_publisher
+            and self.event_stream_publisher.enabled
+        ):
+            # ``last_cumulative_qty_processed`` was already advanced by ingest
+            # so the first time we get here the previous value (pre-advance)
+            # would have been 0; we can't easily reach back for it. Emit on
+            # the first delta seen — gate by snapshot_seq == 1.
+            pass
+        if delta.snapshot_seq == 1 and self.event_stream_publisher and self.event_stream_publisher.enabled:
+            self.event_stream_publisher.publish_event(
+                event_type=EventStreamType.PARTIAL_FILL_DETECTED.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
+                payload={
+                    "client_order_id": client_order_id,
+                    "parent_order_id": record.parent_client_order_id,
+                    "product_id": product_id,
+                    "side": side,
+                    "cumulative_quantity": cumulative,
+                },
+                idempotency_key=f"partial_fill_detected:{client_order_id}:{cumulative}",
+                status_to=OrderStatus.OPEN.value,
+            )
+
+        if min_size <= 0.0:
+            logger.debug(
+                "[PARTIAL-FILL] Skipped (min size unavailable): client_order_id=%s product_id=%s",
+                client_order_id,
+                product_id,
+            )
+            return
+
+        if size_delta <= 0.0 and carry < min_size:
+            logger.debug(
+                "[PARTIAL-FILL] Skipped (no new delta and below min): client_order_id=%s "
+                "cumulative=%s carry=%s min_size=%s",
+                client_order_id,
+                cumulative,
+                carry,
+                min_size,
+            )
+            return
+
+        follow_ups_due = int(carry / min_size)
+        created_units = 0
+        if follow_ups_due > 0:
+            created_units = self._create_partial_fill_follow_up(
+                client_order_id=client_order_id,
+                parent_client_order_id=record.parent_client_order_id,
+                min_order_size=min_size,
+                follow_ups_due=follow_ups_due,
+            )
+
+            logger.debug(
+                "[PARTIAL-FILL] Follow-up evaluation: client_order_id=%s follow_ups_due=%s "
+                "follow_ups_created=%s carry_before=%s min_size=%s",
+                client_order_id,
+                follow_ups_due,
+                created_units,
+                carry,
+                min_size,
+            )
+
+            if self.event_stream_publisher and self.event_stream_publisher.enabled:
+                self.event_stream_publisher.publish_event(
+                    event_type=EventStreamType.PARTIAL_FILL_FOLLOW_UP_QUEUED.value,
+                    source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
+                    payload={
+                        "client_order_id": client_order_id,
+                        "parent_order_id": record.parent_client_order_id,
+                        "product_id": product_id,
+                        "side": side,
+                        "cumulative_quantity": cumulative,
+                        "follow_ups_due": follow_ups_due,
+                        "follow_ups_created": created_units,
+                        "min_order_size": min_size,
+                    },
+                    idempotency_key=(
+                        f"partial_fill_follow_up_queued:{client_order_id}:{cumulative}:"
+                        f"{follow_ups_due}:{created_units}"
+                    ),
+                    status_to=OrderStatus.OPEN.value,
+                )
+
+        if follow_ups_due <= 0 and self.event_stream_publisher and self.event_stream_publisher.enabled:
+            self.event_stream_publisher.publish_event(
+                event_type=EventStreamType.PARTIAL_FILL_BELOW_MIN.value,
+                source_channel=EventSourceChannel.ORDER_ENGINE_OPEN.value,
+                payload={
+                    "client_order_id": client_order_id,
+                    "parent_order_id": record.parent_client_order_id,
+                    "product_id": product_id,
+                    "side": side,
+                    "cumulative_quantity": cumulative,
+                    "delta": size_delta,
+                    "carry_quantity": carry,
+                    "min_order_size": min_size,
+                },
+                idempotency_key=f"partial_fill_below_min:{client_order_id}:{cumulative}:{carry}",
+                status_to=OrderStatus.OPEN.value,
+            )
+
+        if created_units > 0:
+            # Hand the consumed units back to the tracker so the in-memory
+            # carry stays in sync with what was actually placed. This also
+            # increments ``partial_follow_ups_created`` on the tracker record
+            # so the next persistence cycle writes the new totals.
+            self.order_progress_tracker.consume_carry_units(client_order_id, created_units)
+            # Refresh persisted state to include the consumption + count.
+            updated_record = self.order_progress_tracker.get_record(client_order_id)
+            if updated_record is not None:
+                self._persist_progress_from_record(
+                    client_order_id=client_order_id,
+                    record=updated_record,
+                    cumulative_qty=cumulative,
+                    number_of_fills=delta.number_of_fills,
+                    completion_pct=delta.completion_percentage,
+                )
+
+        # Single INFO summary for each processed partial-fill event.
+        new_carry = max(0.0, carry - (created_units * min_size))
+        new_follow_ups_created = record.partial_follow_ups_created + created_units
+        self.log_message(
+            "order",
+            self.build_event_log_payload(
+                "partial_fill_summary",
+                client_order_id=client_order_id,
+                parent_client_order_id=record.parent_client_order_id,
+                product_id=product_id,
+                side=side,
+                cumulative_quantity=cumulative,
+                delta=size_delta,
+                min_order_size=min_size,
+                carry_before=carry,
+                carry_after=new_carry,
+                follow_ups_due=follow_ups_due,
+                follow_ups_created=created_units,
+                total_follow_ups_created=new_follow_ups_created,
+                number_of_fills=delta.number_of_fills,
+                completion_percentage=delta.completion_percentage,
+            ),
+        )
 
     def log_message(self, log_type: str, message) -> None:
         """Log a message if the log type is enabled.
@@ -506,7 +1266,7 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.positions["FUTURE"] = refreshed_positions
 
-    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None) -> tuple:
+    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None, allow_partial_fills: bool = False) -> tuple:
         """Resolve if an order is a parent or find its parent.
         
         Returns (is_parent: bool, parent_client_order_id: str).
@@ -562,6 +1322,7 @@ class OrderEngine:
                 },
                 "max_order_replacement": max_order_replacement,
                 "current_order_replacement": 0,
+                "allow_partial_fills": allow_partial_fills,
             }
 
             self.log_message(
@@ -585,6 +1346,7 @@ class OrderEngine:
                 status=status or order.get("status"),
                 max_order_replacement=self.orderbook.parent_order_ids[client_order_id]["max_order_replacement"],
                 current_order_replacement=self.orderbook.parent_order_ids[client_order_id]["current_order_replacement"],
+                allow_partial_fills=allow_partial_fills,
             )
 
             self.orderbook.parent_order_ids[client_order_id]["parent_id"] = parent_id
@@ -725,6 +1487,9 @@ class OrderEngine:
             >>> engine.register_child_order('child_123', 'parent_123')
             >>> # Now child_123 is tracked as child of parent_123 and count is incremented
         """
+        # Flag to track if this is a new registration
+        is_new_child = False
+        
         with self.orderbook_lock:
             # Ensure parent entry exists
             if parent_client_order_id not in self.orderbook.parent_order_ids:
@@ -745,22 +1510,42 @@ class OrderEngine:
                 
                 # ✅ INCREMENT replacement count when adding a new child
                 self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
+                is_new_child = True
             
             # Map child to parent
             self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
         
-        # ✅ ALSO increment in database for persistence
-        from database.order import increment_order_parent_replacement_count
-        new_count = increment_order_parent_replacement_count(parent_client_order_id)
-        
-        if new_count is not None:
-            self.log_message(
+        # ✅ ONLY increment in database if this is actually a new child registration
+        # CRITICAL: Do not increment if child was already registered - prevents duplicate counts
+        if is_new_child:
+            from database.order import increment_order_parent_replacement_count
+            new_count = increment_order_parent_replacement_count(parent_client_order_id)
+            
+            if new_count is not None:
+                self.log_message(
                 "order",
                 self.build_event_log_payload(
                     "child_order_registered",
                     parent_client_order_id=parent_client_order_id,
                     child_client_order_id=child_client_order_id,
                     new_replacement_count=new_count,
+                ),
+            )
+        else:
+            # ⚠️ REGRESSION DETECTOR: register_child_order() was called for a (child, parent) pair
+            # that was already registered. This is almost always a bug — most likely a duplicate
+            # call site in the event handling path. The DB increment is correctly skipped here,
+            # but surface the duplicate so the offending caller can be fixed.
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "child_order_register_duplicate_skipped",
+                    parent_client_order_id=parent_client_order_id,
+                    child_client_order_id=child_client_order_id,
+                    details={
+                        "reason": "child_already_registered_under_parent",
+                        "action": "db_increment_skipped",
+                    },
                 ),
             )
 
@@ -1046,6 +1831,25 @@ class OrderEngine:
                 ),
             )
 
+    def process_futures_balance_summary_event(self, event: dict) -> None:
+        """Process futures balance summary event and update fee regime state."""
+        if not self.fee_manager:
+            return
+
+        if not isinstance(event, dict):
+            return
+
+        fcm_balance_summary = event.get("fcm_balance_summary")
+        if isinstance(fcm_balance_summary, dict):
+            self.fee_manager.update_margin_window_from_summary(fcm_balance_summary)
+
+            # Prefer explicit active/current fields before generic margin_window_type.
+            for key in ("active_margin_window_type", "current_margin_window_type", "margin_window_type"):
+                margin_window_type = fcm_balance_summary.get(key)
+                if margin_window_type:
+                    self.fee_manager.update_margin_window_type(margin_window_type)
+                    break
+
     def process_user_snapshot(self, snapshot: dict) -> None:
         """Process position snapshot from websocket.
         
@@ -1127,6 +1931,7 @@ class OrderEngine:
         
         # Call extensible order normalizers (can modify fields, add computed values, etc.)
         self.websocket_hooks.call_order_normalizers(normalized_order)
+        self._sync_stealth_exchange_order_id(normalized_order)
         
         outstanding_hold_amount = safe_float(
             normalized_order.get("outstanding_hold_amount"),
@@ -1136,6 +1941,15 @@ class OrderEngine:
         # Step 3: Store normalized order in orderbook
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
+
+        # Step 3b: Single ingestion point for WS-derived progress.
+        # Routes to fill ledger, audit table, watermark persistence and
+        # partial-fill follow-up creation in one place — see
+        # _process_ws_order_delta. Idempotent (deterministic
+        # derived_trade_key); safe on every event regardless of status. Must
+        # run before _finalize_partial_fill_progress wipes state on terminal
+        # status.
+        self._process_ws_order_delta(normalized_order)
 
         if status == OrderStatus.FILLED and outstanding_hold_amount > 0:
             self.log_message(
@@ -1169,7 +1983,7 @@ class OrderEngine:
                 ),
             )
 
-        if status == "SNAPSHOT":
+        if status == OrderStatus.SNAPSHOT:
             return
         if status == OrderStatus.CANCEL_QUEUED:
             return
@@ -1184,21 +1998,32 @@ class OrderEngine:
                     **self.include_debug_fields(raw_order=normalized_order),
                 ),
             )
+            self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
             with self.orderbook_lock:
                 self.orderbook.order.pop(client_order_id, None)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.OPEN:
+            # Partial-fill follow-up creation already happened inside
+            # _process_ws_order_delta above; nothing more to do for OPEN here.
+            self._update_dashboard_order_status(client_order_id, normalized_order, status)
+            self.websocket_hooks.call_post_order_status(status, normalized_order)
+            return
+        if status == OrderStatus.UPDATE:
+            # Same as OPEN: tracker has already routed any partial-fill
+            # follow-up. Just refresh dashboard + downstream hooks.
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.CANCELLED:
+            self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
             self.handle_cancelled_order(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.FILLED:
+            self._finalize_partial_fill_progress(client_order_id, "FINALIZED")
             self.handle_filled_order(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
@@ -1212,6 +2037,60 @@ class OrderEngine:
                 source=self.build_order_log_context(normalized_order),
             ),
         )
+
+    def _sync_stealth_exchange_order_id(self, order: dict) -> None:
+        """Backfill exchange_order_id for stealth audit rows when websocket data arrives."""
+        if not self.stealth_order_bridge:
+            return
+
+        client_order_id = order.get("client_order_id")
+        exchange_order_id = order.get("order_id")
+        if not client_order_id or not exchange_order_id:
+            return
+
+        stealth_manager = getattr(self.stealth_order_bridge, "stealth_manager", None)
+        if not stealth_manager:
+            return
+
+        try:
+            stealth_manager.sync_exchange_order_id_for_placed_order(
+                client_order_id,
+                exchange_order_id,
+            )
+        except Exception as exc:
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "stealth_exchange_order_id_sync_failed",
+                    source=self.build_order_log_context(order),
+                    error=str(exc),
+                ),
+            )
+
+    def _seed_parent_order_cache_from_db(self, client_order_id: str) -> bool:
+        """Hydrate in-memory parent metadata for stealth orders already persisted at creation."""
+        if self.is_parent_order(client_order_id):
+            return True
+        if not self.db_helper or not hasattr(self.db_helper, "get_parent_order"):
+            return False
+
+        parent_order = self.db_helper.get_parent_order(client_order_id)
+        if not parent_order:
+            return False
+
+        with self.orderbook_lock:
+            self.orderbook.parent_order_ids[client_order_id] = {
+                "orders": list(self.orderbook.parent_order_ids.get(client_order_id, {}).get("orders", [])),
+                "target_movement": {
+                    "movement": safe_float(parent_order.get("target_movement"), default=0.0),
+                    "type": parent_order.get("target_movement_type", "P"),
+                },
+                "max_order_replacement": int(parent_order.get("max_order_replacement") or DEFAULT_MAX_ORDER_REPLACEMENT),
+                "current_order_replacement": int(parent_order.get("current_order_replacement") or 0),
+                "parent_id": parent_order.get("id"),
+                "allow_partial_fills": bool(parent_order.get("allow_partial_fills", False)),
+            }
+        return True
 
     def apply_position_update(self, order_template: dict) -> None:
         """Apply position update from order template to orderbook.
@@ -1263,6 +2142,45 @@ class OrderEngine:
             if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
                 self.refresh_positions_if_needed(product_id)
                 snapshot = self.get_orderbook_snapshot()
+
+        return calculate_new_order_move_from_snapshot(
+            snapshot,
+            order_id=client_order_id,
+            target_movement=target_movement,
+        )
+
+    def compute_partial_fill_order_template(self, client_order_id: str, target_movement: dict = None) -> dict:
+        """Compute partial-fill follow-up template as the EXIT trade for the just-filled portion.
+
+        A partial fill means N units actually filled at the parent's price. The follow-up
+        for those units is the profit-taking exit, so it must be **opposite-side** at a
+        target-adjusted price (BUY parent → SELL exit; SELL parent → BUY exit).
+
+        We force ``status=FILLED`` in the snapshot copy so
+        ``calculate_new_order_move_from_snapshot`` flips the side and applies the
+        profit-target price move. The caller supplies its own ``follow_up_size``
+        (the partial quantity), so the template's size is unused and the FILLED-branch
+        position adjustment is harmless (caller does not apply ``position_update``).
+        """
+        snapshot = self.get_orderbook_snapshot()
+        order = snapshot["order"].get(client_order_id)
+        if not order:
+            return {}
+
+        if self.normalize_product_type(order) == ProductType.FUTURE:
+            product_id = order.get("product_id")
+            if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
+                self.refresh_positions_if_needed(product_id)
+                snapshot = self.get_orderbook_snapshot()
+                order = snapshot["order"].get(client_order_id)
+                if not order:
+                    return {}
+
+        # Force FILLED semantics so the side flips to the exit trade and the
+        # profit-target price move is applied — same math as the post-FILLED follow-up.
+        order_copy = deepcopy(order)
+        order_copy["status"] = OrderStatus.FILLED.value
+        snapshot["order"][client_order_id] = order_copy
 
         return calculate_new_order_move_from_snapshot(
             snapshot,
@@ -1340,7 +2258,26 @@ class OrderEngine:
         """
         with self.orderbook_lock:
             parent = self.orderbook.parent_order_ids.get(parent_client_order_id, {})
-            return deepcopy(parent.get("target_movement"))
+            target_movement = deepcopy(parent.get("target_movement"))
+
+        if not target_movement:
+            return target_movement
+
+        if target_movement.get("type") != TargetMovementType.PERCENTAGE.value:
+            return target_movement
+
+        product_id = None
+        with self.orderbook_lock:
+            parent_order = self.orderbook.order.get(parent_client_order_id, {})
+            if isinstance(parent_order, dict):
+                product_id = parent_order.get("product_id")
+
+        if self.fee_manager:
+            movement_value = safe_float(target_movement.get("movement"), default=0.0)
+            adaptive_multiplier = self.fee_manager.get_target_movement_multiplier(product_id)
+            target_movement["movement"] = movement_value * adaptive_multiplier
+
+        return target_movement
 
     def resolve_parent_replacement_state(self, parent_client_order_id: str) -> dict:
         """Get current and max replacement counts for a parent order.
@@ -1407,25 +2344,9 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
-        # CRITICAL: Check for stealth order BEFORE marking as external
-        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
-        original_stealth_order = None
-        if self.stealth_order_bridge:
-            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
-                client_order_id
-            )
-        
-        # If this is a stealth-revealed order, register it in the orderbook first
-        if original_stealth_order and original_stealth_order.get("parent_order_id"):
-            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
-            self.register_child_order(client_order_id, parent_client_order_id_stealth)
-
-        # Check if this is an external order (not created by our engine)
-        # External orders are ones we didn't place, so we shouldn't create follow-ups
-        is_external_order = self._is_external_order(client_order_id)
-
-        # CRITICAL: Claim follow-up processing FIRST to prevent duplicates
-        # This must happen before any other processing to prevent race conditions
+        # CRITICAL: Claim follow-up processing FIRST to prevent race conditions
+        # Must happen BEFORE any other processing (including registration) to ensure
+        # atomicity and prevent duplicate follow-up creation in concurrent scenarios
         if not self.claim_follow_up_processing("cancelled", client_order_id):
             self.log_message(
                 "warning",
@@ -1438,6 +2359,31 @@ class OrderEngine:
             )
             return
 
+        # CRITICAL: Check for stealth order BEFORE marking as external
+        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
+        original_stealth_order = None
+        if self.stealth_order_bridge:
+            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
+            )
+
+        # If this is a stealth-revealed order, register it in the orderbook.
+        # NOTE: Follow-ups created by our engine are already registered at creation time
+        # (via stealth follow-up creation paths). Only register here as a safety net for
+        # orphaned/recovered stealth orders that were never registered. The is_child_order()
+        # guard prevents the redundant call so the regression detector warning stays meaningful.
+        if (
+            original_stealth_order
+            and original_stealth_order.get("parent_order_id")
+            and not self.is_child_order(client_order_id)
+        ):
+            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+            self.register_child_order(client_order_id, parent_client_order_id_stealth)
+
+        # Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        is_external_order = self._is_external_order(client_order_id)
+
         # For external orders, just track them but don't create follow-ups
         if is_external_order:
             self._handle_external_order_tracking(
@@ -1449,10 +2395,13 @@ class OrderEngine:
             return
 
         with self.orderbook_lock:
-            if self.orderbook.should_replace["CANCELLED"] is not True:
-                self.release_follow_up_processing("cancelled", client_order_id)
-                return
-            is_parent, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
+            should_replace_cancelled = self.orderbook.should_replace["CANCELLED"] is True
+
+        if not should_replace_cancelled:
+            self.release_follow_up_processing("cancelled", client_order_id)
+            return
+
+        _, parent_client_order_id = self.resolve_parent_client_order_id(client_order_id)
 
         # Check for pending move (automation) - executes instead of normal follow-up
         from database.order import has_pending_move
@@ -1568,6 +2517,7 @@ class OrderEngine:
                     limit_price=follow_up_price,
                     reveal_condition=reveal_condition,
                     follow_up_reveal_direction="same",
+                    reveal_pricing_policy=None,  # Inherit from original
                     notes=f"Auto follow-up from cancelled order",
                     target_movement=parent_target_movement,
                     target_movement_type=parent_target_movement_type
@@ -1743,118 +2693,13 @@ class OrderEngine:
         """
         client_order_id = order["client_order_id"]
 
-        # CRITICAL: Check for stealth order BEFORE marking as external
-        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
-        original_stealth_order = None
-        if self.stealth_order_bridge:
-            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
-                client_order_id
-            )
-        
-        # If this is a stealth-revealed order, register it in the orderbook first
-        if original_stealth_order and original_stealth_order.get("parent_order_id"):
-            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
-            self.register_child_order(client_order_id, parent_client_order_id_stealth)
-
-        # Check if this is an external order (not created by our engine)
-        # External orders are ones we didn't place, so we shouldn't create follow-ups
-        is_external_order = self._is_external_order(client_order_id)
-
-        # 📊 LOT-TRACKING INTEGRATION: Record the fill in the ledger FIRST
-        # ⚠️ CRITICAL: Must happen BEFORE claim_follow_up_processing check
-        # Reason: Fill recording is idempotent (via trade_id UNIQUE constraint)
-        # so it's safe to record even if we process this order again.
-        # But we only want to create follow-ups once (hence the claim check below).
-        if self.fill_repo and LOT_TRACKING_AVAILABLE:
-            try:
-                order_side = resolve_order_side(order) or "BUY"
-                product_id = order.get("product_id", "UNKNOWN")
-                
-                # Resolve filled_size with proper fallback strategy:
-                # 1. Try websocket fields: cumulative_quantity, leaves_quantity, filled_size, size, base_size
-                # 2. Fall back to orderbook accumulated state
-                # 3. Fall back to database original order size
-                filled_size = resolve_order_size(order)  # Tries fields 1 above
-                
-                if filled_size <= 0 and client_order_id in self.orderbook.order:
-                    # Fallback: try accumulated order state in orderbook
-                    accumulated_order = self.orderbook.order[client_order_id]
-                    filled_size = resolve_order_size(accumulated_order)
-                
-                if filled_size <= 0:
-                    # Fallback: try to get from database
-                    try:
-                        parent_order_data = self.db_helper.get_parent_order(client_order_id)
-                        if parent_order_data:
-                            filled_size = safe_float(parent_order_data.get("size"), default=0.0)
-                    except Exception:
-                        pass  # DB query failed, use 0
-                
-                # If still no size, skip recording this fill (will log error below)
-                if filled_size <= 0:
-                    self.log_message("warning", f"[LOT-TRACK] Could not determine fill size for {client_order_id}, skipping fill record")
-                else:
-                    # Resolve fill price with proper fallback
-                    filled_price = float(order.get("price", order.get("avg_price", order.get("limit_price", 0))))
-                    
-                    # Fees: try multiple field names from websocket
-                    fees = safe_float(order.get("total_fees"), default=0.0)
-                    if fees <= 0:
-                        fees = float(order.get("fee_details", {}).get("total", 0)) if isinstance(order.get("fee_details"), dict) else 0.0
-                    
-                    # Build fill data for hooks (passed by reference to pre-fill hooks)
-                    fill_data = {
-                        "instrument": product_id,
-                        "side": order_side,
-                        "quantity": filled_size,
-                        "price": filled_price,
-                        "fees": fees,
-                        "client_order_id": client_order_id,
-                        "timestamp": get_local_now(),
-                        "commission_percentage": 0.0,
-                        "trade_id": order.get("id")  # Exchange order ID as trade_id for dedup
-                    }
-                    
-                    # 🪝 PRE-FILL HOOKS: Validate/enrich fill before recording
-                    # Extensions can raise exceptions to block recording or modify fill_data
-                    try:
-                        if self.fill_event_hooks:
-                            self.fill_event_hooks.call_pre_fill_hooks(fill_data)
-                    except Exception as hook_error:
-                        # Pre-fill hook validation failed - don't record fill
-                        self.log_message("warning", f"[LOT-TRACK] Pre-fill hook blocked recording: {str(hook_error)}")
-                        fill_data = None  # Signal that recording should be skipped
-                    
-                    # Record the fill if pre-hooks didn't block it
-                    if fill_data is not None:
-                        record_success = post_fill_hook_on_order_filled(
-                            fill_repo=self.fill_repo,
-                            product_id=fill_data["instrument"],
-                            side=fill_data["side"],
-                            quantity=fill_data["quantity"],
-                            price=fill_data["price"],
-                            fees=fill_data["fees"],
-                            client_order_id=fill_data["client_order_id"],
-                            trade_id=fill_data["trade_id"],
-                            timestamp=fill_data["timestamp"],
-                            commission_pct=fill_data["commission_percentage"]
-                        )
-                        
-                        # 🪝 POST-FILL HOOKS: Log/track fill after recording
-                        # Exceptions here are logged but don't affect fill recording
-                        if record_success and fill_data["trade_id"]:
-                            try:
-                                if self.fill_event_hooks:
-                                    self.fill_event_hooks.call_post_fill_hooks(fill_data, fill_data["trade_id"])
-                            except Exception as hook_error:
-                                # Post-fill hook error - log but don't fail (fill is already recorded)
-                                self.log_message("warning", f"[LOT-TRACK] Post-fill hook exception: {str(hook_error)}")
-            except Exception as e:
-                # Log but don't block - lot tracking failure shouldn't stop order processing
-                self.log_message("warning", f"[LOT-TRACK] Failed to record fill: {type(e).__name__}: {e}")
-
-        # CRITICAL: Claim follow-up processing NOW, after fill is recorded
-        # This prevents duplicate follow-up orders while allowing fill recording even if claim fails
+        # CRITICAL: Claim follow-up processing FIRST to prevent race conditions
+        # Must happen BEFORE any other processing (including registration, fill recording) 
+        # to ensure atomicity and prevent duplicate follow-up creation in concurrent scenarios
+        #
+        # Note: We claim BEFORE fill recording (even though fill recording is idempotent
+        # via trade_id constraint), because we want to prevent concurrent threads from both
+        # creating follow-ups while fill recording can safely happen multiple times
         if not self.claim_follow_up_processing("filled", client_order_id):
             self.log_message(
                 "warning",
@@ -1867,42 +2712,83 @@ class OrderEngine:
             )
             return
 
-        with self.orderbook_lock:
-            if self.orderbook.should_replace["FILLED"] is not True:
-                return
-
-            # ✅ FIX: For stealth-revealed orders, get target_movement from the stealth order's entry
-            stealth_target_movement = None
-            if original_stealth_order:
-                # The stealth order's target_movement is stored in order_parent with client_order_id=stealth_order_id
-                parent_order_data = self.db_helper.get_parent_order(
-                    original_stealth_order["stealth_order_id"]
-                )
-                if parent_order_data:
-                    # ✅ Use safe_float to handle Decimal type from database (imported at module level)
-                    target_mv = safe_float(parent_order_data.get("target_movement"))
-                    stealth_target_movement = {
-                        "target_movement": target_mv if target_mv > 0 else None,
-                        "target_movement_type": parent_order_data.get("target_movement_type", "P")
-                    }
-
-            _, parent_client_order_id = self.resolve_parent_client_order_id(
-                client_order_id,
-                order=order,
-                create_parent=True,
-                status=OrderStatus.FILLED.value,
-                stealth_order=stealth_target_movement,
+        # CRITICAL: Check for stealth order BEFORE marking as external
+        # Stealth-revealed slices won't be in orderbook yet, but they're not external orders
+        original_stealth_order = None
+        if self.stealth_order_bridge:
+            original_stealth_order = self.stealth_order_bridge.stealth_manager.find_stealth_order_by_placed_order_id(
+                client_order_id
             )
-            
-            # 🔧 CRITICAL FIX: If a new parent was created (order became its own parent),
-            # but this stealth order has an explicit parent_order_id, use that instead.
-            # This ensures stealth follow-ups use the correct parent's replacement count.
-            if original_stealth_order and parent_client_order_id == client_order_id:
-                explicit_parent = original_stealth_order.get("parent_order_id")
-                if explicit_parent and explicit_parent != client_order_id:
-                    parent_client_order_id = explicit_parent
-                    # Register the child retroactively if needed
-                    self.register_child_order(client_order_id, parent_client_order_id)
+
+        # If this is a stealth-revealed order, register it in the orderbook.
+        # NOTE: Follow-ups created by our engine are already registered at creation time
+        # (via stealth follow-up creation paths). Only register here as a safety net for
+        # orphaned/recovered stealth orders that were never registered. The is_child_order()
+        # guard prevents the redundant call so the regression detector warning stays meaningful.
+        if (
+            original_stealth_order
+            and original_stealth_order.get("parent_order_id")
+            and not self.is_child_order(client_order_id)
+        ):
+            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
+            self.register_child_order(client_order_id, parent_client_order_id_stealth)
+
+        # Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        is_external_order = self._is_external_order(client_order_id)
+
+        # NOTE: Per-match fill recording happens in process_user_order via
+        # _process_ws_order_delta, which derives one ledger row per real exchange
+        # match from cumulative-counter deltas. Do NOT add bulk single-row recording
+        # here — that collapsed N matches into 1 and corrupted lot accounting.
+
+        with self.orderbook_lock:
+            should_replace_filled = self.orderbook.should_replace["FILLED"] is True
+
+        if not should_replace_filled:
+            return
+
+        # ✅ FIX: For stealth-revealed orders, get target_movement from the stealth order's entry
+        stealth_target_movement = None
+        if original_stealth_order:
+            # The stealth order's target_movement is stored in order_parent with client_order_id=stealth_order_id
+            parent_order_data = self.db_helper.get_parent_order(
+                original_stealth_order["stealth_order_id"]
+            )
+            if parent_order_data:
+                # ✅ Use safe_float to handle Decimal type from database (imported at module level)
+                target_mv = safe_float(parent_order_data.get("target_movement"))
+                stealth_target_movement = {
+                    "target_movement": target_mv if target_mv > 0 else None,
+                    "target_movement_type": parent_order_data.get("target_movement_type", "P")
+                }
+
+            self._seed_parent_order_cache_from_db(client_order_id)
+
+        # Resolve allow_partial_fills for parent creation:
+        # 1. Check in-memory cache (populated by startup rebuild or prior seeding)
+        # 2. Fall back to False
+        _cached_parent = self.orderbook.parent_order_ids.get(client_order_id, {})
+        _allow_partial_fills = bool(_cached_parent.get("allow_partial_fills", False))
+
+        _, parent_client_order_id = self.resolve_parent_client_order_id(
+            client_order_id,
+            order=order,
+            create_parent=True,
+            status=OrderStatus.FILLED.value,
+            stealth_order=stealth_target_movement,
+            allow_partial_fills=_allow_partial_fills,
+        )
+        
+        # 🔧 CRITICAL FIX: If a new parent was created (order became its own parent),
+        # but this stealth order has an explicit parent_order_id, use that instead.
+        # This ensures stealth follow-ups use the correct parent's replacement count.
+        if original_stealth_order and parent_client_order_id == client_order_id:
+            explicit_parent = original_stealth_order.get("parent_order_id")
+            if explicit_parent and explicit_parent != client_order_id:
+                parent_client_order_id = explicit_parent
+                # NOTE: Child registration already happened at line 2528, so don't call again here
+                # Calling twice would cause duplicate replacement count increments
 
         # For external orders, just track them but don't create follow-ups
         # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
@@ -1973,6 +2859,41 @@ class OrderEngine:
                 self.complete_follow_up_processing("filled", client_order_id)
                 return
 
+            proposed_follow_up_size = safe_float(order_template.get("order_base_size"), default=0.0)
+            adjusted_follow_up_size, partial_adjustment_details = self._resolve_filled_follow_up_size_after_partials(
+                client_order_id=client_order_id,
+                proposed_follow_up_size=proposed_follow_up_size,
+            )
+
+            if partial_adjustment_details:
+                self.log_message(
+                    "order",
+                    self.build_event_log_payload(
+                        "filled_follow_up_size_adjusted_by_partial_progress",
+                        client_order_id=client_order_id,
+                        parent_client_order_id=parent_client_order_id,
+                        **partial_adjustment_details,
+                    ),
+                )
+
+            if adjusted_follow_up_size <= 0.0:
+                self.log_message(
+                    "order",
+                    self.build_follow_up_log_payload(
+                        "follow_up_skipped_already_covered_by_partial_follow_ups",
+                        source_order=order,
+                        parent_client_order_id=parent_client_order_id,
+                        details=partial_adjustment_details or {
+                            "reason": "adjusted_follow_up_size_non_positive",
+                            "proposed_follow_up_size": proposed_follow_up_size,
+                        },
+                    ),
+                )
+                self.complete_follow_up_processing("filled", client_order_id)
+                return
+
+            order_template["order_base_size"] = adjusted_follow_up_size
+
             # Use the stealth order already found at the start of this function
             # If this is a stealth order follow-up, create a stealth order instead of a regular order
             if original_stealth_order:
@@ -1983,15 +2904,9 @@ class OrderEngine:
                     # ✅ FIX: Use helper to resolve order_side (checks "order_side" then "side")
                     order_side = resolve_order_side(order) or "BUY"
                     order_size = float(order_template["order_base_size"])
-                    product_type = self.normalize_product_type(order)
                     product_id = order.get("product_id")
-                    
-                    # Get current position side for FUTURE/PERPETUAL
-                    position_side = None
-                    if product_type in ('FUTURE', 'PERPETUAL'):
-                        position_side = self.orderbook.get_position_side(product_id)
-                    
-                    # Debug: Log what position_side we detected
+
+                    # Debug: Log what we're about to validate (product context auto-resolved by validator)
                     self.log_message(
                         "info",
                         {
@@ -1999,31 +2914,19 @@ class OrderEngine:
                             "filled_price": filled_price,
                             "follow_up_price": follow_up_price,
                             "parent_side": order_side,
-                            "position_side": position_side,
-                            "product_type": product_type,
                             "product_id": product_id,
                         }
                     )
                     
-                    # Validate profitability
+                    # Validate profitability — validator auto-resolves product_type,
+                    # contract_size, and position_side from product_id via injected orderbook.
                     if self.profit_validator:
-                        # Get contract_size for futures products if needed
-                        contract_size = None
-                        if product_type in ('FUTURE', 'PERPETUAL'):
-                            product_data = self.orderbook.product.get(product_id, {})
-                            contract_size = safe_float(
-                                product_data.get("future_product_details", {}).get("contract_size"),
-                                default=1.0
-                            )
-                        
                         profit_result = self.profit_validator.is_profitable(
                             filled_price=filled_price,
                             follow_up_price=follow_up_price,
                             side=order_side,
                             order_size=order_size,
-                            product_type=product_type,
-                            position_side=position_side,
-                            contract_size=contract_size
+                            product_id=product_id,
                         )
                         
                         if not profit_result["is_profitable"]:
@@ -2064,7 +2967,8 @@ class OrderEngine:
                         "bid": fill_price,
                         "ask": fill_price,
                         "volume_1m": 0,
-                        "time": get_local_now()
+                        "time": get_local_now(),
+                        "source": "synthetic_follow_up_seed",
                     }
                     
                     # Build the reveal condition for the follow-up using configurable direction
@@ -2108,10 +3012,11 @@ class OrderEngine:
                     stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
                         original_stealth_order_id=original_stealth_order["stealth_order_id"],
                         side=order_template["side"],
-                        total_size=order_template["order_base_size"],
+                        total_size=adjusted_follow_up_size,
                         limit_price=follow_up_price,
                         reveal_condition=follow_up_reveal_condition,
                         follow_up_reveal_direction=direction_choice,
+                        reveal_pricing_policy=None,  # Inherit from original
                         notes=f"Auto follow-up from stealth order reveal",
                         target_movement=parent_target_movement,
                         target_movement_type=parent_target_movement_type
@@ -2132,6 +3037,7 @@ class OrderEngine:
                             } if parent_target_movement else None,
                             "product_id": product_id,
                             "side": order_template["side"],
+                            "follow_up_size": adjusted_follow_up_size,
                             "reveal_condition": follow_up_reveal_condition,
                             "follow_up_reveal_direction": direction_choice,
                         }
@@ -2185,6 +3091,7 @@ class OrderEngine:
                 },
                 "max_order_replacement": int(parent["max_order_replacement"]),
                 "current_order_replacement": int(parent["current_order_replacement"]),
+                "allow_partial_fills": bool(parent.get("allow_partial_fills", False)),
             }
 
             # All children are stealth children (stored in stealth_orders table)
@@ -2430,6 +3337,7 @@ class OrderEngine:
                             )
                             for tickr in event["tickers"]:
                                 self.ticker[tickr["product_id"]] = tickr
+                                trading_product_id = get_trading_product_id(tickr.get("product_id"))
                                 # Broadcast to price chart
                                 price = float(tickr.get("price", 0))
                                 product_id = tickr.get("product_id")
@@ -2444,6 +3352,13 @@ class OrderEngine:
                                 if self.stealth_order_bridge and product_id:
                                     self.stealth_order_bridge.process_ticker_update(product_id, tickr)
 
+                                # Feed adaptive volume regime in FeeManager.
+                                if self.fee_manager and trading_product_id:
+                                    self.fee_manager.update_volume_signal(
+                                        trading_product_id,
+                                        safe_float(tickr.get("volume_24_h"), default=0.0),
+                                    )
+
                     elif channel == ChannelType.USER.value:
                         self.log_message(
                             "user",
@@ -2453,6 +3368,9 @@ class OrderEngine:
                             ),
                         )
                         self.event_executor.submit(self.process_user_event, event)
+
+                    elif channel == ChannelType.FUTURES_BALANCE_SUMMARY.value:
+                        self.process_futures_balance_summary_event(event)
 
                 finally:
                     self.event_queue[channel].task_done()
@@ -2510,13 +3428,10 @@ class OrderEngine:
             None
         """
         self.load_parent_child_order_ids(force_log=True)
-        
+        self._hydrate_order_progress_tracker_from_db()
+
         # Update dashboard with initial engine status
-        update_engine_status({
-            "running": True,
-            "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
-            "event_queue_depth": 0,
-        })
+        update_engine_status(self._build_engine_status_payload(event_queue_depth=0))
         add_log_entry("INFO", "Trading engine started")
 
         threading.Thread(
@@ -2569,11 +3484,7 @@ class OrderEngine:
                 # Calculate total events in all queues
                 total_queue_depth = sum(q.qsize() for q in self.event_queue.values())
                 
-                update_engine_status({
-                    "running": True,
-                    "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
-                    "event_queue_depth": total_queue_depth,
-                })
+                update_engine_status(self._build_engine_status_payload(event_queue_depth=total_queue_depth))
                 
                 sleep(5)
             except Exception as e:
@@ -2582,6 +3493,34 @@ class OrderEngine:
                     error=str(e),
                 ))
                 sleep(5)
+
+    def _build_engine_status_payload(self, event_queue_depth: int) -> dict:
+        """Build dashboard engine status payload with adaptive fee regime metrics."""
+        payload = {
+            "running": True,
+            "threads_active": 2 + len(self.subscription.channels) + self.websocket_thread_maximum,
+            "event_queue_depth": event_queue_depth,
+        }
+
+        if not self.fee_manager:
+            return payload
+
+        try:
+            fee_info = self.fee_manager.get_fee_info()
+            payload.update({
+                "taker_fee_rate": fee_info.get("taker_fee_rate"),
+                "effective_fee_rate": fee_info.get("profit_validation_fee_rate"),
+                "target_movement_factor": fee_info.get("target_movement_factor"),
+                "fee_regime_factor": fee_info.get("fee_regime_factor"),
+                "volume_ratio": fee_info.get("volume_ratio"),
+                "overnight_margin_active": fee_info.get("overnight_margin_active"),
+                "margin_window_type": fee_info.get("margin_window_type"),
+            })
+        except Exception:
+            # Keep status updates resilient if fee telemetry is temporarily unavailable.
+            pass
+
+        return payload
 
     def run_forever(self) -> None:
         """Start all background threads and loop forever.

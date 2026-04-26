@@ -92,7 +92,7 @@ ORDER_DIRECTION = {
 }
 
 DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
-DEFAULT_MAX_ORDER_REPLACEMENT = 11
+DEFAULT_MAX_ORDER_REPLACEMENT = 101
 
 def safe_float(value, default: float = 0.0) -> float:
     """Safely convert a value to float, returning default on error.
@@ -1038,6 +1038,7 @@ class Subscription():
         "heartbeats",
         "user",
         "ticker",
+        "futures_balance_summary",
     ]
 
 ORDERBOOK = OrderBook()

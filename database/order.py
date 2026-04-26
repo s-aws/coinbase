@@ -7,14 +7,30 @@ replacement tracking, and status updates.
 It manages the parent-child order relationship for the trading engine.
 """
 
+import json
 from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
+from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
 logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
+
+
+def _json_default_for_db(value: Any):
+    """Serialize common Python runtime types for JSONB database writes."""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    try:
+        from decimal import Decimal
+
+        if isinstance(value, Decimal):
+            return float(value)
+    except Exception:
+        pass
+    return str(value)
 
 
 def create_order_parent_table() -> None:
@@ -62,11 +78,16 @@ def create_order_parent_table() -> None:
         price NUMERIC NOT NULL,
         status VARCHAR(20) NOT NULL,
         parent_order_id VARCHAR(40),
+        allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE"
+        )
         print("order_parent table done.")
 
 
@@ -148,11 +169,23 @@ def create_stealth_orders_table() -> None:
         target_movement_type VARCHAR(1),
         
         reason VARCHAR(255),
-        notes TEXT
+        notes TEXT,
+
+        -- Lifecycle inventory tracking (OrderInventory / StealthLifecycleHookRegistry)
+        last_lifecycle_event VARCHAR(64),
+        failure_reason       VARCHAR(512)
     );
+    CREATE INDEX IF NOT EXISTS idx_stealth_orders_last_lifecycle_event
+        ON stealth_orders (last_lifecycle_event);
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS anchor_repricing_policy_json JSONB DEFAULT '{}'::jsonb"
+        )
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS anchor_repricing_state_json JSONB DEFAULT '{}'::jsonb"
+        )
         print("stealth_orders table done.")
 
 
@@ -197,6 +230,67 @@ def update_stealth_order_target_movement(stealth_order_id: str, target_movement:
         return False
 
 
+def update_stealth_order_price_threshold(stealth_order_id: str, price_threshold: float, hold_duration_seconds: Optional[int] = None) -> bool:
+    """Update price_threshold and optional hold_duration_seconds for a price-based stealth order.
+
+    Args:
+        stealth_order_id: UUID of the stealth order.
+        price_threshold: New price threshold value.
+        hold_duration_seconds: Optional hold duration seconds to persist in reveal_condition_json.
+
+    Returns:
+        True if update successful, False otherwise.
+    """
+    try:
+        if hold_duration_seconds is not None:
+            query = """
+            UPDATE stealth_orders
+            SET reveal_condition_json = jsonb_set(
+                    jsonb_set(
+                        COALESCE(reveal_condition_json, '{}'::jsonb),
+                        '{price_threshold}',
+                        to_jsonb(%s::numeric),
+                        true
+                    ),
+                    '{hold_duration_seconds}',
+                    to_jsonb(%s::int),
+                    true
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE stealth_order_id = %s
+              AND reveal_condition_type = 'price'
+            """
+
+            rows_affected = DB_CLIENT.execute_update(
+                query,
+                (price_threshold, hold_duration_seconds, stealth_order_id)
+            )
+        else:
+            query = """
+            UPDATE stealth_orders
+            SET reveal_condition_json = jsonb_set(
+                    COALESCE(reveal_condition_json, '{}'::jsonb),
+                    '{price_threshold}',
+                    to_jsonb(%s::numeric),
+                    true
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE stealth_order_id = %s
+              AND reveal_condition_type = 'price'
+            """
+
+            rows_affected = DB_CLIENT.execute_update(
+                query,
+                (price_threshold, stealth_order_id)
+            )
+
+        return rows_affected > 0
+    except Exception as e:
+        logger.error(f"✗ Error updating stealth order threshold {stealth_order_id}: {type(e).__name__}: {e}")
+        logger.debug(f"  Update params - price_threshold: {price_threshold}, hold_duration_seconds: {hold_duration_seconds}")
+        return False
+
+
 def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
     """
     Get a stealth order by its ID.
@@ -206,6 +300,10 @@ def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
     
     Returns:
         Dictionary with stealth order data or None if not found
+    
+    Raises:
+        DatabaseConnectionError: If database connection fails.
+        OrderPersistenceError: If query execution fails.
     """
     try:
         query = """
@@ -216,8 +314,19 @@ def get_stealth_order_by_id(stealth_order_id: str) -> Optional[Dict[str, Any]]:
         results = DB_CLIENT.execute_query(query, (stealth_order_id,))
         return results[0] if results else None
     except Exception as e:
-        logger.error(f"✗ Error fetching stealth order {stealth_order_id}: {type(e).__name__}: {e}")
-        return None
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while fetching stealth order",
+                stealth_order_id=stealth_order_id,
+            )
+        else:
+            raise OrderPersistenceError(
+                error_type="PersistenceQueryError",
+                message=f"Failed to fetch stealth order {stealth_order_id}: {str(e)}",
+                stealth_order_id=stealth_order_id,
+            )
 
 
 def create_stealth_order_snapshots_table() -> None:
@@ -287,6 +396,90 @@ def create_stealth_order_snapshots_table() -> None:
         print("stealth_order_snapshots table done.")
 
 
+def insert_stealth_order_snapshot(
+    stealth_order_id: str,
+    lifecycle_event: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> Optional[int]:
+    """Insert an event-scoped stealth snapshot for audit replay.
+
+    Snapshots are intentionally written only at lifecycle milestones through the
+    existing lifecycle hook path to avoid adding parallel trigger paths.
+    """
+    context = dict(context or {})
+    try:
+        status = context.get("status")
+        if not status:
+            status_map = {
+                "CREATED": "HIDDEN",
+                "CONDITION_WATCHING": "PENDING",
+                "CONDITION_MET": "TRIGGERED",
+                "REVEAL_SUCCEEDED": "REVEALED",
+                "FILL_RECEIVED": "REVEALED",
+                "EXECUTED": "EXECUTED",
+                "CANCELLED": "CANCELLED",
+            }
+            status = status_map.get(lifecycle_event)
+
+        market_price = context.get("market_price")
+        market_bid = context.get("market_bid")
+        market_ask = context.get("market_ask")
+        market_spread = context.get("market_spread")
+        if market_spread is None and market_bid is not None and market_ask is not None:
+            try:
+                market_spread = float(market_ask) - float(market_bid)
+            except (TypeError, ValueError):
+                market_spread = None
+
+        if market_price is None:
+            reveal_condition = context.get("reveal_condition") or {}
+            if isinstance(reveal_condition, dict):
+                market_price = reveal_condition.get("current_price")
+
+        condition_met = lifecycle_event in {"CONDITION_MET", "REVEAL_SUCCEEDED", "FILL_RECEIVED", "EXECUTED"}
+
+        query = """
+        INSERT INTO stealth_order_snapshots (
+            stealth_order_id,
+            status,
+            revealed_size,
+            remaining_size,
+            executed_size,
+            condition_met,
+            condition_first_met_at,
+            market_price,
+            market_bid,
+            market_ask,
+            market_spread,
+            market_volume_1m
+        )
+        VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        params = (
+            stealth_order_id,
+            status,
+            context.get("size"),
+            context.get("remaining_size"),
+            context.get("executed_size"),
+            condition_met,
+            context.get("condition_first_met_at"),
+            market_price,
+            market_bid,
+            market_ask,
+            market_spread,
+            context.get("market_volume_1m"),
+        )
+        rows = DB_CLIENT.execute_query(query, params)
+        return rows[0]["id"] if rows else None
+    except Exception as exc:
+        logger.warning(
+            f"insert_stealth_order_snapshot failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return None
+
+
 def create_stealth_order_reveal_history_table() -> None:
     """Create the stealth_order_reveal_history table if it doesn't exist.
     
@@ -302,6 +495,7 @@ def create_stealth_order_reveal_history_table() -> None:
         - revealed_size: Size placed in this reveal event
         - placement_price: Price at which order was placed
         - placed_order_id: UUID of the actual order placed on exchange
+        - exchange_order_id: External Coinbase order UUID for audit/reference only
         - market_price: Market price when reveal occurred
         - market_bid: Bid price when reveal occurred
         - market_ask: Ask price when reveal occurred
@@ -338,6 +532,7 @@ def create_stealth_order_reveal_history_table() -> None:
         revealed_size DECIMAL(16, 8) NOT NULL,
         placement_price DECIMAL(16, 2),
         placed_order_id UUID,
+        exchange_order_id VARCHAR(64),
         
         market_price DECIMAL(16, 2),
         market_bid DECIMAL(16, 2),
@@ -354,7 +549,66 @@ def create_stealth_order_reveal_history_table() -> None:
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE stealth_order_reveal_history ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
+        )
         print("stealth_order_reveal_history table done.")
+
+
+def create_stealth_order_lifecycle_history_table() -> None:
+    """Create the stealth_order_lifecycle_history table if it doesn't exist.
+
+    Stores one immutable row per stealth lifecycle transition so state changes can
+    be audited without reconstructing them from mixed event sources.
+
+    Table Schema:
+        - stealth_order_id: UUID reference to the stealth order
+        - lifecycle_event: StealthLifecycleEvent value (e.g. CONDITION_MET)
+        - previous_lifecycle_event: Previously persisted event, if any
+        - status_from / status_to: Derived stealth order statuses for the transition
+        - event_time: UTC timestamp supplied by the lifecycle hook context
+        - product_id / side / size / total_size / limit_price: event facts
+        - reason / parent_order_id / placed_order_id / exchange_order_id / failure_reason: context
+        - context_json: full event context payload for later inspection
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS stealth_order_lifecycle_history (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        stealth_order_id UUID NOT NULL,
+        lifecycle_event VARCHAR(64) NOT NULL,
+        previous_lifecycle_event VARCHAR(64),
+        status_from VARCHAR(32),
+        status_to VARCHAR(32),
+        event_time TIMESTAMP,
+
+        product_id VARCHAR(32),
+        side VARCHAR(10),
+        size DECIMAL(18, 8),
+        total_size DECIMAL(18, 8),
+        limit_price DECIMAL(18, 8),
+
+        reason VARCHAR(255),
+        parent_order_id UUID,
+        placed_order_id UUID,
+        exchange_order_id VARCHAR(64),
+        failure_reason VARCHAR(512),
+        context_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+        FOREIGN KEY (stealth_order_id) REFERENCES stealth_orders(stealth_order_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_stealth_lifecycle_history_order_id
+        ON stealth_order_lifecycle_history (stealth_order_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_stealth_lifecycle_history_event
+        ON stealth_order_lifecycle_history (lifecycle_event);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE stealth_order_lifecycle_history ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
+        )
+        print("stealth_order_lifecycle_history table done.")
 
 
 def insert_order_parent(
@@ -368,7 +622,8 @@ def insert_order_parent(
     max_order_replacement: int = 0,
     current_order_replacement: int = 0,
     status: str = "pending",
-    parent_order_id: Optional[str] = None
+    parent_order_id: Optional[str] = None,
+    allow_partial_fills: bool = False,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
     
@@ -392,7 +647,7 @@ def insert_order_parent(
         The inserted order's database ID if successful, None if failed.
     
     Raises:
-        Exception: If database insertion fails.
+        OrderPersistenceError: If database insertion fails.
     """
     # Check if parent order already exists (handles race condition with multiple threads)
     existing_parent = get_parent_order(client_order_id)
@@ -412,9 +667,10 @@ def insert_order_parent(
         target_movement_type,
         max_order_replacement,
         current_order_replacement,
-        parent_order_id
+        parent_order_id,
+        allow_partial_fills
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     params = (
@@ -429,6 +685,7 @@ def insert_order_parent(
         int(max_order_replacement),
         int(current_order_replacement),
         parent_order_id,
+        bool(allow_partial_fills),
     )
 
     try:
@@ -441,9 +698,19 @@ def insert_order_parent(
         logger.warning(f"Failed to retrieve inserted order ID for: {client_order_id} - query executed but no result returned")
         return None
     except Exception as e:
-        logger.error(f"✗ Error inserting parent order {client_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Failed insert params - product: {product_id}, side: {side}, size: {size}, price: {price}, target_movement: {target_movement}")
-        return None
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while inserting parent order",
+                client_order_id=client_order_id,
+            )
+        else:
+            raise OrderPersistenceError(
+                error_type="InsertionError",
+                message=f"Failed to insert parent order {client_order_id}: {str(e)}",
+                client_order_id=client_order_id,
+            )
 
 
 def insert_order_parent_batch(
@@ -532,10 +799,29 @@ def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
     
     Returns:
         Parent order dict if found, None otherwise.
+    
+    Raises:
+        DatabaseConnectionError: If database connection fails.
+        OrderPersistenceError: If query execution fails unexpectedly.
     """
-    query = "SELECT * FROM order_parent WHERE client_order_id = %s"
-    results = DB_CLIENT.execute_query(query, (client_order_id,))
-    return results[0] if results else None
+    try:
+        query = "SELECT * FROM order_parent WHERE client_order_id = %s"
+        results = DB_CLIENT.execute_query(query, (client_order_id,))
+        return results[0] if results else None
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while fetching parent order",
+                client_order_id=client_order_id,
+            )
+        else:
+            raise OrderPersistenceError(
+                error_type="PersistenceQueryError",
+                message=f"Failed to retrieve parent order {client_order_id}: {str(e)}",
+                client_order_id=client_order_id,
+            )
 
 
 def update_parent_order_target_movement(parent_order_id: str, target_movement: Optional[float], target_movement_type: str = "P") -> bool:
@@ -548,6 +834,10 @@ def update_parent_order_target_movement(parent_order_id: str, target_movement: O
     
     Returns:
         True if update successful, False otherwise
+    
+    Raises:
+        DatabaseTransactionError: If update transaction fails.
+        DatabaseConnectionError: If database connection fails.
     
     Example:
         >>> update_parent_order_target_movement(
@@ -572,9 +862,19 @@ def update_parent_order_target_movement(parent_order_id: str, target_movement: O
         
         return rows_affected > 0
     except Exception as e:
-        logger.error(f"✗ Error updating parent order target_movement {parent_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Update params - target_movement: {target_movement}, type: {target_movement_type}")
-        return False
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg:
+            raise DatabaseConnectionError(
+                error_type="ConnectionError",
+                message=f"Failed to connect to database while updating parent order",
+                client_order_id=parent_order_id,
+            )
+        else:
+            raise DatabaseTransactionError(
+                error_type="UpdateTransactionError",
+                message=f"Failed to update parent order target_movement: {str(e)}",
+                client_order_id=parent_order_id,
+            )
 
 
 def get_stealth_children_for_parent(parent_order_id: str) -> List[Dict[str, Any]]:
@@ -1847,34 +2147,32 @@ def execute_pending_move(
 def create_fill_ledger_table() -> None:
     """
     Create the fill_ledger table for lot-based profit tracking.
-    
-    Immutable append-only ledger of all fills (both partial and complete).
-    Used as source of truth for reconstructing position lots and calculating profits.
-    
-    Table columns:
-    - id: Auto-increment primary key
-    - trade_id: Unique trade ID from exchange (UUID UNIQUE)
-    - instrument: Product ID (e.g., 'BTC-USDC')
-    - side: Order side ('BUY' or 'SELL')
-    - quantity: Amount filled (DECIMAL(16,8) for precision)
-    - price: Fill price (DECIMAL(16,2))
-    - timestamp: When the fill occurred
-    - fees: Transaction fees paid
-    - commission_percentage: Commission rate applied
-    - client_order_id: Reference to order_parent.client_order_id (for traceability)
-    - created_at: When the record was created
-    
-    Indexes for query performance:
-    - instrument: Fast lookup by product
-    - timestamp: Time-range queries for reporting
-    - client_order_id: Cross-reference with orders
-    - UNIQUE(trade_id): Prevents duplicate fills
+
+    Immutable append-only ledger of all fills (both partial and complete),
+    derived from per-match cumulative-counter deltas on the WebSocket user channel.
+
+    Naming distinction (deliberate):
+        derived_trade_key   – synthetic, deterministic UUID5 keyed on
+                              (client_order_id, cumulative_quantity).
+                              Always present. Idempotency / dedup key.
+        exchange_trade_id   – authoritative trade id from REST historical/fills.
+                              NULL until reconciliation populates it.
+
+    Reconciliation lifecycle (``reconciliation_status``):
+        WS_DERIVED  – just inserted from WS counters; not yet checked against REST.
+        RECONCILED  – matched 1:1 with a REST historical/fills row.
+        MISMATCH    – REST disagrees with WS-derived rows; operator review needed.
+
+    Migration: idempotent ALTERs run after CREATE so existing deployments pick
+    up the rename + new columns without manual intervention.
     """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS fill_ledger (
         id SERIAL PRIMARY KEY,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        trade_id UUID UNIQUE NOT NULL,
+        derived_trade_key UUID UNIQUE NOT NULL,
+        exchange_trade_id UUID,
+        exchange_entry_id VARCHAR(80),
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
         quantity DECIMAL(16, 8) NOT NULL,
@@ -1882,19 +2180,317 @@ def create_fill_ledger_table() -> None:
         timestamp TIMESTAMP NOT NULL,
         fees DECIMAL(16, 8) DEFAULT 0,
         commission_percentage DECIMAL(5, 4) DEFAULT 0,
-        client_order_id VARCHAR(40)
+        client_order_id VARCHAR(40),
+        reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'WS_DERIVED'
+            CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH')),
+        reconciled_at TIMESTAMP
     );
+    -- Forward-migration for deployments that predate this schema.
+    ALTER TABLE fill_ledger RENAME COLUMN trade_id TO derived_trade_key;
+    """
+    # The RENAME is wrapped in its own try/except below because PostgreSQL has no
+    # ALTER ... RENAME ... IF EXISTS for columns. Also handle the additive
+    # columns idempotently with ADD COLUMN IF NOT EXISTS.
+    additive_migrations = """
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_trade_id UUID;
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_entry_id VARCHAR(80);
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(16)
+        NOT NULL DEFAULT 'WS_DERIVED';
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMP;
+    DO $$
+    BEGIN
+        ALTER TABLE fill_ledger
+            ADD CONSTRAINT fill_ledger_reconciliation_status_check
+            CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH'));
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END $$;
     CREATE INDEX IF NOT EXISTS idx_fill_ledger_instrument ON fill_ledger(instrument);
     CREATE INDEX IF NOT EXISTS idx_fill_ledger_timestamp ON fill_ledger(timestamp);
     CREATE INDEX IF NOT EXISTS idx_fill_ledger_client_order_id ON fill_ledger(client_order_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_fill_ledger_exchange_trade_id
+        ON fill_ledger(exchange_trade_id) WHERE exchange_trade_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_fill_ledger_reconciliation_status
+        ON fill_ledger(reconciliation_status);
+    """
+    create_only = """
+    CREATE TABLE IF NOT EXISTS fill_ledger (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        derived_trade_key UUID UNIQUE NOT NULL,
+        exchange_trade_id UUID,
+        exchange_entry_id VARCHAR(80),
+        instrument VARCHAR(32) NOT NULL,
+        side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
+        quantity DECIMAL(16, 8) NOT NULL,
+        price DECIMAL(16, 2) NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
+        fees DECIMAL(16, 8) DEFAULT 0,
+        commission_percentage DECIMAL(5, 4) DEFAULT 0,
+        client_order_id VARCHAR(40),
+        reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'WS_DERIVED'
+            CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH')),
+        reconciled_at TIMESTAMP
+    );
     """
     with DB_CLIENT.get_cursor() as cursor:
-        cursor.execute(create_table_query)
+        cursor.execute(create_only)
+        # Forward-migrate legacy column name only if it still exists.
+        # We pre-check via information_schema rather than wrapping ALTER ...
+        # RENAME in try/except, because a failed ALTER inside an open
+        # transaction aborts every subsequent statement.
+        cursor.execute(
+            """
+            SELECT 1 FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = 'fill_ledger'
+               AND column_name = 'trade_id'
+            """
+        )
+        if cursor.fetchone() is not None:
+            cursor.execute(
+                "ALTER TABLE fill_ledger RENAME COLUMN trade_id TO derived_trade_key;"
+            )
+        cursor.execute(additive_migrations)
         print("fill_ledger table done.")
 
 
+def create_order_match_audit_table() -> None:
+    """Create append-only ``order_match_audit`` for full WS-snapshot history per order.
+
+    Every WS snapshot we process for a ``client_order_id`` is logged here in
+    ``snapshot_seq`` order with the absolute counters, the deltas we computed,
+    and the raw payload. Lets us reconstruct any past order's full WS history
+    end-to-end and is the audit substrate for the reconciliation job.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS order_match_audit (
+        id BIGSERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        client_order_id VARCHAR(40) NOT NULL,
+        snapshot_seq INTEGER NOT NULL,
+        cumulative_quantity DECIMAL(18, 8) NOT NULL,
+        filled_value DECIMAL(20, 8) NOT NULL,
+        total_fees DECIMAL(16, 8) NOT NULL,
+        number_of_fills INTEGER NOT NULL,
+        leaves_quantity DECIMAL(18, 8) NOT NULL,
+        outstanding_hold_amount DECIMAL(20, 8) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        derived_size_delta DECIMAL(18, 8) NOT NULL,
+        derived_value_delta DECIMAL(20, 8) NOT NULL,
+        derived_fee_delta DECIMAL(16, 8) NOT NULL,
+        derived_price DECIMAL(20, 8),
+        derived_trade_key UUID,
+        emitted_fill_ledger_row BOOLEAN NOT NULL DEFAULT FALSE,
+        raw_payload_json JSONB NOT NULL,
+        UNIQUE (client_order_id, snapshot_seq)
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_match_audit_client_order
+        ON order_match_audit (client_order_id);
+    CREATE INDEX IF NOT EXISTS idx_order_match_audit_derived_trade_key
+        ON order_match_audit (derived_trade_key)
+        WHERE derived_trade_key IS NOT NULL;
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("order_match_audit table done.")
+
+
+def insert_order_match_audit(
+    client_order_id: str,
+    snapshot_seq: int,
+    cumulative_quantity: float,
+    filled_value: float,
+    total_fees: float,
+    number_of_fills: int,
+    leaves_quantity: float,
+    outstanding_hold_amount: float,
+    status: str,
+    derived_size_delta: float,
+    derived_value_delta: float,
+    derived_fee_delta: float,
+    derived_price: Optional[float],
+    derived_trade_key: Optional[str],
+    emitted_fill_ledger_row: bool,
+    raw_payload_json: str,
+) -> Optional[int]:
+    """Insert one row into ``order_match_audit``. Idempotent on (client_order_id, snapshot_seq)."""
+    query = """
+    INSERT INTO order_match_audit (
+        client_order_id, snapshot_seq,
+        cumulative_quantity, filled_value, total_fees, number_of_fills,
+        leaves_quantity, outstanding_hold_amount, status,
+        derived_size_delta, derived_value_delta, derived_fee_delta,
+        derived_price, derived_trade_key, emitted_fill_ledger_row,
+        raw_payload_json
+    ) VALUES (
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
+    )
+    ON CONFLICT (client_order_id, snapshot_seq) DO NOTHING
+    RETURNING id
+    """
+    params = (
+        client_order_id, snapshot_seq,
+        cumulative_quantity, filled_value, total_fees, number_of_fills,
+        leaves_quantity, outstanding_hold_amount, status,
+        derived_size_delta, derived_value_delta, derived_fee_delta,
+        derived_price, derived_trade_key, emitted_fill_ledger_row,
+        raw_payload_json,
+    )
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        return results[0]["id"] if results else None
+    except Exception as e:
+        logger.error(
+            f"✗ Error inserting order_match_audit row for {client_order_id} "
+            f"seq={snapshot_seq}: {type(e).__name__}: {e}"
+        )
+        return None
+
+
+def create_order_event_stream_table() -> None:
+    """Create append-only order_event_stream table for timeline reconstruction.
+
+    This table captures a normalized event timeline across order submission,
+    status transitions, stealth reveal triggers, and fill persistence hooks.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS order_event_stream (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        event_id UUID UNIQUE NOT NULL,
+        event_time_exchange TIMESTAMP,
+        event_time_ingested TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        product_id VARCHAR(32),
+        client_order_id VARCHAR(64),
+        order_id VARCHAR(64),
+        parent_client_order_id VARCHAR(64),
+        stealth_order_id VARCHAR(64),
+        event_type VARCHAR(64) NOT NULL,
+        event_status_from VARCHAR(32),
+        event_status_to VARCHAR(32),
+        side VARCHAR(10),
+        price DECIMAL(18, 8),
+        size DECIMAL(18, 8),
+        cumulative_filled_size DECIMAL(18, 8),
+        leaves_size DECIMAL(18, 8),
+        fee DECIMAL(18, 8),
+        fee_currency VARCHAR(16),
+        trigger_type VARCHAR(64),
+        trigger_payload_json JSONB,
+        source_channel VARCHAR(64),
+        raw_payload_json JSONB,
+        idempotency_key VARCHAR(200) UNIQUE
+    );
+    CREATE INDEX IF NOT EXISTS idx_order_event_stream_event_time_exchange ON order_event_stream(event_time_exchange);
+    CREATE INDEX IF NOT EXISTS idx_order_event_stream_client_order_id ON order_event_stream(client_order_id);
+    CREATE INDEX IF NOT EXISTS idx_order_event_stream_event_type ON order_event_stream(event_type);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("order_event_stream table done.")
+
+
+def insert_order_event(
+    event_id: str,
+    event_type: str,
+    source_channel: str,
+    event_time_exchange=None,
+    product_id: str = None,
+    client_order_id: str = None,
+    order_id: str = None,
+    parent_client_order_id: str = None,
+    stealth_order_id: str = None,
+    event_status_from: str = None,
+    event_status_to: str = None,
+    side: str = None,
+    price: float = None,
+    size: float = None,
+    cumulative_filled_size: float = None,
+    leaves_size: float = None,
+    fee: float = None,
+    fee_currency: str = None,
+    trigger_type: str = None,
+    trigger_payload_json: Dict[str, Any] = None,
+    raw_payload_json: Dict[str, Any] = None,
+    idempotency_key: str = None,
+) -> Optional[int]:
+    """Insert one immutable event record into order_event_stream.
+
+    Returns inserted row id, or None when conflict/no-op/error.
+    """
+    query = """
+    INSERT INTO order_event_stream (
+        event_id,
+        event_time_exchange,
+        product_id,
+        client_order_id,
+        order_id,
+        parent_client_order_id,
+        stealth_order_id,
+        event_type,
+        event_status_from,
+        event_status_to,
+        side,
+        price,
+        size,
+        cumulative_filled_size,
+        leaves_size,
+        fee,
+        fee_currency,
+        trigger_type,
+        trigger_payload_json,
+        source_channel,
+        raw_payload_json,
+        idempotency_key
+    )
+    VALUES (
+        %s, %s, %s, %s, %s, %s, %s,
+        %s, %s, %s, %s, %s, %s, %s,
+        %s, %s, %s, %s, %s::jsonb, %s,
+        %s::jsonb, %s
+    )
+    ON CONFLICT (idempotency_key) DO NOTHING
+    RETURNING id
+    """
+
+    params = (
+        event_id,
+        event_time_exchange,
+        product_id,
+        client_order_id,
+        order_id,
+        parent_client_order_id,
+        stealth_order_id,
+        event_type,
+        event_status_from,
+        event_status_to,
+        side,
+        price,
+        size,
+        cumulative_filled_size,
+        leaves_size,
+        fee,
+        fee_currency,
+        trigger_type,
+        json.dumps(trigger_payload_json or {}, default=_json_default_for_db),
+        source_channel,
+        json.dumps(raw_payload_json or {}, default=_json_default_for_db),
+        idempotency_key,
+    )
+
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            return results[0].get("id")
+        return None
+    except Exception as e:
+        logger.error(f"Error inserting order event {event_type} ({event_id}): {type(e).__name__}: {e}")
+        return None
+
+
 def insert_fill_record(
-    trade_id: str,
+    derived_trade_key: str,
     instrument: str,
     side: str,
     quantity: float,
@@ -1902,30 +2498,39 @@ def insert_fill_record(
     timestamp,
     fees: float = 0.0,
     commission_percentage: float = 0.0,
-    client_order_id: str = None
+    client_order_id: str = None,
+    exchange_trade_id: Optional[str] = None,
+    exchange_entry_id: Optional[str] = None,
 ) -> Optional[int]:
     """
     Insert a fill record into the fill_ledger table.
-    
-    Creates an append-only record of a filled order (partial or complete).
-    
+
+    Append-only record of one derived match (a per-match cumulative-counter
+    delta on the WS user channel). Idempotent on ``derived_trade_key``: a
+    duplicate insert silently no-ops via the UNIQUE constraint.
+
     Args:
-        trade_id: Unique trade ID from exchange (UUID)
+        derived_trade_key: Synthetic UUID derived from
+            (client_order_id, cumulative_quantity). Always required.
         instrument: Product ID (e.g., 'BTC-USDC')
         side: 'BUY' or 'SELL'
-        quantity: Amount filled (float)
-        price: Fill price (float)
+        quantity: Amount filled in this match
+        price: Fill price for this match
         timestamp: When the fill occurred
-        fees: Transaction fees paid (default 0.0)
-        commission_percentage: Commission rate as decimal (default 0.0)
-        client_order_id: Reference to order_parent.client_order_id (optional)
-    
+        fees: Fees attributable to this match
+        commission_percentage: Commission rate as decimal
+        client_order_id: Originating order's client_order_id
+        exchange_trade_id: REST-confirmed exchange trade id (set by reconciler)
+        exchange_entry_id: REST-confirmed entry id (set by reconciler)
+
     Returns:
-        The inserted fill record's database ID if successful, None if failed.
+        The inserted row id on success, ``None`` on duplicate or error.
     """
     query = """
     INSERT INTO fill_ledger (
-        trade_id,
+        derived_trade_key,
+        exchange_trade_id,
+        exchange_entry_id,
         instrument,
         side,
         quantity,
@@ -1935,11 +2540,14 @@ def insert_fill_record(
         commission_percentage,
         client_order_id
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (derived_trade_key) DO NOTHING
     RETURNING id
     """
     params = (
-        trade_id,
+        derived_trade_key,
+        exchange_trade_id,
+        exchange_entry_id,
         instrument,
         side,
         quantity,
@@ -1947,22 +2555,27 @@ def insert_fill_record(
         timestamp,
         fees,
         commission_percentage,
-        client_order_id
+        client_order_id,
     )
-    
+
     try:
         results = DB_CLIENT.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
             logger.info(
-                f"✓ Fill recorded: {trade_id} ({instrument} {side} {quantity} @ {price}, "
+                f"✓ Fill recorded: {derived_trade_key} ({instrument} {side} {quantity} @ {price}, "
                 f"fees: {fees}, commission: {commission_percentage})"
             )
             return inserted_id
         return None
     except Exception as e:
-        logger.error(f"✗ Error inserting fill record {trade_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Fill details - instrument: {instrument}, side: {side}, quantity: {quantity}, price: {price}")
+        logger.error(
+            f"✗ Error inserting fill record {derived_trade_key}: {type(e).__name__}: {e}"
+        )
+        logger.debug(
+            f"  Fill details - instrument: {instrument}, side: {side}, "
+            f"quantity: {quantity}, price: {price}"
+        )
         return None
 
 
@@ -2145,6 +2758,238 @@ def insert_conditional_order(
         return None
 
 
+def update_stealth_order_lifecycle_event(
+    stealth_order_id: str,
+    lifecycle_event: str,
+    failure_reason: Optional[str] = None,
+) -> bool:
+    """Persist the most recent StealthLifecycleEvent for a stealth order.
+
+    Called by StealthOrderManager (via the stealth lifecycle hook dispatcher)
+    after each transition so the database reflects the current lifecycle state.
+    This enables OrderInventory.rebuild_from_database() to restore the
+    ``last_event`` and ``failure_reason`` fields after a restart.
+
+    Args:
+        stealth_order_id: UUID of the stealth order.
+        lifecycle_event:  StealthLifecycleEvent value string (e.g. 'REVEAL_FAILED').
+        failure_reason:   Human-readable failure reason for PLACEMENT_BLOCKED /
+                          REVEAL_FAILED events.  Pass None to leave existing value.
+
+    Returns:
+        True if the row was updated, False otherwise.
+
+    Example:
+        >>> update_stealth_order_lifecycle_event(
+        ...     stealth_order_id="550e8400-...",
+        ...     lifecycle_event="REVEAL_FAILED",
+        ...     failure_reason="Connection timeout to Coinbase REST API",
+        ... )
+        True
+    """
+    try:
+        if failure_reason is not None:
+            query = """
+            UPDATE stealth_orders
+            SET    last_lifecycle_event = %s,
+                   failure_reason       = %s,
+                   updated_at           = CURRENT_TIMESTAMP
+            WHERE  stealth_order_id = %s
+            """
+            params = (lifecycle_event, failure_reason, stealth_order_id)
+        else:
+            query = """
+            UPDATE stealth_orders
+            SET    last_lifecycle_event = %s,
+                   updated_at           = CURRENT_TIMESTAMP
+            WHERE  stealth_order_id = %s
+            """
+            params = (lifecycle_event, stealth_order_id)
+
+        rows = DB_CLIENT.execute_update(query, params)
+        return rows > 0
+    except Exception as exc:
+        logger.error(
+            f"update_stealth_order_lifecycle_event failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return False
+
+
+def insert_stealth_order_lifecycle_event(
+    stealth_order_id: str,
+    lifecycle_event: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> Optional[int]:
+    """Insert one immutable lifecycle transition row for a stealth order.
+
+    The previous lifecycle event is read from the current stealth_orders row so the
+    audit history preserves transition direction without relying on in-memory state.
+    """
+    context = dict(context or {})
+
+    status_map = {
+        "CREATED": "HIDDEN",
+        "CONDITION_WATCHING": "PENDING",
+        "CONDITION_MET": "TRIGGERED",
+        "REVEAL_ATTEMPTED": "TRIGGERED",
+        "PLACEMENT_BLOCKED": "TRIGGERED",
+        "REVEAL_FAILED": "TRIGGERED",
+        "REVEAL_SUCCEEDED": "REVEALED",
+        "FILL_RECEIVED": "REVEALED",
+        "EXECUTED": "EXECUTED",
+        "CANCELLED": "CANCELLED",
+    }
+
+    try:
+        existing_rows = DB_CLIENT.execute_query(
+            """
+            SELECT last_lifecycle_event
+            FROM stealth_orders
+            WHERE stealth_order_id = %s
+            """,
+            (stealth_order_id,),
+        )
+        previous_event = existing_rows[0].get("last_lifecycle_event") if existing_rows else None
+        status_from = status_map.get(previous_event) if previous_event else None
+        status_to = context.get("status") or status_map.get(lifecycle_event)
+
+        query = """
+        INSERT INTO stealth_order_lifecycle_history (
+            stealth_order_id,
+            lifecycle_event,
+            previous_lifecycle_event,
+            status_from,
+            status_to,
+            event_time,
+            product_id,
+            side,
+            size,
+            total_size,
+            limit_price,
+            reason,
+            parent_order_id,
+            placed_order_id,
+            exchange_order_id,
+            failure_reason,
+            context_json
+        )
+        VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
+        )
+        RETURNING id
+        """
+
+        params = (
+            stealth_order_id,
+            lifecycle_event,
+            previous_event,
+            status_from,
+            status_to,
+            context.get("timestamp"),
+            context.get("product_id"),
+            context.get("side"),
+            context.get("size"),
+            context.get("total_size"),
+            context.get("limit_price"),
+            context.get("reason"),
+            context.get("parent_order_id"),
+            context.get("placed_order_id"),
+            context.get("exchange_order_id"),
+            context.get("failure_reason"),
+            json.dumps(context, default=str),
+        )
+
+        with DB_CLIENT.get_cursor() as cursor:
+            cursor.execute(query, params)
+            result = cursor.fetchone()
+            return result[0] if result else None
+    except Exception as exc:
+        logger.error(
+            f"insert_stealth_order_lifecycle_event failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return None
+
+
+def update_stealth_audit_exchange_order_id(
+    stealth_order_id: str,
+    placed_order_id: str,
+    exchange_order_id: str,
+) -> bool:
+    """Backfill audit-only exchange_order_id onto stealth history rows.
+
+    Internal orchestration continues to use client_order_id/placed_order_id.
+    This helper only enriches audit surfaces once Coinbase later provides the
+    external exchange order UUID via websocket events.
+    """
+    if not stealth_order_id or not placed_order_id or not exchange_order_id:
+        return False
+
+    try:
+        column_rows = DB_CLIENT.execute_query(
+            """
+            SELECT table_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND column_name = 'exchange_order_id'
+              AND table_name IN ('stealth_order_lifecycle_history', 'stealth_order_reveal_history')
+            """
+        )
+        tables_with_column = {row["table_name"] for row in column_rows}
+
+        updated = False
+        if "stealth_order_lifecycle_history" in tables_with_column:
+            lifecycle_rows = DB_CLIENT.execute_update(
+                """
+                UPDATE stealth_order_lifecycle_history
+                SET exchange_order_id = %s
+                WHERE stealth_order_id = %s
+                  AND placed_order_id = %s
+                  AND COALESCE(exchange_order_id, '') = ''
+                """,
+                (exchange_order_id, stealth_order_id, placed_order_id),
+            )
+            updated = updated or lifecycle_rows > 0
+
+        if "stealth_order_reveal_history" in tables_with_column:
+            reveal_rows = DB_CLIENT.execute_update(
+                """
+                UPDATE stealth_order_reveal_history
+                SET exchange_order_id = %s
+                WHERE stealth_order_id = %s
+                  AND placed_order_id = %s
+                  AND COALESCE(exchange_order_id, '') = ''
+                """,
+                (exchange_order_id, stealth_order_id, placed_order_id),
+            )
+            updated = updated or reveal_rows > 0
+
+        return updated
+    except Exception as exc:
+        logger.error(
+            f"update_stealth_audit_exchange_order_id failed for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return False
+
+
+def get_stealth_order_lifecycle_history(
+    stealth_order_id: str,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Return lifecycle transition history for a stealth order, newest first."""
+    query = """
+    SELECT *
+    FROM stealth_order_lifecycle_history
+    WHERE stealth_order_id = %s
+    ORDER BY created_at DESC, id DESC
+    LIMIT %s
+    """
+    return DB_CLIENT.execute_query(query, (stealth_order_id, limit))
+
+
 def get_conditional_order(conditional_order_id: str) -> Optional[Dict[str, Any]]:
     """
     Retrieve a conditional order by ID.
@@ -2288,3 +3133,200 @@ def cancel_conditional_order(conditional_order_id: str) -> int:
     if result > 0:
         logger.info(f"Conditional order cancelled: {conditional_order_id}")
     return result
+
+
+# ---------------------------------------------------------------------------
+# partial_fill_progress table – restart-resilient partial fill watermarks
+# ---------------------------------------------------------------------------
+
+def create_partial_fill_progress_table() -> None:
+    """Create the partial_fill_progress table for restart-resilient partial fill tracking.
+
+    Each row holds the high-watermark state for one active order that has been
+    enabled for partial-fill follow-up creation.  The row is upserted on every
+    OPEN/UPDATE event that advances the cumulative fill and cleared (status set
+    to FINALIZED or CANCELLED) when the order reaches a terminal state.
+
+    Table columns:
+        client_order_id               – FK to order_parent; also the natural PK
+        parent_client_order_id        – root parent for flat hierarchy linking
+        product_id                    – trading pair (informational)
+        side                          – BUY / SELL
+        original_order_size           – total size of the placed child order
+        min_order_size                – minimum base increment for the product
+        last_cumulative_qty_processed – highest cumulative_quantity seen and acted on
+        carry_remainder_qty           – sub-minimum accumulator carried forward
+        last_number_of_fills_seen     – dedup helper; mirrors number_of_fills field
+        last_completion_pct_seen      – completion_percentage watermark (0-100)
+        partial_follow_ups_created    – count of follow-up orders spawned so far
+        status                        – ACTIVE | FINALIZED | CANCELLED
+        created_at / updated_at       – timestamps
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS partial_fill_progress (
+        id SERIAL PRIMARY KEY,
+        client_order_id VARCHAR(40) NOT NULL UNIQUE,
+        parent_client_order_id VARCHAR(40),
+        product_id VARCHAR(32),
+        side VARCHAR(10),
+        original_order_size NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        min_order_size NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        last_cumulative_qty_processed NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        carry_remainder_qty NUMERIC(18, 8) NOT NULL DEFAULT 0,
+        last_number_of_fills_seen INTEGER NOT NULL DEFAULT 0,
+        last_completion_pct_seen NUMERIC(7, 4) NOT NULL DEFAULT 0,
+        partial_follow_ups_created INTEGER NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_order_id) REFERENCES order_parent(client_order_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_partial_fill_progress_status
+        ON partial_fill_progress (status);
+    CREATE INDEX IF NOT EXISTS idx_partial_fill_progress_parent
+        ON partial_fill_progress (parent_client_order_id);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        print("partial_fill_progress table done.")
+
+
+def upsert_partial_fill_progress(
+    client_order_id: str,
+    parent_client_order_id: Optional[str],
+    product_id: Optional[str],
+    side: Optional[str],
+    original_order_size: float,
+    min_order_size: float,
+    last_cumulative_qty_processed: float,
+    carry_remainder_qty: float,
+    last_number_of_fills_seen: int,
+    last_completion_pct_seen: float,
+    partial_follow_ups_created: int,
+) -> bool:
+    """Insert or update the partial-fill watermark for a single child order.
+
+    Uses INSERT … ON CONFLICT (client_order_id) DO UPDATE so both the initial
+    row creation and every subsequent watermark advance are handled atomically.
+
+    Returns:
+        True on success, False on error.
+    """
+    query = """
+    INSERT INTO partial_fill_progress (
+        client_order_id,
+        parent_client_order_id,
+        product_id,
+        side,
+        original_order_size,
+        min_order_size,
+        last_cumulative_qty_processed,
+        carry_remainder_qty,
+        last_number_of_fills_seen,
+        last_completion_pct_seen,
+        partial_follow_ups_created,
+        status,
+        updated_at
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'ACTIVE', CURRENT_TIMESTAMP)
+    ON CONFLICT (client_order_id) DO UPDATE SET
+        last_cumulative_qty_processed = EXCLUDED.last_cumulative_qty_processed,
+        carry_remainder_qty           = EXCLUDED.carry_remainder_qty,
+        last_number_of_fills_seen     = EXCLUDED.last_number_of_fills_seen,
+        last_completion_pct_seen      = EXCLUDED.last_completion_pct_seen,
+        partial_follow_ups_created    = EXCLUDED.partial_follow_ups_created,
+        original_order_size           = EXCLUDED.original_order_size,
+        min_order_size                = EXCLUDED.min_order_size,
+        status                        = 'ACTIVE',
+        updated_at                    = CURRENT_TIMESTAMP
+    """
+    params = (
+        client_order_id,
+        parent_client_order_id,
+        product_id,
+        side,
+        original_order_size,
+        min_order_size,
+        last_cumulative_qty_processed,
+        carry_remainder_qty,
+        last_number_of_fills_seen,
+        last_completion_pct_seen,
+        partial_follow_ups_created,
+    )
+    try:
+        DB_CLIENT.execute_update(query, params)
+        logger.debug(
+            f"[PARTIAL-FILL] Progress upserted: {client_order_id} "
+            f"cumulative={last_cumulative_qty_processed} carry={carry_remainder_qty}"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] upsert_partial_fill_progress failed for {client_order_id}: {type(e).__name__}: {e}")
+        return False
+
+
+def get_partial_fill_progress(client_order_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve the current partial-fill watermark row for a single child order.
+
+    Returns:
+        Dict of column values, or None if no row exists.
+    """
+    query = """
+    SELECT * FROM partial_fill_progress
+    WHERE client_order_id = %s
+    LIMIT 1
+    """
+    try:
+        results = DB_CLIENT.execute_query(query, (client_order_id,))
+        return results[0] if results else None
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] get_partial_fill_progress failed for {client_order_id}: {type(e).__name__}: {e}")
+        return None
+
+
+def get_all_active_partial_fill_progress() -> List[Dict[str, Any]]:
+    """Retrieve all ACTIVE partial-fill watermark rows for engine restart hydration.
+
+    Returns:
+        List of dicts; empty list on error or when no active rows exist.
+    """
+    query = """
+    SELECT * FROM partial_fill_progress
+    WHERE status = 'ACTIVE'
+    ORDER BY created_at ASC
+    """
+    try:
+        return DB_CLIENT.execute_query(query) or []
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] get_all_active_partial_fill_progress failed: {type(e).__name__}: {e}")
+        return []
+
+
+def finalize_partial_fill_progress(client_order_id: str, status: str) -> bool:
+    """Mark a partial-fill progress row as terminal (FINALIZED or CANCELLED).
+
+    Called when the originating order reaches a terminal exchange status so the
+    engine no longer needs to track it across restarts.
+
+    Args:
+        client_order_id: The child order whose progress row to close.
+        status:          Terminal status string – 'FINALIZED' or 'CANCELLED'.
+
+    Returns:
+        True if a row was updated, False otherwise.
+    """
+    query = """
+    UPDATE partial_fill_progress
+    SET status = %s,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE client_order_id = %s
+      AND status = 'ACTIVE'
+    """
+    try:
+        rows = DB_CLIENT.execute_update(query, (status, client_order_id))
+        if rows > 0:
+            logger.info(f"[PARTIAL-FILL] Progress finalized: {client_order_id} -> {status}")
+        return rows > 0
+    except Exception as e:
+        logger.error(f"[PARTIAL-FILL] finalize_partial_fill_progress failed for {client_order_id}: {type(e).__name__}: {e}")
+        return False

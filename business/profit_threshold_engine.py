@@ -15,6 +15,28 @@ For BUY lots:
 
 For SELL lots:
   min_exit_price = (entry_price - fees/qty) * (1 - profit_margin%)
+
+Example:
+    >>> from datetime import datetime
+    >>> from business.position_lot import PositionLot, Position
+    >>> from business.profit_threshold_engine import ProfitThresholdEngine
+    >>> from core.enums import OrderSide
+    >>>
+    >>> lot = PositionLot(
+    ...     lot_id='lot-001',
+    ...     instrument='BTC-USDC',
+    ...     side=OrderSide.BUY,
+    ...     quantity=0.2,
+    ...     entry_price=42000.0,
+    ...     entry_timestamp=datetime.utcnow(),
+    ...     fees=1.0,
+    ...     target_profit_percentage=0.5,
+    ... )
+    >>> position = Position(instrument='BTC-USDC', lots=[lot])
+    >>> engine = ProfitThresholdEngine(profit_margin_pct=0.5)
+    >>> targets, meta = engine.compute_execution_targets(position, exit_quantity=0.1, market_price=42300.0)
+    >>> len(targets) > 0 and meta['status'] == 'OK'
+    True
 """
 
 from typing import List, Dict, Optional, Tuple

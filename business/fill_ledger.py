@@ -14,6 +14,24 @@ Architecture:
 - FillLedger (dataclass): Immutable fill record
 - FillLedgerRepository: Data access layer
 - Database: fill_ledger table (append-only)
+
+Example:
+    >>> from business.fill_ledger import FillLedger, FillLedgerRepository
+    >>> from core.constants import get_local_now
+    >>>
+    >>> repo = FillLedgerRepository(db_client)
+    >>> fill = FillLedger(
+    ...     trade_id='trade-001',
+    ...     instrument='BTC-USDC',
+    ...     side='BUY',
+    ...     quantity=0.25,
+    ...     price=42000.0,
+    ...     timestamp=get_local_now(),
+    ...     fees=1.25,
+    ...     client_order_id='client-order-123',
+    ... )
+    >>> repo.append_fill(fill)
+    True
 """
 
 from dataclasses import dataclass, field
@@ -30,56 +48,72 @@ from database.order import create_fill_ledger_table
 
 @dataclass
 class FillLedger:
-    """Immutable record of a single fill event.
-    
+    """Immutable record of a single derived match.
+
+    A "derived match" is one per-match cumulative-counter delta we observed on
+    the WS user channel. The synthetic ``derived_trade_key`` is our
+    idempotency key; the optional ``exchange_trade_id`` is the authoritative
+    REST-confirmed identifier (populated later by the reconciler, not at
+    insert time).
+
     Attributes:
-        trade_id: Unique identifier for this fill (UUID)
-        instrument: Trading pair (e.g., 'BTC-USDC')
-        side: BUY or SELL
-        quantity: Amount filled
-        price: Price per unit at fill
-        timestamp: When the fill occurred (ISO format)
-        fees: Total fees paid on this fill (optional)
+        derived_trade_key:    Synthetic UUID5 of (client_order_id, cumulative).
+        exchange_trade_id:    Authoritative trade id from REST historical/fills.
+        exchange_entry_id:    Authoritative entry id from REST historical/fills.
+        instrument:           Trading pair (e.g., 'BTC-USDC')
+        side:                 BUY or SELL
+        quantity:             Amount filled in this match
+        price:                Per-match price
+        timestamp:            When the fill occurred (datetime)
+        fees:                 Fees attributable to this match
         commission_percentage: Commission rate applied
-        order_side: OrderSide enum for standardization
-        client_order_id: Client order ID that generated this fill
-        product_id: Product ID (may differ from instrument format)
-        average_price: Average fill price (same as price for single fills)
+        order_side:           OrderSide enum mirror of ``side``
+        client_order_id:      Originating order's ``client_order_id``
+        product_id:           Product id (often == instrument)
+        average_price:        VWAP across this match (single price for one match)
+        reconciliation_status: 'WS_DERIVED' | 'RECONCILED' | 'MISMATCH'
     """
-    
-    trade_id: str  # Unique fill identifier
-    instrument: str  # Trading pair
-    side: str  # 'BUY' or 'SELL'
-    quantity: float  # Amount filled
-    price: float  # Fill price
-    timestamp: datetime  # When fill occurred
-    fees: float = 0.0  # Total fees on this fill
-    commission_percentage: float = 0.0  # Commission rate
+
+    derived_trade_key: str
+    instrument: str
+    side: str
+    quantity: float
+    price: float
+    timestamp: datetime
+    fees: float = 0.0
+    commission_percentage: float = 0.0
     order_side: Optional[OrderSide] = None
-    client_order_id: Optional[str] = None  # Originating order
+    client_order_id: Optional[str] = None
     product_id: Optional[str] = None
     average_price: Optional[float] = None
-    
+    exchange_trade_id: Optional[str] = None
+    exchange_entry_id: Optional[str] = None
+    reconciliation_status: str = "WS_DERIVED"
+
     # Metadata
     created_at: datetime = field(default_factory=lambda: datetime.utcnow())
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'FillLedger':
-        """Create FillLedger from dictionary (e.g., database row or API response)."""
+        """Create FillLedger from dictionary (e.g., database row or API response).
+
+        Accepts both the new ``derived_trade_key`` and legacy ``trade_id`` keys
+        so callers mid-migration keep working until they are updated.
+        """
         from calculation.formatter import safe_float
         from core.constants import get_local_now
-        
+
         timestamp = data.get('timestamp')
         if isinstance(timestamp, str):
             timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
         elif timestamp is None:
             timestamp = get_local_now()
-        
+
         side = data.get('side', '').upper()
         order_side = OrderSide.BUY if side == 'BUY' else OrderSide.SELL if side == 'SELL' else None
-        
+
         return cls(
-            trade_id=data.get('trade_id'),
+            derived_trade_key=data.get('derived_trade_key') or data.get('trade_id'),
             instrument=data.get('instrument', data.get('product_id')),
             side=side,
             quantity=safe_float(data.get('quantity'), 0.0),
@@ -91,13 +125,18 @@ class FillLedger:
             client_order_id=data.get('client_order_id'),
             product_id=data.get('product_id'),
             average_price=safe_float(data.get('average_price'), None) or safe_float(data.get('price'), 0.0),
-            created_at=timestamp if timestamp else get_local_now()
+            exchange_trade_id=data.get('exchange_trade_id'),
+            exchange_entry_id=data.get('exchange_entry_id'),
+            reconciliation_status=data.get('reconciliation_status') or "WS_DERIVED",
+            created_at=timestamp if timestamp else get_local_now(),
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for database storage."""
         return {
-            'trade_id': self.trade_id,
+            'derived_trade_key': self.derived_trade_key,
+            'exchange_trade_id': self.exchange_trade_id,
+            'exchange_entry_id': self.exchange_entry_id,
             'instrument': self.instrument,
             'side': self.side,
             'quantity': self.quantity,
@@ -109,6 +148,7 @@ class FillLedger:
             'client_order_id': self.client_order_id,
             'product_id': self.product_id,
             'average_price': self.average_price,
+            'reconciliation_status': self.reconciliation_status,
             'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else self.created_at
         }
 
@@ -135,24 +175,32 @@ class FillLedgerRepository:
             logger.error(f"Failed to create fill_ledger table: {type(e).__name__}: {e}")
     
     def append_fill(self, fill: FillLedger) -> bool:
-        """Append a fill to the immutable ledger.
-        
+        """Append a derived match to the immutable ledger.
+
+        Idempotent: re-inserting an existing ``derived_trade_key`` is a no-op
+        thanks to the UNIQUE constraint on the column.
+
         Args:
             fill: FillLedger record to append
-        
+
         Returns:
-            True if successful, False otherwise
+            True on a successful new insert (or accepted duplicate), False on
+            unexpected error.
         """
         try:
             query = """
-            INSERT INTO fill_ledger 
-            (trade_id, instrument, side, quantity, price, timestamp, fees, 
-             commission_percentage, client_order_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO fill_ledger
+            (derived_trade_key, exchange_trade_id, exchange_entry_id,
+             instrument, side, quantity, price, timestamp, fees,
+             commission_percentage, client_order_id, reconciliation_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (derived_trade_key) DO NOTHING
             """
-            
+
             params = (
-                fill.trade_id,
+                fill.derived_trade_key,
+                fill.exchange_trade_id,
+                fill.exchange_entry_id,
                 fill.instrument,
                 fill.side,
                 fill.quantity,
@@ -160,23 +208,84 @@ class FillLedgerRepository:
                 fill.timestamp,
                 fill.fees,
                 fill.commission_percentage,
-                fill.client_order_id
+                fill.client_order_id,
+                fill.reconciliation_status,
             )
-            
+
             rows_affected = self.db_client.execute_update(query, params)
-            
+
             if rows_affected > 0:
-                logger.info(f"[LOT-TRACK] Fill appended to ledger: trade_id={fill.trade_id}, instrument={fill.instrument}, {fill.side} {fill.quantity} @ {fill.price}, fees={fill.fees}")
+                logger.info(
+                    f"[LOT-TRACK] Fill appended to ledger: "
+                    f"derived_trade_key={fill.derived_trade_key}, "
+                    f"instrument={fill.instrument}, "
+                    f"{fill.side} {fill.quantity} @ {fill.price}, fees={fill.fees}"
+                )
                 return True
-            else:
-                logger.warning(f"[LOT-TRACK] No rows inserted for fill {fill.trade_id}")
-                return False
-                
+            # Duplicate insert is a normal outcome (idempotent re-process).
+            logger.debug(
+                f"[LOT-TRACK] Fill already present (idempotent skip): "
+                f"derived_trade_key={fill.derived_trade_key}"
+            )
+            return True
+
         except Exception as e:
-            logger.error(f"✗ Error appending fill {fill.trade_id}: {type(e).__name__}: {e}")
+            logger.error(
+                f"✗ Error appending fill {fill.derived_trade_key}: "
+                f"{type(e).__name__}: {e}"
+            )
             return False
-    
-    def get_fills_by_instrument(self, instrument: str) -> List[FillLedger]:
+
+    def append_derived_fill(self, delta) -> bool:
+        """Append one fill row derived from an :class:`OrderSnapshotDelta`.
+
+        This is the canonical entry point used by the live order pipeline.
+        ``append_fill`` remains supported for callers that already construct
+        a ``FillLedger`` directly (tests, post-fill hook) but new code should
+        prefer this method so that the WS-derived idempotency key
+        (``derived_trade_key``) and ``WS_DERIVED`` reconciliation status are
+        applied uniformly.
+
+        Args:
+            delta: An ``OrderSnapshotDelta`` from
+                ``business.order_progress.OrderProgressTracker.ingest``.
+                Must satisfy ``delta.is_new_match`` (the caller is responsible
+                for the early-out on no-op snapshots).
+
+        Returns:
+            True on success or accepted duplicate, False on unexpected error.
+        """
+        if delta is None:
+            logger.error("[LOT-TRACK] append_derived_fill called with None delta")
+            return False
+        if not getattr(delta, "is_new_match", False):
+            # Not a real per-match advance — nothing to append. Treat as a no-op
+            # success so callers don't need a second guard.
+            logger.debug(
+                f"[LOT-TRACK] Skipping append_derived_fill (no size delta): "
+                f"coid={delta.client_order_id}"
+            )
+            return True
+
+        fill = FillLedger(
+            derived_trade_key=delta.derived_trade_key,
+            instrument=delta.product_id,
+            side=delta.side,
+            quantity=delta.size_delta,
+            price=delta.derived_price,
+            timestamp=delta.observed_at,
+            fees=delta.fee_delta,
+            commission_percentage=0.0,
+            order_side=OrderSide[delta.side] if delta.side in OrderSide.__members__ else None,
+            client_order_id=delta.client_order_id,
+            product_id=delta.product_id,
+            average_price=delta.derived_price,
+            exchange_trade_id=None,
+            exchange_entry_id=None,
+            reconciliation_status="WS_DERIVED",
+        )
+        return self.append_fill(fill)
+
         """Get all fills for an instrument in chronological order.
         
         Args:
@@ -243,16 +352,20 @@ class FillLedgerRepository:
             return []
     
     def get_fill_by_trade_id(self, trade_id: str) -> Optional[FillLedger]:
-        """Get a specific fill by trade ID.
-        
+        """Get a specific fill by its derived trade key.
+
+        The argument name is kept as ``trade_id`` for backward compatibility
+        with existing callers, but it queries the new ``derived_trade_key``
+        column.
+
         Args:
-            trade_id: Unique fill identifier
-        
+            trade_id: Derived trade key (UUID) of the fill
+
         Returns:
             FillLedger record or None if not found
         """
         try:
-            query = "SELECT * FROM fill_ledger WHERE trade_id = %s"
+            query = "SELECT * FROM fill_ledger WHERE derived_trade_key = %s"
             results = self.db_client.execute_query(query, (trade_id,))
             
             if results:
