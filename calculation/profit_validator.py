@@ -461,7 +461,7 @@ class ProfitValidator:
         # TODO: Change to DEBUG level logging
         # Log profitability result
         if mandatory_fees > 0:  # Only log when mandatory fees present (FUTURE/PERPETUAL)
-            logger.info(
+            logger.debug(
                 f"Profitability result | Product: {product_type} | "
                 f"GrossProfit: ${gross_profit:.2f} | "
                 f"Fees: ${total_fees:.2f} (Percentage: ${percentage_fees:.2f} + Mandatory: ${mandatory_fees:.2f}) | "
