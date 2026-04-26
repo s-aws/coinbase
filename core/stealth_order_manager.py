@@ -363,6 +363,21 @@ class StealthOrderManager:
             safe_float(policy.get("hysteresis_bps"), default=5.0),
             0.0,
         )
+
+        # Slide Mode: cap each reprice to a maximum price step toward the
+        # desired price. When enabled, the engine emits a series of stepped
+        # reprices instead of a single jump. We force the per-tick gates
+        # (min_price_change / hysteresis) to zero so the slide is not
+        # suppressed by its own small steps; pacing is controlled by the
+        # min_reprice_interval / max_reprices_per_hour throttles.
+        slide_mode = bool(policy.get("slide_mode", False))
+        max_step_per_reprice = max(
+            safe_float(policy.get("max_step_per_reprice"), default=0.0),
+            0.0,
+        )
+        if slide_mode and max_step_per_reprice > 0:
+            min_price_change = 0.0
+            hysteresis_bps = 0.0
         min_reprice_interval_seconds = max(
             int(safe_float(policy.get("min_reprice_interval_seconds"), default=30.0)),
             0,
@@ -407,6 +422,8 @@ class StealthOrderManager:
             "post_only_required": bool(policy.get("post_only_required", True)),
             "converge_to_target": bool(policy.get("converge_to_target", True)),
             "inherit_to_follow_ups": bool(policy.get("inherit_to_follow_ups", True)),
+            "slide_mode": slide_mode,
+            "max_step_per_reprice": max_step_per_reprice,
             # Phase 2: Adaptive + spread guardrails
             "volatility_sensitivity": volatility_sensitivity,
             "max_reprice_window_seconds": max_reprice_window_seconds,
@@ -557,6 +574,29 @@ class StealthOrderManager:
             "target_distance_amount": float(target_distance),
             "max_distance_amount": float(max_distance),
         }
+
+    @staticmethod
+    def _apply_slide_step_clamp(
+        current_price: float,
+        desired_price: float,
+        policy: Dict[str, Any],
+    ) -> tuple[float, bool]:
+        """Cap reprice movement to ``max_step_per_reprice`` when slide_mode is on.
+
+        Returns (clamped_price, clamped) where ``clamped`` is True if the
+        desired price was further from the current price than the configured
+        step and was therefore reduced to ``current ± step``.
+        """
+        if not policy.get("slide_mode"):
+            return float(desired_price), False
+        step = safe_float(policy.get("max_step_per_reprice"), default=0.0)
+        if step <= 0:
+            return float(desired_price), False
+        delta = float(desired_price) - float(current_price)
+        if abs(delta) <= step:
+            return float(desired_price), False
+        direction = 1.0 if delta > 0 else -1.0
+        return float(current_price) + direction * float(step), True
 
     def _quantize_reprice_price(
         self,
@@ -1001,6 +1041,12 @@ class StealthOrderManager:
             if outside_max:
                 desired_price = max_boundary_price
                 reprice_reason = "outside_max_boundary"
+
+            desired_price, slide_clamped = self._apply_slide_step_clamp(
+                current_price, desired_price, policy,
+            )
+            if slide_clamped:
+                reprice_reason = f"{reprice_reason}_slide_step"
 
             desired_price = self._quantize_reprice_price(
                 order.get("product_id"),
