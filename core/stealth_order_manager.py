@@ -1069,7 +1069,7 @@ class StealthOrderManager:
                     state.setdefault("reprice_history", []).append(now.isoformat())
                     processed += 1
                     self.log_callback(
-                        "info",
+                        "debug",
                         {
                             "event": "stealth_anchor_reprice_hidden_applied",
                             "stealth_order_id": stealth_order_id,
