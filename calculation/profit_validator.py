@@ -382,7 +382,7 @@ class ProfitValidator:
             parent_order_side=side
         )
         
-        logger.debug(
+        logger.info(
             f"Open/Close side determination | Product: {product_type} | "
             f"Parent side: {side} | Position side: {position_side} | "
             f"Determined: OPEN={open_side}, CLOSE={close_side}"
@@ -398,7 +398,7 @@ class ProfitValidator:
         if product_type == ProductType.FUTURE.value and contract_size and contract_size > 0:
             effective_size = order_size * float(contract_size)
 
-            logger.debug(
+            logger.info(
                 f"Contract size adjustment | Product: {product_type} | "
                 f"Order size (contracts): {order_size} | Contract size: {contract_size} | "
                 f"Effective size (units): {effective_size}"
@@ -418,7 +418,7 @@ class ProfitValidator:
         # Important: Fee is charged at close_side price, not open_side price
         percentage_fees = follow_up_price * effective_size * fee_rate
         
-        logger.debug(
+        logger.info(
             f"Fee rate applied | Effective fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
             f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
             f"Calculated percentage fee: ${percentage_fees:.2f}"
@@ -432,7 +432,7 @@ class ProfitValidator:
         if product_type == ProductType.FUTURE.value:
             mandatory_fees = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT * order_size
 
-            logger.debug(
+            logger.info(
                 f"Mandatory fee applied | Product: {product_type} | "
                 f"Contracts: {order_size} | Fee: ${mandatory_fees:.2f} "
                 f"(${DERIVATIVES_MANDATORY_FEE_PER_CONTRACT} per contract)"
@@ -461,7 +461,7 @@ class ProfitValidator:
         # TODO: Change to DEBUG level logging
         # Log profitability result
         if mandatory_fees > 0:  # Only log when mandatory fees present (FUTURE/PERPETUAL)
-            logger.debug(
+            logger.info(
                 f"Profitability result | Product: {product_type} | "
                 f"GrossProfit: ${gross_profit:.2f} | "
                 f"Fees: ${total_fees:.2f} (Percentage: ${percentage_fees:.2f} + Mandatory: ${mandatory_fees:.2f}) | "
