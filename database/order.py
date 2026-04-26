@@ -552,6 +552,31 @@ def create_stealth_order_reveal_history_table() -> None:
         cursor.execute(
             "ALTER TABLE stealth_order_reveal_history ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
         )
+        # Reprice / placement audit columns. Added so anchor-repricing events
+        # captured via _record_reveal_event preserve the full execution context
+        # (placement uuid, success/cancel state, reprice reason, anchor target,
+        # reference price source). Backwards-compatible: all nullable.
+        reprice_audit_cols = [
+            "placement_client_order_id UUID",
+            "placement_status VARCHAR(32)",
+            "placement_success BOOLEAN",
+            "cancelled_for_reprice BOOLEAN",
+            "reprice_reason VARCHAR(64)",
+            "reveal_event_type VARCHAR(32)",
+            "anchor_target_price DECIMAL(16, 2)",
+            "anchor_max_price DECIMAL(16, 2)",
+            "reference_price_source VARCHAR(64)",
+            "reference_price DECIMAL(16, 2)",
+            "reference_bid DECIMAL(16, 2)",
+            "reference_ask DECIMAL(16, 2)",
+            "market_source VARCHAR(32)",
+        ]
+        for col_def in reprice_audit_cols:
+            col_name = col_def.split()[0]
+            cursor.execute(
+                f"ALTER TABLE stealth_order_reveal_history "
+                f"ADD COLUMN IF NOT EXISTS {col_def}"
+            )
         print("stealth_order_reveal_history table done.")
 
 
