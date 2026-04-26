@@ -1434,12 +1434,23 @@
                 ? `<span title="Market-reference repricing active" style="color:#60cdff; font-size:11px; margin-left:4px; cursor:default;">⟳ ${anchorPolicy.reference_price_source || 'mid'}</span>`
                 : '';
 
+            // 🔗 Tracking badge: indicates reveal-condition price thresholds are auto-tracking
+            // the order's limit_price as anchor repricing moves it. Populated by the backend in
+            // anchor_repricing_state_json.reveal_condition_price_offsets when at least one
+            // absolute-price field in reveal_condition_json is being kept in lock-step.
+            const anchorState = order.anchor_repricing_state_json || {};
+            const offsets = anchorState.reveal_condition_price_offsets;
+            const tracksLimit = offsets && typeof offsets === 'object' && Object.keys(offsets).length > 0;
+            const trackingBadge = tracksLimit
+                ? `<span title="Reveal threshold tracks limit price (offsets: ${Object.entries(offsets).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${Number(v).toFixed(2)}`).join(', ')})" style="color:#fbbf24; font-size:11px; margin-left:4px; cursor:default;">🔗</span>`
+                : '';
+
             if (!hasTooltip) {
-                return `<span class="condition-type">${type}${repriceBadge}</span>`;
+                return `<span class="condition-type">${type}${repriceBadge}${trackingBadge}</span>`;
             }
             
             return `<span class="condition-type">
-                ${type}${repriceBadge}
+                ${type}${repriceBadge}${trackingBadge}
                 <div class="condition-tooltip">
                     <div style="font-weight: 600; margin-bottom: 6px; color: #4ade80;">${type}</div>
                     <div class="condition-details" style="white-space: normal; width: 240px;">${details}${anchorDetail}</div>
