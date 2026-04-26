@@ -1403,6 +1403,52 @@ class OrderEngine:
         """Internal: Get parent of child (assumes lock already held)."""
         return self.orderbook.child_order_ids.get(child_client_order_id)
 
+    def _register_stealth_placement_under_root(
+        self,
+        client_order_id: str,
+        original_stealth_order: dict,
+    ) -> None:
+        """Register a stealth placement uuid as a child of its root parent.
+
+        Flat hierarchy (see ``agent.md``): every child links to the original root,
+        never to an intermediate slice. When a stealth order reveals with
+        ``anchor_repricing.allow_revealed_reprice=True`` the placement uuid sent to
+        the exchange differs from ``stealth_order_id`` and represents a slice that
+        must be linked to the chain's root, not become its own parent.
+
+        Root resolution:
+          * stealth has ``parent_order_id``  → root is that parent_order_id
+          * stealth has no ``parent_order_id`` → stealth itself is the root
+
+        No-ops when ``client_order_id == stealth_order_id`` (same logical order)
+        or when the placement is already registered as a child.
+
+        Safety net: stealth follow-ups created by our engine are already
+        registered at creation time; this catches orphaned/recovered placements.
+        """
+        stealth_order_id = original_stealth_order.get("stealth_order_id")
+        if not stealth_order_id or client_order_id == stealth_order_id:
+            return
+        if self.is_child_order(client_order_id):
+            return
+
+        root_parent = (
+            original_stealth_order.get("parent_order_id")
+            or stealth_order_id
+        )
+        if not root_parent:
+            return
+
+        # Seed the root parent's in-memory metadata BEFORE registering, so
+        # downstream resolve_parent_target_movement / resolve_parent_replacement_state
+        # see the real configured values instead of an empty cache. Without this,
+        # follow-ups computed off the placement uuid's parent fall back to system
+        # defaults for target_movement, producing prices that erode the user's
+        # profit margin (root cause of follow_up_order_skipped_unprofitable).
+        self._seed_parent_order_cache_from_db(root_parent)
+
+        self.register_child_order(client_order_id, root_parent)
+
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:
         """Atomically claim processing rights for a follow-up order.
         
@@ -2367,18 +2413,11 @@ class OrderEngine:
                 client_order_id
             )
 
-        # If this is a stealth-revealed order, register it in the orderbook.
-        # NOTE: Follow-ups created by our engine are already registered at creation time
-        # (via stealth follow-up creation paths). Only register here as a safety net for
-        # orphaned/recovered stealth orders that were never registered. The is_child_order()
-        # guard prevents the redundant call so the regression detector warning stays meaningful.
-        if (
-            original_stealth_order
-            and original_stealth_order.get("parent_order_id")
-            and not self.is_child_order(client_order_id)
-        ):
-            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
-            self.register_child_order(client_order_id, parent_client_order_id_stealth)
+        # If this is a stealth-revealed order, register the placement uuid under the
+        # stealth chain's root (flat hierarchy — see agent.md). No-op when the
+        # placement uuid equals stealth_order_id (same logical order).
+        if original_stealth_order:
+            self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
@@ -2720,18 +2759,11 @@ class OrderEngine:
                 client_order_id
             )
 
-        # If this is a stealth-revealed order, register it in the orderbook.
-        # NOTE: Follow-ups created by our engine are already registered at creation time
-        # (via stealth follow-up creation paths). Only register here as a safety net for
-        # orphaned/recovered stealth orders that were never registered. The is_child_order()
-        # guard prevents the redundant call so the regression detector warning stays meaningful.
-        if (
-            original_stealth_order
-            and original_stealth_order.get("parent_order_id")
-            and not self.is_child_order(client_order_id)
-        ):
-            parent_client_order_id_stealth = original_stealth_order["parent_order_id"]
-            self.register_child_order(client_order_id, parent_client_order_id_stealth)
+        # If this is a stealth-revealed order, register the placement uuid under the
+        # stealth chain's root (flat hierarchy — see agent.md). No-op when the
+        # placement uuid equals stealth_order_id (same logical order).
+        if original_stealth_order:
+            self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups

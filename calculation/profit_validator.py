@@ -382,7 +382,6 @@ class ProfitValidator:
             parent_order_side=side
         )
         
-        # TODO: Change to DEBUG level logging
         logger.info(
             f"Open/Close side determination | Product: {product_type} | "
             f"Parent side: {side} | Position side: {position_side} | "
@@ -398,7 +397,7 @@ class ProfitValidator:
         effective_size = order_size
         if product_type == ProductType.FUTURE.value and contract_size and contract_size > 0:
             effective_size = order_size * float(contract_size)
-            # TODO: Change to DEBUG level logging
+
             logger.info(
                 f"Contract size adjustment | Product: {product_type} | "
                 f"Order size (contracts): {order_size} | Contract size: {contract_size} | "
@@ -419,7 +418,6 @@ class ProfitValidator:
         # Important: Fee is charged at close_side price, not open_side price
         percentage_fees = follow_up_price * effective_size * fee_rate
         
-        # TODO: Change to DEBUG level logging
         logger.info(
             f"Fee rate applied | Effective fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
             f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
@@ -433,7 +431,7 @@ class ProfitValidator:
         mandatory_fees = 0.0
         if product_type == ProductType.FUTURE.value:
             mandatory_fees = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT * order_size
-            # TODO: Change to DEBUG level logging
+
             logger.info(
                 f"Mandatory fee applied | Product: {product_type} | "
                 f"Contracts: {order_size} | Fee: ${mandatory_fees:.2f} "

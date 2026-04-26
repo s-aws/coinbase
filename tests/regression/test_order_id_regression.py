@@ -63,8 +63,14 @@ def test_filled_order_lookup_uses_client_order_id_not_exchange_order_id():
     stealth_manager = Mock()
     stealth_manager.find_stealth_order_by_placed_order_id = Mock(return_value=None)
     engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
-    engine.claim_follow_up_processing = Mock(return_value=False)
+    # Claim must succeed so handle_filled_order proceeds past the early-return
+    # guard and actually performs the stealth lookup we want to verify.
+    engine.claim_follow_up_processing = Mock(return_value=True)
     engine.fill_repo = None
+    # Disable follow-up replacement so handle_filled_order returns after the
+    # stealth lookup without exercising the unrelated profit-target / DB paths
+    # (which aren't meaningfully mockable on a spec'd OrderBook).
+    engine.orderbook.should_replace = {"FILLED": False, "CANCELLED": False}
 
     filled_order = {
         "client_order_id": "client-order-001",

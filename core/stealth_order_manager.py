@@ -63,7 +63,7 @@ Example: evaluate and reveal from scheduler loop
 import uuid
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Iterator, Optional, Tuple, List
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
@@ -75,6 +75,8 @@ from configuration import (
 from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
+    OrderStatus,
+    RevealConditionType,
     RevealPricingPolicy,
     RevealPriceSource,
     RoundingDirection,
@@ -89,8 +91,40 @@ from core.exceptions import (
     StealthOrderPersistenceError,
 )
 from business.stealth_condition_evaluator import get_evaluator
-from database.order import insert_order_parent
+from database.order import get_parent_order, insert_order_parent
 from logging_service import get_logger
+
+
+# ---------------------------------------------------------------------------
+# Reveal-condition price-tracking helpers
+# ---------------------------------------------------------------------------
+# Per condition type, the JSON keys that represent ABSOLUTE price levels and
+# therefore should track 1:1 with ``order["limit_price"]`` whenever anchor
+# repricing moves the limit. Spread / ratio / time-delay fields are
+# intentionally absent — they are not absolute prices.
+_REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE: Dict[str, Tuple[str, ...]] = {
+    RevealConditionType.PRICE_THRESHOLD.value: ("price_threshold",),
+    RevealConditionType.CUMULATIVE_VOLUME.value: ("price_level",),
+}
+
+
+def _iter_reveal_condition_price_fields(
+    condition: Any,
+) -> Iterator[Tuple[Dict[str, Any], str]]:
+    """Yield ``(parent_dict, key)`` for every absolute-price field in a condition tree.
+
+    Recurses into ``COMPOSITE`` conditions via the ``conditions`` list. Order
+    types with no absolute price field (TIME_DELAY, SPREAD, PRODUCT_RATIO)
+    yield nothing. Non-numeric values are skipped.
+    """
+    if not isinstance(condition, dict):
+        return
+    cond_type = str(condition.get("type") or "").lower()
+    for field in _REVEAL_CONDITION_PRICE_FIELDS_BY_TYPE.get(cond_type, ()):
+        if isinstance(condition.get(field), (int, float)):
+            yield condition, field
+    for sub in condition.get("conditions") or ():
+        yield from _iter_reveal_condition_price_fields(sub)
 
 
 class StealthOrderManager:
@@ -399,6 +433,68 @@ class StealthOrderManager:
         state = dict(anchor_repricing_state or {})
         state.setdefault("reprice_history", [])
         return state
+
+    def _apply_reveal_condition_price_tracking(
+        self,
+        order: Dict[str, Any],
+        state: Dict[str, Any],
+        new_limit_price: float,
+    ) -> bool:
+        """Update reveal_condition price thresholds in lock-step with a reprice.
+
+        Preserves the original offset between every absolute-price field in
+        ``reveal_condition_json`` and ``order["limit_price"]``. The offsets are
+        captured lazily on first invocation (using the order's pre-reprice
+        limit_price as baseline) and persisted in
+        ``state["reveal_condition_price_offsets"]`` for subsequent reprices.
+
+        Designed to be extensible: future "do-not-cross" / minimum guards can
+        clamp the resulting threshold against a profit floor without changing
+        callers (see ``agent.md`` integrated-by-design pattern).
+
+        Args:
+            order:           The stealth order dict (mutated in place).
+            state:           The (already normalized) anchor_repricing_state dict
+                             — also mutated to persist offsets.
+            new_limit_price: The new ``limit_price`` that will be applied.
+
+        Returns:
+            True when at least one threshold field was updated, False otherwise
+            (no price-bearing fields, missing baseline, etc.).
+        """
+        reveal_condition = order.get("reveal_condition_json")
+        if not isinstance(reveal_condition, dict):
+            return False
+
+        baseline_limit = safe_float(order.get("limit_price"), default=None)
+        new_limit = safe_float(new_limit_price, default=None)
+        if baseline_limit is None or new_limit is None:
+            return False
+
+        # Lazy-init: snapshot offsets from baseline (pre-first-reprice values).
+        offsets = state.get("reveal_condition_price_offsets")
+        if not isinstance(offsets, dict):
+            offsets = {}
+            for parent, key in _iter_reveal_condition_price_fields(reveal_condition):
+                offsets[key] = float(parent[key]) - baseline_limit
+            state["reveal_condition_price_offsets"] = offsets
+
+        if not offsets:
+            return False
+
+        updated = False
+        for parent, key in _iter_reveal_condition_price_fields(reveal_condition):
+            offset = offsets.get(key)
+            if offset is None:
+                continue
+            new_value = new_limit + float(offset)
+            if parent[key] != new_value:
+                parent[key] = new_value
+                updated = True
+
+        if updated:
+            order["reveal_condition_json"] = reveal_condition
+        return updated
 
     def _resolve_reference_price(
         self,
@@ -731,6 +827,36 @@ class StealthOrderManager:
         success_response = order_result.get("success_response") if isinstance(order_result, dict) else {}
         new_exchange_order_id = (success_response or {}).get("order_id")
 
+        # Ensure an order_parent row exists for the new placement uuid BEFORE any WS
+        # event for it can arrive (FK violation guard, mirrors reveal_order_slice).
+        try:
+            inherited_tm, inherited_tm_type, _src = \
+                self._resolve_target_movement_for_plan(order["stealth_order_id"], order)
+            insert_order_parent(
+                client_order_id=placement_client_order_id,
+                product_id=order["product_id"],
+                side=order["side"],
+                size=safe_float(order.get("remaining_size"), default=0.0),
+                price=desired_price,
+                target_movement=inherited_tm if inherited_tm is not None else 0.0,
+                target_movement_type=inherited_tm_type or "P",
+                max_order_replacement=int(order.get("max_order_replacements") or 0),
+                current_order_replacement=0,
+                status=OrderStatus.OPEN.value,
+                parent_order_id=order["stealth_order_id"],
+                allow_partial_fills=bool(order.get("allow_partial_fills", False)),
+            )
+        except Exception as parent_insert_error:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "anchor_reprice_order_parent_insert_failed",
+                    "stealth_order_id": order["stealth_order_id"],
+                    "placement_client_order_id": placement_client_order_id,
+                    "error": str(parent_insert_error),
+                },
+            )
+
         self._mark_reveal_event_cancelled_for_reprice(
             order,
             state.get("active_placement_client_order_id"),
@@ -740,6 +866,7 @@ class StealthOrderManager:
         reveal_event = {
             "reveal_number": len(order.get("revealed_orders", [])) + 1,
             "revealed_size": order.get("remaining_size", 0.0),
+            "placement_price": desired_price,
             "placed_order_id": placement_client_order_id,
             "placement_client_order_id": placement_client_order_id,
             "exchange_order_id": new_exchange_order_id,
@@ -775,10 +902,51 @@ class StealthOrderManager:
         state.setdefault("reprice_history", []).append(now.isoformat())
         state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_price, max_boundary_price, market_data))).isoformat()
 
+        # Track reveal_condition price thresholds in lock-step with the new limit.
+        # Must run BEFORE we mutate order["limit_price"] so the helper can read
+        # the pre-reprice limit as the offset baseline on first invocation.
+        self._apply_reveal_condition_price_tracking(order, state, desired_price)
+
         order["anchor_repricing_state_json"] = state
         order["limit_price"] = desired_price
         order["updated_at"] = now
         self._update_stealth_order(order)
+
+        # Persist reprice to history table for audit (mirrors reveal_order_slice).
+        try:
+            self._record_reveal_event(order, reveal_event)
+        except Exception as record_err:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "anchor_reprice_record_reveal_event_failed",
+                    "stealth_order_id": order["stealth_order_id"],
+                    "placement_client_order_id": placement_client_order_id,
+                    "error": str(record_err),
+                },
+            )
+
+        self.log_callback(
+            "debug",
+            {
+                "event": "stealth_anchor_reprice_revealed_applied",
+                "stealth_order_id": order["stealth_order_id"],
+                "product_id": order["product_id"],
+                "side": order["side"],
+                "previous_exchange_order_id": exchange_order_id,
+                "previous_price": current_price,
+                "new_placement_client_order_id": placement_client_order_id,
+                "new_exchange_order_id": new_exchange_order_id,
+                "new_price": desired_price,
+                "anchor_target_price": target_price,
+                "anchor_max_price": max_boundary_price,
+                "reprice_reason": reprice_reason,
+                "reference_price_source": state.get("last_reference_source"),
+                "reference_price": state.get("last_reference_price"),
+                "market_bid": bid,
+                "market_ask": ask,
+            },
+        )
         return True
 
     def process_anchor_repricing_for_product(self, product_id: str) -> int:
@@ -870,10 +1038,29 @@ class StealthOrderManager:
                 ).isoformat()
                 order["anchor_repricing_state_json"] = state
                 self._update_stealth_order(order)
+                self.log_callback(
+                    "info",
+                    {
+                        "event": "stealth_anchor_reprice_blocked_unprofitable",
+                        "stealth_order_id": stealth_order_id,
+                        "product_id": product_id,
+                        "side": order.get("side"),
+                        "current_price": current_price,
+                        "desired_price": desired_price,
+                        "anchor_target_price": target_prices["target_price"],
+                        "anchor_max_price": max_boundary_price,
+                        "reason": profitability_reason,
+                        "reference_price_source": reference_source,
+                        "reference_price": reference_price,
+                    },
+                )
                 continue
 
             if order.get("status") in {StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value}:
                 if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max, market_data):
+                    # Track reveal_condition price thresholds before mutating limit_price
+                    # so the helper can capture the pre-reprice baseline on first call.
+                    self._apply_reveal_condition_price_tracking(order, state, desired_price)
                     order["limit_price"] = desired_price
                     order["updated_at"] = now
                     state["current_logical_limit_price"] = desired_price
@@ -881,6 +1068,24 @@ class StealthOrderManager:
                     state["reprice_reason"] = reprice_reason
                     state.setdefault("reprice_history", []).append(now.isoformat())
                     processed += 1
+                    self.log_callback(
+                        "debug",
+                        {
+                            "event": "stealth_anchor_reprice_hidden_applied",
+                            "stealth_order_id": stealth_order_id,
+                            "product_id": product_id,
+                            "side": order.get("side"),
+                            "previous_price": current_price,
+                            "new_price": desired_price,
+                            "anchor_target_price": target_prices["target_price"],
+                            "anchor_max_price": max_boundary_price,
+                            "reprice_reason": reprice_reason,
+                            "reference_price_source": reference_source,
+                            "reference_price": reference_price,
+                            "market_bid": market_data.get("bid"),
+                            "market_ask": market_data.get("ask"),
+                        },
+                    )
 
                 state["next_reprice_at"] = (now + timedelta(seconds=self._next_anchor_reprice_seconds(policy, desired_price, target_prices["target_price"], max_boundary_price, market_data))).isoformat()
                 order["anchor_repricing_state_json"] = state
@@ -978,8 +1183,52 @@ class StealthOrderManager:
             market_bid=market_data.get("bid"),
             market_ask=market_data.get("ask"),
         )
-        
+
+        # Resolve canonical profit target from order_parent (single source of truth).
+        # The stealth_orders row may have NULL target_movement for root orders; the
+        # authoritative value lives on order_parent.
+        target_movement, target_movement_type, target_movement_source = \
+            self._resolve_target_movement_for_plan(stealth_order_id, order)
+        plan.target_movement = target_movement
+        plan.target_movement_type = target_movement_type
+        plan.target_movement_source = target_movement_source
+
         return plan
+
+    def _resolve_target_movement_for_plan(
+        self,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+    ) -> Tuple[Optional[float], Optional[str], str]:
+        """Resolve canonical (target_movement, target_movement_type, source).
+
+        Lookup precedence:
+        1. ``order_parent`` row (canonical) — keyed by ``stealth_order_id``.
+        2. In-memory stealth ``order`` dict (fallback if DB lookup fails).
+        3. ``unavailable`` — caller decides whether to skip the gate.
+        """
+        try:
+            parent_row = get_parent_order(stealth_order_id)
+        except Exception as exc:
+            self.logger.warning(
+                f"Failed to fetch order_parent for target_movement lookup "
+                f"({stealth_order_id}): {exc}"
+            )
+            parent_row = None
+
+        if parent_row is not None:
+            tm = safe_float(parent_row.get("target_movement"), default=0.0)
+            tm_type = parent_row.get("target_movement_type")
+            if tm > 0 and tm_type:
+                return tm, str(tm_type), "order_parent"
+
+        # Fallback: stealth_orders dict (rarely populated for root orders)
+        tm = safe_float(order.get("target_movement"), default=0.0)
+        tm_type = order.get("target_movement_type")
+        if tm > 0 and tm_type:
+            return tm, str(tm_type), "stealth_order"
+
+        return None, None, "unavailable"
 
     def _validate_reveal_profitability(
         self,
@@ -1022,11 +1271,17 @@ class StealthOrderManager:
 
             order_size = safe_float(order.get("total_size"), default=0.0)
             parent_filled_price = safe_float(reveal_execution_plan.submitted_limit_price, default=0.0)
-            target_movement = safe_float(order.get("target_movement"), default=0.0)
-            target_movement_type = order.get("target_movement_type")
+            # Use target resolved by the plan (canonical: order_parent row).
+            target_movement = safe_float(reveal_execution_plan.target_movement, default=0.0)
+            target_movement_type = reveal_execution_plan.target_movement_type
 
             if target_movement <= 0:
                 # No explicit target configured, do not block reveal.
+                self.logger.info(
+                    "Skipping reveal profitability validation: no target_movement "
+                    f"available for {stealth_order_id} "
+                    f"(source={reveal_execution_plan.target_movement_source})"
+                )
                 return True, None
 
             if order_size <= 0 or parent_filled_price <= 0:
@@ -1199,7 +1454,7 @@ class StealthOrderManager:
         notes: str = "",
         stealth_order_id: Optional[str] = None,
         max_order_replacements: Optional[int] = None,
-        target_movement: float = 0.002,
+        target_movement: float = 0.0,
         target_movement_type: str = "P",
         reveal_pricing_policy: Optional[str] = None,
         allow_partial_fills: bool = False,
@@ -1646,7 +1901,48 @@ class StealthOrderManager:
             # When fill event arrives with this client_order_id, it links directly to stealth order
             placed_order_id = client_order_id
             placement_success = True
-            
+
+            # Ensure an order_parent row exists for the placement client_order_id BEFORE
+            # any WS event for it arrives. When anchor_repricing.allow_revealed_reprice=True
+            # the placement uuid differs from stealth_order_id, and was previously only
+            # created lazily in OrderEngine.handle_filled_order. WS events arriving before
+            # FILLED triggered FK violations on partial_fill_progress.client_order_id_fkey.
+            # insert_order_parent is idempotent (returns existing row id on duplicate), so
+            # the later lazy-create in handle_filled_order remains a safe no-op.
+            if placed_order_id != stealth_order_id:
+                try:
+                    # Inherit target_movement from canonical order_parent row of
+                    # the stealth (root or follow-up). Stealth in-memory dict often
+                    # has target_movement=None for root orders.
+                    inherited_tm, inherited_tm_type, _src = \
+                        self._resolve_target_movement_for_plan(stealth_order_id, order)
+                    insert_order_parent(
+                        client_order_id=placed_order_id,
+                        product_id=order["product_id"],
+                        side=order["side"],
+                        size=slice_size,
+                        price=reveal_plan.submitted_limit_price,
+                        target_movement=inherited_tm if inherited_tm is not None else 0.0,
+                        target_movement_type=inherited_tm_type or "P",
+                        max_order_replacement=int(order.get("max_order_replacements") or 0),
+                        current_order_replacement=0,
+                        status=OrderStatus.OPEN.value,
+                        parent_order_id=stealth_order_id,
+                        allow_partial_fills=bool(order.get("allow_partial_fills", False)),
+                    )
+                except Exception as parent_insert_error:
+                    # Do not abort placement on audit-row insert failure; downstream WS handling
+                    # will retry/log via the existing partial_fill_progress error path.
+                    self.log_callback(
+                        "warning",
+                        {
+                            "event": "reveal_placement_order_parent_insert_failed",
+                            "stealth_order_id": stealth_order_id,
+                            "placement_client_order_id": placed_order_id,
+                            "error": str(parent_insert_error),
+                        },
+                    )
+
             # 🪝 POST-SUBMISSION HOOKS: Log/track submission after REST call succeeds
             # Exceptions here are logged but don't affect placement
             try:
@@ -1713,6 +2009,7 @@ class StealthOrderManager:
         reveal_event = {
             "reveal_number": len(order["revealed_orders"]) + 1,
             "revealed_size": slice_size,
+            "placement_price": reveal_plan.submitted_limit_price,
             "placed_order_id": placed_order_id,
             "placement_client_order_id": placed_order_id,
             "exchange_order_id": exchange_order_id,
@@ -2164,10 +2461,18 @@ class StealthOrderManager:
         if not anchor_repricing_policy.get("inherit_to_follow_ups", True):
             anchor_repricing_policy = {"enabled": False}
         
-        # Use provided target movement or inherit from original
-        follow_up_target_movement = target_movement if target_movement is not None else original_order.get("target_movement")
-        follow_up_target_movement_type = target_movement_type if target_movement is not None else original_order.get("target_movement_type", "P")
-        
+        # Use provided target movement or inherit from original. Resolve via the
+        # canonical resolver so root stealth orders (which keep target_movement on
+        # the order_parent row, not the in-memory dict) are handled correctly.
+        if target_movement is not None:
+            follow_up_target_movement = target_movement
+            follow_up_target_movement_type = target_movement_type
+        else:
+            inherited_tm, inherited_tm_type, _src = \
+                self._resolve_target_movement_for_plan(original_stealth_order_id, original_order)
+            follow_up_target_movement = inherited_tm if inherited_tm is not None else 0.0
+            follow_up_target_movement_type = inherited_tm_type or "P"
+
         # Create follow-up with same reveal condition and sizing strategy
         # Link the follow-up as a child order to the ORIGINAL root parent (not the filled child)
         # This maintains a flat, single-level Parent:Child hierarchy as per design
@@ -2184,9 +2489,12 @@ class StealthOrderManager:
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}",
             anchor_repricing_policy=anchor_repricing_policy,
+            target_movement=follow_up_target_movement,
+            target_movement_type=follow_up_target_movement_type,
         )
-        
-        # Set target movement on the new child order and persist to database
+
+        # Mirror the target onto the in-memory stealth dict so cached lookups
+        # match the canonical order_parent row written by create_stealth_order.
         if follow_up_id:
             follow_up_order = self._get_stealth_order(follow_up_id)
             if follow_up_order:
@@ -2260,7 +2568,8 @@ class StealthOrderManager:
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
-                       limit_price = %s, anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
+                       limit_price = %s, reveal_condition_json = %s,
+                       anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
                        updated_at = CURRENT_TIMESTAMP
                    WHERE stealth_order_id = %s""",
                 (order['status'],
@@ -2270,6 +2579,7 @@ class StealthOrderManager:
                  revealed_orders_json,
                  last_placement,
                  order.get('limit_price'),
+                 json.dumps(order.get('reveal_condition_json', {})),
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
                  order['stealth_order_id'])
@@ -2409,7 +2719,38 @@ class StealthOrderManager:
         except Exception as e:
             self.log_callback("error", {"event": "stealth_orders_batch_load_failed", "error": str(e)})
             return 0
-    
+
+    def _format_reveal_trigger_reason(
+        self,
+        order: Dict[str, Any],
+        reveal_event: Dict[str, Any],
+    ) -> str:
+        """Build a human-readable trigger reason for the reveal_history audit row.
+
+        Pulls the actual reveal_condition off the stealth order so reprice rows
+        and price-condition reveals don't render as ``"Price below unknown"``.
+        Falls back to the configured limit price when the condition lacks an
+        explicit threshold.
+        """
+        reprice_reason = reveal_event.get('reprice_reason')
+        if reveal_event.get('placement_status') == 'repriced' and reprice_reason:
+            return f"Anchor reprice: {reprice_reason}"
+        condition = order.get('reveal_condition_json') or {}
+        cond_type = str(condition.get('type') or order.get('reveal_condition_type') or '').lower()
+        if cond_type == 'price':
+            direction = str(condition.get('direction') or '').lower()
+            threshold = condition.get('price_threshold')
+            if threshold is None:
+                threshold = order.get('limit_price')
+            verb = 'above' if direction == 'above' else ('below' if direction == 'below' else 'crosses')
+            return f"Price {verb} {threshold}"
+        if cond_type == 'time_delay':
+            delay = condition.get('delay_seconds')
+            return f"Time delay {delay}s elapsed" if delay else "Time delay elapsed"
+        if cond_type:
+            return f"Condition met: {cond_type}"
+        return "Reveal condition met"
+
     def _record_reveal_event(self, order: Dict[str, Any], reveal_event: Dict[str, Any]):
         """Record reveal event to stealth_order_reveal_history table.
         
@@ -2436,24 +2777,52 @@ class StealthOrderManager:
             market_ask = reveal_event.get('market_ask')
             market_spread = reveal_event.get('market_spread')
             market_volume_1m = reveal_event.get('market_volume_1m')
-            trigger_reason = f"Price below {reveal_event.get('target_price', 'unknown')}"
+            # Build a meaningful trigger reason from the stealth's reveal_condition
+            # rather than a generic "Price below unknown" stub.
+            trigger_reason = self._format_reveal_trigger_reason(order, reveal_event)
+            # New audit columns (nullable; safe for legacy reveal events).
+            placement_client_order_id = reveal_event.get('placement_client_order_id')
+            placement_status = reveal_event.get('placement_status')
+            placement_success = reveal_event.get('placement_success')
+            cancelled_for_reprice = reveal_event.get('cancelled_for_reprice')
+            reprice_reason = reveal_event.get('reprice_reason')
+            anchor_target_price = reveal_event.get('anchor_target_price')
+            anchor_max_price = reveal_event.get('anchor_max_price')
+            reference_price_source = reveal_event.get('reference_price_source')
+            reference_price = reveal_event.get('reference_price')
+            reference_bid = reveal_event.get('reference_bid')
+            reference_ask = reveal_event.get('reference_ask')
+            market_source = reveal_event.get('market_source')
+            # Classify event for downstream filtering.
+            if placement_status == 'repriced' or reprice_reason:
+                reveal_event_type = 'reprice'
+            elif placement_success is False:
+                reveal_event_type = 'reveal_blocked'
+            else:
+                reveal_event_type = 'reveal'
             trigger_data = json.dumps({
                 'market_price': market_price,
                 'market_bid': market_bid,
                 'market_ask': market_ask,
                 'market_spread': market_spread,
                 'market_volume_1m': market_volume_1m,
-                'market_source': reveal_event.get('market_source'),
+                'market_source': market_source,
                 'reveal_time': reveal_event.get('reveal_time').isoformat() if hasattr(reveal_event.get('reveal_time'), 'isoformat') else None
             })
-            
+
             # Use UPSERT to handle duplicate reveals (idempotent recording)
             self.db_client.execute_update(
                 """INSERT INTO stealth_order_reveal_history
                    (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id,
                     exchange_order_id, market_price, market_bid, market_ask, market_spread, market_volume_1m,
-                    reveal_trigger_reason, reveal_trigger_data)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    reveal_trigger_reason, reveal_trigger_data,
+                    placement_client_order_id, placement_status, placement_success,
+                    cancelled_for_reprice, reprice_reason, reveal_event_type,
+                    anchor_target_price, anchor_max_price,
+                    reference_price_source, reference_price, reference_bid, reference_ask,
+                    market_source)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                           %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT (stealth_order_id, reveal_number) DO UPDATE SET
                        revealed_size = EXCLUDED.revealed_size,
                        placement_price = EXCLUDED.placement_price,
@@ -2465,10 +2834,28 @@ class StealthOrderManager:
                        market_spread = EXCLUDED.market_spread,
                        market_volume_1m = EXCLUDED.market_volume_1m,
                        reveal_trigger_reason = EXCLUDED.reveal_trigger_reason,
-                       reveal_trigger_data = EXCLUDED.reveal_trigger_data""",
+                       reveal_trigger_data = EXCLUDED.reveal_trigger_data,
+                       placement_client_order_id = EXCLUDED.placement_client_order_id,
+                       placement_status = EXCLUDED.placement_status,
+                       placement_success = EXCLUDED.placement_success,
+                       cancelled_for_reprice = EXCLUDED.cancelled_for_reprice,
+                       reprice_reason = EXCLUDED.reprice_reason,
+                       reveal_event_type = EXCLUDED.reveal_event_type,
+                       anchor_target_price = EXCLUDED.anchor_target_price,
+                       anchor_max_price = EXCLUDED.anchor_max_price,
+                       reference_price_source = EXCLUDED.reference_price_source,
+                       reference_price = EXCLUDED.reference_price,
+                       reference_bid = EXCLUDED.reference_bid,
+                       reference_ask = EXCLUDED.reference_ask,
+                       market_source = EXCLUDED.market_source""",
                 (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id,
                  exchange_order_id, market_price, market_bid, market_ask, market_spread, market_volume_1m,
-                 trigger_reason, trigger_data)
+                 trigger_reason, trigger_data,
+                 placement_client_order_id, placement_status, placement_success,
+                 cancelled_for_reprice, reprice_reason, reveal_event_type,
+                 anchor_target_price, anchor_max_price,
+                 reference_price_source, reference_price, reference_bid, reference_ask,
+                 market_source)
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_reveal_event_recording_failed", "error": str(e)})

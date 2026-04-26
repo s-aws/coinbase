@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -74,13 +75,13 @@
             font-weight: bold;
             color: #4ade80;
         }
-
         .content {
-            display: grid;
-            grid-template-columns: 1fr 450px;
+            display: flex;
+            flex-direction: column;
             gap: 20px;
             margin-bottom: 30px;
         }
+
 
         .section {
             background: rgba(255, 255, 255, 0.05);
@@ -600,12 +601,13 @@
             font-size: 11px;
             color: #666;
         }
-
         .right-sidebar {
             display: flex;
             flex-direction: column;
             gap: 20px;
+            width: 100%;
         }
+
 
         .history-entry {
             padding: 8px;
@@ -733,41 +735,6 @@
         </header>
 
         <div class="content">
-            <div class="section" style="grid-column: 1;">
-                <h2>📊 Stealth Orders</h2>
-                <div class="message" id="message-container"></div>
-                <div style="overflow-x: auto;">
-                    <table class="orders-table">
-                        <thead>
-                            <tr>
-                                <th>Product</th>
-                                <th>Side</th>
-                                <th>Size</th>
-                                <th>Price</th>
-                                <th>Status</th>
-                                <th>Condition</th>
-                                <th>Time</th>
-                                <th>Progress</th>
-                                <th>Executed</th>
-                                <th>Parent Target</th>
-                                <th>Max Followups</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="orders-tbody">
-                            <tr>
-                                <td colspan="12" style="text-align: center; padding: 30px; color: #666;">
-                                    Loading orders...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div style="margin-top: 15px; font-size: 11px; color: #666; text-align: right;">
-                    <span class="refresh-indicator">Auto-refresh: <span id="refresh-timer">5</span>s</span>
-                </div>
-            </div>
-
             <div class="right-sidebar">
                 <!-- Create Order Section -->
                 <div class="section">
@@ -1106,6 +1073,41 @@
                     <div id="save-status" style="font-size: 10px; color: #666; margin-top: 8px; text-align: right; display: none;">✓ Auto-saved</div>
                 </div>
             </div>
+
+            <div class="section">
+                <h2>📊 Stealth Orders</h2>
+                <div class="message" id="message-container"></div>
+                <div style="overflow-x: auto;">
+                    <table class="orders-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Side</th>
+                                <th>Size</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Condition</th>
+                                <th>Time</th>
+                                <th>Progress</th>
+                                <th>Executed</th>
+                                <th>Parent Target</th>
+                                <th>Max Followups</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-tbody">
+                            <tr>
+                                <td colspan="12" style="text-align: center; padding: 30px; color: #666;">
+                                    Loading orders...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 15px; font-size: 11px; color: #666; text-align: right;">
+                    <span class="refresh-indicator">Auto-refresh: <span id="refresh-timer">5</span>s</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1432,12 +1434,23 @@
                 ? `<span title="Market-reference repricing active" style="color:#60cdff; font-size:11px; margin-left:4px; cursor:default;">⟳ ${anchorPolicy.reference_price_source || 'mid'}</span>`
                 : '';
 
+            // 🔗 Tracking badge: indicates reveal-condition price thresholds are auto-tracking
+            // the order's limit_price as anchor repricing moves it. Populated by the backend in
+            // anchor_repricing_state_json.reveal_condition_price_offsets when at least one
+            // absolute-price field in reveal_condition_json is being kept in lock-step.
+            const anchorState = order.anchor_repricing_state_json || {};
+            const offsets = anchorState.reveal_condition_price_offsets;
+            const tracksLimit = offsets && typeof offsets === 'object' && Object.keys(offsets).length > 0;
+            const trackingBadge = tracksLimit
+                ? `<span title="Reveal threshold tracks limit price (offsets: ${Object.entries(offsets).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${Number(v).toFixed(2)}`).join(', ')})" style="color:#fbbf24; font-size:11px; margin-left:4px; cursor:default;">🔗</span>`
+                : '';
+
             if (!hasTooltip) {
-                return `<span class="condition-type">${type}${repriceBadge}</span>`;
+                return `<span class="condition-type">${type}${repriceBadge}${trackingBadge}</span>`;
             }
             
             return `<span class="condition-type">
-                ${type}${repriceBadge}
+                ${type}${repriceBadge}${trackingBadge}
                 <div class="condition-tooltip">
                     <div style="font-weight: 600; margin-bottom: 6px; color: #4ade80;">${type}</div>
                     <div class="condition-details" style="white-space: normal; width: 240px;">${details}${anchorDetail}</div>
