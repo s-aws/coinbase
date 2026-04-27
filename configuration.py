@@ -896,15 +896,12 @@ class OrderBook():
             read_only=read_only,
         )
 
-        # Legacy attributes with zero production consumers.  Kept as plain
-        # instance attributes so code that touches them does not error; they
-        # will be deleted in Phase 4 along with the shim itself.
-        self.transaction_summary = REST_CLIENT.get_transaction_summary()
-        self.cancelled = {}
-        self.filled = {}
-        self.active = {}
-        self.price = {}
-        self.db_client = None
+        # Sole legacy attribute kept on the shim: production reads this via
+        # getattr(self.orderbook, "default_max_order_replacement", ...) at
+        # core/order_engine.py:1310 and :1553.  Tests also override it as a
+        # mock-orderbook hook.  Other dead attrs (transaction_summary,
+        # cancelled, filled, active, price, db_client) were removed after a
+        # workspace-wide grep confirmed zero consumers (2026-04-27).
         self.default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
 
     # ------------------------------------------------------------------
