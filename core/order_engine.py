@@ -1240,16 +1240,11 @@ class OrderEngine:
             >>> snap = engine.get_orderbook_snapshot()
             >>> orders = snap['order']
         """
-        with self.orderbook_lock:
-            return {
-                "order": deepcopy(self.orderbook.order),
-                "positions": deepcopy(self.orderbook.positions),
-                "product": self.orderbook.product,
-                "profit": self.orderbook.profit,
-                "mandatory_fee_per_contract": self.orderbook.mandatory_fee_per_contract,
-                "parent_order_ids": deepcopy(self.orderbook.parent_order_ids),
-                "child_order_ids": deepcopy(self.orderbook.child_order_ids),
-            }
+        # Single-lock snapshot via the v2 OrderBook implementation — replaces
+        # the previous block of seven sequential ``deepcopy(...)`` reads which
+        # required holding ``orderbook_lock`` across multiple attribute
+        # accesses.  Shape is byte-for-byte identical.
+        return self.orderbook.diagnostic_snapshot()
 
     def refresh_positions_if_needed(self, product_id: str) -> None:
         """Refresh futures positions from API if product_id not in cache.
@@ -1954,8 +1949,49 @@ class OrderEngine:
         """
         ws_ids = {coid for coid in ws_client_order_ids if coid}
 
+        # Snapshot in-memory state under the lock, including each entry's
+        # last-known status / product / cumulative_quantity so the drift
+        # log can identify *what* the orphan actually is (leaked FILLED,
+        # stuck OPEN, never-confirmed placement, etc.) instead of just
+        # surfacing a bare client_order_id.
+        #
+        # Apples-to-apples principle: the venue's open-orders snapshot
+        # only contains orders the exchange currently considers open
+        # (status OPEN or UPDATE). Comparing it against every entry we
+        # ever stored — including transient PENDING/CANCEL_QUEUED entries
+        # mid-placement and terminal FILLED/CANCELLED/FAILED entries
+        # awaiting bookkeeping cleanup — produces guaranteed false
+        # positives. Filter the in-memory side to the same population
+        # the WS snapshot is reporting on. Eviction (in process_user_order)
+        # still bounds memory, but is no longer racing this check.
+        _OPEN_ON_VENUE = {
+            OrderStatus.OPEN.value,
+            OrderStatus.UPDATE.value,
+        }
         with self.orderbook_lock:
-            in_memory_ids = set(self.orderbook.order.keys())
+            all_state = {
+                coid: dict(self.orderbook.order.get(coid) or {})
+                for coid in self.orderbook.order.keys()
+            }
+
+        def _norm(s):
+            return (s or "").upper() if isinstance(s, str) else s
+
+        in_memory_state = {
+            coid: {
+                "status": data.get("status"),
+                "product_id": data.get("product_id"),
+                "cumulative_quantity": data.get("cumulative_quantity"),
+                "leaves_quantity": data.get("leaves_quantity"),
+                "creation_time": data.get("creation_time"),
+            }
+            for coid, data in all_state.items()
+        }
+        in_memory_ids = {
+            coid
+            for coid, data in all_state.items()
+            if _norm(data.get("status")) in _OPEN_ON_VENUE
+        }
 
         ws_only = sorted(ws_ids - in_memory_ids)
         in_memory_only = sorted(in_memory_ids - ws_ids)
@@ -1991,12 +2027,18 @@ class OrderEngine:
                     ),
                 )
             for coid in in_memory_only:
+                detail = in_memory_state.get(coid, {})
                 self.log_message(
                     "warning",
                     self.build_event_log_payload(
                         "snapshot_drift_in_memory_only",
                         source=source,
                         client_order_id=coid,
+                        in_memory_status=detail.get("status"),
+                        product_id=detail.get("product_id"),
+                        cumulative_quantity=detail.get("cumulative_quantity"),
+                        leaves_quantity=detail.get("leaves_quantity"),
+                        creation_time=detail.get("creation_time"),
                     ),
                 )
         else:
@@ -2181,12 +2223,25 @@ class OrderEngine:
             self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
             self.handle_cancelled_order(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
+
+            # Evict the terminal entry from the in-memory orderbook so the
+            # WS snapshot drift checker doesn't keep flagging it as
+            # "in_memory_only" forever. Must run after handle_*_order so
+            # downstream lookups (follow-up creation, external-order
+            # tracking) still see the row, and after dashboard update so
+            # the final terminal state is rendered.
+            with self.orderbook_lock:
+                self.orderbook.order.pop(client_order_id, None)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.FILLED:
             self._finalize_partial_fill_progress(client_order_id, "FINALIZED")
             self.handle_filled_order(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
+
+            # Same eviction reason as the CANCELLED branch above.
+            with self.orderbook_lock:
+                self.orderbook.order.pop(client_order_id, None)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
 
@@ -3402,8 +3457,14 @@ class OrderEngine:
                     )
                 return False
 
-            self.orderbook.parent_order_ids = new_parent_order_ids
-            self.orderbook.child_order_ids = new_child_order_ids
+            # Atomic dual-replace via the v2 OrderBook — closes the TOCTOU
+            # window where the previous code wrote ``parent_order_ids`` and
+            # ``child_order_ids`` in two separate statements while another
+            # thread could observe the half-replaced state.
+            self.orderbook.atomic_replace_links(
+                new_parent_order_ids,
+                new_child_order_ids,
+            )
 
         self.log_message(
             "reconcile",

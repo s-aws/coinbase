@@ -846,168 +846,241 @@ def detect_position_flip(position_side: str, position_size: float, order_side: s
 
 
 class OrderBook():
-    """Container and state manager for order tracking and position management.
+    """Compatibility shim wrapping :class:`core.orderbook.OrderBook` (v2).
 
-    Maintains in-memory state of parent/child orders, positions, profit targets,
-    and product metadata for a trading engine. Acts as the source-of-truth for
-    the OrderEngine's order and position data.
-    
-    Attributes:
-        transaction_summary: Fee tier and trading stats from Coinbase.
-        should_replace: Dict mapping order status to whether to create follow-up order.
-        parent_order_ids: Dict mapping parent client_order_id to metadata:
-                          {'client_id': {'orders': [...children], 'target_movement': {...}, ...}}
-        child_order_ids: Dict mapping child client_order_id to parent client_order_id.
-        cancelled: Dict tracking cancelled orders (for deduplication).
-        filled: Dict tracking filled orders (for deduplication).
-        order: Dict mapping client_order_id to full order data from API.
-        price: Dict mapping product_id to last known price (for ticker updates).
-        product: Dict mapping product_id to product metadata (increments, types, etc.).
-        mandatory_fee_per_contract: Dict mapping product_id to fee per contract for futures.
-        active: Dict tracking active orders (for processing state).
-        default_max_order_replacement: Max number of follow-up orders per parent.
-        profit: Dict mapping product_type/id to {'BUY': percent, 'SELL': percent}.
-        positions: Dict with 'FUTURE' key containing open futures positions.
-        db_client: PostgreSQL client for persistence (set by OrderEngine).
-    
-    Example:
-        >>> orderbook = OrderBook()
-        >>> orderbook.order['client_order_123'] = {...order_data...}
-        >>> parent_id = orderbook.parent_order_ids.get('parent_order_456')
-        >>> positions = orderbook.positions['FUTURE']
+    Phase 2 of the OrderBook refactor (see
+    ``genai_tools/ORDERBOOK_REFACTOR_ROADMAP.md``).  The real state lives in a
+    :class:`core.orderbook.OrderBook` instance held in ``self._impl``; this
+    class exposes the legacy attribute surface (``order``, ``parent_order_ids``,
+    ``child_order_ids``, ``positions``, ``product``, ``profit``, etc.) as
+    properties that return the *live* underlying dicts so existing consumers
+    that do ``ob.order[coid] = x`` continue to mutate state.
+
+    Behavioural goals:
+
+    * Byte-for-byte legacy semantics for every documented attribute.
+    * Class-level mutable defaults (the original design smell) eliminated:
+      every instance has its own state.
+    * Thread-safety inherited from the wrapped v2 class (``self._impl.lock``).
+    * Phase 3 will migrate consumers off this shim; Phase 4 deletes it.
     """
-    transaction_summary = REST_CLIENT.get_transaction_summary()
 
-    should_replace = {
-        "CANCELLED": True,
-        "FILLED": True
-    }
+    def __init__(self, *, read_only: bool = False):
+        # Late import to keep ``configuration`` import order stable.  Importing
+        # ``core.orderbook`` here is safe: it has no module-level side effects.
+        from core.orderbook import OrderBook as _OrderBookV2
 
-    parent_order_ids = {}
-    child_order_ids = {}
-    cancelled = {}
-    filled = {}
-    order = {}
-    price = {}
-    product = rest_get_products()
-    mandatory_fee_per_contract = {
-        product_id: {
-            "mandatory_fee_per_contract": (
-                DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
-            ) if this["product_type"] == ProductType.FUTURE.value else 0
-        } for product_id, this in product.items()
-    }
-
-    active = {}
-    default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
-
-    profit = {
-        "SPOT": {
-            "BUY": 0.001,
-            "SELL": 0.001
-        },
-        "FUTURE": {
-            "BUY": 0.001,
-            "SELL": 0.001
-        },
-        "BIP-20DEC30-CDE": {
-            "BUY": 0.001,
-            "SELL": 0.001
+        # Compute legacy startup data exactly as the original class did, so
+        # that production behaviour at import time is preserved.
+        products = rest_get_products()
+        mandatory_fees = {
+            product_id: {
+                "mandatory_fee_per_contract": (
+                    DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
+                ) if this["product_type"] == ProductType.FUTURE.value else 0
+            } for product_id, this in products.items()
         }
-    }
+        profit = {
+            "SPOT": {"BUY": 0.001, "SELL": 0.001},
+            "FUTURE": {"BUY": 0.001, "SELL": 0.001},
+            "BIP-20DEC30-CDE": {"BUY": 0.001, "SELL": 0.001},
+        }
+        positions = {"FUTURE": get_futures_positions()}
 
-    positions = {
-        "FUTURE": get_futures_positions()
-    }
+        self._impl = _OrderBookV2(
+            products=products,
+            profit=profit,
+            mandatory_fee_per_contract=mandatory_fees,
+            should_replace={"FILLED": True, "CANCELLED": True},
+            positions=positions,
+            read_only=read_only,
+        )
 
-    db_client = None
+        # Legacy attributes with zero production consumers.  Kept as plain
+        # instance attributes so code that touches them does not error; they
+        # will be deleted in Phase 4 along with the shim itself.
+        self.transaction_summary = REST_CLIENT.get_transaction_summary()
+        self.cancelled = {}
+        self.filled = {}
+        self.active = {}
+        self.price = {}
+        self.db_client = None
+        self.default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
+
+    # ------------------------------------------------------------------
+    # Legacy attribute surface \u2014 properties returning live underlying dicts
+    # ------------------------------------------------------------------
+
+    @property
+    def order(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._orders)
+        return self._impl._orders
+
+    @order.setter
+    def order(self, value):
+        self._impl._check_writable("order=")
+        with self._impl._lock:
+            self._impl._orders = dict(value)
+
+    @property
+    def parent_order_ids(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._parents)
+        return self._impl._parents
+
+    @parent_order_ids.setter
+    def parent_order_ids(self, value):
+        self._impl._check_writable("parent_order_ids=")
+        with self._impl._lock:
+            self._impl._parents = {coid: dict(v) for coid, v in dict(value).items()}
+
+    @property
+    def child_order_ids(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._child_to_parent)
+        return self._impl._child_to_parent
+
+    @child_order_ids.setter
+    def child_order_ids(self, value):
+        self._impl._check_writable("child_order_ids=")
+        with self._impl._lock:
+            self._impl._child_to_parent = dict(value)
+
+    @property
+    def positions(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._positions)
+        return self._impl._positions
+
+    @positions.setter
+    def positions(self, value):
+        self._impl._check_writable("positions=")
+        with self._impl._lock:
+            self._impl._positions = dict(value)
+
+    @property
+    def product(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._products)
+        return self._impl._products
+
+    @product.setter
+    def product(self, value):
+        self._impl._check_writable("product=")
+        with self._impl._lock:
+            self._impl._products = dict(value)
+
+    @property
+    def profit(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._profit)
+        return self._impl._profit
+
+    @profit.setter
+    def profit(self, value):
+        self._impl._check_writable("profit=")
+        with self._impl._lock:
+            self._impl._profit = dict(value)
+
+    @property
+    def mandatory_fee_per_contract(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._mandatory_fee_per_contract)
+        return self._impl._mandatory_fee_per_contract
+
+    @mandatory_fee_per_contract.setter
+    def mandatory_fee_per_contract(self, value):
+        self._impl._check_writable("mandatory_fee_per_contract=")
+        with self._impl._lock:
+            self._impl._mandatory_fee_per_contract = dict(value)
+
+    @property
+    def should_replace(self):
+        if self._impl._read_only:
+            from types import MappingProxyType
+            return MappingProxyType(self._impl._should_replace)
+        return self._impl._should_replace
+
+    @should_replace.setter
+    def should_replace(self, value):
+        self._impl._check_writable("should_replace=")
+        with self._impl._lock:
+            self._impl._should_replace = dict(value)
+
+    @property
+    def db_helper(self):
+        return self._impl._db_helper
+
+    @db_helper.setter
+    def db_helper(self, value):
+        # Used by ``core/order_engine.py`` line 338: the engine grafts its
+        # db_helper onto the orderbook at startup.  Preserved verbatim.
+        self._impl.set_db_helper(value)
+
+    # ------------------------------------------------------------------
+    # Legacy method surface \u2014 delegated to the v2 implementation
+    # ------------------------------------------------------------------
 
     def get_position_side(self, product_id: str) -> str | None:
-        """Get the current position side for a product.
-        
-        For FUTURE/PERPETUAL products, returns the current position side (LONG, SHORT)
-        if an open position exists. Returns None if position is closed (contracts = 0).
-        For SPOT products, returns None (no positions).
-        
-        CRITICAL: When number_of_contracts reaches 0, the position is fully closed and
-        the next order will OPEN a new position (not close an existing one). This method
-        correctly returns None in that case so the profit validator knows to expect the
-        next order as "open" regardless of its direction.
-        
-        This method is thread-safe when called from OrderEngine (which holds orderbook_lock).
-        
-        Args:
-            product_id: The product ID to get position for (e.g., 'BIP-20DEC30-CDE')
-        
-        Returns:
-            Position side string ('LONG' or 'SHORT') if position exists and contracts > 0,
-            None if position is closed (contracts = 0) or doesn't exist.
-            
-        Examples:
-            >>> orderbook = OrderBook()
-            >>> # Active LONG position with 10 contracts
-            >>> position_side = orderbook.get_position_side('BIP-20DEC30-CDE')
-            >>> print(position_side)  # 'LONG'
-            
-            >>> # Position fully closed (contracts = 0) - ready for new open order
-            >>> orderbook.positions["FUTURE"]["BIP-20DEC30-CDE"]["number_of_contracts"] = "0"
-            >>> position_side = orderbook.get_position_side('BIP-20DEC30-CDE')
-            >>> print(position_side)  # None (position is reset)
-            
-            >>> position_side = orderbook.get_position_side('BTC-USDC')  # SPOT
-            >>> print(position_side)  # None (SPOT has no positions)
+        """Delegate to :meth:`core.orderbook.OrderBook.get_position_side`.
+
+        Behaviour preserved verbatim: returns 'LONG' / 'SHORT' for an active
+        future position, ``None`` when contracts are at or near zero
+        (effectively closed) so the next order is treated as opening a new
+        position.
         """
-        future_positions = self.positions.get("FUTURE", {})
-        position = future_positions.get(product_id)
-        
-        if not position:
-            return None
-        
-        # Check if position is closed (contracts = 0)
-        # Handle both string and float representations
-        try:
-            num_contracts = float(position.get("number_of_contracts", 0))
-        except (ValueError, TypeError):
-            return None
-        
-        # If contracts is at or near zero (within floating point precision), 
-        # the position is closed and we treat it as None (ready for new open)
-        if num_contracts <= 1e-8:  # Effectively zero within float precision
-            return None
-        
-        # Position is active, return its side
-        return position.get("side")  # Returns 'LONG', 'SHORT', or None
+
+        return self._impl.get_position_side(product_id)
+
+    @property
+    def read_only(self) -> bool:
+        """``True`` if every mutator on this orderbook (including legacy setters) will raise."""
+
+        return self._impl.read_only
+
+    # ------------------------------------------------------------------
+    # v2 API surface \u2014 exposed for callers that want the new methods
+    # without reaching into ``self._impl``.  These delegate to
+    # :class:`core.orderbook.OrderBook`.
+    # ------------------------------------------------------------------
+
+    def diagnostic_snapshot(self) -> dict:
+        """Single-lock snapshot of state needed by ``calculate_new_order_move_from_snapshot``."""
+
+        return self._impl.diagnostic_snapshot()
+
+    def snapshot_open_orders(self) -> dict:
+        """Snapshot of orders whose ``status`` is OPEN or UPDATE."""
+
+        return self._impl.snapshot_open_orders()
+
+    def atomic_replace_links(self, new_parents, new_children) -> None:
+        """Atomically replace the parent and child link maps under one lock."""
+
+        self._impl.atomic_replace_links(new_parents, new_children)
 
     def calculate_new_order_move(self, order_id: str, target_movement: dict = None) -> dict:
-        """Calculate a new order move using current orderbook snapshot.
+        """Compute a new-order template from the current orderbook snapshot.
 
-        Convenience wrapper around calculate_new_order_move_from_snapshot that uses
-        the orderbook's current state. Applies position updates atomically after
-        computation.
-
-        Args:
-            order_id: The client order ID to compute template for.
-            target_movement: Optional override dict with 'type' and 'movement' keys.
-
-        Returns:
-            A dictionary with computed order template (same structure as
-            calculate_new_order_move_from_snapshot, minus position_update key
-            since it's applied directly to self.positions).
-        
-        Example:
-            >>> template = orderbook.calculate_new_order_move('order_123')
-            >>> print(template['start_price'])
+        Thin wrapper around :func:`calculate_new_order_move_from_snapshot`
+        using the v2 implementation's :meth:`diagnostic_snapshot`.  Position
+        updates are applied via the v2 implementation's
+        :meth:`apply_position_update`, all under one lock acquisition.
         """
-        snapshot = {
-            "order": deepcopy(self.order),
-            "positions": deepcopy(self.positions),
-            "product": self.product,
-            "profit": self.profit,
-            "mandatory_fee_per_contract": self.mandatory_fee_per_contract,
-        }
-        result = calculate_new_order_move_from_snapshot(snapshot, order_id, target_movement=target_movement)
-        position_update = result.pop("position_update", None)
-        apply_calculated_position_update(self.positions, position_update)
+
+        snapshot = self._impl.diagnostic_snapshot()
+        result = calculate_new_order_move_from_snapshot(
+            snapshot, order_id, target_movement=target_movement
+        )
+        self._impl.apply_position_update(result.pop("position_update", None))
         return result
 
 class Subscription():

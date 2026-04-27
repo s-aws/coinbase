@@ -758,6 +758,7 @@ def audit_missed_fills(
     # exceeds) the REST total for that order, treat all of those REST
     # rows as already recorded and demote them out of `missed`.
     # ------------------------------------------------------------------
+    oid_to_coid: Dict[str, str] = {}
     if report.missed:
         order_ids_in_missed = {
             str(f.get("order_id"))
@@ -810,11 +811,65 @@ def audit_missed_fills(
                 len(ws_covered_oids),
             )
 
+    # ------------------------------------------------------------------
+    # Partition by ownership.
+    #
+    # The audit is designed to catch "WS pipeline missed a fill for an
+    # order WE placed". A fill whose exchange order_id has no row in
+    # `order_event_stream` was placed by something that isn't this
+    # engine instance — most often a previous engine run before the
+    # local DB was created/wiped, or a manual exchange-side trade.
+    # We can't backfill it (no client_order_id mapping exists) and it
+    # isn't a WS gap from our perspective. Log a single INFO summary
+    # for visibility and demote those rows out of `missed` so the
+    # WARNING loop only fires for real gaps in orders we own.
+    #
+    # This also subsumes the old fresh-DB detector: a fresh DB has
+    # zero `order_event_stream` rows, so every REST fill is unowned
+    # and the WARNING loop is naturally silent.
+    # ------------------------------------------------------------------
+    if report.missed:
+        # If suppression above already populated oid_to_coid, the post-
+        # suppression `missed` list is a strict subset and that mapping
+        # is still authoritative. Otherwise resolve now.
+        if not oid_to_coid:
+            oid_to_coid = _fetch_client_order_ids_for_exchange_order_ids(
+                {str(f.get("order_id")) for f in report.missed if f.get("order_id")}
+            )
+
+        owned: List[Dict[str, Any]] = []
+        unowned: List[Dict[str, Any]] = []
+        for f in report.missed:
+            oid = str(f.get("order_id") or "")
+            if oid and oid in oid_to_coid:
+                owned.append(f)
+            else:
+                unowned.append(f)
+
+        if unowned:
+            logger.info(
+                "Missed-fills audit: %d REST fill(s) across %d unowned "
+                "order(s) have no order_event_stream mapping (placed by a "
+                "previous engine instance, pre-wipe, or off-engine). Not "
+                "backfillable; not a WS gap. Use the backfill CLI only if "
+                "you can supply the original client_order_id externally.",
+                len(unowned),
+                len({str(f.get("order_id") or "") for f in unowned}),
+                extra={
+                    "unowned_order_ids": sorted(
+                        {str(f.get("order_id") or "") for f in unowned}
+                    ),
+                },
+            )
+
+        report.missed = owned
+
     summary = report.summary()
     if report.has_missed_fills:
         logger.warning(
-            "Missed-fills audit: detected fills not in local ledger. "
-            "WS pipeline likely had a gap; investigate before placing new orders.",
+            "Missed-fills audit: detected fills not in local ledger for "
+            "orders we own. WS pipeline likely had a gap; investigate "
+            "before placing new orders.",
             extra={"missed_fills_summary": summary},
         )
         for fill in report.missed:

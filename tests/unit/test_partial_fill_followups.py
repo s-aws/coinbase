@@ -36,6 +36,19 @@ def _build_engine_for_partial_fill_tests() -> OrderEngine:
     orderbook.profit = {"SPOT": {"BUY": 0.001, "SELL": 0.001}}
     orderbook.mandatory_fee_per_contract = {}
 
+    # Mock the v2 ``diagnostic_snapshot`` method to return a dict assembled
+    # from the attributes above.  ``compute_order_template`` (and friends) now
+    # call this method instead of reading attributes individually.
+    orderbook.diagnostic_snapshot.side_effect = lambda: {
+        "order": orderbook.order,
+        "positions": orderbook.positions,
+        "product": orderbook.product,
+        "profit": orderbook.profit,
+        "mandatory_fee_per_contract": orderbook.mandatory_fee_per_contract,
+        "parent_order_ids": orderbook.parent_order_ids,
+        "child_order_ids": orderbook.child_order_ids,
+    }
+
     db_helper = Mock()
     db_helper.get_parent_order.return_value = {
         "target_movement": 0.001,
