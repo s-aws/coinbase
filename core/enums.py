@@ -403,3 +403,36 @@ class TargetMovementType(str, Enum):
     """
     PERCENTAGE = "P"       # As percentage (e.g., 0.004 = 0.4%)
     ABSOLUTE = "A"         # As absolute amount (e.g., $500)
+
+
+# ============================================================================
+# RUNTIME LIFECYCLE
+# ============================================================================
+
+class EngineState(str, Enum):
+    """Engine lifecycle states for graceful shutdown / pause / restart.
+
+    State machine (industry-standard quiesce-drain-stop model):
+
+        RUNNING  --request_pause()-->     PAUSING  --(drain)-->  PAUSED
+        PAUSED   --resume()-->            RUNNING
+        RUNNING  --request_shutdown()-->  DRAINING --(drain)-->  STOPPED
+        PAUSED   --request_shutdown()-->  DRAINING --(drain)-->  STOPPED
+
+    Admission rules (what is accepted at each state):
+
+        | State    | New orders | Cancellations | Fill processing | DB writes |
+        | RUNNING  |    yes     |     yes       |       yes       |    yes    |
+        | PAUSING  |    no      |     yes       |       yes       |    yes    |
+        | PAUSED   |    no      |     yes       |       yes       |    yes    |
+        | DRAINING |    no      |     yes       |       yes       |    yes    |
+        | STOPPED  |    no      |     no        |       no        |    no     |
+
+    "Soft pause" — pause stops *originating* new orders but keeps WS, fills,
+    and cancellations active so existing positions remain manageable.
+    """
+    RUNNING = "RUNNING"
+    PAUSING = "PAUSING"
+    PAUSED = "PAUSED"
+    DRAINING = "DRAINING"
+    STOPPED = "STOPPED"

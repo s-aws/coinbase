@@ -317,3 +317,101 @@ class TestAnchorRepricingIntegration:
         assert order["limit_price"] % 5 == 0
         assert order["limit_price"] >= max_boundary
         assert order["limit_price"] == 49_990.0
+
+    def test_slide_mode_caps_movement_to_max_step(self):
+        """With slide_mode on, a desired price far from current is clamped to current +/- step."""
+        policy = {
+            "enabled": True,
+            "reference_price_source": "midpoint",
+            "distance_type": "A",
+            "target_distance": 100.0,   # ref - 100 -> way below current
+            "max_distance": 500.0,
+            "update_mode": "fixed",
+            "fixed_interval_seconds": 60,
+            "min_price_change": 0.0,
+            "hysteresis_bps": 0,
+            "min_reprice_interval_seconds": 0,
+            "max_reprices_per_hour": 9999,
+            "post_only_required": False,
+            "allow_revealed_reprice": False,
+            "slide_mode": True,
+            "max_step_per_reprice": 5.0,
+        }
+        mgr = _make_manager()
+        oid = _make_order(mgr, limit_price=50_000.0, policy=policy)
+        _set_ticker(mgr, "BTC-USDC", bid=49_995.0, ask=50_005.0)  # midpoint 50_000
+
+        processed = mgr.process_anchor_repricing_for_product("BTC-USDC")
+
+        order = mgr.in_memory_orders[oid]
+        assert processed == 1
+        # Desired BUY price = 50_000 - 100 = 49_900, but slide caps movement to 5
+        assert order["limit_price"] == pytest.approx(49_995.0)
+        state = order.get("anchor_repricing_state_json") or {}
+        assert "slide_step" in state.get("reprice_reason", "")
+
+    def test_slide_mode_disabled_jumps_to_desired(self):
+        """Regression guard: slide_mode off keeps existing single-jump behavior."""
+        policy = {
+            "enabled": True,
+            "reference_price_source": "midpoint",
+            "distance_type": "A",
+            "target_distance": 100.0,
+            "max_distance": 500.0,
+            "update_mode": "fixed",
+            "fixed_interval_seconds": 60,
+            "min_price_change": 0.0,
+            "hysteresis_bps": 0,
+            "min_reprice_interval_seconds": 0,
+            "max_reprices_per_hour": 9999,
+            "post_only_required": False,
+            "allow_revealed_reprice": False,
+            "slide_mode": False,
+            "max_step_per_reprice": 5.0,
+        }
+        mgr = _make_manager()
+        oid = _make_order(mgr, limit_price=50_000.0, policy=policy)
+        _set_ticker(mgr, "BTC-USDC", bid=49_995.0, ask=50_005.0)
+
+        mgr.process_anchor_repricing_for_product("BTC-USDC")
+        order = mgr.in_memory_orders[oid]
+        # Without slide mode the order jumps directly to ref - 100
+        assert order["limit_price"] == pytest.approx(49_900.0)
+
+    def test_slide_mode_progresses_toward_desired_over_multiple_ticks(self):
+        """Repeated ticker updates should walk the price toward the desired target in step-sized chunks."""
+        policy = {
+            "enabled": True,
+            "reference_price_source": "midpoint",
+            "distance_type": "A",
+            "target_distance": 50.0,
+            "max_distance": 200.0,
+            "update_mode": "fixed",
+            "fixed_interval_seconds": 60,
+            "min_price_change": 0.0,
+            "hysteresis_bps": 0,
+            "min_reprice_interval_seconds": 0,
+            "max_reprices_per_hour": 9999,
+            "post_only_required": False,
+            "allow_revealed_reprice": False,
+            "slide_mode": True,
+            "max_step_per_reprice": 10.0,
+        }
+        mgr = _make_manager()
+        oid = _make_order(mgr, limit_price=50_000.0, policy=policy)
+        _set_ticker(mgr, "BTC-USDC", bid=49_995.0, ask=50_005.0)  # desired = 49_950
+
+        prices = []
+        for _ in range(6):
+            mgr.process_anchor_repricing_for_product("BTC-USDC")
+            prices.append(mgr.in_memory_orders[oid]["limit_price"])
+            # Clear interval gate so the next iteration is allowed to fire.
+            state = mgr.in_memory_orders[oid].get("anchor_repricing_state_json") or {}
+            state.pop("next_reprice_at", None)
+            state.pop("last_reprice_at", None)
+            mgr.in_memory_orders[oid]["anchor_repricing_state_json"] = state
+
+        # Each step = 10; eventually converges at 49_950
+        assert prices[0] == pytest.approx(49_990.0)
+        assert prices[1] == pytest.approx(49_980.0)
+        assert prices[-1] == pytest.approx(49_950.0)

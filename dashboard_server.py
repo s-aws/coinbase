@@ -28,10 +28,29 @@ except ImportError:
 
 # Use custom logging service
 from logging_service import get_logger
-from core.enums import FollowUpRevealDirection
+from core.enums import EngineState, FollowUpRevealDirection
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
+from core.runtime_controller import (
+    INFLIGHT_REST_CANCEL,
+    INFLIGHT_REST_PLACE,
+    EngineNotAdmittingError,
+    get_runtime_controller,
+)
 from database.database import PostgresDB
 from calculation.formatter import safe_float
+
+# Message types that *originate* new work and are gated on EngineState.RUNNING.
+# Cancellations, queries, and admin commands are intentionally excluded so the
+# engine remains controllable and existing positions can be wound down while
+# paused or draining.
+_ORIGINATING_MSG_TYPES = frozenset({
+    "place_order",
+    "create_stealth_order",
+    "create_parent_order",
+    "reprice_now_stealth_order",
+    "move_order",
+    "premark_move",
+})
 
 logger = get_logger("DashboardServer")
 
@@ -422,6 +441,88 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         
         # DEBUG: Log all incoming messages
         logger.debug(f"[HANDLER] Received message type: {msg_type}")
+
+        # Admission gate: reject originating-work messages when the engine is
+        # not RUNNING (paused / draining / stopped). Cancels, queries, and
+        # admin messages pass through so operators can still control the
+        # system and wind down existing positions.
+        controller = get_runtime_controller()
+        if msg_type in _ORIGINATING_MSG_TYPES and not controller.is_admitting():
+            response = {
+                "type": "admission_rejected",
+                "rejected_type": msg_type,
+                "engine_state": controller.state.value,
+                "message": (
+                    f"Engine is {controller.state.value}; new orders are not "
+                    f"being accepted. Resume the engine to place new orders."
+                ),
+            }
+            await websocket.send(json.dumps(response))
+            add_log_entry(
+                "WARNING",
+                f"Rejected {msg_type}: engine state {controller.state.value}",
+            )
+            return
+
+        if msg_type == "admin_status":
+            response = {
+                "type": "admin_status_response",
+                "engine_state": controller.state.value,
+                "is_admitting": controller.is_admitting(),
+                "is_stopping": controller.is_stopping(),
+                "inflight": controller.inflight_snapshot(),
+                "total_inflight": controller.total_inflight(),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            await websocket.send(json.dumps(response))
+            return
+
+        if msg_type == "admin_pause":
+            changed = controller.request_pause()
+            response = {
+                "type": "admin_pause_response",
+                "changed": changed,
+                "engine_state": controller.state.value,
+            }
+            if changed:
+                add_log_entry("WARNING", "Engine paused via admin_pause")
+            await websocket.send(json.dumps(response))
+            return
+
+        if msg_type == "admin_resume":
+            changed = controller.resume()
+            response = {
+                "type": "admin_resume_response",
+                "changed": changed,
+                "engine_state": controller.state.value,
+            }
+            if changed:
+                add_log_entry("INFO", "Engine resumed via admin_resume")
+            await websocket.send(json.dumps(response))
+            return
+
+        if msg_type == "admin_shutdown":
+            # Acknowledge first so the dashboard sees the response, then
+            # kick off drain in a worker thread so we don't block the
+            # asyncio event loop.
+            timeout = float(data.get("timeout_seconds", 30.0))
+            response = {
+                "type": "admin_shutdown_response",
+                "accepted": True,
+                "timeout_seconds": timeout,
+                "engine_state_before": controller.state.value,
+            }
+            await websocket.send(json.dumps(response))
+            add_log_entry("WARNING", f"Engine shutdown requested (timeout={timeout}s)")
+
+            def _drain_worker() -> None:
+                try:
+                    controller.drain_and_stop(timeout_seconds=timeout)
+                except Exception:
+                    logger.exception("Drain worker raised")
+
+            Thread(target=_drain_worker, daemon=True, name="admin-shutdown-drain").start()
+            return
         
         if msg_type == "place_order":
             # Place order via REST API
@@ -440,14 +541,17 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             try:
                 # Generate unique client order ID
                 client_order_id = str(uuid.uuid4())
-                
-                # Call REST API to create order
-                result = REST_CLIENT.create_order(
-                    client_order_id=client_order_id,
-                    product_id=order_params.get("product_id"),
-                    side=order_params.get("side"),
-                    order_configuration=order_params.get("order_configuration"),
-                )
+
+                # Call REST API to create order. Tracked as in-flight so a
+                # concurrent drain waits for the placement to settle before
+                # transitioning to STOPPED.
+                with controller.track_inflight(INFLIGHT_REST_PLACE):
+                    result = REST_CLIENT.create_order(
+                        client_order_id=client_order_id,
+                        product_id=order_params.get("product_id"),
+                        side=order_params.get("side"),
+                        order_configuration=order_params.get("order_configuration"),
+                    )
                 
                 # Convert response object to dict if needed
                 if hasattr(result, '__dict__'):
@@ -523,8 +627,11 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
             
             try:
-                # Call REST API to cancel order using client_order_id
-                result = REST_CLIENT.cancel_orders(order_ids=[client_order_id])
+                # Call REST API to cancel order using client_order_id.
+                # Cancellations are always-allowed (even while paused/draining)
+                # but still tracked so the drain waits for them.
+                with controller.track_inflight(INFLIGHT_REST_CANCEL):
+                    result = REST_CLIENT.cancel_orders(order_ids=[client_order_id])
                 
                 logger.info(f"Order cancelled successfully: {result}")
                 response = {

@@ -99,6 +99,14 @@
             gap: 8px;
         }
 
+        .section-description {
+            margin-top: -8px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            color: #a9a9a9;
+            line-height: 1.45;
+        }
+
         /* Table Styles */
         .orders-table {
             width: 100%;
@@ -739,6 +747,7 @@
                 <!-- Create Order Section -->
                 <div class="section">
                     <h2>➕ Create New Order</h2>
+                    <p class="section-description">Configure a hidden parent order, reveal logic, and follow-up behavior before submitting it to the engine.</p>
                     <form id="create-order-form" class="form-section">
                         <div class="form-group">
                             <label>Product ID *</label>
@@ -932,6 +941,26 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                        <input type="checkbox" id="anchor_slide_mode" onchange="toggleSlideMode()" style="cursor: pointer; width: 14px; height: 14px;">
+                                        <span>Slide Mode</span>
+                                    </label>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Cap each reprice to a max price step instead of jumping directly to the desired price.<br>
+                                        When enabled, <b style="color:#888;">Min Price Change</b> and <b style="color:#888;">Hysteresis</b> are forced to 0; pacing is controlled by the interval / per-hour throttles above.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Step Per Reprice</label>
+                                    <input type="number" id="anchor_max_step_per_reprice" value="5" step="any" min="0" disabled>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Maximum absolute price movement applied per reprice toward the desired price.<br>
+                                        <b style="color:#888;">Example</b>: current=40000, desired=39600, step=5 → next price = 39995, then 39990, etc.
+                                    </div>
+                                </div>
+                            </div>
                             <div class="form-group">
                                 <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
                                     <input type="checkbox" id="anchor_post_only_required" checked style="cursor: pointer; width: 14px; height: 14px;">
@@ -1002,6 +1031,7 @@
                 <!-- Quick Stats -->
                 <div class="section">
                     <h2>📈 Quick Stats</h2>
+                    <p class="section-description">Live counts of hidden, triggered, and revealed orders so you can see system state at a glance.</p>
                     <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12px;">
                         <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
                             <div style="color: #aaa; margin-bottom: 4px;">Hidden Orders</div>
@@ -1021,6 +1051,7 @@
                 <!-- Adaptive Regime Metrics -->
                 <div class="section">
                     <h2>⚙️ Regime Metrics</h2>
+                    <p class="section-description">Adaptive execution inputs used to tune follow-up targets relative to fees, liquidity, and current margin conditions.</p>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
                         <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
                             <div style="color: #aaa; margin-bottom: 4px;">Effective Fee</div>
@@ -1053,6 +1084,7 @@
                 <!-- Clear All Orders Section -->
                 <div class="section">
                     <h2>🗑️ Management</h2>
+                    <p class="section-description">Administrative controls for bulk cleanup actions when you need to reset active stealth order state.</p>
                     <button id="clear-all-btn" type="button" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #ff6b6b, #ff5252); color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
                         Clear All Orders
                     </button>
@@ -1064,6 +1096,7 @@
                 <!-- Entry History -->
                 <div class="section">
                     <h2>📝 Entry History</h2>
+                    <p class="section-description">Recent form snapshots are auto-saved locally so you can quickly restore common stealth order setups.</p>
                     <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
                         <div id="history-list" style="display: flex; flex-direction: column; gap: 6px;">
                             <div style="color: #666; text-align: center; padding: 10px;">No saved entries</div>
@@ -1076,6 +1109,7 @@
 
             <div class="section">
                 <h2>📊 Stealth Orders</h2>
+                <p class="section-description">Real-time table of all stealth orders with progress, condition state, parent targets, and operational actions.</p>
                 <div class="message" id="message-container"></div>
                 <div style="overflow-x: auto;">
                     <table class="orders-table">
@@ -1468,6 +1502,27 @@
             document.getElementById('anchor_fixed_interval_seconds').disabled = updateMode !== 'fixed';
         }
 
+        function toggleSlideMode() {
+            const slideOn = document.getElementById('anchor_slide_mode').checked;
+            document.getElementById('anchor_max_step_per_reprice').disabled = !slideOn;
+            // Slide mode owns its own pacing; min_price_change / hysteresis become noise.
+            const minChange = document.getElementById('anchor_min_price_change');
+            const hyst = document.getElementById('anchor_hysteresis_bps');
+            if (slideOn) {
+                minChange.dataset.preSlide = minChange.value;
+                hyst.dataset.preSlide = hyst.value;
+                minChange.value = '0';
+                hyst.value = '0';
+                minChange.disabled = true;
+                hyst.disabled = true;
+            } else {
+                minChange.disabled = false;
+                hyst.disabled = false;
+                if (minChange.dataset.preSlide !== undefined) minChange.value = minChange.dataset.preSlide;
+                if (hyst.dataset.preSlide !== undefined) hyst.value = hyst.dataset.preSlide;
+            }
+        }
+
         function buildAnchorRepricingPolicy() {
             const enabled = document.getElementById('enable_anchor_repricing').checked;
             if (!enabled) {
@@ -1487,6 +1542,8 @@
                 min_reprice_interval_seconds: parseInt(document.getElementById('anchor_min_reprice_interval_seconds').value, 10),
                 max_reprices_per_hour: parseInt(document.getElementById('anchor_max_reprices_per_hour').value, 10),
                 post_only_required: document.getElementById('anchor_post_only_required').checked,
+                slide_mode: document.getElementById('anchor_slide_mode').checked,
+                max_step_per_reprice: parseFloat(document.getElementById('anchor_max_step_per_reprice').value),
             };
         }
 
@@ -2162,6 +2219,8 @@
                 anchor_min_reprice_interval_seconds: document.getElementById('anchor_min_reprice_interval_seconds').value,
                 anchor_max_reprices_per_hour: document.getElementById('anchor_max_reprices_per_hour').value,
                 anchor_post_only_required: document.getElementById('anchor_post_only_required').checked,
+                anchor_slide_mode: document.getElementById('anchor_slide_mode').checked,
+                anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 notes: document.getElementById('notes').value
             };
             
@@ -2249,6 +2308,8 @@
                 anchor_min_reprice_interval_seconds: document.getElementById('anchor_min_reprice_interval_seconds').value,
                 anchor_max_reprices_per_hour: document.getElementById('anchor_max_reprices_per_hour').value,
                 anchor_post_only_required: document.getElementById('anchor_post_only_required').checked,
+                anchor_slide_mode: document.getElementById('anchor_slide_mode').checked,
+                anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 notes: document.getElementById('notes').value,
                 allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 timestamp: Date.now()
@@ -2326,7 +2387,7 @@
             const entry = history[index];
             
             // Restore main fields
-            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour'];
+            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice'];
             mainFields.forEach(fieldId => {
                 const element = document.getElementById(fieldId);
                 if (element && entry[fieldId] !== undefined) {
@@ -2347,8 +2408,13 @@
             if (anchorPostOnly && entry['anchor_post_only_required'] !== undefined) {
                 anchorPostOnly.checked = entry['anchor_post_only_required'];
             }
+            const anchorSlide = document.getElementById('anchor_slide_mode');
+            if (anchorSlide && entry['anchor_slide_mode'] !== undefined) {
+                anchorSlide.checked = entry['anchor_slide_mode'];
+            }
             toggleAnchorRepricingFields();
             toggleAnchorFixedInterval();
+            toggleSlideMode();
             
             // Update condition fields based on condition_type
             updateConditionFields();
@@ -2387,7 +2453,7 @@
                     const formData = JSON.parse(savedData);
                     
                     // Restore main fields
-                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour'];
+                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice'];
                     mainFields.forEach(fieldId => {
                         const element = document.getElementById(fieldId);
                         if (element && formData[fieldId] !== undefined) {
@@ -2408,8 +2474,13 @@
                     if (anchorPostOnly && formData['anchor_post_only_required'] !== undefined) {
                         anchorPostOnly.checked = formData['anchor_post_only_required'];
                     }
+                    const anchorSlide = document.getElementById('anchor_slide_mode');
+                    if (anchorSlide && formData['anchor_slide_mode'] !== undefined) {
+                        anchorSlide.checked = formData['anchor_slide_mode'];
+                    }
                     toggleAnchorRepricingFields();
                     toggleAnchorFixedInterval();
+                    toggleSlideMode();
                     
                     // Restore condition-specific field values
                     setTimeout(() => {

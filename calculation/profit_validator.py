@@ -246,7 +246,8 @@ class ProfitValidator:
         product_type: str = None,
         position_side: str = None,
         product_id: str = None,
-        contract_size: float = None
+        contract_size: float = None,
+        triggered_by_fill: bool = False,
     ) -> Dict[str, Any]:
         """
         Check if follow-up order is profitable after fees.
@@ -382,11 +383,12 @@ class ProfitValidator:
             parent_order_side=side
         )
         
-        logger.info(
-            f"Open/Close side determination | Product: {product_type} | "
-            f"Parent side: {side} | Position side: {position_side} | "
-            f"Determined: OPEN={open_side}, CLOSE={close_side}"
-        )
+        if triggered_by_fill:
+            logger.info(
+                f"Open/Close side determination | Product: {product_type} | "
+                f"Parent side: {side} | Position side: {position_side} | "
+                f"Determined: OPEN={open_side}, CLOSE={close_side}"
+            )
         
         # Get the effective fee rate (base_fee_rate x multiplier x regime_factor)
         fee_rate = self._get_fee_rate(product_id=product_id)
@@ -398,11 +400,12 @@ class ProfitValidator:
         if product_type == ProductType.FUTURE.value and contract_size and contract_size > 0:
             effective_size = order_size * float(contract_size)
 
-            logger.info(
-                f"Contract size adjustment | Product: {product_type} | "
-                f"Order size (contracts): {order_size} | Contract size: {contract_size} | "
-                f"Effective size (units): {effective_size}"
-            )
+            if triggered_by_fill:
+                logger.info(
+                    f"Contract size adjustment | Product: {product_type} | "
+                    f"Order size (contracts): {order_size} | Contract size: {contract_size} | "
+                    f"Effective size (units): {effective_size}"
+                )
         
         # Calculate gross profit (before fees)
         # Profit is the price difference between open and close
@@ -417,12 +420,13 @@ class ProfitValidator:
         # The fee is charged on the close_side order's price
         # Important: Fee is charged at close_side price, not open_side price
         percentage_fees = follow_up_price * effective_size * fee_rate
-        
-        logger.info(
-            f"Fee rate applied | Effective fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
-            f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
-            f"Calculated percentage fee: ${percentage_fees:.2f}"
-        )
+
+        if triggered_by_fill:
+            logger.info(
+                f"Fee rate applied | Effective fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
+                f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
+                f"Calculated percentage fee: ${percentage_fees:.2f}"
+            )
         
         # Add mandatory fixed fee for FUTURE/PERPETUAL contracts
         # FUTURE and PERPETUAL products charge $0.15 per contract on close
@@ -432,11 +436,12 @@ class ProfitValidator:
         if product_type == ProductType.FUTURE.value:
             mandatory_fees = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT * order_size
 
-            logger.info(
-                f"Mandatory fee applied | Product: {product_type} | "
-                f"Contracts: {order_size} | Fee: ${mandatory_fees:.2f} "
-                f"(${DERIVATIVES_MANDATORY_FEE_PER_CONTRACT} per contract)"
-            )
+            if triggered_by_fill:
+                logger.info(
+                    f"Mandatory fee applied | Product: {product_type} | "
+                    f"Contracts: {order_size} | Fee: ${mandatory_fees:.2f} "
+                    f"(${DERIVATIVES_MANDATORY_FEE_PER_CONTRACT} per contract)"
+                )
         
         total_fees = percentage_fees + mandatory_fees
         
@@ -457,10 +462,10 @@ class ProfitValidator:
         )
         
         is_profitable = net_profit > min_profit_margin
-        
-        # TODO: Change to DEBUG level logging
-        # Log profitability result
-        if mandatory_fees > 0:  # Only log when mandatory fees present (FUTURE/PERPETUAL)
+
+        # Log profitability result only when this evaluation is triggered by an
+        # actual (partial) fill; reveal/reprice revalidation paths stay quiet.
+        if triggered_by_fill and mandatory_fees > 0:  # FUTURE/PERPETUAL only
             logger.info(
                 f"Profitability result | Product: {product_type} | "
                 f"GrossProfit: ${gross_profit:.2f} | "
@@ -577,7 +582,8 @@ class ProfitValidator:
                                     product_type: str = None,
                                     product_id: str = None,
                                     position_side: str = None,
-                                    contract_size: float = None) -> Dict[str, Any]:
+                                    contract_size: float = None,
+                                    triggered_by_fill: bool = False) -> Dict[str, Any]:
         """Comprehensive profitability validation with detailed reporting.
         
         When the validator was constructed with an orderbook, callers can pass
@@ -638,7 +644,8 @@ class ProfitValidator:
             product_type=product_type,
             product_id=product_id,
             position_side=position_side,
-            contract_size=contract_size
+            contract_size=contract_size,
+            triggered_by_fill=triggered_by_fill,
         )
         
         # Add validation status and remediation

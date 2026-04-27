@@ -37,7 +37,6 @@ Architecture:
 import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
-from time import sleep
 
 from calculation.formatter import safe_float
 
@@ -102,6 +101,10 @@ class FeeManager:
         self._last_updated = None
         self._refresh_thread = None
         self._running = False
+        # Drives interruptible sleeps in the refresh loop so stop()
+        # collapses near-instantly instead of waiting out the hourly
+        # refresh interval.
+        self._shutdown_event = threading.Event()
         self._fetch_error_count = 0
         self._max_consecutive_errors = 3  # Fall back to default after 3 errors
 
@@ -122,7 +125,8 @@ class FeeManager:
         """
         if self._running:
             return
-        
+
+        self._shutdown_event.clear()
         self._running = True
         self._refresh_thread = threading.Thread(
             target=self._refresh_loop,
@@ -137,22 +141,32 @@ class FeeManager:
         self._refresh_fee_rate()
     
     def stop(self):
-        """Stop background refresh thread."""
+        """Stop background refresh thread.
+
+        Idempotent. Sets the shared shutdown event so the refresh loop
+        wakes immediately rather than waiting out the hourly interval.
+        """
+        if not self._running and not self._shutdown_event.is_set():
+            return
         self._running = False
+        self._shutdown_event.set()
         if self._refresh_thread:
             self._refresh_thread.join(timeout=5)
         self.log_callback("info", "Fee manager stopped")
-    
+
     def _refresh_loop(self):
         """Background loop that refreshes fee rates hourly."""
         while self._running:
             try:
-                sleep(self.REFRESH_INTERVAL_SECONDS)
+                # Interruptible sleep: stop() wakes us immediately.
+                if self._shutdown_event.wait(timeout=self.REFRESH_INTERVAL_SECONDS):
+                    break
                 if self._running:  # Check again after sleep
                     self._refresh_fee_rate()
             except Exception as e:
                 self.log_callback("error", f"Fee refresh loop error: {e}")
-                sleep(5)  # Backoff before retry
+                if self._shutdown_event.wait(timeout=5):
+                    break
     
     def _refresh_fee_rate(self) -> bool:
         """Fetch latest taker fee rate from Coinbase API.
@@ -366,14 +380,13 @@ class FeeManager:
             return False
 
         # Prefer explicit active/current signals first. Some payloads include
-        # "margin_window_type" as a static/default value (often INTRADAY).
+        # "margin_window_type" as a generic fallback, but the nested measure
+        # objects describe available windows rather than the currently active one.
         candidates = (
             fcm_balance_summary.get("active_margin_window_type"),
             fcm_balance_summary.get("current_margin_window_type"),
             fcm_balance_summary.get("active_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("active_margin_window_measure"), dict) else None,
             fcm_balance_summary.get("margin_window_type"),
-            fcm_balance_summary.get("overnight_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("overnight_margin_window_measure"), dict) else None,
-            fcm_balance_summary.get("intraday_margin_window_measure", {}).get("margin_window_type") if isinstance(fcm_balance_summary.get("intraday_margin_window_measure"), dict) else None,
         )
 
         for candidate in candidates:
