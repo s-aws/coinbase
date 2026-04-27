@@ -2952,6 +2952,7 @@ class OrderEngine:
                             side=order_side,
                             order_size=order_size,
                             product_id=product_id,
+                            triggered_by_fill=True,
                         )
                         
                         if not profit_result["is_profitable"]:
