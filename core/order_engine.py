@@ -56,7 +56,7 @@ import json
 import threading
 import uuid
 from time import sleep
-from queue import Queue, Full
+from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
@@ -222,6 +222,17 @@ class OrderEngine:
         self.ticker = {}
         self.ticker_lock = threading.RLock()
         self.orderbook_lock = threading.RLock()
+
+        # Cooperative shutdown signal for all background loops/threads owned
+        # by this engine. Set by ``stop()`` (registered as a runtime stop
+        # hook in main.py); checked by every ``while`` loop below in lieu of
+        # ``while True``. Threads use ``Event.wait`` instead of ``time.sleep``
+        # so they wake immediately on shutdown rather than after the next
+        # interval expires.
+        self._shutdown_event = threading.Event()
+        # Short blocking timeout used by event-worker queue.get() calls so
+        # workers can periodically observe the shutdown event between events.
+        self._worker_queue_poll_seconds = 0.5
 
         self.event_executor = ThreadPoolExecutor(
             max_workers=max_workers,
@@ -1864,6 +1875,23 @@ class OrderEngine:
                         continue
                     self.process_user_order(order)
 
+            # WS user-channel SNAPSHOT events (sent on connect / reconnect)
+            # carry the venue's view of every open order. We don't mutate
+            # state from them — the live update path owns that — but we do
+            # use them as a continuous self-check against in-memory state.
+            # Any drift is logged for operator review and is the cheapest
+            # available signal that a delta was missed.
+            elif "orders" in event and event["type"].upper() == "SNAPSHOT":
+                ws_client_order_ids = {
+                    o.get("client_order_id")
+                    for o in event.get("orders", [])
+                    if o.get("client_order_id")
+                }
+                self.snapshot_drift_check(
+                    ws_client_order_ids,
+                    source="ws_user_snapshot",
+                )
+
             elif "positions" in event:
                 self.process_user_snapshot(event)
 
@@ -1888,6 +1916,100 @@ class OrderEngine:
         fcm_balance_summary = event.get("fcm_balance_summary")
         if isinstance(fcm_balance_summary, dict):
             self.fee_manager.update_margin_window_from_summary(fcm_balance_summary)
+
+    def snapshot_drift_check(
+        self,
+        ws_client_order_ids,
+        *,
+        source: str = "ws_user_snapshot",
+    ) -> dict:
+        """Compare a venue-reported set of open ``client_order_id`` values
+        against what is currently in the in-memory orderbook and log any
+        drift.
+
+        Read-only by design. The live update path remains the only writer
+        to ``self.orderbook.order``; this method is a continuous self-check
+        intended to surface dropped WebSocket frames or missed
+        reconnect-snapshot deltas without mutating engine state.
+
+        Logged drift cases:
+          * ``ws_only`` — venue reports the order is open but our in-memory
+            orderbook has no record of it. Most common cause: the WS
+            connection dropped after the order was placed but before the
+            OPEN delta arrived.
+          * ``in_memory_only`` — we believe the order is open but the
+            venue's snapshot does not include it. Most common cause: a
+            FILLED or CANCELLED delta was dropped during a reconnect.
+
+        Args:
+            ws_client_order_ids: Iterable of ``client_order_id`` strings
+                from the WS snapshot frame.
+            source: Free-form label written into log records so multiple
+                callers (e.g. WS snapshot, periodic auditor, manual
+                operator probe) are distinguishable in audit queries.
+
+        Returns:
+            Dict with counts: ``{"ws_only": [...], "in_memory_only": [...],
+            "in_sync_count": int, "source": source}``.
+        """
+        ws_ids = {coid for coid in ws_client_order_ids if coid}
+
+        with self.orderbook_lock:
+            in_memory_ids = set(self.orderbook.order.keys())
+
+        ws_only = sorted(ws_ids - in_memory_ids)
+        in_memory_only = sorted(in_memory_ids - ws_ids)
+        in_sync_count = len(ws_ids & in_memory_ids)
+
+        report = {
+            "source": source,
+            "ws_only": ws_only,
+            "in_memory_only": in_memory_only,
+            "in_sync_count": in_sync_count,
+            "ws_count": len(ws_ids),
+            "in_memory_count": len(in_memory_ids),
+        }
+
+        if ws_only or in_memory_only:
+            self.log_message(
+                "warning",
+                self.build_event_log_payload(
+                    "snapshot_drift_detected",
+                    source=source,
+                    ws_only_count=len(ws_only),
+                    in_memory_only_count=len(in_memory_only),
+                    in_sync_count=in_sync_count,
+                ),
+            )
+            for coid in ws_only:
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "snapshot_drift_ws_only",
+                        source=source,
+                        client_order_id=coid,
+                    ),
+                )
+            for coid in in_memory_only:
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "snapshot_drift_in_memory_only",
+                        source=source,
+                        client_order_id=coid,
+                    ),
+                )
+        else:
+            self.log_message(
+                "info",
+                self.build_event_log_payload(
+                    "snapshot_drift_clean",
+                    source=source,
+                    in_sync_count=in_sync_count,
+                ),
+            )
+
+        return report
 
     def process_user_snapshot(self, snapshot: dict) -> None:
         """Process position snapshot from websocket.
@@ -3296,15 +3418,18 @@ class OrderEngine:
     def reconcile_parent_child_order_ids_periodically(self, interval_seconds: int = 30) -> None:
         """Periodically load parent/child orders from database.
         
-        Runs in daemon thread, loops forever.
+        Runs in daemon thread. Loops until ``self._shutdown_event`` is set,
+        using ``Event.wait`` for the inter-iteration delay so a shutdown
+        request wakes the loop immediately rather than waiting out the full
+        ``interval_seconds`` interval.
         
         Args:
             interval_seconds: Sleep duration between syncs (default 30).
         
         Returns:
-            None (infinite loop)
+            None
         """
-        while True:
+        while not self._shutdown_event.is_set():
             try:
                 self.load_parent_child_order_ids(force_log=False)
             except Exception as e:
@@ -3315,21 +3440,24 @@ class OrderEngine:
                         error=str(e),
                     ),
                 )
-            sleep(interval_seconds)
+            if self._shutdown_event.wait(timeout=interval_seconds):
+                return
 
     def rotate_seen_events_buckets(self) -> None:
         """Periodically rotate event deduplication hash buckets using EventBridge.
         
-        Runs in daemon thread, loops forever. Uses EventBridge to shift old hashes
-        out every max_rotate_seen_events_bucket_seconds to avoid memory growth.
+        Runs in daemon thread. Loops until ``self._shutdown_event`` is set,
+        using ``Event.wait`` for the rotation interval so shutdown wakes the
+        loop immediately.
         
         Returns:
-            None (infinite loop)
+            None
         """
-        while True:
+        while not self._shutdown_event.is_set():
             # Use EventBridge to rotate dedup buckets
             self.evt_bridge.rotate_dedup_buckets()
-            sleep(self.max_rotate_seen_events_bucket_seconds)
+            if self._shutdown_event.wait(timeout=self.max_rotate_seen_events_bucket_seconds):
+                return
 
     def generate_process_event_worker(self, channel: str) -> callable:
         """Generate an event worker function for a specific channel.
@@ -3349,8 +3477,15 @@ class OrderEngine:
             >>> thread.start()
         """
         def worker() -> None:
-            while True:
-                event = self.event_queue[channel].get()
+            while not self._shutdown_event.is_set():
+                try:
+                    event = self.event_queue[channel].get(
+                        timeout=self._worker_queue_poll_seconds,
+                    )
+                except Empty:
+                    # No event within the poll window: re-check the
+                    # shutdown flag and continue polling.
+                    continue
                 try:
                     if channel == ChannelType.TICKER.value:
                         with self.ticker_lock:
@@ -3428,7 +3563,7 @@ class OrderEngine:
         )
 
         try:
-            while True:
+            while not self._shutdown_event.is_set():
                 if ws_client.sleep_with_exception_check(1):
                     break
         except WSClientConnectionClosedException as e:
@@ -3501,24 +3636,24 @@ class OrderEngine:
         """Monitor and broadcast engine status periodically to dashboard.
         
         Runs in background thread, updates event queue depth every 5 seconds.
+        Exits when ``self._shutdown_event`` is set.
         
         Returns:
-            None (infinite loop)
+            None
         """
-        while True:
+        while not self._shutdown_event.is_set():
             try:
                 # Calculate total events in all queues
                 total_queue_depth = sum(q.qsize() for q in self.event_queue.values())
                 
                 update_engine_status(self._build_engine_status_payload(event_queue_depth=total_queue_depth))
-                
-                sleep(5)
             except Exception as e:
                 self.log_message("error", self.build_event_log_payload(
                     "dashboard_status_update_failed",
                     error=str(e),
                 ))
-                sleep(5)
+            if self._shutdown_event.wait(timeout=5):
+                return
 
     def _build_engine_status_payload(self, event_queue_depth: int) -> dict:
         """Build dashboard engine status payload with adaptive fee regime metrics."""
@@ -3548,18 +3683,59 @@ class OrderEngine:
 
         return payload
 
-    def run_forever(self) -> None:
-        """Start all background threads and loop forever.
+    def stop(self) -> None:
+        """Signal cooperative shutdown to all engine background threads.
         
-        Call this to launch the trading engine. Blocks indefinitely.
+        Idempotent. Safe to call from a signal handler or from the runtime
+        controller's drain orchestrator. Does NOT join threads itself — they
+        are daemon threads, and joining is not needed because:
+        
+        - Periodic loops use ``self._shutdown_event.wait`` and return on the
+          next iteration boundary (within their poll interval).
+        - Event workers use ``Queue.get(timeout=...)`` and re-check the flag
+          within ``self._worker_queue_poll_seconds``.
+        - The websocket loop checks the flag every second.
+        
+        Caller should also gate any in-flight work via the runtime controller
+        so the drain waits for outstanding fill processing / DB writes before
+        the process exits.
+        """
+        self._shutdown_event.set()
+        try:
+            self.event_executor.shutdown(wait=False, cancel_futures=False)
+        except Exception:
+            pass
+        try:
+            if getattr(self, "fee_manager", None) is not None:
+                stop = getattr(self.fee_manager, "stop", None)
+                if callable(stop):
+                    stop()
+        except Exception:
+            pass
+
+    def run_forever(self) -> None:
+        """Start all background threads and loop until shutdown is signalled.
+        
+        Call this to launch the trading engine. Blocks until
+        ``self._shutdown_event`` is set (typically by ``stop()`` invoked from
+        a signal handler or the runtime controller's drain orchestrator).
         
         Returns:
-            None (infinite loop)
+            None
         
         Example:
             >>> engine = OrderEngine(...)
-            >>> engine.run_forever()  # Starts all threads and loops
+            >>> engine.run_forever()  # Starts all threads, returns on shutdown
         """
         self.start_background_threads()
-        while True:
-            sleep(1)
+        # Block on the shutdown event instead of busy-sleeping. Returns
+        # promptly when ``stop()`` is called.
+        #
+        # IMPORTANT: an unbounded ``Event.wait()`` is uninterruptible by
+        # SIGINT on Windows (the underlying ``WaitForSingleObject`` call
+        # is not waked by a console Ctrl+C), which prevents Python's
+        # signal handler from running and makes the process appear
+        # deadlocked. Polling with a short timeout lets the interpreter
+        # service signals between waits without measurably wasting CPU.
+        while not self._shutdown_event.wait(timeout=0.5):
+            pass

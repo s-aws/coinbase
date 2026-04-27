@@ -10,11 +10,14 @@ with OrderEngine (responsible for event processing and follow-up creation).
 """
 
 import threading
-from time import sleep
 from datetime import datetime
 from typing import Dict, Any, Optional
 
 from core.stealth_order_manager import StealthOrderManager
+from core.runtime_controller import (
+    INFLIGHT_STEALTH_REVEAL,
+    get_runtime_controller,
+)
 from calculation.formatter import safe_float
 from logging_service import get_logger
 
@@ -44,6 +47,10 @@ class StealthOrderBridge:
             self.stealth_manager.log_callback = order_engine.log_message
         self.evaluation_thread = None
         self.running = False
+        # Drives interruptible sleeps in the background loops so stop()
+        # collapses near-instantly instead of waiting out the current
+        # tick. Set by stop() / cleared on (re)start.
+        self._shutdown_event = threading.Event()
     
     def start(self):
         """Start background evaluation and reconciliation threads.
@@ -55,14 +62,15 @@ class StealthOrderBridge:
         """
         if self.running:
             return
-        
+
         # Load existing stealth orders from database
         try:
             loaded_count = self.stealth_manager.load_all_active_orders_from_db()
             logger.info(f"Loaded {loaded_count} existing stealth orders from database")
         except Exception as e:
             logger.error(f"Failed to load stealth orders from database: {e}")
-        
+
+        self._shutdown_event.clear()
         self.running = True
         
         # Start evaluation thread (condition checks every 100ms)
@@ -85,8 +93,17 @@ class StealthOrderBridge:
         logger.info("Stealth order bridge started (evaluation + reconciliation)")
     
     def stop(self):
-        """Stop background evaluation and reconciliation threads."""
+        """Stop background evaluation and reconciliation threads.
+
+        Idempotent. Sets the shared shutdown event so loops exit at the
+        next interruptible wait point (not at the end of the current
+        sleep tick), then joins each thread with a generous safety
+        ceiling. Typical observed shutdown latency is < 100ms.
+        """
+        if not self.running and not self._shutdown_event.is_set():
+            return
         self.running = False
+        self._shutdown_event.set()
         if self.evaluation_thread:
             self.evaluation_thread.join(timeout=5)
         if hasattr(self, 'reconciliation_thread') and self.reconciliation_thread:
@@ -97,35 +114,51 @@ class StealthOrderBridge:
         """Background loop that evaluates stealth order conditions.
         
         Runs every 100ms to check if conditions are met for reveals.
+        Skips reveal placement when the runtime controller is not admitting
+        new work (paused / draining / stopped); evaluation itself continues
+        so condition state stays warm and resume is instant.
         """
+        controller = get_runtime_controller()
         while self.running:
             try:
                 # Get all active stealth orders
                 active_orders = self.stealth_manager._get_active_stealth_orders()
-                
+                admitting = controller.is_admitting()
+
                 for stealth_order_id in active_orders:
                     try:
                         should_reveal, reason = self.stealth_manager.should_trigger_reveal(stealth_order_id)
                         
                         if should_reveal:
+                            if not admitting:
+                                logger.debug(
+                                    f"Reveal deferred (engine state {controller.state.value}): "
+                                    f"{stealth_order_id}"
+                                )
+                                continue
+
                             logger.debug(f"Stealth order {stealth_order_id} ready to reveal: {reason}")
-                            
-                            # Reveal order slice
-                            client_order_id = self.stealth_manager.reveal_order_slice(stealth_order_id)
-                            
-                            if client_order_id:
-                                logger.debug(f"Revealed slice: {client_order_id}")
-                                self.record_reveal_event(stealth_order_id, client_order_id, reason)
-                        
+
+                            # Track the reveal as in-flight so a concurrent
+                            # drain waits for the REST placement to complete.
+                            with controller.track_inflight(INFLIGHT_STEALTH_REVEAL):
+                                client_order_id = self.stealth_manager.reveal_order_slice(stealth_order_id)
+
+                                if client_order_id:
+                                    logger.debug(f"Revealed slice: {client_order_id}")
+                                    self.record_reveal_event(stealth_order_id, client_order_id, reason)
+
                     except Exception as e:
                         logger.error(f"Error evaluating stealth order {stealth_order_id}: {e}")
-                
-                # Check every 100ms for responsive evaluation
-                sleep(0.1)
-                
+
+                # Interruptible sleep: stop() wakes us immediately.
+                if self._shutdown_event.wait(timeout=0.1):
+                    break
+
             except Exception as e:
                 logger.error(f"Stealth order evaluation loop error: {e}")
-                sleep(1)
+                if self._shutdown_event.wait(timeout=1):
+                    break
     
     def reconcile_stealth_orders_periodically(self, interval_seconds: int = 30) -> None:
         """Periodically load stealth orders from database and sync with memory.
@@ -144,8 +177,11 @@ class StealthOrderBridge:
                 self._reconcile_stealth_orders(force_log=False)
             except Exception as e:
                 logger.error(f"Stealth order reconciliation error: {e}")
-            
-            sleep(interval_seconds)
+
+            # Interruptible sleep: stop() wakes us immediately rather
+            # than waiting out the full reconciliation interval.
+            if self._shutdown_event.wait(timeout=interval_seconds):
+                break
     
     def _reconcile_stealth_orders(self, force_log: bool = False) -> bool:
         """Load active stealth orders from database and merge with in-memory state.

@@ -1,0 +1,45 @@
+# Project metadata so `pip install -e .` makes every top-level package
+# (bridges, business, calculation, core, data, database, external,
+# integration, websocket) importable from any working directory and
+# any Python invocation. After install, no PYTHONPATH or sys.path
+# bootstrap is needed.
+#
+# Install (one-time, from repo root):
+#     py -3.13 -m pip install -e .
+#
+# Verify:
+#     py -3.13 -c "from database.database import PostgresDB; print(PostgresDB)"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coinbase-engine"
+version = "0.1.0"
+description = "Coinbase Advanced Trading engine: stealth orders, fills, lifecycle controller."
+requires-python = ">=3.13"
+# Dependencies are NOT pinned here intentionally — they're already
+# installed in your environment via prior `pip install` commands.
+# Re-add them only if you decide to version-control the lockfile.
+dependencies = []
+
+[tool.setuptools]
+# Explicit list. Avoids accidentally scooping `tests/`, `genai_tools/`,
+# top-level `__pycache__`, etc. as importable packages.
+packages = [
+    "bridges",
+    "business",
+    "calculation",
+    "core",
+    "data",
+    "database",
+    "external",
+    "integration",
+    "websocket",
+]
+
+# `database` and `websocket` lack __init__.py today; declare them as
+# namespace packages so setuptools includes them anyway.
+[tool.setuptools.package-dir]
+"" = "."

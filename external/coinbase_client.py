@@ -392,6 +392,55 @@ class CoinbaseRestClient:
             Exception: If API call fails
         """
         return self._client.list_orders(order_status=order_status)
+
+    def list_fills(
+        self,
+        *,
+        order_id: Optional[str] = None,
+        product_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        cursor: Optional[str] = None,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
+        """List historical fills (per-match trade records).
+
+        Wraps Coinbase's ``GET /api/v3/brokerage/orders/historical/fills``.
+        Used by startup reconciliation and the periodic auditor to detect
+        fills the WebSocket pipeline may have missed during downtime or
+        reconnects, and to recover the authoritative ``trade_id`` /
+        ``entry_id`` pair for ledger rows.
+
+        Args:
+            order_id: Filter to a single exchange order id.
+            product_id: Filter to one product (e.g. ``"BTC-USDC"``).
+            start_date: ISO-8601 lower bound for ``trade_time``.
+            end_date: ISO-8601 upper bound for ``trade_time``.
+            cursor: Opaque pagination cursor returned by a prior call.
+            limit: Page size; Coinbase caps at 100.
+
+        Returns:
+            Raw dict with shape ``{"fills": [...], "cursor": "...", "has_next": bool}``.
+            Fields per fill match ``api_reference/orders/list_fills_response.json``.
+
+        Raises:
+            Exception: Propagated from the SDK on transport / auth failure.
+        """
+        # Filter out None values so we don't override SDK defaults.
+        kwargs: Dict[str, Any] = {"limit": limit}
+        if order_id is not None:
+            kwargs["order_id"] = order_id
+        if product_id is not None:
+            kwargs["product_id"] = product_id
+        if start_date is not None:
+            kwargs["start_date"] = start_date
+        if end_date is not None:
+            kwargs["end_date"] = end_date
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+
+        response = self._client.get_fills(**kwargs)
+        return response.to_dict() if hasattr(response, "to_dict") else response
     
     def list_futures_positions(self):
         """List all futures positions (raw SDK response).
