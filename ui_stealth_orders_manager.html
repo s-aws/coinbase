@@ -99,6 +99,14 @@
             gap: 8px;
         }
 
+        .section-description {
+            margin-top: -8px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            color: #a9a9a9;
+            line-height: 1.45;
+        }
+
         /* Table Styles */
         .orders-table {
             width: 100%;
@@ -739,6 +747,7 @@
                 <!-- Create Order Section -->
                 <div class="section">
                     <h2>➕ Create New Order</h2>
+                    <p class="section-description">Configure a hidden parent order, reveal logic, and follow-up behavior before submitting it to the engine.</p>
                     <form id="create-order-form" class="form-section">
                         <div class="form-group">
                             <label>Product ID *</label>
@@ -1022,6 +1031,7 @@
                 <!-- Quick Stats -->
                 <div class="section">
                     <h2>📈 Quick Stats</h2>
+                    <p class="section-description">Live counts of hidden, triggered, and revealed orders so you can see system state at a glance.</p>
                     <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12px;">
                         <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
                             <div style="color: #aaa; margin-bottom: 4px;">Hidden Orders</div>
@@ -1041,6 +1051,7 @@
                 <!-- Adaptive Regime Metrics -->
                 <div class="section">
                     <h2>⚙️ Regime Metrics</h2>
+                    <p class="section-description">Adaptive execution inputs used to tune follow-up targets relative to fees, liquidity, and current margin conditions.</p>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
                         <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">
                             <div style="color: #aaa; margin-bottom: 4px;">Effective Fee</div>
@@ -1073,6 +1084,7 @@
                 <!-- Clear All Orders Section -->
                 <div class="section">
                     <h2>🗑️ Management</h2>
+                    <p class="section-description">Administrative controls for bulk cleanup actions when you need to reset active stealth order state.</p>
                     <button id="clear-all-btn" type="button" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #ff6b6b, #ff5252); color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
                         Clear All Orders
                     </button>
@@ -1084,6 +1096,7 @@
                 <!-- Entry History -->
                 <div class="section">
                     <h2>📝 Entry History</h2>
+                    <p class="section-description">Recent form snapshots are auto-saved locally so you can quickly restore common stealth order setups.</p>
                     <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
                         <div id="history-list" style="display: flex; flex-direction: column; gap: 6px;">
                             <div style="color: #666; text-align: center; padding: 10px;">No saved entries</div>
@@ -1096,6 +1109,7 @@
 
             <div class="section">
                 <h2>📊 Stealth Orders</h2>
+                <p class="section-description">Real-time table of all stealth orders with progress, condition state, parent targets, and operational actions.</p>
                 <div class="message" id="message-container"></div>
                 <div style="overflow-x: auto;">
                     <table class="orders-table">
