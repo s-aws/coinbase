@@ -128,6 +128,35 @@ def _iter_reveal_condition_price_fields(
         yield from _iter_reveal_condition_price_fields(sub)
 
 
+def resolve_stealth_chain_root(stealth_order: Dict[str, Any]) -> str:
+    """Return the chain-ROOT client_order_id for a stealth order.
+
+    Flat hierarchy rule (``agent.md``): every child links to the original root,
+    never to an intermediate slice. There are NO grandchildren in either the
+    in-memory orderbook or the ``order_parent`` table.
+
+    A stealth order is itself the root when ``parent_order_id`` is None.
+    A follow-up stealth order carries ``parent_order_id`` pointing at the root
+    set up by ``create_stealth_order`` — which is what every placement uuid,
+    every ``insert_order_parent`` row, and every ``register_child_order`` call
+    must use as the parent.
+
+    This is the SINGLE source of truth for that resolution. Any code that needs
+    the root of a stealth chain MUST call this function instead of open-coding
+    ``stealth.get("parent_order_id") or stealth["stealth_order_id"]``. Six
+    duplications of that line caused the 2026-04-27 grandchild incident; the
+    static guard in
+    ``tests/regression/test_flat_hierarchy_stealth_placement.py`` enforces
+    that no caller reverts to inlining it.
+
+    Raises:
+        KeyError: if ``stealth_order["stealth_order_id"]`` is missing — that
+            indicates a malformed dict and should fail loudly at the boundary.
+    """
+
+    return stealth_order.get("parent_order_id") or stealth_order["stealth_order_id"]
+
+
 class StealthOrderManager:
     """Unified order creation manager with condition-driven reveal lifecycle.
 
@@ -834,6 +863,20 @@ class StealthOrderManager:
         max_boundary_price: float,
         reprice_reason: str,
     ) -> bool:
+        # Guard: nothing left to reprice. The reprice tick fires on a timer
+        # against the stealth dict, so a placement that filled between ticks
+        # leaves the canonical fields (`remaining_size`, `revealed_size`)
+        # consistent while `state.active_exchange_order_id` may still hold the
+        # now-filled exchange order id.  Without this guard we would
+        # `cancel_orders` an already-filled order, then place a 0-size
+        # replacement and write a phantom `order_parent` row (size=0).  See
+        # 2026-04-27 audit for the production incident.
+        remaining_size = safe_float(order.get("remaining_size"), default=0.0)
+        if remaining_size <= 0:
+            state["active_exchange_order_id"] = None
+            state["active_placement_client_order_id"] = None
+            return False
+
         exchange_order_id = state.get("active_exchange_order_id")
         current_price = safe_float(state.get("active_exchange_price"), default=order.get("limit_price"))
         if not exchange_order_id or current_price is None:
@@ -874,6 +917,9 @@ class StealthOrderManager:
 
         # Ensure an order_parent row exists for the new placement uuid BEFORE any WS
         # event for it can arrive (FK violation guard, mirrors reveal_order_slice).
+        # Flat hierarchy: resolve to chain root so a stealth follow-up's reveal
+        # placement does not become a grandchild of the original root.
+        root_parent_for_placement = resolve_stealth_chain_root(order)
         try:
             inherited_tm, inherited_tm_type, _src = \
                 self._resolve_target_movement_for_plan(order["stealth_order_id"], order)
@@ -888,7 +934,7 @@ class StealthOrderManager:
                 max_order_replacement=int(order.get("max_order_replacements") or 0),
                 current_order_replacement=0,
                 status=OrderStatus.OPEN.value,
-                parent_order_id=order["stealth_order_id"],
+                parent_order_id=root_parent_for_placement,
                 allow_partial_fills=bool(order.get("allow_partial_fills", False)),
             )
         except Exception as parent_insert_error:
@@ -1964,6 +2010,12 @@ class StealthOrderManager:
             # insert_order_parent is idempotent (returns existing row id on duplicate), so
             # the later lazy-create in handle_filled_order remains a safe no-op.
             if placed_order_id != stealth_order_id:
+                # Flat hierarchy: resolve to chain root so a stealth follow-up's
+                # reveal placement does not become a grandchild of the original
+                # root. Mirrors create_follow_up_stealth_order's resolution and
+                # the in-memory link established by
+                # OrderEngine._register_stealth_placement_under_root.
+                root_parent_for_placement = resolve_stealth_chain_root(order)
                 try:
                     # Inherit target_movement from canonical order_parent row of
                     # the stealth (root or follow-up). Stealth in-memory dict often
@@ -1981,7 +2033,7 @@ class StealthOrderManager:
                         max_order_replacement=int(order.get("max_order_replacements") or 0),
                         current_order_replacement=0,
                         status=OrderStatus.OPEN.value,
-                        parent_order_id=stealth_order_id,
+                        parent_order_id=root_parent_for_placement,
                         allow_partial_fills=bool(order.get("allow_partial_fills", False)),
                     )
                 except Exception as parent_insert_error:
@@ -2537,7 +2589,7 @@ class StealthOrderManager:
             limit_price=limit_price,
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
-            parent_order_id=original_order.get("parent_order_id") or original_stealth_order_id,
+            parent_order_id=resolve_stealth_chain_root(original_order),
             follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value),
             reveal_pricing_policy=effective_pricing_policy,
             reason="follow_up_replacement",

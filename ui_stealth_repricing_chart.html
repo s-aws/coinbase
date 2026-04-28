@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stealth Order Repricing — Live</title>
+
+    <!--
+        Live chart of stealth-order limit-price evolution (repricing) and the
+        live market reference price, segmented by product_id.
+
+        Data sources (existing dashboard_server.py broadcasts):
+          * "state_update" -> data.stealth_orders[stealth_order_id] = {
+                product_id, side, total_size, limit_price, status,
+                target_movement, target_movement_type, ...
+            }
+            We append (now, limit_price) to that order's series each time the
+            broadcast shows a *changed* price for an active order. That is the
+            "repricing" trail.
+
+          * "ticker" -> { product_id, price, time }   (UTC seconds)
+            Plotted as a separate, distinctly-styled "market" series (gold
+            star) so the live last-trade / best-quote price is unmistakable
+            against the order series.
+
+        No server-side changes; this page only consumes broadcasts.
+    -->
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 22px;
+            border-bottom: 1px solid #334155;
+            background: #1e293b;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        header h1 { font-size: 18px; font-weight: 600; }
+
+        .header-meta {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+        .dot.connected { background: #22c55e; animation: none; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.4; }
+        }
+
+        main {
+            padding: 18px 22px 40px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
+            gap: 18px;
+        }
+
+        .panel {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 14px 16px 18px;
+            min-height: 380px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel h2 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .panel .market-pill {
+            font-size: 11px;
+            color: #fbbf24;
+            font-weight: 500;
+        }
+
+        .chart-wrap {
+            position: relative;
+            flex: 1;
+            min-height: 240px;
+        }
+
+        .legend-table {
+            margin-top: 10px;
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .legend-table th, .legend-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #273449;
+            text-align: left;
+            white-space: nowrap;
+            font-weight: 400;
+        }
+        .legend-table th {
+            color: #64748b;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+        .legend-swatch {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        .side-buy  { color: #22c55e; }
+        .side-sell { color: #ef4444; }
+        .status {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            background: #334155;
+            color: #cbd5e1;
+        }
+        .status-HIDDEN     { background: #475569; }
+        .status-PENDING    { background: #2563eb; color: #fff; }
+        .status-TRIGGERED  { background: #ca8a04; color: #fff; }
+        .status-REVEALED   { background: #16a34a; color: #fff; }
+        .status-FILLED     { background: #064e3b; color: #d1fae5; }
+        .status-CANCELLED  { background: #7f1d1d; color: #fecaca; }
+
+        .empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #64748b;
+            padding: 80px 20px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Stealth Order Repricing — Live</h1>
+    <div class="header-meta">
+        <span>Active products: <b id="productCount">0</b></span>
+        <span>Active orders: <b id="orderCount">0</b></span>
+        <span class="badge"><span class="dot" id="connDot"></span><span id="connStatus">Disconnected</span></span>
+    </div>
+</header>
+
+<main id="panels">
+    <div class="empty" id="emptyState">Waiting for stealth-order data…</div>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- config ---------------------------------------------------- */
+
+const WS_URL          = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname || 'localhost'}:8765`;
+const MAX_POINTS      = 600;        // per-series rolling buffer
+const ACTIVE_STATUSES = new Set(['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED']);
+const MARKET_KEY      = '__market__';
+
+/* Distinct, color-blind friendly palette for order series. */
+const PALETTE = [
+    '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#84cc16',
+    '#f97316', '#14b8a6', '#eab308', '#8b5cf6', '#ef4444',
+    '#22c55e', '#0ea5e9', '#d946ef', '#f59e0b', '#10b981',
+];
+
+function colorFor(stealthOrderId) {
+    // Stable, deterministic color per order id.
+    let h = 0;
+    for (let i = 0; i < stealthOrderId.length; i++) {
+        h = (h * 31 + stealthOrderId.charCodeAt(i)) | 0;
+    }
+    return PALETTE[Math.abs(h) % PALETTE.length];
+}
+
+function shortId(id) {
+    return id ? String(id).slice(0, 8) : '—';
+}
+
+/* ---------- per-product chart manager --------------------------------- */
+
+class ProductPanel {
+    constructor(productId) {
+        this.productId   = productId;
+        this.orderState  = new Map();   // stealth_order_id -> { lastPrice, meta }
+        this.datasets    = new Map();   // stealth_order_id | MARKET_KEY -> Chart.js dataset
+        this.panelEl     = this._buildDom();
+        this.chart       = this._buildChart();
+        this._addMarketSeries();
+    }
+
+    _buildDom() {
+        const panel = document.createElement('section');
+        panel.className = 'panel';
+        panel.dataset.product = this.productId;
+        panel.innerHTML = `
+            <h2>
+                <span>${this.productId}</span>
+                <span class="market-pill">★ Market price (last trade / best quote)</span>
+            </h2>
+            <div class="chart-wrap"><canvas></canvas></div>
+            <table class="legend-table">
+                <thead><tr>
+                    <th></th><th>Order</th><th>Side</th><th>Size</th>
+                    <th>Status</th><th>Limit</th><th>Target</th><th>Reprices</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>`;
+        return panel;
+    }
+
+    _buildChart() {
+        const ctx = this.panelEl.querySelector('canvas').getContext('2d');
+        return new Chart(ctx, {
+            type: 'line',
+            data: { datasets: [] },
+            options: {
+                animation: false,
+                parsing: false,
+                normalized: true,
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'nearest', intersect: false },
+                plugins: {
+                    legend: { display: false },   // we render our own legend table
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => {
+                                if (!items.length) return '';
+                                const t = items[0].parsed.x;
+                                return new Date(t).toLocaleTimeString();
+                            },
+                            label: (item) => {
+                                const ds = item.dataset;
+                                const price = item.parsed.y;
+                                return `${ds.label}: ${price}`;
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        ticks: {
+                            color: '#94a3b8',
+                            callback: (v) => new Date(v).toLocaleTimeString(),
+                            maxTicksLimit: 6,
+                        },
+                        grid: { color: '#273449' },
+                    },
+                    y: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: '#273449' },
+                    },
+                },
+            },
+        });
+    }
+
+    _addMarketSeries() {
+        const ds = {
+            key: MARKET_KEY,
+            label: 'Market',
+            data: [],
+            borderColor: 'rgba(251, 191, 36, 0.45)',
+            backgroundColor: '#fbbf24',
+            borderWidth: 1,
+            borderDash: [4, 3],
+            pointStyle: 'star',
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            tension: 0,
+            order: 0,         // draw on top
+        };
+        this.datasets.set(MARKET_KEY, ds);
+        this.chart.data.datasets.push(ds);
+    }
+
+    /* Append one (time, price) reveal/reprice point for an order. */
+    pushOrderPoint(stealthOrderId, t, price, meta) {
+        let ds = this.datasets.get(stealthOrderId);
+        if (!ds) {
+            const color = colorFor(stealthOrderId);
+            ds = {
+                key: stealthOrderId,
+                label: shortId(stealthOrderId),
+                data: [],
+                borderColor: color,
+                backgroundColor: color,
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                tension: 0,
+                stepped: 'before',     // repricing is a step function over time
+                order: 1,
+            };
+            this.datasets.set(stealthOrderId, ds);
+            this.chart.data.datasets.push(ds);
+        }
+        ds.data.push({ x: t, y: price });
+        if (ds.data.length > MAX_POINTS) ds.data.splice(0, ds.data.length - MAX_POINTS);
+        this.orderState.set(stealthOrderId, { lastPrice: price, meta, points: ds.data.length });
+    }
+
+    pushMarketPoint(t, price) {
+        const ds = this.datasets.get(MARKET_KEY);
+        ds.data.push({ x: t, y: price });
+        if (ds.data.length > MAX_POINTS) ds.data.splice(0, ds.data.length - MAX_POINTS);
+    }
+
+    /* Mark an order as no longer active (FILLED/CANCELLED/missing).
+       We keep the existing trail visible but stop extending it. */
+    fadeOrder(stealthOrderId) {
+        const ds = this.datasets.get(stealthOrderId);
+        if (ds) {
+            ds.borderColor = ds.borderColor + ''; // no-op; trail stays for context
+            ds.borderDash = [2, 4];
+        }
+    }
+
+    refresh() {
+        this.chart.update('none');
+        this._renderLegend();
+    }
+
+    _renderLegend() {
+        const tbody = this.panelEl.querySelector('tbody');
+        const rows  = [];
+        for (const [oid, state] of this.orderState.entries()) {
+            const m = state.meta || {};
+            const status = m.status || '—';
+            const side   = (m.side || '').toUpperCase();
+            const sideClass = side === 'BUY' ? 'side-buy' : 'side-sell';
+            const target = m.target_movement != null
+                ? `${m.target_movement}${m.target_movement_type === 'A' ? ' abs' : '%'}`
+                : '—';
+            const color = colorFor(oid);
+            rows.push(`
+                <tr>
+                    <td><span class="legend-swatch" style="background:${color}"></span></td>
+                    <td title="${oid}">${shortId(oid)}</td>
+                    <td class="${sideClass}">${side || '—'}</td>
+                    <td>${m.total_size != null ? m.total_size : '—'}</td>
+                    <td><span class="status status-${status}">${status}</span></td>
+                    <td>${state.lastPrice}</td>
+                    <td>${target}</td>
+                    <td>${state.points}</td>
+                </tr>`);
+        }
+        tbody.innerHTML = rows.join('') ||
+            `<tr><td colspan="8" style="color:#64748b;text-align:center;padding:8px;">No active orders</td></tr>`;
+    }
+}
+
+/* ---------- top-level state ------------------------------------------- */
+
+const panels = new Map();   // product_id -> ProductPanel
+const main   = document.getElementById('panels');
+const empty  = document.getElementById('emptyState');
+
+function getOrCreatePanel(productId) {
+    let p = panels.get(productId);
+    if (!p) {
+        if (empty.parentNode) empty.remove();
+        p = new ProductPanel(productId);
+        panels.set(productId, p);
+        main.appendChild(p.panelEl);
+        document.getElementById('productCount').textContent = panels.size;
+    }
+    return p;
+}
+
+function updateOrderCount() {
+    let n = 0;
+    for (const p of panels.values()) n += p.orderState.size;
+    document.getElementById('orderCount').textContent = n;
+}
+
+/* ---------- broadcast handlers ---------------------------------------- */
+
+function handleStateUpdate(payload) {
+    const stealthOrders = payload?.data?.stealth_orders || {};
+    const now = Date.now();
+    const seenPanels = new Set();
+
+    for (const [oid, order] of Object.entries(stealthOrders)) {
+        if (!order) continue;
+        const productId = order.product_id;
+        if (!productId) continue;
+
+        const status = String(order.status || '').toUpperCase();
+        const price  = Number(order.limit_price);
+        if (!Number.isFinite(price)) continue;
+
+        const panel = getOrCreatePanel(productId);
+        seenPanels.add(panel);
+
+        const prev = panel.orderState.get(oid);
+        const isNew      = !prev;
+        const priceMoved = prev && prev.lastPrice !== price;
+
+        if (ACTIVE_STATUSES.has(status)) {
+            if (isNew || priceMoved) {
+                panel.pushOrderPoint(oid, now, price, order);
+            } else {
+                // Same price; just refresh metadata snapshot.
+                prev.meta = order;
+            }
+        } else if (prev) {
+            // Order finished its life this update — record final point, fade.
+            if (priceMoved) panel.pushOrderPoint(oid, now, price, order);
+            else            prev.meta = order;
+            panel.fadeOrder(oid);
+        }
+    }
+
+    for (const panel of seenPanels) panel.refresh();
+    updateOrderCount();
+}
+
+function handleTicker(payload) {
+    const t = payload?.data;
+    if (!t || !t.product_id) return;
+    const price = Number(t.price);
+    if (!Number.isFinite(price)) return;
+
+    // Only plot market for products we already track (avoid noisy panels).
+    const panel = panels.get(t.product_id);
+    if (!panel) return;
+
+    const ts = (typeof t.time === 'number') ? t.time * 1000 : Date.now();
+    panel.pushMarketPoint(ts, price);
+    panel.refresh();
+}
+
+/* ---------- websocket plumbing ---------------------------------------- */
+
+function setConn(connected) {
+    document.getElementById('connDot').classList.toggle('connected', connected);
+    document.getElementById('connStatus').textContent = connected ? 'Connected' : 'Disconnected';
+}
+
+function connect() {
+    const ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+        setConn(true);
+        // Nudge the server to send the latest snapshots immediately.
+        try { ws.send(JSON.stringify({ type: 'request_stealth_orders' })); } catch (_) {}
+    };
+
+    ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        switch (msg.type) {
+            case 'state_update':
+                handleStateUpdate(msg);
+                break;
+            case 'ticker':
+                handleTicker(msg);
+                break;
+            // Other message types (logs, products_list, etc.) are ignored here.
+        }
+    };
+
+    ws.onclose = () => { setConn(false); setTimeout(connect, 2000); };
+    ws.onerror = () => { try { ws.close(); } catch {} };
+}
+
+connect();
+</script>
+</body>
+</html>

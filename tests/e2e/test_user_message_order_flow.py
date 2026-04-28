@@ -54,7 +54,11 @@ def test_user_event_flow_uses_client_order_id_for_stealth_correlation(project_ro
     stealth_manager.sync_exchange_order_id_for_placed_order = Mock()
     engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
 
-    engine.claim_follow_up_processing = Mock(return_value=False)
+    # Claim must succeed for handle_filled_order to reach the stealth lookup.
+    # Disabling should_replace stops execution after the lookup so we don't need
+    # to mock the entire follow-up chain.
+    engine.claim_follow_up_processing = Mock(return_value=True)
+    engine.orderbook.should_replace = {"FILLED": False, "CANCELLED": False}
     engine.fill_repo = None
 
     engine.process_user_event({"type": "filled", "orders": [sample_order]})

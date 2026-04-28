@@ -1,0 +1,144 @@
+"""Regression: follow-up claim API must work after the OrderBook v2 cleanup.
+
+Background
+----------
+On 2026-04-27, the strangler-fig refactor of :class:`configuration.OrderBook`
+removed several "dead" attributes (``filled``, ``cancelled``, ``active``,
+``transaction_summary``, ``price``, ``db_client``) after a workspace-wide
+grep "confirmed" zero consumers.
+
+The grep missed
+:func:`OrderEngine.claim_follow_up_processing`, which fetched those dicts via
+``getattr(self.orderbook, processed_flag_name, None)`` — a stringly-typed
+attribute access invisible to literal grep.  Result:
+
+* every call to ``claim_follow_up_processing("filled", coid)`` returned
+  ``False`` because ``isinstance(None, dict) is False``;
+* every FILLED order silently logged ``follow_up_already_claimed`` and
+  declined to spawn a child;
+* CANCELLED follow-ups were broken the same way.
+
+Production effect: 156 leaf rows in ``order_parent`` with ``max_repl=0`` and
+zero further descendants — chains that should have repriced indefinitely
+just stopped.
+
+The fix promotes the claim ledger to a typed API on the v2 OrderBook
+(``try_claim_follow_up`` / ``release_follow_up`` / ``complete_follow_up``)
+and validates the kind against :class:`FollowUpKind` at the boundary.
+
+These tests guard the contract directly so a future refactor of either the
+OrderBook surface or the engine wrappers cannot silently disable follow-up
+creation again.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from configuration import OrderBook
+from core.enums import FollowUpKind
+
+
+@pytest.fixture
+def orderbook() -> OrderBook:
+    return OrderBook()
+
+
+# ---------------------------------------------------------------------------
+# Direct OrderBook claim API contract
+# ---------------------------------------------------------------------------
+
+
+def test_first_claim_succeeds(orderbook: OrderBook) -> None:
+    assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is True
+
+
+def test_second_claim_blocked_until_release(orderbook: OrderBook) -> None:
+    assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is True
+    assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is False
+
+
+def test_filled_and_cancelled_are_independent_namespaces(orderbook: OrderBook) -> None:
+    assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is True
+    # CANCELLED uses its own ledger — must succeed even though FILLED is taken.
+    assert orderbook.try_claim_follow_up(FollowUpKind.CANCELLED, "coid_A") is True
+
+
+def test_release_returns_to_unclaimed(orderbook: OrderBook) -> None:
+    orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A")
+    orderbook.release_follow_up(FollowUpKind.FILLED, "coid_A")
+    assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is True
+
+
+def test_complete_is_terminal(orderbook: OrderBook) -> None:
+    orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A")
+    orderbook.complete_follow_up(FollowUpKind.FILLED, "coid_A")
+    # Once done, any subsequent claim must fail forever.
+    assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is False
+
+
+def test_release_on_done_does_not_revive(orderbook: OrderBook) -> None:
+    """Release must only undo a 'processing' claim, never a 'done' one."""
+
+    orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A")
+    orderbook.complete_follow_up(FollowUpKind.FILLED, "coid_A")
+    orderbook.release_follow_up(FollowUpKind.FILLED, "coid_A")
+    assert orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A") is False
+
+
+def test_string_kind_accepted_for_back_compat(orderbook: OrderBook) -> None:
+    assert orderbook.try_claim_follow_up("filled", "coid_A") is True
+    assert orderbook.try_claim_follow_up("cancelled", "coid_A") is True
+
+
+def test_invalid_string_kind_raises(orderbook: OrderBook) -> None:
+    with pytest.raises(ValueError, match="Unknown follow-up kind"):
+        orderbook.try_claim_follow_up("garbage", "coid_A")
+
+
+def test_claim_state_introspection(orderbook: OrderBook) -> None:
+    assert orderbook.follow_up_claim_state(FollowUpKind.FILLED, "coid_A") is None
+    orderbook.try_claim_follow_up(FollowUpKind.FILLED, "coid_A")
+    assert orderbook.follow_up_claim_state(FollowUpKind.FILLED, "coid_A") == "processing"
+    orderbook.complete_follow_up(FollowUpKind.FILLED, "coid_A")
+    assert orderbook.follow_up_claim_state(FollowUpKind.FILLED, "coid_A") == "done"
+
+
+# ---------------------------------------------------------------------------
+# Engine wrapper still threads through correctly (the original break point)
+# ---------------------------------------------------------------------------
+
+
+def test_engine_wrapper_uses_typed_api(orderbook: OrderBook) -> None:
+    """End-to-end: the engine's legacy method must drive the new orderbook API.
+
+    This is the exact call site that silently returned False after the
+    OrderBook v2 cleanup.  We construct a minimal stand-in for OrderEngine
+    rather than instantiating the real one (which pulls in REST clients, a
+    database, websocket threads, etc.).
+    """
+
+    from core.order_engine import OrderEngine
+
+    # The three methods only touch ``self.orderbook`` — bind them to a bare
+    # object so we don't have to construct a full engine.
+    fake_engine = type("FakeEngine", (), {})()
+    fake_engine.orderbook = orderbook
+    fake_engine.claim_follow_up_processing = OrderEngine.claim_follow_up_processing.__get__(fake_engine)
+    fake_engine.release_follow_up_processing = OrderEngine.release_follow_up_processing.__get__(fake_engine)
+    fake_engine.complete_follow_up_processing = OrderEngine.complete_follow_up_processing.__get__(fake_engine)
+
+    # First claim succeeds (the regression: this used to be False).
+    assert fake_engine.claim_follow_up_processing("filled", "coid_X") is True
+    # Re-claim is rejected.
+    assert fake_engine.claim_follow_up_processing("filled", "coid_X") is False
+    # Cancelled namespace is independent.
+    assert fake_engine.claim_follow_up_processing("cancelled", "coid_X") is True
+
+    # Release returns the FILLED slot.
+    fake_engine.release_follow_up_processing("filled", "coid_X")
+    assert fake_engine.claim_follow_up_processing("filled", "coid_X") is True
+
+    # Complete makes it sticky.
+    fake_engine.complete_follow_up_processing("filled", "coid_X")
+    assert fake_engine.claim_follow_up_processing("filled", "coid_X") is False

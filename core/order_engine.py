@@ -74,6 +74,7 @@ from configuration import (
 
 from core.constants import get_local_now
 from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel
+from core.stealth_order_manager import resolve_stealth_chain_root
 from core.exceptions import (
     OrderProcessingError,
     OrderCalculationError,
@@ -828,7 +829,12 @@ class OrderEngine:
                 target_movement_type=parent_target_movement_type,
             )
 
-            self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+            # Flat hierarchy: register the follow-up against the chain ROOT,
+            # never against the placement uuid that just settled (which is
+            # itself a child). Single canonical resolver lives in
+            # stealth_order_manager.
+            root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
+            self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
             self.log_message(
                 "order",
                 self.build_event_log_payload(
@@ -1240,16 +1246,11 @@ class OrderEngine:
             >>> snap = engine.get_orderbook_snapshot()
             >>> orders = snap['order']
         """
-        with self.orderbook_lock:
-            return {
-                "order": deepcopy(self.orderbook.order),
-                "positions": deepcopy(self.orderbook.positions),
-                "product": self.orderbook.product,
-                "profit": self.orderbook.profit,
-                "mandatory_fee_per_contract": self.orderbook.mandatory_fee_per_contract,
-                "parent_order_ids": deepcopy(self.orderbook.parent_order_ids),
-                "child_order_ids": deepcopy(self.orderbook.child_order_ids),
-            }
+        # Single-lock snapshot via the v2 OrderBook implementation — replaces
+        # the previous block of seven sequential ``deepcopy(...)`` reads which
+        # required holding ``orderbook_lock`` across multiple attribute
+        # accesses.  Shape is byte-for-byte identical.
+        return self.orderbook.diagnostic_snapshot()
 
     def refresh_positions_if_needed(self, product_id: str) -> None:
         """Refresh futures positions from API if product_id not in cache.
@@ -1443,10 +1444,7 @@ class OrderEngine:
         if self.is_child_order(client_order_id):
             return
 
-        root_parent = (
-            original_stealth_order.get("parent_order_id")
-            or stealth_order_id
-        )
+        root_parent = resolve_stealth_chain_root(original_stealth_order)
         if not root_parent:
             return
 
@@ -1462,68 +1460,60 @@ class OrderEngine:
 
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:
         """Atomically claim processing rights for a follow-up order.
-        
-        Prevents duplicate follow-up creation by setting processing flag.
+
+        Prevents duplicate follow-up creation by acquiring a per-(kind,
+        client_order_id) token in the OrderBook's typed claim ledger.
         Returns False if already claimed or done.
-        
+
         Args:
-            processed_flag_name: Flag dict name ('filled' or 'cancelled').
+            processed_flag_name: Kind name ('filled' or 'cancelled') — accepted
+                as a plain string for backward compatibility, but validated
+                against :class:`FollowUpKind` at the boundary.
             client_order_id: Order to claim.
-        
+
         Returns:
             True if claimed, False if already in progress/done.
-        
+
         Example:
             >>> if engine.claim_follow_up_processing('filled', 'order_123'):
             ...     # Do follow-up work
+
+        Note:
+            History (2026-04-27): this previously fetched ``self.orderbook
+            .filled`` and ``.cancelled`` via ``getattr`` on the legacy shim.
+            When those dict attributes were removed during the OrderBook v2
+            cleanup, every call here returned ``False`` — silently disabling
+            all FILLED and CANCELLED follow-up creation across production.
+            The API is now backed by :meth:`core.orderbook.OrderBook
+            .try_claim_follow_up`, which validates the kind against the
+            :class:`FollowUpKind` enum at the boundary so a future rename of
+            either side cannot fail silently again.
         """
-        with self.orderbook_lock:
-            processed_flags = getattr(self.orderbook, processed_flag_name, None)
-            if not isinstance(processed_flags, dict):
-                return False
-
-            state = processed_flags.get(client_order_id)
-
-            if state in {"processing", "done", True}:
-                return False
-
-            processed_flags[client_order_id] = "processing"
-            return True
+        return self.orderbook.try_claim_follow_up(processed_flag_name, client_order_id)
 
     def release_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
         """Release a processing claim (on error, before retry).
-        
+
         Args:
-            processed_flag_name: Flag dict name.
+            processed_flag_name: Kind name ('filled' or 'cancelled').
             client_order_id: Order to release.
-        
+
         Returns:
             None
         """
-        with self.orderbook_lock:
-            processed_flags = getattr(self.orderbook, processed_flag_name, None)
-            if not isinstance(processed_flags, dict):
-                return
-
-            if processed_flags.get(client_order_id) == "processing":
-                processed_flags.pop(client_order_id, None)
+        self.orderbook.release_follow_up(processed_flag_name, client_order_id)
 
     def complete_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
         """Mark follow-up processing as complete (prevents future retries).
-        
+
         Args:
-            processed_flag_name: Flag dict name.
+            processed_flag_name: Kind name ('filled' or 'cancelled').
             client_order_id: Order to complete.
-        
+
         Returns:
             None
         """
-        with self.orderbook_lock:
-            processed_flags = getattr(self.orderbook, processed_flag_name, None)
-            if not isinstance(processed_flags, dict):
-                return
-
-            processed_flags[client_order_id] = "done"
+        self.orderbook.complete_follow_up(processed_flag_name, client_order_id)
 
     def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
         """Register a child order under a parent in the orderbook.
@@ -1954,8 +1944,49 @@ class OrderEngine:
         """
         ws_ids = {coid for coid in ws_client_order_ids if coid}
 
+        # Snapshot in-memory state under the lock, including each entry's
+        # last-known status / product / cumulative_quantity so the drift
+        # log can identify *what* the orphan actually is (leaked FILLED,
+        # stuck OPEN, never-confirmed placement, etc.) instead of just
+        # surfacing a bare client_order_id.
+        #
+        # Apples-to-apples principle: the venue's open-orders snapshot
+        # only contains orders the exchange currently considers open
+        # (status OPEN or UPDATE). Comparing it against every entry we
+        # ever stored — including transient PENDING/CANCEL_QUEUED entries
+        # mid-placement and terminal FILLED/CANCELLED/FAILED entries
+        # awaiting bookkeeping cleanup — produces guaranteed false
+        # positives. Filter the in-memory side to the same population
+        # the WS snapshot is reporting on. Eviction (in process_user_order)
+        # still bounds memory, but is no longer racing this check.
+        _OPEN_ON_VENUE = {
+            OrderStatus.OPEN.value,
+            OrderStatus.UPDATE.value,
+        }
         with self.orderbook_lock:
-            in_memory_ids = set(self.orderbook.order.keys())
+            all_state = {
+                coid: dict(self.orderbook.order.get(coid) or {})
+                for coid in self.orderbook.order.keys()
+            }
+
+        def _norm(s):
+            return (s or "").upper() if isinstance(s, str) else s
+
+        in_memory_state = {
+            coid: {
+                "status": data.get("status"),
+                "product_id": data.get("product_id"),
+                "cumulative_quantity": data.get("cumulative_quantity"),
+                "leaves_quantity": data.get("leaves_quantity"),
+                "creation_time": data.get("creation_time"),
+            }
+            for coid, data in all_state.items()
+        }
+        in_memory_ids = {
+            coid
+            for coid, data in all_state.items()
+            if _norm(data.get("status")) in _OPEN_ON_VENUE
+        }
 
         ws_only = sorted(ws_ids - in_memory_ids)
         in_memory_only = sorted(in_memory_ids - ws_ids)
@@ -1991,12 +2022,18 @@ class OrderEngine:
                     ),
                 )
             for coid in in_memory_only:
+                detail = in_memory_state.get(coid, {})
                 self.log_message(
                     "warning",
                     self.build_event_log_payload(
                         "snapshot_drift_in_memory_only",
                         source=source,
                         client_order_id=coid,
+                        in_memory_status=detail.get("status"),
+                        product_id=detail.get("product_id"),
+                        cumulative_quantity=detail.get("cumulative_quantity"),
+                        leaves_quantity=detail.get("leaves_quantity"),
+                        creation_time=detail.get("creation_time"),
                     ),
                 )
         else:
@@ -2181,12 +2218,25 @@ class OrderEngine:
             self._finalize_partial_fill_progress(client_order_id, "CANCELLED")
             self.handle_cancelled_order(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
+
+            # Evict the terminal entry from the in-memory orderbook so the
+            # WS snapshot drift checker doesn't keep flagging it as
+            # "in_memory_only" forever. Must run after handle_*_order so
+            # downstream lookups (follow-up creation, external-order
+            # tracking) still see the row, and after dashboard update so
+            # the final terminal state is rendered.
+            with self.orderbook_lock:
+                self.orderbook.order.pop(client_order_id, None)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
         if status == OrderStatus.FILLED:
             self._finalize_partial_fill_progress(client_order_id, "FINALIZED")
             self.handle_filled_order(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
+
+            # Same eviction reason as the CANCELLED branch above.
+            with self.orderbook_lock:
+                self.orderbook.order.pop(client_order_id, None)
             self.websocket_hooks.call_post_order_status(status, normalized_order)
             return
 
@@ -2677,8 +2727,14 @@ class OrderEngine:
                     target_movement_type=parent_target_movement_type
                 )
                 
-                # Register stealth follow-up as child of original parent
-                self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+                # Register stealth follow-up as child of the chain ROOT.
+                # Single canonical resolver — see resolve_stealth_chain_root.
+                root_parent_client_order_id = (
+                    resolve_stealth_chain_root(original_stealth_order)
+                    if original_stealth_order
+                    else parent_client_order_id
+                )
+                self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
                 
                 self.log_message(
                     "order",
@@ -3170,8 +3226,10 @@ class OrderEngine:
                         target_movement_type=parent_target_movement_type
                     )
                     
-                    # Register stealth follow-up as child of original parent
-                    self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+                    # Register stealth follow-up as child of the chain ROOT.
+                    # Single canonical resolver — see resolve_stealth_chain_root.
+                    root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
+                    self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
                     
                     self.log_message(
                         "order",
@@ -3402,8 +3460,14 @@ class OrderEngine:
                     )
                 return False
 
-            self.orderbook.parent_order_ids = new_parent_order_ids
-            self.orderbook.child_order_ids = new_child_order_ids
+            # Atomic dual-replace via the v2 OrderBook — closes the TOCTOU
+            # window where the previous code wrote ``parent_order_ids`` and
+            # ``child_order_ids`` in two separate statements while another
+            # thread could observe the half-replaced state.
+            self.orderbook.atomic_replace_links(
+                new_parent_order_ids,
+                new_child_order_ids,
+            )
 
         self.log_message(
             "reconcile",

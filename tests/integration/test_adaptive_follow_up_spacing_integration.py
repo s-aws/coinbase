@@ -33,6 +33,19 @@ def _build_engine_with_mocked_orderbook() -> OrderEngine:
     }
     orderbook.mandatory_fee_per_contract = {"BTC-USDC": {"mandatory_fee_per_contract": 0.0}}
 
+    # Mock the v2 ``diagnostic_snapshot`` method to return a dict assembled
+    # from the attributes above.  ``compute_order_template`` (and friends) now
+    # call this method instead of reading attributes individually.
+    orderbook.diagnostic_snapshot.side_effect = lambda: {
+        "order": orderbook.order,
+        "positions": orderbook.positions,
+        "product": orderbook.product,
+        "profit": orderbook.profit,
+        "mandatory_fee_per_contract": orderbook.mandatory_fee_per_contract,
+        "parent_order_ids": orderbook.parent_order_ids,
+        "child_order_ids": orderbook.child_order_ids,
+    }
+
     # FILLED BUY parent order used for follow-up template computation.
     parent_client_order_id = "parent-btc-1"
     orderbook.order = {
