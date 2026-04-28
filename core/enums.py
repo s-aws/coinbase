@@ -168,6 +168,19 @@ class FollowUpRevealDirection(str, Enum):
     OPPOSITE = "opposite"
 
 
+class FollowUpKind(str, Enum):
+    """Terminal-event kind for follow-up processing claims.
+
+    The OrderEngine claims a per-order processing token before creating a
+    follow-up so concurrent threads observing the same WS terminal event do
+    not double-spawn. ``FILLED`` and ``CANCELLED`` use independent token
+    namespaces — a filled-side claim does not block a cancelled-side claim.
+    """
+
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+
+
 class RevealPricingPolicy(str, Enum):
     """Pricing policy for stealth order reveal.
     

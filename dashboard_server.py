@@ -50,7 +50,41 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "reprice_now_stealth_order",
     "move_order",
     "premark_move",
+    "import_stealth_orders",
 })
+
+# Stealth-order statuses considered "active" for export. Anything not in this
+# set (EXECUTED, CANCELLED) represents a finished order whose lifecycle is
+# already over, so re-creating it would just produce dead history rows.
+_ACTIVE_STEALTH_STATUSES = frozenset({
+    "HIDDEN",
+    "PENDING",
+    "TRIGGERED",
+    "EXECUTING",
+    "PARTIAL",
+})
+
+# Fields on the in-memory stealth order that map back to create_stealth_order
+# kwargs (keys exactly match what the existing "create_stealth_order" message
+# handler expects in `data["order"]`). Listing them explicitly avoids leaking
+# runtime-only state (revealed_orders, executed_size, anchor state, etc.) into
+# the export payload.
+_EXPORT_FIELDS = (
+    "product_id",
+    "side",
+    "total_size",
+    "limit_price",
+    "reveal_condition_json",       # → reveal_condition
+    "reveal_pricing_policy",
+    "sizing_strategy_json",        # → sizing_strategy
+    "follow_up_reveal_direction",
+    "notes",
+    "max_order_replacements",
+    "target_movement",
+    "target_movement_type",
+    "allow_partial_fills",
+    "anchor_repricing_policy_json",  # → anchor_repricing_policy
+)
 
 logger = get_logger("DashboardServer")
 
@@ -690,6 +724,173 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             
             await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
         
+        elif msg_type == "export_active_stealth_orders":
+            # Read-only export of all currently active root stealth orders.
+            # Output is shaped so each entry can be replayed verbatim through
+            # the existing "create_stealth_order" message handler. Only ROOT
+            # orders (parent_order_id is None) are exported because follow-ups
+            # are spawned automatically when their root fills.
+            if not stealth_order_bridge:
+                response = {
+                    "type": "export_active_stealth_orders_response",
+                    "status": "error",
+                    "message": "Stealth order system not initialized",
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            try:
+                manager = stealth_order_bridge.stealth_manager
+                exported: list[dict] = []
+                # Snapshot the dict before iterating so concurrent mutations
+                # by the evaluator thread don't raise RuntimeError.
+                in_memory_snapshot = list(manager.in_memory_orders.items())
+                for stealth_order_id, order in in_memory_snapshot:
+                    if not isinstance(order, dict):
+                        continue
+                    if order.get("parent_order_id"):
+                        # Skip follow-ups; they're recreated by the engine.
+                        continue
+                    status = str(order.get("status") or "").upper()
+                    if status not in _ACTIVE_STEALTH_STATUSES:
+                        continue
+
+                    serialized = manager._serialize_order_for_json(order)
+                    payload: dict = {
+                        "stealth_order_id": stealth_order_id,
+                    }
+                    for src_key in _EXPORT_FIELDS:
+                        if src_key not in serialized:
+                            continue
+                        # Map the in-memory _json suffix back to the
+                        # create_stealth_order kwarg name.
+                        if src_key == "reveal_condition_json":
+                            dst_key = "reveal_condition"
+                        elif src_key == "sizing_strategy_json":
+                            dst_key = "sizing_strategy"
+                        elif src_key == "anchor_repricing_policy_json":
+                            dst_key = "anchor_repricing_policy"
+                        else:
+                            dst_key = src_key
+                        payload[dst_key] = serialized[src_key]
+                    exported.append(payload)
+
+                response = {
+                    "type": "export_active_stealth_orders_response",
+                    "status": "success",
+                    "exported_at": datetime.utcnow().isoformat(),
+                    "count": len(exported),
+                    "orders": exported,
+                }
+                add_log_entry(
+                    "INFO",
+                    f"Exported {len(exported)} active stealth orders for backup",
+                )
+                await websocket.send(json.dumps(response))
+            except Exception as e:
+                logger.exception("Failed to export active stealth orders")
+                response = {
+                    "type": "export_active_stealth_orders_response",
+                    "status": "error",
+                    "message": f"Export failed: {e}",
+                }
+                await websocket.send(json.dumps(response))
+
+        elif msg_type == "import_stealth_orders":
+            # Bulk-replay create_stealth_order for each entry in payload.
+            # Each entry must already be in the create_stealth_order shape (as
+            # produced by export_active_stealth_orders). Per-entry results are
+            # returned so a partial failure doesn't lose the whole batch.
+            orders_to_import = data.get("orders") or []
+            if not isinstance(orders_to_import, list):
+                response = {
+                    "type": "import_stealth_orders_response",
+                    "status": "error",
+                    "message": "'orders' must be a list",
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            if not stealth_order_bridge:
+                response = {
+                    "type": "import_stealth_orders_response",
+                    "status": "error",
+                    "message": "Stealth order system not initialized",
+                }
+                await websocket.send(json.dumps(response))
+                return
+
+            results: list[dict] = []
+            success_count = 0
+            for entry in orders_to_import:
+                if not isinstance(entry, dict):
+                    results.append({
+                        "status": "error",
+                        "error": "entry not a dict",
+                    })
+                    continue
+                requested_id = entry.get("stealth_order_id")
+                try:
+                    new_id = stealth_order_bridge.create_stealth_order(
+                        stealth_order_id=requested_id,
+                        product_id=entry["product_id"],
+                        side=entry["side"],
+                        total_size=entry["total_size"],
+                        limit_price=entry["limit_price"],
+                        reveal_condition=entry["reveal_condition"],
+                        reveal_pricing_policy=entry.get("reveal_pricing_policy"),
+                        sizing_strategy=entry.get("sizing_strategy", {}),
+                        parent_order_id=None,  # imports are always roots
+                        follow_up_reveal_direction=entry.get(
+                            "follow_up_reveal_direction",
+                            FollowUpRevealDirection.OPPOSITE.value,
+                        ),
+                        notes=entry.get("notes", ""),
+                        max_order_replacements=entry.get("max_order_replacements"),
+                        target_movement=entry.get("target_movement", 0.002),
+                        target_movement_type=entry.get("target_movement_type", "P"),
+                        allow_partial_fills=bool(entry.get("allow_partial_fills", True)),
+                        anchor_repricing_policy=entry.get("anchor_repricing_policy"),
+                    )
+                    results.append({
+                        "status": "success",
+                        "requested_id": requested_id,
+                        "stealth_order_id": str(new_id),
+                        "product_id": entry.get("product_id"),
+                        "side": entry.get("side"),
+                    })
+                    success_count += 1
+                except Exception as e:
+                    logger.exception(
+                        f"Import failed for stealth order {requested_id}: {e}"
+                    )
+                    results.append({
+                        "status": "error",
+                        "requested_id": requested_id,
+                        "product_id": entry.get("product_id"),
+                        "side": entry.get("side"),
+                        "error": str(e),
+                    })
+
+            response = {
+                "type": "import_stealth_orders_response",
+                "status": "success" if success_count == len(orders_to_import) else "partial",
+                "imported": success_count,
+                "total": len(orders_to_import),
+                "results": results,
+            }
+            add_log_entry(
+                "INFO",
+                f"Imported {success_count}/{len(orders_to_import)} stealth orders",
+            )
+            await websocket.send(json.dumps(response))
+            # Push fresh state to all clients so the new orders show up.
+            await broadcast_stealth_order_update({
+                "type": "stealth_orders_imported",
+                "imported": success_count,
+                "total": len(orders_to_import),
+            })
+
         elif msg_type == "create_stealth_order":
             # Create new stealth order
             logger.info("[HANDLER] create_stealth_order message received")

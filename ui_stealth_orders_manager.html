@@ -1093,6 +1093,20 @@
                     </div>
                 </div>
 
+                <!-- Backup / Restore Section -->
+                <div class="section">
+                    <h2>💾 Backup &amp; Restore</h2>
+                    <p class="section-description">Export the current set of active root stealth orders to a JSON file (with all their settings, reveal conditions, and policies), then re-import after a database wipe to recreate them exactly as they were. Follow-ups are excluded — they regenerate automatically when the engine fills the root.</p>
+                    <button id="export-active-orders-btn" type="button" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #4dd0e1, #00acc1); color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-bottom: 8px;">
+                        ⬇️ Export Active Orders
+                    </button>
+                    <button id="import-active-orders-btn" type="button" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #81c784, #4caf50); color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        ⬆️ Import From File
+                    </button>
+                    <input id="import-file-input" type="file" accept="application/json,.json" style="display: none;" />
+                    <div id="backup-status" style="font-size: 11px; color: #999; margin-top: 8px; text-align: center; min-height: 14px;"></div>
+                </div>
+
                 <!-- Entry History -->
                 <div class="section">
                     <h2>📝 Entry History</h2>
@@ -1712,6 +1726,10 @@
                         updateOrdersTable();
                         updateStats();
                         showMessage(`✅ Cleared ${data.rows_deleted} stealth orders`, 'success');
+                    } else if (data.type === "export_active_stealth_orders_response") {
+                        handleExportResponse(data);
+                    } else if (data.type === "import_stealth_orders_response") {
+                        handleImportResponse(data);
                     } else if (data.type === "error") {
                         // Handle generic error messages from server
                         showMessage(`Error: ${data.message || 'Unknown error'}`, 'error');
@@ -2890,6 +2908,144 @@
                 showMessage(`Error sending clear request: ${error.message}`, 'error');
             }
         }
+
+        // ============================================================
+        // Backup & Restore: export active root stealth orders to JSON
+        // and re-import them after a database wipe.
+        // ============================================================
+
+        function setBackupStatus(text, color) {
+            const el = document.getElementById('backup-status');
+            if (!el) return;
+            el.textContent = text || '';
+            el.style.color = color || '#999';
+        }
+
+        function downloadJsonFile(filenameBase, payload) {
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `${filenameBase}-${stamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportActiveStealthOrders() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+            setBackupStatus('Requesting export…', '#4dd0e1');
+            try {
+                ws.send(JSON.stringify({ type: 'export_active_stealth_orders' }));
+            } catch (error) {
+                setBackupStatus(`Export failed: ${error.message}`, '#ff6b6b');
+            }
+        }
+
+        function handleExportResponse(data) {
+            if (data.status !== 'success') {
+                setBackupStatus(`Export failed: ${data.message || 'unknown error'}`, '#ff6b6b');
+                showMessage(`Export failed: ${data.message || 'unknown error'}`, 'error');
+                return;
+            }
+            const count = data.count || 0;
+            if (count === 0) {
+                setBackupStatus('No active root orders to export', '#ffb74d');
+                showMessage('No active root stealth orders to export', 'info');
+                return;
+            }
+            downloadJsonFile('stealth-orders-backup', {
+                version: 1,
+                exported_at: data.exported_at,
+                count: count,
+                orders: data.orders || [],
+            });
+            setBackupStatus(`✓ Exported ${count} order(s)`, '#81c784');
+            showMessage(`Exported ${count} active stealth order(s) to file`, 'success');
+        }
+
+        function triggerImportPicker() {
+            const input = document.getElementById('import-file-input');
+            if (input) {
+                input.value = '';  // reset so picking the same file twice still fires change
+                input.click();
+            }
+        }
+
+        function onImportFileChosen(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                let parsed;
+                try {
+                    parsed = JSON.parse(reader.result);
+                } catch (e) {
+                    setBackupStatus(`Invalid JSON: ${e.message}`, '#ff6b6b');
+                    showMessage(`Invalid JSON: ${e.message}`, 'error');
+                    return;
+                }
+                const orders = Array.isArray(parsed) ? parsed : (parsed.orders || []);
+                if (!Array.isArray(orders) || orders.length === 0) {
+                    setBackupStatus('File contained no orders', '#ffb74d');
+                    showMessage('File contained no orders', 'error');
+                    return;
+                }
+                const confirmed = confirm(
+                    `Import ${orders.length} stealth order(s) from "${file.name}"?\n\n` +
+                    `Each entry will be re-created via create_stealth_order. Make sure the engine is RUNNING and accepting new orders.`
+                );
+                if (!confirmed) return;
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    showMessage('Not connected to server', 'error');
+                    return;
+                }
+                setBackupStatus(`Importing ${orders.length}…`, '#81c784');
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'import_stealth_orders',
+                        orders: orders,
+                    }));
+                } catch (error) {
+                    setBackupStatus(`Import send failed: ${error.message}`, '#ff6b6b');
+                }
+            };
+            reader.onerror = () => {
+                setBackupStatus('File read failed', '#ff6b6b');
+            };
+            reader.readAsText(file);
+        }
+
+        function handleImportResponse(data) {
+            const imported = data.imported || 0;
+            const total = data.total || 0;
+            const failed = total - imported;
+            if (failed === 0) {
+                setBackupStatus(`✓ Imported ${imported}/${total}`, '#81c784');
+                showMessage(`Imported ${imported}/${total} stealth orders`, 'success');
+            } else {
+                setBackupStatus(`⚠ ${imported}/${total} imported, ${failed} failed`, '#ffb74d');
+                const failures = (data.results || [])
+                    .filter(r => r.status === 'error')
+                    .map(r => `• ${r.product_id || '?'} ${r.side || ''}: ${r.error}`)
+                    .join('\n');
+                showMessage(`Partial import: ${imported}/${total} succeeded.\n${failures}`, 'error');
+                console.warn('Import results:', data.results);
+            }
+            // Refresh the table so newly created orders appear.
+            try {
+                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+            } catch (_) { /* ignore */ }
+        }
+
+        document.getElementById('export-active-orders-btn').addEventListener('click', exportActiveStealthOrders);
+        document.getElementById('import-active-orders-btn').addEventListener('click', triggerImportPicker);
+        document.getElementById('import-file-input').addEventListener('change', onImportFileChosen);
     </script>
 </body>
 </html>

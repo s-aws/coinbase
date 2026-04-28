@@ -717,7 +717,12 @@ def insert_order_parent(
         results = DB_CLIENT.execute_query(query, params)
         if results:
             inserted_id = results[0]["id"]
-            logger.info(f"✓ Parent order inserted: {client_order_id} (DB ID: {inserted_id}, product: {product_id}, {side} {size} @ {price})")
+            row_kind = "Child" if parent_order_id else "Root parent"
+            logger.info(
+                f"✓ {row_kind} order inserted: {client_order_id} (DB ID: {inserted_id}, "
+                f"product: {product_id}, {side} {size} @ {price}"
+                + (f", parent: {parent_order_id})" if parent_order_id else ")")
+            )
             return inserted_id
 
         logger.warning(f"Failed to retrieve inserted order ID for: {client_order_id} - query executed but no result returned")

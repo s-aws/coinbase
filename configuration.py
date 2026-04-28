@@ -902,7 +902,29 @@ class OrderBook():
         # mock-orderbook hook.  Other dead attrs (transaction_summary,
         # cancelled, filled, active, price, db_client) were removed after a
         # workspace-wide grep confirmed zero consumers (2026-04-27).
+        #
+        # Follow-up note (2026-04-27): the cancelled/filled cleanup BROKE
+        # follow-up creation because OrderEngine.{claim,release,complete}_
+        # follow_up_processing reached those dicts via getattr() on a string
+        # name (invisible to grep).  Replaced by the typed claim API on the
+        # v2 OrderBook (try_claim_follow_up et al), exposed below.
         self.default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
+
+    # ------------------------------------------------------------------
+    # Follow-up processing claim API — pass-through to v2 OrderBook
+    # ------------------------------------------------------------------
+
+    def try_claim_follow_up(self, kind, client_order_id):
+        return self._impl.try_claim_follow_up(kind, client_order_id)
+
+    def release_follow_up(self, kind, client_order_id):
+        return self._impl.release_follow_up(kind, client_order_id)
+
+    def complete_follow_up(self, kind, client_order_id):
+        return self._impl.complete_follow_up(kind, client_order_id)
+
+    def follow_up_claim_state(self, kind, client_order_id):
+        return self._impl.follow_up_claim_state(kind, client_order_id)
 
     # ------------------------------------------------------------------
     # Legacy attribute surface \u2014 properties returning live underlying dicts

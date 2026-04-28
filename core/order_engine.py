@@ -74,6 +74,7 @@ from configuration import (
 
 from core.constants import get_local_now
 from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel
+from core.stealth_order_manager import resolve_stealth_chain_root
 from core.exceptions import (
     OrderProcessingError,
     OrderCalculationError,
@@ -828,7 +829,12 @@ class OrderEngine:
                 target_movement_type=parent_target_movement_type,
             )
 
-            self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+            # Flat hierarchy: register the follow-up against the chain ROOT,
+            # never against the placement uuid that just settled (which is
+            # itself a child). Single canonical resolver lives in
+            # stealth_order_manager.
+            root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
+            self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
             self.log_message(
                 "order",
                 self.build_event_log_payload(
@@ -1438,10 +1444,7 @@ class OrderEngine:
         if self.is_child_order(client_order_id):
             return
 
-        root_parent = (
-            original_stealth_order.get("parent_order_id")
-            or stealth_order_id
-        )
+        root_parent = resolve_stealth_chain_root(original_stealth_order)
         if not root_parent:
             return
 
@@ -1457,68 +1460,60 @@ class OrderEngine:
 
     def claim_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> bool:
         """Atomically claim processing rights for a follow-up order.
-        
-        Prevents duplicate follow-up creation by setting processing flag.
+
+        Prevents duplicate follow-up creation by acquiring a per-(kind,
+        client_order_id) token in the OrderBook's typed claim ledger.
         Returns False if already claimed or done.
-        
+
         Args:
-            processed_flag_name: Flag dict name ('filled' or 'cancelled').
+            processed_flag_name: Kind name ('filled' or 'cancelled') — accepted
+                as a plain string for backward compatibility, but validated
+                against :class:`FollowUpKind` at the boundary.
             client_order_id: Order to claim.
-        
+
         Returns:
             True if claimed, False if already in progress/done.
-        
+
         Example:
             >>> if engine.claim_follow_up_processing('filled', 'order_123'):
             ...     # Do follow-up work
+
+        Note:
+            History (2026-04-27): this previously fetched ``self.orderbook
+            .filled`` and ``.cancelled`` via ``getattr`` on the legacy shim.
+            When those dict attributes were removed during the OrderBook v2
+            cleanup, every call here returned ``False`` — silently disabling
+            all FILLED and CANCELLED follow-up creation across production.
+            The API is now backed by :meth:`core.orderbook.OrderBook
+            .try_claim_follow_up`, which validates the kind against the
+            :class:`FollowUpKind` enum at the boundary so a future rename of
+            either side cannot fail silently again.
         """
-        with self.orderbook_lock:
-            processed_flags = getattr(self.orderbook, processed_flag_name, None)
-            if not isinstance(processed_flags, dict):
-                return False
-
-            state = processed_flags.get(client_order_id)
-
-            if state in {"processing", "done", True}:
-                return False
-
-            processed_flags[client_order_id] = "processing"
-            return True
+        return self.orderbook.try_claim_follow_up(processed_flag_name, client_order_id)
 
     def release_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
         """Release a processing claim (on error, before retry).
-        
+
         Args:
-            processed_flag_name: Flag dict name.
+            processed_flag_name: Kind name ('filled' or 'cancelled').
             client_order_id: Order to release.
-        
+
         Returns:
             None
         """
-        with self.orderbook_lock:
-            processed_flags = getattr(self.orderbook, processed_flag_name, None)
-            if not isinstance(processed_flags, dict):
-                return
-
-            if processed_flags.get(client_order_id) == "processing":
-                processed_flags.pop(client_order_id, None)
+        self.orderbook.release_follow_up(processed_flag_name, client_order_id)
 
     def complete_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
         """Mark follow-up processing as complete (prevents future retries).
-        
+
         Args:
-            processed_flag_name: Flag dict name.
+            processed_flag_name: Kind name ('filled' or 'cancelled').
             client_order_id: Order to complete.
-        
+
         Returns:
             None
         """
-        with self.orderbook_lock:
-            processed_flags = getattr(self.orderbook, processed_flag_name, None)
-            if not isinstance(processed_flags, dict):
-                return
-
-            processed_flags[client_order_id] = "done"
+        self.orderbook.complete_follow_up(processed_flag_name, client_order_id)
 
     def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
         """Register a child order under a parent in the orderbook.
@@ -2732,8 +2727,14 @@ class OrderEngine:
                     target_movement_type=parent_target_movement_type
                 )
                 
-                # Register stealth follow-up as child of original parent
-                self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+                # Register stealth follow-up as child of the chain ROOT.
+                # Single canonical resolver — see resolve_stealth_chain_root.
+                root_parent_client_order_id = (
+                    resolve_stealth_chain_root(original_stealth_order)
+                    if original_stealth_order
+                    else parent_client_order_id
+                )
+                self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
                 
                 self.log_message(
                     "order",
@@ -3225,8 +3226,10 @@ class OrderEngine:
                         target_movement_type=parent_target_movement_type
                     )
                     
-                    # Register stealth follow-up as child of original parent
-                    self.register_child_order(stealth_follow_up_id, parent_client_order_id)
+                    # Register stealth follow-up as child of the chain ROOT.
+                    # Single canonical resolver — see resolve_stealth_chain_root.
+                    root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
+                    self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
                     
                     self.log_message(
                         "order",
