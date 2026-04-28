@@ -196,7 +196,7 @@
 /* ---------- config ---------------------------------------------------- */
 
 const WS_URL          = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname || 'localhost'}:8765`;
-const MAX_POINTS      = 600;        // per-series rolling buffer
+const MAX_POINTS      = 3600;        // per-series rolling buffer
 const ACTIVE_STATUSES = new Set(['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED']);
 const MARKET_KEY      = '__market__';
 
@@ -471,7 +471,16 @@ function handleTicker(payload) {
     const panel = panels.get(t.product_id);
     if (!panel) return;
 
-    const ts = (typeof t.time === 'number') ? t.time * 1000 : Date.now();
+    // The server sends datetime.utcnow().timestamp(); on Windows, .timestamp()
+    // on a naive UTC datetime is interpreted as local time, so the epoch is
+    // shifted by the local UTC offset. Convert back to a true epoch so that
+    // new Date(...).toLocaleTimeString() renders correct local wall time.
+    let ts;
+    if (typeof t.time === 'number') {
+        ts = t.time * 1000 - new Date().getTimezoneOffset() * 60 * 1000;
+    } else {
+        ts = Date.now();
+    }
     panel.pushMarketPoint(ts, price);
     panel.refresh();
 }
