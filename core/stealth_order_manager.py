@@ -834,6 +834,20 @@ class StealthOrderManager:
         max_boundary_price: float,
         reprice_reason: str,
     ) -> bool:
+        # Guard: nothing left to reprice. The reprice tick fires on a timer
+        # against the stealth dict, so a placement that filled between ticks
+        # leaves the canonical fields (`remaining_size`, `revealed_size`)
+        # consistent while `state.active_exchange_order_id` may still hold the
+        # now-filled exchange order id.  Without this guard we would
+        # `cancel_orders` an already-filled order, then place a 0-size
+        # replacement and write a phantom `order_parent` row (size=0).  See
+        # 2026-04-27 audit for the production incident.
+        remaining_size = safe_float(order.get("remaining_size"), default=0.0)
+        if remaining_size <= 0:
+            state["active_exchange_order_id"] = None
+            state["active_placement_client_order_id"] = None
+            return False
+
         exchange_order_id = state.get("active_exchange_order_id")
         current_price = safe_float(state.get("active_exchange_price"), default=order.get("limit_price"))
         if not exchange_order_id or current_price is None:

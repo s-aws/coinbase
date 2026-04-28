@@ -44,7 +44,12 @@ def test_handle_filled_order_uses_client_order_id_for_stealth_lookup():
     stealth_manager = Mock()
     stealth_manager.find_stealth_order_by_placed_order_id = Mock(return_value=None)
     engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
-    engine.claim_follow_up_processing = Mock(return_value=False)
+    # Claim must succeed for handle_filled_order to reach the stealth lookup.
+    # The lookup is the actual behavior under test (passes client_order_id, not
+    # order_id); the should_replace short-circuit below stops the engine before
+    # any follow-up creation runs, so no additional DB/REST mocking is needed.
+    engine.claim_follow_up_processing = Mock(return_value=True)
+    engine.orderbook.should_replace = {"FILLED": False, "CANCELLED": False}
     engine.fill_repo = None
 
     filled_order = {

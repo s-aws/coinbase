@@ -8,9 +8,25 @@ This file is automatically loaded by pytest and provides:
 - Test configuration
 """
 
+import os
+
+# ============================================================================
+# CRITICAL: prod-DB guard. Must run BEFORE any `database.*` module is imported
+# so the env-driven defaults in `database.database` resolve to the test
+# instance (port 9876), never prod (5432).
+#
+# Background: 2026-04-27 — `tests/unit/test_order_moves.py` instantiated
+# `PostgresDB()` with no args, which defaulted to port 5432 and wrote 40
+# phantom rows into the production `order_parent` table. Never again.
+# ============================================================================
+os.environ.setdefault("COINBASE_DB_HOST", "127.0.0.1")
+os.environ.setdefault("COINBASE_DB_PORT", "9876")
+os.environ.setdefault("COINBASE_DB_NAME", "postgres")
+os.environ.setdefault("COINBASE_DB_USER", "postgres")
+os.environ.setdefault("COINBASE_DB_PASSWORD", "postgres")
+
 import pytest
 import json
-import os
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -19,6 +35,35 @@ from typing import Dict, Any
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+
+# ===================== PROD-DB CONNECTION GUARD =====================
+
+# Belt-and-suspenders: even if a test passes explicit `port=5432`, refuse to
+# connect. To run a test against prod (you almost never should), set
+# `ALLOW_PROD_DB=1` in the environment.
+def _install_prod_db_guard():
+    from database import database as _db_mod
+
+    _original_connect = _db_mod.PostgresDB.connect
+
+    def _guarded_connect(self):
+        if (
+            self.port == 5432
+            and self.host in ("127.0.0.1", "localhost")
+            and os.environ.get("ALLOW_PROD_DB") != "1"
+        ):
+            raise RuntimeError(
+                f"REFUSED: test attempted to connect to prod DB at "
+                f"{self.host}:{self.port}. Use port 9876 (test instance) or "
+                f"set ALLOW_PROD_DB=1 to override."
+            )
+        return _original_connect(self)
+
+    _db_mod.PostgresDB.connect = _guarded_connect
+
+
+_install_prod_db_guard()
 
 
 # ===================== MARKERS =====================
@@ -33,6 +78,9 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "regression: mark test as regression test (must pass before deploy)"
+    )
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test (touches real DB / external services)"
     )
 
 

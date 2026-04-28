@@ -16,6 +16,7 @@ Example:
     >>> db.disconnect()
 """
 
+import os
 import psycopg2
 from psycopg2 import sql, Error
 from contextlib import contextmanager
@@ -23,6 +24,15 @@ from typing import Optional, List, Dict, Any
 from logging_service import get_logger
 
 logger = get_logger("PostgresDB")
+
+# Environment-driven defaults. Tests should set these (typically via conftest)
+# to point at the test instance (port 9876). Production leaves them unset and
+# the values below kick in.
+DEFAULT_DB_HOST = os.environ.get("COINBASE_DB_HOST", "127.0.0.1")
+DEFAULT_DB_PORT = int(os.environ.get("COINBASE_DB_PORT", "5432"))
+DEFAULT_DB_NAME = os.environ.get("COINBASE_DB_NAME", "postgres")
+DEFAULT_DB_USER = os.environ.get("COINBASE_DB_USER", "postgres")
+DEFAULT_DB_PASSWORD = os.environ.get("COINBASE_DB_PASSWORD", "postgres")
 
 
 class PostgresDB:
@@ -44,30 +54,35 @@ class PostgresDB:
     
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        port: int = 5432,
-        database: str = "postgres",
-        user: str = "postgres",
-        password: str = "postgres"
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        database: Optional[str] = None,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
     ) -> None:
         """
         Initialize database connection parameters.
-        
+
         Connection is not established until connect() is called or first operation
         is performed through a context manager.
-        
+
+        Any argument left as ``None`` falls back to the corresponding
+        ``COINBASE_DB_*`` environment variable (resolved at module import time),
+        and finally to the production default. Tests should set the environment
+        variables before importing this module — see ``tests/conftest.py``.
+
         Args:
-            host: Database host address (default: 127.0.0.1 - localhost only).
-            port: Database port number (default: 5432).
-            database: Database name (default: postgres).
-            user: Database user account (default: postgres).
-            password: Database password for authentication.
+            host: Database host address. Defaults to ``$COINBASE_DB_HOST`` or ``127.0.0.1``.
+            port: Database port. Defaults to ``$COINBASE_DB_PORT`` or ``5432``.
+            database: Database name. Defaults to ``$COINBASE_DB_NAME`` or ``postgres``.
+            user: Database user. Defaults to ``$COINBASE_DB_USER`` or ``postgres``.
+            password: Database password. Defaults to ``$COINBASE_DB_PASSWORD`` or ``postgres``.
         """
-        self.host: str = host
-        self.port: int = port
-        self.database: str = database
-        self.user: str = user
-        self.password: str = password
+        self.host: str = host if host is not None else DEFAULT_DB_HOST
+        self.port: int = port if port is not None else DEFAULT_DB_PORT
+        self.database: str = database if database is not None else DEFAULT_DB_NAME
+        self.user: str = user if user is not None else DEFAULT_DB_USER
+        self.password: str = password if password is not None else DEFAULT_DB_PASSWORD
         self._conn: Optional[psycopg2.extensions.connection] = None
     
     def connect(self) -> None:
