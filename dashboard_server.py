@@ -740,6 +740,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
 
             try:
+                from database.order import get_parent_order
+
                 manager = stealth_order_bridge.stealth_manager
                 exported: list[dict] = []
                 # Snapshot the dict before iterating so concurrent mutations
@@ -756,6 +758,43 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         continue
 
                     serialized = manager._serialize_order_for_json(order)
+
+                    # Overlay canonical persisted fields from order_parent.
+                    # Several create_stealth_order kwargs (target_movement,
+                    # target_movement_type, max_order_replacements,
+                    # allow_partial_fills) live ONLY in the order_parent row
+                    # for root orders — they're not on the in-memory stealth
+                    # dict. Without this merge the export is missing the
+                    # config the user originally typed in.
+                    try:
+                        parent_row = get_parent_order(stealth_order_id) or {}
+                    except Exception as e:
+                        logger.warning(
+                            f"export: get_parent_order failed for "
+                            f"{stealth_order_id}: {e}"
+                        )
+                        parent_row = {}
+
+                    tm = parent_row.get("target_movement")
+                    if tm is not None and "target_movement" not in serialized:
+                        serialized["target_movement"] = safe_float(tm, default=0.0)
+                    if (
+                        parent_row.get("target_movement_type")
+                        and "target_movement_type" not in serialized
+                    ):
+                        serialized["target_movement_type"] = parent_row["target_movement_type"]
+                    # NOTE: order_parent column is `max_order_replacement`
+                    # (singular); the create_stealth_order kwarg is
+                    # `max_order_replacements` (plural). Map across.
+                    if parent_row.get("max_order_replacement") is not None:
+                        serialized["max_order_replacements"] = int(
+                            parent_row["max_order_replacement"]
+                        )
+                    if parent_row.get("allow_partial_fills") is not None:
+                        serialized["allow_partial_fills"] = bool(
+                            parent_row["allow_partial_fills"]
+                        )
+
                     payload: dict = {
                         "stealth_order_id": stealth_order_id,
                     }
