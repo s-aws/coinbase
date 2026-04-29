@@ -28,7 +28,7 @@ except ImportError:
 
 # Use custom logging service
 from logging_service import get_logger
-from core.enums import EngineState, FollowUpRevealDirection, StealthOrderStatus
+from core.enums import EngineState, FollowUpRevealDirection, RepricingReferenceSource, StealthOrderStatus
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
@@ -2313,38 +2313,35 @@ def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
             "active_repricing_count": int,
             "total_reprices_executed": int,
             "breakdown_by_source": {
-                "last_trade": int,
-                "midpoint": int,
-                "top_of_book": int,
+                <RepricingReferenceSource value>: int,
+                ...
             },
         }
     """
     active_count = 0
     total_executed = 0
-    breakdown = {
-        "last_trade": 0,
-        "midpoint": 0,
-        "top_of_book": 0,
-    }
-    
+    breakdown: Dict[str, int] = {s.value: 0 for s in RepricingReferenceSource}
+
     for order_data in orders.values():
         if not isinstance(order_data, dict):
             continue
-        
+
         # Check if repricing is enabled
         policy = order_data.get("anchor_repricing_policy_json") or {}
         if not policy.get("enabled"):
             continue
-        
+
         active_count += 1
-        
+
         # Count reprices executed from state
         state = order_data.get("anchor_repricing_state_json") or {}
         history = state.get("reprice_history") or []
         total_executed += len(history)
-        
+
         # Breakdown by reference source
-        source = policy.get("reference_price_source", "midpoint")
+        source = policy.get(
+            "reference_price_source", RepricingReferenceSource.MIDPOINT.value
+        )
         if source in breakdown:
             breakdown[source] += 1
     

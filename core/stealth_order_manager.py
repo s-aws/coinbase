@@ -76,6 +76,9 @@ from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
     OrderStatus,
+    RepricingDistanceType,
+    RepricingReferenceSource,
+    RepricingUpdateMode,
     RevealConditionType,
     RevealPricingPolicy,
     RevealPriceSource,
@@ -359,14 +362,16 @@ class StealthOrderManager:
             return {"enabled": False}
 
         reference_price_source = str(
-            policy.get("reference_price_source") or "midpoint"
+            policy.get("reference_price_source") or RepricingReferenceSource.MIDPOINT.value
         ).strip().lower()
-        if reference_price_source not in {"last_trade", "midpoint", "top_of_book"}:
-            reference_price_source = "midpoint"
+        if reference_price_source not in {s.value for s in RepricingReferenceSource}:
+            reference_price_source = RepricingReferenceSource.MIDPOINT.value
 
-        distance_type = str(policy.get("distance_type") or "P").strip().upper()
-        if distance_type not in {"P", "A"}:
-            distance_type = "P"
+        distance_type = str(
+            policy.get("distance_type") or RepricingDistanceType.PERCENT.value
+        ).strip().upper()
+        if distance_type not in {d.value for d in RepricingDistanceType}:
+            distance_type = RepricingDistanceType.PERCENT.value
 
         target_distance = safe_float(policy.get("target_distance"), default=0.0)
         max_distance = safe_float(policy.get("max_distance"), default=target_distance)
@@ -375,9 +380,11 @@ class StealthOrderManager:
         if max_distance < target_distance:
             max_distance = target_distance
 
-        update_mode = str(policy.get("update_mode") or "adaptive").strip().lower()
-        if update_mode not in {"adaptive", "fixed"}:
-            update_mode = "adaptive"
+        update_mode = str(
+            policy.get("update_mode") or RepricingUpdateMode.ADAPTIVE.value
+        ).strip().lower()
+        if update_mode not in {m.value for m in RepricingUpdateMode}:
+            update_mode = RepricingUpdateMode.ADAPTIVE.value
 
         fixed_interval_seconds = int(
             safe_float(policy.get("fixed_interval_seconds"), default=60.0)
@@ -549,19 +556,21 @@ class StealthOrderManager:
         market_data: Dict[str, Any],
         policy: Dict[str, Any],
     ) -> Tuple[Optional[float], str]:
-        reference_price_source = policy.get("reference_price_source", "midpoint")
+        reference_price_source = policy.get(
+            "reference_price_source", RepricingReferenceSource.MIDPOINT.value
+        )
         price = safe_float(market_data.get("price"), default=None)
         bid = safe_float(market_data.get("bid"), default=None)
         ask = safe_float(market_data.get("ask"), default=None)
         normalized_side = str(side or "").upper()
 
-        if reference_price_source == "last_trade" and price and price > 0:
+        if reference_price_source == RepricingReferenceSource.LAST_TRADE.value and price and price > 0:
             return price, "ticker_last_trade"
 
-        if reference_price_source == "midpoint" and bid and ask and bid > 0 and ask > 0:
+        if reference_price_source == RepricingReferenceSource.MIDPOINT.value and bid and ask and bid > 0 and ask > 0:
             return (bid + ask) / 2.0, "ticker_midpoint"
 
-        if reference_price_source == "top_of_book":
+        if reference_price_source == RepricingReferenceSource.TOP_OF_BOOK.value:
             if normalized_side == "BUY" and bid and bid > 0:
                 return bid, "ticker_best_bid"
             if normalized_side == "SELL" and ask and ask > 0:

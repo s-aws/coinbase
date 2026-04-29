@@ -237,6 +237,50 @@ class RevealConditionType(str, Enum):
 
 
 # ============================================================================
+# ANCHOR REPRICING POLICY
+# ============================================================================
+
+class RepricingReferenceSource(str, Enum):
+    """Market reference used by ``anchor_repricing_policy`` to compute the
+    target price each tick.
+
+    - LAST_TRADE: Use the most recent trade price from the ticker.
+    - MIDPOINT: Use ``(bid + ask) / 2``.
+    - TOP_OF_BOOK: Use best bid for BUY orders, best ask for SELL orders.
+
+    Persisted as a string in
+    ``stealth_orders.anchor_repricing_policy_json -> 'reference_price_source'``.
+    """
+    LAST_TRADE = "last_trade"
+    MIDPOINT = "midpoint"
+    TOP_OF_BOOK = "top_of_book"
+
+
+class RepricingDistanceType(str, Enum):
+    """How ``target_distance`` / ``max_distance`` are interpreted.
+
+    - PERCENT (``"P"``): Distance is a percentage of the reference price.
+    - ABSOLUTE (``"A"``): Distance is in absolute price units.
+
+    Single-letter codes are preserved for on-disk compatibility with the
+    existing dashboard payload.
+    """
+    PERCENT = "P"
+    ABSOLUTE = "A"
+
+
+class RepricingUpdateMode(str, Enum):
+    """How often the repricing loop evaluates a new target.
+
+    - ADAPTIVE: Re-evaluate when the market moves (rate-limited by the min
+      interval / max-per-hour throttles).
+    - FIXED: Re-evaluate on a fixed cadence (``fixed_interval_seconds``).
+    """
+    ADAPTIVE = "adaptive"
+    FIXED = "fixed"
+
+
+# ============================================================================
 # WEBSOCKET & EVENT TYPES
 # ============================================================================
 
