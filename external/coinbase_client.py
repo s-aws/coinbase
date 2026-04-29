@@ -200,35 +200,37 @@ class CoinbaseRestClient:
         client_order_id: str = None,
         post_only: bool = False,
         time_in_force: str = TimeInForce.GOOD_UNTIL_CANCELLED.value
-    ) -> Order:
+    ) -> Dict[str, Any]:
         """Place a limit order.
-        
-        Args:
-            product_id: Trading pair (e.g., 'BTC-USDC')
-            side: 'BUY' or 'SELL'
-            limit_price: Limit price as string (e.g., '40000.00')
-            base_size: Size in base currency (mutually exclusive with quote_size)
-            quote_size: Size in quote currency (mutually exclusive with base_size)
-            client_order_id: Custom order ID for idempotency
-            post_only: If True, order rejected if it would immediately fill
-            time_in_force: 'GOOD_TILL_CANCELLED', 'IMMEDIATE_OR_CANCEL', etc.
-        
-        Returns:
-            Order instance with order confirmation data
-        
-        Raises:
-            ValueError: If invalid parameters
-            Exception: If API call fails (e.g., INSUFFICIENT_FUNDS)
-        
-        Examples:
-            >>> order = client.place_limit_order(
-            ...     product_id='BTC-USDC',
-            ...     side='BUY',
-            ...     limit_price='40000.00',
-            ...     base_size='0.1',
-            ...     client_order_id='my_order_123'
-            ... )
-            >>> print(f"Order {order.order_id} placed")
+
+        Returns the SDK response shape (Coinbase Advanced Trade
+        ``CreateOrderResponse``):
+
+        .. code-block:: python
+
+            {
+                "success": True,
+                "success_response": {
+                    "order_id": "...",        # exchange-assigned id
+                    "client_order_id": "...", # the id we sent
+                    "product_id": "...",
+                    "side": "BUY" | "SELL",
+                },
+                "order_configuration": {...},
+                "failure_reason": "...",        # only on success=False
+                "error_response": {...},        # only on success=False
+            }
+
+        NOTE: Earlier versions of this method tried to coerce the
+        response into an :class:`Order` via ``Order.from_dict``, but
+        ``Order.from_dict`` expects ``side``/``order_side`` at the top
+        level whereas the SDK nests them under ``success_response``.
+        That coercion raised on every successful place call (silently
+        swallowed by the broad ``except`` in
+        ``StealthOrderManager.reveal_order_slice``), causing the
+        stealth manager to lose the link between the placement and the
+        stealth order it belongs to. The fix is to return the raw dict
+        \u2014 every existing caller already treats it as such.
         """
         # Use limit_order_gtc() which works with the current SDK
         # (time_in_force param is ignored as SDK uses GTC for this method)
@@ -241,9 +243,9 @@ class CoinbaseRestClient:
             client_order_id=client_order_id,
             post_only=post_only
         )
-        
-        return Order.from_dict(response.to_dict() if hasattr(response, 'to_dict') else response)
-    
+
+        return response.to_dict() if hasattr(response, 'to_dict') else response
+
     def cancel_order(self, client_order_id: str) -> bool:
         """Cancel a single order by client order ID.
         

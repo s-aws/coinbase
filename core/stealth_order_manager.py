@@ -2428,6 +2428,16 @@ class StealthOrderManager:
             # Use REST_CLIENT.place_limit_order() which is purpose-built for this
             # Tracked as in-flight so a concurrent drain waits for the placement
             # to settle before transitioning to STOPPED.
+            #
+            # rest_call_succeeded is the truthful indicator of whether the order
+            # actually reached the exchange. It is flipped to True the moment
+            # place_limit_order returns without raising; any exception AFTER this
+            # point (audit-row insert, hook, lifecycle dispatch) is post-placement
+            # bookkeeping that must NOT be reported as "order was not placed".
+            # See 2026-04-29 incident: a stale Order.from_dict shim was raising
+            # post-REST and the exception handler logged the misleading
+            # "Order was NOT placed" while the order was actually live and filling.
+            rest_call_succeeded = False
             with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
                 order_result = REST_CLIENT.place_limit_order(
                     product_id=order_for_submission["product_id"],
@@ -2437,6 +2447,7 @@ class StealthOrderManager:
                     client_order_id=order_for_submission["client_order_id"],
                     post_only=order_for_submission["post_only"]
                 )
+                rest_call_succeeded = True
 
             if isinstance(order_result, dict):
                 success_response = order_result.get("success_response") or {}
@@ -2535,18 +2546,43 @@ class StealthOrderManager:
                 },
             )
         except Exception as e:
-            # ✗ EXCEPTION DURING PLACEMENT
-            placed_order_id = str(uuid.uuid4())  # Fallback for tracking
+            # ✗ EXCEPTION DURING PLACEMENT OR POST-PLACEMENT BOOKKEEPING
+            # rest_call_succeeded distinguishes:
+            #   - REST call itself raised => order is NOT on the exchange
+            #   - REST call returned, exception came from post-placement code
+            #     (audit insert, hook, lifecycle dispatch) => order IS LIVE on
+            #     the exchange and we just lost the bookkeeping link
+            # The second case is operationally critical: emitting "order was not
+            # placed" caused the 2026-04-29 incident where the exchange filled
+            # the order and we never created the follow-up.
+            placed_order_id = client_order_id if rest_call_succeeded else str(uuid.uuid4())
             placement_error = str(e)
-            
-            self.log_callback("error", {
-                "event": "stealth_order_slice_placement_exception",
-                "stealth_order_id": order['stealth_order_id'],
-                "size": slice_size,
-                "product_id": order["product_id"],
-                "exception": str(e),
-                "note": "Exception while placing order on exchange. Order was NOT placed."
-            })
+            placement_success = rest_call_succeeded
+
+            if rest_call_succeeded:
+                self.log_callback("error", {
+                    "event": "stealth_order_slice_post_placement_exception",
+                    "stealth_order_id": order['stealth_order_id'],
+                    "client_order_id": placed_order_id,
+                    "exchange_order_id": exchange_order_id,
+                    "size": slice_size,
+                    "product_id": order["product_id"],
+                    "exception": str(e),
+                    "note": (
+                        "REST place_limit_order SUCCEEDED but post-placement "
+                        "bookkeeping raised. Order IS LIVE on the exchange; "
+                        "operator action may be required to reconcile follow-up."
+                    ),
+                })
+            else:
+                self.log_callback("error", {
+                    "event": "stealth_order_slice_placement_exception",
+                    "stealth_order_id": order['stealth_order_id'],
+                    "size": slice_size,
+                    "product_id": order["product_id"],
+                    "exception": str(e),
+                    "note": "REST place_limit_order raised. Order was NOT placed on the exchange.",
+                })
             
             # 🔔 LIFECYCLE HOOK: REVEAL_FAILED
             self._dispatch_lifecycle_event(
