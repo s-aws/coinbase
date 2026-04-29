@@ -49,6 +49,7 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "create_stealth_order",
     "create_parent_order",
     "reprice_now_stealth_order",
+    "move_revealed_stealth_order",
     "move_order",
     "premark_move",
     "import_stealth_orders",
@@ -1304,6 +1305,148 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "stealth_order_id": stealth_order_id,
                     "processed": 0,
                     "error": str(e)
+                }))
+
+        elif msg_type == "move_revealed_stealth_order":
+            # Move a REVEALED stealth order to a new limit price by
+            # cancelling the existing exchange placement and re-placing
+            # at the new price. Mutually exclusive with anchor repricing
+            # for the same sid (enforced by StealthMutationKind claim).
+            #
+            # Inbound shape:
+            #   {
+            #     "type": "move_revealed_stealth_order",
+            #     "stealth_order_id": "sid_xyz",
+            #     "new_limit_price": 101.5,
+            #     "reason":  "manual_user_move" | "operator_reprice",  # optional
+            #     "notes":   "...",                                    # optional
+            #     "new_target_movement": 0.2,                          # optional
+            #     "new_target_movement_type": "P" | "$"                # optional
+            #   }
+            stealth_order_id = data.get("stealth_order_id")
+            new_limit_price = data.get("new_limit_price")
+            reason_raw = data.get("reason")
+            notes = data.get("notes")
+            new_target_movement = data.get("new_target_movement")
+            new_target_movement_type = data.get("new_target_movement_type")
+
+            if not stealth_order_id or new_limit_price is None or not stealth_order_bridge:
+                await websocket.send(json.dumps({
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": False,
+                    "error": "Missing stealth_order_id / new_limit_price or system not initialised",
+                    "stage": "validate",
+                }))
+                return
+
+            try:
+                from core.enums import StealthMoveReason
+                from core.exceptions import StealthMoveError
+
+                # Resolve reason enum at the boundary (P2 rule #5: enums, not magic strings).
+                reason_enum = None
+                if reason_raw:
+                    try:
+                        reason_enum = StealthMoveReason(reason_raw)
+                    except ValueError:
+                        await websocket.send(json.dumps({
+                            "type": "stealth_order_moved",
+                            "stealth_order_id": stealth_order_id,
+                            "success": False,
+                            "error": (
+                                f"unknown reason {reason_raw!r}; "
+                                f"expected one of: "
+                                f"{[r.value for r in StealthMoveReason]}"
+                            ),
+                            "stage": "validate",
+                        }))
+                        return
+
+                mgr = stealth_order_bridge.stealth_manager
+                plan = mgr.build_stealth_move_plan(
+                    stealth_order_id,
+                    safe_float(new_limit_price, default=0.0),
+                    new_target_movement=(
+                        safe_float(new_target_movement, default=None)
+                        if new_target_movement is not None else None
+                    ),
+                    new_target_movement_type=new_target_movement_type,
+                    reason=reason_enum,
+                    notes=notes,
+                )
+                # execute_stealth_move returns a StealthMoveResult with
+                # both the internal client_order_id (used for tracking,
+                # per AGENTS.md) and the exchange order_id (shown to the
+                # operator so they can cross-reference on Coinbase).
+                result = mgr.execute_stealth_move(plan)
+
+                add_log_entry(
+                    "INFO",
+                    f"Stealth order moved: {stealth_order_id} "
+                    f"@ {plan.new_configured_limit_price} "
+                    f"(new placement_client_order_id: "
+                    f"{result.new_placement_client_order_id}, "
+                    f"new exchange_order_id: {result.new_exchange_order_id})",
+                )
+                logger.info(
+                    f"[STEALTH-MOVE] {stealth_order_id} "
+                    f"old_ex={plan.old_exchange_order_id} "
+                    f"new_placement_client_order_id={result.new_placement_client_order_id} "
+                    f"new_exchange_order_id={result.new_exchange_order_id} "
+                    f"price={plan.new_configured_limit_price}"
+                )
+
+                response = {
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": True,
+                    "old_exchange_order_id": plan.old_exchange_order_id,
+                    "new_placement_client_order_id": result.new_placement_client_order_id,
+                    "new_exchange_order_id": result.new_exchange_order_id,
+                    "new_submitted_price": result.new_submitted_price,
+                }
+                # Broadcast so any other connected dashboards refresh too.
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+
+            except StealthMoveError as e:
+                # Stage tells the UI which phase failed: validate / claim /
+                # cancel / place / persist. "place" after a successful
+                # cancel is the operator-action-required case (the stealth
+                # order is now CANCELLED and there is no replacement on
+                # the exchange — see audit table stealth_order_moves).
+                logger.warning(
+                    f"move_revealed_stealth_order rejected: "
+                    f"sid={stealth_order_id} stage={e.stage} err={e}"
+                )
+                add_log_entry(
+                    "WARN" if e.stage in ("validate", "claim") else "ERROR",
+                    f"Stealth move {stealth_order_id} failed at {e.stage}: {e}",
+                )
+                await websocket.send(json.dumps({
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": False,
+                    "error": str(e),
+                    "stage": e.stage,
+                }))
+            except Exception as e:
+                logger.exception(f"move_revealed_stealth_order crashed: {e}")
+                add_log_entry(
+                    "ERROR",
+                    f"Stealth move {stealth_order_id} crashed: {e}",
+                )
+                await websocket.send(json.dumps({
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": False,
+                    "error": str(e),
+                    "stage": "unknown",
                 }))
 
         elif msg_type == "update_stealth_price_threshold":

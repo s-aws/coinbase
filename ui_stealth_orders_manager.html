@@ -319,6 +319,25 @@
             background: rgba(96, 205, 255, 0.15);
         }
 
+        /* Move (price-relocate a REVEALED stealth order). Distinct
+           amber tone so operators don't confuse it with Cancel (red) or
+           Hide (blue). Same shape as reprice-btn so it visually slots
+           into the action column. */
+        button.move-btn {
+            background: transparent;
+            border: 1px solid #ffa94d;
+            color: #ffa94d;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        button.move-btn:hover {
+            background: rgba(255, 169, 77, 0.12);
+        }
+
         button.edit-btn {
             color: #ffd700;
             border-color: #ffd700;
@@ -1160,6 +1179,51 @@
     </div>
 
     <!-- Edit Target Movement Modal -->
+    <div id="moveRevealedModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Move Revealed Order</h2>
+                <button type="button" class="modal-close" onclick="closeMoveRevealedModal()">&times;</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <label style="display: block; margin-bottom: 4px; color: #aaa; font-size: 12px;">Stealth Order</label>
+                    <div id="moveRevealedSidLabel" style="font-family: monospace;">&mdash;</div>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 4px; color: #aaa; font-size: 12px;">Current Limit Price</label>
+                    <div id="moveRevealedCurrentPriceLabel" style="font-family: monospace;">&mdash;</div>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">New Limit Price</label>
+                    <input type="number" id="moveRevealedNewPrice" placeholder="e.g. 101.50" step="0.01" min="0">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Reason</label>
+                    <select id="moveRevealedReason">
+                        <option value="manual_user_move">Manual user move</option>
+                        <option value="operator_reprice">Operator reprice</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px;">Notes (optional)</label>
+                    <input type="text" id="moveRevealedNotes" placeholder="audit trail context">
+                </div>
+                <div style="font-size: 12px; color: #aaa;">
+                    A move will <strong>cancel</strong> the current exchange placement and submit a
+                    new limit order at the price above. Repricing state and reveal
+                    counters reset. If the cancel succeeds but the new placement
+                    fails, the stealth order is left <strong>CANCELLED</strong> and you will see a
+                    warning &mdash; check the <code>stealth_order_moves</code> audit table.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cancel-modal-btn" onclick="closeMoveRevealedModal()">Cancel</button>
+                <button type="button" class="confirm-btn" onclick="confirmMoveRevealed()">Move</button>
+            </div>
+        </div>
+    </div>
+
     <div id="editParentTargetMovementModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1703,14 +1767,57 @@
                         } else {
                             showMessage(
                                 data.processed > 0
-                                    ? `⟳ Repriced order ${sid.substring(0, 8)}…`
-                                    : `⟳ No reprice needed for ${sid.substring(0, 8)}…`,
+                                    ? `\u27f3 Repriced order ${sid.substring(0, 8)}\u2026`
+                                    : `\u27f3 No reprice needed for ${sid.substring(0, 8)}\u2026`,
                                 data.processed > 0 ? 'success' : 'info'
                             );
                             // Refresh snapshot to pick up new limit_price in state
                             if (ws && ws.readyState === WebSocket.OPEN) {
                                 ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
                             }
+                        }
+                    } else if (data.type === "stealth_order_moved") {
+                        // Move-revealed result. The server echoes the
+                        // failing stage so the UI can highlight the
+                        // operator-action-required case (place_failed_after_cancel
+                        // leaves the stealth order CANCELLED with no
+                        // exchange replacement \u2014 see audit table).
+                        const sid = data.stealth_order_id || '';
+                        const sidShort = sid ? sid.substring(0, 8) + '\u2026' : '?';
+                        if (data.success) {
+                            // Show exchange order id inline so the operator
+                            // can immediately cross-reference on Coinbase
+                            // without having to query the audit table.
+                            const exId = data.new_exchange_order_id
+                                ? ` (ex: ${String(data.new_exchange_order_id).substring(0, 8)}\u2026)`
+                                : '';
+                            showMessage(
+                                `\u2192 Moved ${sidShort} \u2192 ${data.new_submitted_price}${exId}`,
+                                'success'
+                            );
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+                            }
+                        } else if (data.stage === 'place') {
+                            // Critical: cancel succeeded but place failed.
+                            // No exchange order remains. Use a stronger
+                            // alert + persistent error toast.
+                            const msg =
+                                `CRITICAL: stealth order ${sidShort} was CANCELLED on the exchange ` +
+                                `but the replacement place failed: ${data.error}. ` +
+                                `Check stealth_order_moves table and resubmit manually if needed.`;
+                            showMessage(msg, 'error');
+                            // Surface a blocking alert too so the operator notices
+                            // even if they're not watching the toast area.
+                            try { alert(msg); } catch (e) { /* non-browser env */ }
+                            if (ws && ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+                            }
+                        } else {
+                            showMessage(
+                                `Move failed (${data.stage || 'unknown'}): ${data.error}`,
+                                'error'
+                            );
                         }
                     } else if (data.type === "stealth_order_cancelled") {
                         // Handle stealth order cancellation
@@ -2117,6 +2224,7 @@
                                     : order.status === 'REVEALED'
                                     ? `<div class="hover-action-wrapper">
                                         <span class="action-text">Revealed</span>
+                                        <button onclick="openMoveRevealedModal('${order.stealth_order_id}', ${order.limit_price})" class="move-btn" title="Move to a new limit price (cancel + replace)">Move</button>
                                         <button onclick="hideOrder('${order.stealth_order_id}')" class="hide-btn">Hide</button>
                                       </div>`
                                     : `<span style="color: #999; font-size: 12px;">${order.status === 'EXECUTED' ? 'Executed' : order.status}</span>`
@@ -2659,6 +2767,60 @@
                 type: "reprice_now_stealth_order",
                 stealth_order_id: orderID
             }));
+        }
+
+        // ---- Move Revealed Stealth Order ------------------------------
+        // Mirrors the openEdit/close/confirm pattern of the parent-edit
+        // modal. The dataset attribute carries the sid through the modal
+        // lifecycle so the confirm handler doesn't depend on the row
+        // still being present when the user clicks Move.
+        function openMoveRevealedModal(stealthOrderId, currentLimitPrice) {
+            const modal = document.getElementById('moveRevealedModal');
+            modal.dataset.stealthOrderId = stealthOrderId;
+            document.getElementById('moveRevealedSidLabel').textContent = stealthOrderId;
+            document.getElementById('moveRevealedCurrentPriceLabel').textContent =
+                currentLimitPrice != null ? Number(currentLimitPrice).toString() : '\u2014';
+            // Pre-fill new price with current as a safe starting point.
+            const newPriceInput = document.getElementById('moveRevealedNewPrice');
+            newPriceInput.value = currentLimitPrice != null ? currentLimitPrice : '';
+            document.getElementById('moveRevealedReason').value = 'manual_user_move';
+            document.getElementById('moveRevealedNotes').value = '';
+            modal.style.display = 'block';
+            // Focus + select the price field so the operator can type immediately.
+            setTimeout(() => { newPriceInput.focus(); newPriceInput.select(); }, 0);
+        }
+
+        function closeMoveRevealedModal() {
+            document.getElementById('moveRevealedModal').style.display = 'none';
+        }
+
+        function confirmMoveRevealed() {
+            const modal = document.getElementById('moveRevealedModal');
+            const stealthOrderId = modal.dataset.stealthOrderId;
+            const newPriceRaw = document.getElementById('moveRevealedNewPrice').value;
+            const reason = document.getElementById('moveRevealedReason').value;
+            const notes = document.getElementById('moveRevealedNotes').value.trim();
+
+            const newPrice = parseFloat(newPriceRaw);
+            if (!stealthOrderId || !Number.isFinite(newPrice) || newPrice <= 0) {
+                showMessage('Enter a valid new limit price (> 0)', 'error');
+                return;
+            }
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+
+            const payload = {
+                type: "move_revealed_stealth_order",
+                stealth_order_id: stealthOrderId,
+                new_limit_price: newPrice,
+                reason: reason,
+            };
+            if (notes) payload.notes = notes;
+            ws.send(JSON.stringify(payload));
+            closeMoveRevealedModal();
+            showMessage(`Move requested for ${stealthOrderId.substring(0, 8)}\u2026`, 'info');
         }
 
         // Modal functions for editing parent target movement

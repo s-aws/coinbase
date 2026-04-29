@@ -332,6 +332,127 @@ class RevealExecutionPlan:
 
 
 @dataclass
+class StealthMovePlan:
+    """Plan for "moving" a REVEALED stealth order — i.e. cancel-and-replace
+    on the exchange while keeping the same internal ``stealth_order_id``.
+
+    Coinbase exposes no order-edit endpoint, so a move is implemented as
+    cancel + place. This dataclass captures every decision needed to
+    execute the move atomically, in the same integrated-by-design shape
+    as :class:`RevealExecutionPlan`:
+
+    - **Single source of truth** — built once via
+      ``StealthOrderManager.build_stealth_move_plan(...)``.
+    - **Composes RevealExecutionPlan** — pricing/policy/market context for
+      the *new* placement is delegated to the existing reveal path so
+      there is one canonical pricing decision in the system.
+    - **Audit-friendly** — every field is persisted alongside the move
+      audit row.
+
+    v1 scope (pinned by ``tests/regression/test_stealth_move_revealed.py``):
+    - Order must be ``REVEALED`` with ``executed_size == 0`` (no partial
+      fills); reject at build time otherwise.
+    - Move always resets per-order anchor repricing state and
+      ``revealed_orders[]`` history; the new placement starts fresh.
+    - Flat hierarchy preserved: ``root_parent_client_order_id`` is
+      resolved via :func:`resolve_stealth_chain_root` and reused for the
+      new placement's parent linkage.
+
+    Attributes:
+        stealth_order_id: Internal id of the stealth order being moved.
+            Persisted across the move; the new exchange placement is
+            recorded against the same stealth order.
+        root_parent_client_order_id: Original parent client_order_id
+            (flat hierarchy: never re-parented to a child).
+        old_exchange_order_id: Coinbase order id of the placement being
+            cancelled. Required for the cancel call.
+        old_submitted_price: Limit price of the placement being cancelled,
+            captured for the audit snapshot.
+        new_configured_limit_price: New target limit price the user is
+            moving the order to. Becomes the order's persisted
+            ``limit_price`` and the input to the new reveal plan.
+        new_target_movement: Optional override of the parent's profit
+            target. ``None`` means inherit unchanged.
+        new_target_movement_type: ``'P'`` (percent) or ``'A'`` (absolute);
+            paired with ``new_target_movement``. ``None`` when no override.
+        reveal_plan: The composed :class:`RevealExecutionPlan` describing
+            the *new* placement. Drives ``submitted_limit_price`` so we
+            never duplicate pricing logic.
+        reset_repricing_state: Always ``True`` in v1. Field exists so
+            future variants (e.g. preserve-cooldown moves) are explicit.
+        reset_reveal_counters: Always ``True`` in v1. Same rationale.
+        reason: Why the move was triggered (audit field).
+        notes: Optional human-readable note for the audit row.
+        market_bid: Best bid at plan-build time (audit snapshot).
+        market_ask: Best ask at plan-build time (audit snapshot).
+    """
+
+    stealth_order_id: str
+    root_parent_client_order_id: str
+    old_exchange_order_id: str
+    old_submitted_price: float
+    new_configured_limit_price: float
+    reveal_plan: "RevealExecutionPlan"
+    reason: "StealthMoveReason"
+    new_target_movement: Optional[float] = None
+    new_target_movement_type: Optional[str] = None
+    reset_repricing_state: bool = True
+    reset_reveal_counters: bool = True
+    notes: Optional[str] = None
+    market_bid: Optional[float] = None
+    market_ask: Optional[float] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize for persistence in the move audit row."""
+        return {
+            'stealth_order_id': self.stealth_order_id,
+            'root_parent_client_order_id': self.root_parent_client_order_id,
+            'old_exchange_order_id': self.old_exchange_order_id,
+            'old_submitted_price': self.old_submitted_price,
+            'new_configured_limit_price': self.new_configured_limit_price,
+            'new_target_movement': self.new_target_movement,
+            'new_target_movement_type': self.new_target_movement_type,
+            'reveal_plan': self.reveal_plan.to_dict() if self.reveal_plan else None,
+            'reset_repricing_state': self.reset_repricing_state,
+            'reset_reveal_counters': self.reset_reveal_counters,
+            'reason': self.reason.value if self.reason is not None else None,
+            'notes': self.notes,
+            'market_bid': self.market_bid,
+            'market_ask': self.market_ask,
+        }
+
+
+@dataclass
+class StealthMoveResult:
+    """Outcome of a successful :meth:`StealthOrderManager.execute_stealth_move`.
+
+    Both ids are returned — internal (``new_placement_client_order_id``)
+    AND exchange (``new_exchange_order_id``) — because:
+
+    - The internal id is what every downstream system uses to track the
+      placement (per AGENTS.md: ``client_order_id`` for internal tracking).
+    - The exchange id is what the operator types into the Coinbase UI to
+      look up the live order, and what the WS payload surfaces inline so
+      the dashboard doesn't need to round-trip through the audit table.
+
+    Returning a structured result instead of a bare string also makes
+    future additions (submitted_price, status snapshot, ...) backwards
+    compatible without breaking call-site signatures.
+    """
+
+    new_placement_client_order_id: str
+    new_exchange_order_id: Optional[str]
+    new_submitted_price: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'new_placement_client_order_id': self.new_placement_client_order_id,
+            'new_exchange_order_id': self.new_exchange_order_id,
+            'new_submitted_price': self.new_submitted_price,
+        }
+
+
+@dataclass
 class RepricingPolicy:
     """Anchor-repricing policy for a stealth order.
 

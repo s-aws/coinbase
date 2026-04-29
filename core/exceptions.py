@@ -248,6 +248,52 @@ class RevealOrderSliceError(StealthOrderError):
     pass
 
 
+class StealthMoveError(StealthOrderError):
+    """
+    Move of a REVEALED stealth order failed.
+
+    Raised by ``StealthOrderManager.build_stealth_move_plan`` and
+    ``execute_stealth_move`` when the move cannot be safely attempted or
+    completes only partially.
+
+    Build-time causes:
+    - Stealth order not found / cannot be loaded
+    - Status is not ``REVEALED`` (moves are only valid against revealed orders)
+    - ``executed_size > 0`` (v1: partial-fill moves are out of scope)
+    - No active exchange order id to cancel
+    - New limit price <= 0
+
+    Execute-time causes:
+    - Concurrent mutation already in flight (claim could not be acquired)
+    - Exchange cancel failed
+    - Replacement placement failed *after* the cancel succeeded — the
+      stealth order is left in ``CANCELLED`` status with the audit row
+      flagged so operators can investigate
+
+    Recovery: For build-time errors, fix the input (correct sid, wait for
+    fill to clear, choose a positive price). For "post-cancel place
+    failed" errors the original placement is gone from the exchange;
+    operators may issue a new ``create_stealth_order`` if needed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        stealth_order_id: Optional[str] = None,
+        stage: Optional[str] = None,
+    ):
+        """
+        Args:
+            message: Error description
+            stealth_order_id: Order id for correlation
+            stage: Where the failure occurred
+                (``"validate"``, ``"claim"``, ``"cancel"``, ``"place"``, ``"persist"``)
+        """
+        self.stealth_order_id = stealth_order_id
+        self.stage = stage
+        super().__init__(message)
+
+
 class StealthOrderPersistenceError(StealthOrderError):
     """
     Stealth order database persistence failed.

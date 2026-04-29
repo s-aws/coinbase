@@ -126,6 +126,120 @@ class OrderBookReadOnlyError(RuntimeError):
     """
 
 
+class ClaimLedger:
+    """Generic three-state per-key claim ledger.
+
+    Reusable kernel of the follow-up processing claim mechanism. Each
+    ``(kind, key)`` slot is in one of three states:
+
+    - **absent**  — ``try_claim`` will succeed.
+    - **processing** — owned by some thread; further claims fail until
+      :meth:`release` (failure path) or :meth:`complete` (terminal).
+    - **done** — terminal; further claims fail forever.
+
+    The ``kind`` argument to every method is validated at the boundary
+    against a caller-supplied :class:`enum.Enum` subclass, so a typo on
+    the kind cannot silently allocate a fresh namespace.
+
+    The ledger is **process-local bookkeeping** and not persisted; the
+    underlying lock is a private :class:`threading.RLock`. Callers that
+    must serialise the ledger against external state (e.g. order writes)
+    should hold that external lock around the ``try_claim`` / mutation /
+    ``release`` sequence.
+
+    Two production usages exist (see :class:`core.enums.FollowUpKind` and
+    :class:`core.enums.StealthMutationKind`):
+
+    - :class:`OrderBook` owns one keyed on :class:`FollowUpKind` to
+      serialise FILLED / CANCELLED follow-up creation.
+    - :class:`core.stealth_order_manager.StealthOrderManager` owns one
+      keyed on :class:`StealthMutationKind` to serialise REVEALED-order
+      moves against the ticker-driven anchor reprice loop.
+
+    Stealth mutations are repeatable, so callers there must use
+    :meth:`release` in both success and failure paths and never call
+    :meth:`complete`.
+    """
+
+    def __init__(self, kind_enum: type) -> None:
+        from enum import Enum
+
+        if not (isinstance(kind_enum, type) and issubclass(kind_enum, Enum)):
+            raise TypeError(
+                f"kind_enum must be an Enum subclass, got {kind_enum!r}"
+            )
+        self._kind_enum = kind_enum
+        self._lock = threading.RLock()
+        self._slots: dict[str, dict[str, str]] = {}
+
+    def _coerce_kind(self, kind) -> str:
+        if isinstance(kind, self._kind_enum):
+            return kind.value
+        if isinstance(kind, str):
+            try:
+                return self._kind_enum(kind).value
+            except ValueError as exc:
+                raise ValueError(
+                    f"Unknown {self._kind_enum.__name__}: {kind!r}; "
+                    f"expected one of {[k.value for k in self._kind_enum]}"
+                ) from exc
+        raise TypeError(
+            f"kind must be {self._kind_enum.__name__} or str, "
+            f"got {type(kind).__name__}"
+        )
+
+    def try_claim(self, kind, key: str) -> bool:
+        """Atomically claim ``(kind, key)``.
+
+        Returns ``True`` if the caller now owns the claim and must finish
+        it with :meth:`release` (failure / repeatable) or :meth:`complete`
+        (terminal). Returns ``False`` if the slot is already ``processing``
+        or ``done``.
+        """
+
+        kind_key = self._coerce_kind(kind)
+        with self._lock:
+            ledger = self._slots.setdefault(kind_key, {})
+            current = ledger.get(key)
+            if current in {"processing", "done"}:
+                return False
+            ledger[key] = "processing"
+            return True
+
+    def release(self, kind, key: str) -> None:
+        """Release a ``processing`` claim so it may be retried.
+
+        No-op if the entry is absent or in any state other than
+        ``processing`` — completed claims must stay completed.
+        """
+
+        kind_key = self._coerce_kind(kind)
+        with self._lock:
+            ledger = self._slots.get(kind_key)
+            if ledger is None:
+                return
+            if ledger.get(key) == "processing":
+                ledger.pop(key, None)
+
+    def complete(self, kind, key: str) -> None:
+        """Mark a claim as terminally ``done`` so it can never re-fire."""
+
+        kind_key = self._coerce_kind(kind)
+        with self._lock:
+            ledger = self._slots.setdefault(kind_key, {})
+            ledger[key] = "done"
+
+    def state(self, kind, key: str):
+        """Inspect current state — ``None``, ``"processing"`` or ``"done"``."""
+
+        kind_key = self._coerce_kind(kind)
+        with self._lock:
+            ledger = self._slots.get(kind_key)
+            if ledger is None:
+                return None
+            return ledger.get(key)
+
+
 class OrderBook:
     """Instance-scoped, thread-safe order and position book.
 
@@ -191,10 +305,13 @@ class OrderBook:
         # FollowUpKind (filled / cancelled).  Values are "processing" once
         # claimed and "done" once completed; absent keys are unclaimed.
         # Owned by OrderEngine.{try,release,complete}_follow_up_processing
-        # (see those wrappers) — kept here so it lives next to the lock and
-        # the rest of the per-orderbook runtime state instead of being a
-        # stringly-typed attribute on the legacy shim.
-        self._follow_up_claims: dict[str, dict[str, str]] = {}
+        # (see those wrappers).  Backed by the generic :class:`ClaimLedger`
+        # kernel so the same primitive can serve other namespaces (e.g.
+        # StealthOrderManager mutation claims) without duplicating the
+        # three-state state-machine and its boundary validation.
+        from core.enums import FollowUpKind
+
+        self._follow_up_ledger = ClaimLedger(FollowUpKind)
 
     # ------------------------------------------------------------------
     # Lock & read-only mode
@@ -289,35 +406,13 @@ class OrderBook:
     # Follow-up processing claims
     # ------------------------------------------------------------------
     #
-    # Three-state per (kind, client_order_id):
-    #   absent       — unclaimed; ``try_claim_follow_up`` will succeed.
-    #   "processing" — owned by some thread; further claims fail until
-    #                  ``release_follow_up`` (failure path) or
-    #                  ``complete_follow_up`` (success path) runs.
-    #   "done"       — terminal; further claims fail forever.
-    #
-    # The kind is a typed enum value (FollowUpKind) — never a stringly-typed
-    # attribute lookup.  Read-only mode does NOT block these methods because
-    # claim state is per-process bookkeeping, not persistent state.
-
-    def _coerce_kind(self, kind: "str | FollowUpKind") -> str:
-        # Local import to avoid a top-level cycle (enums imports nothing,
-        # but core.orderbook is imported very early at module load time).
-        from core.enums import FollowUpKind
-        if isinstance(kind, FollowUpKind):
-            return kind.value
-        if isinstance(kind, str):
-            # Validate against the enum to catch typos at the boundary.
-            try:
-                return FollowUpKind(kind).value
-            except ValueError as exc:
-                raise ValueError(
-                    f"Unknown follow-up kind: {kind!r}; "
-                    f"expected one of {[k.value for k in FollowUpKind]}"
-                ) from exc
-        raise TypeError(
-            f"follow-up kind must be FollowUpKind or str, got {type(kind).__name__}"
-        )
+    # Backed by :class:`ClaimLedger` keyed on :class:`core.enums.FollowUpKind`.
+    # The ledger validates the kind at the boundary so a typo cannot
+    # silently create a fresh namespace, and serialises with its own
+    # internal lock (independent of :attr:`_lock` so claim bookkeeping
+    # cannot deadlock against order writes).  Read-only mode does NOT
+    # block these methods because claim state is per-process bookkeeping,
+    # not persistent state.
 
     def try_claim_follow_up(
         self, kind: "str | FollowUpKind", client_order_id: str
@@ -330,14 +425,7 @@ class OrderBook:
         ``processing`` or ``done``.
         """
 
-        kind_key = self._coerce_kind(kind)
-        with self._lock:
-            ledger = self._follow_up_claims.setdefault(kind_key, {})
-            current = ledger.get(client_order_id)
-            if current in {"processing", "done"}:
-                return False
-            ledger[client_order_id] = "processing"
-            return True
+        return self._follow_up_ledger.try_claim(kind, client_order_id)
 
     def release_follow_up(
         self, kind: "str | FollowUpKind", client_order_id: str
@@ -348,35 +436,21 @@ class OrderBook:
         ``processing`` — completed claims must stay completed.
         """
 
-        kind_key = self._coerce_kind(kind)
-        with self._lock:
-            ledger = self._follow_up_claims.get(kind_key)
-            if ledger is None:
-                return
-            if ledger.get(client_order_id) == "processing":
-                ledger.pop(client_order_id, None)
+        self._follow_up_ledger.release(kind, client_order_id)
 
     def complete_follow_up(
         self, kind: "str | FollowUpKind", client_order_id: str
     ) -> None:
         """Mark a claim as terminally ``done`` so it can never re-fire."""
 
-        kind_key = self._coerce_kind(kind)
-        with self._lock:
-            ledger = self._follow_up_claims.setdefault(kind_key, {})
-            ledger[client_order_id] = "done"
+        self._follow_up_ledger.complete(kind, client_order_id)
 
     def follow_up_claim_state(
         self, kind: "str | FollowUpKind", client_order_id: str
     ) -> "str | None":
         """Inspect the current claim state — returns ``None``, ``"processing"`` or ``"done"``."""
 
-        kind_key = self._coerce_kind(kind)
-        with self._lock:
-            ledger = self._follow_up_claims.get(kind_key)
-            if ledger is None:
-                return None
-            return ledger.get(client_order_id)
+        return self._follow_up_ledger.state(kind, client_order_id)
 
     # ------------------------------------------------------------------
     # Parent / child relationship tracking

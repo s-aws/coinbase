@@ -181,6 +181,38 @@ class FollowUpKind(str, Enum):
     CANCELLED = "cancelled"
 
 
+class StealthMutationKind(str, Enum):
+    """Kind of in-flight mutation against a single stealth order.
+
+    Stealth orders may be mutated concurrently by two independent paths:
+    - The ticker-driven anchor reprice loop (background, REPRICE)
+    - User-initiated "move REVEALED" actions from the dashboard (MOVE)
+
+    Each kind has its own per-(kind, stealth_order_id) claim namespace in
+    a :class:`core.orderbook.ClaimLedger`. A held MOVE claim must block a
+    REPRICE attempt on the same order, and vice versa, to prevent
+    double-cancellation of the exchange order.
+
+    Unlike :class:`FollowUpKind`, stealth mutations are **repeatable** —
+    a moved order may later be moved again, a repriced order may later be
+    repriced again. Callers must release the claim with ``release`` after
+    both success and failure paths; there is no terminal ``done`` state.
+    """
+
+    MOVE = "move"
+    REPRICE = "reprice"
+
+
+class StealthMoveReason(str, Enum):
+    """Why a REVEALED stealth order was moved.
+
+    Persisted on the audit row so the move history is queryable by intent.
+    """
+
+    MANUAL_USER_MOVE = "manual_user_move"
+    OPERATOR_REPRICE = "operator_reprice"
+
+
 class RevealPricingPolicy(str, Enum):
     """Pricing policy for stealth order reveal.
     
