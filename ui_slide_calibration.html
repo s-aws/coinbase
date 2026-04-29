@@ -341,14 +341,22 @@ function requestSummary() {
 
 function renderTiles(totals, targets) {
     const tilesEl = $('tiles');
-    const overNotional = targets.notional_progress_pct > 100;
+    // Compare window notional against the window-prorated slice of the daily
+    // target so a 60-minute window doesn't read as 1/24 of "done". The daily
+    // % is still surfaced in the sub-line as the headline KPI.
+    const windowPct = Number(targets.window_notional_progress_pct) || 0;
+    const dailyPct  = Number(targets.notional_progress_pct) || 0;
+    const overWindow = windowPct > 100;
     const tiles = [
         {
             label: `Notional in last ${targets.window_minutes}m`,
             value: fmtUsd(totals.total_notional_usd),
-            sub:   `Goal ${fmtUsd(targets.daily_notional_target_usd)} • ${targets.notional_progress_pct.toFixed(1)}%`,
-            pct:   targets.notional_progress_pct,
-            over:  overNotional,
+            sub:   `Window goal ${fmtUsd(targets.window_notional_target_usd)} `
+                 + `(${windowPct.toFixed(1)}%) • `
+                 + `Daily ${fmtUsd(targets.daily_notional_target_usd)} `
+                 + `(${dailyPct.toFixed(1)}%)`,
+            pct:   windowPct,
+            over:  overWindow,
         },
         {
             label: 'Capital Turnover',

@@ -174,6 +174,59 @@ def test_progress_and_turnover_math(patch_db):
     t = summary["targets"]
     assert t["notional_progress_pct"] == 50.0       # 500k / 1M
     assert t["capital_turnover"] == pytest.approx(2.0)  # 500k / 250k
+    # Window-prorated target: 1440-min window == full daily target.
+    assert t["window_notional_target_usd"] == pytest.approx(1_000_000.0)
+    assert t["window_notional_progress_pct"] == 50.0
+
+
+def test_window_target_is_prorated_against_daily(patch_db):
+    """A short window must scale the daily target proportionally so the
+    "window % to goal" gauge reads like-for-like. Without proration a
+    60-minute pull of $500k would read 50% (against daily $1M) when the
+    correct read is "you've done 12x your hour's slice of daily target".
+    """
+    fill_rows = [{
+        "product_id": "BTC-USDC",
+        "fills_count": 1, "distinct_orders_filled": 1,
+        "buy_count": 0, "sell_count": 1,
+        "raw_notional": Decimal("500000"),
+        "raw_buy_notional": Decimal("0"),
+        "raw_sell_notional": Decimal("500000"),
+        "total_quantity": Decimal("6.6"),
+        "total_fees": Decimal("0"),
+        "avg_price": Decimal("75757.57"),
+        "min_price": Decimal("75757.57"),
+        "max_price": Decimal("75757.57"),
+        "price_stdev": None,
+        "first_fill_at": _ts(30), "last_fill_at": _ts(30),
+    }]
+    patch_db(fill_rows, [], [])
+
+    from database.slide_calibration_helpers import get_slide_calibration_summary
+    summary = get_slide_calibration_summary(
+        window_minutes=60,
+        daily_notional_target_usd=1_000_000.0,
+        account_balance_usd=250_000.0,
+    )
+    t = summary["targets"]
+    # 60-min slice of daily $1M target = $1M * 60/1440 = $41,666.67
+    assert t["window_notional_target_usd"] == pytest.approx(41_666.67, rel=1e-4)
+    # $500k actual / $41,666.67 window goal = 1200%
+    assert t["window_notional_progress_pct"] == pytest.approx(1200.0, rel=1e-4)
+    # Daily KPI unchanged: $500k / $1M = 50%
+    assert t["notional_progress_pct"] == 50.0
+
+
+def test_window_target_zero_daily_does_not_div_zero(patch_db):
+    """Defensive: daily_notional_target_usd=0 returns window pct=0, no crash."""
+    patch_db()
+    from database.slide_calibration_helpers import get_slide_calibration_summary
+    summary = get_slide_calibration_summary(
+        window_minutes=60, daily_notional_target_usd=0.0
+    )
+    assert summary["targets"]["window_notional_target_usd"] == 0.0
+    assert summary["targets"]["window_notional_progress_pct"] == 0.0
+    assert summary["targets"]["notional_progress_pct"] == 0.0
 
 
 def test_contract_size_scales_futures_notional(patch_db):
@@ -297,3 +350,36 @@ def test_zero_account_balance_does_not_div_zero(patch_db):
         window_minutes=60, account_balance_usd=0.0
     )
     assert summary["targets"]["capital_turnover"] == 0.0
+
+
+def test_reprice_history_sql_accepts_both_object_and_scalar_shapes():
+    """Static-source guard: the reprice-counter SQL must match BOTH
+
+      * legacy / current bare-string entries:
+            "reprice_history": ["2026-04-29T...", ...]
+      * forward object entries:
+            "reprice_history": [{"timestamp": "...", ...}, ...]
+
+    The manager currently writes the bare-string form
+    (``state.setdefault("reprice_history", []).append(now.isoformat())``);
+    a previous reader version only matched objects, which silently
+    reported zero reprices in the slide-calibration summary. Pin the
+    contract so a future "tidy-up" of the SQL cannot re-introduce that
+    blind spot without updating this test.
+    """
+    import inspect
+    from database import slide_calibration_helpers as mod
+
+    src = inspect.getsource(mod._per_product_stealth_metrics)
+    assert "jsonb_typeof(evt) = 'object'" in src, (
+        "object-shape branch missing from reprice SQL"
+    )
+    assert "jsonb_typeof(evt) = 'string'" in src, (
+        "scalar-string branch missing from reprice SQL — bare ISO "
+        "timestamp entries written by stealth_order_manager will be "
+        "silently ignored"
+    )
+    # The scalar branch must use ``#>> '{}'`` to extract the JSONB
+    # string as plain text (``->> 'timestamp'`` would not work on a
+    # scalar). Pin that detail too.
+    assert "evt #>> '{}'" in src

@@ -214,9 +214,14 @@ def _per_product_stealth_metrics(
 
     # Second pass: count reprice_history entries within the window. We pull
     # the JSONB and unnest in SQL so the per-row work stays in Postgres.
-    # ``reprice_history`` entries are objects shaped like
-    #   {"timestamp": "...iso8601...", "from": .., "to": ..., "source": ..}
-    # so we filter on the ``timestamp`` key; entries without it are skipped.
+    # ``reprice_history`` entries can take two shapes (single source of truth
+    # is whatever core.stealth_order_manager writes today; the manager
+    # currently appends bare ISO timestamp strings, but earlier/forward
+    # versions wrap them in objects). Both shapes are accepted here so the
+    # reprice count never silently reports zero after a manager refactor:
+    #   - ``"2026-04-29T..."``                 (bare scalar string)
+    #   - ``{"timestamp": "2026-04-29T..."}``  (object)
+    # Entries not matching either shape are skipped.
     reprice_sql = """
         SELECT
             so.product_id                                       AS product_id,
@@ -227,12 +232,20 @@ def _per_product_stealth_metrics(
              ) AS evt
         WHERE so.parent_order_id IS NULL
           AND (%s IS NULL OR so.product_id = %s)
-          AND evt ? 'timestamp'
-          AND (evt ->> 'timestamp')::timestamp >= NOW() - (%s || ' minutes')::interval
+          AND (
+                (jsonb_typeof(evt) = 'object'
+                 AND evt ? 'timestamp'
+                 AND (evt ->> 'timestamp')::timestamp
+                     >= NOW() - (%s || ' minutes')::interval)
+             OR (jsonb_typeof(evt) = 'string'
+                 AND (evt #>> '{}')::timestamp
+                     >= NOW() - (%s || ' minutes')::interval)
+              )
         GROUP BY so.product_id
     """
     reprice_rows = db.execute_query(
-        reprice_sql, (product_id, product_id, str(window_minutes))
+        reprice_sql,
+        (product_id, product_id, str(window_minutes), str(window_minutes)),
     )
     for r in reprice_rows:
         bucket = by_product.setdefault(r["product_id"], {
@@ -359,11 +372,24 @@ def get_slide_calibration_summary(
         if account_balance_usd > 0 else 0.0
     )
 
+    # Window-prorated view of the daily target. The raw daily_notional_target
+    # is fixed (it's a daily goal); when the operator pulls a 60-minute window
+    # the un-prorated comparison understates progress by 24x. Both are
+    # surfaced so the UI can label them clearly: the daily % is the headline
+    # KPI, the window % is the like-for-like gauge.
+    window_target_usd = daily_notional_target_usd * (window_minutes / 1440.0)
+    window_progress_pct = (
+        (totals["total_notional_usd"] / window_target_usd * 100.0)
+        if window_target_usd > 0 else 0.0
+    )
+
     targets = {
         "window_minutes": window_minutes,
         "daily_notional_target_usd": daily_notional_target_usd,
+        "window_notional_target_usd": round(window_target_usd, 2),
         "account_balance_usd": account_balance_usd,
         "notional_progress_pct": round(notional_progress_pct, 2),
+        "window_notional_progress_pct": round(window_progress_pct, 2),
         "capital_turnover": round(capital_turnover, 4),
     }
 
