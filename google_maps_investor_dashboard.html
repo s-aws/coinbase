@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maps Trading Dashboard</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;700&display=swap');
+
+        :root {
+            --bg-1: #dfe9d8;
+            --bg-2: #d4e4f5;
+            --surface: rgba(255, 255, 255, 0.88);
+            --surface-strong: rgba(255, 255, 255, 0.96);
+            --text: #1f2a36;
+            --muted: #5a6877;
+            --border: #b8cadb;
+            --market: #1a73e8;
+            --chain: #ea4335;
+            --good: #34a853;
+            --bad: #d93025;
+            --shadow: 0 16px 34px rgba(31, 55, 84, 0.16);
+            --focus: #1a73e8;
+        }
+
+        body[data-theme="dark"] {
+            --bg-1: #1d262f;
+            --bg-2: #263545;
+            --surface: rgba(34, 46, 59, 0.9);
+            --surface-strong: rgba(39, 53, 69, 0.96);
+            --text: #e8f0fe;
+            --muted: #a9bfd5;
+            --border: #3f556b;
+            --market: #8ab4f8;
+            --chain: #f28b82;
+            --good: #81c995;
+            --bad: #f28b82;
+            --shadow: 0 20px 42px rgba(2, 8, 15, 0.56);
+            --focus: #8ab4f8;
+        }
+
+        * { box-sizing: border-box; }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+        }
+
+        body {
+            font-family: "Roboto", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 14% 22%, rgba(110, 183, 255, 0.28), transparent 25%),
+                radial-gradient(circle at 83% 78%, rgba(133, 196, 104, 0.26), transparent 30%),
+                repeating-linear-gradient(34deg, rgba(255, 255, 255, 0.45) 0px, rgba(255, 255, 255, 0.45) 2px, transparent 2px, transparent 58px),
+                repeating-linear-gradient(-58deg, rgba(252, 233, 170, 0.5) 0px, rgba(252, 233, 170, 0.5) 2px, transparent 2px, transparent 62px),
+                linear-gradient(155deg, var(--bg-1), var(--bg-2));
+            transition: background 0.25s ease, color 0.25s ease;
+        }
+
+        #root {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 18px;
+        }
+
+        .dashboard {
+            display: grid;
+            gap: 14px;
+        }
+
+        .panel {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--surface);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(8px);
+        }
+
+        .header {
+            padding: 16px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .title {
+            display: grid;
+            gap: 5px;
+        }
+
+        .title h1 {
+            margin: 0;
+            font-size: 31px;
+            font-weight: 900;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            background: linear-gradient(108deg, #1a73e8 0%, #34a853 34%, #fbbc04 63%, #ea4335 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .title p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .status-pill {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 7px 12px;
+            background: var(--surface-strong);
+            font-family: "Roboto Mono", monospace;
+            font-size: 12px;
+            color: var(--muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--bad);
+            box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.56);
+            animation: pulse 1.1s infinite;
+        }
+
+        .status-dot.live {
+            background: var(--good);
+            animation: none;
+            box-shadow: none;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.56); }
+            100% { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
+        }
+
+        .btn {
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            background: var(--surface-strong);
+            color: var(--text);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 9px 12px;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+
+        .btn:hover {
+            border-color: var(--focus);
+            transform: translateY(-1px);
+        }
+
+        .controls {
+            border-top: 1px solid var(--border);
+            padding: 12px 18px 16px;
+            display: grid;
+            gap: 11px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .control-label {
+            font-family: "Roboto Mono", monospace;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        select {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface-strong);
+            color: var(--text);
+            font: inherit;
+            font-size: 14px;
+            min-width: 170px;
+            padding: 9px 11px;
+            outline: none;
+        }
+
+        select:focus {
+            border-color: var(--focus);
+        }
+
+        .chip {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: transparent;
+            color: var(--text);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 7px 12px;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+        }
+
+        .chip:hover {
+            border-color: var(--focus);
+            transform: translateY(-1px);
+        }
+
+        .chip.active {
+            border-color: transparent;
+            background: linear-gradient(118deg, #d8ecff, #edf5ff);
+            color: #104a96;
+        }
+
+        .chip.warn.active {
+            background: linear-gradient(118deg, #ffd9d4, #ffe8c4);
+            color: #8a2e1e;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .metric {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface-strong);
+            padding: 10px 12px;
+            display: grid;
+            gap: 4px;
+        }
+
+        .metric .k {
+            font-family: "Roboto Mono", monospace;
+            font-size: 11px;
+            color: var(--muted);
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        .metric .v {
+            font-size: 23px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1;
+        }
+
+        .product-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+        }
+
+        .product-card {
+            padding: 12px;
+            display: grid;
+            gap: 10px;
+            align-content: start;
+        }
+
+        .product-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .product-title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .product-pills {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface-strong);
+            padding: 4px 9px;
+            font-size: 11px;
+            color: var(--muted);
+            font-family: "Roboto Mono", monospace;
+        }
+
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-family: "Roboto Mono", monospace;
+            font-size: 11px;
+            color: var(--muted);
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .legend-line {
+            width: 25px;
+            height: 3px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, rgba(26, 115, 232, 0.5), var(--market));
+        }
+
+        .legend-line.chain {
+            background: repeating-linear-gradient(90deg, var(--chain) 0px, var(--chain) 7px, rgba(234, 67, 53, 0.35) 7px, rgba(234, 67, 53, 0.35) 12px);
+        }
+
+        .chart-wrap {
+            position: relative;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background:
+                radial-gradient(circle at 15% 15%, rgba(137, 196, 255, 0.34), transparent 18%),
+                radial-gradient(circle at 78% 72%, rgba(151, 211, 126, 0.28), transparent 20%),
+                repeating-linear-gradient(30deg, rgba(255, 255, 255, 0.34) 0px, rgba(255, 255, 255, 0.34) 2px, transparent 2px, transparent 54px),
+                repeating-linear-gradient(-62deg, rgba(246, 223, 153, 0.36) 0px, rgba(246, 223, 153, 0.36) 2px, transparent 2px, transparent 60px),
+                var(--surface-strong);
+            height: clamp(280px, 38vh, 450px);
+            overflow: hidden;
+        }
+
+        .chart-wrap svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .chart-empty {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: var(--muted);
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        .tooltip {
+            position: absolute;
+            visibility: hidden;
+            pointer-events: none;
+            min-width: 210px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 9px;
+            background: var(--surface-strong);
+            box-shadow: var(--shadow);
+            color: var(--text);
+            font-family: "Roboto Mono", monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            z-index: 2;
+        }
+
+        .chain-box {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface-strong);
+            padding: 8px;
+            display: grid;
+            gap: 7px;
+        }
+
+        .chain-title {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--muted);
+            font-family: "Roboto Mono", monospace;
+        }
+
+        .chain-rows {
+            display: grid;
+            gap: 6px;
+            max-height: 220px;
+            overflow: auto;
+            padding-right: 2px;
+        }
+
+        .chain-row {
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            background: var(--surface);
+            padding: 7px 8px;
+            display: grid;
+            gap: 4px;
+        }
+
+        .chain-row-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-family: "Roboto Mono", monospace;
+            font-size: 10px;
+        }
+
+        .chain-status {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 2px 7px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--muted);
+        }
+
+        .chain-status.live {
+            border-color: rgba(34, 197, 94, 0.45);
+            color: var(--good);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .chain-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 10px;
+            font-family: "Roboto Mono", monospace;
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .footer {
+            font-family: "Roboto Mono", monospace;
+            font-size: 11px;
+            color: var(--muted);
+            padding: 0 4px;
+        }
+
+        .axis text {
+            font-family: "Roboto Mono", monospace;
+            font-size: 11px;
+            fill: var(--muted);
+        }
+
+        .axis path,
+        .axis line {
+            stroke: var(--border);
+        }
+
+        .grid line {
+            stroke: var(--border);
+            stroke-opacity: 0.5;
+        }
+
+        .grid path {
+            stroke-width: 0;
+        }
+
+        .market-line {
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 2px rgba(26, 115, 232, 0.42));
+        }
+
+        .chain-line {
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 1px rgba(234, 67, 53, 0.45));
+        }
+
+        .legend-item::before {
+            content: "";
+            width: 11px;
+            height: 11px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            background: var(--market);
+            display: inline-block;
+            opacity: 0.9;
+        }
+
+        .legend-item:nth-child(2)::before {
+            background: var(--chain);
+        }
+
+        @media (max-width: 1140px) {
+            .metrics {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 900px) {
+            #root {
+                padding: 12px;
+            }
+
+            .header {
+                padding: 14px;
+            }
+
+            .controls {
+                padding: 10px 14px 14px;
+            }
+
+            .product-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body data-theme="dark">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useCallback, useEffect, useMemo, useRef, useState } = React;
+
+        const RANGE_OPTIONS = [
+            { key: "15m", label: "15M", minutes: 15 },
+            { key: "1h", label: "1H", minutes: 60 },
+            { key: "6h", label: "6H", minutes: 360 },
+            { key: "24h", label: "24H", minutes: 1440 },
+            { key: "7d", label: "7D", minutes: 10080 },
+        ];
+
+        const ACTIVE_STATUSES = new Set(["HIDDEN", "PENDING", "TRIGGERED", "REVEALED", "EXECUTING", "PARTIAL"]);
+        const MAX_MARKET_POINTS = 7000;
+        const MAX_CHAIN_POINTS = 1800;
+        const SNAPSHOT_MS = 12000;
+        const RECONNECT_MS = 2200;
+        const THROTTLE_OPTIONS = [250, 500, 1000, 2000];
+        const CHAIN_COLORS = [
+            "#f97316", "#fb923c", "#f59e0b", "#eab308", "#ef4444",
+            "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6", "#8b5cf6",
+        ];
+
+        const priceFmt = new Intl.NumberFormat(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 6,
+        });
+
+        function safeNum(value, fallback = 0) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : fallback;
+        }
+
+        function wsUrl() {
+            const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+            const host = window.location.hostname || "localhost";
+            return `${protocol}://${host}:8765`;
+        }
+
+        function normalizeServerEpochSeconds(secondsEpoch) {
+            const rawMs = safeNum(secondsEpoch, Date.now() / 1000) * 1000;
+            return rawMs - (new Date().getTimezoneOffset() * 60 * 1000);
+        }
+
+        function colorForChain(chainId) {
+            const text = String(chainId || "x");
+            let hash = 0;
+            for (let i = 0; i < text.length; i += 1) {
+                hash = ((hash << 5) - hash) + text.charCodeAt(i);
+                hash |= 0;
+            }
+            return CHAIN_COLORS[Math.abs(hash) % CHAIN_COLORS.length];
+        }
+
+        function shortId(value) {
+            if (!value) return "--";
+            const text = String(value);
+            if (text.length <= 12) return text;
+            return `${text.slice(0, 8)}..${text.slice(-2)}`;
+        }
+
+        function uniqueSorted(values) {
+            return Array.from(new Set(values.filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
+        }
+
+        function nearestPoint(points, targetTsMs) {
+            if (!points || points.length === 0) return null;
+            const bisect = d3.bisector((d) => d.tsMs).left;
+            const i = bisect(points, targetTsMs);
+            const left = points[Math.max(0, i - 1)];
+            const right = points[Math.min(points.length - 1, i)];
+            if (!left) return right || null;
+            if (!right) return left || null;
+            return Math.abs(left.tsMs - targetTsMs) <= Math.abs(right.tsMs - targetTsMs) ? left : right;
+        }
+
+        function makeCsvCell(cell) {
+            const text = String(cell ?? "");
+            if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+                return `"${text.replace(/"/g, "\"\"")}"`;
+            }
+            return text;
+        }
+
+        function pickPreferredOrder(a, b) {
+            if (!a) return b;
+            if (!b) return a;
+            if (a.isActive !== b.isActive) return b.isActive ? b : a;
+            const aTs = safeNum(Date.parse(a.updatedAt || a.createdAt || ""), 0);
+            const bTs = safeNum(Date.parse(b.updatedAt || b.createdAt || ""), 0);
+            if (aTs !== bTs) return bTs > aTs ? b : a;
+            return String(b.orderId).localeCompare(String(a.orderId)) > 0 ? b : a;
+        }
+
+        function LiveChart({ marketSeries, chainSeries, theme }) {
+            const wrapRef = useRef(null);
+            const svgRef = useRef(null);
+            const tipRef = useRef(null);
+            const dataRef = useRef({ marketSeries: [], chainSeries: [] });
+            const scaleRef = useRef({ x: null, y: null, innerWidth: 0, innerHeight: 0 });
+            const chartRef = useRef(null);
+            const idsRef = useRef({
+                clipId: `clip-${Math.random().toString(36).slice(2)}`,
+                gradientId: `grad-${Math.random().toString(36).slice(2)}`,
+            });
+            const [size, setSize] = useState({ width: 0, height: 0 });
+
+            useEffect(() => {
+                if (!wrapRef.current) return undefined;
+                const observer = new ResizeObserver((entries) => {
+                    for (const entry of entries) {
+                        const rect = entry.contentRect;
+                        setSize({ width: rect.width, height: rect.height });
+                    }
+                });
+                observer.observe(wrapRef.current);
+                return () => observer.disconnect();
+            }, []);
+
+            useEffect(() => {
+                if (!svgRef.current || chartRef.current) return;
+
+                const { clipId } = idsRef.current;
+                const svg = d3.select(svgRef.current);
+                const root = svg.append("g").attr("class", "root");
+
+                const defs = svg.append("defs");
+                const clip = defs.append("clipPath").attr("id", clipId);
+                const clipRect = clip.append("rect");
+
+                const gridY = root.append("g").attr("class", "grid y-grid");
+                const xAxis = root.append("g").attr("class", "axis x-axis");
+                const yAxis = root.append("g").attr("class", "axis y-axis");
+
+                const areaLayer = root.append("g").attr("clip-path", `url(#${clipId})`);
+                const lineLayer = root.append("g").attr("clip-path", `url(#${clipId})`);
+
+                const marketArea = areaLayer.append("path").attr("class", "market-area").attr("fill-opacity", 0.18);
+                const marketLine = lineLayer.append("path").attr("class", "market-line").attr("fill", "none").attr("stroke-width", 2.1);
+                const chainsLayer = lineLayer.append("g").attr("class", "chains-layer");
+
+                const crosshair = root.append("g").attr("class", "crosshair").style("display", "none");
+                const crosshairLine = crosshair.append("line").attr("stroke-dasharray", "4 4").attr("opacity", 0.75);
+                const marketFocus = crosshair.append("circle").attr("r", 4.5);
+                const chainFocus = crosshair.append("circle").attr("r", 4.8);
+
+                const overlay = root.append("rect").attr("class", "overlay").attr("fill", "transparent").style("cursor", "crosshair");
+
+                chartRef.current = {
+                    svg,
+                    root,
+                    clipRect,
+                    gridY,
+                    xAxis,
+                    yAxis,
+                    marketArea,
+                    marketLine,
+                    chainsLayer,
+                    crosshair,
+                    crosshairLine,
+                    marketFocus,
+                    chainFocus,
+                    overlay,
+                };
+
+                overlay
+                    .on("pointerenter", () => {
+                        const { marketSeries: market, chainSeries: chains } = dataRef.current;
+                        if (market.length === 0 && chains.length === 0) return;
+                        chartRef.current.crosshair.style("display", null);
+                        d3.select(tipRef.current).style("visibility", "visible");
+                    })
+                    .on("pointerleave", () => {
+                        chartRef.current.crosshair.style("display", "none");
+                        d3.select(tipRef.current).style("visibility", "hidden");
+                    })
+                    .on("pointermove", function (event) {
+                        const tip = d3.select(tipRef.current);
+                        const chart = chartRef.current;
+                        const scales = scaleRef.current;
+                        const { marketSeries: market, chainSeries: chains } = dataRef.current;
+
+                        if (!scales.x || !scales.y) return;
+                        if (market.length === 0 && chains.length === 0) return;
+
+                        const [localX] = d3.pointer(event, this);
+                        const hoverTs = scales.x.invert(localX).getTime();
+                        const nearestMarket = nearestPoint(market, hoverTs);
+                        let nearestChain = null;
+
+                        for (const series of chains) {
+                            const candidate = nearestPoint(series.points, hoverTs);
+                            if (!candidate) continue;
+                            if (!nearestChain || Math.abs(candidate.tsMs - hoverTs) < Math.abs(nearestChain.point.tsMs - hoverTs)) {
+                                nearestChain = { chainId: series.chainId, point: candidate };
+                            }
+                        }
+
+                        const anchorTs = nearestChain ? nearestChain.point.tsMs : (nearestMarket ? nearestMarket.tsMs : hoverTs);
+                        const crossX = scales.x(new Date(anchorTs));
+
+                        chart.crosshairLine
+                            .attr("x1", crossX)
+                            .attr("x2", crossX)
+                            .attr("y1", 0)
+                            .attr("y2", scales.innerHeight);
+
+                        if (nearestMarket) {
+                            chart.marketFocus
+                                .style("display", null)
+                                .attr("cx", scales.x(new Date(nearestMarket.tsMs)))
+                                .attr("cy", scales.y(nearestMarket.price));
+                        } else {
+                            chart.marketFocus.style("display", "none");
+                        }
+
+                        if (nearestChain) {
+                            chart.chainFocus
+                                .style("display", null)
+                                .attr("fill", colorForChain(nearestChain.chainId))
+                                .attr("cx", scales.x(new Date(nearestChain.point.tsMs)))
+                                .attr("cy", scales.y(nearestChain.point.price));
+                        } else {
+                            chart.chainFocus.style("display", "none");
+                        }
+
+                        const tipLines = [
+                            new Date(anchorTs).toLocaleString(),
+                            `Market Route: ${nearestMarket ? priceFmt.format(nearestMarket.price) : "--"}`,
+                            `Chain Route: ${nearestChain ? priceFmt.format(nearestChain.point.price) : "--"}`,
+                            `Parent Route: ${nearestChain ? shortId(nearestChain.chainId) : "--"}`,
+                            `Order: ${nearestChain ? shortId(nearestChain.point.orderId) : "--"}`,
+                        ];
+                        tip.html(tipLines.map((line) => `<div>${line}</div>`).join(""));
+
+                        const bounds = wrapRef.current.getBoundingClientRect();
+                        const left = event.clientX - bounds.left + 14;
+                        const top = event.clientY - bounds.top - 14;
+                        tip.style("left", `${Math.min(left, scales.innerWidth - 205)}px`);
+                        tip.style("top", `${Math.max(8, top)}px`);
+                    });
+            }, []);
+
+            useEffect(() => {
+                const chart = chartRef.current;
+                if (!chart || size.width < 40 || size.height < 40) return;
+
+                const { gradientId } = idsRef.current;
+                const css = getComputedStyle(document.body);
+                const marketColor = css.getPropertyValue("--market").trim();
+                const borderColor = css.getPropertyValue("--border").trim();
+                const mutedColor = css.getPropertyValue("--muted").trim();
+
+                const margin = { top: 16, right: 64, bottom: 34, left: 48 };
+                const width = size.width;
+                const height = size.height;
+                const innerWidth = Math.max(10, width - margin.left - margin.right);
+                const innerHeight = Math.max(10, height - margin.top - margin.bottom);
+
+                chart.svg.attr("viewBox", `0 0 ${width} ${height}`);
+                chart.root.attr("transform", `translate(${margin.left},${margin.top})`);
+                chart.clipRect.attr("x", 0).attr("y", 0).attr("width", innerWidth).attr("height", innerHeight);
+                chart.overlay.attr("width", innerWidth).attr("height", innerHeight);
+                chart.xAxis.attr("transform", `translate(0,${innerHeight})`);
+                chart.yAxis.attr("transform", `translate(${innerWidth},0)`);
+
+                const mergedPoints = [...marketSeries, ...chainSeries.flatMap((series) => series.points)];
+                const now = Date.now();
+                const fallbackStart = now - 60 * 60 * 1000;
+
+                const xDomain = mergedPoints.length > 0
+                    ? d3.extent(mergedPoints, (d) => new Date(d.tsMs))
+                    : [new Date(fallbackStart), new Date(now)];
+
+                const prices = mergedPoints
+                    .map((point) => point.price)
+                    .filter((value) => Number.isFinite(value) && value > 0);
+
+                const minPrice = prices.length > 0 ? d3.min(prices) : 0;
+                const maxPrice = prices.length > 0 ? d3.max(prices) : 1;
+                const spread = Math.max(0.000001, maxPrice - minPrice);
+                const yDomain = [Math.max(0, minPrice - spread * 0.12), maxPrice + spread * 0.12];
+
+                const x = d3.scaleTime().domain(xDomain).range([0, innerWidth]);
+                const y = d3.scaleLinear().domain(yDomain).nice().range([innerHeight, 0]);
+
+                scaleRef.current = { x, y, innerWidth, innerHeight };
+                dataRef.current = { marketSeries, chainSeries };
+
+                chart.gridY
+                    .call(d3.axisLeft(y).ticks(6).tickSize(-innerWidth).tickFormat(""))
+                    .call((g) => g.selectAll("line").attr("stroke", borderColor))
+                    .call((g) => g.selectAll("path").attr("stroke", "none"));
+
+                chart.xAxis
+                    .call(d3.axisBottom(x).ticks(Math.max(3, Math.floor(innerWidth / 150))))
+                    .call((g) => g.selectAll("path,line").attr("stroke", borderColor))
+                    .call((g) => g.selectAll("text").attr("fill", mutedColor));
+
+                chart.yAxis
+                    .call(d3.axisRight(y).ticks(5).tickFormat((value) => priceFmt.format(value)))
+                    .call((g) => g.selectAll("path,line").attr("stroke", borderColor))
+                    .call((g) => g.selectAll("text").attr("fill", mutedColor));
+
+                const defs = chart.svg.select("defs");
+                let gradient = defs.select(`#${gradientId}`);
+                if (gradient.empty()) {
+                    gradient = defs.append("linearGradient")
+                        .attr("id", gradientId)
+                        .attr("x1", "0%")
+                        .attr("x2", "0%")
+                        .attr("y1", "0%")
+                        .attr("y2", "100%");
+                    gradient.append("stop").attr("offset", "0%");
+                    gradient.append("stop").attr("offset", "100%");
+                }
+                gradient.select("stop[offset='0%']").attr("stop-color", marketColor).attr("stop-opacity", 0.22);
+                gradient.select("stop[offset='100%']").attr("stop-color", marketColor).attr("stop-opacity", 0.02);
+
+                const marketLine = d3.line()
+                    .x((d) => x(new Date(d.tsMs)))
+                    .y((d) => y(d.price))
+                    .curve(d3.curveMonotoneX);
+
+                const marketArea = d3.area()
+                    .x((d) => x(new Date(d.tsMs)))
+                    .y0(innerHeight)
+                    .y1((d) => y(d.price))
+                    .curve(d3.curveMonotoneX);
+
+                if (marketSeries.length > 1) {
+                    chart.marketArea
+                        .datum(marketSeries)
+                        .attr("fill", `url(#${gradientId})`)
+                        .attr("d", marketArea)
+                        .style("display", null);
+                    chart.marketLine
+                        .datum(marketSeries)
+                        .attr("stroke", marketColor)
+                        .attr("d", marketLine)
+                        .style("display", null);
+                } else {
+                    chart.marketArea.style("display", "none");
+                    chart.marketLine.style("display", "none");
+                }
+
+                chart.marketFocus.attr("fill", marketColor).attr("stroke", "rgba(0,0,0,0.18)");
+                chart.crosshairLine.attr("stroke", mutedColor);
+
+                const chainLine = d3.line()
+                    .x((d) => x(new Date(d.tsMs)))
+                    .y((d) => y(d.price))
+                    .curve(d3.curveStepAfter);
+
+                const lines = chart.chainsLayer
+                    .selectAll("path.chain-line")
+                    .data(chainSeries, (d) => d.chainId);
+
+                lines.enter()
+                    .append("path")
+                    .attr("class", "chain-line")
+                    .attr("fill", "none")
+                    .merge(lines)
+                    .attr("stroke", (d) => colorForChain(d.chainId))
+                    .attr("stroke-width", (d) => d.isActive ? 2.05 : 1.3)
+                    .attr("stroke-opacity", (d) => d.isActive ? 0.94 : 0.55)
+                    .attr("stroke-dasharray", (d) => d.isActive ? null : "4 4")
+                    .attr("d", (d) => chainLine(d.points));
+
+                lines.exit().remove();
+
+                if (marketSeries.length === 0 && chainSeries.length === 0) {
+                    chart.crosshair.style("display", "none");
+                    d3.select(tipRef.current).style("visibility", "hidden");
+                }
+            }, [marketSeries, chainSeries, size, theme]);
+
+            return (
+                <div className="chart-wrap" ref={wrapRef}>
+                    <svg ref={svgRef}></svg>
+                    <div className="tooltip" ref={tipRef}></div>
+                    {marketSeries.length === 0 && chainSeries.length === 0 && (
+                        <div className="chart-empty">Waiting for market traffic and route data...</div>
+                    )}
+                </div>
+            );
+        }
+
+        function App() {
+            const [theme, setTheme] = useState(() =>
+                localStorage.getItem("google_maps_dashboard_theme")
+                || localStorage.getItem("investor_dashboard_theme")
+                || "dark"
+            );
+            const [connected, setConnected] = useState(false);
+            const [connectionLabel, setConnectionLabel] = useState("Connecting");
+            const [products, setProducts] = useState([]);
+            const [rangeKey, setRangeKey] = useState("1h");
+            const [onlyActiveChains, setOnlyActiveChains] = useState(true);
+            const [throttleEnabled, setThrottleEnabled] = useState(false);
+            const [throttleMs, setThrottleMs] = useState(500);
+            const [marketByProduct, setMarketByProduct] = useState({});
+            const [chainsByProduct, setChainsByProduct] = useState({});
+            const [lastUpdateMs, setLastUpdateMs] = useState(0);
+            const [renderByProduct, setRenderByProduct] = useState({});
+
+            const wsRef = useRef(null);
+            const reconnectTimerRef = useRef(null);
+            const snapshotTimerRef = useRef(null);
+            const destroyedRef = useRef(false);
+            const pendingRenderRef = useRef({});
+            const renderDirtyRef = useRef(false);
+
+            const activeRange = useMemo(() => {
+                return RANGE_OPTIONS.find((opt) => opt.key === rangeKey) || RANGE_OPTIONS[1];
+            }, [rangeKey]);
+
+            const appendProducts = useCallback((incoming) => {
+                setProducts((current) => uniqueSorted([...current, ...incoming]));
+            }, []);
+
+            const requestSnapshots = useCallback(() => {
+                const ws = wsRef.current;
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                ws.send(JSON.stringify({ type: "request_stealth_orders" }));
+                ws.send(JSON.stringify({ type: "request_products" }));
+                ws.send(JSON.stringify({ type: "request_storyboard_products" }));
+            }, []);
+
+            const ingestTicker = useCallback((payload) => {
+                const productId = payload?.product_id;
+                const price = safeNum(payload?.price, NaN);
+                if (!productId || !Number.isFinite(price)) return;
+
+                appendProducts([productId]);
+                const tsMs = payload?.time ? normalizeServerEpochSeconds(payload.time) : Date.now();
+
+                setMarketByProduct((prev) => {
+                    const next = { ...prev };
+                    const points = next[productId] ? next[productId].slice() : [];
+                    points.push({ tsMs, price });
+                    if (points.length > MAX_MARKET_POINTS) {
+                        points.splice(0, points.length - MAX_MARKET_POINTS);
+                    }
+                    next[productId] = points;
+                    return next;
+                });
+
+                setLastUpdateMs(Date.now());
+            }, [appendProducts]);
+
+            const ingestOrders = useCallback((ordersMap) => {
+                const nowMs = Date.now();
+                const discoveredProducts = [];
+
+                setChainsByProduct((prev) => {
+                    const next = { ...prev };
+                    const bucketsByProduct = {};
+
+                    for (const [orderId, order] of Object.entries(ordersMap || {})) {
+                        if (!order || typeof order !== "object") continue;
+
+                        const productId = order.product_id;
+                        const price = safeNum(order.limit_price, NaN);
+                        if (!productId || !Number.isFinite(price)) continue;
+
+                        discoveredProducts.push(productId);
+
+                        const status = String(order.status || "").toUpperCase();
+                        const isActive = ACTIVE_STATUSES.has(status);
+                        const parentId = order.parent_order_id || orderId;
+                        const chainId = String(parentId || orderId);
+
+                        if (!bucketsByProduct[productId]) bucketsByProduct[productId] = {};
+                        if (!bucketsByProduct[productId][chainId]) {
+                            bucketsByProduct[productId][chainId] = {
+                                orderIds: new Set(),
+                                preferred: null,
+                                anyActive: false,
+                            };
+                        }
+
+                        const bucket = bucketsByProduct[productId][chainId];
+                        bucket.orderIds.add(orderId);
+                        bucket.anyActive = bucket.anyActive || isActive;
+                        bucket.preferred = pickPreferredOrder(bucket.preferred, {
+                            orderId,
+                            status,
+                            isActive,
+                            price,
+                            side: String(order.side || "").toUpperCase(),
+                            size: safeNum(order.total_size, safeNum(order.size, 0)),
+                            updatedAt: order.updated_at || order.last_update || order.timestamp || null,
+                            createdAt: order.created_at || null,
+                        });
+                    }
+
+                    for (const [productId, productBuckets] of Object.entries(bucketsByProduct)) {
+                        const productChains = next[productId] ? { ...next[productId] } : {};
+
+                        for (const [chainId, bucket] of Object.entries(productBuckets)) {
+                            if (!bucket.preferred) continue;
+                            const existing = productChains[chainId];
+
+                            const points = existing ? existing.points.slice() : [];
+                            const orderIds = existing ? existing.orderIds.slice() : [];
+                            for (const oid of bucket.orderIds) {
+                                if (!orderIds.includes(oid)) orderIds.push(oid);
+                            }
+
+                            const lastPoint = points[points.length - 1];
+                            const priceChanged = !lastPoint || Math.abs(lastPoint.price - bucket.preferred.price) > 1e-12;
+                            const orderChanged = !lastPoint || lastPoint.orderId !== bucket.preferred.orderId;
+                            const statusChanged = !lastPoint || lastPoint.status !== bucket.preferred.status;
+
+                            if (priceChanged || orderChanged || statusChanged) {
+                                points.push({
+                                    tsMs: nowMs,
+                                    price: bucket.preferred.price,
+                                    status: bucket.preferred.status,
+                                    orderId: bucket.preferred.orderId,
+                                });
+                                if (points.length > MAX_CHAIN_POINTS) {
+                                    points.splice(0, points.length - MAX_CHAIN_POINTS);
+                                }
+                            }
+
+                            productChains[chainId] = {
+                                chainId,
+                                parentOrderId: chainId,
+                                points,
+                                orderIds,
+                                isActive: bucket.anyActive,
+                                meta: {
+                                    status: bucket.preferred.status,
+                                    side: bucket.preferred.side || (existing ? existing.meta.side : ""),
+                                    size: bucket.preferred.size || (existing ? existing.meta.size : 0),
+                                    lastOrderId: bucket.preferred.orderId,
+                                },
+                            };
+                        }
+
+                        next[productId] = productChains;
+                    }
+
+                    return next;
+                });
+
+                if (discoveredProducts.length > 0) {
+                    appendProducts(discoveredProducts);
+                }
+                setLastUpdateMs(nowMs);
+            }, [appendProducts]);
+
+            const connect = useCallback(() => {
+                if (destroyedRef.current) return;
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
+
+                const ws = new WebSocket(wsUrl());
+                wsRef.current = ws;
+
+                setConnectionLabel("Connecting");
+                setConnected(false);
+
+                ws.onopen = () => {
+                    setConnectionLabel("Live");
+                    setConnected(true);
+                    requestSnapshots();
+                    if (snapshotTimerRef.current) clearInterval(snapshotTimerRef.current);
+                    snapshotTimerRef.current = setInterval(() => {
+                        requestSnapshots();
+                    }, SNAPSHOT_MS);
+                };
+
+                ws.onmessage = (event) => {
+                    let msg = null;
+                    try {
+                        msg = JSON.parse(event.data);
+                    } catch {
+                        return;
+                    }
+                    if (!msg || !msg.type) return;
+
+                    if (msg.type === "ticker" && msg.data) {
+                        ingestTicker(msg.data);
+                        return;
+                    }
+                    if (msg.type === "state_update" && msg.data?.stealth_orders) {
+                        ingestOrders(msg.data.stealth_orders);
+                        return;
+                    }
+                    if (msg.type === "stealth_orders_snapshot" && msg.orders) {
+                        ingestOrders(msg.orders);
+                        return;
+                    }
+                    if (msg.type === "products_list") {
+                        appendProducts([
+                            ...(Array.isArray(msg.spot) ? msg.spot : []),
+                            ...(Array.isArray(msg.derivatives) ? msg.derivatives : []),
+                        ]);
+                        return;
+                    }
+                    if (msg.type === "storyboard_products" && Array.isArray(msg.products)) {
+                        appendProducts(msg.products);
+                    }
+                };
+
+                ws.onerror = () => {
+                    setConnectionLabel("Error");
+                    setConnected(false);
+                    try { ws.close(); } catch {}
+                };
+
+                ws.onclose = () => {
+                    setConnectionLabel("Disconnected");
+                    setConnected(false);
+                    if (snapshotTimerRef.current) {
+                        clearInterval(snapshotTimerRef.current);
+                        snapshotTimerRef.current = null;
+                    }
+                    if (!destroyedRef.current) {
+                        reconnectTimerRef.current = setTimeout(() => connect(), RECONNECT_MS);
+                    }
+                };
+            }, [appendProducts, ingestOrders, ingestTicker, requestSnapshots]);
+
+            useEffect(() => {
+                document.body.dataset.theme = theme;
+                localStorage.setItem("google_maps_dashboard_theme", theme);
+            }, [theme]);
+
+            useEffect(() => {
+                destroyedRef.current = false;
+                connect();
+                return () => {
+                    destroyedRef.current = true;
+                    if (reconnectTimerRef.current) {
+                        clearTimeout(reconnectTimerRef.current);
+                        reconnectTimerRef.current = null;
+                    }
+                    if (snapshotTimerRef.current) {
+                        clearInterval(snapshotTimerRef.current);
+                        snapshotTimerRef.current = null;
+                    }
+                    if (wsRef.current) {
+                        try { wsRef.current.close(); } catch {}
+                    }
+                };
+            }, [connect]);
+
+            const rangeStartMs = useMemo(() => {
+                return Date.now() - (activeRange.minutes * 60 * 1000);
+            }, [activeRange, lastUpdateMs]);
+
+            const rawViewByProduct = useMemo(() => {
+                const keys = uniqueSorted([
+                    ...products,
+                    ...Object.keys(marketByProduct),
+                    ...Object.keys(chainsByProduct),
+                ]);
+
+                const view = {};
+                for (const productId of keys) {
+                    const market = (marketByProduct[productId] || []).filter((point) => point.tsMs >= rangeStartMs);
+                    const chainsMap = chainsByProduct[productId] || {};
+                    const chains = Object.values(chainsMap)
+                        .map((series) => ({
+                            ...series,
+                            points: series.points.filter((point) => point.tsMs >= rangeStartMs),
+                        }))
+                        .filter((series) => series.points.length > 0)
+                        .filter((series) => !onlyActiveChains || series.isActive)
+                        .sort((a, b) => {
+                            const aTs = a.points[a.points.length - 1]?.tsMs || 0;
+                            const bTs = b.points[b.points.length - 1]?.tsMs || 0;
+                            return bTs - aTs;
+                        });
+
+                    if (chains.length > 0) {
+                        view[productId] = { market, chains };
+                    }
+                }
+                return view;
+            }, [products, marketByProduct, chainsByProduct, rangeStartMs, onlyActiveChains]);
+
+            useEffect(() => {
+                pendingRenderRef.current = rawViewByProduct;
+                if (!throttleEnabled) {
+                    renderDirtyRef.current = false;
+                    setRenderByProduct(rawViewByProduct);
+                    return;
+                }
+                renderDirtyRef.current = true;
+            }, [rawViewByProduct, throttleEnabled]);
+
+            useEffect(() => {
+                if (!throttleEnabled) return undefined;
+                const timerId = window.setInterval(() => {
+                    if (!renderDirtyRef.current) return;
+                    renderDirtyRef.current = false;
+                    setRenderByProduct(pendingRenderRef.current);
+                }, Math.max(100, safeNum(throttleMs, 500)));
+                return () => window.clearInterval(timerId);
+            }, [throttleEnabled, throttleMs]);
+
+            const visibleProducts = useMemo(() => {
+                return Object.keys(renderByProduct).sort((a, b) => {
+                    const chainCountDiff = renderByProduct[b].chains.length - renderByProduct[a].chains.length;
+                    if (chainCountDiff !== 0) return chainCountDiff;
+                    return String(a).localeCompare(String(b));
+                });
+            }, [renderByProduct]);
+
+            const stats = useMemo(() => {
+                let latestChain = null;
+                let latestChainProduct = "";
+                let activeChains = 0;
+                let reprices = 0;
+
+                for (const [productId, view] of Object.entries(renderByProduct)) {
+                    activeChains += view.chains.filter((chain) => chain.isActive).length;
+                    reprices += view.chains.reduce((sum, chain) => sum + Math.max(0, chain.points.length - 1), 0);
+
+                    for (const chain of view.chains) {
+                        const point = chain.points[chain.points.length - 1];
+                        if (!point) continue;
+                        if (!latestChain || point.tsMs > latestChain.point.tsMs) {
+                            latestChain = { chainId: chain.chainId, point };
+                            latestChainProduct = productId;
+                        }
+                    }
+                }
+
+                return {
+                    latestChain,
+                    latestChainProduct,
+                    activeCharts: visibleProducts.length,
+                    activeChains,
+                    reprices,
+                };
+            }, [renderByProduct, visibleProducts.length]);
+
+            const exportCsv = useCallback(() => {
+                const rows = [[
+                    "timestamp_iso",
+                    "timestamp_ms",
+                    "product_id",
+                    "series",
+                    "parent_order_id",
+                    "order_id",
+                    "status",
+                    "side",
+                    "price",
+                    "size",
+                ]];
+
+                for (const [productId, view] of Object.entries(rawViewByProduct)) {
+                    view.market.forEach((point) => {
+                        rows.push([
+                            new Date(point.tsMs).toISOString(),
+                            String(point.tsMs),
+                            productId,
+                            "market_ticker",
+                            "",
+                            "",
+                            "",
+                            "",
+                            String(point.price),
+                            "",
+                        ]);
+                    });
+
+                    view.chains.forEach((series) => {
+                        series.points.forEach((point) => {
+                            rows.push([
+                                new Date(point.tsMs).toISOString(),
+                                String(point.tsMs),
+                                productId,
+                                "parent_child_chain",
+                                series.chainId,
+                                point.orderId,
+                                point.status,
+                                series.meta.side,
+                                String(point.price),
+                                String(series.meta.size),
+                            ]);
+                        });
+                    });
+                }
+
+                const csv = rows.map((row) => row.map((cell) => makeCsvCell(cell)).join(",")).join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `all_products_parent_child_dashboard_${Date.now()}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, [rawViewByProduct]);
+
+            return (
+                <div className="dashboard">
+                    <section className="panel">
+                        <div className="header">
+                            <div className="title">
+                                <h1>Trading Route Explorer</h1>
+                                <p>Live market roads and parent/child trade routes per product</p>
+                            </div>
+
+                            <div className="actions">
+                                <span className="status-pill">
+                                    <span className={`status-dot ${connected ? "live" : ""}`}></span>
+                                    {connectionLabel}
+                                </span>
+                                <button
+                                    className="btn"
+                                    type="button"
+                                    onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+                                >
+                                    {theme === "dark" ? "Light Map" : "Dark Map"}
+                                </button>
+                                <button className="btn" type="button" onClick={exportCsv}>Export Route CSV</button>
+                            </div>
+                        </div>
+
+                        <div className="controls">
+                            <div className="control-row">
+                                <span className="control-label">Map Window</span>
+                                {RANGE_OPTIONS.map((range) => (
+                                    <button
+                                        key={range.key}
+                                        type="button"
+                                        className={`chip ${range.key === rangeKey ? "active" : ""}`}
+                                        onClick={() => setRangeKey(range.key)}
+                                    >
+                                        {range.label}
+                                    </button>
+                                ))}
+                                <button
+                                    type="button"
+                                    className={`chip warn ${onlyActiveChains ? "active" : ""}`}
+                                    onClick={() => setOnlyActiveChains((current) => !current)}
+                                >
+                                    {onlyActiveChains ? "Active Routes" : "All Routes"}
+                                </button>
+                            </div>
+
+                            <div className="control-row">
+                                <span className="control-label">Traffic Pace</span>
+                                <button
+                                    type="button"
+                                    className={`chip ${throttleEnabled ? "active" : ""}`}
+                                    onClick={() => setThrottleEnabled((current) => !current)}
+                                >
+                                    {throttleEnabled ? `On (${throttleMs}ms)` : "Off (Live)"}
+                                </button>
+                                {throttleEnabled && (
+                                    <select value={String(throttleMs)} onChange={(event) => setThrottleMs(safeNum(event.target.value, 500))}>
+                                        {THROTTLE_OPTIONS.map((value) => (
+                                            <option key={value} value={value}>{value}ms</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            <div className="metrics">
+                                <div className="metric">
+                                    <div className="k">Visible Maps</div>
+                                    <div className="v">{stats.activeCharts}</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="k">Active Routes</div>
+                                    <div className="v">{stats.activeChains}</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="k">Latest Route</div>
+                                    <div className="v">{stats.latestChain ? priceFmt.format(stats.latestChain.point.price) : "--"}</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="k">Total Reprices</div>
+                                    <div className="v">{stats.reprices}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {visibleProducts.length === 0 ? (
+                        <section className="panel product-card">
+                            <h3 className="product-title">Waiting for active route data...</h3>
+                        </section>
+                    ) : (
+                        <div className="product-grid">
+                            {visibleProducts.map((productId) => {
+                                const view = renderByProduct[productId];
+                                const latestMarketPoint = view.market[view.market.length - 1] || null;
+                                return (
+                                    <section className="panel product-card" key={productId}>
+                                        <div className="product-head">
+                                            <h3 className="product-title">{productId}</h3>
+                                            <div className="product-pills">
+                                                <span className="pill">Latest Marker: {latestMarketPoint ? priceFmt.format(latestMarketPoint.price) : "--"}</span>
+                                                <span className="pill">{view.market.length} ticker points</span>
+                                                <span className="pill">{view.chains.length} routes</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="legend">
+                                            <span className="legend-item"><span className="legend-line"></span>Market route</span>
+                                            <span className="legend-item"><span className="legend-line chain"></span>Parent/child route</span>
+                                        </div>
+
+                                        <LiveChart marketSeries={view.market} chainSeries={view.chains} theme={theme} />
+
+                                        <div className="chain-box">
+                                            <h4 className="chain-title">Parent/Child Routes</h4>
+                                            <div className="chain-rows">
+                                                {view.chains.length === 0 && (
+                                                    <div className="chain-row">No routes for this product in range.</div>
+                                                )}
+                                                {view.chains.slice(0, 10).map((series) => {
+                                                    const lastPoint = series.points[series.points.length - 1];
+                                                    return (
+                                                        <div className="chain-row" key={series.chainId}>
+                                                            <div className="chain-row-top">
+                                                                <span style={{ color: colorForChain(series.chainId) }}>Parent {shortId(series.chainId)}</span>
+                                                                <span className={`chain-status ${series.isActive ? "live" : ""}`}>{series.meta.status || "UNKNOWN"}</span>
+                                                            </div>
+                                                            <div className="chain-meta">
+                                                                <span>Order: {shortId(series.meta.lastOrderId)}</span>
+                                                                <span>Side: {series.meta.side || "--"}</span>
+                                                                <span>Price: {lastPoint ? priceFmt.format(lastPoint.price) : "--"}</span>
+                                                                <span>Reprices: {Math.max(0, series.points.length - 1)}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </section>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    <div className="footer">
+                        Maps: {stats.activeCharts} | Last update: {lastUpdateMs ? new Date(lastUpdateMs).toLocaleString() : "--"} | Latest route product: {stats.latestChainProduct || "--"}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

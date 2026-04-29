@@ -201,12 +201,42 @@
     </main>
 
 <script>
-const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname || 'localhost'}:8765`;
+"use strict";
+
+/* ---------- config ---------------------------------------------------- */
+
+const WS_URL          = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname || 'localhost'}:8765`;
+// Mirrors core.enums.StealthOrderStatus active set; kept in lock-step with
+// ui_stealth_repricing_chart.html and ui_stealth_orders_manager.html so
+// "active stealth order" means the same thing in every UI.
+const ACTIVE_STATUSES = new Set(['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED']);
+
+/* Stable, deterministic color per stealth_order_id. Same paradigm as
+   ui_stealth_repricing_chart.html so the same order keeps the same color
+   across re-renders and across the two charts. */
+const PALETTE = [
+    '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#84cc16',
+    '#f97316', '#14b8a6', '#eab308', '#8b5cf6', '#ef4444',
+    '#22c55e', '#0ea5e9', '#d946ef', '#f59e0b', '#10b981',
+];
+
+function colorFor(stealthOrderId) {
+    let h = 0;
+    for (let i = 0; i < stealthOrderId.length; i++) {
+        h = (h * 31 + stealthOrderId.charCodeAt(i)) | 0;
+    }
+    return PALETTE[Math.abs(h) % PALETTE.length];
+}
+
+function shortId(id) {
+    return id ? String(id).slice(0, 8) : '—';
+}
 
 let ws = null;
 let priceChart = null;
 let missChart = null;
 let lastPayload = null;
+let lastStealthSnapshot = null;   // { orders, timestamp } from stealth_orders_snapshot
 
 const $ = (id) => document.getElementById(id);
 const setStatus = (ok, text) => {
@@ -223,6 +253,27 @@ function connect() {
     ws.onmessage = (ev) => {
         let msg;
         try { msg = JSON.parse(ev.data); } catch { return; }
+
+        // Two server-side paradigms expose stealth-order state. Subscribe to
+        // both so the chart can populate anchor steps even when the
+        // history endpoint returns no reprice rows yet (fresh start, or
+        // window predates first reprice).
+        //   - stealth_orders_snapshot : explicit reply to request_stealth_orders
+        //   - state_update            : periodic broadcast carrying stealth_orders
+        if (msg.type === 'stealth_orders_snapshot') {
+            lastStealthSnapshot = { orders: msg.orders || {}, timestamp: msg.timestamp || null };
+            if (lastPayload) render();
+            return;
+        }
+        if (msg.type === 'state_update' && msg.data && msg.data.stealth_orders) {
+            lastStealthSnapshot = {
+                orders: msg.data.stealth_orders || {},
+                timestamp: (msg.data.engine_status && msg.data.engine_status.timestamp) || null,
+            };
+            if (lastPayload) render();
+            return;
+        }
+
         if (msg.type !== 'market_chart_history') return;
         if (msg.status === 'error') {
             setStatus(true, 'error: ' + (msg.message || 'unknown'));
@@ -245,6 +296,102 @@ function requestHistory() {
         type: 'request_market_chart_history',
         params: { product_id, window_minutes },
     }));
+    // Pair with a fresh snapshot so the fallback path has up-to-date state.
+    ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+}
+
+/* ---------- numeric / time helpers ------------------------------------ */
+
+function finiteNumber(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+}
+
+function parseTsMs(ts) {
+    const ms = Date.parse(ts || '');
+    return Number.isFinite(ms) ? ms : null;
+}
+
+/* ---------- fallback anchor reconstruction ---------------------------- */
+
+// When the server's request_market_chart_history response carries an empty
+// anchor_reprices list (no rows in the audit table for the window), rebuild
+// the same shape from the live stealth_orders_snapshot so the chart still
+// shows where the engine *thinks* the anchor is right now. Also covers the
+// fresh-start case before any reprice has fired.
+function buildFallbackAnchorReprices(productId, windowMinutes, stealthSnapshot) {
+    const orders = stealthSnapshot && stealthSnapshot.orders ? stealthSnapshot.orders : {};
+    const cutoffMs = Date.now() - (Math.max(1, Number(windowMinutes) || 360) * 60000);
+    const out = [];
+
+    for (const [stealthId, order] of Object.entries(orders)) {
+        if (!order || typeof order !== 'object') continue;
+        if ((order.product_id || '') !== productId) continue;
+        if (!ACTIVE_STATUSES.has(order.status)) continue;
+        if (order.parent_order_id) continue;   // roots only
+
+        const state  = order.anchor_repricing_state_json  || {};
+        const policy = order.anchor_repricing_policy_json || {};
+        const history = Array.isArray(state.reprice_history) ? state.reprice_history : [];
+
+        const anchorPrice =
+            finiteNumber(state.current_logical_limit_price)
+            ?? finiteNumber(state.active_exchange_price)
+            ?? finiteNumber(order.limit_price)
+            ?? finiteNumber(order.trigger_price);
+
+        const sourceTag = policy.reference_price_source || 'snapshot_fallback';
+        const parsedEvents = [];
+
+        for (const item of history) {
+            if (item && typeof item === 'object') {
+                const ts = parseTsMs(item.timestamp || item.ts);
+                if (ts === null || ts < cutoffMs) continue;
+                const from = finiteNumber(item.from_price ?? item.from) ?? anchorPrice;
+                const to   = finiteNumber(item.to_price   ?? item.to)   ?? anchorPrice;
+                if (from === null || to === null) continue;
+                parsedEvents.push({
+                    stealth_order_id: stealthId,
+                    ts: new Date(ts).toISOString(),
+                    from_price: from,
+                    to_price: to,
+                    source: item.source || sourceTag,
+                });
+                continue;
+            }
+            // Legacy shape: history entries are bare ISO timestamps. Best we
+            // can do is pin a flat segment at the current anchor price.
+            const ts = parseTsMs(item);
+            if (ts === null || ts < cutoffMs || anchorPrice === null) continue;
+            parsedEvents.push({
+                stealth_order_id: stealthId,
+                ts: new Date(ts).toISOString(),
+                from_price: anchorPrice,
+                to_price: anchorPrice,
+                source: sourceTag,
+            });
+        }
+
+        if (parsedEvents.length === 0 && anchorPrice !== null) {
+            // No history yet — synthesize a single anchor segment so the
+            // user can at least see where the order is camped.
+            const createdTs = parseTsMs(order.created_at);
+            const updatedTs = parseTsMs(order.updated_at);
+            const fallbackTs = Math.max(cutoffMs, (createdTs ?? updatedTs ?? Date.now()));
+            parsedEvents.push({
+                stealth_order_id: stealthId,
+                ts: new Date(fallbackTs).toISOString(),
+                from_price: anchorPrice,
+                to_price: anchorPrice,
+                source: sourceTag,
+            });
+        }
+
+        out.push(...parsedEvents);
+    }
+
+    out.sort((a, b) => (parseTsMs(a.ts) || 0) - (parseTsMs(b.ts) || 0));
+    return out;
 }
 
 // ---------- Series construction ----------
@@ -278,7 +425,6 @@ function buildAnchorSeries(reprices) {
     }
     const now = Date.now();
     const series = [];
-    let i = 0;
     for (const [sid, list] of grouped) {
         list.sort((a, b) => new Date(a.ts) - new Date(b.ts));
         const data = [];
@@ -287,15 +433,21 @@ function buildAnchorSeries(reprices) {
             const end = (j + 1 < list.length)
                 ? new Date(list[j + 1].ts).getTime()
                 : now;
+            const fromPrice = finiteNumber(list[j].from_price) ?? finiteNumber(list[j].to_price);
+            const toPrice   = finiteNumber(list[j].to_price)   ?? fromPrice;
+            if (!Number.isFinite(start) || !Number.isFinite(end) || fromPrice === null || toPrice === null) {
+                continue;
+            }
             // Step: from-price at the reprice instant, to-price thereafter.
-            data.push({ x: start, y: list[j].from_price });
-            data.push({ x: start, y: list[j].to_price });
-            data.push({ x: end,   y: list[j].to_price });
+            data.push({ x: start, y: fromPrice });
+            data.push({ x: start, y: toPrice });
+            data.push({ x: end,   y: toPrice });
         }
+        if (!data.length) continue;
         series.push({
-            label: 'Anchor ' + sid.slice(0, 8),
+            label: 'Anchor ' + shortId(sid),
             data,
-            borderColor: anchorColor(i++),
+            borderColor: colorFor(sid),
             backgroundColor: 'transparent',
             borderWidth: 1.5,
             pointRadius: 0,
@@ -304,11 +456,6 @@ function buildAnchorSeries(reprices) {
         });
     }
     return series;
-}
-
-function anchorColor(i) {
-    const palette = ['#fbbf24', '#a78bfa', '#f472b6', '#34d399', '#60a5fa', '#fb7185'];
-    return palette[i % palette.length];
 }
 
 // ---------- Miss-distance histogram ----------
@@ -340,6 +487,7 @@ function computeMissBuckets(market, reprices) {
         let best = Infinity;
         for (const s of segments) {
             if (p.x < s.from_x || p.x > s.to_x) continue;
+            if (!Number.isFinite(s.anchor)) continue;
             const d = Math.abs(p.y - s.anchor);
             if (d < best) best = d;
         }
@@ -361,8 +509,8 @@ function computeMissBuckets(market, reprices) {
 
 // ---------- Stats ----------
 
-function renderStats(payload, missTotal) {
-    const { ticks, candles, anchor_reprices } = payload;
+function renderStats(payload, missTotal, effectiveReprices, anchorSource) {
+    const { ticks, candles } = payload;
     const tickPrices = ticks.map(t => t.price).filter(p => p > 0);
     const meanPrice = tickPrices.length
         ? tickPrices.reduce((a, b) => a + b, 0) / tickPrices.length
@@ -374,8 +522,9 @@ function renderStats(payload, missTotal) {
         ['Window (min)',   payload.window_minutes],
         ['Tick points',    ticks.length.toLocaleString()],
         ['Candle fallbacks', candles.length.toLocaleString()],
-        ['Anchor reprices', anchor_reprices.length.toLocaleString()],
-        ['Stealth roots',  new Set(anchor_reprices.map(r => r.stealth_order_id)).size],
+        ['Anchor reprices', effectiveReprices.length.toLocaleString()],
+        ['Stealth roots',  new Set(effectiveReprices.map(r => r.stealth_order_id)).size],
+        ['Anchor source',  anchorSource],
         ['Mean price',     meanPrice ? meanPrice.toFixed(2) : '—'],
         ['Range',          tickPrices.length ? `${minPrice.toFixed(2)} – ${maxPrice.toFixed(2)}` : '—'],
         ['Miss samples',   missTotal ? missTotal.toLocaleString() : '0'],
@@ -389,9 +538,23 @@ function renderStats(payload, missTotal) {
 
 function render() {
     if (!lastPayload) return;
-    const { ticks, candles, anchor_reprices } = lastPayload;
+    const { ticks, candles } = lastPayload;
+
+    // Resolve anchor data with a single fall-through: prefer the audit-trail
+    // history from the server; if empty, synthesize from the live snapshot.
+    const rawAnchorReprices = Array.isArray(lastPayload.anchor_reprices) ? lastPayload.anchor_reprices : [];
+    const fallbackAnchorReprices = buildFallbackAnchorReprices(
+        lastPayload.product_id,
+        lastPayload.window_minutes,
+        lastStealthSnapshot,
+    );
+    const anchorReprices = rawAnchorReprices.length ? rawAnchorReprices : fallbackAnchorReprices;
+    const anchorSource = rawAnchorReprices.length
+        ? 'history'
+        : (fallbackAnchorReprices.length ? 'snapshot fallback' : 'none');
+
     const market = buildMarketSeries(ticks, candles);
-    const anchorDatasets = buildAnchorSeries(anchor_reprices);
+    const anchorDatasets = buildAnchorSeries(anchorReprices);
 
     // Price chart
     const datasets = [
@@ -439,7 +602,7 @@ function render() {
     });
 
     // Miss histogram
-    const miss = computeMissBuckets(market, anchor_reprices);
+    const miss = computeMissBuckets(market, anchorReprices);
     if (missChart) missChart.destroy();
     missChart = new Chart($('miss-chart').getContext('2d'), {
         type: 'bar',
@@ -463,8 +626,9 @@ function render() {
         },
     });
 
-    renderStats(lastPayload, miss.total);
-    $('generated-at').textContent = 'as of ' + (lastPayload.generated_at || '—');
+    renderStats(lastPayload, miss.total, anchorReprices, anchorSource);
+    const fallbackTag = anchorSource === 'snapshot fallback' ? ' (fallback anchors)' : '';
+    $('generated-at').textContent = 'as of ' + (lastPayload.generated_at || '—') + fallbackTag;
 }
 
 $('refresh-btn').addEventListener('click', requestHistory);
