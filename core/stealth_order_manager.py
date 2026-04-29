@@ -2720,27 +2720,100 @@ class StealthOrderManager:
                 },
             )
     
-    def cancel_stealth_order(self, stealth_order_id: str, reason: str = "User cancelled") -> bool:
+    def cancel_stealth_order(
+        self,
+        stealth_order_id: str,
+        reason: str = "User cancelled",
+        cancel_exchange: bool = True,
+    ) -> bool:
         """
-        Cancel a stealth order without placing it.
-        
+        Cancel a stealth order.
+
+        When ``cancel_exchange`` is True (default) and the order has a live
+        exchange placement tracked in ``anchor_repricing_state_json
+        .active_exchange_order_id``, that exchange order is best-effort
+        cancelled via REST before the stealth order is marked CANCELLED.
+        Failures to cancel on the exchange are logged but do not block the
+        local status flip — the local lifecycle must always reach a
+        terminal state so the reveal evaluator stops touching this order.
+
+        Args:
+            stealth_order_id: Internal stealth order id (client_order_id).
+            reason: Free-text reason recorded in notes / lifecycle event.
+            cancel_exchange: Best-effort REST cancel of the active exchange
+                order before flipping local status. Set False only when the
+                caller has already cancelled (or never placed) the exchange
+                order.
+
         Returns:
-            True if successfully cancelled
+            True if the local status flipped to CANCELLED. The exchange
+            cancel result does not affect the return value.
         """
         order = self._get_stealth_order(stealth_order_id)
-        
+
         if not order:
             return False
-        
+
         if order["status"] == StealthOrderStatus.CANCELLED.value:
             return False
-        
+
+        if cancel_exchange:
+            self._best_effort_cancel_active_exchange_order(order, reason)
+
         order["status"] = StealthOrderStatus.CANCELLED.value
         order["updated_at"] = datetime.utcnow()
         order["notes"] = f"{order['notes']}\nCancelled: {reason}"
-        
+
         self._update_stealth_order(order)
         return True
+
+    def _best_effort_cancel_active_exchange_order(
+        self, order: Dict[str, Any], reason: str
+    ) -> None:
+        """Cancel the live exchange order tracked by anchor repricing state.
+
+        Best-effort: any exception (REST failure, order already gone, etc.)
+        is logged and swallowed so the local CANCELLED transition is never
+        blocked. Also clears the in-memory ``active_exchange_order_id`` so
+        subsequent reprice checks do not retry the stale id.
+        """
+        state = order.get("anchor_repricing_state_json") or {}
+        exchange_order_id = state.get("active_exchange_order_id")
+        if not exchange_order_id:
+            return
+
+        from configuration import REST_CLIENT
+
+        try:
+            with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+                REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
+            self.log_callback(
+                "info",
+                {
+                    "event": "stealth_cancel_exchange_ok",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "exchange_order_id": exchange_order_id,
+                    "reason": reason,
+                },
+            )
+        except Exception as cancel_exc:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "stealth_cancel_exchange_failed",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "exchange_order_id": exchange_order_id,
+                    "reason": reason,
+                    "error": str(cancel_exc),
+                },
+            )
+
+        # Clear the pointer either way: on success the order is gone; on
+        # failure we still don't want subsequent reprice loops to try to
+        # cancel/replace it again under a now-CANCELLED stealth order.
+        state["active_exchange_order_id"] = None
+        state["active_placement_client_order_id"] = None
+        order["anchor_repricing_state_json"] = state
     
     # ===================== PRIVATE METHODS =====================
     

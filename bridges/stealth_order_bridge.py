@@ -330,9 +330,16 @@ class StealthOrderBridge:
         """
         return self.stealth_manager.create_stealth_order(stealth_order_id=stealth_order_id, **kwargs)
     
-    def cancel_stealth_order(self, stealth_order_id: str, reason: str = "User cancelled") -> bool:
-        """Cancel a stealth order."""
-        return self.stealth_manager.cancel_stealth_order(stealth_order_id, reason)
+    def cancel_stealth_order(
+        self,
+        stealth_order_id: str,
+        reason: str = "User cancelled",
+        cancel_exchange: bool = True,
+    ) -> bool:
+        """Cancel a stealth order (and, by default, its live exchange order)."""
+        return self.stealth_manager.cancel_stealth_order(
+            stealth_order_id, reason, cancel_exchange=cancel_exchange
+        )
     
     # ===================== PRIVATE METHODS =====================
     
