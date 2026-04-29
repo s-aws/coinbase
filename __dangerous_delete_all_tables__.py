@@ -41,7 +41,7 @@ from database.order import (
     create_order_match_audit_table,
 )
 from psycopg2 import sql
-
+from genai_tools import backfill_candles
 def main() -> None:
     """Delete all tables from the public schema and recreate them.
     
@@ -151,3 +151,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    backfill_candles.main()
