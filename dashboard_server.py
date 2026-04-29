@@ -1679,25 +1679,65 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await websocket.send(json.dumps(response))
         
         elif msg_type == "clear_all_stealth_orders":
-            # Clear all stealth orders from the database
+            # Clear all stealth orders from BOTH the live engine (memory) and
+            # the database. Without the in-memory step the reveal evaluator
+            # in stealth_order_bridge keeps polling _get_active_stealth_orders()
+            # and continues firing reveals on the exchange even after the DB
+            # rows are gone. Route every order through the same cancel path
+            # used for single-order cancel so the lifecycle (status flip,
+            # DB sync, lifecycle event dispatch) stays single-sourced.
             try:
                 from database.order import clear_all_stealth_orders
-                
+
+                cancelled_in_memory = 0
+                cancel_failures = 0
+                if stealth_order_bridge is not None:
+                    mgr = stealth_order_bridge.stealth_manager
+                    # Snapshot ids first; cancel mutates in_memory_orders state.
+                    active_ids = list(mgr.in_memory_orders.keys())
+                    for sid in active_ids:
+                        try:
+                            if stealth_order_bridge.cancel_stealth_order(
+                                sid, reason="Clear All Orders (dashboard)"
+                            ):
+                                cancelled_in_memory += 1
+                        except Exception as cancel_exc:
+                            cancel_failures += 1
+                            logger.error(
+                                f"Clear All: failed to cancel stealth order {sid}: {cancel_exc}"
+                            )
+                    # Defensive: drop any cached entries (including terminal-status
+                    # rows the cancel path skipped) so the engine can no longer
+                    # touch them after the DB wipe below.
+                    mgr.in_memory_orders.clear()
+                    mgr._placed_order_index.clear()
+
                 result = clear_all_stealth_orders()
-                
+
                 if result["success"]:
-                    # Clear all stealth orders from in-memory state
+                    # Clear dashboard's view-copy as well
                     with state_lock:
                         engine_state["stealth_orders"] = {}
-                    
+
                     response = {
                         "type": "stealth_orders_cleared",
                         "rows_deleted": result["rows_deleted"],
+                        "in_memory_cancelled": cancelled_in_memory,
+                        "in_memory_cancel_failures": cancel_failures,
                         "message": result["message"]
                     }
-                    
-                    add_log_entry("INFO", f"All stealth orders cleared - {result['rows_deleted']} deleted")
-                    logger.info(f"All stealth orders cleared - {result['rows_deleted']} deleted")
+
+                    add_log_entry(
+                        "INFO",
+                        f"All stealth orders cleared - {result['rows_deleted']} DB rows, "
+                        f"{cancelled_in_memory} in-memory cancelled, "
+                        f"{cancel_failures} cancel failures"
+                    )
+                    logger.info(
+                        f"All stealth orders cleared - {result['rows_deleted']} DB rows, "
+                        f"{cancelled_in_memory} in-memory cancelled, "
+                        f"{cancel_failures} cancel failures"
+                    )
                     
                     # Broadcast to all clients
                     message = json.dumps(response)
