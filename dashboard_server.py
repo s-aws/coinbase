@@ -29,6 +29,7 @@ except ImportError:
 # Use custom logging service
 from logging_service import get_logger
 from core.enums import EngineState, FollowUpRevealDirection, RepricingReferenceSource, StealthOrderStatus
+from core.models import RepricingPolicy
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
@@ -1259,8 +1260,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     }))
                     return
 
-                policy = mgr._normalize_anchor_repricing_policy(order.get("anchor_repricing_policy_json"))
-                if not policy.get("enabled"):
+                policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
+                if not policy.enabled:
                     await websocket.send(json.dumps({
                         "type": "reprice_now_result",
                         "stealth_order_id": stealth_order_id,
@@ -2326,9 +2327,10 @@ def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(order_data, dict):
             continue
 
-        # Check if repricing is enabled
-        policy = order_data.get("anchor_repricing_policy_json") or {}
-        if not policy.get("enabled"):
+        # Build typed view of the policy. Disabled policies short-circuit
+        # without touching any field except ``enabled``.
+        policy = RepricingPolicy.from_dict(order_data.get("anchor_repricing_policy_json"))
+        if not policy.enabled:
             continue
 
         active_count += 1
@@ -2339,11 +2341,7 @@ def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
         total_executed += len(history)
 
         # Breakdown by reference source
-        source = policy.get(
-            "reference_price_source", RepricingReferenceSource.MIDPOINT.value
-        )
-        if source in breakdown:
-            breakdown[source] += 1
+        breakdown[policy.reference_price_source.value] += 1
     
     return {
         "active_repricing_count": active_count,

@@ -76,9 +76,7 @@ from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
     OrderStatus,
-    RepricingDistanceType,
     RepricingReferenceSource,
-    RepricingUpdateMode,
     RevealConditionType,
     RevealPricingPolicy,
     RevealPriceSource,
@@ -94,6 +92,7 @@ from core.exceptions import (
     StealthOrderPersistenceError,
 )
 from business.stealth_condition_evaluator import get_evaluator
+from core.models import RepricingPolicy
 from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
 from database.order import get_parent_order, insert_order_parent
 from logging_service import get_logger
@@ -349,125 +348,25 @@ class StealthOrderManager:
         self,
         anchor_repricing_policy: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Normalize market-reference repricing policy.
+        """Normalize anchor-repricing policy for storage.
 
-        Supported reference sources:
-        - last_trade
-        - midpoint
-        - top_of_book
+        Two-step canonicalisation:
+        1. :meth:`RepricingPolicy.from_dict` does field-by-field clamping,
+           enum coercion, and slide-mode coupling.
+        2. The storage gate below collapses semantically meaningless
+           configurations (``enabled=True`` but no ``target_distance``) to
+           a disabled policy so downstream code can rely on the
+           ``enabled`` flag alone.
+
+        Returns a dict (JSONB-compatible, on-disk shape preserved).
+        Consumers that read an already-stored policy should use
+        :meth:`RepricingPolicy.coerce` directly — they don't need this
+        gate because storage already enforced it.
         """
-        policy = dict(anchor_repricing_policy or {})
-        enabled = bool(policy.get("enabled"))
-        if not enabled:
-            return {"enabled": False}
-
-        reference_price_source = str(
-            policy.get("reference_price_source") or RepricingReferenceSource.MIDPOINT.value
-        ).strip().lower()
-        if reference_price_source not in {s.value for s in RepricingReferenceSource}:
-            reference_price_source = RepricingReferenceSource.MIDPOINT.value
-
-        distance_type = str(
-            policy.get("distance_type") or RepricingDistanceType.PERCENT.value
-        ).strip().upper()
-        if distance_type not in {d.value for d in RepricingDistanceType}:
-            distance_type = RepricingDistanceType.PERCENT.value
-
-        target_distance = safe_float(policy.get("target_distance"), default=0.0)
-        max_distance = safe_float(policy.get("max_distance"), default=target_distance)
-        if target_distance <= 0:
-            return {"enabled": False}
-        if max_distance < target_distance:
-            max_distance = target_distance
-
-        update_mode = str(
-            policy.get("update_mode") or RepricingUpdateMode.ADAPTIVE.value
-        ).strip().lower()
-        if update_mode not in {m.value for m in RepricingUpdateMode}:
-            update_mode = RepricingUpdateMode.ADAPTIVE.value
-
-        fixed_interval_seconds = int(
-            safe_float(policy.get("fixed_interval_seconds"), default=60.0)
-        )
-        if fixed_interval_seconds <= 0:
-            fixed_interval_seconds = 60
-
-        min_price_change = max(
-            safe_float(policy.get("min_price_change"), default=0.01),
-            0.0,
-        )
-        hysteresis_bps = max(
-            safe_float(policy.get("hysteresis_bps"), default=5.0),
-            0.0,
-        )
-
-        # Slide Mode: cap each reprice to a maximum price step toward the
-        # desired price. When enabled, the engine emits a series of stepped
-        # reprices instead of a single jump. We force the per-tick gates
-        # (min_price_change / hysteresis) to zero so the slide is not
-        # suppressed by its own small steps; pacing is controlled by the
-        # min_reprice_interval / max_reprices_per_hour throttles.
-        slide_mode = bool(policy.get("slide_mode", False))
-        max_step_per_reprice = max(
-            safe_float(policy.get("max_step_per_reprice"), default=0.0),
-            0.0,
-        )
-        if slide_mode and max_step_per_reprice > 0:
-            min_price_change = 0.0
-            hysteresis_bps = 0.0
-        min_reprice_interval_seconds = max(
-            int(safe_float(policy.get("min_reprice_interval_seconds"), default=30.0)),
-            0,
-        )
-        max_reprices_per_hour = max(
-            int(safe_float(policy.get("max_reprices_per_hour"), default=20.0)),
-            1,
-        )
-
-        # Phase 2: Extended guardrails for adaptive repricing
-        volatility_sensitivity = max(
-            min(safe_float(policy.get("volatility_sensitivity"), default=1.0), 2.0),
-            0.1,
-        )
-        max_reprice_window_seconds = max(
-            int(safe_float(policy.get("max_reprice_window_seconds"), default=600.0)),
-            min_reprice_interval_seconds,
-        )
-        require_minimum_volume = max(
-            safe_float(policy.get("require_minimum_volume"), default=0.0),
-            0.0,
-        )
-        enable_spread_monitoring = bool(policy.get("enable_spread_monitoring", False))
-        max_spread_bps = max(
-            safe_float(policy.get("max_spread_bps"), default=50.0),
-            0.0,
-        )
-
-        return {
-            "enabled": True,
-            "reference_price_source": reference_price_source,
-            "distance_type": distance_type,
-            "target_distance": target_distance,
-            "max_distance": max_distance,
-            "update_mode": update_mode,
-            "fixed_interval_seconds": fixed_interval_seconds,
-            "allow_revealed_reprice": bool(policy.get("allow_revealed_reprice", True)),
-            "min_price_change": min_price_change,
-            "hysteresis_bps": hysteresis_bps,
-            "min_reprice_interval_seconds": min_reprice_interval_seconds,
-            "max_reprices_per_hour": max_reprices_per_hour,
-            "post_only_required": bool(policy.get("post_only_required", True)),
-            "converge_to_target": bool(policy.get("converge_to_target", True)),
-            "inherit_to_follow_ups": bool(policy.get("inherit_to_follow_ups", True)),
-            "slide_mode": slide_mode,
-            "max_step_per_reprice": max_step_per_reprice,
-            # Phase 2: Adaptive + spread guardrails
-            "volatility_sensitivity": volatility_sensitivity,
-            "max_reprice_window_seconds": max_reprice_window_seconds,
-            "require_minimum_volume": require_minimum_volume,
-            "enable_spread_monitoring": enable_spread_monitoring,
-            "max_spread_bps": max_spread_bps,
-        }
+        policy = RepricingPolicy.from_dict(anchor_repricing_policy)
+        if policy.enabled and policy.target_distance <= 0:
+            policy = RepricingPolicy.disabled()
+        return policy.to_dict()
 
     @staticmethod
     def _parse_runtime_datetime(value: Any) -> Optional[datetime]:
@@ -554,23 +453,22 @@ class StealthOrderManager:
         self,
         side: str,
         market_data: Dict[str, Any],
-        policy: Dict[str, Any],
+        policy: Any,
     ) -> Tuple[Optional[float], str]:
-        reference_price_source = policy.get(
-            "reference_price_source", RepricingReferenceSource.MIDPOINT.value
-        )
+        policy = RepricingPolicy.coerce(policy)
         price = safe_float(market_data.get("price"), default=None)
         bid = safe_float(market_data.get("bid"), default=None)
         ask = safe_float(market_data.get("ask"), default=None)
         normalized_side = str(side or "").upper()
 
-        if reference_price_source == RepricingReferenceSource.LAST_TRADE.value and price and price > 0:
+        ref = policy.reference_price_source
+        if ref is RepricingReferenceSource.LAST_TRADE and price and price > 0:
             return price, "ticker_last_trade"
 
-        if reference_price_source == RepricingReferenceSource.MIDPOINT.value and bid and ask and bid > 0 and ask > 0:
+        if ref is RepricingReferenceSource.MIDPOINT and bid and ask and bid > 0 and ask > 0:
             return (bid + ask) / 2.0, "ticker_midpoint"
 
-        if reference_price_source == RepricingReferenceSource.TOP_OF_BOOK.value:
+        if ref is RepricingReferenceSource.TOP_OF_BOOK:
             if normalized_side == "BUY" and bid and bid > 0:
                 return bid, "ticker_best_bid"
             if normalized_side == "SELL" and ask and ask > 0:
@@ -590,52 +488,18 @@ class StealthOrderManager:
         self,
         side: str,
         reference_price: float,
-        policy: Dict[str, Any],
+        policy: Any,
     ) -> Dict[str, float]:
-        if policy.get("distance_type") == "A":
-            target_distance = safe_float(policy.get("target_distance"), default=0.0)
-            max_distance = safe_float(policy.get("max_distance"), default=target_distance)
-        else:
-            target_distance = reference_price * safe_float(policy.get("target_distance"), default=0.0)
-            max_distance = reference_price * safe_float(policy.get("max_distance"), default=0.0)
-
-        normalized_side = str(side or "").upper()
-        if normalized_side == "BUY":
-            target_price = reference_price - target_distance
-            max_boundary_price = reference_price - max_distance
-        else:
-            target_price = reference_price + target_distance
-            max_boundary_price = reference_price + max_distance
-
-        return {
-            "target_price": float(target_price),
-            "max_boundary_price": float(max_boundary_price),
-            "target_distance_amount": float(target_distance),
-            "max_distance_amount": float(max_distance),
-        }
+        return RepricingPolicy.coerce(policy).compute_distance_bands(side, reference_price)
 
     @staticmethod
     def _apply_slide_step_clamp(
         current_price: float,
         desired_price: float,
-        policy: Dict[str, Any],
+        policy: Any,
     ) -> tuple[float, bool]:
-        """Cap reprice movement to ``max_step_per_reprice`` when slide_mode is on.
-
-        Returns (clamped_price, clamped) where ``clamped`` is True if the
-        desired price was further from the current price than the configured
-        step and was therefore reduced to ``current ± step``.
-        """
-        if not policy.get("slide_mode"):
-            return float(desired_price), False
-        step = safe_float(policy.get("max_step_per_reprice"), default=0.0)
-        if step <= 0:
-            return float(desired_price), False
-        delta = float(desired_price) - float(current_price)
-        if abs(delta) <= step:
-            return float(desired_price), False
-        direction = 1.0 if delta > 0 else -1.0
-        return float(current_price) + direction * float(step), True
+        """Cap reprice movement to ``max_step_per_reprice`` when slide_mode is on."""
+        return RepricingPolicy.coerce(policy).clamp_to_step(current_price, desired_price)
 
     def _quantize_reprice_price(
         self,
@@ -673,24 +537,22 @@ class StealthOrderManager:
     def _should_skip_anchor_reprice(
         self,
         state: Dict[str, Any],
-        policy: Dict[str, Any],
+        policy: Any,
         desired_price: float,
         current_price: float,
         force_due: bool,
         market_data: Optional[Dict[str, Any]] = None,
     ) -> bool:
+        policy = RepricingPolicy.coerce(policy)
         price_delta = abs(float(desired_price) - float(current_price))
-        min_price_change = safe_float(policy.get("min_price_change"), default=0.0)
-        hysteresis_bps = safe_float(policy.get("hysteresis_bps"), default=0.0)
-        hysteresis_abs = abs(float(current_price)) * (hysteresis_bps / 10000.0)
-        if price_delta < max(min_price_change, hysteresis_abs):
+        hysteresis_abs = abs(float(current_price)) * (policy.hysteresis_bps / 10000.0)
+        if price_delta < max(policy.min_price_change, hysteresis_abs):
             return True
 
         last_reprice_at = self._parse_runtime_datetime(state.get("last_reprice_at"))
-        min_interval = int(policy.get("min_reprice_interval_seconds", 0))
         if not force_due and last_reprice_at is not None:
             elapsed = (datetime.utcnow() - last_reprice_at).total_seconds()
-            if elapsed < min_interval:
+            if elapsed < policy.min_reprice_interval_seconds:
                 return True
 
         history = list(state.get("reprice_history") or [])
@@ -702,39 +564,38 @@ class StealthOrderManager:
         state["reprice_history"] = [
             ts.isoformat() if isinstance(ts, datetime) else ts for ts in recent
         ]
-        if len(recent) >= int(policy.get("max_reprices_per_hour", 20)):
+        if len(recent) >= policy.max_reprices_per_hour:
             return True
 
         # Phase 2: Spread monitoring guardrail
-        if policy.get("enable_spread_monitoring") and market_data:
+        if policy.enable_spread_monitoring and market_data:
             bid = safe_float(market_data.get("bid"), default=None)
             ask = safe_float(market_data.get("ask"), default=None)
             if bid and ask and bid > 0 and ask > 0:
                 spread_bps = ((ask - bid) / ((bid + ask) / 2.0)) * 10000.0
-                max_spread_bps = safe_float(policy.get("max_spread_bps"), default=50.0)
-                if spread_bps > max_spread_bps:
+                if spread_bps > policy.max_spread_bps:
                     return True
 
         # Phase 2: Volume requirement guardrail
-        require_minimum_volume = safe_float(policy.get("require_minimum_volume"), default=0.0)
-        if require_minimum_volume > 0 and market_data:
+        if policy.require_minimum_volume > 0 and market_data:
             volume_1m = safe_float(market_data.get("volume_1m"), default=0.0)
-            if volume_1m < require_minimum_volume:
+            if volume_1m < policy.require_minimum_volume:
                 return True
 
         return False
 
     def _next_anchor_reprice_seconds(
         self,
-        policy: Dict[str, Any],
+        policy: Any,
         current_price: float,
         target_price: float,
         max_boundary_price: float,
         market_data: Optional[Dict[str, Any]] = None,
     ) -> int:
         """Calculate next repricing interval, with volatility adjustment."""
-        if policy.get("update_mode") == "fixed":
-            return int(policy.get("fixed_interval_seconds", 60))
+        policy = RepricingPolicy.coerce(policy)
+        if policy.is_fixed_interval:
+            return policy.fixed_interval_seconds
 
         # Adaptive timing based on price gaps
         target_gap = abs(current_price - target_price)
@@ -754,13 +615,11 @@ class StealthOrderManager:
             ask = safe_float(market_data.get("ask"), default=None)
             if bid and ask and bid > 0 and ask > 0:
                 spread_pct = ((ask - bid) / ((bid + ask) / 2.0)) * 10000.0
-                volatility_sensitivity = safe_float(policy.get("volatility_sensitivity"), default=1.0)
                 if spread_pct > 50:  # High volatility (>50 bps)
-                    interval = int(interval * volatility_sensitivity)
-        
+                    interval = int(interval * policy.volatility_sensitivity)
+
         # Hard cap from max_reprice_window_seconds
-        max_window = int(policy.get("max_reprice_window_seconds", 600))
-        return min(interval, max_window)
+        return min(interval, policy.max_reprice_window_seconds)
 
     def _validate_anchor_reprice_profitability(
         self,
@@ -841,8 +700,8 @@ class StealthOrderManager:
             return True, None
 
     def _placement_client_order_id_for_order(self, order: Dict[str, Any]) -> str:
-        policy = order.get("anchor_repricing_policy_json") or {}
-        if policy.get("enabled") and policy.get("allow_revealed_reprice", True):
+        policy = RepricingPolicy.coerce(order.get("anchor_repricing_policy_json"))
+        if policy.should_reprice_revealed:
             return str(uuid.uuid4())
         return order["stealth_order_id"]
 
@@ -864,7 +723,7 @@ class StealthOrderManager:
     def _apply_revealed_anchor_reprice(
         self,
         order: Dict[str, Any],
-        policy: Dict[str, Any],
+        policy: Any,
         state: Dict[str, Any],
         market_data: Dict[str, Any],
         desired_price: float,
@@ -900,7 +759,8 @@ class StealthOrderManager:
         bid = safe_float(market_data.get("bid"), default=None)
         ask = safe_float(market_data.get("ask"), default=None)
         normalized_side = str(order.get("side") or "").upper()
-        if policy.get("post_only_required", True):
+        policy = RepricingPolicy.coerce(policy)
+        if policy.post_only_required:
             if normalized_side == "BUY" and ask and desired_price >= ask:
                 return False
             if normalized_side == "SELL" and bid and desired_price <= bid:
@@ -919,7 +779,7 @@ class StealthOrderManager:
                 limit_price=str(desired_price),
                 base_size=str(order["remaining_size"]),
                 client_order_id=placement_client_order_id,
-                post_only=policy.get("post_only_required", True),
+                post_only=policy.post_only_required,
             )
         success_response = order_result.get("success_response") if isinstance(order_result, dict) else {}
         new_exchange_order_id = (success_response or {}).get("order_id")
@@ -1061,8 +921,8 @@ class StealthOrderManager:
             if not order or order.get("product_id") != product_id:
                 continue
 
-            policy = self._normalize_anchor_repricing_policy(order.get("anchor_repricing_policy_json"))
-            if not policy.get("enabled"):
+            policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
+            if not policy.enabled:
                 continue
 
             state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
@@ -1198,7 +1058,7 @@ class StealthOrderManager:
                 self._update_stealth_order(order)
                 continue
 
-            if order.get("status") == StealthOrderStatus.REVEALED.value and policy.get("allow_revealed_reprice", True):
+            if order.get("status") == StealthOrderStatus.REVEALED.value and policy.allow_revealed_reprice:
                 if self._apply_revealed_anchor_reprice(
                     order,
                     policy,
@@ -2572,9 +2432,16 @@ class StealthOrderManager:
         follow_up_condition = reveal_condition if reveal_condition is not None else original_order.get("reveal_condition_json", {})
         inherited_pricing_policy = original_order.get("reveal_pricing_policy") or "configured_limit"
         effective_pricing_policy = reveal_pricing_policy or inherited_pricing_policy
-        anchor_repricing_policy = original_order.get("anchor_repricing_policy_json") or {"enabled": False}
-        if not anchor_repricing_policy.get("inherit_to_follow_ups", True):
-            anchor_repricing_policy = {"enabled": False}
+        # Inherit anchor-repricing policy unless explicitly opted out. Build via
+        # ``RepricingPolicy`` so the inheritance check uses the dataclass field
+        # (not a magic string lookup) and on-disk shape stays identical.
+        original_repricing = RepricingPolicy.from_dict(
+            original_order.get("anchor_repricing_policy_json")
+        )
+        if original_repricing.inherit_to_follow_ups:
+            anchor_repricing_policy = original_repricing.to_dict()
+        else:
+            anchor_repricing_policy = RepricingPolicy.disabled().to_dict()
         
         # Use provided target movement or inherit from original. Resolve via the
         # canonical resolver so root stealth orders (which keep target_movement on
