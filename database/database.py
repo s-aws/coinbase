@@ -17,6 +17,7 @@ Example:
 """
 
 import os
+import threading
 import psycopg2
 from psycopg2 import sql, Error
 from contextlib import contextmanager
@@ -84,6 +85,14 @@ class PostgresDB:
         self.user: str = user if user is not None else DEFAULT_DB_USER
         self.password: str = password if password is not None else DEFAULT_DB_PASSWORD
         self._conn: Optional[psycopg2.extensions.connection] = None
+        # Serialise cursor / commit / rollback across threads. The single
+        # shared psycopg2 connection cannot safely be used by multiple
+        # threads concurrently: if thread A's transaction aborts (e.g.
+        # ForeignKeyViolation), thread B's cursor on the same connection
+        # sees ``InFailedSqlTransaction`` before A's rollback runs. The
+        # cascade was observed in production on 2026-04-28 — see
+        # ``tests/regression/test_db_cursor_thread_safety.py``.
+        self._cursor_lock: threading.RLock = threading.RLock()
     
     def connect(self) -> None:
         """
@@ -127,6 +136,13 @@ class PostgresDB:
         
         Automatically creates a cursor, commits on success, rolls back on error,
         and closes the cursor. Ensures transactions are properly handled.
+
+        Thread safety: the entire begin -> execute -> commit/rollback sequence
+        is serialised via ``self._cursor_lock``. Without this lock, when one
+        thread's statement aborts the transaction (e.g. ForeignKeyViolation),
+        any other thread mid-execute on the same connection observes
+        ``InFailedSqlTransaction`` before the first thread's rollback runs.
+        Re-entrant so nested calls from the same thread are still allowed.
         
         Yields:
             psycopg2.cursor: Database cursor for executing queries.
@@ -134,19 +150,19 @@ class PostgresDB:
         Raises:
             Error: If database operation fails (auto-rolled back).
         """
-        if not self._conn:
-            self.connect()
-        cursor = self._conn.cursor()
-        try:
-            yield cursor
-            self._conn.commit()
-        except Error as e:
-            self._conn.rollback()
-            logger.error(f"Database transaction error - rolling back: {type(e).__name__}: {e}")
-            raise
-        finally:
-            cursor.close()
-    
+        with self._cursor_lock:
+            if not self._conn:
+                self.connect()
+            cursor = self._conn.cursor()
+            try:
+                yield cursor
+                self._conn.commit()
+            except Error as e:
+                self._conn.rollback()
+                logger.error(f"Database transaction error - rolling back: {type(e).__name__}: {e}")
+                raise
+            finally:
+                cursor.close()    
     def execute_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         """
         Execute a SELECT query and return results as list of dicts.

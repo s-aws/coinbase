@@ -561,6 +561,7 @@ class TestTerminalStatusEvictsOrderbookEntry:
         # Stub away every side effect that isn't the eviction we're testing.
         monkeypatch.setattr(engine, "normalize_product_type", lambda o: "FUTURE")
         monkeypatch.setattr(engine, "_sync_stealth_exchange_order_id", lambda o: None)
+        monkeypatch.setattr(engine, "_ensure_order_parent_row_exists", lambda o: None)
         monkeypatch.setattr(engine, "_process_ws_order_delta", lambda o: None)
         monkeypatch.setattr(engine, "is_parent_order", lambda coid: False)
         monkeypatch.setattr(

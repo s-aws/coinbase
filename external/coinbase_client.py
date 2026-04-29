@@ -441,7 +441,52 @@ class CoinbaseRestClient:
 
         response = self._client.get_fills(**kwargs)
         return response.to_dict() if hasattr(response, "to_dict") else response
-    
+
+    def get_candles(
+        self,
+        product_id: str,
+        start: int,
+        end: int,
+        granularity: str = "ONE_MINUTE",
+    ) -> List[Dict[str, Any]]:
+        """Fetch historical OHLC candles for a product.
+
+        Wraps Coinbase's ``GET /api/v3/brokerage/products/{product_id}/candles``.
+        Used by the slide-calibration backfill tool to populate
+        ``market_candle_1m`` so the calibration chart has historical
+        market context before the live tick recorder accumulates a day.
+
+        Coinbase caps each call at **350 candles**, so callers wanting a
+        full day of 1-minute data (1440 candles) must page in <=350-candle
+        windows. The backfill tool in ``genai_tools/backfill_candles.py``
+        does this paging.
+
+        Args:
+            product_id: e.g. ``"BTC-USDC"`` or ``"BIT-29MAY26-CDE"``.
+            start: Window start as a Unix epoch (seconds).
+            end: Window end as a Unix epoch (seconds).
+            granularity: One of Coinbase's documented granularity strings;
+                ``"ONE_MINUTE"`` (default), ``"FIVE_MINUTE"``, ``"FIFTEEN_MINUTE"``,
+                ``"THIRTY_MINUTE"``, ``"ONE_HOUR"``, ``"TWO_HOUR"``,
+                ``"SIX_HOUR"``, ``"ONE_DAY"``.
+
+        Returns:
+            List of candle dicts ordered newest-first, each with keys
+            ``start, low, high, open, close, volume`` (all as strings per
+            Coinbase's response shape).
+
+        Raises:
+            Exception: Propagated from the SDK on transport / auth failure.
+        """
+        response = self._client.get_candles(
+            product_id=product_id,
+            start=str(int(start)),
+            end=str(int(end)),
+            granularity=granularity,
+        )
+        data = response.to_dict() if hasattr(response, "to_dict") else response
+        return list(data.get("candles", []) or [])
+
     def list_futures_positions(self):
         """List all futures positions (raw SDK response).
         

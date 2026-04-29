@@ -111,6 +111,20 @@ except ImportError:
     def broadcast_ticker(*args, **kwargs): pass
     def record_spread_tick(*args, **kwargs): pass
 
+# Market-tick persistence (optional - degrades to no-op if module fails to
+# import, e.g. in DB-less smoke tests). Used by the slide-calibration view
+# to draw the market-mid reference line. See business/market_tick_recorder.py.
+try:
+    from business.market_tick_recorder import (
+        get_recorder as _get_market_tick_recorder,
+        init_recorder as _init_market_tick_recorder,
+    )
+    MARKET_TICK_RECORDER_AVAILABLE = True
+except ImportError:
+    MARKET_TICK_RECORDER_AVAILABLE = False
+    def _get_market_tick_recorder(): return None
+    def _init_market_tick_recorder(*args, **kwargs): return None
+
 # Lot tracking integration (optional - will fail gracefully if not available).
 # Note: production fills flow through OrderProgressTracker ->
 # FillLedgerRepository.append_derived_fill(delta); the legacy
@@ -1644,6 +1658,14 @@ class OrderEngine:
         
         External orders are ones placed directly via Coinbase UI or API,
         not by our automated order engine.
+
+        Resolution order:
+            1. If the cached parent entry carries ``externally_created=True``
+               (set by :meth:`_ensure_order_parent_row_exists`) → external.
+            2. Otherwise, an order we have no record of (neither parent nor
+               child in the in-memory orderbook) is external. This is the
+               legacy path retained for callers that look up COIDs we have
+               not yet hoisted into the cache.
         
         Args:
             client_order_id: The order's client order ID.
@@ -1655,10 +1677,12 @@ class OrderEngine:
             >>> if self._is_external_order('order_123'):
             ...     # Just track it, don't create follow-ups
         """
-        return (
-            not self.is_parent_order(client_order_id)
-            and not self.is_child_order(client_order_id)
-        )
+        with self.orderbook_lock:
+            cached = self.orderbook.parent_order_ids.get(client_order_id)
+            if cached is not None:
+                return bool(cached.get("externally_created", False))
+            in_child_cache = client_order_id in self.orderbook.child_order_ids
+        return not in_child_cache
 
     def _handle_external_order_tracking(
         self,
@@ -2140,6 +2164,13 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
+        # Step 3a: Ensure the order_parent row exists before any FK-dependent
+        # write. partial_fill_progress.client_order_id_fkey requires a parent
+        # row, so for genuinely-unknown (external) orders we must create one
+        # NOW — before _process_ws_order_delta runs the watermark upsert.
+        # See genai_tools/TODO_2026_04_28_partial_fill_root_causes.md (#1).
+        self._ensure_order_parent_row_exists(normalized_order)
+
         # Step 3b: Single ingestion point for WS-derived progress.
         # Routes to fill ledger, audit table, watermark persistence and
         # partial-fill follow-up creation in one place — see
@@ -2302,6 +2333,58 @@ class OrderEngine:
                 "allow_partial_fills": bool(parent_order.get("allow_partial_fills", False)),
             }
         return True
+
+    def _ensure_order_parent_row_exists(self, normalized_order: dict) -> None:
+        """Idempotently guarantee an ``order_parent`` row exists for this COID.
+
+        Why this exists:
+            ``partial_fill_progress.client_order_id_fkey`` requires that an
+            ``order_parent`` row already be present before any watermark
+            upsert. Prior to 2026-04-28 the WS handler called
+            :meth:`_process_ws_order_delta` (which writes that watermark)
+            *before* the FILLED/CANCELLED routing that would have created
+            the parent row for externally-placed orders. Result: every
+            brand-new external order produced a ``ForeignKeyViolation``
+            and at least one parent insert was lost when the error
+            handler itself crashed (separate exception-signature bug).
+
+        Behaviour:
+            - Already tracked (parent or child in memory) → no-op.
+            - Persisted in DB but not yet cached → hydrate cache, no-op.
+            - Genuinely unknown → insert via
+              :meth:`resolve_parent_client_order_id` and tag the cache
+              entry ``externally_created=True`` so :meth:`_is_external_order`
+              still routes the order to the external-tracking path
+              downstream.
+
+        Args:
+            normalized_order: Normalised WS order dict; must contain
+                ``client_order_id``. May lack a ``status`` (e.g. snapshot)
+                in which case the parent is inserted with whatever status
+                the payload reports, defaulting to ``OPEN``.
+        """
+        client_order_id = normalized_order.get("client_order_id")
+        if not client_order_id:
+            return
+
+        if self.is_parent_order(client_order_id) or self.is_child_order(client_order_id):
+            return  # Already tracked in memory — FK precondition satisfied.
+
+        if self._seed_parent_order_cache_from_db(client_order_id):
+            return  # Persisted in DB but not yet cached — hydrate and done.
+
+        # Genuinely unknown order. Insert the parent row idempotently so
+        # the watermark upsert that follows can satisfy the FK.
+        self.resolve_parent_client_order_id(
+            client_order_id,
+            order=normalized_order,
+            create_parent=True,
+            status=normalized_order.get("status"),
+        )
+        with self.orderbook_lock:
+            cached = self.orderbook.parent_order_ids.get(client_order_id)
+            if cached is not None:
+                cached["externally_created"] = True
 
     def apply_position_update(self, order_template: dict) -> None:
         """Apply position update from order template to orderbook.
@@ -3573,6 +3656,20 @@ class OrderEngine:
                                 best_ask = float(tickr.get("best_ask", 0))
                                 if best_bid > 0 and best_ask > 0 and product_id:
                                     record_spread_tick(product_id, best_bid, best_ask)
+
+                                # Persist a downsampled copy for slide-calibration
+                                # analytics. Best-effort: throttled to <=1 row/s/product
+                                # by the recorder; any DB error is logged inside
+                                # record() and never raised.
+                                tick_recorder = _get_market_tick_recorder()
+                                if tick_recorder is not None and product_id and price > 0:
+                                    tick_recorder.record(
+                                        product_id=product_id,
+                                        price=price,
+                                        best_bid=best_bid if best_bid > 0 else None,
+                                        best_ask=best_ask if best_ask > 0 else None,
+                                    )
+
                                 # Feed market data to stealth order evaluator
                                 if self.stealth_order_bridge and product_id:
                                     self.stealth_order_bridge.process_ticker_update(product_id, tickr)
@@ -3658,6 +3755,18 @@ class OrderEngine:
         # Update dashboard with initial engine status
         update_engine_status(self._build_engine_status_payload(event_queue_depth=0))
         add_log_entry("INFO", "Trading engine started")
+
+        # Initialise the market-tick recorder + retention sweeper. Idempotent;
+        # safe to call repeatedly. Tickers won't be persisted until this runs,
+        # so it must happen before the channel workers start below.
+        if MARKET_TICK_RECORDER_AVAILABLE:
+            try:
+                _init_market_tick_recorder()
+            except Exception as e:
+                self.log_message(
+                    "warning",
+                    f"market_tick recorder failed to initialise: {e}",
+                )
 
         threading.Thread(
             name="parent_child_reconcile_thread",

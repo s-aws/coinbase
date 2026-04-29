@@ -28,7 +28,7 @@ except ImportError:
 
 # Use custom logging service
 from logging_service import get_logger
-from core.enums import EngineState, FollowUpRevealDirection
+from core.enums import EngineState, FollowUpRevealDirection, StealthOrderStatus
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
@@ -53,16 +53,22 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "import_stealth_orders",
 })
 
-# Stealth-order statuses considered "active" for export. Anything not in this
-# set (EXECUTED, CANCELLED) represents a finished order whose lifecycle is
-# already over, so re-creating it would just produce dead history rows.
-_ACTIVE_STEALTH_STATUSES = frozenset({
-    "HIDDEN",
-    "PENDING",
-    "TRIGGERED",
-    "EXECUTING",
-    "PARTIAL",
+# Stealth-order statuses considered "active" for export. Derived from the
+# canonical StealthOrderStatus enum by excluding terminal states (EXECUTED,
+# CANCELLED) — anything else represents a live order whose configuration we
+# want to be able to back up and replay. REVEALED is included: the root is
+# placed on the exchange but not yet filled, so re-importing after a wipe
+# must recreate it. Hard-coding string literals here previously caused two
+# regressions: invented values ("EXECUTING", "PARTIAL") that don't exist in
+# the enum, and the omission of "REVEALED" — which silently dropped any
+# revealed root from the export.
+_TERMINAL_STEALTH_STATUSES = frozenset({
+    StealthOrderStatus.EXECUTED.value,
+    StealthOrderStatus.CANCELLED.value,
 })
+_ACTIVE_STEALTH_STATUSES = frozenset(
+    s.value for s in StealthOrderStatus if s.value not in _TERMINAL_STEALTH_STATUSES
+)
 
 # Fields on the in-memory stealth order that map back to create_stealth_order
 # kwargs (keys exactly match what the existing "create_stealth_order" message
@@ -690,7 +696,120 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         elif msg_type == "request_stealth_orders":
             # Send current stealth orders snapshot
             await send_stealth_orders_snapshot(websocket)
-        
+
+        elif msg_type == "request_slide_calibration_summary":
+            # Per-product fill / reprice / P&L snapshot used by the
+            # Slide Calibration UI to tune sliding-order config against
+            # daily volume + profit goals. Read-only; pure SQL over
+            # existing tables (fill_ledger, order_parent, stealth_orders).
+            try:
+                from database.slide_calibration_helpers import (
+                    get_slide_calibration_summary,
+                )
+
+                params = data.get("params") or {}
+                window_minutes = int(params.get("window_minutes", 1440))
+                product_id = params.get("product_id") or None
+                daily_notional_target = float(
+                    params.get("daily_notional_target_usd", 1_000_000.0)
+                )
+                account_balance = float(
+                    params.get("account_balance_usd", 250_000.0)
+                )
+
+                # Pull contract sizes from the live OrderBook held by the
+                # engine (via the stealth bridge). For FUTURE products
+                # ``fill_ledger.quantity`` is contract count, not underlying
+                # units, so notional must be scaled by ``contract_size``
+                # (e.g. 0.01 BTC for ``BIT-29MAY26-CDE``). Authoritative
+                # path matches calculation/profit_validator.py:151-166.
+                # If no engine is wired (e.g. dashboard-only deployment),
+                # fall back to no scaling — the summary will still be
+                # internally consistent, just over-stated for futures.
+                contract_size_by_product: dict = {}
+                try:
+                    if (stealth_order_bridge
+                            and getattr(stealth_order_bridge, "order_engine", None)
+                            and getattr(stealth_order_bridge.order_engine, "orderbook", None)):
+                        products = stealth_order_bridge.order_engine.orderbook.product or {}
+                        for pid, pdata in products.items():
+                            if not isinstance(pdata, dict):
+                                continue
+                            fpd = pdata.get("future_product_details") or {}
+                            cs = fpd.get("contract_size")
+                            if cs is None:
+                                continue
+                            try:
+                                cs_f = float(cs)
+                            except (TypeError, ValueError):
+                                continue
+                            if cs_f > 0:
+                                contract_size_by_product[pid] = cs_f
+                except Exception as e:
+                    logger.warning(
+                        f"slide-calibration: contract-size lookup failed: {e}"
+                    )
+
+                summary = get_slide_calibration_summary(
+                    window_minutes=window_minutes,
+                    product_id=product_id,
+                    daily_notional_target_usd=daily_notional_target,
+                    account_balance_usd=account_balance,
+                    contract_size_by_product=contract_size_by_product,
+                )
+                response = {
+                    "type": "slide_calibration_summary",
+                    "status": "success",
+                    **summary,
+                    "generated_at": datetime.utcnow().isoformat(),
+                }
+            except Exception as e:
+                logger.exception("Failed to build slide-calibration summary")
+                response = {
+                    "type": "slide_calibration_summary",
+                    "status": "error",
+                    "message": f"Failed to build summary: {e}",
+                }
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
+        elif msg_type == "request_market_chart_history":
+            # Time series for the slide-calibration phase-2 chart: ticks
+            # from market_tick + 1m candle fallback + anchor-reprice
+            # events. Per-product, read-only.
+            try:
+                from database.market_chart_helpers import get_market_chart_history
+
+                params = data.get("params") or {}
+                product_id = params.get("product_id")
+                window_minutes = int(params.get("window_minutes", 360))
+                max_tick_points = int(params.get("max_tick_points", 5000))
+
+                payload = get_market_chart_history(
+                    product_id=product_id,
+                    window_minutes=window_minutes,
+                    max_tick_points=max_tick_points,
+                )
+                response = {
+                    "type": "market_chart_history",
+                    "status": "success",
+                    **payload,
+                    "generated_at": datetime.utcnow().isoformat(),
+                }
+            except ValueError as e:
+                response = {
+                    "type": "market_chart_history",
+                    "status": "error",
+                    "message": str(e),
+                }
+            except Exception as e:
+                logger.exception("Failed to build market chart history")
+                response = {
+                    "type": "market_chart_history",
+                    "status": "error",
+                    "message": f"Failed to build chart history: {e}",
+                }
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
         elif msg_type == "request_storyboard_products":
             # Return distinct product IDs available in fill_ledger
             try:

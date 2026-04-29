@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "exported_at": "2026-04-29T08:26:32.207996",
+  "count": 6,
+  "orders": [
+    {
+      "stealth_order_id": "3d2850ab-7b9c-482d-8eec-f4c5dc371f3a",
+      "product_id": "BIT-29MAY26-CDE",
+      "side": "BUY",
+      "total_size": 5,
+      "limit_price": 77435,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 77435,
+        "hold_duration_seconds": 0
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.002,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1600,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 100,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": false,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    }
+  ]
+}
