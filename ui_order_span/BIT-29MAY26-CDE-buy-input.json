@@ -8,11 +8,11 @@
       "product_id": "BIT-29MAY26-CDE",
       "side": "BUY",
       "total_size": 5,
-      "limit_price": 77435,
+      "limit_price": 78000,
       "reveal_condition": {
         "type": "price",
-        "direction": "below",
-        "price_threshold": 77435,
+        "direction": "above",
+        "price_threshold": 78000,
         "hold_duration_seconds": 0
       },
       "sizing_strategy": {
