@@ -11,7 +11,7 @@
       "limit_price": 78000,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
+        "direction": "below",
         "price_threshold": 78000,
         "hold_duration_seconds": 0
       },
