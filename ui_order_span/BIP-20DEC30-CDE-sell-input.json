@@ -12,7 +12,7 @@
       "reveal_condition": {
         "type": "price",
         "direction": "above",
-        "price_threshold": 76750,
+        "price_threshold": 76450,
         "hold_duration_seconds": 0
       },
       "sizing_strategy": {

@@ -281,11 +281,15 @@ def test_partial_fill_due_followups_uses_created_units_for_carry_math():
         follow_ups_due=3,
     )
 
-    # Tracker must have consumed 1 unit (0.01) of carry. Remaining carry 0.025.
+    # 2026-04-29 race fix: carry consumption now happens atomically INSIDE
+    # ``_create_partial_fill_follow_up`` via
+    # ``OrderProgressTracker.claim_follow_up_units``. Since this test mocks
+    # the creator out, no claim happens, and the tracker's carry is
+    # unchanged from the ingest (full 0.035 accumulated).
     record = engine.order_progress_tracker.get_record(client_order_id)
     assert record is not None
-    assert isclose(record.carry_remainder_qty, 0.025, abs_tol=1e-12)
-    assert record.partial_follow_ups_created == 1
+    assert isclose(record.carry_remainder_qty, 0.035, abs_tol=1e-12)
+    assert record.partial_follow_ups_created == 0
 
     queued_calls = [
         call for call in publisher.publish_event.call_args_list
@@ -362,6 +366,22 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
         "target_movement_type": "P",
     }
 
+    # 2026-04-29 race fix: ``_create_partial_fill_follow_up`` now atomically
+    # claims units from the tracker BEFORE placement. Seed a record with at
+    # least ``follow_ups_due`` units of carry so the claim succeeds.
+    engine.order_progress_tracker.hydrate([
+        {
+            "client_order_id": client_order_id,
+            "parent_client_order_id": parent_client_order_id,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "original_order_size": 1.0,
+            "min_order_size": 0.01,
+            "carry_remainder_qty": 0.05,
+            "partial_follow_ups_created": 0,
+        }
+    ])
+
     created_units = engine._create_partial_fill_follow_up(
         client_order_id=client_order_id,
         parent_client_order_id=parent_client_order_id,
@@ -374,6 +394,12 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
     follow_up_kwargs = stealth_manager.create_follow_up_stealth_order.call_args.kwargs
     assert isclose(float(follow_up_kwargs["total_size"]), 0.01, rel_tol=0.0, abs_tol=1e-12)
     engine.register_child_order.assert_called_once_with("stealth-child-1", parent_client_order_id)
+
+    # Atomic claim must have decremented carry by exactly 1 * min_size.
+    record = engine.order_progress_tracker.get_record(client_order_id)
+    assert record is not None
+    assert isclose(record.carry_remainder_qty, 0.04, abs_tol=1e-12)
+    assert record.partial_follow_ups_created == 1
 
 
 def test_partial_fill_out_of_order_event_does_not_create_duplicate_followup():

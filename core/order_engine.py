@@ -781,87 +781,116 @@ class OrderEngine:
             max_replacements = int(replacement_details.get("max_order_replacement", 0))
             current_replacements = int(replacement_details.get("current_order_replacement", 0))
             remaining_replacements = max(0, max_replacements - current_replacements)
-            units_to_create = min(follow_ups_due, remaining_replacements)
-            if units_to_create <= 0:
+            requested_units = min(follow_ups_due, remaining_replacements)
+            if requested_units <= 0:
                 return 0
 
-            target_movement = self.resolve_parent_target_movement(parent_client_order_id)
-            order_template = self.compute_partial_fill_order_template(
-                client_order_id,
-                target_movement=target_movement,
+            # CRITICAL: atomically reserve carry units BEFORE the slow REST
+            # place call. Without this claim, concurrent WS-delta threads each
+            # observe the same stale ``carry_remainder_qty`` snapshot and each
+            # spawn a duplicate full-size follow-up. See 2026-04-29
+            # over-buy incident: a 100-unit SELL filled in 6 partial matches
+            # produced 5 BUY follow-ups @ 100 units each (500 total instead
+            # of 100). The atomic claim under the per-order lock causes the
+            # second concurrent thread to observe the already-reduced carry
+            # and back off.
+            units_to_create = self.order_progress_tracker.claim_follow_up_units(
+                client_order_id, max_units=requested_units
             )
-            if not order_template:
+            if units_to_create <= 0:
+                # Another concurrent thread already drained the carry; nothing
+                # left for us to spawn.
+                return 0
+
+            # From here on, any failure must refund the claim so a future
+            # delta can re-attempt the follow-up.
+            try:
+                target_movement = self.resolve_parent_target_movement(parent_client_order_id)
+                order_template = self.compute_partial_fill_order_template(
+                    client_order_id,
+                    target_movement=target_movement,
+                )
+                if not order_template:
+                    self.log_message(
+                        "warning",
+                        self.build_event_log_payload(
+                            "partial_fill_follow_up_template_compute_failed",
+                            client_order_id=client_order_id,
+                            parent_client_order_id=parent_client_order_id,
+                        ),
+                    )
+                    self.order_progress_tracker.release_follow_up_units(
+                        client_order_id, units_to_create
+                    )
+                    return 0
+
+                follow_up_price = float(order_template["start_price"])
+                follow_up_size = float(units_to_create * min_order_size)
+
+                follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
+                direction_choice = original_stealth_order.get(
+                    "follow_up_reveal_direction",
+                    FollowUpRevealDirection.OPPOSITE.value,
+                )
+
+                if follow_up_reveal_condition.get("type") == "price":
+                    follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
+                    if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
+                        if "direction" in follow_up_reveal_condition:
+                            follow_up_reveal_condition["direction"] = (
+                                Direction.ABOVE.value
+                                if follow_up_reveal_condition.get("direction") == Direction.BELOW.value
+                                else Direction.BELOW.value
+                            )
+
+                parent_order_data = self.db_helper.get_parent_order(parent_client_order_id)
+                parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
+                parent_target_movement_type = (
+                    parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value)
+                    if parent_order_data
+                    else TargetMovementType.PERCENTAGE.value
+                )
+
+                stealth_follow_up_id = stealth_manager.create_follow_up_stealth_order(
+                    original_stealth_order_id=original_stealth_order["stealth_order_id"],
+                    side=order_template["side"],
+                    total_size=follow_up_size,
+                    limit_price=follow_up_price,
+                    reveal_condition=follow_up_reveal_condition,
+                    follow_up_reveal_direction=direction_choice,
+                    reveal_pricing_policy=None,
+                    notes=(
+                        f"Auto partial-fill follow-up ({units_to_create} x {min_order_size})"
+                    ),
+                    target_movement=parent_target_movement,
+                    target_movement_type=parent_target_movement_type,
+                )
+
+                # Flat hierarchy: register the follow-up against the chain ROOT,
+                # never against the placement uuid that just settled (which is
+                # itself a child). Single canonical resolver lives in
+                # stealth_order_manager.
+                root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
+                self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
                 self.log_message(
-                    "warning",
+                    "order",
                     self.build_event_log_payload(
-                        "partial_fill_follow_up_template_compute_failed",
+                        "partial_fill_follow_up_created",
                         client_order_id=client_order_id,
                         parent_client_order_id=parent_client_order_id,
+                        stealth_follow_up_id=stealth_follow_up_id,
+                        follow_up_units=units_to_create,
+                        follow_up_size=follow_up_size,
+                        follow_up_price=follow_up_price,
                     ),
                 )
-                return 0
-
-            follow_up_price = float(order_template["start_price"])
-            follow_up_size = float(units_to_create * min_order_size)
-
-            follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
-            direction_choice = original_stealth_order.get(
-                "follow_up_reveal_direction",
-                FollowUpRevealDirection.OPPOSITE.value,
-            )
-
-            if follow_up_reveal_condition.get("type") == "price":
-                follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
-                if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
-                    if "direction" in follow_up_reveal_condition:
-                        follow_up_reveal_condition["direction"] = (
-                            Direction.ABOVE.value
-                            if follow_up_reveal_condition.get("direction") == Direction.BELOW.value
-                            else Direction.BELOW.value
-                        )
-
-            parent_order_data = self.db_helper.get_parent_order(parent_client_order_id)
-            parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-            parent_target_movement_type = (
-                parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value)
-                if parent_order_data
-                else TargetMovementType.PERCENTAGE.value
-            )
-
-            stealth_follow_up_id = stealth_manager.create_follow_up_stealth_order(
-                original_stealth_order_id=original_stealth_order["stealth_order_id"],
-                side=order_template["side"],
-                total_size=follow_up_size,
-                limit_price=follow_up_price,
-                reveal_condition=follow_up_reveal_condition,
-                follow_up_reveal_direction=direction_choice,
-                reveal_pricing_policy=None,
-                notes=(
-                    f"Auto partial-fill follow-up ({units_to_create} x {min_order_size})"
-                ),
-                target_movement=parent_target_movement,
-                target_movement_type=parent_target_movement_type,
-            )
-
-            # Flat hierarchy: register the follow-up against the chain ROOT,
-            # never against the placement uuid that just settled (which is
-            # itself a child). Single canonical resolver lives in
-            # stealth_order_manager.
-            root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
-            self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
-            self.log_message(
-                "order",
-                self.build_event_log_payload(
-                    "partial_fill_follow_up_created",
-                    client_order_id=client_order_id,
-                    parent_client_order_id=parent_client_order_id,
-                    stealth_follow_up_id=stealth_follow_up_id,
-                    follow_up_units=units_to_create,
-                    follow_up_size=follow_up_size,
-                    follow_up_price=follow_up_price,
-                ),
-            )
-            return units_to_create
+                return units_to_create
+            except Exception:
+                # Refund the atomic claim so a subsequent WS delta may retry.
+                self.order_progress_tracker.release_follow_up_units(
+                    client_order_id, units_to_create
+                )
+                raise
         except Exception as e:
             self.log_message(
                 "error",
@@ -1025,12 +1054,11 @@ class OrderEngine:
             )
 
         if created_units > 0:
-            # Hand the consumed units back to the tracker so the in-memory
-            # carry stays in sync with what was actually placed. This also
-            # increments ``partial_follow_ups_created`` on the tracker record
-            # so the next persistence cycle writes the new totals.
-            self.order_progress_tracker.consume_carry_units(client_order_id, created_units)
-            # Refresh persisted state to include the consumption + count.
+            # Carry was already decremented atomically by
+            # ``claim_follow_up_units`` inside ``_create_partial_fill_follow_up``
+            # BEFORE the REST place call (2026-04-29 race fix). Just persist
+            # the updated tracker state so the database reflects the new
+            # ``carry_remainder_qty`` and ``partial_follow_ups_created``.
             updated_record = self.order_progress_tracker.get_record(client_order_id)
             if updated_record is not None:
                 self._persist_progress_from_record(
