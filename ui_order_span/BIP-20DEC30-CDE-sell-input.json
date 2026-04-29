@@ -8,11 +8,11 @@
       "product_id": "BIP-20DEC30-CDE",
       "side": "SELL",
       "total_size": 5,
-      "limit_price": 77600,
+      "limit_price": 77640,
       "reveal_condition": {
         "type": "price",
         "direction": "above",
-        "price_threshold": 77600,
+        "price_threshold": 77640,
         "hold_duration_seconds": 0
       },
       "sizing_strategy": {
@@ -20,7 +20,7 @@
       },
       "notes": "",
       "max_order_replacements": 111,
-      "target_movement": 0.002,
+      "target_movement": 0.003,
       "target_movement_type": "P",
       "allow_partial_fills": true,
       "anchor_repricing_policy": {
@@ -31,7 +31,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 800,
+        "target_distance": 300,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": false,
