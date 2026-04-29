@@ -92,7 +92,7 @@ from core.exceptions import (
     StealthOrderPersistenceError,
 )
 from business.stealth_condition_evaluator import get_evaluator
-from core.models import RepricingPolicy
+from core.models import MarketData, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
 from database.order import get_parent_order, insert_order_parent
 from logging_service import get_logger
@@ -217,7 +217,7 @@ class StealthOrderManager:
         self.logger = get_logger("StealthOrderManager")
         self.log_callback = log_callback or self._default_log
         self.in_memory_orders = {}  # For caching/quick access
-        self._market_cache = {}  # Market data cache: product_id -> market_data
+        self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
         self.profit_validator = profit_validator
         
@@ -382,8 +382,8 @@ class StealthOrderManager:
     def _normalize_anchor_repricing_state(
         self,
         anchor_repricing_state: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        state = dict(anchor_repricing_state or {})
+    ) -> RepricingState:
+        state: RepricingState = dict(anchor_repricing_state or {})  # type: ignore[assignment]
         state.setdefault("reprice_history", [])
         return state
 
@@ -2215,11 +2215,11 @@ class StealthOrderManager:
         
         return None
     
-    def _get_current_market_data(self, product_id: str) -> Dict[str, Any]:
+    def _get_current_market_data(self, product_id: str) -> MarketData:
         """Get current market data from cache (populated by StealthOrderBridge)."""
         if product_id in self._market_cache:
             return self._market_cache[product_id]
-        
+
         # Return placeholder if data not available yet
         return {
             "product_id": product_id,

@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 from core.stealth_order_manager import StealthOrderManager
+from core.models import MarketData
 from core.runtime_controller import (
     INFLIGHT_STEALTH_REVEAL,
     get_runtime_controller,
@@ -335,7 +336,7 @@ class StealthOrderBridge:
     
     # ===================== PRIVATE METHODS =====================
     
-    def _update_market_cache(self, product_id: str, market_data: Dict[str, Any]):
+    def _update_market_cache(self, product_id: str, market_data: MarketData):
         """Update market data cache for evaluators."""
         self.stealth_manager._market_cache[product_id] = market_data
     

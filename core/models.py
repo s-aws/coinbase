@@ -1,7 +1,7 @@
 """Data models - Core dataclasses for orders, positions, products."""
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TypedDict
 from datetime import datetime
 
 from core.enums import (
@@ -11,10 +11,116 @@ from core.enums import (
     RepricingDistanceType,
     RepricingReferenceSource,
     RepricingUpdateMode,
-    RevealPricingPolicy,
-    RevealPriceSource,
-    TargetMovementType,
 )
+
+
+class MarketData(TypedDict, total=False):
+    """Snapshot of recent market data for a single product.
+
+    Populated by ``StealthOrderBridge`` from the engine's market-data feed
+    and consumed throughout the stealth path (condition evaluation,
+    repricing reference resolution, reveal pricing, audit logging).
+
+    All fields are optional (``total=False``) because the cache may hold
+    a placeholder when no feed event has arrived yet — see
+    ``StealthOrderManager._get_current_market_data``. Use ``safe_float``
+    or explicit ``.get(..., default)`` at every read site; do not assume a
+    field is present.
+
+    Field semantics:
+        product_id:    Coinbase product symbol (e.g. ``BTC-USDC``).
+        price:         Last trade price.
+        bid / ask:     Best bid / ask from the order book or ticker.
+        volume_1m:     Trade volume in the last 60 seconds (used by the
+                       repricing volume guardrail).
+        market_spread: Pre-computed ``ask - bid`` when available.
+        time:          Timestamp of the snapshot (engine-local datetime).
+        source:        Provenance tag — one of ``ticker``, ``snapshot``,
+                       ``unavailable``, ``synthetic_follow_up_seed``.
+                       Audit/log only; never used for control flow.
+    """
+    product_id: str
+    price: float
+    bid: float
+    ask: float
+    volume_1m: float
+    market_spread: float
+    time: datetime
+    source: str
+
+
+class RepricingState(TypedDict, total=False):
+    """Per-stealth-order anchor-repricing runtime state.
+
+    Persisted as ``stealth_orders.anchor_repricing_state_json`` (JSONB).
+    Holds the in-flight placement context plus the scheduling fields the
+    repricing loop needs to decide *when* to act next.
+
+    Pairs with :class:`RepricingPolicy`: the policy is the immutable
+    config, the state is the mutable per-order ledger. Both are stored
+    side-by-side on the stealth order row.
+
+    All fields are optional (``total=False``) because state is built
+    incrementally — a brand-new order has only ``reprice_history=[]``
+    until the first reprice or placement event populates the rest.
+
+    Field semantics:
+        active_placement_client_order_id / active_exchange_order_id:
+            IDs of the order currently resting on the exchange. Cleared
+            when the order is cancelled or fills.
+        active_exchange_price:        Limit price actually submitted to
+                                      the exchange (may differ from the
+                                      logical target if clamped).
+        current_logical_limit_price:  The unclamped target price the
+                                      policy resolved for this round.
+        last_reprice_at / next_reprice_at: ISO-8601 strings (JSONB-safe).
+                                      ``next_reprice_at`` is the
+                                      scheduling deadline; the loop checks
+                                      it on every tick.
+        reprice_reason:               Tag for the most recent reprice
+                                      (``adaptive``, ``slide_step``,
+                                      ``blocked_unprofitable``, ...).
+        reprice_history:              Append-only list of ISO timestamps,
+                                      one per successful reprice. Used by
+                                      slide-calibration analytics — see
+                                      ``database/slide_calibration_helpers.py``.
+        last_profitability_block_reason:
+            Set when the reveal-time profitability gate blocks a reprice.
+            Cleared on the next successful reprice.
+        reveal_condition_price_offsets:
+            Offsets captured the first time we reprice an order, so the
+            reveal-condition price thresholds can be moved in lock-step
+            with the limit price. See
+            ``_apply_reveal_condition_price_tracking``.
+    """
+    active_placement_client_order_id: Optional[str]
+    active_exchange_order_id: Optional[str]
+    active_exchange_price: Optional[float]
+    current_logical_limit_price: Optional[float]
+    last_reprice_at: str
+    next_reprice_at: str
+    reprice_reason: str
+    reprice_history: List[str]
+    last_profitability_block_reason: str
+    reveal_condition_price_offsets: Dict[str, float]
+
+
+def _required_str(data: Dict[str, Any], key: str, owner: str) -> str:
+    """Boundary validator: pull a required string from an API/DB payload.
+
+    Pre-strict-mode, missing keys silently became ``None`` and bound to a
+    non-Optional ``str`` field, deferring the failure to the first attribute
+    access. Strict typing surfaces this as a real risk; this helper turns it
+    into an explicit error at the boundary so the offending payload is in
+    the traceback.
+    """
+    value = data.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(
+            f"{owner}.from_dict: missing required string field {key!r} "
+            f"(got {value!r})"
+        )
+    return value
 
 
 @dataclass
@@ -32,13 +138,13 @@ class Product:
     def from_dict(cls, data: Dict[str, Any]) -> 'Product':
         """Create Product from API response dict."""
         return cls(
-            product_id=data.get('product_id'),
-            product_type=ProductType(data.get('product_type', 'SPOT').upper()),
-            base_increment=data.get('base_increment', '0'),
-            quote_increment=data.get('quote_increment', '0'),
-            price_increment=data.get('price_increment', '0'),
-            base_min_size=data.get('base_min_size', '0'),
-            trading_disabled=data.get('trading_disabled', False),
+            product_id=_required_str(data, 'product_id', 'Product'),
+            product_type=ProductType(str(data.get('product_type', 'SPOT')).upper()),
+            base_increment=str(data.get('base_increment', '0')),
+            quote_increment=str(data.get('quote_increment', '0')),
+            price_increment=str(data.get('price_increment', '0')),
+            base_min_size=str(data.get('base_min_size', '0')),
+            trading_disabled=bool(data.get('trading_disabled', False)),
         )
 
 
@@ -55,8 +161,8 @@ class Position:
     def from_dict(cls, data: Dict[str, Any]) -> 'Position':
         """Create Position from API response dict."""
         return cls(
-            product_id=data.get('product_id'),
-            side=data.get('side'),
+            product_id=_required_str(data, 'product_id', 'Position'),
+            side=_required_str(data, 'side', 'Position'),
             number_of_contracts=str(data.get('number_of_contracts', '0')),
             current_price=data.get('current_price'),
             entry_price=data.get('entry_price'),
@@ -77,7 +183,7 @@ class Wallet:
     def from_dict(cls, data: Dict[str, Any]) -> 'Wallet':
         """Create Wallet from API response dict."""
         return cls(
-            currency=data.get('currency'),
+            currency=_required_str(data, 'currency', 'Wallet'),
             available_balance=str(data.get('available_balance', '0')),
             total_balance=str(data.get('total_balance', '0')),
             created_at=data.get('created_at'),
@@ -107,20 +213,29 @@ class Order:
     def from_dict(cls, data: Dict[str, Any]) -> 'Order':
         """Create Order from API response dict."""
         from calculation.resolver import safe_float, normalize_product_type
-        
-        side = data.get('order_side') or data.get('side')
-        status_str = data.get('status', 'OPEN').upper()
-        
+
+        side_raw = data.get('order_side') or data.get('side')
+        if isinstance(side_raw, OrderSide):
+            order_side = side_raw
+        elif isinstance(side_raw, str):
+            order_side = OrderSide(side_raw)
+        else:
+            raise ValueError(
+                f"Order.from_dict: missing or invalid 'order_side'/'side' "
+                f"(got {side_raw!r})"
+            )
+        status_str = str(data.get('status', 'OPEN')).upper()
+
         return cls(
-            client_order_id=data.get('client_order_id'),
-            product_id=data.get('product_id'),
-            order_side=OrderSide(side) if isinstance(side, str) else side,
+            client_order_id=_required_str(data, 'client_order_id', 'Order'),
+            product_id=_required_str(data, 'product_id', 'Order'),
+            order_side=order_side,
             status=OrderStatus(status_str) if status_str in [e.value for e in OrderStatus] else OrderStatus.OPEN,
             size=safe_float(data.get('size'), 0.0),
             price=safe_float(data.get('price'), 0.0),
             filled_size=safe_float(data.get('filled_size'), 0.0),
-            limit_price=safe_float(data.get('limit_price')),
-            avg_price=safe_float(data.get('avg_price')),
+            limit_price=safe_float(data.get('limit_price'), default=None),
+            avg_price=safe_float(data.get('avg_price'), default=None),
             order_id=data.get('order_id'),
             product_type=ProductType(normalize_product_type(data)),
             created_at=data.get('created_at'),
@@ -494,7 +609,7 @@ class RepricingPolicy:
 
     def clamp_to_step(
         self, current_price: float, desired_price: float
-    ) -> tuple:
+    ) -> tuple[float, bool]:
         """Cap a reprice to ``max_step_per_reprice`` when slide mode is on.
 
         Returns ``(price, clamped)`` where ``clamped`` is True if the move

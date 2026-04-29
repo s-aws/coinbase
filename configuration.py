@@ -18,6 +18,7 @@ from os import getenv
 from copy import deepcopy
 import json
 from pathlib import Path
+from typing import Any, Optional, Union, overload
 from coinbase.rest import RESTClient
 
 from external import CoinbaseRestClient
@@ -94,22 +95,40 @@ ORDER_DIRECTION = {
 DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
 DEFAULT_MAX_ORDER_REPLACEMENT = 101
 
-def safe_float(value, default: float = 0.0) -> float:
-    """Safely convert a value to float, returning default on error.
-    
-    Handles None, empty strings, and invalid types gracefully. Useful for
+
+# ``safe_float`` returns ``None`` when callers explicitly pass ``default=None`` —
+# this is exercised in the engine's market-data resolution paths (bid/ask may
+# be missing). Express both shapes as overloads so Pylance's strict mode sees
+# the precise return type at each call site instead of a polymorphic
+# ``Optional[float]`` everywhere.
+
+
+@overload
+def safe_float(value: Any) -> float: ...
+@overload
+def safe_float(value: Any, default: float) -> float: ...
+@overload
+def safe_float(value: Any, default: None) -> Optional[float]: ...
+def safe_float(
+    value: Any, default: Union[float, None] = 0.0
+) -> Optional[float]:
+    """Safely convert a value to float, returning ``default`` on error.
+
+    Handles ``None``, empty strings, and invalid types gracefully. Useful for
     converting API responses where numeric fields may be missing or invalid.
-    
+
     Args:
         value: The value to convert (any type).
         default: The default value to return if conversion fails (default: 0.0).
-    
+            Pass ``None`` explicitly to opt into ``Optional[float]`` returns
+            (used by the engine when a missing bid/ask should propagate as
+            ``None`` rather than ``0.0``).
+
     Returns:
-        The converted float value, or default if conversion fails.
-    
-    Raises:
-        None - always returns a float.
-    
+        The converted float value, or ``default`` if conversion fails. The
+        return type matches the type of ``default``: pass a ``float`` to get
+        a guaranteed ``float`` back, or pass ``None`` to allow ``None``.
+
     Examples:
         >>> safe_float('123.45')
         123.45
@@ -123,9 +142,11 @@ def safe_float(value, default: float = 0.0) -> float:
         99.99
         >>> safe_float('invalid', default=1.0)
         1.0
+        >>> safe_float(None, default=None) is None
+        True
     """
     try:
-        if value in (None, ""):
+        if value is None or value == "":
             return default
         return float(value)
     except (TypeError, ValueError):
