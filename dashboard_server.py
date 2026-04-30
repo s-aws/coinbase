@@ -117,6 +117,7 @@ engine_state = {
         "last_update": None,
     },
     "logs": [],  # Recent log entries
+    "market_metrics": {},  # product_id -> {price, as_of, windows: [{minutes, avg, delta_pct}]}
 }
 max_logs = 100
 
@@ -137,6 +138,40 @@ server_event_loop = None
 
 # Stealth order bridge reference (set during integration)
 stealth_order_bridge = None
+
+
+# In-memory Fibonacci-window market metrics tracker. Optional dependency
+# so the dashboard still imports cleanly in DB-less smoke tests where the
+# business package may be partially mocked.
+try:
+    from business.market_metrics import (
+        get_market_metrics_tracker as _get_market_metrics_tracker,
+    )
+    _MARKET_METRICS_AVAILABLE = True
+except ImportError:
+    _MARKET_METRICS_AVAILABLE = False
+    def _get_market_metrics_tracker():
+        return None
+
+
+def _build_market_metrics_payload() -> Dict[str, Any]:
+    """Snapshot the in-memory Fibonacci-window tracker for broadcast.
+
+    Returns ``{}`` if the tracker is unavailable or empty so consumers
+    can treat the field as always-present-but-possibly-empty (the same
+    contract as ``stealth_orders``).
+    """
+    if not _MARKET_METRICS_AVAILABLE:
+        return {}
+    try:
+        tracker = _get_market_metrics_tracker()
+        if tracker is None:
+            return {}
+        return tracker.snapshot()
+    except Exception as e:
+        # Never let metrics fail a broadcast — log and degrade.
+        logger.debug(f"Failed to build market metrics payload: {e}")
+        return {}
 
 
 async def register_client(websocket: WebSocketServerProtocol):
@@ -175,6 +210,11 @@ async def unregister_client(websocket: WebSocketServerProtocol):
 async def _async_broadcast_state():
     """Async version of broadcast_state for scheduling from event loop."""
     with state_lock:
+        # Fold in the live Fibonacci-window market metrics so dashboard /
+        # console clients can render multi-timeframe trend without a
+        # separate channel. Snapshot is built outside the lock-protected
+        # mutate path because the tracker has its own lock.
+        engine_state["market_metrics"] = _build_market_metrics_payload()
         payload = {
             "type": "state_update",
             "data": engine_state,
@@ -203,6 +243,7 @@ def _trigger_broadcast():
 async def broadcast_state(websocket: WebSocketServerProtocol = None):
     """Broadcast current engine state to all connected clients."""
     with state_lock:
+        engine_state["market_metrics"] = _build_market_metrics_payload()
         payload = {
             "type": "state_update",
             "data": engine_state,

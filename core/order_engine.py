@@ -125,6 +125,19 @@ except ImportError:
     def _get_market_tick_recorder(): return None
     def _init_market_tick_recorder(*args, **kwargs): return None
 
+# In-memory Fibonacci-window market metrics. Read by the dashboard (and
+# console UI) at broadcast time; written here on every ticker tick. No DB,
+# no I/O, bounded memory. Keep this hook in lock-step with
+# ``business/market_metrics.py::FIBONACCI_WINDOWS_MINUTES``.
+try:
+    from business.market_metrics import (
+        get_market_metrics_tracker as _get_market_metrics_tracker,
+    )
+    MARKET_METRICS_AVAILABLE = True
+except ImportError:
+    MARKET_METRICS_AVAILABLE = False
+    def _get_market_metrics_tracker(): return None
+
 # Lot tracking integration (optional - will fail gracefully if not available).
 # Note: production fills flow through OrderProgressTracker ->
 # FillLedgerRepository.append_derived_fill(delta); the legacy
@@ -3698,6 +3711,17 @@ class OrderEngine:
                                         best_ask=best_ask if best_ask > 0 else None,
                                     )
 
+                                # Fold into the in-memory Fibonacci-window
+                                # tracker consumed by the dashboard / console
+                                # UI. Pure in-process; no I/O.
+                                if MARKET_METRICS_AVAILABLE and price > 0 and product_id:
+                                    metrics_tracker = _get_market_metrics_tracker()
+                                    if metrics_tracker is not None:
+                                        metrics_tracker.record(
+                                            product_id=trading_product_id or product_id,
+                                            price=price,
+                                        )
+
                                 # Feed market data to stealth order evaluator
                                 if self.stealth_order_bridge and product_id:
                                     self.stealth_order_bridge.process_ticker_update(product_id, tickr)
@@ -3795,6 +3819,37 @@ class OrderEngine:
                     "warning",
                     f"market_tick recorder failed to initialise: {e}",
                 )
+
+        # Decision-support warm-up: replay persisted ticks into the
+        # in-memory Fibonacci/standard-window tracker so the longer
+        # windows (1d, 7d) have something to show from the first
+        # broadcast. Runs in a daemon thread so a slow / large
+        # market_tick query never delays engine startup. Safe even
+        # before the first live tick because tracker.record() is
+        # idempotent and order-tolerant.
+        if MARKET_METRICS_AVAILABLE:
+            def _warm_load_metrics() -> None:
+                try:
+                    from business.market_metrics import (
+                        warm_load_from_market_tick,
+                    )
+                    n = warm_load_from_market_tick()
+                    if n:
+                        self.log_message(
+                            "info",
+                            f"market_metrics warm-load: replayed {n} rows",
+                        )
+                except Exception as e:
+                    self.log_message(
+                        "warning",
+                        f"market_metrics warm-load failed: {e}",
+                    )
+
+            threading.Thread(
+                target=_warm_load_metrics,
+                name="market-metrics-warmload",
+                daemon=True,
+            ).start()
 
         threading.Thread(
             name="parent_child_reconcile_thread",
