@@ -94,7 +94,7 @@ from core.exceptions import (
 from business.stealth_condition_evaluator import get_evaluator
 from core.models import MarketData, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
-from database.order import get_parent_order, insert_order_parent
+from database.order import get_parent_order, insert_order_parent, update_order_parent_status
 from logging_service import get_logger
 
 
@@ -2442,6 +2442,60 @@ class StealthOrderManager:
                 self._record_reveal_event(order, reveal_event)
                 return None
             
+            # ─────────────────────────────────────────────────────────────────
+            # PRE-REST: Persist order_parent row with the correct chain link
+            # BEFORE submitting to the exchange. The WS confirmation for this
+            # placement can race the post-REST code path (observed 2026-04-29:
+            # user_event_thread_0 fell into OrderEngine.resolve_parent_client_order_id
+            # `create_parent=True` branch and inserted f6281a12 as a ROOT row
+            # with parent_order_id=NULL and max_order_replacement=101 BEFORE the
+            # stealth manager's post-REST insert ran — the latter then hit a
+            # UniqueViolation and the chain link was permanently lost).
+            #
+            # Inserting first guarantees:
+            #   * parent_order_id is set to the resolved chain root
+            #   * max_order_replacement / target_movement inherited from stealth
+            #   * any racing WS-side resolve_parent_client_order_id call sees an
+            #     existing row (insert_order_parent is idempotent) and no-ops
+            #
+            # On REST failure below we update the row to FAILED rather than
+            # leaving a phantom PENDING row.
+            # ─────────────────────────────────────────────────────────────────
+            placement_pre_inserted = False
+            if client_order_id != stealth_order_id:
+                root_parent_for_placement = resolve_stealth_chain_root(order)
+                try:
+                    inherited_tm, inherited_tm_type, _src = \
+                        self._resolve_target_movement_for_plan(stealth_order_id, order)
+                    insert_order_parent(
+                        client_order_id=client_order_id,
+                        product_id=order["product_id"],
+                        side=order["side"],
+                        size=slice_size,
+                        price=reveal_plan.submitted_limit_price,
+                        target_movement=inherited_tm if inherited_tm is not None else 0.0,
+                        target_movement_type=inherited_tm_type or "P",
+                        max_order_replacement=int(order.get("max_order_replacements") or 0),
+                        current_order_replacement=0,
+                        status=OrderStatus.PENDING.value,
+                        parent_order_id=root_parent_for_placement,
+                        allow_partial_fills=bool(order.get("allow_partial_fills", False)),
+                    )
+                    placement_pre_inserted = True
+                except Exception as parent_insert_error:
+                    # Pre-insert failed (likely a WS-side race that already
+                    # created the row). Do not abort placement — downstream WS
+                    # handling and the post-REST idempotency layer will recover.
+                    self.log_callback(
+                        "warning",
+                        {
+                            "event": "reveal_placement_order_parent_pre_insert_failed",
+                            "stealth_order_id": stealth_order_id,
+                            "placement_client_order_id": client_order_id,
+                            "error": str(parent_insert_error),
+                        },
+                    )
+
             # Place order directly on the exchange via REST API
             # ⚠️ CRITICAL: Do NOT call create_limit_order_span() here as it creates another stealth order!
             # Use REST_CLIENT.place_limit_order() which is purpose-built for this
@@ -2477,52 +2531,10 @@ class StealthOrderManager:
             placed_order_id = client_order_id
             placement_success = True
 
-            # Ensure an order_parent row exists for the placement client_order_id BEFORE
-            # any WS event for it arrives. When anchor_repricing.allow_revealed_reprice=True
-            # the placement uuid differs from stealth_order_id, and was previously only
-            # created lazily in OrderEngine.handle_filled_order. WS events arriving before
-            # FILLED triggered FK violations on partial_fill_progress.client_order_id_fkey.
-            # insert_order_parent is idempotent (returns existing row id on duplicate), so
-            # the later lazy-create in handle_filled_order remains a safe no-op.
-            if placed_order_id != stealth_order_id:
-                # Flat hierarchy: resolve to chain root so a stealth follow-up's
-                # reveal placement does not become a grandchild of the original
-                # root. Mirrors create_follow_up_stealth_order's resolution and
-                # the in-memory link established by
-                # OrderEngine._register_stealth_placement_under_root.
-                root_parent_for_placement = resolve_stealth_chain_root(order)
-                try:
-                    # Inherit target_movement from canonical order_parent row of
-                    # the stealth (root or follow-up). Stealth in-memory dict often
-                    # has target_movement=None for root orders.
-                    inherited_tm, inherited_tm_type, _src = \
-                        self._resolve_target_movement_for_plan(stealth_order_id, order)
-                    insert_order_parent(
-                        client_order_id=placed_order_id,
-                        product_id=order["product_id"],
-                        side=order["side"],
-                        size=slice_size,
-                        price=reveal_plan.submitted_limit_price,
-                        target_movement=inherited_tm if inherited_tm is not None else 0.0,
-                        target_movement_type=inherited_tm_type or "P",
-                        max_order_replacement=int(order.get("max_order_replacements") or 0),
-                        current_order_replacement=0,
-                        status=OrderStatus.OPEN.value,
-                        parent_order_id=root_parent_for_placement,
-                        allow_partial_fills=bool(order.get("allow_partial_fills", False)),
-                    )
-                except Exception as parent_insert_error:
-                    # Do not abort placement on audit-row insert failure; downstream WS handling
-                    # will retry/log via the existing partial_fill_progress error path.
-                    self.log_callback(
-                        "warning",
-                        {
-                            "event": "reveal_placement_order_parent_insert_failed",
-                            "stealth_order_id": stealth_order_id,
-                            "placement_client_order_id": placed_order_id,
-                            "error": str(parent_insert_error),
-                        },
-                    )
+            # NOTE: order_parent row was inserted PRE-REST above (see
+            # placement_pre_inserted). Do not re-insert here — the WS event
+            # handler and our pre-insert are the two writers, and the
+            # pre-insert is now guaranteed to win the race.
 
             # 🪝 POST-SUBMISSION HOOKS: Log/track submission after REST call succeeds
             # Exceptions here are logged but don't affect placement
@@ -2602,6 +2614,23 @@ class StealthOrderManager:
                     "exception": str(e),
                     "note": "REST place_limit_order raised. Order was NOT placed on the exchange.",
                 })
+
+                # Mark the pre-inserted order_parent row as FAILED so it does
+                # not linger as a phantom PENDING placement. Only attempt this
+                # if the pre-insert succeeded above.
+                if placement_pre_inserted:
+                    try:
+                        update_order_parent_status(client_order_id, OrderStatus.FAILED.value)
+                    except Exception as status_err:
+                        self.log_callback(
+                            "warning",
+                            {
+                                "event": "reveal_placement_order_parent_failed_status_update_failed",
+                                "stealth_order_id": stealth_order_id,
+                                "placement_client_order_id": client_order_id,
+                                "error": str(status_err),
+                            },
+                        )
             
             # 🔔 LIFECYCLE HOOK: REVEAL_FAILED
             self._dispatch_lifecycle_event(
