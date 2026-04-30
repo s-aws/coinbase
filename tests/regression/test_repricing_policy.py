@@ -67,9 +67,21 @@ def test_round_trip_preserves_on_disk_shape():
         "require_minimum_volume": 0.0,
         "enable_spread_monitoring": False,
         "max_spread_bps": 50.0,
+        "follow_up_retreat_distance": 0.005,
+        "follow_up_retreat_jitter": 0.4,
     }
     out = RepricingPolicy.from_dict(raw).to_dict()
     assert out == raw
+
+
+def test_round_trip_uses_opt_out_defaults_when_retreat_omitted():
+    """Sanity: an enabled policy that omits retreat fields gets the
+    opt-out defaults (5bps / 0.5 jitter) written back. Pinned so a
+    future tweak to defaults doesn't silently change persisted shape."""
+    raw = {"enabled": True, "target_distance": 0.001, "max_distance": 0.005}
+    out = RepricingPolicy.from_dict(raw).to_dict()
+    assert out["follow_up_retreat_distance"] == 0.0005
+    assert out["follow_up_retreat_jitter"] == 0.5
 
 
 def test_coerce_accepts_dataclass_dict_or_none():

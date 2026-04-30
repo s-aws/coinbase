@@ -3191,21 +3191,62 @@ class StealthOrderManager:
         # Create follow-up with same reveal condition and sizing strategy
         # Link the follow-up as a child order to the ORIGINAL root parent (not the filled child)
         # This maintains a flat, single-level Parent:Child hierarchy as per design
+
+        # Pre-generate the follow-up's stealth_order_id so we can use it
+        # as the deterministic seed for retreat jitter BEFORE creating
+        # the order. Same UUID then flows into create_stealth_order so
+        # the seed and the persisted coid match (audit-replayable).
+        follow_up_stealth_order_id = str(uuid.uuid4())
+
+        # Apply post-fill retreat if configured. The inherited policy
+        # owns the decision; helper returns ``limit_price`` unchanged
+        # when retreat is disabled (distance == 0). Tick-align the
+        # result via the same chokepoint used at reveal time so the
+        # follow-up posts on a valid price grid.
+        retreat_policy = RepricingPolicy.from_dict(anchor_repricing_policy)
+        anchored_limit_price = retreat_policy.compute_follow_up_price(
+            anchor_price=float(limit_price),
+            side=side,
+            follow_up_client_order_id=follow_up_stealth_order_id,
+        )
+        retreat_applied = anchored_limit_price != float(limit_price)
+        if retreat_applied:
+            anchored_limit_price = self._quantize_reprice_price(
+                product_id=original_order["product_id"],
+                side=side,
+                price=anchored_limit_price,
+                boundary_enforced=False,
+            )
+        # Audit trail: stuff the actual retreat values used into the
+        # notes string. This is the only structured channel that
+        # currently survives end-to-end through ``create_stealth_order``
+        # without a schema change. If a dedicated audit field is added
+        # later, move this there. (See genai_tools/ for the related TODO
+        # if/when one is opened for stealth event audit fields.)
+        retreat_audit = (
+            f" [retreat: anchor={float(limit_price):.8f} "
+            f"posted={anchored_limit_price:.8f} "
+            f"distance={retreat_policy.follow_up_retreat_distance} "
+            f"jitter={retreat_policy.follow_up_retreat_jitter}]"
+            if retreat_applied else ""
+        )
+
         follow_up_id = self.create_stealth_order(
             product_id=original_order["product_id"],
             side=side,
             total_size=total_size,
-            limit_price=limit_price,
+            limit_price=anchored_limit_price,
             reveal_condition=follow_up_condition,
             sizing_strategy=original_order.get("sizing_strategy_json", {}),
             parent_order_id=resolve_stealth_chain_root(original_order),
             follow_up_reveal_direction=follow_up_reveal_direction or original_order.get("follow_up_reveal_direction", FollowUpRevealDirection.OPPOSITE.value),
             reveal_pricing_policy=effective_pricing_policy,
             reason="follow_up_replacement",
-            notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}",
+            notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}{retreat_audit}",
             anchor_repricing_policy=anchor_repricing_policy,
             target_movement=follow_up_target_movement,
             target_movement_type=follow_up_target_movement_type,
+            stealth_order_id=follow_up_stealth_order_id,
         )
 
         # Mirror the target onto the in-memory stealth dict so cached lookups

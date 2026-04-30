@@ -510,6 +510,22 @@ class RepricingPolicy:
     enable_spread_monitoring: bool = False
     max_spread_bps: float = 50.0
 
+    # ---- post-fill follow-up fingerprint-hiding ----
+    # Always RETREAT direction (away from the price that just got hit /
+    # away from the price the caller would otherwise post at). Always
+    # PERCENT-based (scale-invariant fingerprint regardless of the
+    # product's price magnitude).
+    #
+    # Defaults are non-zero (opt-OUT, not opt-in): every follow-up gets a
+    # small retreat so the fill -> follow-up correlation isn't an exact
+    # multiple of ``target_movement``. Set to 0.0 to disable.
+    #
+    # The goal is fingerprint-hiding (reaction-magnitude signal), NOT
+    # inventory-hiding. The fact that a follow-up exists already discloses
+    # inventory; this just blurs how predictable your post-fill price is.
+    follow_up_retreat_distance: float = 0.0005  # 5 bps default
+    follow_up_retreat_jitter:   float = 0.5     # +/-50% of distance
+
     # ---- builders ----
 
     @classmethod
@@ -624,6 +640,19 @@ class RepricingPolicy:
             safe_float(policy.get('max_spread_bps'), default=50.0), 0.0
         )
 
+        # Follow-up retreat (fingerprint-hiding). Both clamped to >= 0;
+        # jitter additionally clamped to <= 1.0 so the effective step
+        # cannot flip sign and become a chase. Defaults match the
+        # dataclass defaults (opt-out: 5bps / 0.5 jitter) so loading a
+        # legacy policy that omits these fields gets the new behavior.
+        follow_up_retreat_distance = max(
+            safe_float(policy.get('follow_up_retreat_distance'), default=0.0005), 0.0
+        )
+        follow_up_retreat_jitter = max(
+            min(safe_float(policy.get('follow_up_retreat_jitter'), default=0.5), 1.0),
+            0.0,
+        )
+
         return cls(
             enabled=True,
             reference_price_source=reference_price_source,
@@ -647,6 +676,8 @@ class RepricingPolicy:
             require_minimum_volume=require_minimum_volume,
             enable_spread_monitoring=enable_spread_monitoring,
             max_spread_bps=max_spread_bps,
+            follow_up_retreat_distance=follow_up_retreat_distance,
+            follow_up_retreat_jitter=follow_up_retreat_jitter,
         )
 
     @classmethod
@@ -695,6 +726,8 @@ class RepricingPolicy:
             'require_minimum_volume': self.require_minimum_volume,
             'enable_spread_monitoring': self.enable_spread_monitoring,
             'max_spread_bps': self.max_spread_bps,
+            'follow_up_retreat_distance': self.follow_up_retreat_distance,
+            'follow_up_retreat_jitter': self.follow_up_retreat_jitter,
         }
 
     # ---- behavior helpers ----
@@ -743,6 +776,77 @@ class RepricingPolicy:
             return float(desired_price), False
         direction = 1.0 if delta > 0 else -1.0
         return float(current_price) + direction * float(self.max_step_per_reprice), True
+
+    def compute_follow_up_price(
+        self,
+        *,
+        anchor_price: float,
+        side: str,
+        follow_up_client_order_id: str,
+    ) -> float:
+        """Resolve the price for a post-fill follow-up order.
+
+        ``anchor_price`` is the price the caller would otherwise post at
+        (typically already derived upstream from
+        ``fill_price + target_movement``). RETREAT moves it slightly in
+        the patient direction: BUY -> lower bid, SELL -> higher offer.
+        The point is to break the exact-multiple-of-target_movement
+        fingerprint that a counterparty could otherwise lock onto.
+
+        Always percent-based (scale-invariant). Always retreat (never
+        chase — chase is the loud option and is not configurable).
+
+        Jitter is DETERMINISTIC from ``follow_up_client_order_id`` (sha256
+        derived, same approach as ``calculation/price_camouflage.py``):
+        replayable for audit, no float-RNG in money paths. Effective
+        retreat lands in ``[d * (1 - jitter), d * (1 + jitter)]``.
+
+        Returns ``anchor_price`` unchanged when
+        ``follow_up_retreat_distance`` is 0 — the documented opt-out path.
+
+        NOTE: this method does NOT tick-align the result. The caller
+        (typically the follow-up creation path) must run the price
+        through ``calculation.formatter.quantize_to_increment`` with the
+        product's ``price_increment`` before placement.
+        """
+        # A disabled policy is fully inert: no anchor repricing AND no
+        # retreat. The defaults on the dataclass are the OPT-OUT values
+        # that take effect once a policy is enabled and omits the retreat
+        # fields; they are NOT meant to leak into a fully-disabled policy.
+        if not self.enabled:
+            return float(anchor_price)
+        if self.follow_up_retreat_distance <= 0:
+            return float(anchor_price)
+
+        # Deterministic jitter in [-1, +1] from the follow-up's coid.
+        # Keeps audit-replayable and never injects RNG into pricing.
+        jitter_fraction = 0.0
+        if self.follow_up_retreat_jitter > 0 and follow_up_client_order_id:
+            import hashlib
+
+            digest = hashlib.sha256(
+                follow_up_client_order_id.encode('utf-8')
+            ).digest()
+            # Use 8 bytes -> uint64 -> [0, 1) -> [-1, +1)
+            raw = int.from_bytes(digest[:8], 'big') / float(1 << 64)
+            unit = (raw * 2.0) - 1.0
+            jitter_fraction = unit * self.follow_up_retreat_jitter
+
+        # Effective retreat fraction. Clamp >= 0 as a belt-and-suspenders
+        # check so jitter can never flip retreat into chase even if
+        # ``follow_up_retreat_jitter`` somehow exceeded 1.0 at runtime.
+        effective_distance = max(
+            self.follow_up_retreat_distance * (1.0 + jitter_fraction),
+            0.0,
+        )
+        retreat_amount = float(anchor_price) * effective_distance
+
+        normalized_side = str(side or '').upper()
+        if normalized_side == OrderSide.BUY.value:
+            # Buying: retreat means post LOWER than the anchor.
+            return float(anchor_price) - retreat_amount
+        # Selling (or unknown): retreat means post HIGHER than the anchor.
+        return float(anchor_price) + retreat_amount
 
     @property
     def should_reprice_revealed(self) -> bool:
