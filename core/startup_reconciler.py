@@ -804,9 +804,13 @@ def audit_missed_fills(
             report.missed = kept
             report.already_recorded += suppressed
             logger.info(
-                "Missed-fills audit: suppressed %d REST row(s) across %d "
-                "order(s) covered by WS_DERIVED rows pending entry_id stamp "
+                "Missed-fills audit [window %s -> %s, product=%s]: "
+                "suppressed %d REST row(s) across %d order(s) covered by "
+                "WS_DERIVED rows pending entry_id stamp "
                 "(run FillReconciler to stamp them).",
+                since_iso,
+                until_iso or "now",
+                product_id or "<all>",
                 suppressed,
                 len(ws_covered_oids),
             )
@@ -848,11 +852,15 @@ def audit_missed_fills(
 
         if unowned:
             logger.info(
-                "Missed-fills audit: %d REST fill(s) across %d unowned "
-                "order(s) have no order_event_stream mapping (placed by a "
-                "previous engine instance, pre-wipe, or off-engine). Not "
-                "backfillable; not a WS gap. Use the backfill CLI only if "
-                "you can supply the original client_order_id externally.",
+                "Missed-fills audit [window %s -> %s, product=%s]: "
+                "%d REST fill(s) across %d unowned order(s) have no "
+                "order_event_stream mapping (placed by a previous engine "
+                "instance, pre-wipe, or off-engine). Not backfillable; not "
+                "a WS gap. Use the backfill CLI only if you can supply the "
+                "original client_order_id externally.",
+                since_iso,
+                until_iso or "now",
+                product_id or "<all>",
                 len(unowned),
                 len({str(f.get("order_id") or "") for f in unowned}),
                 extra={
@@ -867,9 +875,15 @@ def audit_missed_fills(
     summary = report.summary()
     if report.has_missed_fills:
         logger.warning(
-            "Missed-fills audit: detected fills not in local ledger for "
-            "orders we own. WS pipeline likely had a gap; investigate "
-            "before placing new orders.",
+            "Missed-fills audit [window %s -> %s, product=%s, "
+            "rest_examined=%d, pages=%d]: detected fills not in local "
+            "ledger for orders we own. WS pipeline likely had a gap; "
+            "investigate before placing new orders.",
+            since_iso,
+            until_iso or "now",
+            product_id or "<all>",
+            report.rest_fills_examined,
+            pages,
             extra={"missed_fills_summary": summary},
         )
         for fill in report.missed:
@@ -895,7 +909,14 @@ def audit_missed_fills(
             )
     else:
         logger.info(
-            "Missed-fills audit: clean (every REST fill is in local ledger)",
+            "Missed-fills audit [window %s -> %s, product=%s, "
+            "rest_examined=%d, pages=%d]: clean (every REST fill is in "
+            "local ledger).",
+            since_iso,
+            until_iso or "now",
+            product_id or "<all>",
+            report.rest_fills_examined,
+            pages,
             extra={"missed_fills_summary": summary},
         )
 
