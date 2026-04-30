@@ -7,19 +7,19 @@
       "stealth_order_id": "3d2850ab-7b9c-482d-8eec-f4c5dc371f3a",
       "product_id": "BIT-29MAY26-CDE",
       "side": "BUY",
-      "total_size": 10,
-      "limit_price": 77900,
+      "total_size": 1,
+      "limit_price": 76600,
       "reveal_condition": {
         "type": "price",
         "direction": "below",
-        "price_threshold": 77900,
+        "price_threshold": 76600,
         "hold_duration_seconds": 0
       },
       "sizing_strategy": {
         "type": "fixed"
       },
       "notes": "",
-      "max_order_replacements": 111,
+      "max_order_replacements": 2,
       "target_movement": 0.0014,
       "target_movement_type": "P",
       "allow_partial_fills": true,
@@ -45,7 +45,7 @@
         "volatility_sensitivity": 1,
         "enable_spread_monitoring": false,
         "max_reprice_window_seconds": 600,
-        "min_reprice_interval_seconds": 120
+        "min_reprice_interval_seconds": 60
       }
     }
   ]
