@@ -790,31 +790,21 @@ class OrderEngine:
                 )
                 return 0
 
-            # CRITICAL: atomically claim a replacement slot under the
-            # parent's lock BEFORE doing any I/O. Without this, concurrent
-            # WS-event threads each see the same stale
-            # ``current_order_replacement`` snapshot, all pass a "can_create"
-            # check, and breach ``max_order_replacement`` (2026-04-29
-            # incident: max=1, four BUY follow-ups created concurrently).
-            # On any failure path below the slot is released so the next WS
-            # delta may re-attempt.
-            granted_slots = self.claim_replacement_slots(
-                parent_client_order_id, requested=follow_ups_due
-            )
-            if granted_slots <= 0:
-                replacement_state = self.resolve_parent_replacement_state(
-                    parent_client_order_id
-                )
-                self.log_message(
-                    "order",
-                    self.build_event_log_payload(
-                        "partial_fill_follow_up_max_replacements_reached",
-                        client_order_id=client_order_id,
-                        parent_client_order_id=parent_client_order_id,
-                        details=replacement_state,
-                    ),
-                )
-                return 0
+            # NOTE: partial-fill follow-ups intentionally bypass
+            # ``max_order_replacement``. The cap exists to limit how many
+            # times the parent gets re-anchored when a placement
+            # cancels/fully-fills (see ``handle_filled_order`` path). A
+            # partial-fill follow-up is COMPLETING the existing placement
+            # — the original child counted as one replacement, and the
+            # follow-ups are just refilling the unfilled slice. Letting
+            # the cap gate them strands the operator with un-hedged
+            # exposure equal to the carry remainder when ``cap=1`` and
+            # the placement partial-fills (2026-04-30 incident: 10-unit
+            # SELL filled-in-full but only 1 of 9 BUY follow-ups
+            # spawned). The carry budget alone (``claim_follow_up_units``)
+            # bounds the spawn rate; the cap is conceptually a different
+            # budget and is enforced separately on the cancel/full-fill
+            # follow-up path.
 
             # CRITICAL: atomically reserve carry units BEFORE the slow REST
             # place call. Without this claim, concurrent WS-delta threads each
@@ -826,26 +816,15 @@ class OrderEngine:
             # second concurrent thread to observe the already-reduced carry
             # and back off.
             units_to_create = self.order_progress_tracker.claim_follow_up_units(
-                client_order_id, max_units=granted_slots
+                client_order_id, max_units=follow_ups_due
             )
             if units_to_create <= 0:
                 # Another concurrent thread already drained the carry; nothing
-                # left for us to spawn. Release the replacement slot we
-                # just reserved so it stays available for a real follow-up.
-                self.release_replacement_slots(
-                    parent_client_order_id, granted_slots
-                )
+                # left for us to spawn.
                 return 0
 
-            # If carry granted fewer units than replacement slots, release
-            # the excess so the cap stays accurate.
-            if units_to_create < granted_slots:
-                self.release_replacement_slots(
-                    parent_client_order_id, granted_slots - units_to_create
-                )
-
-            # From here on, any failure must refund the claim so a future
-            # delta can re-attempt the follow-up.
+            # From here on, any failure must refund the carry claim so a
+            # future delta can re-attempt the follow-up.
             try:
                 target_movement = self.resolve_parent_target_movement(parent_client_order_id)
                 order_template = self.compute_partial_fill_order_template(
@@ -863,9 +842,6 @@ class OrderEngine:
                     )
                     self.order_progress_tracker.release_follow_up_units(
                         client_order_id, units_to_create
-                    )
-                    self.release_replacement_slots(
-                        parent_client_order_id, units_to_create
                     )
                     return 0
 
@@ -916,7 +892,11 @@ class OrderEngine:
                 # itself a child). Single canonical resolver lives in
                 # stealth_order_manager.
                 root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
-                self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
+                self.register_child_order(
+                    stealth_follow_up_id,
+                    root_parent_client_order_id,
+                    bypass_replacement_cap=True,
+                )
                 self.log_message(
                     "order",
                     self.build_event_log_payload(
@@ -931,12 +911,9 @@ class OrderEngine:
                 )
                 return units_to_create
             except Exception:
-                # Refund the atomic claim so a subsequent WS delta may retry.
+                # Refund the carry claim so a subsequent WS delta may retry.
                 self.order_progress_tracker.release_follow_up_units(
                     client_order_id, units_to_create
-                )
-                self.release_replacement_slots(
-                    parent_client_order_id, units_to_create
                 )
                 raise
         except Exception as e:
@@ -1605,7 +1582,12 @@ class OrderEngine:
         """
         self.orderbook.complete_follow_up(processed_flag_name, client_order_id)
 
-    def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
+    def register_child_order(
+        self,
+        child_client_order_id: str,
+        parent_client_order_id: str,
+        bypass_replacement_cap: bool = False,
+    ) -> None:
         """Register a child order under a parent in the orderbook.
         
         Maintains bidirectional mappings and increments replacement count:
@@ -1616,6 +1598,11 @@ class OrderEngine:
         Args:
             child_client_order_id: The child order to register.
             parent_client_order_id: The parent order to register under.
+            bypass_replacement_cap: When True, link the child to the parent
+                without consuming a replacement slot. Used for partial-fill
+                follow-ups, which complete an existing placement rather
+                than adding a new one and therefore must not be gated by
+                ``max_order_replacement``.
         
         Returns:
             None
@@ -1626,6 +1613,7 @@ class OrderEngine:
         """
         # Flag to track if this is a new registration
         is_new_child = False
+        registered_now = False
         
         with self.orderbook_lock:
             # Ensure parent entry exists
@@ -1644,32 +1632,34 @@ class OrderEngine:
             # Add child to parent's orders list if not already there
             if child_client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id]["orders"]:
                 self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
+                registered_now = True
 
-                # Consume one pre-claimed pending slot if any. Pre-claim
-                # already counted this slot toward the cap (via
-                # claim_replacement_slots), so we still bump
-                # current_order_replacement here but net out the pending
-                # counter so the gate doesn't double-count. If the caller
-                # didn't pre-claim, pending stays 0 and the bump alone
-                # accounts for the new child (legacy un-pre-claimed sites
-                # remain correct, just unprotected against the race).
-                pending = int(
-                    self._pending_replacement_claims.get(parent_client_order_id, 0)
-                )
-                if pending > 0:
-                    new_pending = pending - 1
-                    if new_pending == 0:
-                        self._pending_replacement_claims.pop(
-                            parent_client_order_id, None
-                        )
-                    else:
-                        self._pending_replacement_claims[
-                            parent_client_order_id
-                        ] = new_pending
+                if not bypass_replacement_cap:
+                    # Consume one pre-claimed pending slot if any. Pre-claim
+                    # already counted this slot toward the cap (via
+                    # claim_replacement_slots), so we still bump
+                    # current_order_replacement here but net out the pending
+                    # counter so the gate doesn't double-count. If the caller
+                    # didn't pre-claim, pending stays 0 and the bump alone
+                    # accounts for the new child (legacy un-pre-claimed sites
+                    # remain correct, just unprotected against the race).
+                    pending = int(
+                        self._pending_replacement_claims.get(parent_client_order_id, 0)
+                    )
+                    if pending > 0:
+                        new_pending = pending - 1
+                        if new_pending == 0:
+                            self._pending_replacement_claims.pop(
+                                parent_client_order_id, None
+                            )
+                        else:
+                            self._pending_replacement_claims[
+                                parent_client_order_id
+                            ] = new_pending
 
-                # ✅ INCREMENT replacement count when adding a new child
-                self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
-                is_new_child = True
+                    # ✅ INCREMENT replacement count when adding a new child
+                    self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
+                    is_new_child = True
             
             # Map child to parent
             self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
@@ -1691,22 +1681,36 @@ class OrderEngine:
                 ),
             )
         else:
-            # ⚠️ REGRESSION DETECTOR: register_child_order() was called for a (child, parent) pair
-            # that was already registered. This is almost always a bug — most likely a duplicate
-            # call site in the event handling path. The DB increment is correctly skipped here,
-            # but surface the duplicate so the offending caller can be fixed.
-            self.log_message(
-                "warning",
-                self.build_event_log_payload(
-                    "child_order_register_duplicate_skipped",
-                    parent_client_order_id=parent_client_order_id,
-                    child_client_order_id=child_client_order_id,
-                    details={
-                        "reason": "child_already_registered_under_parent",
-                        "action": "db_increment_skipped",
-                    },
-                ),
-            )
+            if registered_now:
+                # New child linked but cap was bypassed (partial-fill
+                # follow-up). No DB replacement-count bump expected; this
+                # is the documented bypass path, not a duplicate-call bug.
+                self.log_message(
+                    "order",
+                    self.build_event_log_payload(
+                        "child_order_registered_cap_bypass",
+                        parent_client_order_id=parent_client_order_id,
+                        child_client_order_id=child_client_order_id,
+                        details={"reason": "partial_fill_follow_up"},
+                    ),
+                )
+            else:
+                # ⚠️ REGRESSION DETECTOR: register_child_order() was called for a (child, parent) pair
+                # that was already registered. This is almost always a bug — most likely a duplicate
+                # call site in the event handling path. The DB increment is correctly skipped here,
+                # but surface the duplicate so the offending caller can be fixed.
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "child_order_register_duplicate_skipped",
+                        parent_client_order_id=parent_client_order_id,
+                        child_client_order_id=child_client_order_id,
+                        details={
+                            "reason": "child_already_registered_under_parent",
+                            "action": "db_increment_skipped",
+                        },
+                    ),
+                )
 
     def _update_dashboard_order_status(self, client_order_id: str, order: dict, status: str) -> None:
         """Update dashboard with current order status.

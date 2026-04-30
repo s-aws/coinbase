@@ -329,36 +329,34 @@ def test_partial_fill_opt_out_skips_processing():
     engine._create_partial_fill_follow_up.assert_not_called()
 
 
-def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
+def test_create_partial_fill_follow_up_bypasses_replacement_cap():
+    """2026-04-30 design fix: partial-fill follow-ups complete an
+    already-counted placement, so they bypass ``max_order_replacement``
+    entirely. With cap=1 already exhausted by the original child,
+    a 5-unit follow-up demand against 5 units of carry must produce
+    5 units of follow-up — bounded by the carry, not the cap.
+    """
     engine = _build_engine_for_partial_fill_tests()
 
     client_order_id = "placed-order-1"
     parent_client_order_id = "parent-4"
 
-    # 2026-04-29 race fix: replacement-cap enforcement moved from a
-    # mock-friendly ``can_create_follow_up_order`` check to the atomic
-    # ``claim_replacement_slots`` reading directly from the in-memory
-    # parent record. Seed the parent so only 1 of 11 slots remains.
+    # Cap is exhausted: max=1, current=1. Pre-fix, this would clip
+    # follow-ups to 0 and strand the operator with un-hedged carry.
     engine.orderbook.parent_order_ids[parent_client_order_id] = {
         "allow_partial_fills": True,
         "orders": [],
         "target_movement": {"movement": 0.001, "type": "P"},
-        "max_order_replacement": 11,
-        "current_order_replacement": 10,
+        "max_order_replacement": 1,
+        "current_order_replacement": 1,
     }
 
-    engine.can_create_follow_up_order = Mock(
-        return_value=(
-            True,
-            {"max_order_replacement": 11, "current_order_replacement": 10},
-        )
-    )
     engine.resolve_parent_target_movement = Mock(return_value={"movement": 0.001, "type": "P"})
     engine.compute_partial_fill_order_template = Mock(
         return_value={
             "start_price": "100.0",
             "side": "BUY",
-            "order_base_size": "0.01",
+            "order_base_size": "0.05",
             "product_id": "BTC-USDC",
         }
     )
@@ -379,9 +377,6 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
         "target_movement_type": "P",
     }
 
-    # 2026-04-29 race fix: ``_create_partial_fill_follow_up`` now atomically
-    # claims units from the tracker BEFORE placement. Seed a record with at
-    # least ``follow_ups_due`` units of carry so the claim succeeds.
     engine.order_progress_tracker.hydrate([
         {
             "client_order_id": client_order_id,
@@ -402,17 +397,24 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
         follow_ups_due=5,
     )
 
-    assert created_units == 1
+    # Carry-bounded, not cap-bounded.
+    assert created_units == 5
     stealth_manager.create_follow_up_stealth_order.assert_called_once()
     follow_up_kwargs = stealth_manager.create_follow_up_stealth_order.call_args.kwargs
-    assert isclose(float(follow_up_kwargs["total_size"]), 0.01, rel_tol=0.0, abs_tol=1e-12)
-    engine.register_child_order.assert_called_once_with("stealth-child-1", parent_client_order_id)
+    assert isclose(float(follow_up_kwargs["total_size"]), 0.05, rel_tol=0.0, abs_tol=1e-12)
+    # Registration MUST go through the bypass path so the cap counter
+    # stays accurate.
+    engine.register_child_order.assert_called_once_with(
+        "stealth-child-1",
+        parent_client_order_id,
+        bypass_replacement_cap=True,
+    )
 
-    # Atomic claim must have decremented carry by exactly 1 * min_size.
+    # Atomic claim must have drained carry to 0.
     record = engine.order_progress_tracker.get_record(client_order_id)
     assert record is not None
-    assert isclose(record.carry_remainder_qty, 0.04, abs_tol=1e-12)
-    assert record.partial_follow_ups_created == 1
+    assert isclose(record.carry_remainder_qty, 0.0, abs_tol=1e-12)
+    assert record.partial_follow_ups_created == 5
 
 
 def test_partial_fill_out_of_order_event_does_not_create_duplicate_followup():

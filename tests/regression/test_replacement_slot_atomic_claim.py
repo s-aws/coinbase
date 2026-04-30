@@ -1,41 +1,27 @@
-"""Regression: 2026-04-29 follow-up replacement-cap breach.
+"""Regression: replacement-cap atomic claim + partial-fill bypass.
 
-Background
-==========
+Two related contracts pinned here.
 
-A SELL stealth order ``da7b8b66`` was placed with
-``max_order_replacement = 1`` (default). It filled in five partial
-matches over ~50ms. Five concurrent ``user_event_thread`` workers
-each entered ``_create_partial_fill_follow_up``, each called
-``can_create_follow_up_order`` (read-only check), each observed the
-same stale ``current_order_replacement`` snapshot, and each passed
-the gate. Four BUY follow-ups were created against the same parent
-before the in-memory ``current_order_replacement`` finally caught up
-and the cap engaged.
+1. Atomic ``claim_replacement_slots`` (2026-04-29 incident)
+   ----------------------------------------------------------
+   ``can_create_follow_up_order`` was a read-only gate; concurrent
+   threads each saw the same stale ``current_order_replacement``
+   snapshot and breached the cap. Fix: ``claim_replacement_slots``
+   atomically reserves a slot under ``orderbook_lock`` and accounts
+   for in-flight pending claims. This API is still used by the
+   cancel/full-fill follow-up path (``handle_filled_order``).
 
-DB evidence (post-incident audit, ``order_parent`` row 78):
-
-    max_order_replacement     = 1
-    current_order_replacement = 4   ← cap breached 4×
-
-Fix
-===
-
-``OrderEngine`` gained ``claim_replacement_slots(parent, n)`` —
-atomic under ``orderbook_lock``, factors in pending claims as well
-as the persisted ``current_order_replacement``. It is the single
-gate for replacement-cap enforcement. Concurrent callers see one
-winner and the rest get 0. ``_create_partial_fill_follow_up`` now
-goes through this claim BEFORE any I/O. ``register_child_order``
-consumes one pending claim when the child eventually registers, so
-the gate stays accurate without double-counting.
-
-These tests pin the contract:
-
-1. Atomic-claim correctness under concurrency at the engine layer.
-2. End-to-end: many concurrent ``_create_partial_fill_follow_up``
-   calls produce at most ``max_order_replacement`` follow-up
-   creations across the parent, regardless of carry availability.
+2. Partial-fill follow-ups bypass the cap (2026-04-30 incident)
+   --------------------------------------------------------------
+   With ``max_order_replacement = 1`` and ``allow_partial_fills =
+   True``, a 10-unit SELL filled in 4 partials produced only 1 of 9
+   needed BUY follow-ups: the cap, designed to limit *re-anchor*
+   placements, also gated *completion* placements and stranded the
+   operator with 9 un-hedged contracts. Fix: partial-fill follow-ups
+   call ``register_child_order(..., bypass_replacement_cap=True)``
+   and the cap is enforced only on the cancel/full-fill follow-up
+   path. The carry budget (``claim_follow_up_units``) alone bounds
+   the partial-fill spawn rate.
 """
 from __future__ import annotations
 
@@ -166,38 +152,46 @@ def test_concurrent_claim_replacement_slots_never_exceeds_cap():
 
 
 # ---------------------------------------------------------------------------
-# End-to-end: concurrent _create_partial_fill_follow_up vs cap
+# End-to-end: partial-fill follow-ups must BYPASS the replacement cap
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.regression
-def test_concurrent_partial_fill_follow_up_respects_replacement_cap():
-    """Reproduces the production cap breach: with carry available
-    for many follow-ups but ``max_order_replacement = 1``, N
-    concurrent ``_create_partial_fill_follow_up`` calls must produce
-    at most ONE follow-up creation, not N.
+def test_partial_fill_follow_up_bypasses_replacement_cap():
+    """2026-04-30 incident: ``max_order_replacement = 1`` +
+    ``allow_partial_fills = True`` left the operator with un-hedged
+    exposure equal to the carry remainder. The cap exists for
+    re-anchor placements (cancel / full-fill follow-ups), not for
+    *completing* an existing partially-filled placement.
 
-    Pre-fix (2026-04-29): four BUY follow-ups created against a
-    parent whose cap was 1.
+    Contract: with carry available for many follow-ups but
+    ``max_order_replacement = 1`` (already exhausted by the
+    original child), N concurrent
+    ``_create_partial_fill_follow_up`` calls must collectively
+    produce ``min(carry_units, follow_ups_due)`` follow-ups —
+    NOT clamp at the replacement cap.
     """
     engine = _build_engine_for_partial_fill_tests()
 
-    placed_coid = "race-coid-cap"
-    parent_coid = "race-parent-cap"
+    placed_coid = "race-coid-bypass"
+    parent_coid = "race-parent-bypass"
     _link_child_to_opted_in_parent(engine, placed_coid, parent_coid)
-    # Tighten the cap to 1 — the production scenario.
-    engine.orderbook.parent_order_ids[parent_coid]["max_order_replacement"] = 1
 
-    # Plenty of carry available — the cap, not the carry, must gate.
+    # Tighten the cap to 1 AND mark it already consumed by the
+    # original child placement. This is the production scenario.
+    engine.orderbook.parent_order_ids[parent_coid]["max_order_replacement"] = 1
+    engine.orderbook.parent_order_ids[parent_coid]["current_order_replacement"] = 1
+
+    # 9 carry units available — the carry, not the cap, must gate.
     engine.order_progress_tracker.hydrate([
         {
             "client_order_id": placed_coid,
             "parent_client_order_id": parent_coid,
             "product_id": "BIP-20DEC30-CDE",
             "side": "SELL",
-            "original_order_size": 99.0,
+            "original_order_size": 10.0,
             "min_order_size": 1.0,
-            "carry_remainder_qty": 99.0,
+            "carry_remainder_qty": 9.0,
             "partial_follow_ups_created": 0,
         }
     ])
@@ -216,7 +210,7 @@ def test_concurrent_partial_fill_follow_up_respects_replacement_cap():
 
     stealth_manager = Mock()
     stealth_manager.find_stealth_order_by_placed_order_id.return_value = {
-        "stealth_order_id": parent_coid,  # chain root == parent
+        "stealth_order_id": parent_coid,
         "parent_order_id": None,
         "reveal_condition_json": {"type": "price", "direction": "below"},
         "follow_up_reveal_direction": "opposite",
@@ -227,7 +221,7 @@ def test_concurrent_partial_fill_follow_up_respects_replacement_cap():
     def _create_fu(**kwargs):
         with follow_up_lock:
             i = len(follow_up_ids)
-            fu_id = f"stealth-follow-up-cap-{i}"
+            fu_id = f"stealth-follow-up-bypass-{i}"
             follow_up_ids.append(fu_id)
             return fu_id
 
@@ -237,18 +231,15 @@ def test_concurrent_partial_fill_follow_up_respects_replacement_cap():
         "target_movement": 0.001,
         "target_movement_type": "P",
     }
-    # Stub register_child_order so we don't need a live DB. Still
-    # consume the pending claim to keep the gate accurate.
-    def fake_register(child, parent):
-        with engine.orderbook_lock:
-            pending = int(engine._pending_replacement_claims.get(parent, 0))
-            if pending > 0:
-                new_pending = pending - 1
-                if new_pending == 0:
-                    engine._pending_replacement_claims.pop(parent, None)
-                else:
-                    engine._pending_replacement_claims[parent] = new_pending
-            engine.orderbook.parent_order_ids[parent]["current_order_replacement"] += 1
+
+    # Stub register_child_order. The bypass kwarg MUST be honored:
+    # current_order_replacement must NOT bump for partial-fill
+    # follow-ups, otherwise this test trivially passes for the wrong
+    # reason (the in-memory bump alone would gate concurrent threads).
+    register_calls = []
+    def fake_register(child, parent, bypass_replacement_cap=False):
+        register_calls.append((child, parent, bypass_replacement_cap))
+        # Honor the bypass contract: do not bump the counter.
     engine.register_child_order = fake_register
 
     n_threads = 8
@@ -261,7 +252,7 @@ def test_concurrent_partial_fill_follow_up_respects_replacement_cap():
             client_order_id=placed_coid,
             parent_client_order_id=parent_coid,
             min_order_size=1.0,
-            follow_ups_due=99,
+            follow_ups_due=9,
         )
 
     threads = [threading.Thread(target=worker, args=(i,)) for i in range(n_threads)]
@@ -270,14 +261,32 @@ def test_concurrent_partial_fill_follow_up_respects_replacement_cap():
     for t in threads:
         t.join()
 
-    # Exactly ONE follow-up creation across all threads.
-    assert len(follow_up_ids) == 1, (
-        f"Replacement cap breached: {len(follow_up_ids)} follow-ups "
-        f"created with max_order_replacement=1. Per-thread results: "
-        f"{results}. This is the 2026-04-29 cap-breach bug regressing."
+    # All 9 carry units consumed across the parent's chain, regardless
+    # of how the work was sliced across the racing threads. The cap
+    # must not have gated this even though it was already at max.
+    total_units = sum(r for r in results if r is not None)
+    assert total_units == 9, (
+        f"Partial-fill follow-ups did not exhaust carry: only "
+        f"{total_units} units consumed with 9 carry units available "
+        f"and max_order_replacement=1 (already exhausted). "
+        f"Per-thread results: {results}, follow-ups created: "
+        f"{len(follow_up_ids)}. The cap is incorrectly gating "
+        f"partial-fill completion placements again (2026-04-30 "
+        f"stranded-exposure regression)."
+    )
+    # At least one follow-up was created (could be any number from 1
+    # to 9 depending on thread interleaving — the atomic claim may
+    # let one thread grab everything or N threads grab partial slices).
+    assert len(follow_up_ids) >= 1
+
+    # Every register call MUST be a bypass call.
+    assert register_calls, "register_child_order was never called"
+    assert all(call[2] is True for call in register_calls), (
+        f"Partial-fill follow-up registered without "
+        f"bypass_replacement_cap=True: {register_calls}. The bypass "
+        f"contract is the entire point of the 2026-04-30 fix."
     )
 
-    # Parent state reflects exactly one consumed slot, no leaked pending.
-    parent = engine.orderbook.parent_order_ids[parent_coid]
-    assert parent["current_order_replacement"] == 1
-    assert engine._pending_replacement_claims.get(parent_coid, 0) == 0
+    # Carry must be fully drained.
+    record = engine.order_progress_tracker.get_record(placed_coid)
+    assert float(record.carry_remainder_qty) == 0.0
