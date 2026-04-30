@@ -92,7 +92,17 @@ class TestCoinbaseRESTAPI:
         assert contract_example.get("product_id") == product.get("product_id")
 
     def test_list_orders_response_contains_both_order_ids(self, coinbase_rest_client, api_reference_root):
-        """Live contract check that orders include both client_order_id and order_id."""
+        """Live contract check that orders include both client_order_id and order_id.
+
+        Coinbase responses evolve field names over time (e.g.,
+        ``created_at`` -> ``created_time``, ``user_native_currency`` /
+        ``net_proceeds`` removed, ``product_details`` /
+        ``equity_trading_session`` added). Asserting full schema parity
+        against the static contract example produces noisy failures
+        every time the venue ships a release. Mirror the
+        ``get_product`` test: pin only the stable, code-relevant fields
+        the engine actually consumes.
+        """
         # Coinbase rejects OPEN mixed with other statuses in one request.
         orders_response = coinbase_rest_client.list_orders(order_status=["OPEN"])
         orders_dict = orders_response.to_dict() if hasattr(orders_response, "to_dict") else orders_response
@@ -101,18 +111,43 @@ class TestCoinbaseRESTAPI:
         assert "orders" in orders_dict
         assert isinstance(orders_dict["orders"], list)
 
+        # Reference example is loaded only to confirm the file is still
+        # readable / well-formed (catches accidental deletions of the
+        # api_reference fixture). Field-set parity is intentionally NOT
+        # asserted — see docstring.
         contract_example = _load_contract_example(
             api_reference_root,
             "orders",
             "list_orders_response.json",
         )
-        contract_order_keys = set(contract_example.get("orders", [{}])[0].keys())
+        assert isinstance(contract_example.get("orders"), list)
 
         if orders_dict["orders"]:
             first_order = orders_dict["orders"][0]
-            assert contract_order_keys.issubset(set(first_order.keys()))
-            assert "client_order_id" in first_order
-            assert "order_id" in first_order
+            order_keys = set(first_order.keys())
+            # Stable minimum contract — these are the fields the engine
+            # depends on. Adding to this set is a deliberate code change.
+            required_keys = {
+                "order_id",
+                "client_order_id",
+                "product_id",
+                "side",
+                "status",
+                "order_configuration",
+                "filled_size",
+                "average_filled_price",
+                "completion_percentage",
+                "number_of_fills",
+                "total_fees",
+            }
+            missing = required_keys - order_keys
+            assert not missing, (
+                f"Coinbase list_orders response is missing required field(s): "
+                f"{sorted(missing)}. Either the venue removed a field the "
+                f"engine depends on (real breakage), or the engine no longer "
+                f"depends on it (update this set). Full response keys: "
+                f"{sorted(order_keys)}"
+            )
 
     def test_get_products_wrapper_returns_typed_products(self, coinbase_rest_client):
         """Wrapper-level contract check for typed Product conversion path."""

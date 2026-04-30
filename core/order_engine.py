@@ -59,7 +59,7 @@ from time import sleep
 from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from external import CoinbaseWebSocketClient
@@ -262,6 +262,13 @@ class OrderEngine:
         # incident: max=1, observed current=4 with 4 BUY follow-ups
         # spawned). All access protected by ``orderbook_lock``.
         self._pending_replacement_claims: Dict[str, int] = {}
+
+        # Diagnostic throttle for the parent/child reconciler drift
+        # diagnostic. Stores monotonic seconds of the last emit so we
+        # only fire one diff log per ~1h even if drift is observed
+        # every reconciler tick (the typical symptom). ``None`` means
+        # never emitted yet — the first drift detection always fires.
+        self._reconcile_diff_last_emit_monotonic: Optional[float] = None
 
         # Cooperative shutdown signal for all background loops/threads owned
         # by this engine. Set by ``stop()`` (registered as a runtime stop
@@ -3713,6 +3720,108 @@ class OrderEngine:
         
         return True
 
+    def _build_reconcile_diff_diagnostic(
+        self,
+        old_parents: Dict[str, Any],
+        new_parents: Dict[str, Any],
+        old_children: Dict[str, Any],
+        new_children: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Capture a one-shot, throttled diff of reconciler drift.
+
+        Returns ``None`` when the diagnostic is suppressed (recently
+        emitted). Otherwise returns a payload describing the FIRST 3
+        differing parents (full field diff per parent) plus added/
+        removed parent counts and child-mapping deltas. The intent is
+        to identify whether persistent drift is field-shape mismatch
+        (bootstrap vs DB-rehydrated entries) vs real state advancement.
+
+        Throttle: 1 emit per ~1 hour. Drift seen every reconciler tick
+        (~every 30s) would otherwise flood logs.
+        """
+        import time
+
+        now = time.monotonic()
+        if (
+            self._reconcile_diff_last_emit_monotonic is not None
+            and now - self._reconcile_diff_last_emit_monotonic < 3600.0
+        ):
+            return None
+
+        old_keys = set(old_parents.keys())
+        new_keys = set(new_parents.keys())
+        added = sorted(new_keys - old_keys)
+        removed = sorted(old_keys - new_keys)
+        common = old_keys & new_keys
+
+        # Bootstrap detection: an empty in-memory map being populated for
+        # the first time is NOT drift — it's expected hydration. Don't
+        # burn the throttle on it; we want the throttle to fire on the
+        # first REAL drift event (parents_modified > 0 or post-bootstrap
+        # additions/removals).
+        is_bootstrap = (
+            len(old_keys) == 0
+            and len(new_keys) > 0
+            and len(removed) == 0
+        )
+        if is_bootstrap:
+            return None
+
+        differing: List[Dict[str, Any]] = []
+        for coid in sorted(common):
+            old_v = old_parents[coid]
+            new_v = new_parents[coid]
+            if old_v == new_v:
+                continue
+            # Build per-field diff (limit to top-level keys; nested
+            # dicts compared as opaque values for diagnostic clarity).
+            field_diffs: Dict[str, Any] = {}
+            all_fields = set(old_v.keys()) | set(new_v.keys())
+            for f in sorted(all_fields):
+                ov = old_v.get(f, "<MISSING>")
+                nv = new_v.get(f, "<MISSING>")
+                if ov != nv:
+                    field_diffs[f] = {
+                        "in_memory": repr(ov),
+                        "in_memory_type": type(ov).__name__,
+                        "from_db": repr(nv),
+                        "from_db_type": type(nv).__name__,
+                    }
+            differing.append({
+                "client_order_id": coid,
+                "field_diffs": field_diffs,
+            })
+            if len(differing) >= 3:
+                break
+
+        # Child-mapping delta (just counts; usually less interesting
+        # than parent shape mismatch).
+        child_added = len(set(new_children.keys()) - set(old_children.keys()))
+        child_removed = len(set(old_children.keys()) - set(new_children.keys()))
+        child_remapped = sum(
+            1 for k, v in new_children.items()
+            if k in old_children and old_children[k] != v
+        )
+
+        self._reconcile_diff_last_emit_monotonic = now
+
+        return {
+            "summary": {
+                "parents_added": len(added),
+                "parents_removed": len(removed),
+                "parents_modified": sum(
+                    1 for k in common if old_parents[k] != new_parents[k]
+                ),
+                "child_mappings_added": child_added,
+                "child_mappings_removed": child_removed,
+                "child_mappings_remapped": child_remapped,
+            },
+            "added_parent_sample": added[:3],
+            "removed_parent_sample": removed[:3],
+            "differing_parents_sample": differing,
+            "throttle": "1_emit_per_hour",
+        }
+
     def load_parent_child_order_ids(self, force_log: bool = False) -> bool:
         """Load parent/child order mappings from database into orderbook.
         
@@ -3763,9 +3872,33 @@ class OrderEngine:
             # window where the previous code wrote ``parent_order_ids`` and
             # ``child_order_ids`` in two separate statements while another
             # thread could observe the half-replaced state.
+            #
+            # DIAGNOSTIC (2026-04-30): persistent drift was suspected to be
+            # field-shape mismatch between the bootstrap path
+            # (``register_child_order``) and the DB-rehydrated snapshot
+            # (``build_parent_child_order_ids_snapshot``). Capture a
+            # one-shot diff of the first few differing entries so the
+            # cause is verifiable from logs rather than inferred. The
+            # diagnostic suppresses itself for ~1 hour after each emit.
+            diff_payload = self._build_reconcile_diff_diagnostic(
+                self.orderbook.parent_order_ids,
+                new_parent_order_ids,
+                self.orderbook.child_order_ids,
+                new_child_order_ids,
+            )
+
             self.orderbook.atomic_replace_links(
                 new_parent_order_ids,
                 new_child_order_ids,
+            )
+
+        if diff_payload is not None:
+            self.log_message(
+                "reconcile",
+                self.build_event_log_payload(
+                    "parent_child_reconcile_drift_diagnostic",
+                    **diff_payload,
+                ),
             )
 
         self.log_message(
