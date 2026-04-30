@@ -178,3 +178,120 @@ def test_follow_up_audit_trail_includes_retreat_values():
     assert "retreat" in notes
     assert "0.005" in notes  # distance value visible
     assert "50000" in notes  # anchor visible
+
+
+@pytest.mark.regression
+def test_follow_up_structured_audit_dict_populated_on_in_memory_order():
+    """The structured ``follow_up_audit`` dict on the in-memory order
+    is the programmatic counterpart to the notes string. Dashboard +
+    debugging tools should consume this, not parse notes."""
+    manager, filled_child_id = _build_manager_with_filled_child(
+        retreat_distance=0.005,
+        retreat_jitter=0.0,
+    )
+    new_id_holder = {}
+    # Real create_stealth_order would register the in-memory order; we
+    # mock it to do that registration itself so the post-create
+    # _get_stealth_order lookup finds something to attach audit onto.
+    # The production code pre-generates the stealth_order_id in
+    # create_follow_up_stealth_order and passes it through; we honor that
+    # so the seed-equals-coid invariant holds.
+    def fake_create(**kwargs):
+        new_id = kwargs["stealth_order_id"]
+        new_id_holder["id"] = new_id
+        manager.in_memory_orders[new_id] = {
+            "stealth_order_id": new_id,
+            "product_id": kwargs["product_id"],
+            "side": kwargs["side"],
+            "total_size": kwargs["total_size"],
+            "limit_price": kwargs["limit_price"],
+        }
+        return new_id
+
+    manager.create_stealth_order = fake_create
+    manager.create_follow_up_stealth_order(
+        original_stealth_order_id=filled_child_id,
+        side="BUY",
+        total_size=1.0,
+        limit_price=50_000.0,
+    )
+
+    new_id = new_id_holder["id"]
+    audit = manager.in_memory_orders[new_id].get("follow_up_audit")
+    assert audit is not None, "follow_up_audit must be set on the new order"
+    assert audit["parent_stealth_order_id"] == filled_child_id
+    assert audit["anchor_price"] == 50_000.0
+    assert audit["posted_price"] < 50_000.0  # BUY retreated below anchor
+    assert audit["retreat_applied"] is True
+    assert audit["retreat_distance"] == 0.005
+    assert audit["retreat_jitter"] == 0.0
+    assert audit["jitter_seed"] == new_id  # seed == coid, audit-replayable
+
+
+@pytest.mark.regression
+def test_follow_up_audit_records_no_op_when_retreat_disabled():
+    """Audit MUST be populated even when retreat was a no-op so
+    consumers don't have to disambiguate 'missing field' vs 'no
+    retreat applied'."""
+    manager = StealthOrderManager(db_client=None)
+    manager.in_memory_orders["filled-child"] = {
+        "stealth_order_id": "filled-child",
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "total_size": 1.0,
+        "limit_price": 50_000.0,
+        "reveal_condition_json": {"type": "time_delay", "delay_seconds": 0},
+        "sizing_strategy_json": {"type": "fixed"},
+        "reveal_pricing_policy": "configured_limit",
+        "follow_up_reveal_direction": "opposite",
+        "parent_order_id": "root-aaa",
+        "anchor_repricing_policy_json": {"enabled": False},
+    }
+    new_id_holder = {}
+    def fake_create(**kwargs):
+        nid = kwargs["stealth_order_id"]
+        new_id_holder["id"] = nid
+        manager.in_memory_orders[nid] = {
+            "stealth_order_id": nid,
+            "limit_price": kwargs["limit_price"],
+        }
+        return nid
+    manager.create_stealth_order = fake_create
+
+    manager.create_follow_up_stealth_order(
+        original_stealth_order_id="filled-child",
+        side="BUY",
+        total_size=1.0,
+        limit_price=50_000.0,
+    )
+
+    new_id = new_id_holder["id"]
+    audit = manager.in_memory_orders[new_id].get("follow_up_audit")
+    assert audit is not None
+    assert audit["retreat_applied"] is False
+    assert audit["anchor_price"] == audit["posted_price"] == 50_000.0
+
+
+@pytest.mark.regression
+def test_ui_field_names_match_policy_field_names():
+    """Producer/consumer guard: the UI input IDs that buildAnchorRepricingPolicy
+    reads must match the Python-side dataclass field names. If anyone
+    renames either side without the other, this guard trips."""
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    html = (repo_root / "ui_stealth_orders_manager.html").read_text(encoding="utf-8")
+
+    # The buildAnchorRepricingPolicy block must reference both new fields
+    # by their Python-side name AND read from the matching HTML id.
+    for field in ("follow_up_retreat_distance", "follow_up_retreat_jitter"):
+        # Python-side key in the JSON object
+        assert f"{field}:" in html, (
+            f"buildAnchorRepricingPolicy must emit the {field!r} key so the "
+            f"backend's RepricingPolicy.from_dict can pick it up."
+        )
+        # Matching HTML id (anchor_<field>) the JS reads from
+        assert f"id=\"anchor_{field}\"" in html, (
+            f"UI must expose an input with id='anchor_{field}' so operators "
+            f"can configure {field!r}."
+        )

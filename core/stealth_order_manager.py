@@ -3256,6 +3256,21 @@ class StealthOrderManager:
             if follow_up_order:
                 follow_up_order["target_movement"] = follow_up_target_movement
                 follow_up_order["target_movement_type"] = follow_up_target_movement_type
+                # Structured audit (programmatic counterpart to the human-readable
+                # ``notes`` summary). Lives on the in-memory order so dashboards
+                # and debugging tools can answer "what retreat was applied to
+                # this follow-up?" without parsing free-form text. Always
+                # populated, even when retreat was a no-op (so consumers don't
+                # have to disambiguate "missing field" from "no retreat").
+                follow_up_order["follow_up_audit"] = {
+                    "parent_stealth_order_id": original_stealth_order_id,
+                    "anchor_price":            float(limit_price),
+                    "posted_price":            float(anchored_limit_price),
+                    "retreat_applied":         retreat_applied,
+                    "retreat_distance":        retreat_policy.follow_up_retreat_distance,
+                    "retreat_jitter":          retreat_policy.follow_up_retreat_jitter,
+                    "jitter_seed":             follow_up_stealth_order_id,
+                }
                 self._update_stealth_order(follow_up_order)
         
         return follow_up_id

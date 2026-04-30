@@ -989,6 +989,27 @@
                                     When enabled, reprices that would cross the spread (taking liquidity) are skipped instead of executing as taker orders.
                                 </div>
                             </div>
+
+                            <div class="form-row" style="border-top: 1px dashed #333; padding-top: 8px; margin-top: 8px;">
+                                <div class="form-group">
+                                    <label>Follow-Up Retreat Distance</label>
+                                    <input type="number" id="anchor_follow_up_retreat_distance" value="0.0005" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        After a fill, the next follow-up order is posted slightly AWAY from the anchor price. Always percent-based.<br>
+                                        <b style="color:#888;">Example</b>: 0.0005 = 5 bps. BUY filled at $100 -> next BUY posts ~$99.95.<br>
+                                        Set to <b style="color:#888;">0</b> to disable (post at anchor).
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Follow-Up Retreat Jitter</label>
+                                    <input type="number" id="anchor_follow_up_retreat_jitter" value="0.5" step="any" min="0" max="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Fraction of distance to randomize (deterministic from order id). Range 0..1.<br>
+                                        <b style="color:#888;">0.5</b>: effective retreat lands in [50%, 150%] of distance.<br>
+                                        <b style="color:#888;">0</b>: deterministic, exact distance every time.
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -1622,6 +1643,8 @@
                 post_only_required: document.getElementById('anchor_post_only_required').checked,
                 slide_mode: document.getElementById('anchor_slide_mode').checked,
                 max_step_per_reprice: parseFloat(document.getElementById('anchor_max_step_per_reprice').value),
+                follow_up_retreat_distance: parseFloat(document.getElementById('anchor_follow_up_retreat_distance').value),
+                follow_up_retreat_jitter: parseFloat(document.getElementById('anchor_follow_up_retreat_jitter').value),
             };
         }
 
@@ -2347,6 +2370,8 @@
                 anchor_post_only_required: document.getElementById('anchor_post_only_required').checked,
                 anchor_slide_mode: document.getElementById('anchor_slide_mode').checked,
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
+                anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
+                anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
                 notes: document.getElementById('notes').value
             };
             
@@ -2436,6 +2461,8 @@
                 anchor_post_only_required: document.getElementById('anchor_post_only_required').checked,
                 anchor_slide_mode: document.getElementById('anchor_slide_mode').checked,
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
+                anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
+                anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
                 notes: document.getElementById('notes').value,
                 allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 timestamp: Date.now()
@@ -2513,7 +2540,7 @@
             const entry = history[index];
             
             // Restore main fields
-            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice'];
+            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter'];
             mainFields.forEach(fieldId => {
                 const element = document.getElementById(fieldId);
                 if (element && entry[fieldId] !== undefined) {
@@ -2579,7 +2606,7 @@
                     const formData = JSON.parse(savedData);
                     
                     // Restore main fields
-                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice'];
+                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter'];
                     mainFields.forEach(fieldId => {
                         const element = document.getElementById(fieldId);
                         if (element && formData[fieldId] !== undefined) {
