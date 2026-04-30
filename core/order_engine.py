@@ -2234,14 +2234,32 @@ class OrderEngine:
 
         # Step 4: Process status transitions
         try:
-            # NOTE: All child orders in this system are stealth orders (stored in stealth_orders table).
-            # Stealth orders are managed by StealthOrderManager, not via order_child table updates.
-            # Therefore, we only update parent orders (stored in order_parent table).
+            # In the flat hierarchy, both root parents and reveal-placement
+            # children live in the order_parent table. The placement row is
+            # the truth-of-record for what happened on the exchange, so its
+            # status MUST be updated regardless of parent/child classification.
+            # When the COID is a child of a chain root (stealth-managed
+            # placement) we also propagate the status to the root, since the
+            # root row is what dashboards / reports read for the logical order.
             if self.is_parent_order(client_order_id):
                 self.db_helper.update_order_parent_status(
                     client_order_id=client_order_id,
                     status=status,
                 )
+            elif self.is_child_order(client_order_id):
+                # Update the placement row itself.
+                self.db_helper.update_order_parent_status(
+                    client_order_id=client_order_id,
+                    status=status,
+                )
+                # Propagate to the chain root so the logical order's status
+                # (read by dashboards) reflects the placement's lifecycle.
+                root_client_order_id = self.get_parent_of_child(client_order_id)
+                if root_client_order_id and root_client_order_id != client_order_id:
+                    self.db_helper.update_order_parent_status(
+                        client_order_id=root_client_order_id,
+                        status=status,
+                    )
         except Exception as e:
             self.log_message(
                 "error",
@@ -2352,7 +2370,7 @@ class OrderEngine:
 
     def _seed_parent_order_cache_from_db(self, client_order_id: str) -> bool:
         """Hydrate in-memory parent metadata for stealth orders already persisted at creation."""
-        if self.is_parent_order(client_order_id):
+        if self.is_parent_order(client_order_id) or self.is_child_order(client_order_id):
             return True
         if not self.db_helper or not hasattr(self.db_helper, "get_parent_order"):
             return False
@@ -2360,6 +2378,33 @@ class OrderEngine:
         parent_order = self.db_helper.get_parent_order(client_order_id)
         if not parent_order:
             return False
+
+        # If the persisted row is itself a child (parent_order_id set), hydrate
+        # the chain root first and register this COID as a child under it.
+        # Otherwise downstream lookups (is_parent_order / status routing)
+        # mis-classify it as a root and update the wrong order_parent row —
+        # source of the 2026-04-29 stealth-status-stuck-at-PENDING bug where
+        # status writes targeted the placement uuid (row 62) instead of the
+        # stealth root (row 61).
+        db_parent_link = parent_order.get("parent_order_id")
+        if db_parent_link:
+            root_client_order_id = str(db_parent_link)
+            # Recursively seed root metadata (flat hierarchy means one hop,
+            # but the recursion is safe and bounded by is_parent_order short-circuit).
+            if root_client_order_id != client_order_id:
+                self._seed_parent_order_cache_from_db(root_client_order_id)
+
+            # Register the in-memory child link WITHOUT touching the DB
+            # replacement counter — the row already reflects its persisted
+            # state and re-incrementing here would double-count on every
+            # restart / reconcile pass.
+            with self.orderbook_lock:
+                root_entry = self.orderbook.parent_order_ids.get(root_client_order_id)
+                if root_entry is not None:
+                    if client_order_id not in root_entry.setdefault("orders", []):
+                        root_entry["orders"].append(client_order_id)
+                self.orderbook.child_order_ids[client_order_id] = root_client_order_id
+            return True
 
         with self.orderbook_lock:
             self.orderbook.parent_order_ids[client_order_id] = {
