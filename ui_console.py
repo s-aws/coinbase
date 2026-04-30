@@ -483,9 +483,16 @@ class CrossVenueMonitor:
                     premium_dollars = intel.consensus_mid - cb_mid
 
                 history = self._history.get(product_id)
+                # Per-venue mids surfaced for the side-by-side panel
+                # view. Keys are ``Venue`` enum values so the renderer
+                # can index them without a string-mapping dance.
+                # Missing venues are simply absent from the dict (the
+                # renderer treats absence as "—").
+                venue_mids = dict(intel.venue_mids) if intel else {}
                 out[product_id] = {
                     "coinbase_mid": cb_mid,
                     "external_mid": intel.consensus_mid if intel else None,
+                    "venue_mids": venue_mids,
                     "premium_dollars": premium_dollars,
                     "premium_bps": intel.coinbase_premium_bps if intel else None,
                     "fresh_venue_count": intel.fresh_venue_count if intel else 0,
@@ -519,12 +526,34 @@ class CrossVenueMonitor:
         return running_sum / n
 
 
+# Order in which per-venue columns are rendered. Stable so operators
+# can trust column position across renders. Add new venues to the end
+# rather than re-ordering, to preserve muscle memory.
+_PANEL_VENUE_ORDER: Tuple[Venue, ...] = (
+    Venue.BINANCE_PERP,
+    Venue.BYBIT_PERP,
+    Venue.OKX_SWAP,
+)
+_PANEL_VENUE_LABELS: Dict[Venue, str] = {
+    Venue.BINANCE_PERP: "Binance",
+    Venue.BYBIT_PERP:   "Bybit",
+    Venue.OKX_SWAP:     "OKX",
+}
+
+
 def render_cross_venue_panel(snapshot: Dict[str, Dict[str, Any]], enabled: bool) -> Panel:
-    """Render the Coinbase-perp-vs-world monitor panel."""
+    """Render the Coinbase-perp-vs-world monitor panel.
+
+    Per-venue mids are shown side-by-side with the aggregated
+    consensus (median) so the operator can eyeball venue agreement
+    and spot a single-venue outlier without leaving the console.
+    """
     table = Table(expand=True, show_lines=False, header_style="bold cyan")
     table.add_column("product", width=18)
     table.add_column("CB mid", justify="right", width=12)
-    table.add_column("ext mid", justify="right", width=12)
+    for venue in _PANEL_VENUE_ORDER:
+        table.add_column(_PANEL_VENUE_LABELS[venue], justify="right", width=11)
+    table.add_column("consensus", justify="right", width=12)
     table.add_column("prem $", justify="right", width=10)
     table.add_column("bps", justify="right", width=8)
     table.add_column("1m avg", justify="right", width=8)
@@ -532,15 +561,19 @@ def render_cross_venue_panel(snapshot: Dict[str, Dict[str, Any]], enabled: bool)
     table.add_column("15m avg", justify="right", width=8)
     table.add_column("venues", justify="right", width=6)
 
+    # Total column count drives the placeholder rows below; recompute
+    # so adding a venue here doesn't silently break the empty-state
+    # rendering.
+    _empty_cells = [""] * (len(_PANEL_VENUE_ORDER) + 9)
+
     if not enabled:
         table.add_row("—", "cross-venue feed disabled (--no-cross-venue)",
-                      "", "", "", "", "", "", "")
+                      *_empty_cells)
         return Panel(table, title="Cross-Venue (Coinbase perp vs world)",
                      border_style="cyan", padding=(0, 1))
 
     if not snapshot:
-        table.add_row("—", "waiting for first ticks…",
-                      "", "", "", "", "", "", "")
+        table.add_row("—", "waiting for first ticks…", *_empty_cells)
         return Panel(table, title="Cross-Venue (Coinbase perp vs world)",
                      border_style="cyan", padding=(0, 1))
 
@@ -559,9 +592,14 @@ def render_cross_venue_panel(snapshot: Dict[str, Dict[str, Any]], enabled: bool)
         venues_str = (
             f"{venues}*" if entry.get("used_proxy") else str(venues)
         )
+        venue_mids = entry.get("venue_mids") or {}
+        per_venue_cells = [
+            fmt_num(venue_mids.get(v), 2) for v in _PANEL_VENUE_ORDER
+        ]
         table.add_row(
             product_id,
             fmt_num(entry.get("coinbase_mid"), 2),
+            *per_venue_cells,
             fmt_num(entry.get("external_mid"), 2),
             _fmt_signed(entry.get("premium_dollars"), 2),
             _fmt_signed(entry.get("premium_bps"), 2),
