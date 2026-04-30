@@ -2077,6 +2077,25 @@ class StealthOrderManager:
         # This ensures deterministic IDs when UI provides them, and proper generation for follow-ups
         if not stealth_order_id:
             stealth_order_id = str(uuid.uuid4())
+
+        # Boundary validation: snap size to base_increment AND verify
+        # base_min_size / quote_min_size before any DB write or in-memory
+        # registration. Mirrors the price-quantize pattern used at reveal
+        # time (_quantize_reprice_price) but for the size axis. Rejecting
+        # here means an invalid size NEVER reaches the exchange and never
+        # poisons the in-memory order map.
+        from calculation.size_validation import validate_and_quantize_size
+        from core.exceptions import OrderCreationError
+        size_check = validate_and_quantize_size(
+            total_size,
+            product_id=product_id,
+            price=limit_price,
+        )
+        if not size_check.ok:
+            raise OrderCreationError(
+                f"Stealth order rejected at boundary: {size_check.reason}"
+            )
+        total_size = size_check.size
         
         normalized_anchor_repricing_policy = self._normalize_anchor_repricing_policy(anchor_repricing_policy)
 

@@ -300,59 +300,10 @@ def format_based_on_reference(value_to_format: float, reference_float: str) -> s
     return result
 
 
-def quantize_to_increment(value: float, increment: str, direction: str = "nearest") -> float:
-    """Quantize a value to the nearest valid increment.
-
-    Rounds, floors, or ceils a numeric value to match a specified price/size increment.
-    Essential for ensuring orders comply with exchange minimum price/size requirements.
-
-    Args:
-        value: The value to quantize (e.g., a price or size).
-        increment: The increment step as a string (e.g., "0.01" for cent precision).
-        direction: Rounding direction:
-                   - "down": floor to lower increment (conservative for price).
-                   - "up": ceil to higher increment (conservative for sell price).
-                   - "nearest": round to nearest increment (default).
-
-    Returns:
-        The quantized value as a float.
-
-    Raises:
-        ValueError: If increment <= 0 or direction not in {"up", "down", "nearest"}.
-    
-    Examples:
-        >>> quantize_to_increment(100.126, "0.01")
-        100.13
-        >>> quantize_to_increment(100.124, "0.01", direction="down")
-        100.12
-        >>> quantize_to_increment(100.126, "0.01", direction="up")
-        100.13
-        >>> quantize_to_increment(100.126, "0.01", direction="nearest")
-        100.13
-        >>> quantize_to_increment(50.5, "1", direction="down")
-        50.0
-    """
-    increment_float = float(increment)
-    if increment_float <= 0:
-        raise ValueError("increment must be greater than 0")
-
-    remainder = value % increment_float
-
-    if remainder == 0:
-        return value
-
-    if direction == RoundingDirection.DOWN.value:
-        return value - remainder
-
-    if direction == RoundingDirection.UP.value:
-        return value + (increment_float - remainder)
-
-    if direction == RoundingDirection.NEAREST.value:
-        down_value = value - remainder
-        up_value = value + (increment_float - remainder)
-        return down_value if remainder < (increment_float / 2) else up_value
-
-    raise ValueError(f"Unsupported direction: {direction}")
+# Single canonical implementation lives in calculation.formatter.
+# Re-exported here for back-compat with callers doing
+# ``from configuration import quantize_to_increment``. P2 #1: DRY.
+from calculation.formatter import quantize_to_increment  # noqa: E402,F401
 
 def rest_get_account_wallets() -> dict:
     """Retrieve all active account wallets from Coinbase REST API.

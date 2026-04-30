@@ -150,7 +150,9 @@ def create_limit_order_span(
         post_only: bool = False,
         reveal_condition: dict = None,
         sizing_strategy: dict = None,
-        reveal_pricing_policy: str = None) -> list:
+        reveal_pricing_policy: str = None,
+        camouflage_round_numbers: bool = False,
+        camouflage_mode: str = "passive") -> list:
     """Create a series of limit orders spanning a price range.
     
     ARCHITECTURE: ALL orders are created through the order system with automated
@@ -265,6 +267,32 @@ def create_limit_order_span(
             "delay_seconds": 60,
             "jitter_seconds": 0
         }
+
+    # Optional round-number camouflage. OFF by default to preserve the
+    # "generator follows instruction" property — when on, the supplied
+    # ``start_price`` is nudged off-magnet by a deterministic small
+    # number of ticks. See calculation/price_camouflage.py for the full
+    # contract; honest scope notes there too.
+    effective_start_price = start_price
+    if camouflage_round_numbers:
+        try:
+            from calculation.price_camouflage import camouflage_round_price
+            from configuration import PRODUCT_METADATA
+            product_meta = (PRODUCT_METADATA or {}).get(product_id) or {}
+            price_increment = product_meta.get("price_increment")
+            if price_increment:
+                effective_start_price = camouflage_round_price(
+                    start_price,
+                    side=side,
+                    price_increment=str(price_increment),
+                    mode=camouflage_mode,
+                    # No seed: deterministic from inputs. Pass an explicit
+                    # seed kwarg via the stealth-order path if you want
+                    # per-order stability across reveals.
+                )
+        except Exception:
+            # Camouflageeffective_ is decoration; never fail order creation on it.
+            effective_start_price = start_price
     
     order_bridge = get_stealth_order_bridge()
     if not order_bridge:
@@ -283,7 +311,7 @@ def create_limit_order_span(
         total_size = order_base_size * max_order_count
     
     try:
-        from datetime import datetime as dt
+        from datetime import dateeffective_time as dt
         
         sizing_strategy_dict = sizing_strategy or {"type": "fixed"}
         order_id = order_bridge.create_stealth_order(

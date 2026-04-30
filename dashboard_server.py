@@ -2301,6 +2301,13 @@ def update_products_json_from_api() -> Dict[str, Any]:
                 "base_increment": str(product_data.get("base_increment", "")),
                 "quote_increment": str(product_data.get("quote_increment", "")),
                 "price_increment": str(product_data.get("price_increment", "")),
+                # Min order sizes from the API. Persisted so the size-validation
+                # path (calculation/size_validation.py) can reject too-small
+                # orders before they hit the exchange. If the API returns
+                # nothing the field is preserved as an empty string and
+                # validators treat it as "no minimum advertised".
+                "base_min_size": str(product_data.get("base_min_size", "")),
+                "quote_min_size": str(product_data.get("quote_min_size", "")),
                 "display_name": product_data.get("display_name"),
                 "status": product_data.get("status"),
                 "mid_price": product_data.get("mid_price"),
