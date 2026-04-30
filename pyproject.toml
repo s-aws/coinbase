@@ -36,6 +36,7 @@ packages = [
     "database",
     "external",
     "integration",
+    "market_intel",
     "websocket",
 ]
 

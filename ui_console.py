@@ -7,16 +7,21 @@ engine changes, no shared locks, no parallel state — read-only render of the
 
 Run from repo root in a separate terminal alongside the engine:
 
-    py -3.13 ui_console.py                    # connect to ws://localhost:8765
-    py -3.13 ui_console.py --host 1.2.3.4     # remote host
-    py -3.13 ui_console.py --port 9000        # custom port
+    py -3.13 ui_console.py                       # default: cross-venue ON
+    py -3.13 ui_console.py --host 1.2.3.4        # remote dashboard host
+    py -3.13 ui_console.py --port 9000           # custom dashboard port
+    py -3.13 ui_console.py --no-cross-venue      # disable Binance perp WS
 
-Quit with Ctrl+C. The view auto-reconnects on disconnect.
+Quit with Ctrl+C. The dashboard view auto-reconnects on disconnect; the
+cross-venue Binance feed reconnects independently with its own backoff.
 
 Layout (top to bottom):
 
   ┌─ Engine ─────────────────────────────────────────────────────────────┐
   │ status • threads • fee regime • last update                          │
+  └──────────────────────────────────────────────────────────────────────┘
+  ┌─ Cross-Venue (Coinbase perp vs world) ───────────────────────────────┐
+  │ product • CB mid • ext mid • premium $/bps • 1m/5m/15m premium avg   │
   └──────────────────────────────────────────────────────────────────────┘
   ┌─ Stealth Orders (active) ────────────────────────────────────────────┐
   │ id • product • side • size • status • limit • target • reprices      │
@@ -40,8 +45,11 @@ import asyncio
 import json
 import signal
 import sys
+import threading
+import time
+from collections import deque
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Deque, Dict, Optional, Tuple
 
 import websockets
 from rich.console import Console
@@ -56,6 +64,13 @@ from rich.text import Text
 # satisfies the static-source guard in
 # tests/regression/test_repricing_policy.py.
 from core.models import RepricingPolicy
+
+# Cross-venue intel (Phase 1: Binance USDT-M perp). Owned entirely by
+# this consumer — no engine coupling — and toggleable via --no-cross-venue.
+# Heavy imports happen lazily inside ``CrossVenueMonitor.start`` so that
+# disabling the feed (or running on a host without ``websockets`` available
+# for the external feed) doesn't break the dashboard view.
+from market_intel.venues import COINBASE_TO_EXTERNAL, Venue
 
 
 # Mirrors core.enums.StealthOrderStatus active set; same definition the HTML
@@ -271,6 +286,298 @@ def render_market_metrics_panel(metrics: Dict[str, Any]) -> Panel:
                  border_style="cyan", padding=(0, 1))
 
 
+# ---- Cross-Venue Monitor (Phase 1) ----------------------------------------
+#
+# Standalone, ui_console-owned tracker of (Coinbase mid vs external
+# venue mid). Runs the Binance USDT-M perp WS client in a background
+# thread + asyncio loop, samples the cross-venue aggregator on every
+# render tick, and keeps a small per-product rolling history of
+# ``(timestamp, coinbase_mid, external_mid, premium_bps)`` so the panel
+# can show 1m / 5m / 15m premium averages alongside the live snapshot.
+#
+# Design choices:
+#   * The monitor lives entirely inside ui_console: zero engine
+#     coupling, zero shared state with the dashboard server.
+#   * Coinbase mid is taken from the existing ``market_metrics``
+#     broadcast (``data.market_metrics[product_id].price``). No new
+#     producer wiring needed.
+#   * History buffers are bounded (``maxlen``) so the consumer can run
+#     for hours without memory growth.
+#   * Reads/writes to the history are guarded by a per-monitor lock
+#     because the WS client thread feeds the aggregator while the
+#     asyncio render loop reads from it via ``snapshot()``.
+
+# Keep at most ~3 hours of 1-second samples per product. 3*3600 = 10_800
+# entries * ~5 products * ~32 bytes/entry ~= 1.7 MiB worst case.
+_HISTORY_MAXLEN = 3 * 60 * 60
+# Sample at most once per second per product even if render runs faster
+# (rich Live refreshes at 4 Hz). Prevents unnecessary lock contention
+# and keeps the rolling-average windows well-defined.
+_HISTORY_SAMPLE_INTERVAL_SECONDS = 1.0
+
+
+class CrossVenueMonitor:
+    """Owns the external WS client + aggregator + rolling history.
+
+    Lifecycle:
+        monitor = CrossVenueMonitor()
+        monitor.start()
+        ...
+        # Each render tick:
+        monitor.observe_coinbase_mids({"BIP-20DEC30-CDE": 70_005.0, ...})
+        snapshot = monitor.snapshot({...})
+        # render snapshot
+        ...
+        monitor.stop()
+    """
+
+    def __init__(self):
+        self._enabled = False
+        self._aggregator = None
+        self._clients: list = []
+        self._lock = threading.Lock()
+        # product_id -> deque[(monotonic_ts, coinbase_mid, external_mid, premium_bps)]
+        self._history: Dict[str, Deque[Tuple[float, float, float, float]]] = {}
+        # Last sample monotonic timestamp per product, to enforce the
+        # ~1Hz sampling rate independently of render frequency.
+        self._last_sample_ts: Dict[str, float] = {}
+
+    def start(self) -> None:
+        """Spin up every external venue WS client + in-process aggregator.
+
+        Imports the heavy modules lazily so ``--no-cross-venue`` users
+        don't pay the cost of pulling in the external WS dependency
+        graph just to render the engine state.
+
+        Fail-soft startup: each per-venue client is started independently.
+        A failure to construct or start one venue does NOT prevent the
+        others from running, and the monitor stays enabled as long as at
+        least one venue is up. Each client has its own background
+        reconnect loop, so a transient outage of one venue self-heals
+        without operator intervention. The aggregator's ``get_intel``
+        contract already returns ``None`` on missing/stale data, so the
+        consumer side does not need to know which venues are alive.
+        """
+        from external.binance_perp_ws import BinancePerpTickerClient
+        from external.bybit_perp_ws import BybitPerpTickerClient
+        from external.okx_swap_ws import OkxSwapTickerClient
+        from market_intel.cross_venue_aggregator import CrossVenueAggregator
+
+        self._aggregator = CrossVenueAggregator()
+        self._clients = []
+
+        venue_factories = [
+            ("binance_perp", BinancePerpTickerClient),
+            ("bybit_perp",   BybitPerpTickerClient),
+            ("okx_swap",     OkxSwapTickerClient),
+        ]
+        started = 0
+        for name, factory in venue_factories:
+            try:
+                client = factory(self._aggregator)
+                client.start()
+            except Exception as e:
+                # Fail-soft: log and continue with the remaining venues.
+                # ``logger`` isn't configured for the console UI, so
+                # surface to stderr where the operator can see it.
+                print(
+                    f"WARN: cross-venue {name} failed to start ({e!r}); "
+                    "continuing with remaining venues.",
+                    file=sys.stderr,
+                )
+                continue
+            self._clients.append(client)
+            started += 1
+
+        if started == 0:
+            # No venue came up — leave monitor disabled so the panel
+            # renders the "feed disabled" row instead of an empty grid.
+            self._enabled = False
+            raise RuntimeError(
+                "no external venue WS clients could be started"
+            )
+        self._enabled = True
+
+    def stop(self) -> None:
+        for client in self._clients:
+            try:
+                client.stop(timeout=2.0)
+            except Exception:
+                pass
+        self._clients = []
+        self._enabled = False
+
+    def observe_coinbase_mids(self, mids: Dict[str, Optional[float]]) -> None:
+        """Feed the latest Coinbase-side mid per product (from the
+        dashboard ``market_metrics`` broadcast). Updates the rolling
+        history for every configured product that has both a Coinbase
+        mid and a fresh external consensus.
+
+        Safe to call on every render tick — internal rate-limit gates
+        actual history writes to ~1 Hz per product.
+        """
+        if not self._enabled or self._aggregator is None:
+            return
+
+        now = time.monotonic()
+        with self._lock:
+            for product_id in COINBASE_TO_EXTERNAL.keys():
+                cb_mid = mids.get(product_id)
+                if cb_mid is None:
+                    continue
+                try:
+                    cb_mid_f = float(cb_mid)
+                except (TypeError, ValueError):
+                    continue
+                if cb_mid_f <= 0:
+                    continue
+
+                last = self._last_sample_ts.get(product_id, 0.0)
+                if (now - last) < _HISTORY_SAMPLE_INTERVAL_SECONDS:
+                    continue
+
+                intel = self._aggregator.get_intel(product_id, coinbase_mid=cb_mid_f)
+                if (intel is None
+                        or intel.consensus_mid is None
+                        or intel.coinbase_premium_bps is None):
+                    continue
+
+                history = self._history.get(product_id)
+                if history is None:
+                    history = deque(maxlen=_HISTORY_MAXLEN)
+                    self._history[product_id] = history
+                history.append(
+                    (now, cb_mid_f, intel.consensus_mid, intel.coinbase_premium_bps)
+                )
+                self._last_sample_ts[product_id] = now
+
+    def snapshot(self, coinbase_mids: Dict[str, Optional[float]]) -> Dict[str, Dict[str, Any]]:
+        """Render-ready dict keyed by Coinbase product id.
+
+        Each entry contains coinbase_mid, external_mid, premium_dollars,
+        premium_bps, fresh_venue_count, dispersion_bps, used_proxy,
+        plus the rolling premium averages (avg_premium_bps_1m / _5m /
+        _15m, each may be None when insufficient history exists).
+        """
+        if not self._enabled or self._aggregator is None:
+            return {}
+
+        out: Dict[str, Dict[str, Any]] = {}
+        now = time.monotonic()
+        with self._lock:
+            for product_id in sorted(COINBASE_TO_EXTERNAL.keys()):
+                cb_mid_raw = coinbase_mids.get(product_id)
+                try:
+                    cb_mid = float(cb_mid_raw) if cb_mid_raw is not None else None
+                except (TypeError, ValueError):
+                    cb_mid = None
+
+                intel = self._aggregator.get_intel(product_id, coinbase_mid=cb_mid)
+                if intel is None and cb_mid is None:
+                    continue
+
+                premium_dollars = None
+                if (intel is not None
+                        and intel.consensus_mid is not None
+                        and cb_mid is not None):
+                    premium_dollars = intel.consensus_mid - cb_mid
+
+                history = self._history.get(product_id)
+                out[product_id] = {
+                    "coinbase_mid": cb_mid,
+                    "external_mid": intel.consensus_mid if intel else None,
+                    "premium_dollars": premium_dollars,
+                    "premium_bps": intel.coinbase_premium_bps if intel else None,
+                    "fresh_venue_count": intel.fresh_venue_count if intel else 0,
+                    "dispersion_bps": intel.cross_venue_dispersion_bps if intel else None,
+                    "used_proxy": intel.used_proxy if intel else False,
+                    "avg_premium_bps_1m":  self._window_avg(history, now, 60.0),
+                    "avg_premium_bps_5m":  self._window_avg(history, now, 300.0),
+                    "avg_premium_bps_15m": self._window_avg(history, now, 900.0),
+                    "sample_count": len(history) if history else 0,
+                }
+        return out
+
+    @staticmethod
+    def _window_avg(
+        history: Optional[Deque[Tuple[float, float, float, float]]],
+        now: float,
+        window_seconds: float,
+    ) -> Optional[float]:
+        if not history:
+            return None
+        cutoff = now - window_seconds
+        running_sum = 0.0
+        n = 0
+        for ts, _cb, _ext, premium_bps in history:
+            if ts < cutoff:
+                continue
+            running_sum += premium_bps
+            n += 1
+        if n == 0:
+            return None
+        return running_sum / n
+
+
+def render_cross_venue_panel(snapshot: Dict[str, Dict[str, Any]], enabled: bool) -> Panel:
+    """Render the Coinbase-perp-vs-world monitor panel."""
+    table = Table(expand=True, show_lines=False, header_style="bold cyan")
+    table.add_column("product", width=18)
+    table.add_column("CB mid", justify="right", width=12)
+    table.add_column("ext mid", justify="right", width=12)
+    table.add_column("prem $", justify="right", width=10)
+    table.add_column("bps", justify="right", width=8)
+    table.add_column("1m avg", justify="right", width=8)
+    table.add_column("5m avg", justify="right", width=8)
+    table.add_column("15m avg", justify="right", width=8)
+    table.add_column("venues", justify="right", width=6)
+
+    if not enabled:
+        table.add_row("—", "cross-venue feed disabled (--no-cross-venue)",
+                      "", "", "", "", "", "", "")
+        return Panel(table, title="Cross-Venue (Coinbase perp vs world)",
+                     border_style="cyan", padding=(0, 1))
+
+    if not snapshot:
+        table.add_row("—", "waiting for first ticks…",
+                      "", "", "", "", "", "", "")
+        return Panel(table, title="Cross-Venue (Coinbase perp vs world)",
+                     border_style="cyan", padding=(0, 1))
+
+    def _fmt_signed(v, digits: int) -> Text:
+        if v is None:
+            return Text("—", style="dim")
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return Text("—", style="dim")
+        style = "green" if f > 0 else ("red" if f < 0 else "white")
+        return Text(f"{f:+.{digits}f}", style=style)
+
+    for product_id, entry in snapshot.items():
+        venues = entry.get("fresh_venue_count") or 0
+        venues_str = (
+            f"{venues}*" if entry.get("used_proxy") else str(venues)
+        )
+        table.add_row(
+            product_id,
+            fmt_num(entry.get("coinbase_mid"), 2),
+            fmt_num(entry.get("external_mid"), 2),
+            _fmt_signed(entry.get("premium_dollars"), 2),
+            _fmt_signed(entry.get("premium_bps"), 2),
+            _fmt_signed(entry.get("avg_premium_bps_1m"), 2),
+            _fmt_signed(entry.get("avg_premium_bps_5m"), 2),
+            _fmt_signed(entry.get("avg_premium_bps_15m"), 2),
+            venues_str,
+        )
+
+    return Panel(
+        table,
+        title=f"Cross-Venue (Coinbase perp vs world) — {len(snapshot)} product(s)",
+        border_style="cyan", padding=(0, 1),
+    )
+
+
 def render_logs_panel(logs: list, limit: int = 20) -> Panel:
     table = Table(expand=True, show_header=False, padding=(0, 1), box=None)
     table.add_column(width=19, style="dim")  # ts
@@ -299,36 +606,66 @@ def render_logs_panel(logs: list, limit: int = 20) -> Panel:
                  border_style="cyan", padding=(0, 1))
 
 
-def build_layout(state: Dict[str, Any], status_text: str) -> Layout:
+def build_layout(state: Dict[str, Any], status_text: str, cross_venue_snapshot: Dict[str, Dict[str, Any]], cross_venue_enabled: bool) -> Layout:
     layout = Layout()
     layout.split_column(
         Layout(name="engine", size=5),
         Layout(name="metrics", ratio=2),
+        Layout(name="cross_venue", size=8),
         Layout(name="stealth", ratio=2),
         Layout(name="logs", ratio=1),
         Layout(name="status", size=1),
     )
     layout["engine"].update(render_engine_panel(state.get("engine_status") or {}))
     layout["metrics"].update(render_market_metrics_panel(state.get("market_metrics") or {}))
+    layout["cross_venue"].update(
+        render_cross_venue_panel(cross_venue_snapshot, cross_venue_enabled)
+    )
     layout["stealth"].update(render_stealth_panel(state.get("stealth_orders") or {}))
     layout["logs"].update(render_logs_panel(state.get("logs") or []))
     layout["status"].update(Text(status_text, style="dim"))
     return layout
 
 
-async def run(host: str, port: int) -> None:
-    """Connect to the dashboard WS and render forever, reconnecting as needed."""
+async def run(host: str, port: int, monitor: Optional["CrossVenueMonitor"]) -> None:
+    """Connect to the dashboard WS and render forever, reconnecting as needed.
+
+    ``monitor`` may be ``None`` when --no-cross-venue is set; the panel
+    then renders a single 'feed disabled' row.
+    """
     console = Console()
     state: Dict[str, Any] = {}
     url = f"ws://{host}:{port}"
+    cross_venue_enabled = monitor is not None
 
-    with Live(build_layout(state, f"connecting to {url}…"),
+    def _coinbase_mids_from_state() -> Dict[str, Optional[float]]:
+        # Producer/consumer contract: market_metrics broadcast carries
+        # the latest Coinbase mid as ``price`` on each product entry.
+        # See business/market_metrics.py::MarketMetricsTracker.snapshot.
+        result: Dict[str, Optional[float]] = {}
+        for pid, entry in (state.get("market_metrics") or {}).items():
+            if isinstance(entry, dict):
+                result[pid] = entry.get("price")
+        return result
+
+    def _cross_venue_snapshot() -> Dict[str, Dict[str, Any]]:
+        if monitor is None:
+            return {}
+        mids = _coinbase_mids_from_state()
+        monitor.observe_coinbase_mids(mids)
+        return monitor.snapshot(mids)
+
+    with Live(build_layout(state, f"connecting to {url}…",
+                           _cross_venue_snapshot(), cross_venue_enabled),
               console=console, screen=True, refresh_per_second=4) as live:
 
         while True:
             try:
                 async with websockets.connect(url, max_size=8 * 1024 * 1024) as ws:
-                    live.update(build_layout(state, f"connected • {url}"))
+                    live.update(build_layout(
+                        state, f"connected • {url}",
+                        _cross_venue_snapshot(), cross_venue_enabled,
+                    ))
 
                     async for raw in ws:
                         try:
@@ -350,12 +687,16 @@ async def run(host: str, port: int) -> None:
                         state["logs"]            = data.get("logs") or []
 
                         ts = msg.get("timestamp") or datetime.utcnow().isoformat()
-                        live.update(build_layout(state, f"connected • {url} • {ts}"))
+                        live.update(build_layout(
+                            state, f"connected • {url} • {ts}",
+                            _cross_venue_snapshot(), cross_venue_enabled,
+                        ))
 
             except (OSError, websockets.exceptions.WebSocketException) as e:
                 live.update(build_layout(
                     state,
-                    f"disconnected ({type(e).__name__}: {e}) • retrying in 2s…"
+                    f"disconnected ({type(e).__name__}: {e}) • retrying in 2s…",
+                    _cross_venue_snapshot(), cross_venue_enabled,
                 ))
                 await asyncio.sleep(2)
 
@@ -366,7 +707,24 @@ def main() -> int:
                         help="Dashboard WebSocket host (default: localhost)")
     parser.add_argument("--port", type=int, default=8765,
                         help="Dashboard WebSocket port (default: 8765)")
+    parser.add_argument("--no-cross-venue", action="store_true",
+                        help=("Disable the Binance perp WS feed and the "
+                              "Cross-Venue panel. Useful for offline use "
+                              "or when running on a host without outbound "
+                              "internet access."))
     args = parser.parse_args()
+
+    monitor: Optional[CrossVenueMonitor] = None
+    if not args.no_cross_venue:
+        monitor = CrossVenueMonitor()
+        try:
+            monitor.start()
+        except Exception as e:
+            # Don't let an external-feed problem kill the dashboard
+            # view — fall back to disabled state and continue.
+            print(f"WARN: cross-venue monitor failed to start ({e!r}); "
+                  "continuing with feed disabled.", file=sys.stderr)
+            monitor = None
 
     # On Windows, threading.Event.wait() / Lock.acquire() with no timeout
     # block SIGINT delivery (see /memories/windows-signal-event-wait.md).
@@ -379,9 +737,12 @@ def main() -> int:
         del loop_signal
 
     try:
-        asyncio.run(run(args.host, args.port))
+        asyncio.run(run(args.host, args.port, monitor))
     except KeyboardInterrupt:
         return 0
+    finally:
+        if monitor is not None:
+            monitor.stop()
     return 0
 
 
