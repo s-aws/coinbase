@@ -429,15 +429,24 @@ class CoinbaseRestClient:
             Exception: Propagated from the SDK on transport / auth failure.
         """
         # Filter out None values so we don't override SDK defaults.
+        # NOTE: parameter names below MUST match the SDK signature
+        # ``RESTClient.get_fills(order_ids, product_ids,
+        # start_sequence_timestamp, end_sequence_timestamp, ...)``.
+        # The SDK accepts ``**kwargs`` and silently DROPS unknown
+        # parameter names — passing the user-facing names ``product_id``,
+        # ``start_date``, ``end_date`` here makes the filter a no-op and
+        # the call returns ALL historical fills. (2026-04-30 incident:
+        # the 24h fee report and the startup missed-fills audit were
+        # both reading unfiltered all-time data.)
         kwargs: Dict[str, Any] = {"limit": limit}
         if order_id is not None:
-            kwargs["order_id"] = order_id
+            kwargs["order_ids"] = [order_id]
         if product_id is not None:
-            kwargs["product_id"] = product_id
+            kwargs["product_ids"] = [product_id]
         if start_date is not None:
-            kwargs["start_date"] = start_date
+            kwargs["start_sequence_timestamp"] = start_date
         if end_date is not None:
-            kwargs["end_date"] = end_date
+            kwargs["end_sequence_timestamp"] = end_date
         if cursor is not None:
             kwargs["cursor"] = cursor
 

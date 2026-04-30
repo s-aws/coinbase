@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "exported_at": "2026-04-29T18:31:46.910139+00:00",
-  "count": 10,
+  "exported_at": "2026-04-30T03:46:24.234077+00:00",
+  "count": 31,
   "orders": [
     {
-      "stealth_order_id": "4c41396c-63be-4cd6-87e1-494392bc5719",
+      "stealth_order_id": "2448e977-524a-4a50-8a85-843399977540",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 75000,
+      "limit_price": 75660,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 75000,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75660,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -31,7 +31,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 100,
+        "target_distance": 140,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -49,16 +49,106 @@
       }
     },
     {
-      "stealth_order_id": "1df8d75b-7550-4412-bd30-13b1d40b3838",
+      "stealth_order_id": "2114d55a-a70c-47c6-b048-bbea5586d541",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 75150,
+      "limit_price": 75635,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 75150,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75635,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 850,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 190,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "12d469cf-2af6-49de-81a1-383567f60b9e",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75610,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75610,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 900,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 240,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "a2a05c43-d222-4146-a82f-c7e77cba4460",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75585,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75585,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -76,7 +166,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 250,
+        "target_distance": 290,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -94,16 +184,106 @@
       }
     },
     {
-      "stealth_order_id": "757bff1b-194b-49e5-af15-935fed9ed879",
+      "stealth_order_id": "4747cbd3-442a-4239-9cc6-ac11323b7653",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 75300,
+      "limit_price": 75560,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 75300,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75560,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1000,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 340,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "a800a2f1-048d-464f-a9ef-f5ab31ba38bf",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75535,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75535,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1050,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 390,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "2b36dd8e-fcb3-4f65-9ab1-8638ec87503d",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75510,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75510,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -121,7 +301,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 400,
+        "target_distance": 440,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -139,16 +319,106 @@
       }
     },
     {
-      "stealth_order_id": "9328f835-d65b-45b2-84e8-7b0ea733d318",
+      "stealth_order_id": "87a15688-e82b-4b73-9327-e0c4eb2c3f43",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 75450,
+      "limit_price": 75485,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 75450,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75485,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1150,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 490,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "284837e4-b3a9-4f9a-8c74-4f374ed77077",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75460,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75460,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1200,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 540,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "b1995c31-56ae-4276-b97a-5df326ae9963",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75435,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75435,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -166,7 +436,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 550,
+        "target_distance": 590,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -184,16 +454,106 @@
       }
     },
     {
-      "stealth_order_id": "b3f83752-8197-4a1b-b8f4-3afc04a81e61",
+      "stealth_order_id": "af497ea6-7693-41a5-84c6-d40a68314dc4",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 75600,
+      "limit_price": 75410,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 75600,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75410,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1300,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 640,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "afcc2045-bba4-461d-9ebe-7fe37a7625d1",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75385,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75385,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1350,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 690,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "f341c15b-be98-472b-9da0-7f5147d6ece4",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75360,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75360,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -211,7 +571,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 700,
+        "target_distance": 740,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -229,16 +589,106 @@
       }
     },
     {
-      "stealth_order_id": "b991b719-a352-4f55-aeda-299b6cc856ca",
+      "stealth_order_id": "421b8687-2faa-4d82-a68b-3871ae4ac480",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 75750,
+      "limit_price": 75335,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 75750,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75335,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1450,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 790,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "9db00a3a-f44c-46bd-a2ba-21bdfaeb9f77",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75310,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75310,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1500,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 840,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "a8926f40-0f5c-42c5-b038-5220c2bb4226",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75285,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75285,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -256,7 +706,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 850,
+        "target_distance": 890,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -274,16 +724,106 @@
       }
     },
     {
-      "stealth_order_id": "bdd6bce3-69ad-4d99-ad29-1c448bfa9032",
+      "stealth_order_id": "b2b39567-b4a4-4a57-a3a8-2240b3ff7064",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 75900,
+      "limit_price": 75260,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 75900,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75260,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1600,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 940,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "4ebe33a7-9e00-4c5b-8116-88705aa746db",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75235,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75235,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1650,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 990,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "199c1622-bebe-4c79-b0c3-7ff7bf2bf65f",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75210,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75210,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -301,7 +841,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 1000,
+        "target_distance": 1040,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -319,16 +859,106 @@
       }
     },
     {
-      "stealth_order_id": "656c32ec-aff6-46b6-a525-27195a189e4a",
+      "stealth_order_id": "b9b2c18b-5a1e-467b-aa50-b78565e0964c",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 76050,
+      "limit_price": 75185,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 76050,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75185,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1750,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1090,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "5c447079-91a4-4a11-938a-09a759564cc9",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75160,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75160,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1800,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1140,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "ddfcd6f7-3dcf-437e-89d6-93dba6316965",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75135,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75135,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -346,7 +976,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 1150,
+        "target_distance": 1190,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -364,16 +994,106 @@
       }
     },
     {
-      "stealth_order_id": "9ebaca1d-1040-4842-a89b-e8720306c2bd",
+      "stealth_order_id": "c2ebfb6f-048c-43c3-95d6-fc08a231a0ba",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 76200,
+      "limit_price": 75110,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 76200,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75110,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1900,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1240,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "95137043-e2c1-4c28-9a5f-06468fd4c224",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75085,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75085,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 1950,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1290,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "ceacc890-1053-4ed9-83f6-67fba01b0aa7",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75060,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75060,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -391,7 +1111,7 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 1300,
+        "target_distance": 1340,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,
@@ -409,16 +1129,106 @@
       }
     },
     {
-      "stealth_order_id": "3e0544fe-1a6f-4462-b08a-2ad82034e299",
+      "stealth_order_id": "d4c349d9-0c1a-49da-a23c-620de31dd60f",
       "product_id": "BIP-20DEC30-CDE",
-      "side": "SELL",
+      "side": "BUY",
       "total_size": 10,
-      "limit_price": 76350,
+      "limit_price": 75035,
       "reveal_condition": {
         "type": "price",
-        "direction": "above",
-        "price_threshold": 76350,
-        "hold_duration_seconds": 0
+        "direction": "below",
+        "price_threshold": 75035,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 2050,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1390,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "fe5999e4-8071-4795-9807-e1ae9a75d885",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 75010,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 75010,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 2100,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1440,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "f0947d55-21d3-4f39-bd75-c25c98a745a6",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 74985,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 74985,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
@@ -436,7 +1246,142 @@
         "distance_type": "A",
         "hysteresis_bps": 0,
         "max_spread_bps": 50,
-        "target_distance": 1450,
+        "target_distance": 1490,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "e813db56-23d1-44f2-8cbd-35201e353187",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 74960,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 74960,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 2200,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1540,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "8c1334d0-8301-4a3a-b62c-89f34647b523",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 74935,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 74935,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 2250,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1590,
+        "min_price_change": 0,
+        "converge_to_target": true,
+        "post_only_required": true,
+        "max_step_per_reprice": 5,
+        "inherit_to_follow_ups": true,
+        "max_reprices_per_hour": 60,
+        "allow_revealed_reprice": true,
+        "fixed_interval_seconds": 60,
+        "reference_price_source": "midpoint",
+        "require_minimum_volume": 0,
+        "volatility_sensitivity": 1,
+        "enable_spread_monitoring": false,
+        "max_reprice_window_seconds": 600,
+        "min_reprice_interval_seconds": 120
+      }
+    },
+    {
+      "stealth_order_id": "615bd263-337e-41be-9fab-20b3eb8e3977",
+      "product_id": "BIP-20DEC30-CDE",
+      "side": "BUY",
+      "total_size": 10,
+      "limit_price": 74910,
+      "reveal_condition": {
+        "type": "price",
+        "direction": "below",
+        "price_threshold": 74910,
+        "hold_duration_seconds": 10
+      },
+      "sizing_strategy": {
+        "type": "fixed"
+      },
+      "notes": "",
+      "max_order_replacements": 111,
+      "target_movement": 0.0014,
+      "target_movement_type": "P",
+      "allow_partial_fills": true,
+      "anchor_repricing_policy": {
+        "enabled": true,
+        "slide_mode": true,
+        "update_mode": "adaptive",
+        "max_distance": 2300,
+        "distance_type": "A",
+        "hysteresis_bps": 0,
+        "max_spread_bps": 50,
+        "target_distance": 1640,
         "min_price_change": 0,
         "converge_to_target": true,
         "post_only_required": true,

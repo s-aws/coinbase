@@ -7,13 +7,13 @@
       "stealth_order_id": "3d2850ab-7b9c-482d-8eec-f4c5dc371f3a",
       "product_id": "BIP-20DEC30-CDE",
       "side": "BUY",
-      "total_size": 5,
-      "limit_price": 75890,
+      "total_size": 10,
+      "limit_price": 75660,
       "reveal_condition": {
         "type": "price",
         "direction": "below",
-        "price_threshold": 75890,
-        "hold_duration_seconds": 0
+        "price_threshold": 75660,
+        "hold_duration_seconds": 10
       },
       "sizing_strategy": {
         "type": "fixed"
