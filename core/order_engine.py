@@ -59,7 +59,7 @@ from time import sleep
 from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+from typing import Dict, Optional
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from external import CoinbaseWebSocketClient
@@ -250,6 +250,18 @@ class OrderEngine:
         self.ticker = {}
         self.ticker_lock = threading.RLock()
         self.orderbook_lock = threading.RLock()
+
+        # Per-parent counter of replacement slots that have been atomically
+        # claimed by a follow-up creator but whose child has not yet been
+        # registered via ``register_child_order``. Together with the parent's
+        # in-memory ``current_order_replacement`` it forms the gating budget
+        # used by ``claim_replacement_slots``: ``current + pending < max``.
+        # Without this, multiple WS-event threads each observe the same
+        # stale ``current_order_replacement`` snapshot, all pass the gate
+        # check, and breach ``max_order_replacement`` (see 2026-04-29
+        # incident: max=1, observed current=4 with 4 BUY follow-ups
+        # spawned). All access protected by ``orderbook_lock``.
+        self._pending_replacement_claims: Dict[str, int] = {}
 
         # Cooperative shutdown signal for all background loops/threads owned
         # by this engine. Set by ``stop()`` (registered as a runtime stop
@@ -778,24 +790,30 @@ class OrderEngine:
                 )
                 return 0
 
-            can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
-            if not can_replace:
+            # CRITICAL: atomically claim a replacement slot under the
+            # parent's lock BEFORE doing any I/O. Without this, concurrent
+            # WS-event threads each see the same stale
+            # ``current_order_replacement`` snapshot, all pass a "can_create"
+            # check, and breach ``max_order_replacement`` (2026-04-29
+            # incident: max=1, four BUY follow-ups created concurrently).
+            # On any failure path below the slot is released so the next WS
+            # delta may re-attempt.
+            granted_slots = self.claim_replacement_slots(
+                parent_client_order_id, requested=follow_ups_due
+            )
+            if granted_slots <= 0:
+                replacement_state = self.resolve_parent_replacement_state(
+                    parent_client_order_id
+                )
                 self.log_message(
                     "order",
                     self.build_event_log_payload(
                         "partial_fill_follow_up_max_replacements_reached",
                         client_order_id=client_order_id,
                         parent_client_order_id=parent_client_order_id,
-                        details=replacement_details,
+                        details=replacement_state,
                     ),
                 )
-                return 0
-
-            max_replacements = int(replacement_details.get("max_order_replacement", 0))
-            current_replacements = int(replacement_details.get("current_order_replacement", 0))
-            remaining_replacements = max(0, max_replacements - current_replacements)
-            requested_units = min(follow_ups_due, remaining_replacements)
-            if requested_units <= 0:
                 return 0
 
             # CRITICAL: atomically reserve carry units BEFORE the slow REST
@@ -808,12 +826,23 @@ class OrderEngine:
             # second concurrent thread to observe the already-reduced carry
             # and back off.
             units_to_create = self.order_progress_tracker.claim_follow_up_units(
-                client_order_id, max_units=requested_units
+                client_order_id, max_units=granted_slots
             )
             if units_to_create <= 0:
                 # Another concurrent thread already drained the carry; nothing
-                # left for us to spawn.
+                # left for us to spawn. Release the replacement slot we
+                # just reserved so it stays available for a real follow-up.
+                self.release_replacement_slots(
+                    parent_client_order_id, granted_slots
+                )
                 return 0
+
+            # If carry granted fewer units than replacement slots, release
+            # the excess so the cap stays accurate.
+            if units_to_create < granted_slots:
+                self.release_replacement_slots(
+                    parent_client_order_id, granted_slots - units_to_create
+                )
 
             # From here on, any failure must refund the claim so a future
             # delta can re-attempt the follow-up.
@@ -834,6 +863,9 @@ class OrderEngine:
                     )
                     self.order_progress_tracker.release_follow_up_units(
                         client_order_id, units_to_create
+                    )
+                    self.release_replacement_slots(
+                        parent_client_order_id, units_to_create
                     )
                     return 0
 
@@ -902,6 +934,9 @@ class OrderEngine:
                 # Refund the atomic claim so a subsequent WS delta may retry.
                 self.order_progress_tracker.release_follow_up_units(
                     client_order_id, units_to_create
+                )
+                self.release_replacement_slots(
+                    parent_client_order_id, units_to_create
                 )
                 raise
         except Exception as e:
@@ -1609,7 +1644,29 @@ class OrderEngine:
             # Add child to parent's orders list if not already there
             if child_client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id]["orders"]:
                 self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
-                
+
+                # Consume one pre-claimed pending slot if any. Pre-claim
+                # already counted this slot toward the cap (via
+                # claim_replacement_slots), so we still bump
+                # current_order_replacement here but net out the pending
+                # counter so the gate doesn't double-count. If the caller
+                # didn't pre-claim, pending stays 0 and the bump alone
+                # accounts for the new child (legacy un-pre-claimed sites
+                # remain correct, just unprotected against the race).
+                pending = int(
+                    self._pending_replacement_claims.get(parent_client_order_id, 0)
+                )
+                if pending > 0:
+                    new_pending = pending - 1
+                    if new_pending == 0:
+                        self._pending_replacement_claims.pop(
+                            parent_client_order_id, None
+                        )
+                    else:
+                        self._pending_replacement_claims[
+                            parent_client_order_id
+                        ] = new_pending
+
                 # ✅ INCREMENT replacement count when adding a new child
                 self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
                 is_new_child = True
@@ -2706,6 +2763,75 @@ class OrderEngine:
             "max_order_replacement": max_order_replacement,
         }
         return current_order_replacement < max_order_replacement, details
+
+    def claim_replacement_slots(
+        self, parent_client_order_id: str, requested: int
+    ) -> int:
+        """Atomically reserve up to ``requested`` follow-up replacement slots.
+
+        Returns the number of slots actually granted (``0`` when the parent's
+        ``max_order_replacement`` cap is already met or when ``requested`` is
+        non-positive). The grant is recorded in ``_pending_replacement_claims``
+        and is released either by ``register_child_order`` (success path —
+        decrements pending and increments ``current_order_replacement`` so the
+        net is one consumed slot) or by ``release_replacement_slots`` (failure
+        path — decrements pending only).
+
+        This method is the **single gate** for replacement-cap enforcement.
+        Callers must NOT do their own ``can_create_follow_up_order`` +
+        compute-remaining-then-create pattern: that pattern lets concurrent
+        threads each observe the same stale snapshot and breach the cap (see
+        2026-04-29 incident — ``max_order_replacement=1`` with four
+        concurrent BUY follow-ups created on the same parent).
+
+        Args:
+            parent_client_order_id: Parent order id (or child id; resolved).
+            requested: Maximum number of slots to claim.
+
+        Returns:
+            Number of slots actually granted in ``[0, requested]``.
+        """
+        if requested <= 0:
+            return 0
+        with self.orderbook_lock:
+            actual_parent_id = parent_client_order_id
+            if self._is_child_order_unlocked(parent_client_order_id):
+                actual_parent_id = self._get_parent_of_child_unlocked(
+                    parent_client_order_id
+                )
+            parent = self.orderbook.parent_order_ids.get(actual_parent_id, {})
+            max_repl = int(parent.get("max_order_replacement", 0))
+            current = int(parent.get("current_order_replacement", 0))
+            pending = int(self._pending_replacement_claims.get(actual_parent_id, 0))
+            available = max(0, max_repl - current - pending)
+            granted = min(requested, available)
+            if granted > 0:
+                self._pending_replacement_claims[actual_parent_id] = pending + granted
+            return granted
+
+    def release_replacement_slots(
+        self, parent_client_order_id: str, n: int
+    ) -> None:
+        """Release ``n`` replacement slots previously claimed via
+        ``claim_replacement_slots`` whose child was never registered (e.g.
+        follow-up creation failed). Safe to call with ``n <= 0``.
+        """
+        if n <= 0:
+            return
+        with self.orderbook_lock:
+            actual_parent_id = parent_client_order_id
+            if self._is_child_order_unlocked(parent_client_order_id):
+                actual_parent_id = self._get_parent_of_child_unlocked(
+                    parent_client_order_id
+                )
+            current_pending = int(
+                self._pending_replacement_claims.get(actual_parent_id, 0)
+            )
+            new_pending = max(0, current_pending - n)
+            if new_pending == 0:
+                self._pending_replacement_claims.pop(actual_parent_id, None)
+            else:
+                self._pending_replacement_claims[actual_parent_id] = new_pending
 
     def handle_cancelled_order(self, order: dict) -> None:
         """Handle a cancelled order by potentially creating a follow-up.

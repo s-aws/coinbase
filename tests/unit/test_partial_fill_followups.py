@@ -335,6 +335,18 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
     client_order_id = "placed-order-1"
     parent_client_order_id = "parent-4"
 
+    # 2026-04-29 race fix: replacement-cap enforcement moved from a
+    # mock-friendly ``can_create_follow_up_order`` check to the atomic
+    # ``claim_replacement_slots`` reading directly from the in-memory
+    # parent record. Seed the parent so only 1 of 11 slots remains.
+    engine.orderbook.parent_order_ids[parent_client_order_id] = {
+        "allow_partial_fills": True,
+        "orders": [],
+        "target_movement": {"movement": 0.001, "type": "P"},
+        "max_order_replacement": 11,
+        "current_order_replacement": 10,
+    }
+
     engine.can_create_follow_up_order = Mock(
         return_value=(
             True,
@@ -354,7 +366,8 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
 
     stealth_manager = Mock()
     stealth_manager.find_stealth_order_by_placed_order_id.return_value = {
-        "stealth_order_id": "stealth-parent-1",
+        "stealth_order_id": parent_client_order_id,
+        "parent_order_id": None,
         "reveal_condition_json": {"type": "price", "direction": "below"},
         "follow_up_reveal_direction": "opposite",
     }

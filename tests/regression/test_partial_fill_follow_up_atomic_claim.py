@@ -189,6 +189,10 @@ def test_concurrent_create_partial_fill_follow_up_does_not_overspawn():
     placed_coid = "race-coid-1"
     parent_coid = "race-parent-1"
     _link_child_to_opted_in_parent(engine, placed_coid, parent_coid)
+    # Cap is no longer mocked — the real claim_replacement_slots gate
+    # uses parent.max_order_replacement directly. Lift it well above
+    # carry so the carry race is the only thing under test.
+    engine.orderbook.parent_order_ids[parent_coid]["max_order_replacement"] = 1000
 
     # Seed the tracker so the per-order record has 100 units of carry
     # available (matches the production incident exactly: 100-unit
