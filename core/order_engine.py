@@ -270,6 +270,24 @@ class OrderEngine:
         # never emitted yet — the first drift detection always fires.
         self._reconcile_diff_last_emit_monotonic: Optional[float] = None
 
+        # Suppress the periodic ``parent_child_reconciled`` success line
+        # when nothing has actually changed since the last emit. The
+        # reconciler runs every ~30s; emitting a 73/230 status line every
+        # tick produces ~2880 identical log entries per day. We re-emit
+        # only when (parent_count, child_count) differs, when force_log
+        # is set (operator-initiated), or when the drift diagnostic
+        # fires. ``None`` means never emitted — the first call always logs.
+        self._last_reconciled_counts: Optional[tuple] = None
+
+        # Dedup gate for snapshot_drift_detected. Each WS user-event
+        # worker thread (we run ~6) processes the SNAPSHOT frame
+        # independently and previously emitted its own drift report,
+        # producing N× duplicated WARNING lines for the same drift state.
+        # Track the last-emitted signature per source under a lock and
+        # skip re-emission when the signature is unchanged.
+        self._snapshot_drift_last_signature: Dict[str, tuple] = {}
+        self._snapshot_drift_emit_lock = threading.Lock()
+
         # Cooperative shutdown signal for all background loops/threads owned
         # by this engine. Set by ``stop()`` (registered as a runtime stop
         # hook in main.py); checked by every ``while`` loop below in lieu of
@@ -2135,6 +2153,22 @@ class OrderEngine:
         }
 
         if ws_only or in_memory_only:
+            # Dedup gate: each WS user-event worker thread receives the
+            # SNAPSHOT frame and would emit identical drift reports
+            # (~6 worker threads → 6× duplicated WARNING blocks). Hash
+            # the drift contents and skip emission when the signature
+            # matches the previously-emitted one for this source. The
+            # first observation of a new drift state always emits.
+            signature = (
+                "drift",
+                tuple(ws_only),
+                tuple(in_memory_only),
+            )
+            with self._snapshot_drift_emit_lock:
+                if self._snapshot_drift_last_signature.get(source) == signature:
+                    return report
+                self._snapshot_drift_last_signature[source] = signature
+
             self.log_message(
                 "warning",
                 self.build_event_log_payload(
@@ -2170,6 +2204,15 @@ class OrderEngine:
                     ),
                 )
         else:
+            # Same dedup approach for the clean case: only emit when
+            # the source transitions out of a drifted state (or on
+            # first ever observation).
+            signature = ("clean",)
+            with self._snapshot_drift_emit_lock:
+                if self._snapshot_drift_last_signature.get(source) == signature:
+                    return report
+                self._snapshot_drift_last_signature[source] = signature
+
             self.log_message(
                 "info",
                 self.build_event_log_payload(
@@ -3901,14 +3944,27 @@ class OrderEngine:
                 ),
             )
 
-        self.log_message(
-            "reconcile",
-            self.build_event_log_payload(
-                "parent_child_reconciled",
-                parent_count=loaded_parent_count,
-                child_count=loaded_child_count,
-            ),
+        # Suppress the per-cycle status line when counts are unchanged
+        # (see ``_last_reconciled_counts`` init for rationale). Always
+        # emit when the operator forced a log, when this is the first
+        # ever emit, or when the drift diagnostic just fired (so the
+        # success line provides context for the diagnostic).
+        current_counts = (loaded_parent_count, loaded_child_count)
+        should_emit_status = (
+            force_log
+            or diff_payload is not None
+            or self._last_reconciled_counts != current_counts
         )
+        if should_emit_status:
+            self._last_reconciled_counts = current_counts
+            self.log_message(
+                "reconcile",
+                self.build_event_log_payload(
+                    "parent_child_reconciled",
+                    parent_count=loaded_parent_count,
+                    child_count=loaded_child_count,
+                ),
+            )
         return True
 
     def reconcile_parent_child_order_ids_periodically(self, interval_seconds: int = 30) -> None:

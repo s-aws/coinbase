@@ -391,6 +391,11 @@ class _FakeEngine:
         self.orderbook = SimpleNamespace(order=entries)
         self.orderbook_lock = threading.RLock()
         self.log_calls = []
+        # Dedup state required by snapshot_drift_check (production
+        # OrderEngine init populates these; the fake needs them too
+        # to exercise the same code path).
+        self._snapshot_drift_last_signature = {}
+        self._snapshot_drift_emit_lock = threading.Lock()
 
     def log_message(self, level, payload):
         self.log_calls.append((level, payload))
@@ -526,6 +531,54 @@ class TestSnapshotDriftCheck:
         events = [p["event"] for _, p in engine.log_calls]
         assert "snapshot_drift_in_memory_only" not in events
         assert "snapshot_drift_detected" not in events
+
+    @pytest.mark.regression
+    def test_repeated_drift_call_dedups_emission(self):
+        """Each WS user-event worker thread independently calls
+        snapshot_drift_check with the same WS SNAPSHOT frame. Without
+        dedup, ~6 worker threads produce 6× duplicated WARNING blocks
+        per snapshot. The first call emits; subsequent calls with an
+        identical drift signature must be silent until the signature
+        changes.
+
+        Regression for 2026-04-30 log spam: snapshot_drift_detected
+        emitted by user_event_thread_1..6 for the same 5 in-memory-only
+        orders, every WS snapshot.
+        """
+        from core.order_engine import OrderEngine
+
+        engine = _FakeEngine({"a", "b"})
+        # First call: drift → emit.
+        OrderEngine.snapshot_drift_check(engine, {"a"}, source="test")
+        first_emits = [p["event"] for _, p in engine.log_calls]
+        assert first_emits.count("snapshot_drift_detected") == 1
+        assert first_emits.count("snapshot_drift_in_memory_only") == 1
+
+        # Second call with identical signature: must NOT re-emit.
+        OrderEngine.snapshot_drift_check(engine, {"a"}, source="test")
+        second_emits = [p["event"] for _, p in engine.log_calls]
+        assert second_emits.count("snapshot_drift_detected") == 1, (
+            "duplicate drift report must be suppressed"
+        )
+        assert second_emits.count("snapshot_drift_in_memory_only") == 1
+
+        # Third call with NEW signature (drift cleared): must emit clean.
+        OrderEngine.snapshot_drift_check(engine, {"a", "b"}, source="test")
+        third_emits = [p["event"] for _, p in engine.log_calls]
+        assert third_emits.count("snapshot_drift_clean") == 1
+
+        # Fourth call still clean: must NOT re-emit.
+        OrderEngine.snapshot_drift_check(engine, {"a", "b"}, source="test")
+        fourth_emits = [p["event"] for _, p in engine.log_calls]
+        assert fourth_emits.count("snapshot_drift_clean") == 1, (
+            "duplicate clean report must be suppressed"
+        )
+
+        # Fifth: drift returns with same signature as first → emits again
+        # (the source transitioned clean → drifted).
+        OrderEngine.snapshot_drift_check(engine, {"a"}, source="test")
+        fifth_emits = [p["event"] for _, p in engine.log_calls]
+        assert fifth_emits.count("snapshot_drift_detected") == 2
 
 
 # ---------------------------------------------------------------------------
