@@ -3,49 +3,53 @@
   "exported_at": "2026-04-29T08:26:32.207996",
   "count": 1,
   "orders": [
-    {
-      "stealth_order_id": "3d2850ab-7b9c-482d-8eec-f4c5dc371f3a",
+   {
+      "stealth_order_id": "f6514498-ab85-4573-b515-d4dfd612f6c5",
       "product_id": "BIP-20DEC30-CDE",
       "side": "SELL",
-      "total_size": 10,
-      "limit_price": 76315,
+      "total_size": 1,
+      "limit_price": 76430,
       "reveal_condition": {
         "type": "price",
+        "price_threshold": 76430,
         "direction": "above",
-        "price_threshold": 76315,
-        "hold_duration_seconds": 10
+        "hold_duration_seconds": 0
       },
+      "reveal_pricing_policy": "midpoint",
       "sizing_strategy": {
         "type": "fixed"
       },
+      "follow_up_reveal_direction": "opposite",
       "notes": "",
-      "max_order_replacements": 1,
-      "target_movement": 0.0014,
+      "max_order_replacements": 11,
+      "target_movement": 0.002,
       "target_movement_type": "P",
       "allow_partial_fills": true,
       "anchor_repricing_policy": {
         "enabled": true,
-        "slide_mode": true,
-        "update_mode": "adaptive",
-        "max_distance": 800,
+        "reference_price_source": "last_trade",
         "distance_type": "A",
-        "hysteresis_bps": 0,
-        "max_spread_bps": 50,
-        "target_distance": 100,
-        "min_price_change": 0,
-        "converge_to_target": true,
-        "post_only_required": true,
-        "max_step_per_reprice": 5,
-        "inherit_to_follow_ups": true,
-        "max_reprices_per_hour": 60,
-        "allow_revealed_reprice": true,
+        "target_distance": 200,
+        "max_distance": 800,
+        "update_mode": "fixed",
         "fixed_interval_seconds": 60,
-        "reference_price_source": "midpoint",
-        "require_minimum_volume": 0,
+        "allow_revealed_reprice": true,
+        "min_price_change": 0,
+        "hysteresis_bps": 0,
+        "min_reprice_interval_seconds": 60,
+        "max_reprices_per_hour": 60,
+        "post_only_required": false,
+        "converge_to_target": true,
+        "inherit_to_follow_ups": true,
+        "slide_mode": true,
+        "max_step_per_reprice": 5,
         "volatility_sensitivity": 1,
-        "enable_spread_monitoring": false,
         "max_reprice_window_seconds": 600,
-        "min_reprice_interval_seconds": 60
+        "require_minimum_volume": 0,
+        "enable_spread_monitoring": false,
+        "max_spread_bps": 50,
+        "follow_up_retreat_distance": 0.0005,
+        "follow_up_retreat_jitter": 0.5
       }
     }
   ]
