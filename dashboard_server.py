@@ -625,15 +625,48 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 # Generate unique client order ID
                 client_order_id = str(uuid.uuid4())
 
+                # Boundary validation: tick-align size and reject sizes
+                # below the exchange's base_min_size / quote_min_size
+                # before we burn a REST call. Mirrors the boundary hook
+                # in core/stealth_order_manager.create_stealth_order so
+                # both order-creation paths get the same guard. See
+                # calculation/size_validation.py for the contract.
+                from calculation.size_validation import validate_and_quantize_size
+
+                product_id = order_params.get("product_id")
+                order_configuration = order_params.get("order_configuration") or {}
+                # order_configuration shape (per Coinbase Advanced Trade):
+                #   {"limit_limit_gtc": {"base_size": "...", "limit_price": "...", ...}}
+                #   {"market_market_ioc": {"base_size": "..."}} (or quote_size)
+                # Pick whichever inner config is present.
+                inner_key = next(iter(order_configuration), None)
+                inner = order_configuration.get(inner_key, {}) if inner_key else {}
+                raw_size = inner.get("base_size")
+                raw_price = inner.get("limit_price")  # None for market orders
+                if raw_size is not None:
+                    size_check = validate_and_quantize_size(
+                        raw_size,
+                        product_id=product_id,
+                        price=float(raw_price) if raw_price is not None else None,
+                    )
+                    if not size_check:
+                        raise OrderCreationError(
+                            f"Order rejected at boundary: {size_check.reason}",
+                            client_order_id=client_order_id,
+                        )
+                    # Write quantized value back so the REST call sends
+                    # exactly what the validator approved.
+                    inner["base_size"] = str(size_check.size)
+
                 # Call REST API to create order. Tracked as in-flight so a
                 # concurrent drain waits for the placement to settle before
                 # transitioning to STOPPED.
                 with controller.track_inflight(INFLIGHT_REST_PLACE):
                     result = REST_CLIENT.create_order(
                         client_order_id=client_order_id,
-                        product_id=order_params.get("product_id"),
+                        product_id=product_id,
                         side=order_params.get("side"),
-                        order_configuration=order_params.get("order_configuration"),
+                        order_configuration=order_configuration,
                     )
                 
                 # Convert response object to dict if needed

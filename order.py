@@ -291,7 +291,7 @@ def create_limit_order_span(
                     # per-order stability across reveals.
                 )
         except Exception:
-            # Camouflageeffective_ is decoration; never fail order creation on it.
+            # Camouflage is decoration; never fail order creation on it.
             effective_start_price = start_price
     
     order_bridge = get_stealth_order_bridge()
@@ -311,14 +311,14 @@ def create_limit_order_span(
         total_size = order_base_size * max_order_count
     
     try:
-        from datetime import dateeffective_time as dt
+        from datetime import datetime as dt
         
         sizing_strategy_dict = sizing_strategy or {"type": "fixed"}
         order_id = order_bridge.create_stealth_order(
             product_id=product_id,
             side=side,
             total_size=total_size,
-            limit_price=start_price,
+            limit_price=effective_start_price,
             reveal_condition=reveal_condition,
             sizing_strategy=sizing_strategy_dict,
             reveal_pricing_policy=reveal_pricing_policy,
@@ -338,7 +338,7 @@ def create_limit_order_span(
                     "product_id": product_id,
                     "side": side,
                     "size": str(total_size),
-                    "price": str(start_price),
+                    "price": str(effective_start_price),
                     "status": "HIDDEN",                       # Pending reveal
                     "type": "ORDER",                          # Standard order type
                     "created_at": dt.utcnow().isoformat(),
