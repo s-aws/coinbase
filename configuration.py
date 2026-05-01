@@ -23,6 +23,10 @@ from coinbase.rest import RESTClient
 
 from external import CoinbaseRestClient
 from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
+from core.constants import (  # noqa: F401  (re-exported for legacy ``from configuration import ...``)
+    DERIVATIVES_MANDATORY_FEE_PER_CONTRACT,
+    DEFAULT_MAX_ORDER_REPLACEMENT,
+)
 
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
@@ -92,8 +96,9 @@ ORDER_DIRECTION = {
     "BUY": -1
 }
 
-DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
-DEFAULT_MAX_ORDER_REPLACEMENT = 101
+# DERIVATIVES_MANDATORY_FEE_PER_CONTRACT and DEFAULT_MAX_ORDER_REPLACEMENT
+# are imported above from ``core.constants`` (canonical source of truth).
+# Do NOT redefine them here — see 2026-04-30 audit.
 
 
 # ``safe_float`` returns ``None`` when callers explicitly pass ``default=None`` —

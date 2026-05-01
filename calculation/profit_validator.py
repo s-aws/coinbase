@@ -45,7 +45,8 @@ Example (FUTURE SHORT position: SELL @$50K, BUY @$48.5K with 5 contracts):
 from typing import Dict, Any, Optional
 import logging
 from calculation.formatter import safe_float
-from configuration import determine_open_close_sides, DERIVATIVES_MANDATORY_FEE_PER_CONTRACT
+from configuration import determine_open_close_sides
+from core.constants import DERIVATIVES_MANDATORY_FEE_PER_CONTRACT
 from core.enums import OrderSide, ProductType, TargetMovementType
 
 logger = logging.getLogger(__name__)

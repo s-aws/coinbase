@@ -39,14 +39,18 @@ ORDER_DIRECTION = {
 }
 
 # Fee Constants
-# Re-exported from ``configuration`` (the canonical source of truth).
-# Kept available here so existing ``from core.constants import ...``
-# (and ``from core import ...``) call sites don't break, but the value
-# itself MUST live in exactly one place. See 2026-04-30 audit:
-# previously defined in three files which would silently desync the
-# day Coinbase changes the rate.
-from configuration import DERIVATIVES_MANDATORY_FEE_PER_CONTRACT  # noqa: F401
-DEFAULT_MAX_ORDER_REPLACEMENT = 1               # Max follow-up orders per parent
+# Canonical source of truth. Previously also defined in ``configuration.py``
+# and ``calculation/profit_validator.py`` and silently desynced.
+# 2026-04-30 audit consolidated to a single value here.
+DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
+
+# Replacement Cap
+# Default ``max_order_replacement`` per parent. ``1`` means "round-trip
+# only" (open is free; one closing follow-up consumes the slot). To
+# allow re-anchors, override per parent at order-creation time.
+# Previously also lived in ``configuration.py`` with the desynced value
+# 101 — 2026-04-30 audit consolidated here.
+DEFAULT_MAX_ORDER_REPLACEMENT = 1
 
 # Product Lists
 SPOT_PRODUCT_IDS = [

@@ -1890,6 +1890,103 @@ class StealthOrderManager:
             return None
         return total_fees / denom
 
+    def _check_target_movement_feasibility(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        limit_price: float,
+        order_size: float,
+        target_movement: float,
+        target_movement_type: Optional[str],
+    ) -> Optional[str]:
+        """Pre-flight: return a reason string if the configured target is
+        provably below the round-trip fee floor at the configured price,
+        else ``None``.
+
+        Uses the same validator math the reveal path uses
+        (``validate_order_profitability``), so a target that passes here
+        can still fail at reveal if market drift moves the price
+        materially. To absorb that drift the check uses a soft floor of
+        ``95%`` of the strict min-viable: only reject when the target
+        would be infeasible even after a generous price-drift cushion.
+
+        Returns ``None`` (= feasible) on any computation failure so a
+        diagnostic helper never blocks legitimate orders.
+        """
+        if self.profit_validator is None:
+            return None
+        if not hasattr(self.profit_validator, "derive_follow_up_price_from_target"):
+            return None
+        if not hasattr(self.profit_validator, "validate_order_profitability"):
+            return None
+
+        try:
+            try:
+                parent_side = OrderSide(str(side or "").upper()).value
+            except ValueError:
+                return None
+
+            follow_up_price = self.profit_validator.derive_follow_up_price_from_target(
+                parent_filled_price=limit_price,
+                parent_side=parent_side,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+            )
+            if not follow_up_price or follow_up_price <= 0:
+                return None
+
+            validation = self.profit_validator.validate_order_profitability(
+                parent_filled_price=limit_price,
+                parent_side=parent_side,
+                follow_up_price=follow_up_price,
+                order_size=order_size,
+                min_margin_pct=0.0,
+                product_id=product_id,
+            )
+            if bool(validation.get("is_profitable", False)):
+                return None
+
+            total_fees = safe_float(validation.get("total_fees"), default=0.0)
+            min_viable = self._compute_min_viable_target_movement(
+                parent_filled_price=limit_price,
+                order_size=order_size,
+                target_movement_type=target_movement_type,
+                total_fees=total_fees,
+                product_id=product_id,
+            )
+            if min_viable is None or min_viable <= 0:
+                return None
+
+            # Soft floor: only reject when the configured target is below
+            # 95% of strict min-viable. Above that, accept and let the
+            # reveal-time check make the final call (price may have moved
+            # in our favour by then).
+            soft_floor = min_viable * 0.95
+            if target_movement >= soft_floor:
+                return None
+
+            type_label = (target_movement_type or "P").upper()
+            if type_label == "P":
+                return (
+                    f"configured target_movement={target_movement:.6f} (P), "
+                    f"minimum viable ~= {min_viable:.6f} (P) at limit_price={limit_price}. "
+                    f"Round-trip fees ({total_fees:.4f}) exceed projected gross profit. "
+                    f"Either raise target_movement or reduce order size to lower the "
+                    f"per-contract mandatory-fee burden."
+                )
+            return (
+                f"configured target_movement={target_movement:.4f} (A), "
+                f"minimum viable ~= {min_viable:.4f} (A) at limit_price={limit_price}. "
+                f"Round-trip fees ({total_fees:.4f}) exceed projected gross profit."
+            )
+        except Exception as exc:
+            self.logger.debug(
+                f"Pre-flight feasibility check skipped due to error: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            return None
+
     def _validate_reveal_profitability(
         self,
         stealth_order_id: str,
@@ -2016,12 +2113,12 @@ class StealthOrderManager:
                     if type_label == "P":
                         diag += (
                             f"; configured target_movement={target_movement:.6f} (P), "
-                            f"minimum viable ≈ {min_viable:.6f} (P)"
+                            f"minimum viable ~= {min_viable:.6f} (P)"
                         )
                     else:
                         diag += (
                             f"; configured target_movement={target_movement:.4f} (A), "
-                            f"minimum viable ≈ {min_viable:.4f} (A)"
+                            f"minimum viable ~= {min_viable:.4f} (A)"
                         )
 
                 failure_msg = (
@@ -2249,7 +2346,28 @@ class StealthOrderManager:
                 f"Stealth order rejected at boundary: {size_check.reason}"
             )
         total_size = size_check.size
-        
+
+        # Pre-flight profitability check (root orders only). Catches the
+        # "target_movement below fee floor" misconfiguration at submission
+        # rather than 30 minutes later when the reveal condition triggers
+        # and produces an unfillable order. Children inherit the parent's
+        # economics and don't carry their own target, so skip them.
+        if parent_order_id is None and target_movement and target_movement > 0:
+            infeasible_reason = self._check_target_movement_feasibility(
+                product_id=product_id,
+                side=side,
+                limit_price=float(limit_price),
+                order_size=float(total_size),
+                target_movement=float(target_movement),
+                target_movement_type=target_movement_type,
+            )
+            if infeasible_reason is not None:
+                raise OrderCreationError(
+                    f"Stealth order rejected: configured target_movement is below "
+                    f"the round-trip fee floor at the configured limit price. "
+                    f"{infeasible_reason}"
+                )
+
         normalized_anchor_repricing_policy = self._normalize_anchor_repricing_policy(anchor_repricing_policy)
 
         order_data = {
@@ -2481,15 +2599,35 @@ class StealthOrderManager:
                     if not self._should_emit_profitability_failure(
                             stealth_order_id, order, reveal_plan):
                         return None
+                    suppressed_repeats = order.pop(
+                        "_profit_failure_suppressed_since_last_log", 0
+                    )
                     self.log_callback("warning", {
                         "event": "stealth_order_profitability_validation_failed",
                         "stealth_order_id": stealth_order_id,
                         "reason": str(e),
                         "fallback_used": e.fallback_used,
-                        "suppressed_repeats": order.pop(
-                            "_profit_failure_suppressed_since_last_log", 0
-                        ),
+                        "suppressed_repeats": suppressed_repeats,
                     })
+                    # Surface to the dashboard via the lifecycle stream.
+                    # PLACEMENT_BLOCKED is the right semantic: we made a
+                    # pre-submission decision to NOT place because the
+                    # economics don't clear the fee floor. Subscribers
+                    # (dashboard, alerting) can render this prominently
+                    # rather than relying on operators tailing logs.
+                    self._dispatch_lifecycle_event(
+                        stealth_order_id=stealth_order_id,
+                        event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                        order_data=order,
+                        extra={
+                            "failure_reason": str(e),
+                            "block_category": "unprofitable_at_reveal",
+                            "fallback_used": e.fallback_used,
+                            "suppressed_repeats": suppressed_repeats,
+                            "reveal_price": reveal_plan.submitted_limit_price,
+                            "configured_price": reveal_plan.configured_limit_price,
+                        },
+                    )
                     return None
         except RevealOrderSliceError as e:
             # Order not found or slice failed

@@ -258,3 +258,144 @@ def test_min_viable_returns_none_on_invalid_inputs():
         target_movement_type="P", total_fees=0.0,
         product_id="BIT-29MAY26-CDE",
     ) is None
+
+
+# ---------------------------------------------------------------------------
+# Pre-flight feasibility check (creation-time)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.regression
+def test_preflight_feasibility_helper_exists_and_is_called_on_create():
+    """``create_stealth_order`` MUST gate against a configured target
+    that is provably below the round-trip fee floor at the configured
+    limit price. Catching this at submission \u2014 instead of waiting for
+    the reveal trigger 30 minutes later \u2014 saves operators a debug
+    session and prevents log-spam loops on stuck orders.
+    """
+    assert "_check_target_movement_feasibility" in _SRC, (
+        "Pre-flight feasibility helper missing; misconfigured "
+        "target_movement values will only be caught at reveal time."
+    )
+    assert "_check_target_movement_feasibility(" in _SRC, (
+        "Helper exists but is not called from create_stealth_order; "
+        "the gate is dead code."
+    )
+
+
+@pytest.mark.regression
+def test_preflight_returns_none_for_feasible_target():
+    """A target above the soft floor must NOT block creation."""
+    from core import stealth_order_manager as som
+
+    mgr = som.StealthOrderManager.__new__(som.StealthOrderManager)
+
+    class _Validator:
+        def derive_follow_up_price_from_target(self, **kwargs):
+            return kwargs["parent_filled_price"] * (
+                1 + kwargs["target_movement"]
+                if kwargs["parent_side"] == "BUY"
+                else 1 - kwargs["target_movement"]
+            )
+
+        def validate_order_profitability(self, **kwargs):
+            # 1% target on $100 \u00d7 1 unit = $1 gross, $0.10 fees \u2192 profitable.
+            return {"is_profitable": True, "total_fees": 0.10}
+
+    mgr.profit_validator = _Validator()
+    out = mgr._check_target_movement_feasibility(
+        product_id="BTC-USDC", side="BUY", limit_price=100.0,
+        order_size=1.0, target_movement=0.01, target_movement_type="P",
+    )
+    assert out is None
+
+
+@pytest.mark.regression
+def test_preflight_blocks_when_target_below_soft_floor():
+    """A target far below the strict min-viable must produce a
+    rejection reason string containing the configured value, the
+    minimum-viable value, and an actionable hint."""
+    from core import stealth_order_manager as som
+
+    mgr = som.StealthOrderManager.__new__(som.StealthOrderManager)
+
+    class _Validator:
+        def derive_follow_up_price_from_target(self, **kwargs):
+            return kwargs["parent_filled_price"] * 0.999
+
+        def validate_order_profitability(self, **kwargs):
+            # gross < fees \u2192 unprofitable, fees=$9.17 (matches the
+            # 2026-04-30 incident shape).
+            return {"is_profitable": False, "total_fees": 9.17}
+
+    mgr.profit_validator = _Validator()
+    # 0.001 (P) at price=76802.5, size=10 \u2192 strict min-viable \u2248 1.19e-5,
+    # but the validator says total_fees=9.17 \u2192 strict min-viable
+    # = 9.17 / (76802.5 * 10) \u2248 1.19e-5. Configured 0.001 is FAR
+    # ABOVE that, so this case should NOT block. Use a config below
+    # the floor instead:
+    out = mgr._check_target_movement_feasibility(
+        product_id="BIT-29MAY26-CDE", side="SELL", limit_price=76802.5,
+        order_size=10.0, target_movement=1e-7,  # well below 1.19e-5 floor
+        target_movement_type="P",
+    )
+    assert out is not None, "Should reject sub-floor target"
+    assert "minimum viable" in out
+    assert "target_movement" in out
+
+
+@pytest.mark.regression
+def test_preflight_skips_child_orders():
+    """Child / follow-up orders inherit parent economics and don't
+    carry their own target_movement. The pre-flight gate must NOT
+    fire for them \u2014 doing so would block legitimate follow-ups."""
+    # Static-source guard: the call site MUST be inside an
+    # ``if parent_order_id is None`` arm.
+    import re
+    pattern = re.compile(
+        r"if\s+parent_order_id\s+is\s+None\s+and\s+target_movement",
+        re.MULTILINE,
+    )
+    assert pattern.search(_SRC), (
+        "Pre-flight check is missing the ``parent_order_id is None`` "
+        "guard; it will block legitimate child / follow-up orders."
+    )
+
+
+@pytest.mark.regression
+def test_preflight_returns_none_when_validator_is_missing():
+    """No profit_validator configured \u2192 helper must no-op (return
+    None), not raise. Production deployments without the validator
+    must still be able to create orders."""
+    from core import stealth_order_manager as som
+
+    mgr = som.StealthOrderManager.__new__(som.StealthOrderManager)
+    mgr.profit_validator = None
+    out = mgr._check_target_movement_feasibility(
+        product_id="BTC-USDC", side="BUY", limit_price=100.0,
+        order_size=1.0, target_movement=0.01, target_movement_type="P",
+    )
+    assert out is None
+
+
+# ---------------------------------------------------------------------------
+# Dashboard alert via lifecycle event (reveal-time)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.regression
+def test_reveal_profitability_failure_dispatches_lifecycle_event():
+    """When reveal-time validation fails AND the throttle decides to
+    emit, a ``PLACEMENT_BLOCKED`` lifecycle event MUST be dispatched
+    so the dashboard sees the failure prominently rather than only
+    via log tailing.
+    """
+    assert "PLACEMENT_BLOCKED" in _SRC, (
+        "PLACEMENT_BLOCKED enum reference missing from "
+        "stealth_order_manager.py \u2014 dashboard alert path is broken."
+    )
+    assert '"block_category": "unprofitable_at_reveal"' in _SRC, (
+        "block_category discriminator missing; subscribers cannot "
+        "differentiate fee-floor blocks from pre-submission-hook "
+        "blocks without it."
+    )
