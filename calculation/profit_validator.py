@@ -25,11 +25,12 @@ This validator ensures follow-up orders capture enough profit to exceed the fee
 charged when the close order fills.
 
 Example (SPOT: BUY @$50K, SELL @$52.5K):
-    Parent BUY fills @$50,000 (OPEN, no fee yet)
-    Fee rate: adaptive effective rate (typically near base × 2)
-    Fee when SELL closes: $52,500 × effective_fee_rate
+    Parent BUY fills @$50,000 (OPEN, taker fee charged on this fill)
+    Follow-up SELL fills @$52,500 (CLOSE, taker fee charged on this fill)
+    Fee rate: live effective rate from FeeManager (base × cushion multiplier)
+    Round-trip percentage fee: ($50,000 + $52,500) × size × effective_fee_rate
     Gross profit: $52,500 - $50,000 = $2,500
-    Net profit: $2,500 - close_fee_amount ✓ PROFITABLE when positive
+    Net profit: $2,500 - round_trip_fees ✓ PROFITABLE when positive
 
 Example (FUTURE SHORT position: SELL @$50K, BUY @$48.5K with 5 contracts):
     Account is SHORT, so SELL=open, BUY=close
@@ -46,7 +47,7 @@ from typing import Dict, Any, Optional
 import logging
 from calculation.formatter import safe_float
 from configuration import determine_open_close_sides
-from core.constants import DERIVATIVES_MANDATORY_FEE_PER_CONTRACT
+from core.constants import get_derivatives_per_side_fee
 from core.enums import OrderSide, ProductType, TargetMovementType
 
 logger = logging.getLogger(__name__)
@@ -317,8 +318,11 @@ class ProfitValidator:
                           Used to adjust fee rate calculation per contract. (optional)
         
         Notes:
-            Mandatory fees use raw constant ($0.15 per contract).
-            For contract-size-adjusted fees, use OrderBook.mandatory_fee_per_contract.
+            Mandatory fees resolved per product via
+            ``core.constants.get_derivatives_per_side_fee`` and doubled for
+            the round-trip (Coinbase charges per side under the March 2026
+            schedule). For contract-size-adjusted offsets used by the
+            order-spacing path, see ``OrderBook.mandatory_fee_per_contract``.
         
         Returns:
             Dict with keys:
@@ -414,31 +418,38 @@ class ProfitValidator:
             # Parent was SELL (open), follow-up will be BUY (close)
             gross_profit = (filled_price - follow_up_price) * effective_size
         
-        # Calculate fees - ONLY the close order incurs fees
-        # The fee is charged on the close_side order's price
-        # Important: Fee is charged at close_side price, not open_side price
-        percentage_fees = follow_up_price * effective_size * fee_rate
+        # Calculate fees - BOTH sides incur taker fees (open + close).
+        # Coinbase charges its taker fee on every fill, not just on close.
+        # The pre-2026-05-01 formula computed only the close-side fee and
+        # relied on a hidden 2.0 multiplier in FeeManager to compensate.
+        # That coupling silently broke when the multiplier was tuned away
+        # from 2.0; this version makes the round-trip fee explicit so the
+        # multiplier can mean what it says (cushion only).
+        percentage_fees = (filled_price + follow_up_price) * effective_size * fee_rate
 
         if triggered_by_fill:
             logger.info(
                 f"Fee rate applied | Effective fee rate: {fee_rate:.6f} ({fee_rate*100:.4f}%) | "
-                f"Follow-up price: ${follow_up_price:.2f} | Size: {order_size} | "
-                f"Calculated percentage fee: ${percentage_fees:.2f}"
+                f"Open price: ${filled_price:.2f} | Close price: ${follow_up_price:.2f} | "
+                f"Size: {order_size} | Round-trip percentage fee: ${percentage_fees:.2f}"
             )
         
-        # Add mandatory fixed fee for FUTURE/PERPETUAL contracts
-        # FUTURE and PERPETUAL products charge $0.15 per contract on close
-        # SPOT products have no mandatory fee
-        # Note: Uses raw constant; OrderBook pre-computes contract-size-adjusted fees
+        # Add mandatory fixed fee for FUTURE/PERPETUAL contracts.
+        # Coinbase's March 2026 schedule charges the per-contract
+        # commission per side (open + close), so round-trip = 2 × per-side.
+        # Per-side rate depends on tier (full-size BTI/ETI/SLC/XRL = $0.20,
+        # nano/perp-style = $0.10). Resolved per product_id.
+        # SPOT products have no mandatory fee.
         mandatory_fees = 0.0
         if product_type == ProductType.FUTURE.value:
-            mandatory_fees = DERIVATIVES_MANDATORY_FEE_PER_CONTRACT * order_size
+            per_side_fee = get_derivatives_per_side_fee(product_id) if product_id else 0.10
+            mandatory_fees = per_side_fee * order_size * 2.0
 
             if triggered_by_fill:
                 logger.info(
                     f"Mandatory fee applied | Product: {product_type} | "
-                    f"Contracts: {order_size} | Fee: ${mandatory_fees:.2f} "
-                    f"(${DERIVATIVES_MANDATORY_FEE_PER_CONTRACT} per contract)"
+                    f"Contracts: {order_size} | Round-trip fee: ${mandatory_fees:.2f} "
+                    f"(${per_side_fee} per side × 2 sides)"
                 )
         
         total_fees = percentage_fees + mandatory_fees
@@ -495,18 +506,19 @@ class ProfitValidator:
                                   close_side: str = 'SELL') -> float:
         """Calculate price needed to break even (zero profit).
         
-        Accounts for fee on the CLOSE order only (follow-up).
-        The OPEN order (parent) has no fee.
+        Round-trip fee model: Coinbase charges the taker fee on BOTH the
+        open fill (parent) and the close fill (follow-up). The break-even
+        price therefore has to clear two fee instances, not one.
         
         For BUY parent → SELL follow-up:
-            Net profit = (sell_price - buy_price) × size - (sell_price × size × fee_rate)
-            At breakeven: 0 = (sell_price - filled) × size - sell_price × size × fee_rate
-            Solving: sell_price = filled_price / (1 - fee_rate)
+            Net profit = (sell - buy) × size - (buy + sell) × size × fee_rate
+            At breakeven:  sell × (1 - fee_rate) = buy × (1 + fee_rate)
+            Solving:       sell = buy × (1 + fee_rate) / (1 - fee_rate)
         
         For SELL parent → BUY follow-up:
-            Net profit = (sell_price - buy_price) × size - (buy_price × size × fee_rate)
-            At breakeven: 0 = (filled - buy_price) × size - buy_price × size × fee_rate
-            Solving: buy_price = filled_price / (1 + fee_rate)
+            Net profit = (sell - buy) × size - (buy + sell) × size × fee_rate
+            At breakeven:  buy × (1 + fee_rate) = sell × (1 - fee_rate)
+            Solving:       buy = sell × (1 - fee_rate) / (1 + fee_rate)
         
         Args:
             filled_price: Original fill price (the OPEN order)
@@ -520,19 +532,17 @@ class ProfitValidator:
             Price at which net profit = 0
         """
         if side == OrderSide.BUY.value:
-            # Parent BUY (open, no fee), Follow-up SELL (close, has fee)
-            # 0 = (follow_up - filled) × size - follow_up × size × fee_rate
-            # 0 = follow_up × size - filled × size - follow_up × size × fee_rate
-            # filled × size = follow_up × size × (1 - fee_rate)
-            # follow_up = filled / (1 - fee_rate)
-            return filled_price / (1 - fee_rate) if fee_rate < 1 else filled_price
+            # Parent BUY (open, has fee), Follow-up SELL (close, has fee)
+            # 0 = (sell - buy)·size - (buy + sell)·size·fee_rate
+            # sell·(1 - fee_rate) = buy·(1 + fee_rate)
+            if fee_rate >= 1:
+                return filled_price
+            return filled_price * (1 + fee_rate) / (1 - fee_rate)
         else:
-            # Parent SELL (open, no fee), Follow-up BUY (close, has fee)
-            # 0 = (filled - follow_up) × size - follow_up × size × fee_rate
-            # 0 = filled × size - follow_up × size - follow_up × size × fee_rate
-            # filled × size = follow_up × size × (1 + fee_rate)
-            # follow_up = filled / (1 + fee_rate)
-            return filled_price / (1 + fee_rate)
+            # Parent SELL (open, has fee), Follow-up BUY (close, has fee)
+            # 0 = (sell - buy)·size - (buy + sell)·size·fee_rate
+            # buy·(1 + fee_rate) = sell·(1 - fee_rate)
+            return filled_price * (1 - fee_rate) / (1 + fee_rate)
     
     def _calculate_minimum_viable_price(self,
                                        filled_price: float,
@@ -543,9 +553,11 @@ class ProfitValidator:
                                        open_side: str = 'BUY',
                                        close_side: str = 'SELL') -> float:
         """Calculate price needed to achieve desired minimum profit.
-        
-        Accounts for fee on the CLOSE order only (follow-up).
-        
+
+        Builds on the round-trip break-even (taker fee on both open and
+        close fills), then adds the per-unit profit headroom required to
+        clear ``min_profit``.
+
         Args:
             filled_price: Original fill price (open order)
             side: Parent order side ('BUY' or 'SELL') - should match open_side
@@ -648,8 +660,13 @@ class ProfitValidator:
         
         # Add validation status and remediation
         result["is_valid"] = True
-        result["fee_rate_base"] = self._get_fee_rate() / 2.0  # Show base rate too
-        result["multiplier"] = 2.0
+        # Effective rate already includes the (now product-type-aware)
+        # multiplier and regime factor from FeeManager. Surface the live
+        # effective rate as-is; callers that want the base rate can ask
+        # FeeManager directly. The legacy ``/ 2.0`` divisor here was a
+        # leftover from when DEFAULT_MULTIPLIER was hardcoded to 2.0 and
+        # would lie about the base rate after the 2026-05-01 split.
+        result["fee_rate_effective"] = self._get_fee_rate(product_id=product_id)
         result["parent_filled_price"] = parent_filled_price
         result["follow_up_proposed_price"] = follow_up_price
         result["order_size"] = order_size
@@ -668,80 +685,58 @@ class ProfitValidator:
         
         return result
     
-    def explain_fee_calculation(self, 
+    def explain_fee_calculation(self,
                                filled_price: float,
                                follow_up_price: float,
-                               order_size: float) -> Dict[str, Any]:
+                               order_size: float,
+                               product_id: Optional[str] = None) -> Dict[str, Any]:
         """Detailed explanation of fee calculation (for debugging and verification).
-        
-        Shows the complete fee breakdown for OPEN and CLOSE orders.
-        
+
+        Coinbase charges its taker fee on every fill, so the round-trip fee is
+        the sum of the open-fill fee and the close-fill fee. Earlier versions
+        of this method modeled only the close fee and relied on a hidden 2.0
+        multiplier in FeeManager to compensate; that coupling is gone now.
+
         Returns a dict showing:
-        - base_fee_rate: From Coinbase API (e.g., 0.006 for 0.6%)
-        - multiplier: Applied base multiplier (2.0)
-        - effective_fee_rate: base × multiplier × regime_factor
-        - fee_on_open: Cost when parent order (open) fills - ZERO
-        - fee_on_close: Cost when follow-up order (close) fills
-        - total_fees: Sum of both (just the close fee)
+        - effective_fee_rate: Live rate from FeeManager (base × cushion × regime)
+        - fee_on_open: Cost when parent (open) order fills
+        - fee_on_close: Cost when follow-up (close) order fills
+        - total_fees: fee_on_open + fee_on_close
         - breakdown: Clear text explanation
-        
-        Example:
-            >>> explanation = validator.explain_fee_calculation(
-            ...     filled_price=50000.0,      # Open order
-            ...     follow_up_price=52500.0,   # Close order
-            ...     order_size=1.0
-            ... )
-            >>> print(explanation['breakdown'])
         """
-        fee_rate_effective = self._get_fee_rate()
-        
-        # Back-calculate the base rate (we store it as multiplied)
-        # This is for clarity - to show base vs effective
-        base_fee = fee_rate_effective / 2.0
-        
-        # OPEN order (parent): NO FEE CHARGED
-        fee_on_open = 0.0
-        
-        # CLOSE order (follow-up): FEE CHARGED when it fills
+        fee_rate_effective = self._get_fee_rate(product_id=product_id)
+
+        # BOTH sides incur the taker fee (Coinbase charges per fill).
+        fee_on_open = filled_price * order_size * fee_rate_effective
         fee_on_close = follow_up_price * order_size * fee_rate_effective
-        
         total_fees = fee_on_open + fee_on_close
-        
-        # Build clear explanation
+
         breakdown = f"""
-FEE CALCULATION BREAKDOWN (OPEN vs CLOSE)
-==========================================
+FEE CALCULATION BREAKDOWN (round-trip, both sides)
+===================================================
 
-Base Coinbase taker fee: {base_fee:.4%}
-Base multiplier: 2x (then adjusted by regime factor)
-Effective fee for validation: {fee_rate_effective:.4%}
+Effective fee rate (per side): {fee_rate_effective:.4%}
+Order size: {order_size} units
 
-Order sizes: {order_size} units
+OPEN fill (parent) at ${filled_price:,.2f}:
+  Fee = ${filled_price:,.2f} × {order_size} × {fee_rate_effective:.4%} = ${fee_on_open:,.2f}
 
-When OPEN order (parent BUY) fills at ${filled_price:,.2f}:
-  Fee = $0.00
-  (Fee is NOT charged when the OPEN position is established)
-
-When CLOSE order (follow-up SELL) fills at ${follow_up_price:,.2f}:
+CLOSE fill (follow-up) at ${follow_up_price:,.2f}:
   Fee = ${follow_up_price:,.2f} × {order_size} × {fee_rate_effective:.4%} = ${fee_on_close:,.2f}
-  (Fee IS charged when the position is CLOSED/closed out)
 
-TOTAL FEES for round-trip: ${total_fees:,.2f}
-(This is 1× effective fee on the close order only, not both orders)
+TOTAL ROUND-TRIP FEES: ${total_fees:,.2f}
 
 Profit calculation:
-  Gross profit: ${follow_up_price:,.2f} - ${filled_price:,.2f} = ${(follow_up_price - filled_price) * order_size:,.2f}
-  Fees charged: ${fee_on_close:,.2f}
-  Net profit: ${(follow_up_price - filled_price) * order_size - fee_on_close:,.2f}
+  Gross profit: (${follow_up_price:,.2f} - ${filled_price:,.2f}) × {order_size} = ${(follow_up_price - filled_price) * order_size:,.2f}
+  Round-trip fees: ${total_fees:,.2f}
+  Net profit: ${(follow_up_price - filled_price) * order_size - total_fees:,.2f}
 """
-        
+
         return {
-            "base_fee_rate": base_fee,
-            "multiplier": 2.0,
             "effective_fee_rate": fee_rate_effective,
             "fee_on_open": fee_on_open,
             "fee_on_close": fee_on_close,
             "total_fees": total_fees,
             "breakdown": breakdown,
-            "note": "Fee is charged ONLY when orders close. Open order has NO fee."
+            "note": "Coinbase charges the taker fee on BOTH the open and close fills.",
         }

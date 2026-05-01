@@ -24,7 +24,8 @@ from coinbase.rest import RESTClient
 from external import CoinbaseRestClient
 from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
 from core.constants import (  # noqa: F401  (re-exported for legacy ``from configuration import ...``)
-    DERIVATIVES_MANDATORY_FEE_PER_CONTRACT,
+    DERIVATIVES_PER_SIDE_FEE_DEFAULT,
+    get_derivatives_per_side_fee,
     DEFAULT_MAX_ORDER_REPLACEMENT,
 )
 
@@ -96,7 +97,7 @@ ORDER_DIRECTION = {
     "BUY": -1
 }
 
-# DERIVATIVES_MANDATORY_FEE_PER_CONTRACT and DEFAULT_MAX_ORDER_REPLACEMENT
+# DERIVATIVES_PER_SIDE_FEE_* and DEFAULT_MAX_ORDER_REPLACEMENT
 # are imported above from ``core.constants`` (canonical source of truth).
 # Do NOT redefine them here — see 2026-04-30 audit.
 
@@ -850,10 +851,17 @@ class OrderBook():
         # Compute legacy startup data exactly as the original class did, so
         # that production behaviour at import time is preserved.
         products = rest_get_products()
+        # ``mandatory_fee_per_contract`` is consumed by
+        # ``calculate_new_order_move_from_snapshot`` as a price offset to
+        # recover the **round-trip** mandatory commission on a single
+        # contract. Coinbase's March 2026 schedule charges per side, so
+        # round-trip = 2 × per-side. We pre-divide by ``contract_size`` so
+        # the consumer can add the value directly to a per-unit price.
         mandatory_fees = {
             product_id: {
                 "mandatory_fee_per_contract": (
-                    DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
+                    (2.0 * get_derivatives_per_side_fee(product_id))
+                    / float(this.get("future_product_details", {}).get("contract_size", 1))
                 ) if this["product_type"] == ProductType.FUTURE.value else 0
             } for product_id, this in products.items()
         }

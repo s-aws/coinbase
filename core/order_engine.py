@@ -340,7 +340,11 @@ class OrderEngine:
         from calculation.fee_manager import FeeManager
         from calculation.profit_validator import ProfitValidator
         
-        self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
+        self.fee_manager = FeeManager(
+            REST_CLIENT,
+            log_callback=self.log_message,
+            orderbook=self.orderbook,
+        )
         self.profit_validator = ProfitValidator(
             fee_manager=self.fee_manager,
             orderbook=self.orderbook,

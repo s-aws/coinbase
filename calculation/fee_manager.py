@@ -10,15 +10,31 @@ regime so follow-up spacing and fee sensitivity can react to:
 CRITICAL: Fee Charging Model
 ============================
 
-Fees are charged only when orders close on exchange fills:
-1. Parent order closes -> Coinbase charges base fee on that close
-2. Follow-up order closes -> Coinbase charges base fee on that close
-3. Total: 2 close fees (one per close), not duplicated per side
+Coinbase taker fees are charged on **every fill** — both the open
+(parent) and the close (follow-up). The ``ProfitValidator`` formula
+therefore computes round-trip percentage fees as
+``(open_price + close_price) × size × effective_fee_rate``.
+
+Pre-2026-05-01 the formula computed only the close-side fee and the
+FeeManager carried a hidden 2.0 multiplier to compensate. That coupling
+broke when the multiplier was tuned and silently halved real fee
+accounting on futures. The two pieces are now decoupled: validator
+formula is honest about both sides, multiplier is honest about cushion.
+
+Mandatory contract fee
+----------------------
+Coinbase Derivatives charges a per-contract commission **per side**
+(both open and close fills) under the schedule effective March 2, 2026.
+Rates: $0.20/side for full-size BTI/ETI/SLC/XRL, $0.10/side for nano /
+perp-style and everything else. Round-trip fee on a single contract is
+therefore 2 × per-side. ``profit_validator.is_profitable()`` resolves
+the per-side rate via ``core.constants.get_derivatives_per_side_fee``
+and multiplies by 2.
 
 Base model:
 - Base fee source: Coinbase transaction summary taker fee rate
-- Default multiplier: 2.0x
-- Default effective fee (without regime factor): base x 2.0
+- Default multiplier: 1.0 for futures, 1.1 for spot (cushion only)
+- Default effective fee (no regime factor): base × multiplier
 
 Regime adaptation:
 - Overnight/low-volume regimes reduce spacing and effective fee factor
@@ -68,9 +84,20 @@ class FeeManager:
         >>> print(target_multiplier, effective_fee, info["volume_ratio"])
     """
     
-    # Conservative defaults (0.6% taker, 2x base multiplier)
+    # Conservative defaults (0.6% taker, product-type aware multiplier)
     DEFAULT_TAKER_FEE_RATE = 0.0060  # 0.6% from API documentation
-    DEFAULT_MULTIPLIER = 2.0
+    # Product-type-aware fee cushions over the live taker fee.
+    # FUTURES: 1.0 (no cushion). Coinbase futures fees are already small
+    #   (5-6 bps), the per-contract mandatory fee provides its own floor,
+    #   and a 100% cushion makes any reasonable target_movement infeasible.
+    # SPOT: 1.1 (10% cushion). Spot fees are higher (~60 bps) so a small
+    #   cushion absorbs tier-slip between hourly refreshes without
+    #   structurally blocking targets the way 2x does on futures.
+    # Single legacy constant retained as the SPOT default for back-compat
+    #   with callers/tests that didn't pass a product_id.
+    FUTURES_FEE_MULTIPLIER = 1.0
+    SPOT_FEE_MULTIPLIER = 1.1
+    DEFAULT_MULTIPLIER = SPOT_FEE_MULTIPLIER  # back-compat alias
     REFRESH_INTERVAL_SECONDS = 3600  # 1 hour
 
     # Volume regime smoothing constants
@@ -83,15 +110,20 @@ class FeeManager:
     FEE_REGIME_MIN_FACTOR = 0.80
     FEE_REGIME_MAX_FACTOR = 1.40
     
-    def __init__(self, rest_client, log_callback=None):
+    def __init__(self, rest_client, log_callback=None, orderbook=None):
         """Initialize FeeManager.
         
         Args:
             rest_client: Initialized CoinbaseRestClient instance
             log_callback: Optional logging callback (log_type, message)
+            orderbook: Optional orderbook reference. When provided, the
+                effective-fee multiplier is resolved per product type
+                (FUTURES vs SPOT) instead of using a single global value.
+                Mirrors the convention used by ProfitValidator.
         """
         self.rest_client = rest_client
         self.log_callback = log_callback or self._default_log
+        self.orderbook = orderbook
         
         # Thread-safe access to fee rates
         self._lock = threading.RLock()
@@ -204,7 +236,8 @@ class FeeManager:
                     "event": "taker_fee_rate_updated",
                     "old_rate": old_rate,
                     "new_rate": taker_fee,
-                    "effective_profit_fee_baseline": taker_fee * self.DEFAULT_MULTIPLIER,
+                    "effective_profit_fee_futures": taker_fee * self.FUTURES_FEE_MULTIPLIER,
+                    "effective_profit_fee_spot": taker_fee * self.SPOT_FEE_MULTIPLIER,
                     "timestamp": self._last_updated.isoformat()
                 })
             else:
@@ -273,6 +306,40 @@ class FeeManager:
             return sum(ratios) / len(ratios)
 
         return 1.0
+
+    def _resolve_multiplier_unlocked(self, product_id: Optional[str]) -> float:
+        """Return the fee multiplier for a given product.
+
+        FUTURES products use ``FUTURES_FEE_MULTIPLIER`` (1.0 by default);
+        SPOT products and unknown/unresolvable cases use
+        ``SPOT_FEE_MULTIPLIER`` (1.1 by default — slightly conservative
+        cushion for tier-slip on the higher spot fee schedule).
+
+        Resolution mirrors ``ProfitValidator._resolve_product_context``:
+        consults the orderbook's product metadata when available, falls
+        back to the ``-CDE`` suffix heuristic, and finally to SPOT.
+
+        Returns SPOT multiplier when ``product_id`` is None, when no
+        orderbook was injected, or when any resolution step raises.
+        Caller already holds ``self._lock``.
+        """
+        if not product_id:
+            return self.SPOT_FEE_MULTIPLIER
+        try:
+            from configuration import normalize_product_type as _normalize_product_type
+            from core.enums import ProductType
+
+            order_for_normalize = {"product_id": product_id}
+            products = self.orderbook.product if self.orderbook else None
+            product_type = _normalize_product_type(order_for_normalize, products=products)
+            if product_type == ProductType.FUTURE.value:
+                return self.FUTURES_FEE_MULTIPLIER
+            return self.SPOT_FEE_MULTIPLIER
+        except Exception:
+            # Resolver is best-effort. Never let a metadata gap raise
+            # into the fee path: fall back to the SPOT cushion (the
+            # safer of the two options for an unknown product).
+            return self.SPOT_FEE_MULTIPLIER
 
     def _derive_regime_factors_unlocked(self, product_id: Optional[str] = None) -> Dict[str, float]:
         """Compute adaptive multipliers from margin + volume regime."""
@@ -404,10 +471,11 @@ class FeeManager:
     def get_profit_validation_fee_rate(self, product_id: Optional[str] = None) -> float:
         """Get adaptive effective fee rate for profit validation.
 
-        Effective fee = base taker fee x default multiplier x regime fee factor.
+        Effective fee = base taker fee x product-type multiplier x regime fee factor.
         """
         with self._lock:
-            base_effective_fee = self._taker_fee_rate * self.DEFAULT_MULTIPLIER
+            multiplier = self._resolve_multiplier_unlocked(product_id)
+            base_effective_fee = self._taker_fee_rate * multiplier
             regime_factors = self._derive_regime_factors_unlocked(product_id)
             return base_effective_fee * regime_factors["fee_factor"]
     
@@ -425,8 +493,9 @@ class FeeManager:
         """
         with self._lock:
             base_fee = self._taker_fee_rate
+            multiplier = self._resolve_multiplier_unlocked(product_id)
             factors = self._derive_regime_factors_unlocked(product_id)
-            effective_fee = (base_fee * self.DEFAULT_MULTIPLIER) * factors["fee_factor"]
+            effective_fee = (base_fee * multiplier) * factors["fee_factor"]
             
             # Example: Cost for 1 BTC at $50,000
             example_btc_price = 50000.0
@@ -436,7 +505,7 @@ class FeeManager:
             return {
                 "taker_fee_rate": base_fee,
                 "profit_validation_fee_rate": effective_fee,
-                "multiplier": self.DEFAULT_MULTIPLIER,
+                "multiplier": multiplier,
                 "target_movement_factor": factors["target_movement_factor"],
                 "fee_regime_factor": factors["fee_factor"],
                 "volume_ratio": factors["volume_ratio"],
@@ -446,7 +515,7 @@ class FeeManager:
                 "is_stale": self.is_stale(),
                 "fee_per_trade_1btc_base": example_cost_base,
                 "fee_per_trade_1btc_effective": example_cost_effective,
-                "note": "Effective fee uses base x multiplier x regime fee factor"
+                "note": "Effective fee uses base x product-type multiplier x regime fee factor"
             }
     
     def validate_fee_freshness(self, max_age_seconds: int = 7200) -> Dict[str, Any]:
@@ -485,8 +554,9 @@ class FeeManager:
         """Explain fee and regime factor calculation for verification/debugging."""
         with self._lock:
             base_fee = self._taker_fee_rate
+            multiplier = self._resolve_multiplier_unlocked(product_id)
             factors = self._derive_regime_factors_unlocked(product_id)
-            effective_fee = (base_fee * self.DEFAULT_MULTIPLIER) * factors["fee_factor"]
+            effective_fee = (base_fee * multiplier) * factors["fee_factor"]
             
             # Example: BUY @ $50,000 (open), SELL @ $52,500 (close)
             example_open_price = 50000.0
@@ -505,7 +575,7 @@ class FeeManager:
             
             return {
                 "base_fee_from_coinbase": base_fee,
-                "multiplier_applied": self.DEFAULT_MULTIPLIER,
+                "multiplier_applied": multiplier,
                 "fee_regime_factor": factors["fee_factor"],
                 "target_movement_factor": factors["target_movement_factor"],
                 "volume_ratio": factors["volume_ratio"],

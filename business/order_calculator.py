@@ -216,7 +216,7 @@ class OrderCalculator:
         Args:
             order: Order dict with 'filled_size', 'avg_price'.
             fee_rate: Commission rate as decimal (e.g., 0.001 for 0.1%).
-            derivatives_mandatory_fee_per_contract: Fixed fee per contract for derivatives.
+            derivatives_mandatory_fee_per_contract: Fixed fee per contract per fill.\n                Caller must supply the per-side rate (e.g. $0.10 nano /\n                $0.20 full-size under Coinbase's March 2026 schedule).\n                For round-trip recovery, double it before passing in.
         
         Returns:
             Dict with:

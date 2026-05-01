@@ -7,7 +7,7 @@ Background (2026-04-30 incident)
 A FUTURE stealth order (BIT-29MAY26-CDE SELL 10 contracts,
 target_movement=0.001/P) entered a state where every reveal attempt
 produced exactly the same projected loss (\u2248 -$1.49). The mandatory
-$0.15/contract close fee was structurally above the configured target,
+per-contract close fee was structurally above the configured target,
 so the math could never clear regardless of where the slide moved the
 limit price.
 
