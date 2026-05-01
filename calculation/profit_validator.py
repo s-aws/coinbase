@@ -175,13 +175,27 @@ class ProfitValidator:
             "position_side": position_side,
         }
     
-    def _get_fee_rate(self, product_id: str = None) -> float:
-        """Get current effective fee rate (adaptive base multiplier model)."""
+    def _get_fee_rate(self, product_id: str = None, post_only: bool = False) -> float:
+        """Get current effective fee rate (adaptive base multiplier model).
+
+        Args:
+            product_id: Optional product hint for multiplier resolution.
+            post_only: When ``True``, the order will rest as a maker if it
+                doesn't cross. FeeManager returns the maker rate × multiplier
+                instead of the taker rate. Default ``False`` matches the
+                behavior for ``CONFIGURED_LIMIT`` reveals where the user-
+                supplied price may cross the spread (taker semantics).
+        """
         if self.fee_manager:
-            return self.fee_manager.get_profit_validation_fee_rate(product_id=product_id)
+            return self.fee_manager.get_profit_validation_fee_rate(
+                product_id=product_id,
+                post_only=post_only,
+            )
         else:
-            # Fallback to conservative default (0.6% * 2)
-            return 0.012
+            # Fallback to conservative default. Use a maker-style estimate
+            # when post_only=True (~0.4% × 1.1 cushion) to match the live
+            # FeeManager behaviour for SPOT orders.
+            return 0.0044 if post_only else 0.012
 
     def derive_follow_up_price_from_target(
         self,
@@ -247,6 +261,7 @@ class ProfitValidator:
         product_id: str = None,
         contract_size: float = None,
         triggered_by_fill: bool = False,
+        post_only: bool = False,
     ) -> Dict[str, Any]:
         """
         Check if follow-up order is profitable after fees.
@@ -392,8 +407,10 @@ class ProfitValidator:
                 f"Determined: OPEN={open_side}, CLOSE={close_side}"
             )
         
-        # Get the effective fee rate (base_fee_rate x multiplier x regime_factor)
-        fee_rate = self._get_fee_rate(product_id=product_id)
+        # Get the effective fee rate (base_fee_rate x multiplier x regime_factor).
+        # post_only orders rest as makers (lower rate); regular orders that
+        # may cross the spread pay the taker rate.
+        fee_rate = self._get_fee_rate(product_id=product_id, post_only=post_only)
         
         # For FUTURE/PERPETUAL products, order_size is in "number of contracts"
         # We need to convert to actual position size (in BTC/units) for fee calculation
@@ -593,7 +610,8 @@ class ProfitValidator:
                                     product_id: str = None,
                                     position_side: str = None,
                                     contract_size: float = None,
-                                    triggered_by_fill: bool = False) -> Dict[str, Any]:
+                                    triggered_by_fill: bool = False,
+                                    post_only: bool = False) -> Dict[str, Any]:
         """Comprehensive profitability validation with detailed reporting.
         
         When the validator was constructed with an orderbook, callers can pass
@@ -614,7 +632,7 @@ class ProfitValidator:
         Returns:
             Dict with profitability assessment and remediation suggestions
         """
-        fee_rate = self._get_fee_rate()
+        fee_rate = self._get_fee_rate(product_id=product_id, post_only=post_only)
         
         # Validate inputs
         if order_size <= 0:
@@ -656,6 +674,7 @@ class ProfitValidator:
             position_side=position_side,
             contract_size=contract_size,
             triggered_by_fill=triggered_by_fill,
+            post_only=post_only,
         )
         
         # Add validation status and remediation
@@ -666,10 +685,11 @@ class ProfitValidator:
         # FeeManager directly. The legacy ``/ 2.0`` divisor here was a
         # leftover from when DEFAULT_MULTIPLIER was hardcoded to 2.0 and
         # would lie about the base rate after the 2026-05-01 split.
-        result["fee_rate_effective"] = self._get_fee_rate(product_id=product_id)
+        result["fee_rate_effective"] = self._get_fee_rate(product_id=product_id, post_only=post_only)
         result["parent_filled_price"] = parent_filled_price
         result["follow_up_proposed_price"] = follow_up_price
         result["order_size"] = order_size
+        result["liquidity_assumption"] = "maker" if post_only else "taker"
         
         if not result["is_profitable"]:
             # Suggest adjusted price

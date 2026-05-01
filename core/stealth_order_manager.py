@@ -610,6 +610,81 @@ class StealthOrderManager:
         except (TypeError, ValueError):
             return float(price)
 
+    # Maximum post-only retries per placement. Industry-standard repricing
+    # ladder: original attempt + 2 retries, repricing 1 tick safer (away
+    # from the touch) on each rejection. Surfacing on exhaustion is
+    # intentional: silently demoting to taker would betray the
+    # post-only intent of TOP_OF_BOOK / MIDPOINT reveals and charge the
+    # operator the wrong fee tier.
+    POST_ONLY_MAX_ATTEMPTS = 3
+
+    def _get_price_increment(self, product_id: str) -> Optional[str]:
+        """Return the price increment string for a product, or ``None`` if
+        the product is unknown to ``PRODUCT_METADATA``.
+        """
+        trading_product_id = get_trading_product_id(str(product_id or ""))
+        metadata = PRODUCT_METADATA.get(product_id) or PRODUCT_METADATA.get(trading_product_id) or {}
+        increment = metadata.get("price_increment")
+        return str(increment) if increment else None
+
+    @staticmethod
+    def _next_safer_tick(price: float, side: str, increment: str) -> float:
+        """Return ``price`` moved one ``increment`` AWAY from the opposing
+        touch, so a re-submitted post-only order will not cross the
+        spread.
+
+        - ``BUY``: subtract one tick (retreat from the ask).
+        - ``SELL``: add one tick (retreat from the bid).
+
+        This is the OPPOSITE direction from price aggression
+        (bid-up / ask-down). A ``POST_ONLY`` rejection means the order
+        would have crossed; the only safe response is to step back, not
+        forward.
+        """
+        try:
+            new_price = float(quantize_to_increment(
+                float(price), str(increment),
+                direction=RoundingDirection.NEAREST.value,
+            ))
+        except (TypeError, ValueError):
+            new_price = float(price)
+        try:
+            tick = float(increment)
+        except (TypeError, ValueError):
+            return new_price
+        normalized_side = str(side or "").upper()
+        if normalized_side == OrderSide.BUY.value:
+            return new_price - tick
+        if normalized_side == OrderSide.SELL.value:
+            return new_price + tick
+        return new_price
+
+    @staticmethod
+    def _is_post_only_rejection(order_result: Any) -> bool:
+        """Return True if a Coinbase ``place_limit_order`` response shape
+        indicates a POST_ONLY rejection.
+
+        Coinbase surfaces post-only crossings as ``failure_reason ==
+        "POST_ONLY"`` (or nested under ``error_response.error``). We
+        match on the canonical token, case-insensitively, so SDK
+        wording drift does not silently disable the retry path.
+        """
+        if not isinstance(order_result, dict):
+            return False
+        if order_result.get("success"):
+            return False
+        token = "POST_ONLY"
+        candidates = [
+            order_result.get("failure_reason"),
+            (order_result.get("error_response") or {}).get("error"),
+            (order_result.get("error_response") or {}).get("message"),
+            (order_result.get("error_response") or {}).get("preview_failure_reason"),
+        ]
+        for value in candidates:
+            if value and token in str(value).upper():
+                return True
+        return False
+
     def _should_skip_anchor_reprice(
         self,
         state: Dict[str, Any],
@@ -1672,7 +1747,7 @@ class StealthOrderManager:
             RevealExecutionPlan with pricing decision, or None if order not found
         """
         from core.models import RevealExecutionPlan
-        from core.enums import OrderSide, RevealPriceSource
+        from core.enums import OrderSide, RevealPriceSource, RevealPricingPolicy
         
         order = self._get_stealth_order(stealth_order_id)
         if not order:
@@ -1715,7 +1790,21 @@ class StealthOrderManager:
                 submitted_limit_price = configured_limit_price
                 reveal_price_source = RevealPriceSource.CONFIGURED_LIMIT.value
                 fallback_used = True
-        
+
+        # Resolve post_only from the policy (single source of truth in
+        # ``RevealPricingPolicy.implies_post_only``). TOP_OF_BOOK / MIDPOINT
+        # rest as makers; CONFIGURED_LIMIT submits as a taker because the
+        # caller's price may cross the spread. If the policy fell back to
+        # CONFIGURED_LIMIT (e.g. ticker unavailable), demote post_only too
+        # \u2014 the caller's hand-picked price was never validated to rest.
+        try:
+            policy_enum = RevealPricingPolicy(reveal_pricing_policy)
+        except ValueError:
+            policy_enum = RevealPricingPolicy.CONFIGURED_LIMIT
+        if fallback_used and reveal_price_source == RevealPriceSource.CONFIGURED_LIMIT.value:
+            policy_enum = RevealPricingPolicy.CONFIGURED_LIMIT
+        post_only_required = policy_enum.implies_post_only()
+
         plan = RevealExecutionPlan(
             configured_limit_price=configured_limit_price,
             submitted_limit_price=submitted_limit_price,
@@ -1725,6 +1814,7 @@ class StealthOrderManager:
             market_source=market_data.get("source"),
             market_bid=market_data.get("bid"),
             market_ask=market_data.get("ask"),
+            post_only=post_only_required,
         )
 
         # Resolve canonical profit target from order_parent (single source of truth).
@@ -1899,6 +1989,7 @@ class StealthOrderManager:
         order_size: float,
         target_movement: float,
         target_movement_type: Optional[str],
+        reveal_pricing_policy: Optional[str] = None,
     ) -> Optional[str]:
         """Pre-flight: return a reason string if the configured target is
         provably below the round-trip fee floor at the configured price,
@@ -1911,6 +2002,12 @@ class StealthOrderManager:
         ``95%`` of the strict min-viable: only reject when the target
         would be infeasible even after a generous price-drift cushion.
 
+        ``reveal_pricing_policy`` controls which fee tier is charged in
+        the math: maker rate when the policy implies ``post_only=True``
+        (TOP_OF_BOOK / MIDPOINT), taker rate otherwise (CONFIGURED_LIMIT).
+        Mirrors the resolution applied at reveal time so the two checks
+        agree.
+
         Returns ``None`` (= feasible) on any computation failure so a
         diagnostic helper never blocks legitimate orders.
         """
@@ -1920,6 +2017,18 @@ class StealthOrderManager:
             return None
         if not hasattr(self.profit_validator, "validate_order_profitability"):
             return None
+
+        # Resolve post_only intent from the policy via the canonical helper.
+        # Unknown / missing policy → CONFIGURED_LIMIT (taker), the
+        # conservative assumption.
+        from core.enums import RevealPricingPolicy
+        try:
+            policy_enum = RevealPricingPolicy(
+                reveal_pricing_policy or RevealPricingPolicy.CONFIGURED_LIMIT.value
+            )
+        except ValueError:
+            policy_enum = RevealPricingPolicy.CONFIGURED_LIMIT
+        will_be_post_only = policy_enum.implies_post_only()
 
         try:
             try:
@@ -1943,6 +2052,7 @@ class StealthOrderManager:
                 order_size=order_size,
                 min_margin_pct=0.0,
                 product_id=product_id,
+                post_only=will_be_post_only,
             )
             if bool(validation.get("is_profitable", False)):
                 return None
@@ -2074,6 +2184,12 @@ class StealthOrderManager:
             # from product_id via its injected orderbook (single source of truth).
             product_id = order.get("product_id", "")
 
+            # Honour the plan's post_only intent so the fee tier matches
+            # what the exchange will actually charge if the placement
+            # succeeds. A TOP_OF_BOOK reveal that rests as a maker is
+            # cheaper than the configured-limit (taker) case.
+            will_be_post_only = bool(getattr(reveal_execution_plan, "post_only", False))
+
             validation = self.profit_validator.validate_order_profitability(
                 parent_filled_price=parent_filled_price,
                 parent_side=parent_side.value,
@@ -2081,6 +2197,7 @@ class StealthOrderManager:
                 order_size=order_size,
                 min_margin_pct=0.0,
                 product_id=product_id,
+                post_only=will_be_post_only,
             )
 
             is_profitable = bool(validation.get("is_profitable", False))
@@ -2360,6 +2477,7 @@ class StealthOrderManager:
                 order_size=float(total_size),
                 target_movement=float(target_movement),
                 target_movement_type=target_movement_type,
+                reveal_pricing_policy=reveal_pricing_policy,
             )
             if infeasible_reason is not None:
                 raise OrderCreationError(
@@ -2678,7 +2796,7 @@ class StealthOrderManager:
                 "limit_price": reveal_plan.submitted_limit_price,  # ← Use plan's price
                 "base_size": slice_size,
                 "client_order_id": client_order_id,
-                "post_only": False,
+                "post_only": bool(getattr(reveal_plan, "post_only", False)),
                 "stealth_order_id": stealth_order_id,
                 "parent_order_id": order.get("parent_order_id"),
                 "reason": order.get("reason"),
@@ -2811,17 +2929,166 @@ class StealthOrderManager:
             # See 2026-04-29 incident: a stale Order.from_dict shim was raising
             # post-REST and the exception handler logged the misleading
             # "Order was NOT placed" while the order was actually live and filling.
+            # POST-ONLY RETRY LOOP
+            # When post_only=True (TOP_OF_BOOK / MIDPOINT reveals) the
+            # exchange will reject any limit that would cross the spread
+            # with ``failure_reason == "POST_ONLY"``. We do NOT silently
+            # demote to a taker fill (that would betray the operator's
+            # post-only intent and charge the wrong fee tier). Instead
+            # we reprice ONE tick safer (away from the touch) and retry
+            # up to ``POST_ONLY_MAX_ATTEMPTS`` times.  On exhaustion we
+            # surface ``PLACEMENT_BLOCKED`` and let the caller handle it
+            # (no fallback to post_only=False).
+            #
+            # When post_only=False (CONFIGURED_LIMIT) we make exactly
+            # one attempt and the existing error handling applies.
             rest_call_succeeded = False
-            with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
-                order_result = REST_CLIENT.place_limit_order(
-                    product_id=order_for_submission["product_id"],
-                    side=order_for_submission["side"],
-                    limit_price=str(order_for_submission["limit_price"]),
-                    base_size=str(order_for_submission["base_size"]),
-                    client_order_id=order_for_submission["client_order_id"],
-                    post_only=order_for_submission["post_only"]
+            retry_post_only = bool(order_for_submission.get("post_only"))
+            max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
+            attempt_price = float(order_for_submission["limit_price"])
+            attempt_coid = order_for_submission["client_order_id"]
+            price_increment = self._get_price_increment(order_for_submission["product_id"])
+            order_result = None
+            post_only_attempts = []
+            for attempt_num in range(1, max_attempts + 1):
+                with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+                    order_result = REST_CLIENT.place_limit_order(
+                        product_id=order_for_submission["product_id"],
+                        side=order_for_submission["side"],
+                        limit_price=str(attempt_price),
+                        base_size=str(order_for_submission["base_size"]),
+                        client_order_id=attempt_coid,
+                        post_only=retry_post_only,
+                    )
+                    rest_call_succeeded = True
+
+                if not isinstance(order_result, dict) or order_result.get("success"):
+                    # Success (or non-dict legacy shape) — keep the COID
+                    # and price actually used for downstream bookkeeping.
+                    order_for_submission["limit_price"] = attempt_price
+                    order_for_submission["client_order_id"] = attempt_coid
+                    client_order_id = attempt_coid
+                    break
+
+                if not retry_post_only or not self._is_post_only_rejection(order_result):
+                    # Not a post-only rejection — fall through to the
+                    # existing error path with the current order_result.
+                    order_for_submission["limit_price"] = attempt_price
+                    order_for_submission["client_order_id"] = attempt_coid
+                    client_order_id = attempt_coid
+                    break
+
+                # POST_ONLY rejection: record + reprice for next attempt
+                rejected_failure_reason = (
+                    order_result.get("failure_reason")
+                    or (order_result.get("error_response") or {}).get("error")
+                    or "POST_ONLY"
                 )
-                rest_call_succeeded = True
+                post_only_attempts.append({
+                    "attempt": attempt_num,
+                    "rejected_at_price": attempt_price,
+                    "client_order_id": attempt_coid,
+                    "failure_reason": rejected_failure_reason,
+                })
+
+                if attempt_num == max_attempts:
+                    # Exhausted — leave order_result as the final
+                    # rejection for the surface-and-stop block below.
+                    order_for_submission["limit_price"] = attempt_price
+                    order_for_submission["client_order_id"] = attempt_coid
+                    client_order_id = attempt_coid
+                    break
+
+                if not price_increment:
+                    # No tick metadata — cannot safely reprice. Surface
+                    # the rejection rather than guess.
+                    self.log_callback("warning", {
+                        "event": "stealth_order_post_only_retry_skipped_no_increment",
+                        "stealth_order_id": stealth_order_id,
+                        "product_id": order_for_submission["product_id"],
+                        "attempt": attempt_num,
+                        "rejected_at_price": attempt_price,
+                    })
+                    order_for_submission["limit_price"] = attempt_price
+                    order_for_submission["client_order_id"] = attempt_coid
+                    client_order_id = attempt_coid
+                    break
+
+                next_price = self._next_safer_tick(
+                    attempt_price,
+                    order_for_submission["side"],
+                    price_increment,
+                )
+                # Fresh client_order_id per retry: a rejected attempt may
+                # or may not consume the COID at the exchange and the
+                # safe assumption is that it does. Reusing would risk a
+                # spurious DUPLICATE_CLIENT_ORDER_ID rejection that
+                # masks the real POST_ONLY symptom.
+                next_coid = str(uuid.uuid4())
+                self.log_callback("info", {
+                    "event": "stealth_order_post_only_retry",
+                    "stealth_order_id": stealth_order_id,
+                    "product_id": order_for_submission["product_id"],
+                    "side": order_for_submission["side"],
+                    "attempt": attempt_num,
+                    "next_attempt": attempt_num + 1,
+                    "rejected_at_price": attempt_price,
+                    "next_attempt_price": next_price,
+                    "tick_increment": price_increment,
+                    "rejected_client_order_id": attempt_coid,
+                    "next_client_order_id": next_coid,
+                    "failure_reason": rejected_failure_reason,
+                })
+                attempt_price = next_price
+                attempt_coid = next_coid
+
+            # SURFACE-AND-STOP on post-only retry exhaustion. Done BEFORE
+            # the success-path bookkeeping below so we don't pretend the
+            # order was placed.
+            if (
+                retry_post_only
+                and isinstance(order_result, dict)
+                and not order_result.get("success")
+                and self._is_post_only_rejection(order_result)
+                and len(post_only_attempts) >= max_attempts
+            ):
+                final_failure_reason = (
+                    order_result.get("failure_reason")
+                    or (order_result.get("error_response") or {}).get("error")
+                    or "POST_ONLY"
+                )
+                self.log_callback("warning", {
+                    "event": "stealth_order_post_only_retries_exhausted",
+                    "stealth_order_id": stealth_order_id,
+                    "product_id": order_for_submission["product_id"],
+                    "side": order_for_submission["side"],
+                    "attempts": post_only_attempts,
+                    "final_failure_reason": final_failure_reason,
+                    "note": (
+                        "Post-only rejected on every attempt after "
+                        "repricing 1 tick safer each time. Not falling "
+                        "back to taker — operator intent was post-only."
+                    ),
+                })
+                self._dispatch_lifecycle_event(
+                    stealth_order_id=stealth_order_id,
+                    event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                    order_data=order,
+                    extra={
+                        "block_category": "post_only_rejected_after_retries",
+                        "attempts": post_only_attempts,
+                        "final_price": attempt_price,
+                        "final_failure_reason": final_failure_reason,
+                    },
+                )
+                # Raise into the existing exception handler so order
+                # state, audit rows, and downstream cleanup all run via
+                # the single failure path.
+                raise RuntimeError(
+                    f"POST_ONLY rejected after {len(post_only_attempts)} "
+                    f"attempts (final price {attempt_price}); refusing "
+                    f"silent demotion to taker."
+                )
 
             if isinstance(order_result, dict):
                 success_response = order_result.get("success_response") or {}

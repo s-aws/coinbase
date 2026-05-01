@@ -84,8 +84,9 @@ class FeeManager:
         >>> print(target_multiplier, effective_fee, info["volume_ratio"])
     """
     
-    # Conservative defaults (0.6% taker, product-type aware multiplier)
-    DEFAULT_TAKER_FEE_RATE = 0.0060  # 0.6% from API documentation
+    # Conservative defaults (from a sample CDE Non-Professional fee tier)
+    DEFAULT_TAKER_FEE_RATE = 0.0060  # 0.6% — used as conservative pre-fetch baseline
+    DEFAULT_MAKER_FEE_RATE = 0.0040  # 0.4% — maker is always <= taker
     # Product-type-aware fee cushions over the live taker fee.
     # FUTURES: 1.0 (no cushion). Coinbase futures fees are already small
     #   (5-6 bps), the per-contract mandatory fee provides its own floor,
@@ -128,8 +129,12 @@ class FeeManager:
         # Thread-safe access to fee rates
         self._lock = threading.RLock()
         
-        # Fee rate data with tracking
+        # Fee rate data with tracking. Both maker and taker rates are
+        # refreshed together from a single ``transaction_summary`` call.
+        # ProfitValidator selects between them based on whether the order
+        # will rest as a maker (``post_only=True``) or cross as a taker.
         self._taker_fee_rate = self.DEFAULT_TAKER_FEE_RATE
+        self._maker_fee_rate = self.DEFAULT_MAKER_FEE_RATE
         self._last_updated = None
         self._refresh_thread = None
         self._running = False
@@ -201,71 +206,95 @@ class FeeManager:
                     break
     
     def _refresh_fee_rate(self) -> bool:
-        """Fetch latest taker fee rate from Coinbase API.
-        
+        """Fetch latest maker/taker fee rates from Coinbase API.
+
         Returns:
             True if successfully fetched, False if API call failed
         """
         try:
             summary = self.rest_client.get_transaction_summary()
-            
-            # Extract taker_fee_rate - it's nested in fee_tier
+
+            # Extract maker_fee_rate and taker_fee_rate - nested in fee_tier.
+            # See ``api_reference/fees/get_fees_response.json`` for shape.
             taker_fee_str = None
+            maker_fee_str = None
             if isinstance(summary, dict):
                 fee_tier = summary.get("fee_tier", {})
                 if isinstance(fee_tier, dict):
                     taker_fee_str = fee_tier.get("taker_fee_rate")
-            
-            # Fallback to default if not found
+                    maker_fee_str = fee_tier.get("maker_fee_rate")
+
+            # Fallback to defaults if not found
             if not taker_fee_str:
                 taker_fee_str = str(self.DEFAULT_TAKER_FEE_RATE)
-            
-            # API returns fee as a decimal (e.g., "0.00035" = 0.035%)
-            # Use directly - NO division by 100 needed
+            if not maker_fee_str:
+                maker_fee_str = str(self.DEFAULT_MAKER_FEE_RATE)
+
+            # API returns fees as decimals (e.g., "0.00035" = 0.035%).
             taker_fee = safe_float(taker_fee_str, default=self.DEFAULT_TAKER_FEE_RATE)
-            
+            maker_fee = safe_float(maker_fee_str, default=self.DEFAULT_MAKER_FEE_RATE)
+
+            # Sanity guard: maker rate should never exceed taker. If the
+            # API returns something pathological, prefer the safer (higher)
+            # taker rate for both rather than under-charging.
+            if maker_fee > taker_fee:
+                self.log_callback("warning", {
+                    "event": "maker_fee_exceeds_taker",
+                    "maker_fee": maker_fee,
+                    "taker_fee": taker_fee,
+                    "action": "clamping maker_fee to taker_fee",
+                })
+                maker_fee = taker_fee
+
             with self._lock:
-                old_rate = self._taker_fee_rate
+                old_taker = self._taker_fee_rate
+                old_maker = self._maker_fee_rate
                 self._taker_fee_rate = taker_fee
+                self._maker_fee_rate = maker_fee
                 self._last_updated = datetime.utcnow()
                 self._fetch_error_count = 0  # Reset error counter on success
-            
-            # Log update if rate changed
-            if abs(old_rate - taker_fee) > 0.00001:  # More than rounding error
+
+            # Log update if either rate changed materially
+            if abs(old_taker - taker_fee) > 0.00001 or abs(old_maker - maker_fee) > 0.00001:
                 self.log_callback("info", {
-                    "event": "taker_fee_rate_updated",
-                    "old_rate": old_rate,
-                    "new_rate": taker_fee,
-                    "effective_profit_fee_futures": taker_fee * self.FUTURES_FEE_MULTIPLIER,
-                    "effective_profit_fee_spot": taker_fee * self.SPOT_FEE_MULTIPLIER,
+                    "event": "fee_rates_updated",
+                    "old_taker": old_taker,
+                    "new_taker": taker_fee,
+                    "old_maker": old_maker,
+                    "new_maker": maker_fee,
+                    "effective_profit_fee_futures_taker": taker_fee * self.FUTURES_FEE_MULTIPLIER,
+                    "effective_profit_fee_spot_taker": taker_fee * self.SPOT_FEE_MULTIPLIER,
                     "timestamp": self._last_updated.isoformat()
                 })
             else:
                 self.log_callback("debug", {
-                    "event": "taker_fee_rate_refreshed",
+                    "event": "fee_rates_refreshed",
                     "taker_fee_rate": taker_fee,
+                    "maker_fee_rate": maker_fee,
                     "timestamp": self._last_updated.isoformat()
                 })
-            
+
             return True
-            
+
         except Exception as e:
             with self._lock:
                 self._fetch_error_count += 1
-                
-                # If too many consecutive errors, use default
+
+                # If too many consecutive errors, use defaults
                 if self._fetch_error_count >= self._max_consecutive_errors:
                     self._taker_fee_rate = self.DEFAULT_TAKER_FEE_RATE
+                    self._maker_fee_rate = self.DEFAULT_MAKER_FEE_RATE
                     self._last_updated = datetime.utcnow()
-            
+
             self.log_callback("warning", {
-                "event": "taker_fee_fetch_failed",
+                "event": "fee_rate_fetch_failed",
                 "error": str(e),
                 "error_count": self._fetch_error_count,
-                "fallback_rate": self._taker_fee_rate if self._fetch_error_count >= self._max_consecutive_errors else "previous",
-                "note": "Using default conservative rate" if self._fetch_error_count >= self._max_consecutive_errors else "Will retry next hour"
+                "fallback_taker": self._taker_fee_rate if self._fetch_error_count >= self._max_consecutive_errors else "previous",
+                "fallback_maker": self._maker_fee_rate if self._fetch_error_count >= self._max_consecutive_errors else "previous",
+                "note": "Using default conservative rates" if self._fetch_error_count >= self._max_consecutive_errors else "Will retry next hour"
             })
-            
+
             return False
     
     def is_stale(self, max_age_seconds: int = REFRESH_INTERVAL_SECONDS * 2) -> bool:
@@ -292,6 +321,20 @@ class FeeManager:
         """
         with self._lock:
             return self._taker_fee_rate
+
+    def get_maker_fee_rate(self) -> float:
+        """Get base maker fee rate from Coinbase (not multiplied).
+
+        Maker fees apply when an order rests on the book before filling
+        (i.e. ``post_only=True`` orders, or any non-marketable limit).
+        Coinbase exposes this alongside the taker rate in
+        ``transaction_summary.fee_tier.maker_fee_rate``.
+
+        Returns:
+            Fee rate as decimal (e.g., 0.0040 for 0.4%)
+        """
+        with self._lock:
+            return self._maker_fee_rate
 
     @staticmethod
     def _clamp(value: float, min_value: float, max_value: float) -> float:
@@ -468,43 +511,61 @@ class FeeManager:
             factors = self._derive_regime_factors_unlocked(product_id)
             return factors["target_movement_factor"]
     
-    def get_profit_validation_fee_rate(self, product_id: Optional[str] = None) -> float:
+    def get_profit_validation_fee_rate(
+        self,
+        product_id: Optional[str] = None,
+        post_only: bool = False,
+    ) -> float:
         """Get adaptive effective fee rate for profit validation.
 
-        Effective fee = base taker fee x product-type multiplier x regime fee factor.
+        Effective fee = base fee × product-type multiplier × regime fee factor.
+
+        Args:
+            product_id: Optional product hint for multiplier resolution.
+            post_only: When ``True``, base the calculation on the maker
+                fee rate (the order will rest as a maker if it doesn't
+                cross). When ``False`` (default), use the taker rate —
+                this matches the behavior of ``CONFIGURED_LIMIT`` reveals
+                where the user-supplied price may cross the spread.
+
+        Picking the right base rate matters: a TOP_OF_BOOK reveal that
+        succeeds with ``post_only=True`` is charged the maker rate by
+        Coinbase, so validating against the taker rate over-rejects
+        feasibility at low target_movements.
         """
         with self._lock:
+            base_rate = self._maker_fee_rate if post_only else self._taker_fee_rate
             multiplier = self._resolve_multiplier_unlocked(product_id)
-            base_effective_fee = self._taker_fee_rate * multiplier
+            base_effective_fee = base_rate * multiplier
             regime_factors = self._derive_regime_factors_unlocked(product_id)
             return base_effective_fee * regime_factors["fee_factor"]
     
     def get_fee_info(self, product_id: Optional[str] = None) -> Dict[str, Any]:
         """Get comprehensive fee information.
-        
+
         Returns:
-            Dict with keys:
-            - taker_fee_rate: Base taker fee rate (e.g., 0.0060)
-            - profit_validation_fee_rate: Adaptive effective rate
-            - multiplier: Applied base multiplier (2.0)
-            - last_updated: Timestamp of last successful API call
-            - is_stale: Whether data is considered stale
-            - fee_per_trade_1btc: Example fee for 1 BTC at $50,000
+            Dict with both maker- and taker-based effective rates so
+            callers can preview either liquidity model.
         """
         with self._lock:
-            base_fee = self._taker_fee_rate
+            taker_base = self._taker_fee_rate
+            maker_base = self._maker_fee_rate
             multiplier = self._resolve_multiplier_unlocked(product_id)
             factors = self._derive_regime_factors_unlocked(product_id)
-            effective_fee = (base_fee * multiplier) * factors["fee_factor"]
-            
-            # Example: Cost for 1 BTC at $50,000
+            taker_effective = (taker_base * multiplier) * factors["fee_factor"]
+            maker_effective = (maker_base * multiplier) * factors["fee_factor"]
+
+            # Example: Cost for 1 BTC at $50,000 (round-trip, taker model)
             example_btc_price = 50000.0
-            example_cost_base = example_btc_price * base_fee * 2  # Buy + sell
-            example_cost_effective = example_btc_price * effective_fee * 2  # Profit validation
-            
+            example_cost_base = example_btc_price * taker_base * 2
+            example_cost_effective = example_btc_price * taker_effective * 2
+
             return {
-                "taker_fee_rate": base_fee,
-                "profit_validation_fee_rate": effective_fee,
+                "taker_fee_rate": taker_base,
+                "maker_fee_rate": maker_base,
+                "profit_validation_fee_rate": taker_effective,            # default: taker
+                "profit_validation_fee_rate_taker": taker_effective,
+                "profit_validation_fee_rate_maker": maker_effective,
                 "multiplier": multiplier,
                 "target_movement_factor": factors["target_movement_factor"],
                 "fee_regime_factor": factors["fee_factor"],
@@ -515,7 +576,8 @@ class FeeManager:
                 "is_stale": self.is_stale(),
                 "fee_per_trade_1btc_base": example_cost_base,
                 "fee_per_trade_1btc_effective": example_cost_effective,
-                "note": "Effective fee uses base x product-type multiplier x regime fee factor"
+                "note": "Effective fees use base × product-type multiplier × regime fee factor. "
+                        "Maker rate applies when the order rests as a maker (post_only=True)."
             }
     
     def validate_fee_freshness(self, max_age_seconds: int = 7200) -> Dict[str, Any]:

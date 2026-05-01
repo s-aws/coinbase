@@ -215,16 +215,37 @@ class StealthMoveReason(str, Enum):
 
 class RevealPricingPolicy(str, Enum):
     """Pricing policy for stealth order reveal.
-    
+
     Determines what price to use when revealing a stealth order to the exchange.
-    
-    - CONFIGURED_LIMIT: Use the limit price specified at order creation
-    - TOP_OF_BOOK: Use current best bid (SELL) or best ask (BUY) from ticker
-    - MIDPOINT: Use midpoint between current bid and ask
+
+    - CONFIGURED_LIMIT: Use the limit price specified at order creation. The
+      caller has taken explicit responsibility for the price and may have
+      chosen one that crosses the spread, so the order submits with
+      ``post_only=False`` (taker semantics) and is fee-validated against the
+      taker rate.
+    - TOP_OF_BOOK: Use current best bid (SELL) or best ask (BUY) from ticker.
+      Submitted with ``post_only=True`` so the order rests at the touch as
+      a maker. On post-only rejection the reveal path retries with the price
+      one tick safer (``next_safer_tick``); after exhausting retries the
+      placement is surfaced and abandoned rather than silently demoted to
+      a taker fill.
+    - MIDPOINT: Use midpoint between current bid and ask. Same ``post_only``
+      and retry semantics as TOP_OF_BOOK \u2014 the midpoint is between the
+      touch quotes by construction so it should never cross.
     """
     CONFIGURED_LIMIT = "configured_limit"
     TOP_OF_BOOK = "top_of_book"
     MIDPOINT = "midpoint"
+
+    def implies_post_only(self) -> bool:
+        """Return ``True`` when this policy must submit with ``post_only=True``.
+
+        Single source of truth for the policy \u2192 post_only mapping. Both the
+        pre-flight feasibility check (which decides whether to charge maker
+        or taker fees in the round-trip math) and the reveal-time submission
+        path consult this so the two cannot drift.
+        """
+        return self in (RevealPricingPolicy.TOP_OF_BOOK, RevealPricingPolicy.MIDPOINT)
 
 
 class RevealPriceSource(str, Enum):

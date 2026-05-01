@@ -301,6 +301,13 @@ class RevealExecutionPlan:
             (e.g. ``'order_parent'``, ``'stealth_order'``, ``'unavailable'``).
             Recorded for audit so silent skips of the profitability gate are
             traceable.
+        post_only: Whether the placement must submit with ``post_only=True``.
+            Derived from the reveal policy (see
+            :meth:`core.enums.RevealPricingPolicy.implies_post_only`):
+            ``CONFIGURED_LIMIT`` → ``False`` (taker), ``TOP_OF_BOOK`` and
+            ``MIDPOINT`` → ``True`` (maker). Drives both the fee tier used
+            in profitability validation (maker vs taker) and the actual
+            ``post_only`` flag passed to ``REST_CLIENT.place_limit_order``.
     """
     configured_limit_price: float
     submitted_limit_price: float
@@ -313,6 +320,7 @@ class RevealExecutionPlan:
     target_movement: Optional[float] = None
     target_movement_type: Optional[str] = None
     target_movement_source: Optional[str] = None
+    post_only: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict for persistence/serialization."""
@@ -328,6 +336,7 @@ class RevealExecutionPlan:
             'target_movement': self.target_movement,
             'target_movement_type': self.target_movement_type,
             'target_movement_source': self.target_movement_source,
+            'post_only': self.post_only,
         }
 
 
