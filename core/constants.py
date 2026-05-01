@@ -39,7 +39,13 @@ ORDER_DIRECTION = {
 }
 
 # Fee Constants
-DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15  # Base fee per contract
+# Re-exported from ``configuration`` (the canonical source of truth).
+# Kept available here so existing ``from core.constants import ...``
+# (and ``from core import ...``) call sites don't break, but the value
+# itself MUST live in exactly one place. See 2026-04-30 audit:
+# previously defined in three files which would silently desync the
+# day Coinbase changes the rate.
+from configuration import DERIVATIVES_MANDATORY_FEE_PER_CONTRACT  # noqa: F401
 DEFAULT_MAX_ORDER_REPLACEMENT = 1               # Max follow-up orders per parent
 
 # Product Lists

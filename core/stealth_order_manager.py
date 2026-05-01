@@ -62,6 +62,7 @@ Example: evaluate and reveal from scheduler loop
 
 import uuid
 import json
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, Iterator, Optional, Tuple, List
 
@@ -1772,6 +1773,123 @@ class StealthOrderManager:
 
         return None, None, "unavailable"
 
+    # ------------------------------------------------------------------
+    # Profitability-failure log throttling (paired with reveal_order_slice)
+    # ------------------------------------------------------------------
+    #
+    # The stealth bridge polls reveal candidacy every ~100 ms. If a stealth
+    # order is economically stuck (e.g. configured target_movement is
+    # structurally below the mandatory FUTURE fee floor), every poll re-runs
+    # the same validation, raises the same exception, and would emit the
+    # same WARN line. At ~10 Hz that's ~600 identical lines/minute per stuck
+    # order — drowns the log and contributes nothing diagnostically.
+    #
+    # Strategy: treat each unique (submitted_price, target_movement,
+    # target_movement_type) tuple as a distinct failure "signature". Emit
+    # the WARN once per signature, then suppress repeats for
+    # ``_PROFIT_FAILURE_LOG_COOLDOWN_SECONDS`` while the signature is
+    # unchanged. When the price slides far enough to change the signature
+    # (anchor repricing moves limit_price), the new signature emits its
+    # own line so we still see the situation evolving. The suppressed-count
+    # is included in the next emitted record so nothing is silently dropped.
+
+    _PROFIT_FAILURE_LOG_COOLDOWN_SECONDS = 60.0
+
+    def _should_emit_profitability_failure(
+        self,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+        reveal_plan: 'RevealExecutionPlan',
+    ) -> bool:
+        """Return True iff the WARN log line should be emitted now.
+
+        Signature is built from the inputs that drive the validation
+        outcome. Anything that would change the math (price, target,
+        target type) bumps the signature and re-emits.
+
+        Side-effect on suppression: increments a counter on the order dict
+        so the next emitted log can report how many silent retries
+        occurred. State lives on the in-memory order dict (transient,
+        not persisted) — exactly the right scope.
+        """
+        signature = (
+            round(safe_float(reveal_plan.submitted_limit_price, default=0.0), 2),
+            round(safe_float(reveal_plan.target_movement, default=0.0), 8),
+            str(reveal_plan.target_movement_type or ""),
+        )
+        now = time.monotonic()
+        last_signature = order.get("_profit_failure_signature")
+        last_log_at = order.get("_profit_failure_last_log_at", 0.0)
+
+        if (last_signature == signature
+                and (now - last_log_at) < self._PROFIT_FAILURE_LOG_COOLDOWN_SECONDS):
+            order["_profit_failure_suppressed_since_last_log"] = (
+                order.get("_profit_failure_suppressed_since_last_log", 0) + 1
+            )
+            return False
+
+        order["_profit_failure_signature"] = signature
+        order["_profit_failure_last_log_at"] = now
+        # Reset on emit; next suppression starts fresh from zero.
+        order["_profit_failure_suppressed_since_last_log"] = 0
+        return True
+
+    def _compute_min_viable_target_movement(
+        self,
+        *,
+        parent_filled_price: float,
+        order_size: float,
+        target_movement_type: Optional[str],
+        total_fees: float,
+        product_id: str,
+    ) -> Optional[float]:
+        """Estimate the minimum ``target_movement`` value (in the
+        configured units) that would clear the current total-fee load.
+
+        This is an APPROXIMATION using the current total_fees figure
+        (which depends on the proposed follow-up price); for the
+        diagnostic message it's accurate enough to point the operator at
+        the right order of magnitude. Returns ``None`` when the math
+        can't be computed (missing inputs, unknown product context).
+
+        For FUTURE products the mandatory $0.15/contract fee scales with
+        contract count, so a percentage target that's viable at 1
+        contract can be infeasible at 10. This helper makes that
+        relationship visible in the failed-validation log.
+        """
+        if parent_filled_price <= 0 or order_size <= 0 or total_fees <= 0:
+            return None
+
+        # Resolve effective_size (units) from contracts when the product
+        # has a contract_size. Use the validator's orderbook so we don't
+        # duplicate the resolution logic.
+        effective_size = order_size
+        try:
+            if (self.profit_validator is not None
+                    and getattr(self.profit_validator, "orderbook", None) is not None
+                    and product_id):
+                ctx = self.profit_validator._resolve_product_context(product_id)
+                contract_size = ctx.get("contract_size")
+                if (ctx.get("product_type") == "FUTURE"
+                        and contract_size and contract_size > 0):
+                    effective_size = order_size * float(contract_size)
+        except Exception:
+            # Diagnostic helper: never let a context-resolution failure
+            # break the log emission path. Fall back to raw order_size.
+            pass
+
+        type_label = str(target_movement_type or "P").upper()
+        if type_label == "A":
+            # Absolute price-points: gross_profit = move * effective_size
+            # Need: move * effective_size > total_fees
+            return total_fees / effective_size
+        # Default: percentage of parent_filled_price
+        # Need: move_pct * parent_filled_price * effective_size > total_fees
+        denom = parent_filled_price * effective_size
+        if denom <= 0:
+            return None
+        return total_fees / denom
+
     def _validate_reveal_profitability(
         self,
         stealth_order_id: str,
@@ -1872,9 +1990,44 @@ class StealthOrderManager:
             
             if not is_profitable:
                 net_profit = safe_float(validation.get("net_profit"), default=0.0)
+                gross_profit = safe_float(validation.get("gross_profit"), default=0.0)
+                total_fees = safe_float(validation.get("total_fees"), default=0.0)
+                percentage_fees = safe_float(validation.get("percentage_fees"), default=0.0)
+                mandatory_fees = safe_float(validation.get("mandatory_fees"), default=0.0)
+
+                # Build an actionable diagnostic so the operator sees WHY
+                # the target is unreachable, not just THAT it is. The
+                # mandatory FUTURE fee scales with contract count, not
+                # notional, so a percentage target that worked at 1
+                # contract can be structurally infeasible at 10.
+                min_viable = self._compute_min_viable_target_movement(
+                    parent_filled_price=parent_filled_price,
+                    order_size=order_size,
+                    target_movement_type=target_movement_type,
+                    total_fees=total_fees,
+                    product_id=product_id,
+                )
+                diag = (
+                    f"gross={gross_profit:.4f} fees={total_fees:.4f} "
+                    f"(pct={percentage_fees:.4f} mandatory={mandatory_fees:.4f})"
+                )
+                if min_viable is not None and target_movement is not None:
+                    type_label = (target_movement_type or "P").upper()
+                    if type_label == "P":
+                        diag += (
+                            f"; configured target_movement={target_movement:.6f} (P), "
+                            f"minimum viable ≈ {min_viable:.6f} (P)"
+                        )
+                    else:
+                        diag += (
+                            f"; configured target_movement={target_movement:.4f} (A), "
+                            f"minimum viable ≈ {min_viable:.4f} (A)"
+                        )
+
                 failure_msg = (
-                    f"Reveal price {reveal_execution_plan.submitted_limit_price} would not meet profit target "
-                    f"(projected net profit: {net_profit:.8f})"
+                    f"Reveal price {reveal_execution_plan.submitted_limit_price} "
+                    f"would not meet profit target "
+                    f"(projected net profit: {net_profit:.8f}; {diag})"
                 )
                 raise RevealPricingError(
                     failure_msg,
@@ -2320,12 +2473,22 @@ class StealthOrderManager:
                         })
                         return None
                 except RevealPricingError as e:
-                    # Profitability validation raised an error
+                    # Profitability validation raised. The stealth bridge
+                    # retries reveal at ~10 Hz; without throttling, an
+                    # economically-stuck stealth order produces hundreds of
+                    # identical WARN lines per second. Suppress repeats of
+                    # the same failure signature within a cooldown window.
+                    if not self._should_emit_profitability_failure(
+                            stealth_order_id, order, reveal_plan):
+                        return None
                     self.log_callback("warning", {
                         "event": "stealth_order_profitability_validation_failed",
                         "stealth_order_id": stealth_order_id,
                         "reason": str(e),
                         "fallback_used": e.fallback_used,
+                        "suppressed_repeats": order.pop(
+                            "_profit_failure_suppressed_since_last_log", 0
+                        ),
                     })
                     return None
         except RevealOrderSliceError as e:
@@ -3334,6 +3497,20 @@ class StealthOrderManager:
                 key: value.isoformat() if hasattr(value, 'isoformat') else value
                 for key, value in dict(anchor_repricing_state or {}).items()
             })
+
+            # Condition timestamps: serialise datetimes to ISO strings.
+            # These mark when the reveal condition first became plausible
+            # (``..._first_met_at``) and when it was firmly confirmed
+            # (``..._confirmed_at``). Without persistence the post-restart
+            # view reverts to NULL and the operator can't see how long a
+            # stealth waited before triggering.
+            def _iso_or_none(value):
+                if value is None:
+                    return None
+                return value.isoformat() if hasattr(value, 'isoformat') else value
+
+            condition_first_met_at = _iso_or_none(order.get('condition_first_met_at'))
+            condition_confirmed_at = _iso_or_none(order.get('condition_confirmed_at'))
             
             self.db_client.execute_update(
                 """UPDATE stealth_orders 
@@ -3341,6 +3518,7 @@ class StealthOrderManager:
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
                        limit_price = %s, reveal_condition_json = %s,
                        anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
+                       condition_first_met_at = %s, condition_confirmed_at = %s,
                        updated_at = CURRENT_TIMESTAMP
                    WHERE stealth_order_id = %s""",
                 (order['status'],
@@ -3353,6 +3531,8 @@ class StealthOrderManager:
                  json.dumps(order.get('reveal_condition_json', {})),
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
+                 condition_first_met_at,
+                 condition_confirmed_at,
                  order['stealth_order_id'])
             )
         except Exception as e:

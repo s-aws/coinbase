@@ -21,7 +21,7 @@
       },
       "follow_up_reveal_direction": "opposite",
       "notes": "",
-      "max_order_replacements": 11,
+      "max_order_replacements": 1,
       "target_movement": 0.002,
       "target_movement_type": "P",
       "allow_partial_fills": true,

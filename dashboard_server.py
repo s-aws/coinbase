@@ -1249,11 +1249,15 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
             
             try:
-                from database.order import update_stealth_order_target_movement, get_stealth_order_by_id
-                
-                # Update in database (order_parent table is source of truth for target_movement)
-                success = update_stealth_order_target_movement(
-                    stealth_order_id=stealth_order_id,
+                from database.order import update_parent_order_target_movement, get_stealth_order_by_id
+
+                # CANONICAL: target_movement lives on the ``order_parent`` row.
+                # The engine's ``_resolve_target_movement_for_plan`` reads from
+                # there. Writing to ``stealth_orders`` (the previous behaviour)
+                # was silently ignored by every reveal/profit-validation path
+                # so UI edits had no runtime effect. See 2026-04-30 audit.
+                success = update_parent_order_target_movement(
+                    parent_order_id=stealth_order_id,
                     target_movement=target_movement,
                     target_movement_type=target_movement_type
                 )

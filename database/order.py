@@ -190,44 +190,24 @@ def create_stealth_orders_table() -> None:
 
 
 def update_stealth_order_target_movement(stealth_order_id: str, target_movement: Optional[float], target_movement_type: str = "P") -> bool:
+    """DEPRECATED: writes to ``stealth_orders.target_movement`` were silently
+    ignored by the engine, which reads ``target_movement`` exclusively from
+    ``order_parent`` (see ``StealthOrderManager._resolve_target_movement_for_plan``).
+
+    Retained as a thin shim that delegates to the canonical writer
+    ``update_parent_order_target_movement`` so any external script still
+    importing this name keeps working AND its updates actually take effect.
+
+    New code MUST call ``update_parent_order_target_movement`` directly.
+
+    Removed in: TBD (after ``stealth_orders.target_movement`` /
+    ``target_movement_type`` columns are dropped from the schema).
     """
-    Update the target_movement and target_movement_type for a stealth order.
-    
-    Args:
-        stealth_order_id: UUID of the stealth order
-        target_movement: Profit target value (float) or None to clear
-        target_movement_type: "P" for percentage (default) or "A" for absolute amount
-    
-    Returns:
-        True if update successful, False otherwise
-    
-    Example:
-        >>> update_stealth_order_target_movement(
-        ...     stealth_order_id="550e8400-e29b-41d4-a716-446655440000",
-        ...     target_movement=0.005,
-        ...     target_movement_type="P"
-        ... )
-        True
-    """
-    try:
-        query = """
-        UPDATE stealth_orders
-        SET target_movement = %s,
-            target_movement_type = %s,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE stealth_order_id = %s
-        """
-        
-        rows_affected = DB_CLIENT.execute_update(
-            query,
-            (target_movement, target_movement_type if target_movement else None, stealth_order_id)
-        )
-        
-        return rows_affected > 0
-    except Exception as e:
-        logger.error(f"✗ Error updating stealth order target_movement {stealth_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Update params - target_movement: {target_movement}, type: {target_movement_type}")
-        return False
+    return update_parent_order_target_movement(
+        parent_order_id=stealth_order_id,
+        target_movement=target_movement,
+        target_movement_type=target_movement_type,
+    )
 
 
 def update_stealth_order_price_threshold(stealth_order_id: str, price_threshold: float, hold_duration_seconds: Optional[int] = None) -> bool:
