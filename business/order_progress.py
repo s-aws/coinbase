@@ -277,6 +277,13 @@ class OrderProgressTracker:
         Args:
             client_order_id: Order whose carry should be reduced.
             units: Number of ``min_order_size`` units that were placed.
+
+        DEPRECATED for the partial-fill-follow-up path: prefer
+        :meth:`claim_follow_up_units`, which atomically computes the
+        available units and decrements carry under the same lock so that
+        concurrent WS-delta threads cannot all observe the same carry
+        snapshot and each spawn a duplicate full-size follow-up.
+        See 2026-04-29 duplicate-buy incident.
         """
         if units <= 0:
             return
@@ -289,6 +296,64 @@ class OrderProgressTracker:
                 0.0, record.carry_remainder_qty - consumed
             )
             record.partial_follow_ups_created += units
+
+    def claim_follow_up_units(
+        self, client_order_id: str, max_units: int
+    ) -> int:
+        """Atomically reserve up to ``max_units`` ``min_order_size`` units of
+        carry for a partial-fill follow-up.
+
+        Computes available units from the current carry, claims the smaller
+        of (available, ``max_units``), decrements carry, and increments
+        ``partial_follow_ups_created`` \u2014 all under the per-order lock.
+
+        Returns the number of units actually claimed (0 if nothing is
+        available or the record is unknown).
+
+        This MUST be called from the partial-fill follow-up creator BEFORE
+        the REST place call. Concurrent WS deltas previously each observed
+        the same stale ``carry_remainder_qty`` snapshot and each spawned a
+        full-size follow-up; the resulting over-buy is the 2026-04-29
+        incident. Atomic claim under the lock makes the second concurrent
+        thread observe the already-reduced carry.
+
+        On placement failure callers may call :meth:`release_follow_up_units`
+        to refund the reservation; otherwise the units are considered
+        consumed by the in-flight follow-up.
+        """
+        if max_units <= 0:
+            return 0
+        with self._get_order_lock(client_order_id):
+            record = self._records.get(client_order_id)
+            if record is None or record.min_order_size <= 0.0:
+                return 0
+            available = int(record.carry_remainder_qty / record.min_order_size)
+            claim = min(max_units, available)
+            if claim <= 0:
+                return 0
+            record.carry_remainder_qty = max(
+                0.0, record.carry_remainder_qty - claim * record.min_order_size
+            )
+            record.partial_follow_ups_created += claim
+            return claim
+
+    def release_follow_up_units(self, client_order_id: str, units: int) -> None:
+        """Refund a previously :meth:`claim_follow_up_units` reservation.
+
+        Use this from the partial-fill follow-up path when the REST place
+        call fails after the units were claimed, so the carry remains
+        accurate and a future delta can re-attempt the follow-up.
+        """
+        if units <= 0:
+            return
+        with self._get_order_lock(client_order_id):
+            record = self._records.get(client_order_id)
+            if record is None or record.min_order_size <= 0.0:
+                return
+            record.carry_remainder_qty += units * record.min_order_size
+            record.partial_follow_ups_created = max(
+                0, record.partial_follow_ups_created - units
+            )
 
     def get_record(self, client_order_id: str) -> Optional[_WatermarkRecord]:
         """Read-only snapshot of the per-order watermark (returns a copy)."""

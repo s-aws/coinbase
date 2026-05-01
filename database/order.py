@@ -190,44 +190,24 @@ def create_stealth_orders_table() -> None:
 
 
 def update_stealth_order_target_movement(stealth_order_id: str, target_movement: Optional[float], target_movement_type: str = "P") -> bool:
+    """DEPRECATED: writes to ``stealth_orders.target_movement`` were silently
+    ignored by the engine, which reads ``target_movement`` exclusively from
+    ``order_parent`` (see ``StealthOrderManager._resolve_target_movement_for_plan``).
+
+    Retained as a thin shim that delegates to the canonical writer
+    ``update_parent_order_target_movement`` so any external script still
+    importing this name keeps working AND its updates actually take effect.
+
+    New code MUST call ``update_parent_order_target_movement`` directly.
+
+    Removed in: TBD (after ``stealth_orders.target_movement`` /
+    ``target_movement_type`` columns are dropped from the schema).
     """
-    Update the target_movement and target_movement_type for a stealth order.
-    
-    Args:
-        stealth_order_id: UUID of the stealth order
-        target_movement: Profit target value (float) or None to clear
-        target_movement_type: "P" for percentage (default) or "A" for absolute amount
-    
-    Returns:
-        True if update successful, False otherwise
-    
-    Example:
-        >>> update_stealth_order_target_movement(
-        ...     stealth_order_id="550e8400-e29b-41d4-a716-446655440000",
-        ...     target_movement=0.005,
-        ...     target_movement_type="P"
-        ... )
-        True
-    """
-    try:
-        query = """
-        UPDATE stealth_orders
-        SET target_movement = %s,
-            target_movement_type = %s,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE stealth_order_id = %s
-        """
-        
-        rows_affected = DB_CLIENT.execute_update(
-            query,
-            (target_movement, target_movement_type if target_movement else None, stealth_order_id)
-        )
-        
-        return rows_affected > 0
-    except Exception as e:
-        logger.error(f"✗ Error updating stealth order target_movement {stealth_order_id}: {type(e).__name__}: {e}")
-        logger.debug(f"  Update params - target_movement: {target_movement}, type: {target_movement_type}")
-        return False
+    return update_parent_order_target_movement(
+        parent_order_id=stealth_order_id,
+        target_movement=target_movement,
+        target_movement_type=target_movement_type,
+    )
 
 
 def update_stealth_order_price_threshold(stealth_order_id: str, price_threshold: float, hold_duration_seconds: Optional[int] = None) -> bool:
@@ -1902,6 +1882,182 @@ def insert_order_move(
         logger.error(f"✗ Error inserting order move ({original_parent_client_order_id}): {type(e).__name__}: {e}")
         logger.debug(f"  Move details - new_parent: {new_parent_client_order_id}, reason: {reason}, move_on_cancel: {move_on_cancel}")
         return None
+
+
+# ============================================================================
+# STEALTH ORDER MOVES (move REVEALED stealth order audit)
+# ============================================================================
+#
+# A "stealth move" is the cancel-and-replace of a REVEALED stealth order's
+# *exchange placement* while the same internal stealth_order_id is preserved.
+# This is distinct from order_moves, which records the creation of a brand
+# new parent_order on cancel. Each row here captures one move event so the
+# history of price changes against a single stealth order is queryable.
+#
+# Schema rationale:
+# - keyed on stealth_order_id (not parent_client_order_id) because the
+#   move mutates the same stealth row in place.
+# - old/new placement client_order_ids and exchange_order_ids are stored
+#   for forensics: the "before" placement is gone from the exchange post-cancel
+#   and the order_parent FK guard insert is the only on-disk record of the
+#   "after" placement at the time of the move.
+# - reason is a free-form string (intended to hold StealthMoveReason values)
+#   to match the order_moves convention.
+# - status field captures the result: "completed" | "cancel_failed" |
+#   "place_failed_after_cancel" | "persist_failed". Failed-after-cancel rows
+#   are critical for operator recovery (the stealth order is left CANCELLED).
+
+
+def create_stealth_order_moves_table() -> None:
+    """Create the stealth_order_moves table if it doesn't exist.
+
+    Records every "move REVEALED stealth order" event executed via
+    ``StealthOrderManager.execute_stealth_move``. Mirrors the
+    ``order_moves`` audit pattern but keyed on ``stealth_order_id`` so a
+    single stealth order's price-change history is one query away.
+
+    Columns:
+        - id: surrogate key
+        - stealth_order_id: which stealth order was moved
+        - old_placement_client_order_id: previous exchange placement uuid
+        - old_exchange_order_id: previous Coinbase order id (cancelled)
+        - old_submitted_price: previous limit price (audit snapshot)
+        - new_placement_client_order_id: new exchange placement uuid
+        - new_exchange_order_id: new Coinbase order id (NULL on failure)
+        - new_submitted_price: new limit price
+        - reason: StealthMoveReason value
+        - notes: free-form operator note
+        - status: "completed" | "cancel_failed" | "place_failed_after_cancel"
+                  | "persist_failed"
+        - error_message: populated when status != "completed"
+        - market_bid: bid at move execution time (audit snapshot)
+        - market_ask: ask at move execution time (audit snapshot)
+        - moved_at: server timestamp when the move row was inserted
+
+    No FK on stealth_order_id (audit rows must survive deletion of the
+    parent stealth_orders row, mirroring order_moves' pattern of allowing
+    orphaned audit history).
+    """
+
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS stealth_order_moves (
+        id SERIAL PRIMARY KEY,
+        stealth_order_id VARCHAR(64) NOT NULL,
+        old_placement_client_order_id VARCHAR(40),
+        old_exchange_order_id VARCHAR(64),
+        old_submitted_price NUMERIC,
+        new_placement_client_order_id VARCHAR(40),
+        new_exchange_order_id VARCHAR(64),
+        new_submitted_price NUMERIC,
+        reason VARCHAR(50) DEFAULT 'manual_user_move',
+        notes TEXT,
+        status VARCHAR(40) NOT NULL DEFAULT 'completed',
+        error_message TEXT,
+        market_bid NUMERIC,
+        market_ask NUMERIC,
+        moved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+    index_query = """
+    CREATE INDEX IF NOT EXISTS idx_stealth_order_moves_sid
+        ON stealth_order_moves (stealth_order_id, moved_at DESC);
+    """
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(create_table_query)
+        cursor.execute(index_query)
+        print("stealth_order_moves table done.")
+
+
+def insert_stealth_order_move(
+    stealth_order_id: str,
+    *,
+    old_placement_client_order_id: Optional[str] = None,
+    old_exchange_order_id: Optional[str] = None,
+    old_submitted_price: Optional[float] = None,
+    new_placement_client_order_id: Optional[str] = None,
+    new_exchange_order_id: Optional[str] = None,
+    new_submitted_price: Optional[float] = None,
+    reason: str = "manual_user_move",
+    notes: Optional[str] = None,
+    status: str = "completed",
+    error_message: Optional[str] = None,
+    market_bid: Optional[float] = None,
+    market_ask: Optional[float] = None,
+) -> Optional[int]:
+    """Insert one stealth-move audit row. Returns the new row id, or None on failure.
+
+    Best-effort: failures are logged and swallowed (audit insertion must
+    never break the move's own success path or its already-failing
+    failure path).
+    """
+
+    query = """
+    INSERT INTO stealth_order_moves (
+        stealth_order_id,
+        old_placement_client_order_id,
+        old_exchange_order_id,
+        old_submitted_price,
+        new_placement_client_order_id,
+        new_exchange_order_id,
+        new_submitted_price,
+        reason,
+        notes,
+        status,
+        error_message,
+        market_bid,
+        market_ask
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    RETURNING id
+    """
+    params = (
+        stealth_order_id,
+        old_placement_client_order_id,
+        old_exchange_order_id,
+        old_submitted_price,
+        new_placement_client_order_id,
+        new_exchange_order_id,
+        new_submitted_price,
+        reason,
+        notes,
+        status,
+        error_message,
+        market_bid,
+        market_ask,
+    )
+    try:
+        results = DB_CLIENT.execute_query(query, params)
+        if results:
+            return results[0]["id"]
+        return None
+    except Exception as exc:
+        logger.error(
+            f"✗ Error inserting stealth_order_move ({stealth_order_id}, "
+            f"status={status}): {type(exc).__name__}: {exc}"
+        )
+        return None
+
+
+def get_stealth_order_moves(
+    stealth_order_id: str,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Return move audit rows for one stealth order, newest first."""
+
+    query = """
+    SELECT * FROM stealth_order_moves
+    WHERE stealth_order_id = %s
+    ORDER BY moved_at DESC
+    LIMIT %s
+    """
+    try:
+        return DB_CLIENT.execute_query(query, (stealth_order_id, limit)) or []
+    except Exception as exc:
+        logger.error(
+            f"✗ Error fetching stealth_order_moves for {stealth_order_id}: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return []
 
 
 def get_order_move(original_parent_client_order_id: str) -> Optional[Dict[str, Any]]:

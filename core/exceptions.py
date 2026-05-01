@@ -32,6 +32,21 @@ Exception hierarchy is designed to:
 from typing import Optional, Dict, Any
 
 
+def _format_error_message(message: str, **context) -> str:
+    """Format an exception message with optional structured context.
+
+    Used by all engine exception subclasses for consistent string output.
+    None values are dropped so optional fields don't pollute the message.
+    """
+    parts = []
+    if message:
+        parts.append(str(message))
+    ctx_pairs = [f"{k}={v}" for k, v in context.items() if v is not None]
+    if ctx_pairs:
+        parts.append("[" + ", ".join(ctx_pairs) + "]")
+    return " ".join(parts) if parts else ""
+
+
 class CoinbaseEngineError(Exception):
     """
     Base exception for all Coinbase engine errors.
@@ -233,6 +248,52 @@ class RevealOrderSliceError(StealthOrderError):
     pass
 
 
+class StealthMoveError(StealthOrderError):
+    """
+    Move of a REVEALED stealth order failed.
+
+    Raised by ``StealthOrderManager.build_stealth_move_plan`` and
+    ``execute_stealth_move`` when the move cannot be safely attempted or
+    completes only partially.
+
+    Build-time causes:
+    - Stealth order not found / cannot be loaded
+    - Status is not ``REVEALED`` (moves are only valid against revealed orders)
+    - ``executed_size > 0`` (v1: partial-fill moves are out of scope)
+    - No active exchange order id to cancel
+    - New limit price <= 0
+
+    Execute-time causes:
+    - Concurrent mutation already in flight (claim could not be acquired)
+    - Exchange cancel failed
+    - Replacement placement failed *after* the cancel succeeded — the
+      stealth order is left in ``CANCELLED`` status with the audit row
+      flagged so operators can investigate
+
+    Recovery: For build-time errors, fix the input (correct sid, wait for
+    fill to clear, choose a positive price). For "post-cancel place
+    failed" errors the original placement is gone from the exchange;
+    operators may issue a new ``create_stealth_order`` if needed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        stealth_order_id: Optional[str] = None,
+        stage: Optional[str] = None,
+    ):
+        """
+        Args:
+            message: Error description
+            stealth_order_id: Order id for correlation
+            stage: Where the failure occurred
+                (``"validate"``, ``"claim"``, ``"cancel"``, ``"place"``, ``"persist"``)
+        """
+        self.stealth_order_id = stealth_order_id
+        self.stage = stage
+        super().__init__(message)
+
+
 class StealthOrderPersistenceError(StealthOrderError):
     """
     Stealth order database persistence failed.
@@ -270,20 +331,34 @@ class OrderPersistenceError(DatabaseError):
     
     Recovery: Check database connectivity, verify schema, check for constraint violations.
     """
-    
+
     def __init__(
         self,
-        message: str,
-        operation: str,  # "insert", "update", "delete"
-        table: str,  # "order_parent", "order_child", etc.
-        client_order_id: Optional[str] = None
+        message: str = "",
+        operation: Optional[str] = None,  # "insert", "update", "delete"
+        table: Optional[str] = None,      # "order_parent", "order_child", etc.
+        client_order_id: Optional[str] = None,
+        *,
+        error_type: Optional[str] = None,
+        stealth_order_id: Optional[str] = None,
+        **context,
     ):
         self.operation = operation
         self.table = table
         self.client_order_id = client_order_id
+        self.error_type = error_type
+        self.stealth_order_id = stealth_order_id
+        self.context = {k: v for k, v in context.items() if v is not None}
         super().__init__(
-            f"{message} [operation={operation}, table={table}, "
-            f"client_order_id={client_order_id}]"
+            _format_error_message(
+                message,
+                error_type=error_type,
+                operation=operation,
+                table=table,
+                client_order_id=client_order_id,
+                stealth_order_id=stealth_order_id,
+                **self.context,
+            )
         )
 
 
@@ -298,7 +373,29 @@ class DatabaseConnectionError(DatabaseError):
     
     Recovery: Check database service, verify credentials, increase pool size.
     """
-    pass
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        error_type: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+        stealth_order_id: Optional[str] = None,
+        **context,
+    ):
+        self.error_type = error_type
+        self.client_order_id = client_order_id
+        self.stealth_order_id = stealth_order_id
+        self.context = {k: v for k, v in context.items() if v is not None}
+        super().__init__(
+            _format_error_message(
+                message,
+                error_type=error_type,
+                client_order_id=client_order_id,
+                stealth_order_id=stealth_order_id,
+                **self.context,
+            )
+        )
 
 
 class DatabaseTransactionError(DatabaseError):
@@ -312,10 +409,32 @@ class DatabaseTransactionError(DatabaseError):
     
     Recovery: Retry transaction, resolve constraint violations, reduce contention.
     """
-    
-    def __init__(self, message: str, rollback_reason: Optional[str] = None):
+
+    def __init__(
+        self,
+        message: str = "",
+        rollback_reason: Optional[str] = None,
+        *,
+        error_type: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+        stealth_order_id: Optional[str] = None,
+        **context,
+    ):
         self.rollback_reason = rollback_reason
-        super().__init__(message)
+        self.error_type = error_type
+        self.client_order_id = client_order_id
+        self.stealth_order_id = stealth_order_id
+        self.context = {k: v for k, v in context.items() if v is not None}
+        super().__init__(
+            _format_error_message(
+                message,
+                error_type=error_type,
+                rollback_reason=rollback_reason,
+                client_order_id=client_order_id,
+                stealth_order_id=stealth_order_id,
+                **self.context,
+            )
+        )
 
 
 # ============================================================================
@@ -356,10 +475,19 @@ class WebSocketMessageError(WebSocketError):
     
     Recovery: Log malformed message, skip processing, continue with next message.
     """
-    
-    def __init__(self, message: str, raw_data: Optional[str] = None):
+
+    def __init__(
+        self,
+        message: str = "",
+        raw_data: Optional[str] = None,
+        *,
+        error_type: Optional[str] = None,
+        **context,
+    ):
         self.raw_data = raw_data
-        super().__init__(message)
+        self.error_type = error_type
+        self.context = {k: v for k, v in context.items() if v is not None}
+        super().__init__(_format_error_message(message, error_type=error_type, **self.context))
 
 
 class DuplicateEventError(WebSocketError):

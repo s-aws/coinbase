@@ -149,11 +149,19 @@ class TestPhase2SpreadMonitoring:
     def test_spread_monitoring_disabled_by_default(self):
         """Spread monitoring is opt-in via enable_spread_monitoring."""
         manager = _make_manager()
-        
+
+        # Set price-change gates to 0 so we isolate the spread-monitoring
+        # behavior (otherwise the policy's default min_price_change /
+        # hysteresis_bps would short-circuit before we reach the spread
+        # check). Same pattern as test_spread_monitoring_skips_wide_spreads.
         policy = {
             "enabled": True,
             "enable_spread_monitoring": False,  # Not enabled
             "max_spread_bps": 50.0,
+            "min_price_change": 0.0,
+            "hysteresis_bps": 0.0,
+            "min_reprice_interval_seconds": 0,
+            "max_reprices_per_hour": 100,
         }
         
         state = {"reprice_history": []}

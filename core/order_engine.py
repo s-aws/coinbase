@@ -59,7 +59,7 @@ from time import sleep
 from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from external import CoinbaseWebSocketClient
@@ -110,6 +110,33 @@ except ImportError:
     def update_engine_status(*args, **kwargs): pass
     def broadcast_ticker(*args, **kwargs): pass
     def record_spread_tick(*args, **kwargs): pass
+
+# Market-tick persistence (optional - degrades to no-op if module fails to
+# import, e.g. in DB-less smoke tests). Used by the slide-calibration view
+# to draw the market-mid reference line. See business/market_tick_recorder.py.
+try:
+    from business.market_tick_recorder import (
+        get_recorder as _get_market_tick_recorder,
+        init_recorder as _init_market_tick_recorder,
+    )
+    MARKET_TICK_RECORDER_AVAILABLE = True
+except ImportError:
+    MARKET_TICK_RECORDER_AVAILABLE = False
+    def _get_market_tick_recorder(): return None
+    def _init_market_tick_recorder(*args, **kwargs): return None
+
+# In-memory Fibonacci-window market metrics. Read by the dashboard (and
+# console UI) at broadcast time; written here on every ticker tick. No DB,
+# no I/O, bounded memory. Keep this hook in lock-step with
+# ``business/market_metrics.py::FIBONACCI_WINDOWS_MINUTES``.
+try:
+    from business.market_metrics import (
+        get_market_metrics_tracker as _get_market_metrics_tracker,
+    )
+    MARKET_METRICS_AVAILABLE = True
+except ImportError:
+    MARKET_METRICS_AVAILABLE = False
+    def _get_market_metrics_tracker(): return None
 
 # Lot tracking integration (optional - will fail gracefully if not available).
 # Note: production fills flow through OrderProgressTracker ->
@@ -224,6 +251,43 @@ class OrderEngine:
         self.ticker_lock = threading.RLock()
         self.orderbook_lock = threading.RLock()
 
+        # Per-parent counter of replacement slots that have been atomically
+        # claimed by a follow-up creator but whose child has not yet been
+        # registered via ``register_child_order``. Together with the parent's
+        # in-memory ``current_order_replacement`` it forms the gating budget
+        # used by ``claim_replacement_slots``: ``current + pending < max``.
+        # Without this, multiple WS-event threads each observe the same
+        # stale ``current_order_replacement`` snapshot, all pass the gate
+        # check, and breach ``max_order_replacement`` (see 2026-04-29
+        # incident: max=1, observed current=4 with 4 BUY follow-ups
+        # spawned). All access protected by ``orderbook_lock``.
+        self._pending_replacement_claims: Dict[str, int] = {}
+
+        # Diagnostic throttle for the parent/child reconciler drift
+        # diagnostic. Stores monotonic seconds of the last emit so we
+        # only fire one diff log per ~1h even if drift is observed
+        # every reconciler tick (the typical symptom). ``None`` means
+        # never emitted yet — the first drift detection always fires.
+        self._reconcile_diff_last_emit_monotonic: Optional[float] = None
+
+        # Suppress the periodic ``parent_child_reconciled`` success line
+        # when nothing has actually changed since the last emit. The
+        # reconciler runs every ~30s; emitting a 73/230 status line every
+        # tick produces ~2880 identical log entries per day. We re-emit
+        # only when (parent_count, child_count) differs, when force_log
+        # is set (operator-initiated), or when the drift diagnostic
+        # fires. ``None`` means never emitted — the first call always logs.
+        self._last_reconciled_counts: Optional[tuple] = None
+
+        # Dedup gate for snapshot_drift_detected. Each WS user-event
+        # worker thread (we run ~6) processes the SNAPSHOT frame
+        # independently and previously emitted its own drift report,
+        # producing N× duplicated WARNING lines for the same drift state.
+        # Track the last-emitted signature per source under a lock and
+        # skip re-emission when the signature is unchanged.
+        self._snapshot_drift_last_signature: Dict[str, tuple] = {}
+        self._snapshot_drift_emit_lock = threading.Lock()
+
         # Cooperative shutdown signal for all background loops/threads owned
         # by this engine. Set by ``stop()`` (registered as a runtime stop
         # hook in main.py); checked by every ``while`` loop below in lieu of
@@ -276,7 +340,11 @@ class OrderEngine:
         from calculation.fee_manager import FeeManager
         from calculation.profit_validator import ProfitValidator
         
-        self.fee_manager = FeeManager(REST_CLIENT, log_callback=self.log_message)
+        self.fee_manager = FeeManager(
+            REST_CLIENT,
+            log_callback=self.log_message,
+            orderbook=self.orderbook,
+        )
         self.profit_validator = ProfitValidator(
             fee_manager=self.fee_manager,
             orderbook=self.orderbook,
@@ -751,103 +819,132 @@ class OrderEngine:
                 )
                 return 0
 
-            can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
-            if not can_replace:
+            # NOTE: partial-fill follow-ups intentionally bypass
+            # ``max_order_replacement``. The cap exists to limit how many
+            # times the parent gets re-anchored when a placement
+            # cancels/fully-fills (see ``handle_filled_order`` path). A
+            # partial-fill follow-up is COMPLETING the existing placement
+            # — the original child counted as one replacement, and the
+            # follow-ups are just refilling the unfilled slice. Letting
+            # the cap gate them strands the operator with un-hedged
+            # exposure equal to the carry remainder when ``cap=1`` and
+            # the placement partial-fills (2026-04-30 incident: 10-unit
+            # SELL filled-in-full but only 1 of 9 BUY follow-ups
+            # spawned). The carry budget alone (``claim_follow_up_units``)
+            # bounds the spawn rate; the cap is conceptually a different
+            # budget and is enforced separately on the cancel/full-fill
+            # follow-up path.
+
+            # CRITICAL: atomically reserve carry units BEFORE the slow REST
+            # place call. Without this claim, concurrent WS-delta threads each
+            # observe the same stale ``carry_remainder_qty`` snapshot and each
+            # spawn a duplicate full-size follow-up. See 2026-04-29
+            # over-buy incident: a 100-unit SELL filled in 6 partial matches
+            # produced 5 BUY follow-ups @ 100 units each (500 total instead
+            # of 100). The atomic claim under the per-order lock causes the
+            # second concurrent thread to observe the already-reduced carry
+            # and back off.
+            units_to_create = self.order_progress_tracker.claim_follow_up_units(
+                client_order_id, max_units=follow_ups_due
+            )
+            if units_to_create <= 0:
+                # Another concurrent thread already drained the carry; nothing
+                # left for us to spawn.
+                return 0
+
+            # From here on, any failure must refund the carry claim so a
+            # future delta can re-attempt the follow-up.
+            try:
+                target_movement = self.resolve_parent_target_movement(parent_client_order_id)
+                order_template = self.compute_partial_fill_order_template(
+                    client_order_id,
+                    target_movement=target_movement,
+                )
+                if not order_template:
+                    self.log_message(
+                        "warning",
+                        self.build_event_log_payload(
+                            "partial_fill_follow_up_template_compute_failed",
+                            client_order_id=client_order_id,
+                            parent_client_order_id=parent_client_order_id,
+                        ),
+                    )
+                    self.order_progress_tracker.release_follow_up_units(
+                        client_order_id, units_to_create
+                    )
+                    return 0
+
+                follow_up_price = float(order_template["start_price"])
+                follow_up_size = float(units_to_create * min_order_size)
+
+                follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
+                direction_choice = original_stealth_order.get(
+                    "follow_up_reveal_direction",
+                    FollowUpRevealDirection.OPPOSITE.value,
+                )
+
+                if follow_up_reveal_condition.get("type") == "price":
+                    follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
+                    if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
+                        if "direction" in follow_up_reveal_condition:
+                            follow_up_reveal_condition["direction"] = (
+                                Direction.ABOVE.value
+                                if follow_up_reveal_condition.get("direction") == Direction.BELOW.value
+                                else Direction.BELOW.value
+                            )
+
+                parent_order_data = self.db_helper.get_parent_order(parent_client_order_id)
+                parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
+                parent_target_movement_type = (
+                    parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value)
+                    if parent_order_data
+                    else TargetMovementType.PERCENTAGE.value
+                )
+
+                stealth_follow_up_id = stealth_manager.create_follow_up_stealth_order(
+                    original_stealth_order_id=original_stealth_order["stealth_order_id"],
+                    side=order_template["side"],
+                    total_size=follow_up_size,
+                    limit_price=follow_up_price,
+                    reveal_condition=follow_up_reveal_condition,
+                    follow_up_reveal_direction=direction_choice,
+                    reveal_pricing_policy=None,
+                    notes=(
+                        f"Auto partial-fill follow-up ({units_to_create} x {min_order_size})"
+                    ),
+                    target_movement=parent_target_movement,
+                    target_movement_type=parent_target_movement_type,
+                )
+
+                # Flat hierarchy: register the follow-up against the chain ROOT,
+                # never against the placement uuid that just settled (which is
+                # itself a child). Single canonical resolver lives in
+                # stealth_order_manager.
+                root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
+                self.register_child_order(
+                    stealth_follow_up_id,
+                    root_parent_client_order_id,
+                    bypass_replacement_cap=True,
+                )
                 self.log_message(
                     "order",
                     self.build_event_log_payload(
-                        "partial_fill_follow_up_max_replacements_reached",
+                        "partial_fill_follow_up_created",
                         client_order_id=client_order_id,
                         parent_client_order_id=parent_client_order_id,
-                        details=replacement_details,
+                        stealth_follow_up_id=stealth_follow_up_id,
+                        follow_up_units=units_to_create,
+                        follow_up_size=follow_up_size,
+                        follow_up_price=follow_up_price,
                     ),
                 )
-                return 0
-
-            max_replacements = int(replacement_details.get("max_order_replacement", 0))
-            current_replacements = int(replacement_details.get("current_order_replacement", 0))
-            remaining_replacements = max(0, max_replacements - current_replacements)
-            units_to_create = min(follow_ups_due, remaining_replacements)
-            if units_to_create <= 0:
-                return 0
-
-            target_movement = self.resolve_parent_target_movement(parent_client_order_id)
-            order_template = self.compute_partial_fill_order_template(
-                client_order_id,
-                target_movement=target_movement,
-            )
-            if not order_template:
-                self.log_message(
-                    "warning",
-                    self.build_event_log_payload(
-                        "partial_fill_follow_up_template_compute_failed",
-                        client_order_id=client_order_id,
-                        parent_client_order_id=parent_client_order_id,
-                    ),
+                return units_to_create
+            except Exception:
+                # Refund the carry claim so a subsequent WS delta may retry.
+                self.order_progress_tracker.release_follow_up_units(
+                    client_order_id, units_to_create
                 )
-                return 0
-
-            follow_up_price = float(order_template["start_price"])
-            follow_up_size = float(units_to_create * min_order_size)
-
-            follow_up_reveal_condition = dict(original_stealth_order.get("reveal_condition_json", {}))
-            direction_choice = original_stealth_order.get(
-                "follow_up_reveal_direction",
-                FollowUpRevealDirection.OPPOSITE.value,
-            )
-
-            if follow_up_reveal_condition.get("type") == "price":
-                follow_up_reveal_condition["price_threshold"] = float(follow_up_price)
-                if direction_choice == FollowUpRevealDirection.OPPOSITE.value:
-                    if "direction" in follow_up_reveal_condition:
-                        follow_up_reveal_condition["direction"] = (
-                            Direction.ABOVE.value
-                            if follow_up_reveal_condition.get("direction") == Direction.BELOW.value
-                            else Direction.BELOW.value
-                        )
-
-            parent_order_data = self.db_helper.get_parent_order(parent_client_order_id)
-            parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
-            parent_target_movement_type = (
-                parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value)
-                if parent_order_data
-                else TargetMovementType.PERCENTAGE.value
-            )
-
-            stealth_follow_up_id = stealth_manager.create_follow_up_stealth_order(
-                original_stealth_order_id=original_stealth_order["stealth_order_id"],
-                side=order_template["side"],
-                total_size=follow_up_size,
-                limit_price=follow_up_price,
-                reveal_condition=follow_up_reveal_condition,
-                follow_up_reveal_direction=direction_choice,
-                reveal_pricing_policy=None,
-                notes=(
-                    f"Auto partial-fill follow-up ({units_to_create} x {min_order_size})"
-                ),
-                target_movement=parent_target_movement,
-                target_movement_type=parent_target_movement_type,
-            )
-
-            # Flat hierarchy: register the follow-up against the chain ROOT,
-            # never against the placement uuid that just settled (which is
-            # itself a child). Single canonical resolver lives in
-            # stealth_order_manager.
-            root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
-            self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
-            self.log_message(
-                "order",
-                self.build_event_log_payload(
-                    "partial_fill_follow_up_created",
-                    client_order_id=client_order_id,
-                    parent_client_order_id=parent_client_order_id,
-                    stealth_follow_up_id=stealth_follow_up_id,
-                    follow_up_units=units_to_create,
-                    follow_up_size=follow_up_size,
-                    follow_up_price=follow_up_price,
-                ),
-            )
-            return units_to_create
+                raise
         except Exception as e:
             self.log_message(
                 "error",
@@ -1011,12 +1108,11 @@ class OrderEngine:
             )
 
         if created_units > 0:
-            # Hand the consumed units back to the tracker so the in-memory
-            # carry stays in sync with what was actually placed. This also
-            # increments ``partial_follow_ups_created`` on the tracker record
-            # so the next persistence cycle writes the new totals.
-            self.order_progress_tracker.consume_carry_units(client_order_id, created_units)
-            # Refresh persisted state to include the consumption + count.
+            # Carry was already decremented atomically by
+            # ``claim_follow_up_units`` inside ``_create_partial_fill_follow_up``
+            # BEFORE the REST place call (2026-04-29 race fix). Just persist
+            # the updated tracker state so the database reflects the new
+            # ``carry_remainder_qty`` and ``partial_follow_ups_created``.
             updated_record = self.order_progress_tracker.get_record(client_order_id)
             if updated_record is not None:
                 self._persist_progress_from_record(
@@ -1515,7 +1611,12 @@ class OrderEngine:
         """
         self.orderbook.complete_follow_up(processed_flag_name, client_order_id)
 
-    def register_child_order(self, child_client_order_id: str, parent_client_order_id: str) -> None:
+    def register_child_order(
+        self,
+        child_client_order_id: str,
+        parent_client_order_id: str,
+        bypass_replacement_cap: bool = False,
+    ) -> None:
         """Register a child order under a parent in the orderbook.
         
         Maintains bidirectional mappings and increments replacement count:
@@ -1526,6 +1627,11 @@ class OrderEngine:
         Args:
             child_client_order_id: The child order to register.
             parent_client_order_id: The parent order to register under.
+            bypass_replacement_cap: When True, link the child to the parent
+                without consuming a replacement slot. Used for partial-fill
+                follow-ups, which complete an existing placement rather
+                than adding a new one and therefore must not be gated by
+                ``max_order_replacement``.
         
         Returns:
             None
@@ -1536,6 +1642,7 @@ class OrderEngine:
         """
         # Flag to track if this is a new registration
         is_new_child = False
+        registered_now = False
         
         with self.orderbook_lock:
             # Ensure parent entry exists
@@ -1554,10 +1661,34 @@ class OrderEngine:
             # Add child to parent's orders list if not already there
             if child_client_order_id not in self.orderbook.parent_order_ids[parent_client_order_id]["orders"]:
                 self.orderbook.parent_order_ids[parent_client_order_id]["orders"].append(child_client_order_id)
-                
-                # ✅ INCREMENT replacement count when adding a new child
-                self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
-                is_new_child = True
+                registered_now = True
+
+                if not bypass_replacement_cap:
+                    # Consume one pre-claimed pending slot if any. Pre-claim
+                    # already counted this slot toward the cap (via
+                    # claim_replacement_slots), so we still bump
+                    # current_order_replacement here but net out the pending
+                    # counter so the gate doesn't double-count. If the caller
+                    # didn't pre-claim, pending stays 0 and the bump alone
+                    # accounts for the new child (legacy un-pre-claimed sites
+                    # remain correct, just unprotected against the race).
+                    pending = int(
+                        self._pending_replacement_claims.get(parent_client_order_id, 0)
+                    )
+                    if pending > 0:
+                        new_pending = pending - 1
+                        if new_pending == 0:
+                            self._pending_replacement_claims.pop(
+                                parent_client_order_id, None
+                            )
+                        else:
+                            self._pending_replacement_claims[
+                                parent_client_order_id
+                            ] = new_pending
+
+                    # ✅ INCREMENT replacement count when adding a new child
+                    self.orderbook.parent_order_ids[parent_client_order_id]["current_order_replacement"] += 1
+                    is_new_child = True
             
             # Map child to parent
             self.orderbook.child_order_ids[child_client_order_id] = parent_client_order_id
@@ -1579,22 +1710,36 @@ class OrderEngine:
                 ),
             )
         else:
-            # ⚠️ REGRESSION DETECTOR: register_child_order() was called for a (child, parent) pair
-            # that was already registered. This is almost always a bug — most likely a duplicate
-            # call site in the event handling path. The DB increment is correctly skipped here,
-            # but surface the duplicate so the offending caller can be fixed.
-            self.log_message(
-                "warning",
-                self.build_event_log_payload(
-                    "child_order_register_duplicate_skipped",
-                    parent_client_order_id=parent_client_order_id,
-                    child_client_order_id=child_client_order_id,
-                    details={
-                        "reason": "child_already_registered_under_parent",
-                        "action": "db_increment_skipped",
-                    },
-                ),
-            )
+            if registered_now:
+                # New child linked but cap was bypassed (partial-fill
+                # follow-up). No DB replacement-count bump expected; this
+                # is the documented bypass path, not a duplicate-call bug.
+                self.log_message(
+                    "order",
+                    self.build_event_log_payload(
+                        "child_order_registered_cap_bypass",
+                        parent_client_order_id=parent_client_order_id,
+                        child_client_order_id=child_client_order_id,
+                        details={"reason": "partial_fill_follow_up"},
+                    ),
+                )
+            else:
+                # ⚠️ REGRESSION DETECTOR: register_child_order() was called for a (child, parent) pair
+                # that was already registered. This is almost always a bug — most likely a duplicate
+                # call site in the event handling path. The DB increment is correctly skipped here,
+                # but surface the duplicate so the offending caller can be fixed.
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "child_order_register_duplicate_skipped",
+                        parent_client_order_id=parent_client_order_id,
+                        child_client_order_id=child_client_order_id,
+                        details={
+                            "reason": "child_already_registered_under_parent",
+                            "action": "db_increment_skipped",
+                        },
+                    ),
+                )
 
     def _update_dashboard_order_status(self, client_order_id: str, order: dict, status: str) -> None:
         """Update dashboard with current order status.
@@ -1644,6 +1789,14 @@ class OrderEngine:
         
         External orders are ones placed directly via Coinbase UI or API,
         not by our automated order engine.
+
+        Resolution order:
+            1. If the cached parent entry carries ``externally_created=True``
+               (set by :meth:`_ensure_order_parent_row_exists`) → external.
+            2. Otherwise, an order we have no record of (neither parent nor
+               child in the in-memory orderbook) is external. This is the
+               legacy path retained for callers that look up COIDs we have
+               not yet hoisted into the cache.
         
         Args:
             client_order_id: The order's client order ID.
@@ -1655,10 +1808,12 @@ class OrderEngine:
             >>> if self._is_external_order('order_123'):
             ...     # Just track it, don't create follow-ups
         """
-        return (
-            not self.is_parent_order(client_order_id)
-            and not self.is_child_order(client_order_id)
-        )
+        with self.orderbook_lock:
+            cached = self.orderbook.parent_order_ids.get(client_order_id)
+            if cached is not None:
+                return bool(cached.get("externally_created", False))
+            in_child_cache = client_order_id in self.orderbook.child_order_ids
+        return not in_child_cache
 
     def _handle_external_order_tracking(
         self,
@@ -2002,6 +2157,22 @@ class OrderEngine:
         }
 
         if ws_only or in_memory_only:
+            # Dedup gate: each WS user-event worker thread receives the
+            # SNAPSHOT frame and would emit identical drift reports
+            # (~6 worker threads → 6× duplicated WARNING blocks). Hash
+            # the drift contents and skip emission when the signature
+            # matches the previously-emitted one for this source. The
+            # first observation of a new drift state always emits.
+            signature = (
+                "drift",
+                tuple(ws_only),
+                tuple(in_memory_only),
+            )
+            with self._snapshot_drift_emit_lock:
+                if self._snapshot_drift_last_signature.get(source) == signature:
+                    return report
+                self._snapshot_drift_last_signature[source] = signature
+
             self.log_message(
                 "warning",
                 self.build_event_log_payload(
@@ -2037,6 +2208,15 @@ class OrderEngine:
                     ),
                 )
         else:
+            # Same dedup approach for the clean case: only emit when
+            # the source transitions out of a drifted state (or on
+            # first ever observation).
+            signature = ("clean",)
+            with self._snapshot_drift_emit_lock:
+                if self._snapshot_drift_last_signature.get(source) == signature:
+                    return report
+                self._snapshot_drift_last_signature[source] = signature
+
             self.log_message(
                 "info",
                 self.build_event_log_payload(
@@ -2140,6 +2320,13 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
+        # Step 3a: Ensure the order_parent row exists before any FK-dependent
+        # write. partial_fill_progress.client_order_id_fkey requires a parent
+        # row, so for genuinely-unknown (external) orders we must create one
+        # NOW — before _process_ws_order_delta runs the watermark upsert.
+        # See genai_tools/TODO_2026_04_28_partial_fill_root_causes.md (#1).
+        self._ensure_order_parent_row_exists(normalized_order)
+
         # Step 3b: Single ingestion point for WS-derived progress.
         # Routes to fill ledger, audit table, watermark persistence and
         # partial-fill follow-up creation in one place — see
@@ -2162,14 +2349,32 @@ class OrderEngine:
 
         # Step 4: Process status transitions
         try:
-            # NOTE: All child orders in this system are stealth orders (stored in stealth_orders table).
-            # Stealth orders are managed by StealthOrderManager, not via order_child table updates.
-            # Therefore, we only update parent orders (stored in order_parent table).
+            # In the flat hierarchy, both root parents and reveal-placement
+            # children live in the order_parent table. The placement row is
+            # the truth-of-record for what happened on the exchange, so its
+            # status MUST be updated regardless of parent/child classification.
+            # When the COID is a child of a chain root (stealth-managed
+            # placement) we also propagate the status to the root, since the
+            # root row is what dashboards / reports read for the logical order.
             if self.is_parent_order(client_order_id):
                 self.db_helper.update_order_parent_status(
                     client_order_id=client_order_id,
                     status=status,
                 )
+            elif self.is_child_order(client_order_id):
+                # Update the placement row itself.
+                self.db_helper.update_order_parent_status(
+                    client_order_id=client_order_id,
+                    status=status,
+                )
+                # Propagate to the chain root so the logical order's status
+                # (read by dashboards) reflects the placement's lifecycle.
+                root_client_order_id = self.get_parent_of_child(client_order_id)
+                if root_client_order_id and root_client_order_id != client_order_id:
+                    self.db_helper.update_order_parent_status(
+                        client_order_id=root_client_order_id,
+                        status=status,
+                    )
         except Exception as e:
             self.log_message(
                 "error",
@@ -2280,7 +2485,7 @@ class OrderEngine:
 
     def _seed_parent_order_cache_from_db(self, client_order_id: str) -> bool:
         """Hydrate in-memory parent metadata for stealth orders already persisted at creation."""
-        if self.is_parent_order(client_order_id):
+        if self.is_parent_order(client_order_id) or self.is_child_order(client_order_id):
             return True
         if not self.db_helper or not hasattr(self.db_helper, "get_parent_order"):
             return False
@@ -2288,6 +2493,33 @@ class OrderEngine:
         parent_order = self.db_helper.get_parent_order(client_order_id)
         if not parent_order:
             return False
+
+        # If the persisted row is itself a child (parent_order_id set), hydrate
+        # the chain root first and register this COID as a child under it.
+        # Otherwise downstream lookups (is_parent_order / status routing)
+        # mis-classify it as a root and update the wrong order_parent row —
+        # source of the 2026-04-29 stealth-status-stuck-at-PENDING bug where
+        # status writes targeted the placement uuid (row 62) instead of the
+        # stealth root (row 61).
+        db_parent_link = parent_order.get("parent_order_id")
+        if db_parent_link:
+            root_client_order_id = str(db_parent_link)
+            # Recursively seed root metadata (flat hierarchy means one hop,
+            # but the recursion is safe and bounded by is_parent_order short-circuit).
+            if root_client_order_id != client_order_id:
+                self._seed_parent_order_cache_from_db(root_client_order_id)
+
+            # Register the in-memory child link WITHOUT touching the DB
+            # replacement counter — the row already reflects its persisted
+            # state and re-incrementing here would double-count on every
+            # restart / reconcile pass.
+            with self.orderbook_lock:
+                root_entry = self.orderbook.parent_order_ids.get(root_client_order_id)
+                if root_entry is not None:
+                    if client_order_id not in root_entry.setdefault("orders", []):
+                        root_entry["orders"].append(client_order_id)
+                self.orderbook.child_order_ids[client_order_id] = root_client_order_id
+            return True
 
         with self.orderbook_lock:
             self.orderbook.parent_order_ids[client_order_id] = {
@@ -2302,6 +2534,58 @@ class OrderEngine:
                 "allow_partial_fills": bool(parent_order.get("allow_partial_fills", False)),
             }
         return True
+
+    def _ensure_order_parent_row_exists(self, normalized_order: dict) -> None:
+        """Idempotently guarantee an ``order_parent`` row exists for this COID.
+
+        Why this exists:
+            ``partial_fill_progress.client_order_id_fkey`` requires that an
+            ``order_parent`` row already be present before any watermark
+            upsert. Prior to 2026-04-28 the WS handler called
+            :meth:`_process_ws_order_delta` (which writes that watermark)
+            *before* the FILLED/CANCELLED routing that would have created
+            the parent row for externally-placed orders. Result: every
+            brand-new external order produced a ``ForeignKeyViolation``
+            and at least one parent insert was lost when the error
+            handler itself crashed (separate exception-signature bug).
+
+        Behaviour:
+            - Already tracked (parent or child in memory) → no-op.
+            - Persisted in DB but not yet cached → hydrate cache, no-op.
+            - Genuinely unknown → insert via
+              :meth:`resolve_parent_client_order_id` and tag the cache
+              entry ``externally_created=True`` so :meth:`_is_external_order`
+              still routes the order to the external-tracking path
+              downstream.
+
+        Args:
+            normalized_order: Normalised WS order dict; must contain
+                ``client_order_id``. May lack a ``status`` (e.g. snapshot)
+                in which case the parent is inserted with whatever status
+                the payload reports, defaulting to ``OPEN``.
+        """
+        client_order_id = normalized_order.get("client_order_id")
+        if not client_order_id:
+            return
+
+        if self.is_parent_order(client_order_id) or self.is_child_order(client_order_id):
+            return  # Already tracked in memory — FK precondition satisfied.
+
+        if self._seed_parent_order_cache_from_db(client_order_id):
+            return  # Persisted in DB but not yet cached — hydrate and done.
+
+        # Genuinely unknown order. Insert the parent row idempotently so
+        # the watermark upsert that follows can satisfy the FK.
+        self.resolve_parent_client_order_id(
+            client_order_id,
+            order=normalized_order,
+            create_parent=True,
+            status=normalized_order.get("status"),
+        )
+        with self.orderbook_lock:
+            cached = self.orderbook.parent_order_ids.get(client_order_id)
+            if cached is not None:
+                cached["externally_created"] = True
 
     def apply_position_update(self, order_template: dict) -> None:
         """Apply position update from order template to orderbook.
@@ -2537,6 +2821,75 @@ class OrderEngine:
             "max_order_replacement": max_order_replacement,
         }
         return current_order_replacement < max_order_replacement, details
+
+    def claim_replacement_slots(
+        self, parent_client_order_id: str, requested: int
+    ) -> int:
+        """Atomically reserve up to ``requested`` follow-up replacement slots.
+
+        Returns the number of slots actually granted (``0`` when the parent's
+        ``max_order_replacement`` cap is already met or when ``requested`` is
+        non-positive). The grant is recorded in ``_pending_replacement_claims``
+        and is released either by ``register_child_order`` (success path —
+        decrements pending and increments ``current_order_replacement`` so the
+        net is one consumed slot) or by ``release_replacement_slots`` (failure
+        path — decrements pending only).
+
+        This method is the **single gate** for replacement-cap enforcement.
+        Callers must NOT do their own ``can_create_follow_up_order`` +
+        compute-remaining-then-create pattern: that pattern lets concurrent
+        threads each observe the same stale snapshot and breach the cap (see
+        2026-04-29 incident — ``max_order_replacement=1`` with four
+        concurrent BUY follow-ups created on the same parent).
+
+        Args:
+            parent_client_order_id: Parent order id (or child id; resolved).
+            requested: Maximum number of slots to claim.
+
+        Returns:
+            Number of slots actually granted in ``[0, requested]``.
+        """
+        if requested <= 0:
+            return 0
+        with self.orderbook_lock:
+            actual_parent_id = parent_client_order_id
+            if self._is_child_order_unlocked(parent_client_order_id):
+                actual_parent_id = self._get_parent_of_child_unlocked(
+                    parent_client_order_id
+                )
+            parent = self.orderbook.parent_order_ids.get(actual_parent_id, {})
+            max_repl = int(parent.get("max_order_replacement", 0))
+            current = int(parent.get("current_order_replacement", 0))
+            pending = int(self._pending_replacement_claims.get(actual_parent_id, 0))
+            available = max(0, max_repl - current - pending)
+            granted = min(requested, available)
+            if granted > 0:
+                self._pending_replacement_claims[actual_parent_id] = pending + granted
+            return granted
+
+    def release_replacement_slots(
+        self, parent_client_order_id: str, n: int
+    ) -> None:
+        """Release ``n`` replacement slots previously claimed via
+        ``claim_replacement_slots`` whose child was never registered (e.g.
+        follow-up creation failed). Safe to call with ``n <= 0``.
+        """
+        if n <= 0:
+            return
+        with self.orderbook_lock:
+            actual_parent_id = parent_client_order_id
+            if self._is_child_order_unlocked(parent_client_order_id):
+                actual_parent_id = self._get_parent_of_child_unlocked(
+                    parent_client_order_id
+                )
+            current_pending = int(
+                self._pending_replacement_claims.get(actual_parent_id, 0)
+            )
+            new_pending = max(0, current_pending - n)
+            if new_pending == 0:
+                self._pending_replacement_claims.pop(actual_parent_id, None)
+            else:
+                self._pending_replacement_claims[actual_parent_id] = new_pending
 
     def handle_cancelled_order(self, order: dict) -> None:
         """Handle a cancelled order by potentially creating a follow-up.
@@ -3124,6 +3477,26 @@ class OrderEngine:
                     # Validate profitability — validator auto-resolves product_type,
                     # contract_size, and position_side from product_id via injected orderbook.
                     if self.profit_validator:
+                        # Derive post_only from the parent stealth order's reveal
+                        # pricing policy via the canonical helper. TOP_OF_BOOK /
+                        # MIDPOINT follow-ups rest as makers; without this the
+                        # check uses taker rate and over-rejects profitable
+                        # follow-ups (the production ROI killer on TOP_OF_BOOK).
+                        try:
+                            will_be_post_only = (
+                                self.stealth_order_bridge.stealth_manager
+                                ._resolve_post_only_from_policy(
+                                    reveal_pricing_policy=original_stealth_order.get(
+                                        "reveal_pricing_policy"
+                                    ),
+                                    reveal_condition=original_stealth_order.get(
+                                        "reveal_condition_json"
+                                    ),
+                                )
+                            )
+                        except Exception:
+                            will_be_post_only = False
+
                         profit_result = self.profit_validator.is_profitable(
                             filled_price=filled_price,
                             follow_up_price=follow_up_price,
@@ -3131,6 +3504,7 @@ class OrderEngine:
                             order_size=order_size,
                             product_id=product_id,
                             triggered_by_fill=True,
+                            post_only=will_be_post_only,
                         )
                         
                         if not profit_result["is_profitable"]:
@@ -3414,6 +3788,108 @@ class OrderEngine:
         
         return True
 
+    def _build_reconcile_diff_diagnostic(
+        self,
+        old_parents: Dict[str, Any],
+        new_parents: Dict[str, Any],
+        old_children: Dict[str, Any],
+        new_children: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Capture a one-shot, throttled diff of reconciler drift.
+
+        Returns ``None`` when the diagnostic is suppressed (recently
+        emitted). Otherwise returns a payload describing the FIRST 3
+        differing parents (full field diff per parent) plus added/
+        removed parent counts and child-mapping deltas. The intent is
+        to identify whether persistent drift is field-shape mismatch
+        (bootstrap vs DB-rehydrated entries) vs real state advancement.
+
+        Throttle: 1 emit per ~1 hour. Drift seen every reconciler tick
+        (~every 30s) would otherwise flood logs.
+        """
+        import time
+
+        now = time.monotonic()
+        if (
+            self._reconcile_diff_last_emit_monotonic is not None
+            and now - self._reconcile_diff_last_emit_monotonic < 3600.0
+        ):
+            return None
+
+        old_keys = set(old_parents.keys())
+        new_keys = set(new_parents.keys())
+        added = sorted(new_keys - old_keys)
+        removed = sorted(old_keys - new_keys)
+        common = old_keys & new_keys
+
+        # Bootstrap detection: an empty in-memory map being populated for
+        # the first time is NOT drift — it's expected hydration. Don't
+        # burn the throttle on it; we want the throttle to fire on the
+        # first REAL drift event (parents_modified > 0 or post-bootstrap
+        # additions/removals).
+        is_bootstrap = (
+            len(old_keys) == 0
+            and len(new_keys) > 0
+            and len(removed) == 0
+        )
+        if is_bootstrap:
+            return None
+
+        differing: List[Dict[str, Any]] = []
+        for coid in sorted(common):
+            old_v = old_parents[coid]
+            new_v = new_parents[coid]
+            if old_v == new_v:
+                continue
+            # Build per-field diff (limit to top-level keys; nested
+            # dicts compared as opaque values for diagnostic clarity).
+            field_diffs: Dict[str, Any] = {}
+            all_fields = set(old_v.keys()) | set(new_v.keys())
+            for f in sorted(all_fields):
+                ov = old_v.get(f, "<MISSING>")
+                nv = new_v.get(f, "<MISSING>")
+                if ov != nv:
+                    field_diffs[f] = {
+                        "in_memory": repr(ov),
+                        "in_memory_type": type(ov).__name__,
+                        "from_db": repr(nv),
+                        "from_db_type": type(nv).__name__,
+                    }
+            differing.append({
+                "client_order_id": coid,
+                "field_diffs": field_diffs,
+            })
+            if len(differing) >= 3:
+                break
+
+        # Child-mapping delta (just counts; usually less interesting
+        # than parent shape mismatch).
+        child_added = len(set(new_children.keys()) - set(old_children.keys()))
+        child_removed = len(set(old_children.keys()) - set(new_children.keys()))
+        child_remapped = sum(
+            1 for k, v in new_children.items()
+            if k in old_children and old_children[k] != v
+        )
+
+        self._reconcile_diff_last_emit_monotonic = now
+
+        return {
+            "summary": {
+                "parents_added": len(added),
+                "parents_removed": len(removed),
+                "parents_modified": sum(
+                    1 for k in common if old_parents[k] != new_parents[k]
+                ),
+                "child_mappings_added": child_added,
+                "child_mappings_removed": child_removed,
+                "child_mappings_remapped": child_remapped,
+            },
+            "added_parent_sample": added[:3],
+            "removed_parent_sample": removed[:3],
+            "differing_parents_sample": differing,
+            "throttle": "1_emit_per_hour",
+        }
+
     def load_parent_child_order_ids(self, force_log: bool = False) -> bool:
         """Load parent/child order mappings from database into orderbook.
         
@@ -3464,19 +3940,56 @@ class OrderEngine:
             # window where the previous code wrote ``parent_order_ids`` and
             # ``child_order_ids`` in two separate statements while another
             # thread could observe the half-replaced state.
+            #
+            # DIAGNOSTIC (2026-04-30): persistent drift was suspected to be
+            # field-shape mismatch between the bootstrap path
+            # (``register_child_order``) and the DB-rehydrated snapshot
+            # (``build_parent_child_order_ids_snapshot``). Capture a
+            # one-shot diff of the first few differing entries so the
+            # cause is verifiable from logs rather than inferred. The
+            # diagnostic suppresses itself for ~1 hour after each emit.
+            diff_payload = self._build_reconcile_diff_diagnostic(
+                self.orderbook.parent_order_ids,
+                new_parent_order_ids,
+                self.orderbook.child_order_ids,
+                new_child_order_ids,
+            )
+
             self.orderbook.atomic_replace_links(
                 new_parent_order_ids,
                 new_child_order_ids,
             )
 
-        self.log_message(
-            "reconcile",
-            self.build_event_log_payload(
-                "parent_child_reconciled",
-                parent_count=loaded_parent_count,
-                child_count=loaded_child_count,
-            ),
+        if diff_payload is not None:
+            self.log_message(
+                "reconcile",
+                self.build_event_log_payload(
+                    "parent_child_reconcile_drift_diagnostic",
+                    **diff_payload,
+                ),
+            )
+
+        # Suppress the per-cycle status line when counts are unchanged
+        # (see ``_last_reconciled_counts`` init for rationale). Always
+        # emit when the operator forced a log, when this is the first
+        # ever emit, or when the drift diagnostic just fired (so the
+        # success line provides context for the diagnostic).
+        current_counts = (loaded_parent_count, loaded_child_count)
+        should_emit_status = (
+            force_log
+            or diff_payload is not None
+            or self._last_reconciled_counts != current_counts
         )
+        if should_emit_status:
+            self._last_reconciled_counts = current_counts
+            self.log_message(
+                "reconcile",
+                self.build_event_log_payload(
+                    "parent_child_reconciled",
+                    parent_count=loaded_parent_count,
+                    child_count=loaded_child_count,
+                ),
+            )
         return True
 
     def reconcile_parent_child_order_ids_periodically(self, interval_seconds: int = 30) -> None:
@@ -3567,12 +4080,45 @@ class OrderEngine:
                                 price = float(tickr.get("price", 0))
                                 product_id = tickr.get("product_id")
                                 if price > 0 and product_id:
-                                    broadcast_ticker(product_id, price)
+                                    # Pass the upstream Coinbase tick
+                                    # ``time`` so dashboard consumers
+                                    # can detect host↔CB clock skew
+                                    # (engine-host vs Coinbase feed).
+                                    broadcast_ticker(
+                                        product_id,
+                                        price,
+                                        cb_time=tickr.get("time"),
+                                    )
                                 # Record bid/ask for spread monitor
                                 best_bid = float(tickr.get("best_bid", 0))
                                 best_ask = float(tickr.get("best_ask", 0))
                                 if best_bid > 0 and best_ask > 0 and product_id:
                                     record_spread_tick(product_id, best_bid, best_ask)
+
+                                # Persist a downsampled copy for slide-calibration
+                                # analytics. Best-effort: throttled to <=1 row/s/product
+                                # by the recorder; any DB error is logged inside
+                                # record() and never raised.
+                                tick_recorder = _get_market_tick_recorder()
+                                if tick_recorder is not None and product_id and price > 0:
+                                    tick_recorder.record(
+                                        product_id=product_id,
+                                        price=price,
+                                        best_bid=best_bid if best_bid > 0 else None,
+                                        best_ask=best_ask if best_ask > 0 else None,
+                                    )
+
+                                # Fold into the in-memory Fibonacci-window
+                                # tracker consumed by the dashboard / console
+                                # UI. Pure in-process; no I/O.
+                                if MARKET_METRICS_AVAILABLE and price > 0 and product_id:
+                                    metrics_tracker = _get_market_metrics_tracker()
+                                    if metrics_tracker is not None:
+                                        metrics_tracker.record(
+                                            product_id=trading_product_id or product_id,
+                                            price=price,
+                                        )
+
                                 # Feed market data to stealth order evaluator
                                 if self.stealth_order_bridge and product_id:
                                     self.stealth_order_bridge.process_ticker_update(product_id, tickr)
@@ -3658,6 +4204,49 @@ class OrderEngine:
         # Update dashboard with initial engine status
         update_engine_status(self._build_engine_status_payload(event_queue_depth=0))
         add_log_entry("INFO", "Trading engine started")
+
+        # Initialise the market-tick recorder + retention sweeper. Idempotent;
+        # safe to call repeatedly. Tickers won't be persisted until this runs,
+        # so it must happen before the channel workers start below.
+        if MARKET_TICK_RECORDER_AVAILABLE:
+            try:
+                _init_market_tick_recorder()
+            except Exception as e:
+                self.log_message(
+                    "warning",
+                    f"market_tick recorder failed to initialise: {e}",
+                )
+
+        # Decision-support warm-up: replay persisted ticks into the
+        # in-memory Fibonacci/standard-window tracker so the longer
+        # windows (1d, 7d) have something to show from the first
+        # broadcast. Runs in a daemon thread so a slow / large
+        # market_tick query never delays engine startup. Safe even
+        # before the first live tick because tracker.record() is
+        # idempotent and order-tolerant.
+        if MARKET_METRICS_AVAILABLE:
+            def _warm_load_metrics() -> None:
+                try:
+                    from business.market_metrics import (
+                        warm_load_from_market_tick,
+                    )
+                    n = warm_load_from_market_tick()
+                    if n:
+                        self.log_message(
+                            "info",
+                            f"market_metrics warm-load: replayed {n} rows",
+                        )
+                except Exception as e:
+                    self.log_message(
+                        "warning",
+                        f"market_metrics warm-load failed: {e}",
+                    )
+
+            threading.Thread(
+                target=_warm_load_metrics,
+                name="market-metrics-warmload",
+                daemon=True,
+            ).start()
 
         threading.Thread(
             name="parent_child_reconcile_thread",

@@ -34,6 +34,7 @@ from database.order import (
     create_stealth_order_snapshots_table,
     create_stealth_order_reveal_history_table,
     create_order_moves_table,
+    create_stealth_order_moves_table,
     create_fill_ledger_table,
     create_conditional_orders_table,
     create_order_event_stream_table,
@@ -41,7 +42,7 @@ from database.order import (
     create_order_match_audit_table,
 )
 from psycopg2 import sql
-
+from genai_tools import backfill_candles
 def main() -> None:
     """Delete all tables from the public schema and recreate them.
     
@@ -135,6 +136,7 @@ def main() -> None:
             create_stealth_order_snapshots_table()
             create_stealth_order_reveal_history_table()
             create_order_moves_table()
+            create_stealth_order_moves_table()
             create_fill_ledger_table()
             create_conditional_orders_table()
             create_order_event_stream_table()
@@ -151,3 +153,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    backfill_candles.main()

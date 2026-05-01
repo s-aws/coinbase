@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slide Calibration — Fills, Reprices, Goals</title>
+
+    <!--
+        Minimal calibration view for sliding-order tuning.
+
+        Backend message:
+            { type: "request_slide_calibration_summary",
+              params: { window_minutes, product_id?, daily_notional_target_usd,
+                        account_balance_usd } }
+
+        Backend response:
+            { type: "slide_calibration_summary", status, products[], totals,
+              targets, window_minutes, generated_at }
+
+        No charts — phase 1 is intentionally a sortable table + goal tiles so
+        the operator can read off concrete settings to change in the Stealth
+        Orders manager. See the recommendation thread for the phase-2 chart
+        design (mid vs anchor with miss-distance band).
+    -->
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 22px;
+            border-bottom: 1px solid #334155;
+            background: #1e293b;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        header h1 { font-size: 18px; font-weight: 600; }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+        .controls label { color: #94a3b8; }
+        .controls input, .controls select {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 12px;
+            width: 110px;
+        }
+        .controls input:focus, .controls select:focus {
+            outline: 1px solid #4dd0e1;
+        }
+        .controls button {
+            padding: 6px 14px;
+            background: linear-gradient(135deg, #4dd0e1, #00acc1);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+        .dot.connected { background: #22c55e; animation: none; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.4; }
+        }
+
+        main { padding: 18px 22px 40px; }
+
+        .tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+        .tile {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+        .tile-label {
+            font-size: 11px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 6px;
+        }
+        .tile-value {
+            font-size: 22px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        .tile-sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        .progress {
+            height: 6px;
+            background: #0f172a;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress > div {
+            height: 100%;
+            background: linear-gradient(90deg, #4dd0e1, #22c55e);
+            transition: width 250ms ease;
+        }
+        .progress > div.over { background: linear-gradient(90deg, #fbbf24, #ef4444); }
+
+        .panel {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+        .panel h2 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #cbd5e1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th, td {
+            padding: 8px 10px;
+            text-align: right;
+            border-bottom: 1px solid #334155;
+            white-space: nowrap;
+        }
+        th:first-child, td:first-child { text-align: left; }
+        thead th {
+            background: #0f172a;
+            color: #94a3b8;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            cursor: pointer;
+            user-select: none;
+            position: sticky;
+            top: 0;
+        }
+        thead th.sorted-asc::after  { content: ' ▲'; color: #4dd0e1; }
+        thead th.sorted-desc::after { content: ' ▼'; color: #4dd0e1; }
+        tbody tr:hover { background: #0f172a; }
+        td.product { font-weight: 600; color: #e2e8f0; }
+        td.pos { color: #22c55e; }
+        td.neg { color: #ef4444; }
+        td.muted { color: #64748b; }
+
+        .empty {
+            padding: 30px 0;
+            text-align: center;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .footnote {
+            margin-top: 16px;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Slide Calibration</h1>
+        <div class="controls">
+            <label>Window (min)</label>
+            <input id="window-input" type="number" min="1" value="1440" />
+
+            <label>Product</label>
+            <input id="product-input" type="text" placeholder="(all)" />
+
+            <label>Notional $/day</label>
+            <input id="notional-target-input" type="number" min="0" value="1000000" />
+
+            <label>Account $</label>
+            <input id="balance-input" type="number" min="0" value="250000" />
+
+            <button id="refresh-btn" type="button">Refresh</button>
+            <span class="badge"><span id="status-dot" class="dot"></span><span id="status-text">connecting…</span></span>
+            <span class="badge" id="generated-at">—</span>
+        </div>
+    </header>
+
+    <main>
+        <section class="tiles" id="tiles">
+            <!-- tiles injected by render() -->
+        </section>
+
+        <section class="panel">
+            <h2>Per-product breakdown</h2>
+            <div style="overflow-x: auto;">
+                <table id="product-table">
+                    <thead>
+                        <tr>
+                            <th data-key="product_id">Product</th>
+                            <th data-key="contract_size">Contract</th>
+                            <th data-key="fills_count">Fills</th>
+                            <th data-key="distinct_orders_filled">Orders Filled</th>
+                            <th data-key="avg_fills_per_order">Fills/Order</th>
+                            <th data-key="total_notional_usd">Notional $</th>
+                            <th data-key="buy_notional_usd">Buy $</th>
+                            <th data-key="sell_notional_usd">Sell $</th>
+                            <th data-key="total_fees">Fees</th>
+                            <th data-key="avg_price">Avg Px</th>
+                            <th data-key="price_stdev_bps">Vol (bps)</th>
+                            <th data-key="active_stealth_orders">Active</th>
+                            <th data-key="revealed_stealth_orders">Revealed</th>
+                            <th data-key="reprices_in_window">Reprices</th>
+                            <th data-key="avg_reprices_per_fill">Reprices/Fill</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-tbody">
+                        <tr><td class="empty" colspan="15">Waiting for data…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="footnote">
+                <strong>Notional $</strong> is scaled by each product's <em>contract size</em>
+                (e.g. ``BIT-29MAY26-CDE`` = 0.01&nbsp;BTC), so values represent true USD,
+                not contract&nbsp;count × price. The Contract column shows the multiplier in use;
+                a muted ``1`` means SPOT or unknown — verify against the live orderbook before trusting it.<br>
+                <strong>Vol (bps)</strong> = stdev of fill prices ÷ avg price ×&nbsp;10&thinsp;000. Rough realised-vol proxy.<br>
+                <strong>Reprices/Fill</strong> &gt;&gt; 1 means the anchor is chasing without converting — widen slide or relax reveal condition.
+            </div>
+        </section>
+    </main>
+
+<script>
+const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname || 'localhost'}:8765`;
+
+let ws = null;
+let lastSummary = null;
+let sortKey = 'total_notional_usd';
+let sortDir = 'desc';
+
+const $ = (id) => document.getElementById(id);
+
+function setStatus(connected, text) {
+    $('status-dot').classList.toggle('connected', connected);
+    $('status-text').textContent = text;
+}
+
+function fmtUsd(v) {
+    if (v === null || v === undefined || Number.isNaN(v)) return '—';
+    const n = Number(v);
+    if (Math.abs(n) >= 1_000_000) return '$' + (n / 1_000_000).toFixed(2) + 'M';
+    if (Math.abs(n) >= 1_000)     return '$' + (n / 1_000).toFixed(2) + 'k';
+    return '$' + n.toFixed(2);
+}
+
+function fmtNum(v, digits = 2) {
+    if (v === null || v === undefined || Number.isNaN(v)) return '—';
+    return Number(v).toFixed(digits);
+}
+
+function fmtInt(v) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toLocaleString();
+}
+
+function connect() {
+    setStatus(false, 'connecting…');
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+        setStatus(true, 'connected');
+        requestSummary();
+    };
+    ws.onclose = () => {
+        setStatus(false, 'disconnected — retrying…');
+        setTimeout(connect, 2000);
+    };
+    ws.onerror = () => setStatus(false, 'error');
+    ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (msg.type !== 'slide_calibration_summary') return;
+        if (msg.status === 'error') {
+            setStatus(true, 'error: ' + (msg.message || 'unknown'));
+            return;
+        }
+        lastSummary = msg;
+        render();
+    };
+}
+
+function requestSummary() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const params = {
+        window_minutes:           Number($('window-input').value) || 1440,
+        product_id:               $('product-input').value.trim() || null,
+        daily_notional_target_usd: Number($('notional-target-input').value) || 0,
+        account_balance_usd:       Number($('balance-input').value) || 0,
+    };
+    ws.send(JSON.stringify({ type: 'request_slide_calibration_summary', params }));
+}
+
+function renderTiles(totals, targets) {
+    const tilesEl = $('tiles');
+    // Compare window notional against the window-prorated slice of the daily
+    // target so a 60-minute window doesn't read as 1/24 of "done". The daily
+    // % is still surfaced in the sub-line as the headline KPI.
+    const windowPct = Number(targets.window_notional_progress_pct) || 0;
+    const dailyPct  = Number(targets.notional_progress_pct) || 0;
+    const overWindow = windowPct > 100;
+    const tiles = [
+        {
+            label: `Notional in last ${targets.window_minutes}m`,
+            value: fmtUsd(totals.total_notional_usd),
+            sub:   `Window goal ${fmtUsd(targets.window_notional_target_usd)} `
+                 + `(${windowPct.toFixed(1)}%) • `
+                 + `Daily ${fmtUsd(targets.daily_notional_target_usd)} `
+                 + `(${dailyPct.toFixed(1)}%)`,
+            pct:   windowPct,
+            over:  overWindow,
+        },
+        {
+            label: 'Capital Turnover',
+            value: targets.capital_turnover.toFixed(2) + '×',
+            sub:   `On account $${fmtInt(targets.account_balance_usd)}`,
+        },
+        {
+            label: 'Fills',
+            value: fmtInt(totals.fills_count),
+            sub:   `Active stealth: ${fmtInt(totals.active_stealth_orders)}`,
+        },
+        {
+            label: 'Reprices in window',
+            value: fmtInt(totals.reprices_in_window),
+            sub:   `Fees: ${fmtUsd(totals.total_fees)}`,
+        },
+    ];
+    tilesEl.innerHTML = tiles.map(t => `
+        <div class="tile">
+            <div class="tile-label">${t.label}</div>
+            <div class="tile-value">${t.value}</div>
+            <div class="tile-sub">${t.sub || ''}</div>
+            ${t.pct !== undefined ? `
+              <div class="progress"><div class="${t.over ? 'over' : ''}" style="width:${Math.min(Math.max(t.pct, 0), 100)}%"></div></div>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+function renderTable(products) {
+    const tbody = $('product-tbody');
+    if (!products || !products.length) {
+        tbody.innerHTML = '<tr><td class="empty" colspan="15">No fills or stealth orders in this window.</td></tr>';
+    } else {
+        const sorted = [...products].sort((a, b) => {
+            const av = a[sortKey], bv = b[sortKey];
+            if (av === bv) return 0;
+            if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+            return sortDir === 'asc' ? (av - bv) : (bv - av);
+        });
+        tbody.innerHTML = sorted.map(p => `
+            <tr>
+                <td class="product">${p.product_id}</td>
+                <td class="${(p.contract_size && p.contract_size !== 1) ? '' : 'muted'}">${fmtNum(p.contract_size, p.contract_size < 1 ? 4 : 2)}</td>
+                <td>${fmtInt(p.fills_count)}</td>
+                <td>${fmtInt(p.distinct_orders_filled)}</td>
+                <td>${fmtNum(p.avg_fills_per_order, 2)}</td>
+                <td>${fmtUsd(p.total_notional_usd)}</td>
+                <td>${fmtUsd(p.buy_notional_usd)}</td>
+                <td>${fmtUsd(p.sell_notional_usd)}</td>
+                <td>${fmtUsd(p.total_fees)}</td>
+                <td>${fmtNum(p.avg_price, 2)}</td>
+                <td>${fmtNum(p.price_stdev_bps, 1)}</td>
+                <td>${fmtInt(p.active_stealth_orders)}</td>
+                <td>${fmtInt(p.revealed_stealth_orders)}</td>
+                <td>${fmtInt(p.reprices_in_window)}</td>
+                <td>${fmtNum(p.avg_reprices_per_fill, 2)}</td>
+            </tr>
+        `).join('');
+    }
+    document.querySelectorAll('thead th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.key === sortKey) {
+            th.classList.add(sortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        }
+    });
+}
+
+function render() {
+    if (!lastSummary) return;
+    renderTiles(lastSummary.totals, lastSummary.targets);
+    renderTable(lastSummary.products);
+    $('generated-at').textContent = 'as of ' + (lastSummary.generated_at || '—');
+}
+
+document.querySelectorAll('thead th').forEach(th => {
+    th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (sortKey === key) {
+            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortKey = key;
+            sortDir = 'desc';
+        }
+        render();
+    });
+});
+
+$('refresh-btn').addEventListener('click', requestSummary);
+['window-input', 'product-input', 'notional-target-input',
+ 'balance-input'].forEach(id => {
+    $(id).addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') requestSummary();
+    });
+});
+
+connect();
+</script>
+</body>
+</html>

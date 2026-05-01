@@ -200,35 +200,37 @@ class CoinbaseRestClient:
         client_order_id: str = None,
         post_only: bool = False,
         time_in_force: str = TimeInForce.GOOD_UNTIL_CANCELLED.value
-    ) -> Order:
+    ) -> Dict[str, Any]:
         """Place a limit order.
-        
-        Args:
-            product_id: Trading pair (e.g., 'BTC-USDC')
-            side: 'BUY' or 'SELL'
-            limit_price: Limit price as string (e.g., '40000.00')
-            base_size: Size in base currency (mutually exclusive with quote_size)
-            quote_size: Size in quote currency (mutually exclusive with base_size)
-            client_order_id: Custom order ID for idempotency
-            post_only: If True, order rejected if it would immediately fill
-            time_in_force: 'GOOD_TILL_CANCELLED', 'IMMEDIATE_OR_CANCEL', etc.
-        
-        Returns:
-            Order instance with order confirmation data
-        
-        Raises:
-            ValueError: If invalid parameters
-            Exception: If API call fails (e.g., INSUFFICIENT_FUNDS)
-        
-        Examples:
-            >>> order = client.place_limit_order(
-            ...     product_id='BTC-USDC',
-            ...     side='BUY',
-            ...     limit_price='40000.00',
-            ...     base_size='0.1',
-            ...     client_order_id='my_order_123'
-            ... )
-            >>> print(f"Order {order.order_id} placed")
+
+        Returns the SDK response shape (Coinbase Advanced Trade
+        ``CreateOrderResponse``):
+
+        .. code-block:: python
+
+            {
+                "success": True,
+                "success_response": {
+                    "order_id": "...",        # exchange-assigned id
+                    "client_order_id": "...", # the id we sent
+                    "product_id": "...",
+                    "side": "BUY" | "SELL",
+                },
+                "order_configuration": {...},
+                "failure_reason": "...",        # only on success=False
+                "error_response": {...},        # only on success=False
+            }
+
+        NOTE: Earlier versions of this method tried to coerce the
+        response into an :class:`Order` via ``Order.from_dict``, but
+        ``Order.from_dict`` expects ``side``/``order_side`` at the top
+        level whereas the SDK nests them under ``success_response``.
+        That coercion raised on every successful place call (silently
+        swallowed by the broad ``except`` in
+        ``StealthOrderManager.reveal_order_slice``), causing the
+        stealth manager to lose the link between the placement and the
+        stealth order it belongs to. The fix is to return the raw dict
+        \u2014 every existing caller already treats it as such.
         """
         # Use limit_order_gtc() which works with the current SDK
         # (time_in_force param is ignored as SDK uses GTC for this method)
@@ -241,9 +243,9 @@ class CoinbaseRestClient:
             client_order_id=client_order_id,
             post_only=post_only
         )
-        
-        return Order.from_dict(response.to_dict() if hasattr(response, 'to_dict') else response)
-    
+
+        return response.to_dict() if hasattr(response, 'to_dict') else response
+
     def cancel_order(self, client_order_id: str) -> bool:
         """Cancel a single order by client order ID.
         
@@ -427,21 +429,75 @@ class CoinbaseRestClient:
             Exception: Propagated from the SDK on transport / auth failure.
         """
         # Filter out None values so we don't override SDK defaults.
+        # NOTE: parameter names below MUST match the SDK signature
+        # ``RESTClient.get_fills(order_ids, product_ids,
+        # start_sequence_timestamp, end_sequence_timestamp, ...)``.
+        # The SDK accepts ``**kwargs`` and silently DROPS unknown
+        # parameter names — passing the user-facing names ``product_id``,
+        # ``start_date``, ``end_date`` here makes the filter a no-op and
+        # the call returns ALL historical fills. (2026-04-30 incident:
+        # the 24h fee report and the startup missed-fills audit were
+        # both reading unfiltered all-time data.)
         kwargs: Dict[str, Any] = {"limit": limit}
         if order_id is not None:
-            kwargs["order_id"] = order_id
+            kwargs["order_ids"] = [order_id]
         if product_id is not None:
-            kwargs["product_id"] = product_id
+            kwargs["product_ids"] = [product_id]
         if start_date is not None:
-            kwargs["start_date"] = start_date
+            kwargs["start_sequence_timestamp"] = start_date
         if end_date is not None:
-            kwargs["end_date"] = end_date
+            kwargs["end_sequence_timestamp"] = end_date
         if cursor is not None:
             kwargs["cursor"] = cursor
 
         response = self._client.get_fills(**kwargs)
         return response.to_dict() if hasattr(response, "to_dict") else response
-    
+
+    def get_candles(
+        self,
+        product_id: str,
+        start: int,
+        end: int,
+        granularity: str = "ONE_MINUTE",
+    ) -> List[Dict[str, Any]]:
+        """Fetch historical OHLC candles for a product.
+
+        Wraps Coinbase's ``GET /api/v3/brokerage/products/{product_id}/candles``.
+        Used by the slide-calibration backfill tool to populate
+        ``market_candle_1m`` so the calibration chart has historical
+        market context before the live tick recorder accumulates a day.
+
+        Coinbase caps each call at **350 candles**, so callers wanting a
+        full day of 1-minute data (1440 candles) must page in <=350-candle
+        windows. The backfill tool in ``genai_tools/backfill_candles.py``
+        does this paging.
+
+        Args:
+            product_id: e.g. ``"BTC-USDC"`` or ``"BIT-29MAY26-CDE"``.
+            start: Window start as a Unix epoch (seconds).
+            end: Window end as a Unix epoch (seconds).
+            granularity: One of Coinbase's documented granularity strings;
+                ``"ONE_MINUTE"`` (default), ``"FIVE_MINUTE"``, ``"FIFTEEN_MINUTE"``,
+                ``"THIRTY_MINUTE"``, ``"ONE_HOUR"``, ``"TWO_HOUR"``,
+                ``"SIX_HOUR"``, ``"ONE_DAY"``.
+
+        Returns:
+            List of candle dicts ordered newest-first, each with keys
+            ``start, low, high, open, close, volume`` (all as strings per
+            Coinbase's response shape).
+
+        Raises:
+            Exception: Propagated from the SDK on transport / auth failure.
+        """
+        response = self._client.get_candles(
+            product_id=product_id,
+            start=str(int(start)),
+            end=str(int(end)),
+            granularity=granularity,
+        )
+        data = response.to_dict() if hasattr(response, "to_dict") else response
+        return list(data.get("candles", []) or [])
+
     def list_futures_positions(self):
         """List all futures positions (raw SDK response).
         

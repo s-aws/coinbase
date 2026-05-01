@@ -173,24 +173,39 @@ if __name__ == "__main__":
     #
     # Set fail_on_drift=True in stricter environments to block startup
     # when ANY drift is detected.
-    try:
-        run_startup_reconciliation(
-            fail_on_drift=False,
-            auto_heal=True,
-            audit_fills=True,
+    #
+    # Operator escape hatch: set ``DISABLE_RECONCILER=1`` in the env to
+    # skip BOTH the startup pass and the periodic background audits.
+    # Useful when REST is flaky (e.g. backup-ISP day) and reconciler
+    # noise is hiding the real problem. WS-driven state still works;
+    # you just lose the periodic drift sweep until you flip it back.
+    import os
+    _reconciler_disabled = os.getenv("DISABLE_RECONCILER", "").strip().lower() in ("1", "true", "yes", "on")
+    if _reconciler_disabled:
+        logger.warning(
+            "DISABLE_RECONCILER is set; skipping startup reconciliation "
+            "AND periodic audits. Drift detection is OFF until unset."
         )
-    except Exception:
-        logger.exception("Startup reconciliation raised; continuing")
+    else:
+        try:
+            run_startup_reconciliation(
+                fail_on_drift=False,
+                auto_heal=True,
+                audit_fills=True,
+            )
+        except Exception:
+            logger.exception("Startup reconciliation raised; continuing")
 
     # Periodic deep-audit against exchange truth. Mirrors the startup
     # configuration so drift that develops at runtime is healed on the
     # same cadence (every 15 minutes by default). Registered as a stop
     # hook so a graceful drain joins the audit thread cleanly.
-    periodic_reconciler = PeriodicReconciler(
-        auto_heal=True,
-        audit_fills=True,
-    )
-    controller.register_stop_hook("periodic_reconciler", periodic_reconciler.stop)
-    periodic_reconciler.start()
+    if not _reconciler_disabled:
+        periodic_reconciler = PeriodicReconciler(
+            auto_heal=True,
+            audit_fills=True,
+        )
+        controller.register_stop_hook("periodic_reconciler", periodic_reconciler.stop)
+        periodic_reconciler.start()
 
     orchestrator.run_forever()

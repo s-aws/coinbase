@@ -90,25 +90,28 @@ def quantize_to_increment(
         >>> quantize_to_increment(100.126, "0.01", direction="up")
         100.13
     """
-    increment_float = float(increment)
-    if increment_float <= 0:
+    # Use Decimal throughout: float modulo drifts on values like
+    # 0.123 % 0.001 (returns ~0.000999... instead of 0), which would
+    # silently shave a full tick off down-rounded sizes/prices. BTC
+    # base_increment can be 1e-8; float math is not safe at that scale.
+    from decimal import Decimal, ROUND_DOWN, ROUND_UP, ROUND_HALF_UP, InvalidOperation
+
+    try:
+        inc = Decimal(str(increment))
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"increment must be numeric: {increment!r}") from exc
+    if inc <= 0:
         raise ValueError("increment must be greater than 0")
-    
+
     if direction not in {RoundingDirection.UP.value, RoundingDirection.DOWN.value, RoundingDirection.NEAREST.value}:
         raise ValueError(f"Unsupported direction: {direction}")
-    
-    remainder = value % increment_float
-    
-    if remainder == 0:
-        return value
-    
+
+    val = Decimal(str(value))
+    quotient = val / inc
     if direction == RoundingDirection.DOWN.value:
-        return value - remainder
-    
-    if direction == RoundingDirection.UP.value:
-        return value + (increment_float - remainder)
-    
-    # nearest
-    down_value = value - remainder
-    up_value = value + (increment_float - remainder)
-    return down_value if remainder < (increment_float / 2) else up_value
+        ticks = quotient.to_integral_value(rounding=ROUND_DOWN)
+    elif direction == RoundingDirection.UP.value:
+        ticks = quotient.to_integral_value(rounding=ROUND_UP)
+    else:
+        ticks = quotient.to_integral_value(rounding=ROUND_HALF_UP)
+    return float(ticks * inc)

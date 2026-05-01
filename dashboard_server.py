@@ -11,7 +11,7 @@ Usage:
 import asyncio
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
@@ -28,7 +28,8 @@ except ImportError:
 
 # Use custom logging service
 from logging_service import get_logger
-from core.enums import EngineState, FollowUpRevealDirection
+from core.enums import EngineState, FollowUpRevealDirection, RepricingReferenceSource, StealthOrderStatus
+from core.models import RepricingPolicy
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
@@ -48,21 +49,28 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "create_stealth_order",
     "create_parent_order",
     "reprice_now_stealth_order",
+    "move_revealed_stealth_order",
     "move_order",
     "premark_move",
     "import_stealth_orders",
 })
 
-# Stealth-order statuses considered "active" for export. Anything not in this
-# set (EXECUTED, CANCELLED) represents a finished order whose lifecycle is
-# already over, so re-creating it would just produce dead history rows.
-_ACTIVE_STEALTH_STATUSES = frozenset({
-    "HIDDEN",
-    "PENDING",
-    "TRIGGERED",
-    "EXECUTING",
-    "PARTIAL",
+# Stealth-order statuses considered "active" for export. Derived from the
+# canonical StealthOrderStatus enum by excluding terminal states (EXECUTED,
+# CANCELLED) — anything else represents a live order whose configuration we
+# want to be able to back up and replay. REVEALED is included: the root is
+# placed on the exchange but not yet filled, so re-importing after a wipe
+# must recreate it. Hard-coding string literals here previously caused two
+# regressions: invented values ("EXECUTING", "PARTIAL") that don't exist in
+# the enum, and the omission of "REVEALED" — which silently dropped any
+# revealed root from the export.
+_TERMINAL_STEALTH_STATUSES = frozenset({
+    StealthOrderStatus.EXECUTED.value,
+    StealthOrderStatus.CANCELLED.value,
 })
+_ACTIVE_STEALTH_STATUSES = frozenset(
+    s.value for s in StealthOrderStatus if s.value not in _TERMINAL_STEALTH_STATUSES
+)
 
 # Fields on the in-memory stealth order that map back to create_stealth_order
 # kwargs (keys exactly match what the existing "create_stealth_order" message
@@ -109,6 +117,7 @@ engine_state = {
         "last_update": None,
     },
     "logs": [],  # Recent log entries
+    "market_metrics": {},  # product_id -> {price, as_of, windows: [{minutes, avg, delta_pct}]}
 }
 max_logs = 100
 
@@ -129,6 +138,40 @@ server_event_loop = None
 
 # Stealth order bridge reference (set during integration)
 stealth_order_bridge = None
+
+
+# In-memory Fibonacci-window market metrics tracker. Optional dependency
+# so the dashboard still imports cleanly in DB-less smoke tests where the
+# business package may be partially mocked.
+try:
+    from business.market_metrics import (
+        get_market_metrics_tracker as _get_market_metrics_tracker,
+    )
+    _MARKET_METRICS_AVAILABLE = True
+except ImportError:
+    _MARKET_METRICS_AVAILABLE = False
+    def _get_market_metrics_tracker():
+        return None
+
+
+def _build_market_metrics_payload() -> Dict[str, Any]:
+    """Snapshot the in-memory Fibonacci-window tracker for broadcast.
+
+    Returns ``{}`` if the tracker is unavailable or empty so consumers
+    can treat the field as always-present-but-possibly-empty (the same
+    contract as ``stealth_orders``).
+    """
+    if not _MARKET_METRICS_AVAILABLE:
+        return {}
+    try:
+        tracker = _get_market_metrics_tracker()
+        if tracker is None:
+            return {}
+        return tracker.snapshot()
+    except Exception as e:
+        # Never let metrics fail a broadcast — log and degrade.
+        logger.debug(f"Failed to build market metrics payload: {e}")
+        return {}
 
 
 async def register_client(websocket: WebSocketServerProtocol):
@@ -167,6 +210,11 @@ async def unregister_client(websocket: WebSocketServerProtocol):
 async def _async_broadcast_state():
     """Async version of broadcast_state for scheduling from event loop."""
     with state_lock:
+        # Fold in the live Fibonacci-window market metrics so dashboard /
+        # console clients can render multi-timeframe trend without a
+        # separate channel. Snapshot is built outside the lock-protected
+        # mutate path because the tracker has its own lock.
+        engine_state["market_metrics"] = _build_market_metrics_payload()
         payload = {
             "type": "state_update",
             "data": engine_state,
@@ -195,6 +243,7 @@ def _trigger_broadcast():
 async def broadcast_state(websocket: WebSocketServerProtocol = None):
     """Broadcast current engine state to all connected clients."""
     with state_lock:
+        engine_state["market_metrics"] = _build_market_metrics_payload()
         payload = {
             "type": "state_update",
             "data": engine_state,
@@ -576,15 +625,48 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 # Generate unique client order ID
                 client_order_id = str(uuid.uuid4())
 
+                # Boundary validation: tick-align size and reject sizes
+                # below the exchange's base_min_size / quote_min_size
+                # before we burn a REST call. Mirrors the boundary hook
+                # in core/stealth_order_manager.create_stealth_order so
+                # both order-creation paths get the same guard. See
+                # calculation/size_validation.py for the contract.
+                from calculation.size_validation import validate_and_quantize_size
+
+                product_id = order_params.get("product_id")
+                order_configuration = order_params.get("order_configuration") or {}
+                # order_configuration shape (per Coinbase Advanced Trade):
+                #   {"limit_limit_gtc": {"base_size": "...", "limit_price": "...", ...}}
+                #   {"market_market_ioc": {"base_size": "..."}} (or quote_size)
+                # Pick whichever inner config is present.
+                inner_key = next(iter(order_configuration), None)
+                inner = order_configuration.get(inner_key, {}) if inner_key else {}
+                raw_size = inner.get("base_size")
+                raw_price = inner.get("limit_price")  # None for market orders
+                if raw_size is not None:
+                    size_check = validate_and_quantize_size(
+                        raw_size,
+                        product_id=product_id,
+                        price=float(raw_price) if raw_price is not None else None,
+                    )
+                    if not size_check:
+                        raise OrderCreationError(
+                            f"Order rejected at boundary: {size_check.reason}",
+                            client_order_id=client_order_id,
+                        )
+                    # Write quantized value back so the REST call sends
+                    # exactly what the validator approved.
+                    inner["base_size"] = str(size_check.size)
+
                 # Call REST API to create order. Tracked as in-flight so a
                 # concurrent drain waits for the placement to settle before
                 # transitioning to STOPPED.
                 with controller.track_inflight(INFLIGHT_REST_PLACE):
                     result = REST_CLIENT.create_order(
                         client_order_id=client_order_id,
-                        product_id=order_params.get("product_id"),
+                        product_id=product_id,
                         side=order_params.get("side"),
-                        order_configuration=order_params.get("order_configuration"),
+                        order_configuration=order_configuration,
                     )
                 
                 # Convert response object to dict if needed
@@ -690,7 +772,120 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         elif msg_type == "request_stealth_orders":
             # Send current stealth orders snapshot
             await send_stealth_orders_snapshot(websocket)
-        
+
+        elif msg_type == "request_slide_calibration_summary":
+            # Per-product fill / reprice / P&L snapshot used by the
+            # Slide Calibration UI to tune sliding-order config against
+            # daily volume + profit goals. Read-only; pure SQL over
+            # existing tables (fill_ledger, order_parent, stealth_orders).
+            try:
+                from database.slide_calibration_helpers import (
+                    get_slide_calibration_summary,
+                )
+
+                params = data.get("params") or {}
+                window_minutes = int(params.get("window_minutes", 1440))
+                product_id = params.get("product_id") or None
+                daily_notional_target = float(
+                    params.get("daily_notional_target_usd", 1_000_000.0)
+                )
+                account_balance = float(
+                    params.get("account_balance_usd", 250_000.0)
+                )
+
+                # Pull contract sizes from the live OrderBook held by the
+                # engine (via the stealth bridge). For FUTURE products
+                # ``fill_ledger.quantity`` is contract count, not underlying
+                # units, so notional must be scaled by ``contract_size``
+                # (e.g. 0.01 BTC for ``BIT-29MAY26-CDE``). Authoritative
+                # path matches calculation/profit_validator.py:151-166.
+                # If no engine is wired (e.g. dashboard-only deployment),
+                # fall back to no scaling — the summary will still be
+                # internally consistent, just over-stated for futures.
+                contract_size_by_product: dict = {}
+                try:
+                    if (stealth_order_bridge
+                            and getattr(stealth_order_bridge, "order_engine", None)
+                            and getattr(stealth_order_bridge.order_engine, "orderbook", None)):
+                        products = stealth_order_bridge.order_engine.orderbook.product or {}
+                        for pid, pdata in products.items():
+                            if not isinstance(pdata, dict):
+                                continue
+                            fpd = pdata.get("future_product_details") or {}
+                            cs = fpd.get("contract_size")
+                            if cs is None:
+                                continue
+                            try:
+                                cs_f = float(cs)
+                            except (TypeError, ValueError):
+                                continue
+                            if cs_f > 0:
+                                contract_size_by_product[pid] = cs_f
+                except Exception as e:
+                    logger.warning(
+                        f"slide-calibration: contract-size lookup failed: {e}"
+                    )
+
+                summary = get_slide_calibration_summary(
+                    window_minutes=window_minutes,
+                    product_id=product_id,
+                    daily_notional_target_usd=daily_notional_target,
+                    account_balance_usd=account_balance,
+                    contract_size_by_product=contract_size_by_product,
+                )
+                response = {
+                    "type": "slide_calibration_summary",
+                    "status": "success",
+                    **summary,
+                    "generated_at": datetime.utcnow().isoformat(),
+                }
+            except Exception as e:
+                logger.exception("Failed to build slide-calibration summary")
+                response = {
+                    "type": "slide_calibration_summary",
+                    "status": "error",
+                    "message": f"Failed to build summary: {e}",
+                }
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
+        elif msg_type == "request_market_chart_history":
+            # Time series for the slide-calibration phase-2 chart: ticks
+            # from market_tick + 1m candle fallback + anchor-reprice
+            # events. Per-product, read-only.
+            try:
+                from database.market_chart_helpers import get_market_chart_history
+
+                params = data.get("params") or {}
+                product_id = params.get("product_id")
+                window_minutes = int(params.get("window_minutes", 360))
+                max_tick_points = int(params.get("max_tick_points", 5000))
+
+                payload = get_market_chart_history(
+                    product_id=product_id,
+                    window_minutes=window_minutes,
+                    max_tick_points=max_tick_points,
+                )
+                response = {
+                    "type": "market_chart_history",
+                    "status": "success",
+                    **payload,
+                    "generated_at": datetime.utcnow().isoformat(),
+                }
+            except ValueError as e:
+                response = {
+                    "type": "market_chart_history",
+                    "status": "error",
+                    "message": str(e),
+                }
+            except Exception as e:
+                logger.exception("Failed to build market chart history")
+                response = {
+                    "type": "market_chart_history",
+                    "status": "error",
+                    "message": f"Failed to build chart history: {e}",
+                }
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
         elif msg_type == "request_storyboard_products":
             # Return distinct product IDs available in fill_ledger
             try:
@@ -740,6 +935,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
 
             try:
+                from database.order import get_parent_order
+
                 manager = stealth_order_bridge.stealth_manager
                 exported: list[dict] = []
                 # Snapshot the dict before iterating so concurrent mutations
@@ -756,6 +953,43 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         continue
 
                     serialized = manager._serialize_order_for_json(order)
+
+                    # Overlay canonical persisted fields from order_parent.
+                    # Several create_stealth_order kwargs (target_movement,
+                    # target_movement_type, max_order_replacements,
+                    # allow_partial_fills) live ONLY in the order_parent row
+                    # for root orders — they're not on the in-memory stealth
+                    # dict. Without this merge the export is missing the
+                    # config the user originally typed in.
+                    try:
+                        parent_row = get_parent_order(stealth_order_id) or {}
+                    except Exception as e:
+                        logger.warning(
+                            f"export: get_parent_order failed for "
+                            f"{stealth_order_id}: {e}"
+                        )
+                        parent_row = {}
+
+                    tm = parent_row.get("target_movement")
+                    if tm is not None and "target_movement" not in serialized:
+                        serialized["target_movement"] = safe_float(tm, default=0.0)
+                    if (
+                        parent_row.get("target_movement_type")
+                        and "target_movement_type" not in serialized
+                    ):
+                        serialized["target_movement_type"] = parent_row["target_movement_type"]
+                    # NOTE: order_parent column is `max_order_replacement`
+                    # (singular); the create_stealth_order kwarg is
+                    # `max_order_replacements` (plural). Map across.
+                    if parent_row.get("max_order_replacement") is not None:
+                        serialized["max_order_replacements"] = int(
+                            parent_row["max_order_replacement"]
+                        )
+                    if parent_row.get("allow_partial_fills") is not None:
+                        serialized["allow_partial_fills"] = bool(
+                            parent_row["allow_partial_fills"]
+                        )
+
                     payload: dict = {
                         "stealth_order_id": stealth_order_id,
                     }
@@ -1015,11 +1249,15 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
             
             try:
-                from database.order import update_stealth_order_target_movement, get_stealth_order_by_id
-                
-                # Update in database (order_parent table is source of truth for target_movement)
-                success = update_stealth_order_target_movement(
-                    stealth_order_id=stealth_order_id,
+                from database.order import update_parent_order_target_movement, get_stealth_order_by_id
+
+                # CANONICAL: target_movement lives on the ``order_parent`` row.
+                # The engine's ``_resolve_target_movement_for_plan`` reads from
+                # there. Writing to ``stealth_orders`` (the previous behaviour)
+                # was silently ignored by every reveal/profit-validation path
+                # so UI edits had no runtime effect. See 2026-04-30 audit.
+                success = update_parent_order_target_movement(
+                    parent_order_id=stealth_order_id,
                     target_movement=target_movement,
                     target_movement_type=target_movement_type
                 )
@@ -1101,8 +1339,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     }))
                     return
 
-                policy = mgr._normalize_anchor_repricing_policy(order.get("anchor_repricing_policy_json"))
-                if not policy.get("enabled"):
+                policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
+                if not policy.enabled:
                     await websocket.send(json.dumps({
                         "type": "reprice_now_result",
                         "stealth_order_id": stealth_order_id,
@@ -1145,6 +1383,148 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "stealth_order_id": stealth_order_id,
                     "processed": 0,
                     "error": str(e)
+                }))
+
+        elif msg_type == "move_revealed_stealth_order":
+            # Move a REVEALED stealth order to a new limit price by
+            # cancelling the existing exchange placement and re-placing
+            # at the new price. Mutually exclusive with anchor repricing
+            # for the same sid (enforced by StealthMutationKind claim).
+            #
+            # Inbound shape:
+            #   {
+            #     "type": "move_revealed_stealth_order",
+            #     "stealth_order_id": "sid_xyz",
+            #     "new_limit_price": 101.5,
+            #     "reason":  "manual_user_move" | "operator_reprice",  # optional
+            #     "notes":   "...",                                    # optional
+            #     "new_target_movement": 0.2,                          # optional
+            #     "new_target_movement_type": "P" | "$"                # optional
+            #   }
+            stealth_order_id = data.get("stealth_order_id")
+            new_limit_price = data.get("new_limit_price")
+            reason_raw = data.get("reason")
+            notes = data.get("notes")
+            new_target_movement = data.get("new_target_movement")
+            new_target_movement_type = data.get("new_target_movement_type")
+
+            if not stealth_order_id or new_limit_price is None or not stealth_order_bridge:
+                await websocket.send(json.dumps({
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": False,
+                    "error": "Missing stealth_order_id / new_limit_price or system not initialised",
+                    "stage": "validate",
+                }))
+                return
+
+            try:
+                from core.enums import StealthMoveReason
+                from core.exceptions import StealthMoveError
+
+                # Resolve reason enum at the boundary (P2 rule #5: enums, not magic strings).
+                reason_enum = None
+                if reason_raw:
+                    try:
+                        reason_enum = StealthMoveReason(reason_raw)
+                    except ValueError:
+                        await websocket.send(json.dumps({
+                            "type": "stealth_order_moved",
+                            "stealth_order_id": stealth_order_id,
+                            "success": False,
+                            "error": (
+                                f"unknown reason {reason_raw!r}; "
+                                f"expected one of: "
+                                f"{[r.value for r in StealthMoveReason]}"
+                            ),
+                            "stage": "validate",
+                        }))
+                        return
+
+                mgr = stealth_order_bridge.stealth_manager
+                plan = mgr.build_stealth_move_plan(
+                    stealth_order_id,
+                    safe_float(new_limit_price, default=0.0),
+                    new_target_movement=(
+                        safe_float(new_target_movement, default=None)
+                        if new_target_movement is not None else None
+                    ),
+                    new_target_movement_type=new_target_movement_type,
+                    reason=reason_enum,
+                    notes=notes,
+                )
+                # execute_stealth_move returns a StealthMoveResult with
+                # both the internal client_order_id (used for tracking,
+                # per AGENTS.md) and the exchange order_id (shown to the
+                # operator so they can cross-reference on Coinbase).
+                result = mgr.execute_stealth_move(plan)
+
+                add_log_entry(
+                    "INFO",
+                    f"Stealth order moved: {stealth_order_id} "
+                    f"@ {plan.new_configured_limit_price} "
+                    f"(new placement_client_order_id: "
+                    f"{result.new_placement_client_order_id}, "
+                    f"new exchange_order_id: {result.new_exchange_order_id})",
+                )
+                logger.info(
+                    f"[STEALTH-MOVE] {stealth_order_id} "
+                    f"old_ex={plan.old_exchange_order_id} "
+                    f"new_placement_client_order_id={result.new_placement_client_order_id} "
+                    f"new_exchange_order_id={result.new_exchange_order_id} "
+                    f"price={plan.new_configured_limit_price}"
+                )
+
+                response = {
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": True,
+                    "old_exchange_order_id": plan.old_exchange_order_id,
+                    "new_placement_client_order_id": result.new_placement_client_order_id,
+                    "new_exchange_order_id": result.new_exchange_order_id,
+                    "new_submitted_price": result.new_submitted_price,
+                }
+                # Broadcast so any other connected dashboards refresh too.
+                message = json.dumps(response)
+                for client in connected_clients.copy():
+                    try:
+                        await client.send(message)
+                    except websockets.exceptions.ConnectionClosed:
+                        connected_clients.discard(client)
+
+            except StealthMoveError as e:
+                # Stage tells the UI which phase failed: validate / claim /
+                # cancel / place / persist. "place" after a successful
+                # cancel is the operator-action-required case (the stealth
+                # order is now CANCELLED and there is no replacement on
+                # the exchange — see audit table stealth_order_moves).
+                logger.warning(
+                    f"move_revealed_stealth_order rejected: "
+                    f"sid={stealth_order_id} stage={e.stage} err={e}"
+                )
+                add_log_entry(
+                    "WARN" if e.stage in ("validate", "claim") else "ERROR",
+                    f"Stealth move {stealth_order_id} failed at {e.stage}: {e}",
+                )
+                await websocket.send(json.dumps({
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": False,
+                    "error": str(e),
+                    "stage": e.stage,
+                }))
+            except Exception as e:
+                logger.exception(f"move_revealed_stealth_order crashed: {e}")
+                add_log_entry(
+                    "ERROR",
+                    f"Stealth move {stealth_order_id} crashed: {e}",
+                )
+                await websocket.send(json.dumps({
+                    "type": "stealth_order_moved",
+                    "stealth_order_id": stealth_order_id,
+                    "success": False,
+                    "error": str(e),
+                    "stage": "unknown",
                 }))
 
         elif msg_type == "update_stealth_price_threshold":
@@ -1377,25 +1757,65 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await websocket.send(json.dumps(response))
         
         elif msg_type == "clear_all_stealth_orders":
-            # Clear all stealth orders from the database
+            # Clear all stealth orders from BOTH the live engine (memory) and
+            # the database. Without the in-memory step the reveal evaluator
+            # in stealth_order_bridge keeps polling _get_active_stealth_orders()
+            # and continues firing reveals on the exchange even after the DB
+            # rows are gone. Route every order through the same cancel path
+            # used for single-order cancel so the lifecycle (status flip,
+            # DB sync, lifecycle event dispatch) stays single-sourced.
             try:
                 from database.order import clear_all_stealth_orders
-                
+
+                cancelled_in_memory = 0
+                cancel_failures = 0
+                if stealth_order_bridge is not None:
+                    mgr = stealth_order_bridge.stealth_manager
+                    # Snapshot ids first; cancel mutates in_memory_orders state.
+                    active_ids = list(mgr.in_memory_orders.keys())
+                    for sid in active_ids:
+                        try:
+                            if stealth_order_bridge.cancel_stealth_order(
+                                sid, reason="Clear All Orders (dashboard)"
+                            ):
+                                cancelled_in_memory += 1
+                        except Exception as cancel_exc:
+                            cancel_failures += 1
+                            logger.error(
+                                f"Clear All: failed to cancel stealth order {sid}: {cancel_exc}"
+                            )
+                    # Defensive: drop any cached entries (including terminal-status
+                    # rows the cancel path skipped) so the engine can no longer
+                    # touch them after the DB wipe below.
+                    mgr.in_memory_orders.clear()
+                    mgr._placed_order_index.clear()
+
                 result = clear_all_stealth_orders()
-                
+
                 if result["success"]:
-                    # Clear all stealth orders from in-memory state
+                    # Clear dashboard's view-copy as well
                     with state_lock:
                         engine_state["stealth_orders"] = {}
-                    
+
                     response = {
                         "type": "stealth_orders_cleared",
                         "rows_deleted": result["rows_deleted"],
+                        "in_memory_cancelled": cancelled_in_memory,
+                        "in_memory_cancel_failures": cancel_failures,
                         "message": result["message"]
                     }
-                    
-                    add_log_entry("INFO", f"All stealth orders cleared - {result['rows_deleted']} deleted")
-                    logger.info(f"All stealth orders cleared - {result['rows_deleted']} deleted")
+
+                    add_log_entry(
+                        "INFO",
+                        f"All stealth orders cleared - {result['rows_deleted']} DB rows, "
+                        f"{cancelled_in_memory} in-memory cancelled, "
+                        f"{cancel_failures} cancel failures"
+                    )
+                    logger.info(
+                        f"All stealth orders cleared - {result['rows_deleted']} DB rows, "
+                        f"{cancelled_in_memory} in-memory cancelled, "
+                        f"{cancel_failures} cancel failures"
+                    )
                     
                     # Broadcast to all clients
                     message = json.dumps(response)
@@ -1918,6 +2338,13 @@ def update_products_json_from_api() -> Dict[str, Any]:
                 "base_increment": str(product_data.get("base_increment", "")),
                 "quote_increment": str(product_data.get("quote_increment", "")),
                 "price_increment": str(product_data.get("price_increment", "")),
+                # Min order sizes from the API. Persisted so the size-validation
+                # path (calculation/size_validation.py) can reject too-small
+                # orders before they hit the exchange. If the API returns
+                # nothing the field is preserved as an empty string and
+                # validators treat it as "no minimum advertised".
+                "base_min_size": str(product_data.get("base_min_size", "")),
+                "quote_min_size": str(product_data.get("quote_min_size", "")),
                 "display_name": product_data.get("display_name"),
                 "status": product_data.get("status"),
                 "mid_price": product_data.get("mid_price"),
@@ -1994,16 +2421,29 @@ async def _async_broadcast_ticker(ticker_data: Dict[str, Any]):
             connected_clients.discard(client)
 
 
-def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
+def broadcast_ticker(
+    product_id: str,
+    price: float,
+    price_24h: float = None,
+    cb_time: Any = None,
+):
     """Broadcast ticker/price update to all connected chart clients.
-    
+
     Args:
         product_id: The product ID (e.g., 'BTC-USDC')
         price: Current price
         price_24h: Price 24 hours ago (optional, for % change calculation)
-    
+        cb_time: Coinbase upstream ticker time (ISO-8601 string from the
+            Coinbase WS payload, e.g. ``"2026-05-01T16:07:21.234567Z"``,
+            or a numeric epoch). Optional. When provided, the broadcast
+            payload carries an extra ``cb_time_ms`` field so chart
+            consumers can detect clock skew between this host and the
+            authoritative Coinbase tick time. Silently dropped on parse
+            failure — telemetry must never block a price broadcast.
+
     Example:
-        >>> broadcast_ticker('BTC-USDC', 42500.50, 41200.00)
+        >>> broadcast_ticker('BTC-USDC', 42500.50, 41200.00,
+        ...                  cb_time='2026-05-01T16:07:21.234567Z')
     """
     global server_event_loop
     
@@ -2016,15 +2456,36 @@ def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
         return
     
     try:
+        # NOTE: ``time`` field below is the legacy server-relay clock.
+        # It is computed from ``datetime.utcnow().timestamp()`` which is
+        # bugged on non-UTC hosts (naive UTC datetime gets reinterpreted
+        # as local time before epoch conversion). We keep emitting it
+        # for back-compat with the 8 dashboards that compensate for
+        # that bug client-side via ``getTimezoneOffset()``.
+        # ``server_time_ms`` (added below) is the honest tz-aware
+        # equivalent — chart consumers should prefer it.
         ticker_data = {
             "product_id": product_id,
             "price": float(price),
             "time": datetime.utcnow().timestamp(),
+            # New (additive) fields for clock-skew detection. Both are
+            # epoch milliseconds, both true UTC.
+            "server_time_ms": int(
+                datetime.now(timezone.utc).timestamp() * 1000
+            ),
         }
-        
+
         if price_24h is not None:
             ticker_data["price_24h"] = float(price_24h)
-        
+
+        # Best-effort parse of the upstream Coinbase tick time. Chart
+        # uses this to compute (server_time_ms − cb_time_ms), which is
+        # the host↔Coinbase-feed skew the operator actually cares about.
+        if cb_time is not None:
+            cb_ms = _coerce_cb_time_to_epoch_ms(cb_time)
+            if cb_ms is not None:
+                ticker_data["cb_time_ms"] = cb_ms
+
         # Schedule on the event loop without blocking
         asyncio.run_coroutine_threadsafe(
             _async_broadcast_ticker(ticker_data),
@@ -2032,6 +2493,43 @@ def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
         )
     except Exception as e:
         logger.debug(f"Failed to broadcast ticker: {e}")
+
+
+def _coerce_cb_time_to_epoch_ms(value: Any) -> Optional[int]:
+    """Best-effort parse of a Coinbase tick ``time`` value to epoch ms.
+
+    Accepts:
+      * ISO-8601 with trailing ``Z`` or numeric offset
+        (e.g. ``"2026-05-01T16:07:21.234567Z"``)
+      * float / int seconds since epoch (already true UTC)
+      * float / int milliseconds since epoch
+
+    Returns ``None`` on any parse failure — telemetry is best-effort.
+    """
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            v = float(value)
+            # Heuristic: anything past 1e12 is already milliseconds
+            # (year 2001 in seconds, year 33658 in ms — unambiguous).
+            return int(v if v > 1e12 else v * 1000)
+        if isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return None
+            # ``fromisoformat`` accepts ``Z`` suffix from Python 3.11+;
+            # handle older inputs by normalising.
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                # Naive ISO string — assume UTC (Coinbase's contract).
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp() * 1000)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return None
 
 
 # Spread monitoring for arbitrage detection
@@ -2155,40 +2653,34 @@ def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
             "active_repricing_count": int,
             "total_reprices_executed": int,
             "breakdown_by_source": {
-                "last_trade": int,
-                "midpoint": int,
-                "top_of_book": int,
+                <RepricingReferenceSource value>: int,
+                ...
             },
         }
     """
     active_count = 0
     total_executed = 0
-    breakdown = {
-        "last_trade": 0,
-        "midpoint": 0,
-        "top_of_book": 0,
-    }
-    
+    breakdown: Dict[str, int] = {s.value: 0 for s in RepricingReferenceSource}
+
     for order_data in orders.values():
         if not isinstance(order_data, dict):
             continue
-        
-        # Check if repricing is enabled
-        policy = order_data.get("anchor_repricing_policy_json") or {}
-        if not policy.get("enabled"):
+
+        # Build typed view of the policy. Disabled policies short-circuit
+        # without touching any field except ``enabled``.
+        policy = RepricingPolicy.from_dict(order_data.get("anchor_repricing_policy_json"))
+        if not policy.enabled:
             continue
-        
+
         active_count += 1
-        
+
         # Count reprices executed from state
         state = order_data.get("anchor_repricing_state_json") or {}
         history = state.get("reprice_history") or []
         total_executed += len(history)
-        
+
         # Breakdown by reference source
-        source = policy.get("reference_price_source", "midpoint")
-        if source in breakdown:
-            breakdown[source] += 1
+        breakdown[policy.reference_price_source.value] += 1
     
     return {
         "active_repricing_count": active_count,

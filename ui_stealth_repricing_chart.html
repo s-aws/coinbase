@@ -18,10 +18,19 @@
             broadcast shows a *changed* price for an active order. That is the
             "repricing" trail.
 
-          * "ticker" -> { product_id, price, time }   (UTC seconds)
+          * "ticker" -> {
+                product_id, price,
+                time,             // legacy server clock (utcnow bug)
+                server_time_ms,   // honest UTC ms; preferred x-axis source
+                cb_time_ms        // upstream Coinbase tick time (UTC ms)
+            }
             Plotted as a separate, distinctly-styled "market" series (gold
             star) so the live last-trade / best-quote price is unmistakable
             against the order series.
+
+            ``server_time_ms − cb_time_ms`` is sampled into the header
+            "Host vs CB" badge to surface clock skew between the engine
+            host and the authoritative Coinbase feed.
 
         No server-side changes; this page only consumes broadcasts.
     -->
@@ -182,6 +191,9 @@
     <div class="header-meta">
         <span>Active products: <b id="productCount">0</b></span>
         <span>Active orders: <b id="orderCount">0</b></span>
+        <span class="badge" id="skewBadge" title="Clock skew between this engine host and the Coinbase feed.&#10;Positive: host clock is AHEAD of Coinbase tick time (CB feed appears 'behind').&#10;Negative: host clock is BEHIND Coinbase tick time (CB feed appears 'ahead').&#10;Computed as EMA of (server_relay_time − coinbase_tick_time). Waiting for samples until cb_time_ms appears in ticker payloads.">
+            Host vs CB: <b id="skewValue">—</b>
+        </span>
         <span class="badge"><span class="dot" id="connDot"></span><span id="connStatus">Disconnected</span></span>
     </div>
 </header>
@@ -196,7 +208,7 @@
 /* ---------- config ---------------------------------------------------- */
 
 const WS_URL          = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname || 'localhost'}:8765`;
-const MAX_POINTS      = 600;        // per-series rolling buffer
+const MAX_POINTS      = 3600;        // per-series rolling buffer
 const ACTIVE_STATUSES = new Set(['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED']);
 const MARKET_KEY      = '__market__';
 
@@ -467,13 +479,83 @@ function handleTicker(payload) {
     const price = Number(t.price);
     if (!Number.isFinite(price)) return;
 
+    // Resolve the chart x-axis timestamp using the cleanest available
+    // source, in priority order:
+    //   1. ``server_time_ms`` — added 2026-05-01, true UTC, no
+    //      ``utcnow()`` bug, no client-side TZ correction needed.
+    //   2. Legacy ``time`` (server's ``datetime.utcnow().timestamp()``)
+    //      — buggy on non-UTC hosts; the historic
+    //      ``getTimezoneOffset`` correction stays here ONLY for that
+    //      legacy path so old engine builds keep rendering.
+    //   3. Browser ``Date.now()`` as a last resort.
+    let ts;
+    if (Number.isFinite(t.server_time_ms)) {
+        ts = Number(t.server_time_ms);
+    } else if (typeof t.time === 'number') {
+        ts = t.time * 1000 - new Date().getTimezoneOffset() * 60 * 1000;
+    } else {
+        ts = Date.now();
+    }
+
+    // Sample the host↔Coinbase-feed clock skew when both sides of the
+    // comparison are available. ``cb_time_ms`` is the upstream
+    // Coinbase tick ``time`` parsed to true-UTC epoch ms; the diff
+    // (server_time_ms − cb_time_ms) reflects clock drift between the
+    // engine host and the authoritative exchange feed.
+    if (Number.isFinite(t.cb_time_ms) && Number.isFinite(t.server_time_ms)) {
+        recordHostCbSkewSample(t.server_time_ms - t.cb_time_ms);
+    }
+
     // Only plot market for products we already track (avoid noisy panels).
     const panel = panels.get(t.product_id);
     if (!panel) return;
 
-    const ts = (typeof t.time === 'number') ? t.time * 1000 : Date.now();
     panel.pushMarketPoint(ts, price);
     panel.refresh();
+}
+
+/* ---------- clock-skew telemetry -------------------------------------- */
+
+// EMA of (server_relay_time_ms − coinbase_tick_time_ms). Positive means
+// the engine-host clock is AHEAD of Coinbase's tick time. Negative means
+// the engine-host clock is BEHIND.
+//
+// We deliberately do NOT compare browser-vs-CB here: the user's
+// stated symptom ("locally CB ahead, on AWS east CB behind") is a
+// property of the ENGINE HOST's clock vs Coinbase, not the dashboard
+// browser's clock. Showing a separate browser↔server skew would be
+// noise for the operator's actual question.
+const SKEW_EMA_ALPHA = 0.15;       // light smoothing; reacts in ~10 samples
+const SKEW_WARN_MS   = 250;        // amber threshold
+const SKEW_ALERT_MS  = 1000;       // red threshold
+let hostCbSkewEmaMs  = null;
+let hostCbSkewSamples = 0;
+
+function recordHostCbSkewSample(deltaMs) {
+    if (!Number.isFinite(deltaMs)) return;
+    hostCbSkewSamples += 1;
+    hostCbSkewEmaMs = (hostCbSkewEmaMs === null)
+        ? deltaMs
+        : (SKEW_EMA_ALPHA * deltaMs + (1 - SKEW_EMA_ALPHA) * hostCbSkewEmaMs);
+    renderSkew();
+}
+
+function renderSkew() {
+    const valueEl = document.getElementById('skewValue');
+    const badgeEl = document.getElementById('skewBadge');
+    if (!valueEl || !badgeEl) return;
+    if (hostCbSkewEmaMs === null) {
+        valueEl.textContent = '—';
+        badgeEl.style.color = '#94a3b8';
+        return;
+    }
+    const ms = Math.round(hostCbSkewEmaMs);
+    const sign = ms > 0 ? '+' : '';
+    valueEl.textContent = `${sign}${ms} ms (n=${hostCbSkewSamples})`;
+    const abs = Math.abs(ms);
+    if (abs >= SKEW_ALERT_MS)      badgeEl.style.color = '#ef4444'; // red
+    else if (abs >= SKEW_WARN_MS)  badgeEl.style.color = '#f59e0b'; // amber
+    else                           badgeEl.style.color = '#22c55e'; // green
 }
 
 /* ---------- websocket plumbing ---------------------------------------- */

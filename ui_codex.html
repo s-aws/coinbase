@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trade Lens Dashboard</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+        :root {
+            --bg: #f4f8ff;
+            --bg-2: #e8f0ff;
+            --panel: #ffffff;
+            --panel-soft: #f5f7ff;
+            --text: #0b1020;
+            --muted: #5f6a88;
+            --border: #d2ddf7;
+            --accent-ticker: #0f766e;
+            --accent-trade: #ea580c;
+            --ok: #16a34a;
+            --warn: #d97706;
+            --shadow: 0 16px 36px rgba(11, 16, 32, 0.12);
+        }
+
+        body[data-theme="dark"] {
+            --bg: #070a14;
+            --bg-2: #10172a;
+            --panel: #10192b;
+            --panel-soft: #172338;
+            --text: #ecf3ff;
+            --muted: #9aabc9;
+            --border: #253552;
+            --accent-ticker: #2dd4bf;
+            --accent-trade: #fb923c;
+            --ok: #22c55e;
+            --warn: #f59e0b;
+            --shadow: 0 20px 40px rgba(1, 5, 16, 0.45);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(1200px 500px at 10% -10%, rgba(15, 118, 110, 0.18), transparent 60%),
+                radial-gradient(1200px 600px at 90% -20%, rgba(234, 88, 12, 0.16), transparent 60%),
+                linear-gradient(145deg, var(--bg), var(--bg-2));
+            transition: background 0.25s ease, color 0.25s ease;
+        }
+
+        #root {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .shell {
+            display: grid;
+            gap: 16px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .header {
+            padding: 18px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .title {
+            display: grid;
+            gap: 6px;
+        }
+
+        .title h1 {
+            margin: 0;
+            font-size: 28px;
+            line-height: 1.1;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .title p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 8px 12px;
+            background: var(--panel-soft);
+            font-size: 12px;
+            color: var(--muted);
+            font-family: "IBM Plex Mono", monospace;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #ef4444;
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+            animation: pulse 1.2s infinite;
+        }
+
+        .dot.connected {
+            background: var(--ok);
+            box-shadow: none;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .btn {
+            border: 1px solid var(--border);
+            background: var(--panel-soft);
+            color: var(--text);
+            border-radius: 11px;
+            padding: 10px 14px;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            border-color: var(--accent-ticker);
+        }
+
+        .btn.active {
+            background: linear-gradient(120deg, var(--accent-ticker), #22d3ee);
+            color: #041013;
+            border-color: transparent;
+        }
+
+        .btn.secondary.active {
+            background: linear-gradient(120deg, var(--accent-trade), #fbbf24);
+            color: #1f1300;
+        }
+
+        .controls {
+            padding: 12px 20px 20px;
+            display: grid;
+            gap: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            font-family: "IBM Plex Mono", monospace;
+        }
+
+        select {
+            border: 1px solid var(--border);
+            background: var(--panel-soft);
+            color: var(--text);
+            border-radius: 11px;
+            padding: 10px 12px;
+            font-family: inherit;
+            font-size: 14px;
+            min-width: 210px;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .metric {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--panel-soft);
+            padding: 12px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .metric .k {
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            font-family: "IBM Plex Mono", monospace;
+        }
+
+        .metric .v {
+            font-size: 23px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        .chart-panel {
+            padding: 16px;
+            overflow: hidden;
+        }
+
+        .chart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chart-title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .legend {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: var(--muted);
+            font-family: "IBM Plex Mono", monospace;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .swatch {
+            width: 26px;
+            height: 3px;
+            border-radius: 3px;
+        }
+
+        .swatch.ticker {
+            background: var(--accent-ticker);
+        }
+
+        .swatch.trade {
+            background: var(--accent-trade);
+        }
+
+        .chart-wrap {
+            width: 100%;
+            height: clamp(300px, 54vh, 560px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)),
+                var(--panel-soft);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chart-wrap svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .empty {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .footer-note {
+            color: var(--muted);
+            font-size: 12px;
+            font-family: "IBM Plex Mono", monospace;
+            padding: 0 4px 6px;
+        }
+
+        @media (max-width: 1024px) {
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 720px) {
+            #root {
+                padding: 12px;
+            }
+
+            .header {
+                padding: 14px;
+            }
+
+            .controls {
+                padding: 10px 14px 14px;
+            }
+
+            .title h1 {
+                font-size: 23px;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .metrics {
+                grid-template-columns: 1fr;
+            }
+
+            select {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body data-theme="dark">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useCallback, useEffect, useMemo, useRef, useState } = React;
+
+        const RANGE_OPTIONS = [
+            { key: "15m", label: "15m", windowMinutes: 15, bucketSeconds: 15 },
+            { key: "1h", label: "1h", windowMinutes: 60, bucketSeconds: 60 },
+            { key: "6h", label: "6h", windowMinutes: 360, bucketSeconds: 300 },
+            { key: "24h", label: "24h", windowMinutes: 1440, bucketSeconds: 900 },
+            { key: "7d", label: "7d", windowMinutes: 10080, bucketSeconds: 3600 },
+            { key: "30d", label: "30d", windowMinutes: 43200, bucketSeconds: 21600 },
+        ];
+
+        const POLL_MS = 5000;
+        const RECONNECT_MS = 2000;
+        const MAX_TICKER_POINTS = 6000;
+
+        const currency = new Intl.NumberFormat(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 6,
+        });
+
+        function wsUrl() {
+            const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+            const host = window.location.hostname || "localhost";
+            return `${protocol}://${host}:8765`;
+        }
+
+        function uniqSort(values) {
+            return Array.from(new Set(values.filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
+        }
+
+        function shortId(value) {
+            if (!value) return "--";
+            const text = String(value);
+            return text.length <= 10 ? text : `${text.slice(0, 8)}..`;
+        }
+
+        function formatIso(ms) {
+            if (!ms) return "--";
+            return new Date(ms).toLocaleString();
+        }
+
+        function safeNumber(value, fallback = 0) {
+            const num = Number(value);
+            return Number.isFinite(num) ? num : fallback;
+        }
+
+        function findNearest(series, ms) {
+            if (!series || series.length === 0) return null;
+            const bisect = d3.bisector((d) => d.tsMs).left;
+            const i = bisect(series, ms);
+            const left = series[Math.max(0, i - 1)];
+            const right = series[Math.min(series.length - 1, i)];
+            if (!left) return right || null;
+            if (!right) return left || null;
+            return Math.abs(left.tsMs - ms) <= Math.abs(right.tsMs - ms) ? left : right;
+        }
+
+        function LiveSeriesChart({ tickerSeries, tradeSeries, theme }) {
+            const svgRef = useRef(null);
+            const wrapRef = useRef(null);
+            const [size, setSize] = useState({ width: 0, height: 0 });
+
+            useEffect(() => {
+                if (!wrapRef.current) return;
+                const observer = new ResizeObserver((entries) => {
+                    for (const entry of entries) {
+                        const { width, height } = entry.contentRect;
+                        setSize({ width, height });
+                    }
+                });
+                observer.observe(wrapRef.current);
+                return () => observer.disconnect();
+            }, []);
+
+            useEffect(() => {
+                if (!svgRef.current || size.width < 50 || size.height < 50) return;
+
+                const colors = getComputedStyle(document.body);
+                const colorText = colors.getPropertyValue("--text").trim();
+                const colorMuted = colors.getPropertyValue("--muted").trim();
+                const colorBorder = colors.getPropertyValue("--border").trim();
+                const tickerColor = colors.getPropertyValue("--accent-ticker").trim();
+                const tradeColor = colors.getPropertyValue("--accent-trade").trim();
+
+                const margin = { top: 18, right: 72, bottom: 36, left: 52 };
+                const width = size.width;
+                const height = size.height;
+                const innerWidth = Math.max(10, width - margin.left - margin.right);
+                const innerHeight = Math.max(10, height - margin.top - margin.bottom);
+
+                const svg = d3.select(svgRef.current);
+                svg.selectAll("*").remove();
+                svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+                const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const allPoints = [...tickerSeries, ...tradeSeries];
+                const now = Date.now();
+                const defaultStart = now - 60 * 60 * 1000;
+
+                const xDomain = allPoints.length > 0
+                    ? d3.extent(allPoints, (d) => new Date(d.tsMs))
+                    : [new Date(defaultStart), new Date(now)];
+
+                const prices = allPoints.map((d) => safeNumber(d.price)).filter((v) => v > 0);
+                const minPrice = prices.length > 0 ? d3.min(prices) : 0;
+                const maxPrice = prices.length > 0 ? d3.max(prices) : 1;
+                const span = Math.max(0.000001, maxPrice - minPrice);
+                const pad = span * 0.12;
+
+                const yDomain = [Math.max(0, minPrice - pad), maxPrice + pad];
+
+                const x = d3.scaleTime().domain(xDomain).range([0, innerWidth]);
+                const y = d3.scaleLinear().domain(yDomain).nice().range([innerHeight, 0]);
+
+                chart
+                    .append("g")
+                    .attr("class", "grid")
+                    .call(
+                        d3.axisLeft(y)
+                            .ticks(6)
+                            .tickSize(-innerWidth)
+                            .tickFormat("")
+                    )
+                    .call((g) => g.selectAll("line").attr("stroke", colorBorder).attr("stroke-opacity", 0.5))
+                    .call((g) => g.selectAll("path").attr("stroke", "none"));
+
+                chart
+                    .append("g")
+                    .attr("transform", `translate(0,${innerHeight})`)
+                    .call(d3.axisBottom(x).ticks(Math.max(4, Math.floor(innerWidth / 130))))
+                    .call((g) => g.selectAll("path,line").attr("stroke", colorBorder))
+                    .call((g) => g.selectAll("text").attr("fill", colorMuted).attr("font-size", 11).attr("font-family", "IBM Plex Mono"));
+
+                chart
+                    .append("g")
+                    .call(d3.axisLeft(y).ticks(6).tickFormat((d) => currency.format(d)))
+                    .call((g) => g.selectAll("path,line").attr("stroke", colorBorder))
+                    .call((g) => g.selectAll("text").attr("fill", colorMuted).attr("font-size", 11).attr("font-family", "IBM Plex Mono"));
+
+                const tickerLine = d3
+                    .line()
+                    .x((d) => x(new Date(d.tsMs)))
+                    .y((d) => y(d.price))
+                    .curve(d3.curveMonotoneX);
+
+                const tradeLine = d3
+                    .line()
+                    .x((d) => x(new Date(d.tsMs)))
+                    .y((d) => y(d.price))
+                    .curve(d3.curveMonotoneX);
+
+                if (tickerSeries.length > 1) {
+                    chart
+                        .append("path")
+                        .datum(tickerSeries)
+                        .attr("fill", "none")
+                        .attr("stroke", tickerColor)
+                        .attr("stroke-width", 2)
+                        .attr("stroke-dasharray", "7 6")
+                        .attr("d", tickerLine);
+                }
+
+                if (tradeSeries.length > 0) {
+                    chart
+                        .append("path")
+                        .datum(tradeSeries)
+                        .attr("fill", "none")
+                        .attr("stroke", tradeColor)
+                        .attr("stroke-width", 2.6)
+                        .attr("d", tradeLine);
+
+                    chart
+                        .append("g")
+                        .selectAll("circle")
+                        .data(tradeSeries)
+                        .enter()
+                        .append("circle")
+                        .attr("cx", (d) => x(new Date(d.tsMs)))
+                        .attr("cy", (d) => y(d.price))
+                        .attr("r", (d) => Math.min(5.8, Math.max(2.4, Math.sqrt(safeNumber(d.volume, 1)) * 0.12)))
+                        .attr("fill", tradeColor)
+                        .attr("opacity", 0.75);
+                }
+
+                const focus = chart.append("g").style("display", "none");
+                focus.append("line").attr("id", "cross").attr("y1", 0).attr("y2", innerHeight).attr("stroke", colorMuted).attr("stroke-dasharray", "4 4").attr("opacity", 0.65);
+                focus.append("circle").attr("id", "focusTicker").attr("r", 4).attr("fill", tickerColor).attr("stroke", "#000").attr("stroke-width", 0.2);
+                focus.append("circle").attr("id", "focusTrade").attr("r", 4.8).attr("fill", tradeColor).attr("stroke", "#000").attr("stroke-width", 0.2);
+
+                const tooltip = chart.append("g").style("display", "none");
+                const tooltipRect = tooltip
+                    .append("rect")
+                    .attr("width", 250)
+                    .attr("height", 74)
+                    .attr("rx", 8)
+                    .attr("fill", theme === "dark" ? "#0b1222" : "#ffffff")
+                    .attr("stroke", colorBorder)
+                    .attr("opacity", 0.96);
+
+                const tooltipText = tooltip
+                    .append("text")
+                    .attr("x", 10)
+                    .attr("y", 17)
+                    .attr("fill", colorText)
+                    .attr("font-size", 11)
+                    .attr("font-family", "IBM Plex Mono");
+
+                chart
+                    .append("rect")
+                    .attr("width", innerWidth)
+                    .attr("height", innerHeight)
+                    .attr("fill", "transparent")
+                    .style("cursor", "crosshair")
+                    .on("pointerenter", () => {
+                        if (allPoints.length > 0) {
+                            focus.style("display", null);
+                            tooltip.style("display", null);
+                        }
+                    })
+                    .on("pointerleave", () => {
+                        focus.style("display", "none");
+                        tooltip.style("display", "none");
+                    })
+                    .on("pointermove", function (event) {
+                        if (allPoints.length === 0) return;
+                        const [px] = d3.pointer(event, this);
+                        const hoveredMs = x.invert(px).getTime();
+
+                        const nearestTicker = findNearest(tickerSeries, hoveredMs);
+                        const nearestTrade = findNearest(tradeSeries, hoveredMs);
+                        const anchor = nearestTrade || nearestTicker;
+                        if (!anchor) return;
+
+                        const crossX = x(new Date(anchor.tsMs));
+                        focus.select("#cross").attr("x1", crossX).attr("x2", crossX);
+
+                        if (nearestTicker) {
+                            focus.select("#focusTicker")
+                                .style("display", null)
+                                .attr("cx", x(new Date(nearestTicker.tsMs)))
+                                .attr("cy", y(nearestTicker.price));
+                        } else {
+                            focus.select("#focusTicker").style("display", "none");
+                        }
+
+                        if (nearestTrade) {
+                            focus.select("#focusTrade")
+                                .style("display", null)
+                                .attr("cx", x(new Date(nearestTrade.tsMs)))
+                                .attr("cy", y(nearestTrade.price));
+                        } else {
+                            focus.select("#focusTrade").style("display", "none");
+                        }
+
+                        tooltipText.selectAll("tspan").remove();
+                        const lines = [
+                            new Date(anchor.tsMs).toLocaleString(),
+                            `ticker: ${nearestTicker ? currency.format(nearestTicker.price) : "--"}`,
+                            `parent/child: ${nearestTrade ? currency.format(nearestTrade.price) : "--"}`,
+                            `parent id: ${nearestTrade ? shortId(nearestTrade.parentOrderId) : "--"}`,
+                        ];
+
+                        lines.forEach((line, idx) => {
+                            tooltipText.append("tspan")
+                                .attr("x", 10)
+                                .attr("dy", idx === 0 ? 0 : 16)
+                                .text(line);
+                        });
+
+                        let tx = crossX + 12;
+                        if (tx + 250 > innerWidth) tx = crossX - 262;
+                        let ty = 12;
+                        if (ty + 74 > innerHeight) ty = innerHeight - 78;
+                        tooltip.attr("transform", `translate(${tx},${ty})`);
+                    });
+            }, [tickerSeries, tradeSeries, size, theme]);
+
+            return (
+                <div className="chart-wrap" ref={wrapRef}>
+                    <svg ref={svgRef} />
+                    {tradeSeries.length === 0 && (
+                        <div className="empty">No parent/child trade points in this range yet.</div>
+                    )}
+                </div>
+            );
+        }
+
+        function App() {
+            const [theme, setTheme] = useState(() => localStorage.getItem("dashboard_theme") || "dark");
+            const [isConnected, setIsConnected] = useState(false);
+            const [connectionText, setConnectionText] = useState("Connecting...");
+            const [products, setProducts] = useState([]);
+            const [selectedProduct, setSelectedProduct] = useState("");
+            const [rangeKey, setRangeKey] = useState("1h");
+            const [tickerByProduct, setTickerByProduct] = useState({});
+            const [tradeSeries, setTradeSeries] = useState([]);
+            const [snapshotRaw, setSnapshotRaw] = useState([]);
+            const [lastSnapshotAt, setLastSnapshotAt] = useState(0);
+            const [lastBucketSeconds, setLastBucketSeconds] = useState(RANGE_OPTIONS[1].bucketSeconds);
+
+            const socketRef = useRef(null);
+            const reconnectTimerRef = useRef(null);
+            const pollTimerRef = useRef(null);
+            const selectedProductRef = useRef("");
+            const activeRangeRef = useRef(RANGE_OPTIONS[1]);
+
+            const activeRange = useMemo(
+                () => RANGE_OPTIONS.find((opt) => opt.key === rangeKey) || RANGE_OPTIONS[1],
+                [rangeKey]
+            );
+
+            useEffect(() => {
+                selectedProductRef.current = selectedProduct;
+            }, [selectedProduct]);
+
+            useEffect(() => {
+                activeRangeRef.current = activeRange;
+            }, [activeRange]);
+
+            const appendProducts = useCallback((incoming) => {
+                setProducts((current) => uniqSort([...current, ...incoming]));
+            }, []);
+
+            const requestStoryboard = useCallback((productOverride = undefined) => {
+                const ws = socketRef.current;
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                const currentRange = activeRangeRef.current || RANGE_OPTIONS[1];
+                const product = productOverride !== undefined ? productOverride : selectedProductRef.current;
+                ws.send(JSON.stringify({
+                    type: "request_investor_storyboard",
+                    params: {
+                        window_minutes: currentRange.windowMinutes,
+                        bucket_seconds: currentRange.bucketSeconds,
+                        product_id: product || null,
+                    }
+                }));
+            }, []);
+
+            const requestProducts = useCallback(() => {
+                const ws = socketRef.current;
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                ws.send(JSON.stringify({ type: "request_storyboard_products" }));
+                ws.send(JSON.stringify({ type: "request_products" }));
+            }, []);
+
+            const stopPolling = useCallback(() => {
+                if (pollTimerRef.current) {
+                    clearInterval(pollTimerRef.current);
+                    pollTimerRef.current = null;
+                }
+            }, []);
+
+            const startPolling = useCallback(() => {
+                stopPolling();
+                pollTimerRef.current = setInterval(() => {
+                    requestStoryboard();
+                }, POLL_MS);
+            }, [requestStoryboard, stopPolling]);
+
+            const connect = useCallback(() => {
+                if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                    return;
+                }
+
+                const ws = new WebSocket(wsUrl());
+                socketRef.current = ws;
+                setConnectionText("Connecting...");
+                setIsConnected(false);
+
+                ws.onopen = () => {
+                    setIsConnected(true);
+                    setConnectionText("Connected");
+                    requestProducts();
+                    requestStoryboard();
+                    startPolling();
+                };
+
+                ws.onmessage = (event) => {
+                    let msg = null;
+                    try {
+                        msg = JSON.parse(event.data);
+                    } catch (error) {
+                        return;
+                    }
+                    if (!msg || !msg.type) return;
+
+                    if (msg.type === "ticker" && msg.data) {
+                        const productId = msg.data.product_id;
+                        const price = safeNumber(msg.data.price, 0);
+                        if (!productId || price <= 0) return;
+                        const tsMs = msg.data.time ? safeNumber(msg.data.time, Date.now() / 1000) * 1000 : Date.now();
+
+                        setTickerByProduct((current) => {
+                            const existing = current[productId] || [];
+                            const next = [...existing, { tsMs, price }]
+                                .filter((point) => Number.isFinite(point.tsMs) && Number.isFinite(point.price));
+                            if (next.length > MAX_TICKER_POINTS) {
+                                next.splice(0, next.length - MAX_TICKER_POINTS);
+                            }
+                            return { ...current, [productId]: next };
+                        });
+                        return;
+                    }
+
+                    if (msg.type === "storyboard_products" && Array.isArray(msg.products)) {
+                        appendProducts(msg.products);
+                        return;
+                    }
+
+                    if (msg.type === "products_list") {
+                        const spots = Array.isArray(msg.spot) ? msg.spot : [];
+                        const deriv = Array.isArray(msg.derivatives) ? msg.derivatives : [];
+                        appendProducts([...spots, ...deriv]);
+                        return;
+                    }
+
+                    if (msg.type === "investor_storyboard" && Array.isArray(msg.candles)) {
+                        const fallbackBucket = (activeRangeRef.current || RANGE_OPTIONS[1]).bucketSeconds;
+                        const bucketSeconds = safeNumber(msg.bucket_seconds, fallbackBucket);
+                        setLastBucketSeconds(bucketSeconds);
+                        setLastSnapshotAt(Date.now());
+                        setSnapshotRaw(msg.candles);
+
+                        const trades = msg.candles
+                            .filter((candle) => {
+                                if (!candle) return false;
+                                if (candle.group_id) return true;
+                                return Array.isArray(candle.group_slices) && candle.group_slices.length > 0;
+                            })
+                            .map((candle) => {
+                                const index = safeNumber(candle.index, 0);
+                                const tsMs = index * bucketSeconds * 1000;
+                                return {
+                                    tsMs,
+                                    price: safeNumber(candle.close, 0),
+                                    volume: safeNumber(candle.volume, 0),
+                                    parentOrderId: candle.group_id || "",
+                                    groupSlices: Array.isArray(candle.group_slices) ? candle.group_slices : [],
+                                };
+                            })
+                            .filter((point) => point.price > 0 && point.tsMs > 0);
+
+                        setTradeSeries(trades);
+                    }
+                };
+
+                ws.onerror = () => {
+                    setConnectionText("Connection error");
+                    setIsConnected(false);
+                };
+
+                ws.onclose = () => {
+                    setConnectionText("Disconnected - retrying");
+                    setIsConnected(false);
+                    stopPolling();
+                    reconnectTimerRef.current = setTimeout(() => connect(), RECONNECT_MS);
+                };
+            }, [appendProducts, requestProducts, requestStoryboard, startPolling, stopPolling]);
+
+            useEffect(() => {
+                document.body.dataset.theme = theme;
+                localStorage.setItem("dashboard_theme", theme);
+            }, [theme]);
+
+            useEffect(() => {
+                connect();
+                return () => {
+                    stopPolling();
+                    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+                    if (socketRef.current) socketRef.current.close();
+                };
+            }, [connect, stopPolling]);
+
+            useEffect(() => {
+                if (!selectedProduct && products.length > 0) {
+                    setSelectedProduct(products[0]);
+                }
+            }, [products, selectedProduct]);
+
+            useEffect(() => {
+                requestStoryboard();
+            }, [selectedProduct, rangeKey, requestStoryboard]);
+
+            const filteredTickerSeries = useMemo(() => {
+                const now = Date.now();
+                const minTs = now - activeRange.windowMinutes * 60 * 1000;
+                const series = tickerByProduct[selectedProduct] || [];
+                return series.filter((point) => point.tsMs >= minTs);
+            }, [tickerByProduct, selectedProduct, activeRange.windowMinutes]);
+
+            const metrics = useMemo(() => {
+                const latestTicker = filteredTickerSeries[filteredTickerSeries.length - 1] || null;
+                const latestTrade = tradeSeries[tradeSeries.length - 1] || null;
+                const chainIds = uniqSort(tradeSeries.map((point) => point.parentOrderId));
+                const totalTradeVolume = tradeSeries.reduce((sum, point) => sum + safeNumber(point.volume, 0), 0);
+
+                return {
+                    latestTicker,
+                    latestTrade,
+                    chainCount: chainIds.length,
+                    totalTradeVolume,
+                };
+            }, [filteredTickerSeries, tradeSeries]);
+
+            const exportCsv = useCallback(() => {
+                const product = selectedProduct || "all_products";
+                const rows = [
+                    [
+                        "timestamp_iso",
+                        "timestamp_ms",
+                        "product_id",
+                        "series",
+                        "price",
+                        "volume",
+                        "parent_order_id",
+                        "group_slices_json",
+                    ],
+                ];
+
+                filteredTickerSeries.forEach((point) => {
+                    rows.push([
+                        new Date(point.tsMs).toISOString(),
+                        String(point.tsMs),
+                        product,
+                        "ticker",
+                        String(point.price),
+                        "",
+                        "",
+                        "",
+                    ]);
+                });
+
+                tradeSeries.forEach((point) => {
+                    rows.push([
+                        new Date(point.tsMs).toISOString(),
+                        String(point.tsMs),
+                        product,
+                        "parent_child_trade",
+                        String(point.price),
+                        String(point.volume),
+                        point.parentOrderId || "",
+                        JSON.stringify(point.groupSlices || []),
+                    ]);
+                });
+
+                const csv = rows
+                    .map((row) =>
+                        row
+                            .map((cell) => {
+                                const value = String(cell ?? "");
+                                if (value.includes(",") || value.includes("\"") || value.includes("\n")) {
+                                    return `"${value.replace(/"/g, "\"\"")}"`;
+                                }
+                                return value;
+                            })
+                            .join(",")
+                    )
+                    .join("\n");
+
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `${product}_trade_lens_${Date.now()}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, [filteredTickerSeries, tradeSeries, selectedProduct]);
+
+            return (
+                <div className="shell">
+                    <section className="panel">
+                        <div className="header">
+                            <div className="title">
+                                <h1>Trade Lens Dashboard</h1>
+                                <p>Live product dashboard with ticker stream and parent/child trade line</p>
+                            </div>
+                            <div className="header-actions">
+                                <span className="pill">
+                                    <span className={`dot ${isConnected ? "connected" : ""}`} />
+                                    {connectionText}
+                                </span>
+                                <button
+                                    className="btn"
+                                    onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+                                    type="button"
+                                >
+                                    {theme === "dark" ? "Light mode" : "Dark mode"}
+                                </button>
+                                <button className="btn" onClick={exportCsv} type="button">
+                                    Export CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="controls">
+                            <div className="controls-row">
+                                <span className="label">Ticker filter</span>
+                                <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+                                    {products.length === 0 && <option value="">Waiting for products...</option>}
+                                    {products.map((productId) => (
+                                        <option key={productId} value={productId}>{productId}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="controls-row">
+                                <span className="label">Time range</span>
+                                {RANGE_OPTIONS.map((opt) => (
+                                    <button
+                                        key={opt.key}
+                                        className={`btn secondary ${rangeKey === opt.key ? "active" : ""}`}
+                                        onClick={() => setRangeKey(opt.key)}
+                                        type="button"
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="metrics">
+                                <div className="metric">
+                                    <div className="k">Latest Ticker</div>
+                                    <div className="v">
+                                        {metrics.latestTicker ? currency.format(metrics.latestTicker.price) : "--"}
+                                    </div>
+                                </div>
+                                <div className="metric">
+                                    <div className="k">Latest Parent/Child Trade</div>
+                                    <div className="v">
+                                        {metrics.latestTrade ? currency.format(metrics.latestTrade.price) : "--"}
+                                    </div>
+                                </div>
+                                <div className="metric">
+                                    <div className="k">Tracked Parent Chains</div>
+                                    <div className="v">{metrics.chainCount}</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="k">Trade Volume (range)</div>
+                                    <div className="v">{metrics.totalTradeVolume.toFixed(4)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="panel chart-panel">
+                        <div className="chart-head">
+                            <h2 className="chart-title">
+                                {selectedProduct ? `Product Dashboard - ${selectedProduct}` : "Product Dashboard"}
+                            </h2>
+                            <div className="legend">
+                                <span className="legend-item"><span className="swatch ticker"></span>Ticker feed</span>
+                                <span className="legend-item"><span className="swatch trade"></span>Parent/child trade line</span>
+                            </div>
+                        </div>
+                        <LiveSeriesChart
+                            tickerSeries={filteredTickerSeries}
+                            tradeSeries={tradeSeries}
+                            theme={theme}
+                        />
+                    </section>
+
+                    <div className="footer-note">
+                        Snapshot source: request_investor_storyboard | bucket: {lastBucketSeconds}s | snapshot rows: {snapshotRaw.length} | last refresh: {formatIso(lastSnapshotAt)}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

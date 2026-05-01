@@ -128,7 +128,7 @@ class MoveManager:
                 - price (required): Order price
                 - target_movement (required): Target profit/movement percentage or amount
                 - target_movement_type (optional): 'P' for percentage, 'A' for absolute (default 'P')
-                - max_order_replacement (optional): Max follow-ups for new parent (default DEFAULT_MAX_ORDER_REPLACEMENT = 11)
+                - max_order_replacement (optional): Max follow-ups for new parent (default ``DEFAULT_MAX_ORDER_REPLACEMENT``)
             reason: Reason for the move. Examples: 'cancelled_move', 'user_move', 'price_adjustment'.
             notes: Optional additional context about the move.
         
@@ -368,7 +368,7 @@ class MoveManager:
                 - price (required): Order price
                 - target_movement (required): Target profit/movement percentage or amount
                 - target_movement_type (optional): 'P' for percentage, 'A' for absolute (default 'P')
-                - max_order_replacement (optional): Max follow-ups (default DEFAULT_MAX_ORDER_REPLACEMENT = 11)
+                - max_order_replacement (optional): Max follow-ups (default ``DEFAULT_MAX_ORDER_REPLACEMENT``)
             reason: Reason for pending move (default 'auto_move_scheduled').
             notes: Optional additional context.
         

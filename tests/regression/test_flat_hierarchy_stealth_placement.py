@@ -120,8 +120,10 @@ def test_order_engine_register_child_order_uses_resolver() -> None:
     src = inspect.getsource(OrderEngine)
 
     # All three follow-up register sites must compute root via the resolver.
+    # Match both single-line and multi-line forms (the partial-fill site
+    # passes ``bypass_replacement_cap=True`` and is wrapped multi-line).
     follow_up_call_args = re.findall(
-        r"register_child_order\(\s*stealth_follow_up_id\s*,\s*(\w+)\s*\)",
+        r"register_child_order\(\s*stealth_follow_up_id\s*,\s*(\w+)\s*[,)]",
         src,
     )
     assert len(follow_up_call_args) >= 3, (

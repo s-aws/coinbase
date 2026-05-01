@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slide Calibration Chart — Mid vs Anchor</title>
+
+    <!--
+        Phase-2 calibration view: per-product time-series chart overlaying
+
+          * Market price line  (from market_tick; falls back to
+            market_candle_1m close for any minute without ticks)
+          * Per-stealth-order anchor step-line (from
+            stealth_orders.anchor_repricing_state_json -> reprice_history)
+
+        Backend message:
+            { type: "request_market_chart_history",
+              params: { product_id, window_minutes?, max_tick_points? } }
+
+        Backend response:
+            { type: "market_chart_history",
+              ticks: [{ts, price, best_bid, best_ask}],
+              candles: [{ts, open, high, low, close, volume}],
+              anchor_reprices: [{stealth_order_id, ts, from_price, to_price, source}] }
+
+        How to read the chart
+        ---------------------
+        - Where the market line walks away from the anchor step, you missed fills.
+        - If the anchor step changes often without fills nearby, you're chasing
+          (widen slide or relax reveal condition).
+        - The Miss Distance histogram shows the distribution of |market - anchor|
+          over the window; widening slide should shift its mass leftward.
+    -->
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 22px;
+            border-bottom: 1px solid #334155;
+            background: #1e293b;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        header h1 { font-size: 18px; font-weight: 600; }
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+        .controls label { color: #94a3b8; }
+        .controls input {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 12px;
+            width: 160px;
+        }
+        .controls input:focus { outline: 1px solid #4dd0e1; }
+        .controls button {
+            padding: 6px 14px;
+            background: linear-gradient(135deg, #4dd0e1, #00acc1);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+        .dot.connected { background: #22c55e; animation: none; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.4; }
+        }
+
+        main {
+            padding: 18px 22px 40px;
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+            gap: 18px;
+        }
+        @media (max-width: 1100px) {
+            main { grid-template-columns: 1fr; }
+        }
+        .panel {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+        .panel h2 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #cbd5e1;
+        }
+        .chart-wrap { position: relative; height: 480px; }
+        .chart-wrap.small { height: 280px; }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 12px;
+            border-bottom: 1px solid #334155;
+        }
+        .stat-row:last-child { border-bottom: 0; }
+        .stat-label { color: #94a3b8; }
+        .stat-value { color: #e2e8f0; font-weight: 600; }
+
+        .footnote {
+            margin-top: 12px;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        .empty {
+            padding: 30px 0;
+            text-align: center;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Slide Calibration Chart</h1>
+        <div class="controls">
+            <label>Product</label>
+            <input id="product-input" type="text" placeholder="e.g. BIT-29MAY26-CDE" />
+            <label>Window (min)</label>
+            <input id="window-input" type="number" min="5" value="360" style="width:90px" />
+            <button id="refresh-btn" type="button">Load</button>
+            <span class="badge"><span id="status-dot" class="dot"></span><span id="status-text">connecting…</span></span>
+            <span class="badge" id="generated-at">—</span>
+        </div>
+    </header>
+
+    <main>
+        <section class="panel">
+            <h2>Market price vs anchor steps</h2>
+            <div class="chart-wrap"><canvas id="price-chart"></canvas></div>
+            <div class="footnote">
+                Market line is recorded ticks (1 Hz throttled). Where ticks are missing,
+                the line falls back to 1-minute candle closes from
+                <code>market_candle_1m</code>. Each colored step-line is one
+                stealth root's anchor price over time, rebuilt from
+                <code>anchor_repricing_state_json.reprice_history</code>.
+                Run <code>python -m genai_tools.backfill_candles</code>
+                to populate historical context before tonight's tick data accumulates.
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Window stats</h2>
+            <div id="stats-list">
+                <div class="empty">Load a product to see stats.</div>
+            </div>
+            <h2 style="margin-top:18px">Miss distance (bps)</h2>
+            <div class="chart-wrap small"><canvas id="miss-chart"></canvas></div>
+            <div class="footnote">
+                For each tick, distance from the nearest anchor step at that
+                moment, normalised to basis points of the market price. Widening
+                the slide should shift mass to the right (more "in-band" ticks)
+                without losing fills.
+            </div>
+        </section>
+    </main>
+
+<script>
+"use strict";
+
+/* ---------- config ---------------------------------------------------- */
+
+const WS_URL          = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname || 'localhost'}:8765`;
+// Mirrors core.enums.StealthOrderStatus active set; kept in lock-step with
+// ui_stealth_repricing_chart.html and ui_stealth_orders_manager.html so
+// "active stealth order" means the same thing in every UI.
+const ACTIVE_STATUSES = new Set(['HIDDEN', 'PENDING', 'TRIGGERED', 'REVEALED']);
+
+/* Stable, deterministic color per stealth_order_id. Same paradigm as
+   ui_stealth_repricing_chart.html so the same order keeps the same color
+   across re-renders and across the two charts. */
+const PALETTE = [
+    '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#84cc16',
+    '#f97316', '#14b8a6', '#eab308', '#8b5cf6', '#ef4444',
+    '#22c55e', '#0ea5e9', '#d946ef', '#f59e0b', '#10b981',
+];
+
+function colorFor(stealthOrderId) {
+    let h = 0;
+    for (let i = 0; i < stealthOrderId.length; i++) {
+        h = (h * 31 + stealthOrderId.charCodeAt(i)) | 0;
+    }
+    return PALETTE[Math.abs(h) % PALETTE.length];
+}
+
+function shortId(id) {
+    return id ? String(id).slice(0, 8) : '—';
+}
+
+let ws = null;
+let priceChart = null;
+let missChart = null;
+let lastPayload = null;
+let lastStealthSnapshot = null;   // { orders, timestamp } from stealth_orders_snapshot
+
+const $ = (id) => document.getElementById(id);
+const setStatus = (ok, text) => {
+    $('status-dot').classList.toggle('connected', ok);
+    $('status-text').textContent = text;
+};
+
+function connect() {
+    setStatus(false, 'connecting…');
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => setStatus(true, 'connected');
+    ws.onclose = () => { setStatus(false, 'disconnected — retrying…'); setTimeout(connect, 2000); };
+    ws.onerror = () => setStatus(false, 'error');
+    ws.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+
+        // Two server-side paradigms expose stealth-order state. Subscribe to
+        // both so the chart can populate anchor steps even when the
+        // history endpoint returns no reprice rows yet (fresh start, or
+        // window predates first reprice).
+        //   - stealth_orders_snapshot : explicit reply to request_stealth_orders
+        //   - state_update            : periodic broadcast carrying stealth_orders
+        if (msg.type === 'stealth_orders_snapshot') {
+            lastStealthSnapshot = { orders: msg.orders || {}, timestamp: msg.timestamp || null };
+            if (lastPayload) render();
+            return;
+        }
+        if (msg.type === 'state_update' && msg.data && msg.data.stealth_orders) {
+            lastStealthSnapshot = {
+                orders: msg.data.stealth_orders || {},
+                timestamp: (msg.data.engine_status && msg.data.engine_status.timestamp) || null,
+            };
+            if (lastPayload) render();
+            return;
+        }
+
+        if (msg.type !== 'market_chart_history') return;
+        if (msg.status === 'error') {
+            setStatus(true, 'error: ' + (msg.message || 'unknown'));
+            return;
+        }
+        lastPayload = msg;
+        render();
+    };
+}
+
+function requestHistory() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const product_id = $('product-input').value.trim();
+    if (!product_id) {
+        setStatus(true, 'enter a product id');
+        return;
+    }
+    const window_minutes = Number($('window-input').value) || 360;
+    ws.send(JSON.stringify({
+        type: 'request_market_chart_history',
+        params: { product_id, window_minutes },
+    }));
+    // Pair with a fresh snapshot so the fallback path has up-to-date state.
+    ws.send(JSON.stringify({ type: 'request_stealth_orders' }));
+}
+
+/* ---------- numeric / time helpers ------------------------------------ */
+
+function finiteNumber(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+}
+
+function parseTsMs(ts) {
+    const ms = Date.parse(ts || '');
+    return Number.isFinite(ms) ? ms : null;
+}
+
+/* ---------- fallback anchor reconstruction ---------------------------- */
+
+// When the server's request_market_chart_history response carries an empty
+// anchor_reprices list (no rows in the audit table for the window), rebuild
+// the same shape from the live stealth_orders_snapshot so the chart still
+// shows where the engine *thinks* the anchor is right now. Also covers the
+// fresh-start case before any reprice has fired.
+function buildFallbackAnchorReprices(productId, windowMinutes, stealthSnapshot) {
+    const orders = stealthSnapshot && stealthSnapshot.orders ? stealthSnapshot.orders : {};
+    const cutoffMs = Date.now() - (Math.max(1, Number(windowMinutes) || 360) * 60000);
+    const out = [];
+
+    for (const [stealthId, order] of Object.entries(orders)) {
+        if (!order || typeof order !== 'object') continue;
+        if ((order.product_id || '') !== productId) continue;
+        if (!ACTIVE_STATUSES.has(order.status)) continue;
+        if (order.parent_order_id) continue;   // roots only
+
+        const state  = order.anchor_repricing_state_json  || {};
+        const policy = order.anchor_repricing_policy_json || {};
+        const history = Array.isArray(state.reprice_history) ? state.reprice_history : [];
+
+        const anchorPrice =
+            finiteNumber(state.current_logical_limit_price)
+            ?? finiteNumber(state.active_exchange_price)
+            ?? finiteNumber(order.limit_price)
+            ?? finiteNumber(order.trigger_price);
+
+        const sourceTag = policy.reference_price_source || 'snapshot_fallback';
+        const parsedEvents = [];
+
+        for (const item of history) {
+            if (item && typeof item === 'object') {
+                const ts = parseTsMs(item.timestamp || item.ts);
+                if (ts === null || ts < cutoffMs) continue;
+                const from = finiteNumber(item.from_price ?? item.from) ?? anchorPrice;
+                const to   = finiteNumber(item.to_price   ?? item.to)   ?? anchorPrice;
+                if (from === null || to === null) continue;
+                parsedEvents.push({
+                    stealth_order_id: stealthId,
+                    ts: new Date(ts).toISOString(),
+                    from_price: from,
+                    to_price: to,
+                    source: item.source || sourceTag,
+                });
+                continue;
+            }
+            // Legacy shape: history entries are bare ISO timestamps. Best we
+            // can do is pin a flat segment at the current anchor price.
+            const ts = parseTsMs(item);
+            if (ts === null || ts < cutoffMs || anchorPrice === null) continue;
+            parsedEvents.push({
+                stealth_order_id: stealthId,
+                ts: new Date(ts).toISOString(),
+                from_price: anchorPrice,
+                to_price: anchorPrice,
+                source: sourceTag,
+            });
+        }
+
+        if (parsedEvents.length === 0 && anchorPrice !== null) {
+            // No history yet — synthesize a single anchor segment so the
+            // user can at least see where the order is camped.
+            const createdTs = parseTsMs(order.created_at);
+            const updatedTs = parseTsMs(order.updated_at);
+            const fallbackTs = Math.max(cutoffMs, (createdTs ?? updatedTs ?? Date.now()));
+            parsedEvents.push({
+                stealth_order_id: stealthId,
+                ts: new Date(fallbackTs).toISOString(),
+                from_price: anchorPrice,
+                to_price: anchorPrice,
+                source: sourceTag,
+            });
+        }
+
+        out.push(...parsedEvents);
+    }
+
+    out.sort((a, b) => (parseTsMs(a.ts) || 0) - (parseTsMs(b.ts) || 0));
+    return out;
+}
+
+// ---------- Series construction ----------
+
+function buildMarketSeries(ticks, candles) {
+    // Prefer ticks. For any minute bucket without a tick, fall back to the
+    // candle close. Keep ordering by ts.
+    const points = ticks.map(t => ({ x: new Date(t.ts).getTime(), y: t.price, src: 'tick' }));
+    if (candles.length) {
+        const tickMinutes = new Set(points.map(p => Math.floor(p.x / 60000)));
+        for (const c of candles) {
+            const x = new Date(c.ts).getTime();
+            if (!tickMinutes.has(Math.floor(x / 60000))) {
+                points.push({ x, y: c.close, src: 'candle' });
+            }
+        }
+        points.sort((a, b) => a.x - b.x);
+    }
+    return points;
+}
+
+function buildAnchorSeries(reprices) {
+    // Group reprices by stealth_order_id. For each, the anchor at time t
+    // is the 'to_price' of the most recent reprice with ts <= t. We render
+    // each as a stepped line: one segment per reprice extending to the
+    // next one (or to "now" for the latest).
+    const grouped = new Map();
+    for (const r of reprices) {
+        if (!grouped.has(r.stealth_order_id)) grouped.set(r.stealth_order_id, []);
+        grouped.get(r.stealth_order_id).push(r);
+    }
+    const now = Date.now();
+    const series = [];
+    for (const [sid, list] of grouped) {
+        list.sort((a, b) => new Date(a.ts) - new Date(b.ts));
+        const data = [];
+        for (let j = 0; j < list.length; j++) {
+            const start = new Date(list[j].ts).getTime();
+            const end = (j + 1 < list.length)
+                ? new Date(list[j + 1].ts).getTime()
+                : now;
+            const fromPrice = finiteNumber(list[j].from_price) ?? finiteNumber(list[j].to_price);
+            const toPrice   = finiteNumber(list[j].to_price)   ?? fromPrice;
+            if (!Number.isFinite(start) || !Number.isFinite(end) || fromPrice === null || toPrice === null) {
+                continue;
+            }
+            // Step: from-price at the reprice instant, to-price thereafter.
+            data.push({ x: start, y: fromPrice });
+            data.push({ x: start, y: toPrice });
+            data.push({ x: end,   y: toPrice });
+        }
+        if (!data.length) continue;
+        series.push({
+            label: 'Anchor ' + shortId(sid),
+            data,
+            borderColor: colorFor(sid),
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            stepped: false,    // we encode the step manually above
+            tension: 0,
+        });
+    }
+    return series;
+}
+
+// ---------- Miss-distance histogram ----------
+
+function computeMissBuckets(market, reprices) {
+    if (!market.length || !reprices.length) return { labels: [], counts: [] };
+    // Build a sorted list of all anchor segments (across all stealth orders)
+    // as { from_x, to_x, anchor }, then for each tick pick the nearest active
+    // anchor's distance in bps.
+    const segments = [];
+    const grouped = new Map();
+    for (const r of reprices) {
+        if (!grouped.has(r.stealth_order_id)) grouped.set(r.stealth_order_id, []);
+        grouped.get(r.stealth_order_id).push(r);
+    }
+    const now = Date.now();
+    for (const [, list] of grouped) {
+        list.sort((a, b) => new Date(a.ts) - new Date(b.ts));
+        for (let j = 0; j < list.length; j++) {
+            const from_x = new Date(list[j].ts).getTime();
+            const to_x = (j + 1 < list.length)
+                ? new Date(list[j + 1].ts).getTime()
+                : now;
+            segments.push({ from_x, to_x, anchor: list[j].to_price });
+        }
+    }
+    const distances = [];
+    for (const p of market) {
+        let best = Infinity;
+        for (const s of segments) {
+            if (p.x < s.from_x || p.x > s.to_x) continue;
+            if (!Number.isFinite(s.anchor)) continue;
+            const d = Math.abs(p.y - s.anchor);
+            if (d < best) best = d;
+        }
+        if (best === Infinity || p.y <= 0) continue;
+        distances.push((best / p.y) * 10000);
+    }
+    if (!distances.length) return { labels: [], counts: [] };
+    // Bucket: 0,2,5,10,20,50,100+ bps
+    const edges = [0, 2, 5, 10, 20, 50, 100, Infinity];
+    const labels = ['0-2', '2-5', '5-10', '10-20', '20-50', '50-100', '100+'];
+    const counts = new Array(labels.length).fill(0);
+    for (const d of distances) {
+        for (let k = 0; k < edges.length - 1; k++) {
+            if (d >= edges[k] && d < edges[k + 1]) { counts[k]++; break; }
+        }
+    }
+    return { labels, counts, total: distances.length };
+}
+
+// ---------- Stats ----------
+
+function renderStats(payload, missTotal, effectiveReprices, anchorSource) {
+    const { ticks, candles } = payload;
+    const tickPrices = ticks.map(t => t.price).filter(p => p > 0);
+    const meanPrice = tickPrices.length
+        ? tickPrices.reduce((a, b) => a + b, 0) / tickPrices.length
+        : 0;
+    const minPrice = tickPrices.length ? Math.min(...tickPrices) : 0;
+    const maxPrice = tickPrices.length ? Math.max(...tickPrices) : 0;
+    const stats = [
+        ['Product',        payload.product_id],
+        ['Window (min)',   payload.window_minutes],
+        ['Tick points',    ticks.length.toLocaleString()],
+        ['Candle fallbacks', candles.length.toLocaleString()],
+        ['Anchor reprices', effectiveReprices.length.toLocaleString()],
+        ['Stealth roots',  new Set(effectiveReprices.map(r => r.stealth_order_id)).size],
+        ['Anchor source',  anchorSource],
+        ['Mean price',     meanPrice ? meanPrice.toFixed(2) : '—'],
+        ['Range',          tickPrices.length ? `${minPrice.toFixed(2)} – ${maxPrice.toFixed(2)}` : '—'],
+        ['Miss samples',   missTotal ? missTotal.toLocaleString() : '0'],
+    ];
+    $('stats-list').innerHTML = stats.map(([k, v]) => `
+        <div class="stat-row"><span class="stat-label">${k}</span><span class="stat-value">${v}</span></div>
+    `).join('');
+}
+
+// ---------- Render ----------
+
+function render() {
+    if (!lastPayload) return;
+    const { ticks, candles } = lastPayload;
+
+    // Resolve anchor data with a single fall-through: prefer the audit-trail
+    // history from the server; if empty, synthesize from the live snapshot.
+    const rawAnchorReprices = Array.isArray(lastPayload.anchor_reprices) ? lastPayload.anchor_reprices : [];
+    const fallbackAnchorReprices = buildFallbackAnchorReprices(
+        lastPayload.product_id,
+        lastPayload.window_minutes,
+        lastStealthSnapshot,
+    );
+    const anchorReprices = rawAnchorReprices.length ? rawAnchorReprices : fallbackAnchorReprices;
+    const anchorSource = rawAnchorReprices.length
+        ? 'history'
+        : (fallbackAnchorReprices.length ? 'snapshot fallback' : 'none');
+
+    const market = buildMarketSeries(ticks, candles);
+    const anchorDatasets = buildAnchorSeries(anchorReprices);
+
+    // Price chart
+    const datasets = [
+        {
+            label: 'Market',
+            data: market.map(p => ({ x: p.x, y: p.y })),
+            borderColor: '#22c55e',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.05,
+            order: 1,
+        },
+        ...anchorDatasets,
+    ];
+
+    if (priceChart) priceChart.destroy();
+    priceChart = new Chart($('price-chart').getContext('2d'), {
+        type: 'line',
+        data: { datasets },
+        options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+                legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
+                tooltip: { mode: 'nearest', intersect: false },
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    ticks: {
+                        color: '#94a3b8',
+                        callback: (v) => new Date(v).toLocaleTimeString(),
+                    },
+                    grid: { color: '#334155' },
+                },
+                y: {
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: '#334155' },
+                },
+            },
+        },
+    });
+
+    // Miss histogram
+    const miss = computeMissBuckets(market, anchorReprices);
+    if (missChart) missChart.destroy();
+    missChart = new Chart($('miss-chart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: miss.labels,
+            datasets: [{
+                label: 'Tick count',
+                data: miss.counts,
+                backgroundColor: '#4dd0e1',
+            }],
+        },
+        options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, beginAtZero: true },
+            },
+        },
+    });
+
+    renderStats(lastPayload, miss.total, anchorReprices, anchorSource);
+    const fallbackTag = anchorSource === 'snapshot fallback' ? ' (fallback anchors)' : '';
+    $('generated-at').textContent = 'as of ' + (lastPayload.generated_at || '—') + fallbackTag;
+}
+
+$('refresh-btn').addEventListener('click', requestHistory);
+['product-input', 'window-input'].forEach(id => {
+    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') requestHistory(); });
+});
+
+connect();
+</script>
+</body>
+</html>

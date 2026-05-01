@@ -181,18 +181,71 @@ class FollowUpKind(str, Enum):
     CANCELLED = "cancelled"
 
 
+class StealthMutationKind(str, Enum):
+    """Kind of in-flight mutation against a single stealth order.
+
+    Stealth orders may be mutated concurrently by two independent paths:
+    - The ticker-driven anchor reprice loop (background, REPRICE)
+    - User-initiated "move REVEALED" actions from the dashboard (MOVE)
+
+    Each kind has its own per-(kind, stealth_order_id) claim namespace in
+    a :class:`core.orderbook.ClaimLedger`. A held MOVE claim must block a
+    REPRICE attempt on the same order, and vice versa, to prevent
+    double-cancellation of the exchange order.
+
+    Unlike :class:`FollowUpKind`, stealth mutations are **repeatable** —
+    a moved order may later be moved again, a repriced order may later be
+    repriced again. Callers must release the claim with ``release`` after
+    both success and failure paths; there is no terminal ``done`` state.
+    """
+
+    MOVE = "move"
+    REPRICE = "reprice"
+
+
+class StealthMoveReason(str, Enum):
+    """Why a REVEALED stealth order was moved.
+
+    Persisted on the audit row so the move history is queryable by intent.
+    """
+
+    MANUAL_USER_MOVE = "manual_user_move"
+    OPERATOR_REPRICE = "operator_reprice"
+
+
 class RevealPricingPolicy(str, Enum):
     """Pricing policy for stealth order reveal.
-    
+
     Determines what price to use when revealing a stealth order to the exchange.
-    
-    - CONFIGURED_LIMIT: Use the limit price specified at order creation
-    - TOP_OF_BOOK: Use current best bid (SELL) or best ask (BUY) from ticker
-    - MIDPOINT: Use midpoint between current bid and ask
+
+    - CONFIGURED_LIMIT: Use the limit price specified at order creation. The
+      caller has taken explicit responsibility for the price and may have
+      chosen one that crosses the spread, so the order submits with
+      ``post_only=False`` (taker semantics) and is fee-validated against the
+      taker rate.
+    - TOP_OF_BOOK: Use current best bid (SELL) or best ask (BUY) from ticker.
+      Submitted with ``post_only=True`` so the order rests at the touch as
+      a maker. On post-only rejection the reveal path retries with the price
+      one tick safer (``next_safer_tick``); after exhausting retries the
+      placement is surfaced and abandoned rather than silently demoted to
+      a taker fill.
+    - MIDPOINT: Use midpoint between current bid and ask. Same ``post_only``
+      and retry semantics as TOP_OF_BOOK \u2014 the midpoint is between the
+      touch quotes by construction so it should never cross.
     """
     CONFIGURED_LIMIT = "configured_limit"
     TOP_OF_BOOK = "top_of_book"
     MIDPOINT = "midpoint"
+
+    def implies_post_only(self) -> bool:
+        """Return ``True`` when this policy must submit with ``post_only=True``.
+
+        Single source of truth for the policy \u2192 post_only mapping. Both the
+        pre-flight feasibility check (which decides whether to charge maker
+        or taker fees in the round-trip math) and the reveal-time submission
+        path consult this so the two cannot drift.
+        """
+        return self in (RevealPricingPolicy.TOP_OF_BOOK, RevealPricingPolicy.MIDPOINT)
 
 
 class RevealPriceSource(str, Enum):
@@ -234,6 +287,50 @@ class RevealConditionType(str, Enum):
     SPREAD = "spread"
     PRODUCT_RATIO = "product_ratio"
     COMPOSITE = "composite"
+
+
+# ============================================================================
+# ANCHOR REPRICING POLICY
+# ============================================================================
+
+class RepricingReferenceSource(str, Enum):
+    """Market reference used by ``anchor_repricing_policy`` to compute the
+    target price each tick.
+
+    - LAST_TRADE: Use the most recent trade price from the ticker.
+    - MIDPOINT: Use ``(bid + ask) / 2``.
+    - TOP_OF_BOOK: Use best bid for BUY orders, best ask for SELL orders.
+
+    Persisted as a string in
+    ``stealth_orders.anchor_repricing_policy_json -> 'reference_price_source'``.
+    """
+    LAST_TRADE = "last_trade"
+    MIDPOINT = "midpoint"
+    TOP_OF_BOOK = "top_of_book"
+
+
+class RepricingDistanceType(str, Enum):
+    """How ``target_distance`` / ``max_distance`` are interpreted.
+
+    - PERCENT (``"P"``): Distance is a percentage of the reference price.
+    - ABSOLUTE (``"A"``): Distance is in absolute price units.
+
+    Single-letter codes are preserved for on-disk compatibility with the
+    existing dashboard payload.
+    """
+    PERCENT = "P"
+    ABSOLUTE = "A"
+
+
+class RepricingUpdateMode(str, Enum):
+    """How often the repricing loop evaluates a new target.
+
+    - ADAPTIVE: Re-evaluate when the market moves (rate-limited by the min
+      interval / max-per-hour throttles).
+    - FIXED: Re-evaluate on a fixed cadence (``fixed_interval_seconds``).
+    """
+    ADAPTIVE = "adaptive"
+    FIXED = "fixed"
 
 
 # ============================================================================

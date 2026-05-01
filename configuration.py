@@ -18,10 +18,16 @@ from os import getenv
 from copy import deepcopy
 import json
 from pathlib import Path
+from typing import Any, Optional, Union, overload
 from coinbase.rest import RESTClient
 
 from external import CoinbaseRestClient
 from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
+from core.constants import (  # noqa: F401  (re-exported for legacy ``from configuration import ...``)
+    DERIVATIVES_PER_SIDE_FEE_DEFAULT,
+    get_derivatives_per_side_fee,
+    DEFAULT_MAX_ORDER_REPLACEMENT,
+)
 
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
@@ -91,25 +97,44 @@ ORDER_DIRECTION = {
     "BUY": -1
 }
 
-DERIVATIVES_MANDATORY_FEE_PER_CONTRACT = 0.15
-DEFAULT_MAX_ORDER_REPLACEMENT = 101
+# DERIVATIVES_PER_SIDE_FEE_* and DEFAULT_MAX_ORDER_REPLACEMENT
+# are imported above from ``core.constants`` (canonical source of truth).
+# Do NOT redefine them here — see 2026-04-30 audit.
 
-def safe_float(value, default: float = 0.0) -> float:
-    """Safely convert a value to float, returning default on error.
-    
-    Handles None, empty strings, and invalid types gracefully. Useful for
+
+# ``safe_float`` returns ``None`` when callers explicitly pass ``default=None`` —
+# this is exercised in the engine's market-data resolution paths (bid/ask may
+# be missing). Express both shapes as overloads so Pylance's strict mode sees
+# the precise return type at each call site instead of a polymorphic
+# ``Optional[float]`` everywhere.
+
+
+@overload
+def safe_float(value: Any) -> float: ...
+@overload
+def safe_float(value: Any, default: float) -> float: ...
+@overload
+def safe_float(value: Any, default: None) -> Optional[float]: ...
+def safe_float(
+    value: Any, default: Union[float, None] = 0.0
+) -> Optional[float]:
+    """Safely convert a value to float, returning ``default`` on error.
+
+    Handles ``None``, empty strings, and invalid types gracefully. Useful for
     converting API responses where numeric fields may be missing or invalid.
-    
+
     Args:
         value: The value to convert (any type).
         default: The default value to return if conversion fails (default: 0.0).
-    
+            Pass ``None`` explicitly to opt into ``Optional[float]`` returns
+            (used by the engine when a missing bid/ask should propagate as
+            ``None`` rather than ``0.0``).
+
     Returns:
-        The converted float value, or default if conversion fails.
-    
-    Raises:
-        None - always returns a float.
-    
+        The converted float value, or ``default`` if conversion fails. The
+        return type matches the type of ``default``: pass a ``float`` to get
+        a guaranteed ``float`` back, or pass ``None`` to allow ``None``.
+
     Examples:
         >>> safe_float('123.45')
         123.45
@@ -123,9 +148,11 @@ def safe_float(value, default: float = 0.0) -> float:
         99.99
         >>> safe_float('invalid', default=1.0)
         1.0
+        >>> safe_float(None, default=None) is None
+        True
     """
     try:
-        if value in (None, ""):
+        if value is None or value == "":
             return default
         return float(value)
     except (TypeError, ValueError):
@@ -279,59 +306,10 @@ def format_based_on_reference(value_to_format: float, reference_float: str) -> s
     return result
 
 
-def quantize_to_increment(value: float, increment: str, direction: str = "nearest") -> float:
-    """Quantize a value to the nearest valid increment.
-
-    Rounds, floors, or ceils a numeric value to match a specified price/size increment.
-    Essential for ensuring orders comply with exchange minimum price/size requirements.
-
-    Args:
-        value: The value to quantize (e.g., a price or size).
-        increment: The increment step as a string (e.g., "0.01" for cent precision).
-        direction: Rounding direction:
-                   - "down": floor to lower increment (conservative for price).
-                   - "up": ceil to higher increment (conservative for sell price).
-                   - "nearest": round to nearest increment (default).
-
-    Returns:
-        The quantized value as a float.
-
-    Raises:
-        ValueError: If increment <= 0 or direction not in {"up", "down", "nearest"}.
-    
-    Examples:
-        >>> quantize_to_increment(100.126, "0.01")
-        100.13
-        >>> quantize_to_increment(100.124, "0.01", direction="down")
-        100.12
-        >>> quantize_to_increment(100.126, "0.01", direction="up")
-        100.13
-        >>> quantize_to_increment(100.126, "0.01", direction="nearest")
-        100.13
-        >>> quantize_to_increment(50.5, "1", direction="down")
-        50.0
-    """
-    increment_float = float(increment)
-    if increment_float <= 0:
-        raise ValueError("increment must be greater than 0")
-
-    remainder = value % increment_float
-
-    if remainder == 0:
-        return value
-
-    if direction == RoundingDirection.DOWN.value:
-        return value - remainder
-
-    if direction == RoundingDirection.UP.value:
-        return value + (increment_float - remainder)
-
-    if direction == RoundingDirection.NEAREST.value:
-        down_value = value - remainder
-        up_value = value + (increment_float - remainder)
-        return down_value if remainder < (increment_float / 2) else up_value
-
-    raise ValueError(f"Unsupported direction: {direction}")
+# Single canonical implementation lives in calculation.formatter.
+# Re-exported here for back-compat with callers doing
+# ``from configuration import quantize_to_increment``. P2 #1: DRY.
+from calculation.formatter import quantize_to_increment  # noqa: E402,F401
 
 def rest_get_account_wallets() -> dict:
     """Retrieve all active account wallets from Coinbase REST API.
@@ -873,10 +851,17 @@ class OrderBook():
         # Compute legacy startup data exactly as the original class did, so
         # that production behaviour at import time is preserved.
         products = rest_get_products()
+        # ``mandatory_fee_per_contract`` is consumed by
+        # ``calculate_new_order_move_from_snapshot`` as a price offset to
+        # recover the **round-trip** mandatory commission on a single
+        # contract. Coinbase's March 2026 schedule charges per side, so
+        # round-trip = 2 × per-side. We pre-divide by ``contract_size`` so
+        # the consumer can add the value directly to a per-unit price.
         mandatory_fees = {
             product_id: {
                 "mandatory_fee_per_contract": (
-                    DERIVATIVES_MANDATORY_FEE_PER_CONTRACT / float(this.get("future_product_details", {}).get("contract_size", 1))
+                    (2.0 * get_derivatives_per_side_fee(product_id))
+                    / float(this.get("future_product_details", {}).get("contract_size", 1))
                 ) if this["product_type"] == ProductType.FUTURE.value else 0
             } for product_id, this in products.items()
         }

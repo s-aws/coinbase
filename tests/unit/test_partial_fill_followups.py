@@ -281,11 +281,15 @@ def test_partial_fill_due_followups_uses_created_units_for_carry_math():
         follow_ups_due=3,
     )
 
-    # Tracker must have consumed 1 unit (0.01) of carry. Remaining carry 0.025.
+    # 2026-04-29 race fix: carry consumption now happens atomically INSIDE
+    # ``_create_partial_fill_follow_up`` via
+    # ``OrderProgressTracker.claim_follow_up_units``. Since this test mocks
+    # the creator out, no claim happens, and the tracker's carry is
+    # unchanged from the ingest (full 0.035 accumulated).
     record = engine.order_progress_tracker.get_record(client_order_id)
     assert record is not None
-    assert isclose(record.carry_remainder_qty, 0.025, abs_tol=1e-12)
-    assert record.partial_follow_ups_created == 1
+    assert isclose(record.carry_remainder_qty, 0.035, abs_tol=1e-12)
+    assert record.partial_follow_ups_created == 0
 
     queued_calls = [
         call for call in publisher.publish_event.call_args_list
@@ -325,24 +329,34 @@ def test_partial_fill_opt_out_skips_processing():
     engine._create_partial_fill_follow_up.assert_not_called()
 
 
-def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
+def test_create_partial_fill_follow_up_bypasses_replacement_cap():
+    """2026-04-30 design fix: partial-fill follow-ups complete an
+    already-counted placement, so they bypass ``max_order_replacement``
+    entirely. With cap=1 already exhausted by the original child,
+    a 5-unit follow-up demand against 5 units of carry must produce
+    5 units of follow-up — bounded by the carry, not the cap.
+    """
     engine = _build_engine_for_partial_fill_tests()
 
     client_order_id = "placed-order-1"
     parent_client_order_id = "parent-4"
 
-    engine.can_create_follow_up_order = Mock(
-        return_value=(
-            True,
-            {"max_order_replacement": 11, "current_order_replacement": 10},
-        )
-    )
+    # Cap is exhausted: max=1, current=1. Pre-fix, this would clip
+    # follow-ups to 0 and strand the operator with un-hedged carry.
+    engine.orderbook.parent_order_ids[parent_client_order_id] = {
+        "allow_partial_fills": True,
+        "orders": [],
+        "target_movement": {"movement": 0.001, "type": "P"},
+        "max_order_replacement": 1,
+        "current_order_replacement": 1,
+    }
+
     engine.resolve_parent_target_movement = Mock(return_value={"movement": 0.001, "type": "P"})
     engine.compute_partial_fill_order_template = Mock(
         return_value={
             "start_price": "100.0",
             "side": "BUY",
-            "order_base_size": "0.01",
+            "order_base_size": "0.05",
             "product_id": "BTC-USDC",
         }
     )
@@ -350,7 +364,8 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
 
     stealth_manager = Mock()
     stealth_manager.find_stealth_order_by_placed_order_id.return_value = {
-        "stealth_order_id": "stealth-parent-1",
+        "stealth_order_id": parent_client_order_id,
+        "parent_order_id": None,
         "reveal_condition_json": {"type": "price", "direction": "below"},
         "follow_up_reveal_direction": "opposite",
     }
@@ -362,6 +377,19 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
         "target_movement_type": "P",
     }
 
+    engine.order_progress_tracker.hydrate([
+        {
+            "client_order_id": client_order_id,
+            "parent_client_order_id": parent_client_order_id,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "original_order_size": 1.0,
+            "min_order_size": 0.01,
+            "carry_remainder_qty": 0.05,
+            "partial_follow_ups_created": 0,
+        }
+    ])
+
     created_units = engine._create_partial_fill_follow_up(
         client_order_id=client_order_id,
         parent_client_order_id=parent_client_order_id,
@@ -369,11 +397,24 @@ def test_create_partial_fill_follow_up_clips_to_remaining_replacements():
         follow_ups_due=5,
     )
 
-    assert created_units == 1
+    # Carry-bounded, not cap-bounded.
+    assert created_units == 5
     stealth_manager.create_follow_up_stealth_order.assert_called_once()
     follow_up_kwargs = stealth_manager.create_follow_up_stealth_order.call_args.kwargs
-    assert isclose(float(follow_up_kwargs["total_size"]), 0.01, rel_tol=0.0, abs_tol=1e-12)
-    engine.register_child_order.assert_called_once_with("stealth-child-1", parent_client_order_id)
+    assert isclose(float(follow_up_kwargs["total_size"]), 0.05, rel_tol=0.0, abs_tol=1e-12)
+    # Registration MUST go through the bypass path so the cap counter
+    # stays accurate.
+    engine.register_child_order.assert_called_once_with(
+        "stealth-child-1",
+        parent_client_order_id,
+        bypass_replacement_cap=True,
+    )
+
+    # Atomic claim must have drained carry to 0.
+    record = engine.order_progress_tracker.get_record(client_order_id)
+    assert record is not None
+    assert isclose(record.carry_remainder_qty, 0.0, abs_tol=1e-12)
+    assert record.partial_follow_ups_created == 5
 
 
 def test_partial_fill_out_of_order_event_does_not_create_duplicate_followup():
