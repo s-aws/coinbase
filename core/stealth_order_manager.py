@@ -373,6 +373,32 @@ class StealthOrderManager:
         
         return candidate_value
 
+    def _resolve_post_only_from_policy(
+        self,
+        reveal_pricing_policy: Optional[str],
+        reveal_condition: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Canonical helper: derive post_only intent from a reveal pricing policy.
+
+        TOP_OF_BOOK / MIDPOINT rest as makers (post_only=True);
+        CONFIGURED_LIMIT submits as taker (post_only=False, conservative).
+        Unknown / missing policies fall back to CONFIGURED_LIMIT.
+
+        Single source of truth for ``post_only`` derivation across pre-flight,
+        anchor-reprice, follow-up pre-check and reveal-time validation paths.
+        """
+        from core.enums import RevealPricingPolicy
+
+        normalized = self._normalize_reveal_pricing_policy(
+            reveal_pricing_policy=reveal_pricing_policy,
+            reveal_condition=reveal_condition,
+        )
+        try:
+            policy_enum = RevealPricingPolicy(normalized)
+        except ValueError:
+            policy_enum = RevealPricingPolicy.CONFIGURED_LIMIT
+        return policy_enum.implies_post_only()
+
     def _resolve_reveal_limit_price(
         self,
         side: str,
@@ -824,6 +850,16 @@ class StealthOrderManager:
             # from product_id via its injected orderbook (single source of truth).
             product_id = order.get("product_id", "")
 
+            # post_only follows the order's reveal pricing policy. TOP_OF_BOOK
+            # / MIDPOINT anchor-reprices rest as makers; CONFIGURED_LIMIT
+            # submits as taker. Without this, every TOP_OF_BOOK reprice was
+            # being checked at the (much higher) taker rate and over-rejecting
+            # otherwise-profitable repricings.
+            will_be_post_only = self._resolve_post_only_from_policy(
+                reveal_pricing_policy=order.get("reveal_pricing_policy"),
+                reveal_condition=order.get("reveal_condition_json"),
+            )
+
             validation = self.profit_validator.validate_order_profitability(
                 parent_filled_price=entry_price,
                 parent_side=parent_side.value,
@@ -831,6 +867,7 @@ class StealthOrderManager:
                 order_size=order_size,
                 min_margin_pct=0.0,
                 product_id=product_id,
+                post_only=will_be_post_only,
             )
 
             is_profitable = bool(validation.get("is_profitable", False))
@@ -2021,14 +2058,9 @@ class StealthOrderManager:
         # Resolve post_only intent from the policy via the canonical helper.
         # Unknown / missing policy → CONFIGURED_LIMIT (taker), the
         # conservative assumption.
-        from core.enums import RevealPricingPolicy
-        try:
-            policy_enum = RevealPricingPolicy(
-                reveal_pricing_policy or RevealPricingPolicy.CONFIGURED_LIMIT.value
-            )
-        except ValueError:
-            policy_enum = RevealPricingPolicy.CONFIGURED_LIMIT
-        will_be_post_only = policy_enum.implies_post_only()
+        will_be_post_only = self._resolve_post_only_from_policy(
+            reveal_pricing_policy=reveal_pricing_policy,
+        )
 
         try:
             try:
@@ -2726,6 +2758,10 @@ class StealthOrderManager:
                         "reason": str(e),
                         "fallback_used": e.fallback_used,
                         "suppressed_repeats": suppressed_repeats,
+                        "reveal_pricing_policy": getattr(
+                            reveal_plan, "reveal_pricing_policy", None
+                        ),
+                        "post_only": bool(getattr(reveal_plan, "post_only", False)),
                     })
                     # Surface to the dashboard via the lifecycle stream.
                     # PLACEMENT_BLOCKED is the right semantic: we made a

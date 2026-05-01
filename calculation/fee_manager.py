@@ -84,9 +84,15 @@ class FeeManager:
         >>> print(target_multiplier, effective_fee, info["volume_ratio"])
     """
     
-    # Conservative defaults (from a sample CDE Non-Professional fee tier)
-    DEFAULT_TAKER_FEE_RATE = 0.0060  # 0.6% — used as conservative pre-fetch baseline
-    DEFAULT_MAKER_FEE_RATE = 0.0040  # 0.4% — maker is always <= taker
+    # Conservative defaults — used only as a pre-fetch baseline before the
+    # live ``get_transaction_summary`` call returns. Real charges seen on
+    # the daily statement (Apr-30-2026, VIP 5 tier) are 5 bps taker /
+    # 1 bp maker (the maker rate is a temporary promo). The previous
+    # 60/40 bps defaults were holdovers from the spot-only model and
+    # over-budgeted futures fees by 10x, blocking otherwise-profitable
+    # orders during the first refresh window after process start.
+    DEFAULT_TAKER_FEE_RATE = 0.0010  # 10 bps — defensive vs live 5 bps
+    DEFAULT_MAKER_FEE_RATE = 0.0005  # 5 bps  — defensive vs live 1 bp (promo)
     # Product-type-aware fee cushions over the live taker fee.
     # FUTURES: 1.0 (no cushion). Coinbase futures fees are already small
     #   (5-6 bps), the per-contract mandatory fee provides its own floor,

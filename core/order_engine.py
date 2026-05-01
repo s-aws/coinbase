@@ -3477,6 +3477,26 @@ class OrderEngine:
                     # Validate profitability — validator auto-resolves product_type,
                     # contract_size, and position_side from product_id via injected orderbook.
                     if self.profit_validator:
+                        # Derive post_only from the parent stealth order's reveal
+                        # pricing policy via the canonical helper. TOP_OF_BOOK /
+                        # MIDPOINT follow-ups rest as makers; without this the
+                        # check uses taker rate and over-rejects profitable
+                        # follow-ups (the production ROI killer on TOP_OF_BOOK).
+                        try:
+                            will_be_post_only = (
+                                self.stealth_order_bridge.stealth_manager
+                                ._resolve_post_only_from_policy(
+                                    reveal_pricing_policy=original_stealth_order.get(
+                                        "reveal_pricing_policy"
+                                    ),
+                                    reveal_condition=original_stealth_order.get(
+                                        "reveal_condition_json"
+                                    ),
+                                )
+                            )
+                        except Exception:
+                            will_be_post_only = False
+
                         profit_result = self.profit_validator.is_profitable(
                             filled_price=filled_price,
                             follow_up_price=follow_up_price,
@@ -3484,6 +3504,7 @@ class OrderEngine:
                             order_size=order_size,
                             product_id=product_id,
                             triggered_by_fill=True,
+                            post_only=will_be_post_only,
                         )
                         
                         if not profit_result["is_profitable"]:

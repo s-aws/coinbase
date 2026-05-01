@@ -302,11 +302,13 @@ def _make_real_manager_with_revealed_order(stealth_order_id: str = "sid_smoke"):
     from core.enums import StealthMutationKind, StealthOrderStatus
     from core.orderbook import ClaimLedger
     from core.stealth_order_manager import StealthOrderManager
+    from logging_service import get_logger
 
     mgr = StealthOrderManager.__new__(StealthOrderManager)
     mgr._mutation_claims = ClaimLedger(StealthMutationKind)
     mgr._placed_order_index = {}
     mgr.log_callback = lambda *a, **k: None
+    mgr.logger = get_logger("StealthOrderManager.test")
 
     order = {
         "stealth_order_id": stealth_order_id,
