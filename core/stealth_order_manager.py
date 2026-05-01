@@ -1806,7 +1806,17 @@ class StealthOrderManager:
             market_data=market_data,
             reveal_pricing_policy=reveal_pricing_policy,
         )
-        
+
+        # Track ``fallback_used`` semantically. The resolver's flag means
+        # "market data unknown / unusable" (legit reason to demote
+        # post_only because we never saw bid/ask). The GUARD below also
+        # sets ``fallback_used=True`` for the wire model (back-compat
+        # with dashboard + tests) but it fires when we DID see the
+        # market and chose a price *more* maker-favourable than the
+        # policy would have. Conflating the two demoted post_only on
+        # every guard fire and over-rejected legitimate maker reveals.
+        market_data_unknown = fallback_used
+
         # === GUARD: never submit a price worse than the configured target ===
         # When a pricing policy (e.g., top_of_book) would produce a price that erodes
         # the user's target margin (BUY higher / SELL lower than configured), fall back
@@ -1826,19 +1836,23 @@ class StealthOrderManager:
                 )
                 submitted_limit_price = configured_limit_price
                 reveal_price_source = RevealPriceSource.CONFIGURED_LIMIT.value
+                # Wire-level back-compat: the plan still reports fallback_used.
+                # But ``market_data_unknown`` stays False — we KNOW the
+                # market and just picked a more conservative price.
                 fallback_used = True
 
         # Resolve post_only from the policy (single source of truth in
         # ``RevealPricingPolicy.implies_post_only``). TOP_OF_BOOK / MIDPOINT
         # rest as makers; CONFIGURED_LIMIT submits as a taker because the
-        # caller's price may cross the spread. If the policy fell back to
-        # CONFIGURED_LIMIT (e.g. ticker unavailable), demote post_only too
-        # \u2014 the caller's hand-picked price was never validated to rest.
+        # caller's price may cross the spread. ONLY demote post_only when
+        # market data was unusable — the guard-driven fallback chooses a
+        # price strictly inside the spread and is more maker-likely than
+        # the policy's own choice would have been, so keep post_only=True.
         try:
             policy_enum = RevealPricingPolicy(reveal_pricing_policy)
         except ValueError:
             policy_enum = RevealPricingPolicy.CONFIGURED_LIMIT
-        if fallback_used and reveal_price_source == RevealPriceSource.CONFIGURED_LIMIT.value:
+        if market_data_unknown and reveal_price_source == RevealPriceSource.CONFIGURED_LIMIT.value:
             policy_enum = RevealPricingPolicy.CONFIGURED_LIMIT
         post_only_required = policy_enum.implies_post_only()
 
