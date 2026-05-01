@@ -11,7 +11,7 @@ Usage:
 import asyncio
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
@@ -2421,16 +2421,29 @@ async def _async_broadcast_ticker(ticker_data: Dict[str, Any]):
             connected_clients.discard(client)
 
 
-def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
+def broadcast_ticker(
+    product_id: str,
+    price: float,
+    price_24h: float = None,
+    cb_time: Any = None,
+):
     """Broadcast ticker/price update to all connected chart clients.
-    
+
     Args:
         product_id: The product ID (e.g., 'BTC-USDC')
         price: Current price
         price_24h: Price 24 hours ago (optional, for % change calculation)
-    
+        cb_time: Coinbase upstream ticker time (ISO-8601 string from the
+            Coinbase WS payload, e.g. ``"2026-05-01T16:07:21.234567Z"``,
+            or a numeric epoch). Optional. When provided, the broadcast
+            payload carries an extra ``cb_time_ms`` field so chart
+            consumers can detect clock skew between this host and the
+            authoritative Coinbase tick time. Silently dropped on parse
+            failure — telemetry must never block a price broadcast.
+
     Example:
-        >>> broadcast_ticker('BTC-USDC', 42500.50, 41200.00)
+        >>> broadcast_ticker('BTC-USDC', 42500.50, 41200.00,
+        ...                  cb_time='2026-05-01T16:07:21.234567Z')
     """
     global server_event_loop
     
@@ -2443,15 +2456,36 @@ def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
         return
     
     try:
+        # NOTE: ``time`` field below is the legacy server-relay clock.
+        # It is computed from ``datetime.utcnow().timestamp()`` which is
+        # bugged on non-UTC hosts (naive UTC datetime gets reinterpreted
+        # as local time before epoch conversion). We keep emitting it
+        # for back-compat with the 8 dashboards that compensate for
+        # that bug client-side via ``getTimezoneOffset()``.
+        # ``server_time_ms`` (added below) is the honest tz-aware
+        # equivalent — chart consumers should prefer it.
         ticker_data = {
             "product_id": product_id,
             "price": float(price),
             "time": datetime.utcnow().timestamp(),
+            # New (additive) fields for clock-skew detection. Both are
+            # epoch milliseconds, both true UTC.
+            "server_time_ms": int(
+                datetime.now(timezone.utc).timestamp() * 1000
+            ),
         }
-        
+
         if price_24h is not None:
             ticker_data["price_24h"] = float(price_24h)
-        
+
+        # Best-effort parse of the upstream Coinbase tick time. Chart
+        # uses this to compute (server_time_ms − cb_time_ms), which is
+        # the host↔Coinbase-feed skew the operator actually cares about.
+        if cb_time is not None:
+            cb_ms = _coerce_cb_time_to_epoch_ms(cb_time)
+            if cb_ms is not None:
+                ticker_data["cb_time_ms"] = cb_ms
+
         # Schedule on the event loop without blocking
         asyncio.run_coroutine_threadsafe(
             _async_broadcast_ticker(ticker_data),
@@ -2459,6 +2493,43 @@ def broadcast_ticker(product_id: str, price: float, price_24h: float = None):
         )
     except Exception as e:
         logger.debug(f"Failed to broadcast ticker: {e}")
+
+
+def _coerce_cb_time_to_epoch_ms(value: Any) -> Optional[int]:
+    """Best-effort parse of a Coinbase tick ``time`` value to epoch ms.
+
+    Accepts:
+      * ISO-8601 with trailing ``Z`` or numeric offset
+        (e.g. ``"2026-05-01T16:07:21.234567Z"``)
+      * float / int seconds since epoch (already true UTC)
+      * float / int milliseconds since epoch
+
+    Returns ``None`` on any parse failure — telemetry is best-effort.
+    """
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            v = float(value)
+            # Heuristic: anything past 1e12 is already milliseconds
+            # (year 2001 in seconds, year 33658 in ms — unambiguous).
+            return int(v if v > 1e12 else v * 1000)
+        if isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return None
+            # ``fromisoformat`` accepts ``Z`` suffix from Python 3.11+;
+            # handle older inputs by normalising.
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                # Naive ISO string — assume UTC (Coinbase's contract).
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp() * 1000)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return None
 
 
 # Spread monitoring for arbitrage detection

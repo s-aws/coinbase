@@ -4059,7 +4059,15 @@ class OrderEngine:
                                 price = float(tickr.get("price", 0))
                                 product_id = tickr.get("product_id")
                                 if price > 0 and product_id:
-                                    broadcast_ticker(product_id, price)
+                                    # Pass the upstream Coinbase tick
+                                    # ``time`` so dashboard consumers
+                                    # can detect host↔CB clock skew
+                                    # (engine-host vs Coinbase feed).
+                                    broadcast_ticker(
+                                        product_id,
+                                        price,
+                                        cb_time=tickr.get("time"),
+                                    )
                                 # Record bid/ask for spread monitor
                                 best_bid = float(tickr.get("best_bid", 0))
                                 best_ask = float(tickr.get("best_ask", 0))
