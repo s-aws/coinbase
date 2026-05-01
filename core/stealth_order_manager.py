@@ -2880,18 +2880,55 @@ class StealthOrderManager:
             # On REST failure below we update the row to FAILED rather than
             # leaving a phantom PENDING row.
             # ─────────────────────────────────────────────────────────────────
+            # ─── PLACEMENT PRE-INSERT (CHAIN LINKAGE) ───────────────────────
+            # We pre-insert the order_parent row BEFORE each REST attempt so
+            # the WS user-channel handler (which fires almost simultaneously
+            # with REST return) finds an existing chain-linked row and does
+            # NOT fall back to inserting it as a NEW ROOT. Inserting as root
+            # orphans the placement from its stealth chain — see 2026-05-01
+            # incident: post-only retry generated a fresh COID, no pre-insert
+            # ran for the new COID, and the WS handler created a root row
+            # (DB ID 64) instead of linking to chain root e30d58d8.
+            #
+            # The pre-insert is skipped when the placement COID equals the
+            # stealth_order_id (no-reprice policy) — that path lets the WS
+            # handler resolve the chain via stealth_order_id directly.
+            #
+            # Inside the retry loop we re-pre-insert for each NEW retry COID
+            # and mark previous-attempt pre-inserts FAILED so the audit table
+            # reflects what actually happened on the exchange.
+            # ────────────────────────────────────────────────────────────────
             placement_pre_inserted = False
-            if client_order_id != stealth_order_id:
-                root_parent_for_placement = resolve_stealth_chain_root(order)
+            pre_inserted_attempt_coids: set[str] = set()
+            root_parent_for_placement = (
+                resolve_stealth_chain_root(order)
+                if client_order_id != stealth_order_id
+                else None
+            )
+            try:
+                inherited_tm, inherited_tm_type, _src = \
+                    self._resolve_target_movement_for_plan(stealth_order_id, order)
+            except Exception:
+                inherited_tm, inherited_tm_type = None, None
+
+            def _pre_insert_placement_row(coid: str, price: float) -> bool:
+                """Pre-insert an order_parent row for ``coid`` at ``price``.
+
+                Returns True on success. Failures are logged and treated
+                as non-fatal (a racing WS-side insert may already have
+                created the row).
+                """
+                if coid == stealth_order_id:
+                    return False
+                if root_parent_for_placement is None:
+                    return False
                 try:
-                    inherited_tm, inherited_tm_type, _src = \
-                        self._resolve_target_movement_for_plan(stealth_order_id, order)
                     insert_order_parent(
-                        client_order_id=client_order_id,
+                        client_order_id=coid,
                         product_id=order["product_id"],
                         side=order["side"],
                         size=slice_size,
-                        price=reveal_plan.submitted_limit_price,
+                        price=price,
                         target_movement=inherited_tm if inherited_tm is not None else 0.0,
                         target_movement_type=inherited_tm_type or "P",
                         max_order_replacement=int(order.get("max_order_replacements") or 0),
@@ -2900,20 +2937,19 @@ class StealthOrderManager:
                         parent_order_id=root_parent_for_placement,
                         allow_partial_fills=bool(order.get("allow_partial_fills", False)),
                     )
-                    placement_pre_inserted = True
+                    pre_inserted_attempt_coids.add(coid)
+                    return True
                 except Exception as parent_insert_error:
-                    # Pre-insert failed (likely a WS-side race that already
-                    # created the row). Do not abort placement — downstream WS
-                    # handling and the post-REST idempotency layer will recover.
                     self.log_callback(
                         "warning",
                         {
                             "event": "reveal_placement_order_parent_pre_insert_failed",
                             "stealth_order_id": stealth_order_id,
-                            "placement_client_order_id": client_order_id,
+                            "placement_client_order_id": coid,
                             "error": str(parent_insert_error),
                         },
                     )
+                    return False
 
             # Place order directly on the exchange via REST API
             # ⚠️ CRITICAL: Do NOT call create_limit_order_span() here as it creates another stealth order!
@@ -2951,6 +2987,11 @@ class StealthOrderManager:
             order_result = None
             post_only_attempts = []
             for attempt_num in range(1, max_attempts + 1):
+                # Pre-insert chain-linked row for THIS attempt's COID before
+                # the REST call so the WS handler can resolve the parent.
+                if _pre_insert_placement_row(attempt_coid, attempt_price):
+                    placement_pre_inserted = True
+
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
                     order_result = REST_CLIENT.place_limit_order(
                         product_id=order_for_submission["product_id"],
@@ -2990,6 +3031,27 @@ class StealthOrderManager:
                     "client_order_id": attempt_coid,
                     "failure_reason": rejected_failure_reason,
                 })
+
+                # Mark the pre-inserted row for this rejected COID as FAILED
+                # so the audit table reflects that this COID never made it
+                # onto the exchange. Best-effort: a missing row (race lost
+                # to WS handler) is fine — its status will be reconciled by
+                # downstream WS event handling.
+                if attempt_coid in pre_inserted_attempt_coids:
+                    try:
+                        update_order_parent_status(
+                            attempt_coid, OrderStatus.FAILED.value
+                        )
+                    except Exception as status_update_error:
+                        self.log_callback(
+                            "warning",
+                            {
+                                "event": "post_only_rejected_status_update_failed",
+                                "stealth_order_id": stealth_order_id,
+                                "rejected_client_order_id": attempt_coid,
+                                "error": str(status_update_error),
+                            },
+                        )
 
                 if attempt_num == max_attempts:
                     # Exhausted — leave order_result as the final
@@ -3118,8 +3180,13 @@ class StealthOrderManager:
                 })
             
             # 📊 LOT-TRACKING: Log order placement
-            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {reveal_plan.submitted_limit_price}, reveal_policy={reveal_plan.reveal_pricing_policy}, exchange_order_id={exchange_order_id})")
-            
+            # Use the ACTUALLY-SUBMITTED price (post-retry), not the
+            # plan's pre-retry price, so audit logs match what the
+            # exchange actually saw.
+            actual_submitted_price = float(order_for_submission["limit_price"])
+            post_only_retried = bool(post_only_attempts)
+            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {actual_submitted_price}, reveal_policy={reveal_plan.reveal_pricing_policy}, exchange_order_id={exchange_order_id})")
+
             self.log_callback("info", {
                 "event": "stealth_order_slice_placed_successfully",
                 "stealth_order_id": order['stealth_order_id'],
@@ -3128,9 +3195,18 @@ class StealthOrderManager:
                 "size": slice_size,
                 "product_id": order["product_id"],
                 "configured_limit_price": reveal_plan.configured_limit_price,
-                "submitted_limit_price": reveal_plan.submitted_limit_price,
+                # Plan's pre-retry submitted price (kept for audit
+                # comparability with non-retry placements).
+                "planned_submitted_limit_price": reveal_plan.submitted_limit_price,
+                # Actually-submitted price after any post-only retries.
+                "submitted_limit_price": actual_submitted_price,
                 "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
-                "reveal_price_source": reveal_plan.reveal_price_source,
+                "reveal_price_source": (
+                    "post_only_retry"
+                    if post_only_retried
+                    else reveal_plan.reveal_price_source
+                ),
+                "post_only_retry_attempts": len(post_only_attempts),
             })
 
             # 🔔 LIFECYCLE HOOK: REVEAL_SUCCEEDED
