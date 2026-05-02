@@ -2404,6 +2404,11 @@ class OrderEngine:
         # on partial_fill_progress. See lock-init comment in __init__.
         coid_lock = self._get_coid_handler_lock(client_order_id)
         with coid_lock:
+            # Keep local parent rows hydrated even for externally-owned OPEN
+            # orders so startup reconciliation can map exchange-open COIDs.
+            # We still short-circuit WS-delta ingestion for external orders.
+            self._ensure_order_parent_row_exists(normalized_order)
+
             if should_short_circuit_ws_delta:
                 self.log_message(
                     "order",
@@ -2414,12 +2419,7 @@ class OrderEngine:
                     ),
                 )
             else:
-                # Step 3a: Ensure the order_parent row exists before any FK-dependent
-                # write. partial_fill_progress.client_order_id_fkey requires a parent
-                # row, so for genuinely-unknown orders we must create one NOW.
-                self._ensure_order_parent_row_exists(normalized_order)
-
-                # Step 3b: Single ingestion point for WS-derived progress.
+                # Single ingestion point for WS-derived progress.
                 self._process_ws_order_delta(normalized_order)
         if (
             status == OrderStatus.FILLED

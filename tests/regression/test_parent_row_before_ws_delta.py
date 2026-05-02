@@ -86,11 +86,11 @@ def _build_engine():
 
 @pytest.mark.regression
 def test_external_orders_short_circuit_before_ws_order_delta_processing():
-    """External orders should bypass ensure+delta entirely.
+    """External orders should run ensure-parent but still short-circuit delta.
 
     New contract: if ownership resolves EXTERNAL, ``process_user_order`` should
-    skip the expensive FK guard + WS-delta pipeline and let terminal handlers
-    route to the existing external-tracking path.
+    keep the parent-row guard (for reconciliation visibility) while skipping the
+    expensive WS-delta pipeline. Terminal handlers still route to external path.
     """
     engine = _build_engine()
 
@@ -124,9 +124,9 @@ def test_external_orders_short_circuit_before_ws_order_delta_processing():
 
     engine.process_user_order(external_order)
 
-    assert call_order == [], (
-        "External orders should short-circuit before _ensure_order_parent_row_exists "
-        "and _process_ws_order_delta"
+    assert call_order == ["ensure_parent"], (
+        "External orders should still ensure parent-row existence but must "
+        "short-circuit before _process_ws_order_delta"
     )
     # External tracking still persists one parent row for traceability.
     engine.db_helper.insert_order_parent.assert_called_once()
