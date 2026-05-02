@@ -8,8 +8,6 @@
         }
     ],
     "audioCues.enabled": "off",
-    "audioCues.volume": 0,
-    "terminal.integrated.enableBell": false,
     "accessibility.signalOptions.volume": 0,
     "accessibility.signals.chatEditModifiedFile": "off",
     "accessibility.signals.chatRequestSent": "off",
@@ -41,10 +39,13 @@
     "accessibility.signals.save": "off",
     "accessibility.signals.taskCompleted": "off",
     "accessibility.signals.taskFailed": "off",
-    "accessibility.signals.terminalBell": "off",
+    "accessibility.signals.terminalBell": {
+        "sound": "off"
+    },
     "accessibility.signals.terminalCommandFailed": "off",
     "accessibility.signals.terminalCommandSucceeded": "off",
     "accessibility.signals.terminalQuickFix": "off",
     "accessibility.signals.voiceRecordingStarted": "off",
-    "accessibility.signals.voiceRecordingStopped": "off"
+    "accessibility.signals.voiceRecordingStopped": "off",
+    "terminal.integrated.enableVisualBell": false
 }

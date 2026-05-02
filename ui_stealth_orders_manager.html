@@ -570,6 +570,43 @@
             margin-bottom: 0;
         }
 
+        .condition-guide {
+            margin-top: 8px;
+            background: rgba(123, 163, 255, 0.08);
+            border: 1px solid rgba(123, 163, 255, 0.28);
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 11px;
+            color: #cfdcff;
+            line-height: 1.5;
+        }
+
+        .condition-guide-title {
+            color: #a7c0ff;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .condition-guide-content p {
+            margin: 0 0 6px 0;
+        }
+
+        .condition-guide-content ul {
+            margin: 0 0 6px 16px;
+            padding: 0;
+        }
+
+        .condition-guide-content li {
+            margin-bottom: 3px;
+        }
+
+        .condition-guide-content strong {
+            color: #e9eeff;
+        }
+
         .policy-panel {
             background: rgba(0, 0, 0, 0.2);
             padding: 12px;
@@ -809,6 +846,12 @@
 
                         <!-- Condition-specific fields -->
                         <div class="condition-fields" id="condition-fields-container"></div>
+                        <div class="condition-guide">
+                            <div class="condition-guide-title">Reveal Condition Guide</div>
+                            <div id="condition-guide-content" class="condition-guide-content">
+                                Select a reveal condition to see setup details and field guidance.
+                            </div>
+                        </div>
 
                         <div class="form-group">
                             <label>Follow-up Reveal Direction</label>
@@ -1443,6 +1486,86 @@
                 </div>
             `
         };
+
+        const conditionGuidance = {
+            price: {
+                title: "Price Threshold",
+                html: `
+                    <p>Use when you want reveal timing tied to a single price level.</p>
+                    <ul>
+                        <li><strong>Price Threshold:</strong> The trigger level to watch.</li>
+                        <li><strong>Direction:</strong> Usually <code>below</code> for BUY setups and <code>above</code> for SELL setups.</li>
+                        <li><strong>Hold Duration:</strong> Seconds the condition must remain valid before reveal.</li>
+                    </ul>
+                    <p>Starter baseline: 1-3s hold to filter short-lived price flickers.</p>
+                `
+            },
+            cumulative_volume: {
+                title: "Volume Threshold",
+                html: `
+                    <p>Use when you want reveal only after meaningful tape activity appears near a level.</p>
+                    <ul>
+                        <li><strong>Price Level:</strong> The center price for monitoring.</li>
+                        <li><strong>Volume Threshold:</strong> Accumulated trade size required to trigger.</li>
+                        <li><strong>Lookback:</strong> Bucket reset window in seconds.</li>
+                    </ul>
+                    <p>Engine note: volume is only counted when price is near the target level (about +/-0.5%), and this condition uses the order's selected product.</p>
+                `
+            },
+            time_delay: {
+                title: "Time Delay",
+                html: `
+                    <p>Use for schedule-based reveals when you do not want price to gate entry.</p>
+                    <ul>
+                        <li><strong>Delay:</strong> Base wait time after order creation.</li>
+                        <li><strong>Jitter:</strong> Random +/- seconds added around the base delay.</li>
+                    </ul>
+                    <p>Example: delay 60 with jitter 30 reveals between ~30s and ~90s.</p>
+                `
+            },
+            spread: {
+                title: "Spread Trigger",
+                html: `
+                    <p>Use to avoid revealing during wide bid/ask conditions.</p>
+                    <ul>
+                        <li><strong>Max Spread:</strong> Absolute spread cap in price units (not bps).</li>
+                        <li><strong>Hold Duration:</strong> Seconds spread must stay at or below the cap.</li>
+                    </ul>
+                    <p>If set too tight for the product's normal microstructure, reveal may never happen.</p>
+                `
+            },
+            product_ratio: {
+                title: "Product Ratio",
+                html: `
+                    <p>Use for relative-value setups between two instruments.</p>
+                    <ul>
+                        <li><strong>Product A / Product B:</strong> Ratio is evaluated as <code>price_a / price_b</code>.</li>
+                        <li><strong>Ratio Threshold + Direction:</strong> Trigger when ratio crosses above/below your level.</li>
+                    </ul>
+                    <p>Both products must have usable live pricing; missing data keeps the order hidden.</p>
+                `
+            }
+        };
+
+        function renderConditionGuide() {
+            const conditionType = document.getElementById('condition_type').value;
+            const content = document.getElementById('condition-guide-content');
+            if (!content) return;
+
+            const guide = conditionGuidance[conditionType];
+            if (!guide) {
+                content.innerHTML = `
+                    <p>Select a reveal condition to see setup details and field guidance.</p>
+                    <p>Advanced <code>composite</code> conditions are available via import/API payloads.</p>
+                `;
+                return;
+            }
+
+            content.innerHTML = `
+                <p><strong>${guide.title}</strong></p>
+                ${guide.html}
+            `;
+        }
 
         function formatConditionDetails(conditionJson) {
             if (!conditionJson) return '';
@@ -2341,6 +2464,8 @@
             } else {
                 container.innerHTML = '';
             }
+
+            renderConditionGuide();
         }
 
         function updateSizingFields() {
@@ -2671,6 +2796,10 @@
                     condition[field.name] = value;
                 }
             });
+
+            if (type === 'cumulative_volume') {
+                condition.product_id = document.getElementById('product_id').value;
+            }
 
             return condition;
         }
