@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
+> This file is useful operational context but is not the canonical source of truth.
+> Canonical living docs remain under genai_data/.
 # Adaptive Fee Regime Integration Map
 
 This document explains where adaptive fee and follow-up spacing logic is integrated in the current codebase.
@@ -118,3 +121,4 @@ Integration test:
 - No new parallel execution path was introduced for follow-up creation.
 - Adaptive logic is injected through existing target-movement and profitability calculations.
 - Existing parent/child tracking semantics and client_order_id usage remain unchanged.
+

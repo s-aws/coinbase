@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Archival (historical implementation note)**
+> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
+> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # Comprehensive Test Suite - Implementation Summary
 
 ## What Was Created
@@ -255,3 +258,4 @@ Ready to:
 - ✅ Add new features with confidence
 - ✅ Deploy without breaking anything
 - ✅ Expand test coverage systematically
+

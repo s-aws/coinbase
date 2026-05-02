@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Archival (historical implementation note)**
+> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
+> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # Root Cause Analysis: Partial Fills Loop
 
 ## The Loop Pattern
@@ -103,3 +106,4 @@ After fix:
 - Monitor replacement count - should increment by 1, not by 2+
 - Verify no "follow_up_already_claimed" warnings in normal operation
 - Verify orders eventually execute instead of endless cancel loop
+

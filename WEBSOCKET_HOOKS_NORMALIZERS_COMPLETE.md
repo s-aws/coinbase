@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Archival (historical implementation note)**
+> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
+> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # WebSocket Hooks + Normalizers: Complete Implementation
 
 ## What Was Implemented
@@ -352,3 +355,4 @@ hooks.register_post_snapshot(callback)
 ---
 
 **Status:** ✅ Complete, tested, production-ready
+

@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Archival (historical implementation note)**
+> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
+> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # Test Suite Implementation Summary
 
 ## What Was Created
@@ -187,3 +190,4 @@ pytest tests/regression/test_core_functionality.py::TestCoreOrderLifecycle::test
 ---
 
 **Ready to proceed with architectural refactoring using these tests as your safety net!**
+

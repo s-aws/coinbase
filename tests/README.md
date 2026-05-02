@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
+> This file is useful operational context but is not the canonical source of truth.
+> Canonical living docs remain under genai_data/.
 # Test Suite Documentation
 
 External test operations runbook: `docs/EXTERNAL_TESTING_RUNBOOK.md`
@@ -425,3 +428,4 @@ This test suite covers the entire platform. Key components include:
 5. Add E2E tests for dashboard and portfolio
 6. Add external tests for Coinbase API integration
 7. Run regression tests before architectural refactoring
+
