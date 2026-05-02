@@ -64,7 +64,7 @@ import uuid
 import json
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Any, Iterator, Optional, Tuple, List
+from typing import Callable, Dict, Any, Iterator, Optional, Tuple, List
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
@@ -221,6 +221,18 @@ class StealthOrderManager:
         self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
         self.profit_validator = profit_validator
+
+        # Pre-submit hook: register a placement COID under its stealth chain
+        # root in the OrderEngine's in-memory orderbook BEFORE the REST call.
+        # Without this, a WS event for the placement COID can race the REST
+        # return, miss every cache, and be classified as ``EXTERNAL`` by
+        # ``_resolve_ws_order_ownership_scope`` -- which then inserts a
+        # phantom ``order_parent`` row with ``parent_order_id=NULL`` and
+        # ``ownership_scope='external'``, leaving the stealth root stuck at
+        # PENDING forever (incident 2026-05-02, rows 5/8 in audit).
+        # Wired by ``StealthOrderBridge``; default no-op preserves test
+        # construction without an engine.
+        self.placement_register_callback: Optional[Callable[[str, str], None]] = None
         
         # Order placement hooks for extensibility
         if order_placement_hooks is None:
@@ -965,6 +977,47 @@ class StealthOrderManager:
             return str(uuid.uuid4())
         return order["stealth_order_id"]
 
+    def _pre_register_placement_in_orderbook(
+        self,
+        placement_client_order_id: str,
+        chain_root_client_order_id: Optional[str],
+    ) -> None:
+        """Notify the OrderEngine that ``placement_client_order_id`` belongs
+        to the stealth chain rooted at ``chain_root_client_order_id``.
+
+        Must be called BEFORE the REST submit so the inevitable WS event
+        for this placement COID resolves to ``LOCAL`` ownership and
+        ``_ensure_order_parent_row_exists`` finds it in the child cache.
+
+        No-op when:
+          * The placement COID equals the stealth root (no separate row).
+          * No chain root is resolvable.
+          * No callback is wired (e.g. unit tests).
+
+        Failures are swallowed and logged: the stealth manager's DB
+        pre-insert is still authoritative; this hook only repairs the
+        in-memory ownership classification used by the WS handler.
+        """
+        if not chain_root_client_order_id:
+            return
+        if placement_client_order_id == chain_root_client_order_id:
+            return
+        callback = getattr(self, "placement_register_callback", None)
+        if callback is None:
+            return
+        try:
+            callback(placement_client_order_id, chain_root_client_order_id)
+        except Exception as exc:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "stealth_placement_pre_register_failed",
+                    "placement_client_order_id": placement_client_order_id,
+                    "chain_root_client_order_id": chain_root_client_order_id,
+                    "error": str(exc),
+                },
+            )
+
     def _mark_reveal_event_cancelled_for_reprice(
         self,
         order: Dict[str, Any],
@@ -1029,6 +1082,17 @@ class StealthOrderManager:
         REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
 
         placement_client_order_id = str(uuid.uuid4())
+
+        # Pre-register the placement COID under the chain root in the engine's
+        # in-memory orderbook BEFORE the REST submit. Mirrors the DB pre-insert
+        # below; without this the WS event races the REST return and is
+        # misclassified as an EXTERNAL order. See incident note in
+        # ``_pre_register_placement_in_orderbook``.
+        self._pre_register_placement_in_orderbook(
+            placement_client_order_id,
+            resolve_stealth_chain_root(order),
+        )
+
         # Track the cancel+replace as a single in-flight critical section so a
         # concurrent drain waits for both the cancellation and the replacement
         # placement to settle before transitioning to STOPPED.
@@ -1429,6 +1493,15 @@ class StealthOrderManager:
                 plan.reveal_plan.submitted_limit_price,
                 default=plan.new_configured_limit_price,
             )
+
+            # Pre-register placement COID under the chain root so a racing WS
+            # event for it does not get classified as EXTERNAL. See note in
+            # ``_pre_register_placement_in_orderbook``.
+            self._pre_register_placement_in_orderbook(
+                placement_client_order_id,
+                plan.root_parent_client_order_id,
+            )
+
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
                     order_result = REST_CLIENT.place_limit_order(
@@ -3065,6 +3138,15 @@ class StealthOrderManager:
                         allow_partial_fills=bool(order.get("allow_partial_fills", False)),
                     )
                     pre_inserted_attempt_coids.add(coid)
+
+                    # Pre-register in the engine's in-memory orderbook so
+                    # the WS handler classifies the placement as LOCAL and
+                    # does not insert a phantom EXTERNAL row that races and
+                    # beats this DB pre-insert. See note in
+                    # ``_pre_register_placement_in_orderbook``.
+                    self._pre_register_placement_in_orderbook(
+                        coid, root_parent_for_placement
+                    )
                     return True
                 except Exception as parent_insert_error:
                     self.log_callback(
