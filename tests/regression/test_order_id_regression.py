@@ -81,6 +81,10 @@ def test_filled_order_lookup_uses_client_order_id_not_exchange_order_id():
         "outstanding_hold_amount": "0",
     }
 
+    # Register the order as owned (child) to prevent fail-fast external order check
+    # from rejecting it before we can verify the stealth lookup uses client_order_id
+    engine.orderbook.child_order_ids["client-order-001"] = "parent-order-001"
+
     engine.handle_filled_order(filled_order)
 
     stealth_manager.find_stealth_order_by_placed_order_id.assert_called_once_with("client-order-001")

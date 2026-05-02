@@ -1522,6 +1522,31 @@ class OrderEngine:
         with self.orderbook_lock:
             return self.orderbook.child_order_ids.get(child_client_order_id)
 
+    def _update_logical_root_parent_status(
+        self,
+        root_client_order_id: str,
+        status: str,
+    ) -> None:
+        """Advance the logical root row without allowing stale rewinds.
+
+        Placement rows still use the raw update helper so they mirror the
+        exchange lifecycle for the specific COID that was placed.
+        """
+        guarded_update = getattr(self.db_helper, "__dict__", {}).get(
+            "update_order_parent_status_if_progressing"
+        )
+        if callable(guarded_update):
+            guarded_update(
+                client_order_id=root_client_order_id,
+                status=status,
+            )
+            return
+
+        self.db_helper.update_order_parent_status(
+            client_order_id=root_client_order_id,
+            status=status,
+        )
+
     def _get_parent_of_child_unlocked(self, child_client_order_id: str) -> str | None:
         """Internal: Get parent of child (assumes lock already held)."""
         return self.orderbook.child_order_ids.get(child_client_order_id)
@@ -2392,8 +2417,8 @@ class OrderEngine:
                 # (read by dashboards) reflects the placement's lifecycle.
                 root_client_order_id = self.get_parent_of_child(client_order_id)
                 if root_client_order_id and root_client_order_id != client_order_id:
-                    self.db_helper.update_order_parent_status(
-                        client_order_id=root_client_order_id,
+                    self._update_logical_root_parent_status(
+                        root_client_order_id=root_client_order_id,
                         status=status,
                     )
         except Exception as e:
@@ -3325,9 +3350,19 @@ class OrderEngine:
         if original_stealth_order:
             self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
 
-        # Check if this is an external order (not created by our engine)
-        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        # ✅ FAIL-FAST: Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups.
+        # Fail fast to avoid wasting CPU/DB resources on orders we don't own (critical
+        # when running parallel prod + staging instances with separate environments).
         is_external_order = self._is_external_order(client_order_id)
+        if is_external_order and not original_stealth_order:
+            self._handle_external_order_tracking(
+                client_order_id,
+                order,
+                "filled",
+                processed_flag_name=None,  # Don't complete processing for filled orders
+            )
+            return
 
         # NOTE: Per-match fill recording happens in process_user_order via
         # _process_ws_order_delta, which derives one ledger row per real exchange
@@ -3381,17 +3416,6 @@ class OrderEngine:
                 parent_client_order_id = explicit_parent
                 # NOTE: Child registration already happened at line 2528, so don't call again here
                 # Calling twice would cause duplicate replacement count increments
-
-        # For external orders, just track them but don't create follow-ups
-        # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
-        if is_external_order and not original_stealth_order:
-            self._handle_external_order_tracking(
-                client_order_id,
-                order,
-                "filled",
-                processed_flag_name=None,  # Don't complete processing for filled orders
-            )
-            return
 
         # Handle stealth order fills - create a Child stealth order as follow-up
         # NOTE: This is handled in the later stealth order code path (around line 1663)

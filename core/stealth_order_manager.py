@@ -686,6 +686,78 @@ class StealthOrderManager:
         return new_price
 
     @staticmethod
+    def _post_only_retreat_ticks(
+        initial_price: float,
+        current_price: float,
+        side: str,
+        increment: str,
+    ) -> int:
+        """Return cumulative retreat in ticks from the initial intent price.
+
+        The value is normalized so a safer post-only retreat is always
+        non-negative for supported sides:
+
+        - BUY: lower prices are positive retreat
+        - SELL: higher prices are positive retreat
+        """
+        try:
+            tick = float(increment)
+            if tick <= 0:
+                return 0
+        except (TypeError, ValueError):
+            return 0
+
+        try:
+            start = float(initial_price)
+            current = float(current_price)
+        except (TypeError, ValueError):
+            return 0
+
+        normalized_side = str(side or "").upper()
+        if normalized_side == OrderSide.BUY.value:
+            retreat = (start - current) / tick
+        elif normalized_side == OrderSide.SELL.value:
+            retreat = (current - start) / tick
+        else:
+            return 0
+
+        return max(int(round(retreat)), 0)
+
+    def _resolve_post_only_retry_price(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        current_price: float,
+        increment: str,
+        reveal_pricing_policy: str,
+    ) -> tuple[float, str]:
+        """Resolve the next post-only retry price.
+
+        Prefer re-anchoring to the latest cached market under the original
+        reveal pricing policy, then step one safer tick away from that live
+        anchor. If no usable market snapshot is available, fall back to
+        stepping one safer tick away from the current rejected price.
+        """
+        anchor_price = float(current_price)
+        anchor_source = "rejected_price"
+
+        market_data = self._get_current_market_data(product_id) or {}
+        live_anchor_price, live_anchor_source, fallback_used = self._resolve_reveal_limit_price(
+            side=side,
+            configured_limit_price=float(current_price),
+            market_data=market_data,
+            reveal_pricing_policy=reveal_pricing_policy,
+        )
+        market_known = str(market_data.get("source") or "").lower() == "ticker"
+
+        if market_known and not fallback_used:
+            anchor_price = float(live_anchor_price)
+            anchor_source = str(live_anchor_source)
+
+        return self._next_safer_tick(anchor_price, side, increment), anchor_source
+
+    @staticmethod
     def _is_post_only_rejection(order_result: Any) -> bool:
         """Return True if a Coinbase ``place_limit_order`` response shape
         indicates a POST_ONLY rejection.
@@ -3032,6 +3104,7 @@ class StealthOrderManager:
             retry_post_only = bool(order_for_submission.get("post_only"))
             max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
             attempt_price = float(order_for_submission["limit_price"])
+            initial_attempt_price = attempt_price
             attempt_coid = order_for_submission["client_order_id"]
             price_increment = self._get_price_increment(order_for_submission["product_id"])
             order_result = None
@@ -3126,10 +3199,15 @@ class StealthOrderManager:
                     client_order_id = attempt_coid
                     break
 
-                next_price = self._next_safer_tick(
-                    attempt_price,
-                    order_for_submission["side"],
-                    price_increment,
+                next_price, retry_anchor_source = self._resolve_post_only_retry_price(
+                    product_id=order_for_submission["product_id"],
+                    side=order_for_submission["side"],
+                    current_price=attempt_price,
+                    increment=price_increment,
+                    reveal_pricing_policy=order_for_submission.get(
+                        "reveal_pricing_policy",
+                        "configured_limit",
+                    ),
                 )
                 # Fresh client_order_id per retry: a rejected attempt may
                 # or may not consume the COID at the exchange and the
@@ -3147,6 +3225,13 @@ class StealthOrderManager:
                     "rejected_at_price": attempt_price,
                     "next_attempt_price": next_price,
                     "tick_increment": price_increment,
+                    "retry_anchor_source": retry_anchor_source,
+                    "cumulative_retreat_ticks": self._post_only_retreat_ticks(
+                        initial_attempt_price,
+                        next_price,
+                        order_for_submission["side"],
+                        price_increment,
+                    ),
                     "rejected_client_order_id": attempt_coid,
                     "next_client_order_id": next_coid,
                     "failure_reason": rejected_failure_reason,
@@ -3175,6 +3260,12 @@ class StealthOrderManager:
                     "product_id": order_for_submission["product_id"],
                     "side": order_for_submission["side"],
                     "attempts": post_only_attempts,
+                    "total_retreat_ticks": self._post_only_retreat_ticks(
+                        initial_attempt_price,
+                        attempt_price,
+                        order_for_submission["side"],
+                        price_increment,
+                    ),
                     "final_failure_reason": final_failure_reason,
                     "note": (
                         "Post-only rejected on every attempt after "
@@ -3257,6 +3348,12 @@ class StealthOrderManager:
                     else reveal_plan.reveal_price_source
                 ),
                 "post_only_retry_attempts": len(post_only_attempts),
+                "post_only_total_retreat_ticks": self._post_only_retreat_ticks(
+                    initial_attempt_price,
+                    actual_submitted_price,
+                    order_for_submission["side"],
+                    price_increment,
+                ),
             })
 
             # 🔔 LIFECYCLE HOOK: REVEAL_SUCCEEDED
