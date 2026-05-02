@@ -200,6 +200,7 @@ def create_stealth_orders_table() -> None:
         reveal_condition_type VARCHAR(32) NOT NULL,
         reveal_condition_json JSONB NOT NULL,
         reveal_pricing_policy VARCHAR(32) NOT NULL DEFAULT 'configured_limit',
+        follow_up_reveal_direction VARCHAR(16) NOT NULL DEFAULT 'opposite',
         condition_first_met_at TIMESTAMP,
         condition_confirmed_at TIMESTAMP,
         
@@ -232,6 +233,10 @@ def create_stealth_orders_table() -> None:
         cursor.execute(
             "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS reveal_pricing_policy "
             "VARCHAR(32) NOT NULL DEFAULT 'configured_limit'"
+        )
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS follow_up_reveal_direction "
+            "VARCHAR(16) NOT NULL DEFAULT 'opposite'"
         )
         print("stealth_orders table done.")
 
