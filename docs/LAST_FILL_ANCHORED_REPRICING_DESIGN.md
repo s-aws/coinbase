@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
+> This file is useful operational context but is not the canonical source of truth.
+> Canonical living docs remain under genai_data/.
 # Ticker-Anchored Repricing Design
 
 ## Goal
@@ -608,3 +611,4 @@ My recommendation:
 - V1 should correct to max boundary first, then optionally converge later
 - follow-up inheritance should be explicit but default-on for advanced strategy users
 - max-boundary breach should always force the fastest cadence
+

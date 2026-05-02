@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
+> This file is useful operational context but is not the canonical source of truth.
+> Canonical living docs remain under genai_data/.
 # External Testing Runbook
 
 ## Purpose
@@ -115,3 +118,4 @@ Notes:
 
 - Prefer stable required-field assertions for live payloads.
 - Keep static reference files in `api_reference/` and `websocket_reference/` up to date.
+

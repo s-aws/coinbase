@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
+> This file is useful operational context but is not the canonical source of truth.
+> Canonical living docs remain under genai_data/.
 # Coinbase Advanced Trade WebSocket Channels Reference
 
 This directory contains structured documentation of all Coinbase Advanced Trade API WebSocket channels, subscription formats, and message schemas. Use this as the authoritative reference when working with real-time market and account data.
@@ -372,4 +375,5 @@ midpoint = (float(best_bid) + float(best_ask)) / 2
 
 Generated: 2024
 Source: Coinbase Advanced Trade API v1
+
 

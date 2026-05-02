@@ -1,3 +1,6 @@
+> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
+> This file is useful operational context but is not the canonical source of truth.
+> Canonical living docs remain under genai_data/.
 # Coinbase Advanced Trade API Reference Library
 
 This directory contains a structured collection of Coinbase Advanced Trade API REST endpoint request/response schemas. Use this library as a quick reference when developing features or debugging API integrations.
@@ -188,4 +191,5 @@ This reference library tracks the Coinbase Advanced Trade API v1 specification. 
 2. Create webhook/event schemas when adding WebSocket documentation
 3. Add error response examples for common failure scenarios
 4. Build API client wrapper generation from these schemas
+
 
