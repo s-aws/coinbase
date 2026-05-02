@@ -686,6 +686,44 @@ class StealthOrderManager:
         return new_price
 
     @staticmethod
+    def _post_only_retreat_ticks(
+        initial_price: float,
+        current_price: float,
+        side: str,
+        increment: str,
+    ) -> int:
+        """Return cumulative retreat in ticks from the initial intent price.
+
+        The value is normalized so a safer post-only retreat is always
+        non-negative for supported sides:
+
+        - BUY: lower prices are positive retreat
+        - SELL: higher prices are positive retreat
+        """
+        try:
+            tick = float(increment)
+            if tick <= 0:
+                return 0
+        except (TypeError, ValueError):
+            return 0
+
+        try:
+            start = float(initial_price)
+            current = float(current_price)
+        except (TypeError, ValueError):
+            return 0
+
+        normalized_side = str(side or "").upper()
+        if normalized_side == OrderSide.BUY.value:
+            retreat = (start - current) / tick
+        elif normalized_side == OrderSide.SELL.value:
+            retreat = (current - start) / tick
+        else:
+            return 0
+
+        return max(int(round(retreat)), 0)
+
+    @staticmethod
     def _is_post_only_rejection(order_result: Any) -> bool:
         """Return True if a Coinbase ``place_limit_order`` response shape
         indicates a POST_ONLY rejection.
@@ -3032,6 +3070,7 @@ class StealthOrderManager:
             retry_post_only = bool(order_for_submission.get("post_only"))
             max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
             attempt_price = float(order_for_submission["limit_price"])
+            initial_attempt_price = attempt_price
             attempt_coid = order_for_submission["client_order_id"]
             price_increment = self._get_price_increment(order_for_submission["product_id"])
             order_result = None
@@ -3147,6 +3186,12 @@ class StealthOrderManager:
                     "rejected_at_price": attempt_price,
                     "next_attempt_price": next_price,
                     "tick_increment": price_increment,
+                    "cumulative_retreat_ticks": self._post_only_retreat_ticks(
+                        initial_attempt_price,
+                        next_price,
+                        order_for_submission["side"],
+                        price_increment,
+                    ),
                     "rejected_client_order_id": attempt_coid,
                     "next_client_order_id": next_coid,
                     "failure_reason": rejected_failure_reason,
@@ -3175,6 +3220,12 @@ class StealthOrderManager:
                     "product_id": order_for_submission["product_id"],
                     "side": order_for_submission["side"],
                     "attempts": post_only_attempts,
+                    "total_retreat_ticks": self._post_only_retreat_ticks(
+                        initial_attempt_price,
+                        attempt_price,
+                        order_for_submission["side"],
+                        price_increment,
+                    ),
                     "final_failure_reason": final_failure_reason,
                     "note": (
                         "Post-only rejected on every attempt after "
@@ -3257,6 +3308,12 @@ class StealthOrderManager:
                     else reveal_plan.reveal_price_source
                 ),
                 "post_only_retry_attempts": len(post_only_attempts),
+                "post_only_total_retreat_ticks": self._post_only_retreat_ticks(
+                    initial_attempt_price,
+                    actual_submitted_price,
+                    order_for_submission["side"],
+                    price_increment,
+                ),
             })
 
             # 🔔 LIFECYCLE HOOK: REVEAL_SUCCEEDED

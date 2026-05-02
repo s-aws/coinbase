@@ -31,6 +31,8 @@ Contract under test:
 3. ``POST_ONLY_MAX_ATTEMPTS == 3`` — the industry-standard ladder.
 4. The retry/exhaustion code path is wired (static-source guards so
    nobody silently rips it out and replaces with a taker fallback).
+5. Retry telemetry includes cumulative retreat in ticks so later
+    saturation tuning is based on the actual drift from initial intent.
 """
 from __future__ import annotations
 
@@ -94,6 +96,13 @@ def test_retry_loop_uses_fresh_client_order_id_per_attempt():
     assert "next_coid = str(uuid.uuid4())" in _STEALTH_MANAGER_SRC
 
 
+@pytest.mark.regression
+def test_retry_loop_emits_cumulative_retreat_tick_telemetry():
+    assert '"cumulative_retreat_ticks": self._post_only_retreat_ticks(' in _STEALTH_MANAGER_SRC
+    assert '"total_retreat_ticks": self._post_only_retreat_ticks(' in _STEALTH_MANAGER_SRC
+    assert '"post_only_total_retreat_ticks": self._post_only_retreat_ticks(' in _STEALTH_MANAGER_SRC
+
+
 # ---------------------------------------------------------------------------
 # Behavioural tests — _next_safer_tick
 # ---------------------------------------------------------------------------
@@ -149,6 +158,13 @@ def test_next_safer_tick_handles_invalid_increment_gracefully():
         price=100.50, side="BUY", increment="not-a-number"
     )
     assert new_price == pytest.approx(100.50)
+
+
+@pytest.mark.regression
+def test_post_only_retreat_ticks_are_side_aware():
+    assert StealthOrderManager._post_only_retreat_ticks(100.0, 99.0, "BUY", "0.5") == 2
+    assert StealthOrderManager._post_only_retreat_ticks(100.0, 101.0, "SELL", "0.5") == 2
+    assert StealthOrderManager._post_only_retreat_ticks(100.0, 101.0, "BUY", "0.5") == 0
 
 
 # ---------------------------------------------------------------------------
