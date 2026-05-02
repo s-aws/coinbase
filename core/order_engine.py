@@ -2421,7 +2421,11 @@ class OrderEngine:
 
                 # Step 3b: Single ingestion point for WS-derived progress.
                 self._process_ws_order_delta(normalized_order)
-        if status == OrderStatus.FILLED and outstanding_hold_amount > 0:
+        if (
+            status == OrderStatus.FILLED
+            and outstanding_hold_amount > 0
+            and not should_short_circuit_ws_delta
+        ):
             self.log_message(
                 "order",
                 self.build_event_log_payload(

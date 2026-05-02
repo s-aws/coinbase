@@ -708,3 +708,39 @@ class TestTerminalStatusEvictsOrderbookEntry:
         }
         engine.process_user_order(order)
         assert "abc" in engine.orderbook.order
+
+    @pytest.mark.regression
+    def test_external_filled_with_hold_does_not_short_return(self, monkeypatch):
+        """External FILLED events should bypass the hold-clear early return.
+
+        The hold-clear guard is for engine-owned lifecycle handling. External
+        short-circuited events should still reach terminal routing so they get
+        tracked as external_order_filled and evicted from in-memory orderbook.
+        """
+        engine = self._engine_with_stubbed_handlers(monkeypatch)
+        monkeypatch.setattr(
+            engine,
+            "_resolve_ws_order_ownership_scope",
+            lambda _coid: OrderOwnershipScope.EXTERNAL,
+        )
+
+        calls = {"filled": 0}
+        monkeypatch.setattr(
+            engine,
+            "handle_filled_order",
+            lambda _o: calls.__setitem__("filled", calls["filled"] + 1),
+        )
+
+        order = {
+            "client_order_id": "ext-filled",
+            "status": "FILLED",
+            "product_id": "BTC-USDC",
+            "outstanding_hold_amount": "244.13",
+        }
+        engine.process_user_order(order)
+
+        assert calls["filled"] == 1, (
+            "external FILLED should continue to terminal handler even when "
+            "outstanding_hold_amount > 0"
+        )
+        assert "ext-filled" not in engine.orderbook.order

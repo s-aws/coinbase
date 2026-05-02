@@ -4084,9 +4084,10 @@ class StealthOrderManager:
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
                     limit_price, status, reveal_condition_type, reveal_condition_json,
                           reveal_pricing_policy,
+                          follow_up_reveal_direction,
                           sizing_strategy_json, reason, notes, parent_order_id,
                           anchor_repricing_policy_json, anchor_repricing_state_json)
-                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -4100,6 +4101,7 @@ class StealthOrderManager:
                      reveal_pricing_policy=order.get('reveal_pricing_policy'),
                      reveal_condition=order.get('reveal_condition_json'),
                  ),
+                 order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
@@ -4156,6 +4158,7 @@ class StealthOrderManager:
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
                        limit_price = %s, reveal_condition_json = %s,
                        reveal_pricing_policy = %s,
+                       follow_up_reveal_direction = %s,
                        anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
                        condition_first_met_at = %s, condition_confirmed_at = %s,
                        updated_at = CURRENT_TIMESTAMP
@@ -4172,6 +4175,7 @@ class StealthOrderManager:
                      reveal_pricing_policy=order.get('reveal_pricing_policy'),
                      reveal_condition=order.get('reveal_condition_json'),
                  ),
+                 order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
                  condition_first_met_at,
@@ -4180,6 +4184,40 @@ class StealthOrderManager:
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_update_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
+
+    def _hydrate_parent_runtime_fields(
+        self,
+        stealth_order_id: str,
+        order_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Overlay parent-row runtime fields onto a stealth order dict.
+
+        Some runtime paths read ``allow_partial_fills`` / ``max_order_replacements``
+        from the in-memory stealth order. Those fields are canonical on
+        ``order_parent`` and must be rehydrated on DB load to avoid drift
+        after restart.
+        """
+        parent_row = None
+        try:
+            parent_row = get_parent_order(stealth_order_id)
+        except Exception as exc:
+            self.logger.warning(
+                f"Failed to fetch order_parent for stealth runtime hydration "
+                f"({stealth_order_id}): {exc}"
+            )
+
+        max_replacements = 0
+        allow_partial_fills = False
+        if parent_row is not None:
+            try:
+                max_replacements = int(parent_row.get("max_order_replacement") or 0)
+            except (TypeError, ValueError):
+                max_replacements = 0
+            allow_partial_fills = bool(parent_row.get("allow_partial_fills", False))
+
+        order_data["max_order_replacements"] = max_replacements
+        order_data["allow_partial_fills"] = allow_partial_fills
+        return order_data
     
     def _load_stealth_order_from_db(self, stealth_order_id: str) -> Optional[Dict[str, Any]]:
         """Load stealth order from database."""
@@ -4210,7 +4248,7 @@ class StealthOrderManager:
                     reveal_condition=reveal_condition_json,
                 )
 
-                return {
+                order_data = {
                     'stealth_order_id': row['stealth_order_id'],
                     'product_id': row['product_id'],
                     'side': row['side'],
@@ -4223,6 +4261,7 @@ class StealthOrderManager:
                     'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),
                     'reveal_condition_json': reveal_condition_json,
                     'reveal_pricing_policy': reveal_pricing_policy,
+                    'follow_up_reveal_direction': row.get('follow_up_reveal_direction') or FollowUpRevealDirection.OPPOSITE.value,
                     'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
                     'reason': row.get('reason', ''),
                     'notes': row.get('notes', ''),
@@ -4234,6 +4273,7 @@ class StealthOrderManager:
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
                 }
+                return self._hydrate_parent_runtime_fields(str(row['stealth_order_id']), order_data)
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_load_failed", "stealth_order_id": stealth_order_id, "error": str(e)})
         
@@ -4300,6 +4340,7 @@ class StealthOrderManager:
                         'reveal_condition_type': condition_type,
                         'reveal_condition_json': reveal_condition_json,
                         'reveal_pricing_policy': reveal_pricing_policy,
+                        'follow_up_reveal_direction': row.get('follow_up_reveal_direction') or FollowUpRevealDirection.OPPOSITE.value,
                         'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
                         'reason': row.get('reason', ''),
                         'notes': row.get('notes', ''),
@@ -4316,6 +4357,7 @@ class StealthOrderManager:
                         'revealed_count': 0,
                         'condition_monitoring_start': None,
                     }
+                    order_data = self._hydrate_parent_runtime_fields(stealth_order_id, order_data)
                     
                     self.in_memory_orders[stealth_order_id] = order_data
                     loaded_count += 1
