@@ -12,7 +12,7 @@ from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
-from core.enums import OrderStatus
+from core.enums import OrderStatus, OrderOwnershipScope
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
@@ -115,12 +115,17 @@ def create_order_parent_table() -> None:
         price NUMERIC NOT NULL,
         status VARCHAR(20) NOT NULL,
         parent_order_id VARCHAR(40),
+        ownership_scope VARCHAR(16) NOT NULL DEFAULT 'local',
         allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "ownership_scope VARCHAR(16) NOT NULL DEFAULT 'local'"
+        )
         cursor.execute(
             "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
             "allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE"
@@ -665,6 +670,7 @@ def insert_order_parent(
     current_order_replacement: int = 0,
     status: str = "pending",
     parent_order_id: Optional[str] = None,
+    ownership_scope: str = OrderOwnershipScope.LOCAL.value,
     allow_partial_fills: bool = False,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
@@ -684,6 +690,7 @@ def insert_order_parent(
         current_order_replacement: Current count of replacements created (default 0).
         status: Order status (default 'pending').
         parent_order_id: Optional parent order UUID (for child/follow-up orders).
+        ownership_scope: Ownership classification ('local' | 'external' | 'unknown').
     
     Returns:
         The inserted order's database ID if successful, None if failed.
@@ -710,9 +717,10 @@ def insert_order_parent(
         max_order_replacement,
         current_order_replacement,
         parent_order_id,
+        ownership_scope,
         allow_partial_fills
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     params = (
@@ -727,6 +735,7 @@ def insert_order_parent(
         int(max_order_replacement),
         int(current_order_replacement),
         parent_order_id,
+        ownership_scope or OrderOwnershipScope.UNKNOWN.value,
         bool(allow_partial_fills),
     )
 
@@ -792,6 +801,7 @@ def insert_order_parent_batch(
         target_movement_type = order.get("target_movement_type", "P")
         max_order_replacement = int(order.get("max_order_replacement", DEFAULT_MAX_ORDER_REPLACEMENT))
         current_order_replacement = int(order.get("current_order_replacement", 0))
+        ownership_scope = order.get("ownership_scope", OrderOwnershipScope.LOCAL.value)
 
         if any(value is None for value in (
             client_order_id,
@@ -816,6 +826,7 @@ def insert_order_parent_batch(
             max_order_replacement=max_order_replacement,
             current_order_replacement=current_order_replacement,
             status=status,
+            ownership_scope=ownership_scope,
         )
         inserted_ids.append(result)
 

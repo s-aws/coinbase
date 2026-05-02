@@ -1,4 +1,4 @@
-"""Regression: order_parent row must exist BEFORE _process_ws_order_delta.
+﻿"""Regression: external short-circuit + parent-row safety around _process_ws_order_delta.
 
 Bug seen 2026-04-28 (production logs):
 
@@ -10,26 +10,25 @@ Bug seen 2026-04-28 (production logs):
         "order_parent".
 
 For an externally-placed order arriving on the WS user channel, the parent
-row was created LATE — only after the FILLED/CANCELLED routing inside
+row was created LATE â€” only after the FILLED/CANCELLED routing inside
 ``handle_filled_order`` / ``handle_cancelled_order``. The watermark write
 in ``_process_ws_order_delta`` ran first, hit the FK, and the order's
 fills (already in ``fill_ledger``) were left without a watermark row.
 
 Contract pinned by this module:
 
-  1. ``process_user_order`` must call ``_ensure_order_parent_row_exists``
-     BEFORE ``_process_ws_order_delta``.
-  2. ``_ensure_order_parent_row_exists`` is idempotent — already-tracked
+  1. ``process_user_order`` short-circuits externally-owned orders before
+     ``_ensure_order_parent_row_exists`` and ``_process_ws_order_delta``.
+  2. Engine-owned orders still run ensure BEFORE delta.
+  3. ``_ensure_order_parent_row_exists`` is idempotent - already-tracked
      orders see no extra DB inserts.
-  3. ``_is_external_order`` continues to return True for orders that
+  4. ``_is_external_order`` continues to return True for orders that
      arrived from outside our engine, even after the hoisted insert tags
      them in the cache. Without this, the downstream
-     ``_handle_external_order_tracking`` path would silently stop firing
-     for external orders.
+     ``_handle_external_order_tracking`` path still routes correctly for
+     external orders.
 """
-import json
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -86,12 +85,12 @@ def _build_engine():
 
 
 @pytest.mark.regression
-def test_parent_row_is_created_before_ws_order_delta_processing():
-    """Pin call order: ensure runs before delta processing.
+def test_external_orders_short_circuit_before_ws_order_delta_processing():
+    """External orders should bypass ensure+delta entirely.
 
-    Without the hoist, ``_process_ws_order_delta`` would run first against a
-    COID with no ``order_parent`` row and produce the FK violation observed
-    in production.
+    New contract: if ownership resolves EXTERNAL, ``process_user_order`` should
+    skip the expensive FK guard + WS-delta pipeline and let terminal handlers
+    route to the existing external-tracking path.
     """
     engine = _build_engine()
 
@@ -106,14 +105,6 @@ def test_parent_row_is_created_before_ws_order_delta_processing():
 
     def spy_delta(order):
         call_order.append("process_delta")
-        # By the time we reach delta processing, the parent row MUST be
-        # present in the in-memory cache (the FK precondition).
-        coid = order.get("client_order_id")
-        assert coid in engine.orderbook.parent_order_ids, (
-            f"FK precondition violated: {coid} reached "
-            f"_process_ws_order_delta without an order_parent row in cache. "
-            f"This is the 2026-04-28 bug."
-        )
         return real_delta(order)
 
     engine._ensure_order_parent_row_exists = spy_ensure
@@ -133,11 +124,58 @@ def test_parent_row_is_created_before_ws_order_delta_processing():
 
     engine.process_user_order(external_order)
 
-    assert call_order, "neither hook fired"
-    assert call_order.index("ensure_parent") < call_order.index("process_delta"), (
-        f"ensure_parent must run before process_delta; got {call_order}"
+    assert call_order == [], (
+        "External orders should short-circuit before _ensure_order_parent_row_exists "
+        "and _process_ws_order_delta"
     )
+    # External tracking still persists one parent row for traceability.
     engine.db_helper.insert_order_parent.assert_called_once()
+
+
+@pytest.mark.regression
+def test_internal_orders_still_run_ensure_then_delta():
+    """Engine-owned orders must retain ensure->delta ordering."""
+    engine = _build_engine()
+    coid = "internal-coid-ordered"
+    engine.orderbook.parent_order_ids[coid] = {
+        "orders": [],
+        "target_movement": {"movement": 0.0, "type": "P"},
+        "max_order_replacement": 11,
+        "current_order_replacement": 0,
+        "ownership_scope": "local",
+    }
+
+    call_order: list[str] = []
+    real_ensure = engine._ensure_order_parent_row_exists
+    real_delta = engine._process_ws_order_delta
+
+    def spy_ensure(order):
+        call_order.append("ensure_parent")
+        return real_ensure(order)
+
+    def spy_delta(order):
+        call_order.append("process_delta")
+        return real_delta(order)
+
+    engine._ensure_order_parent_row_exists = spy_ensure
+    engine._process_ws_order_delta = spy_delta
+
+    order = {
+        "client_order_id": coid,
+        "order_id": "internal-order-id",
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "side": "BUY",
+        "status": OrderStatus.OPEN.value,
+        "limit_price": "42000.00",
+        "outstanding_hold_amount": "0",
+        "filled_size": "0",
+    }
+    engine.process_user_order(order)
+
+    assert call_order.index("ensure_parent") < call_order.index("process_delta"), (
+        f"internal path must run ensure before delta; got {call_order}"
+    )
 
 
 @pytest.mark.regression
@@ -243,3 +281,4 @@ def test_externally_created_orders_still_route_to_external_tracking():
         "current_order_replacement": 0,
     }
     assert engine._is_external_order(internal_coid) is False
+

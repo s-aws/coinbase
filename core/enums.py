@@ -20,6 +20,14 @@ class OrderSide(str, Enum):
     SELL = "SELL"
 
 
+class OrderOwnershipScope(str, Enum):
+    """Ownership classification for order lifecycle processing."""
+
+    LOCAL = "local"
+    EXTERNAL = "external"
+    UNKNOWN = "unknown"
+
+
 class OrderStatus(str, Enum):
     """Status of an order throughout its lifecycle.
     
