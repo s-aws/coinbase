@@ -12,11 +12,48 @@ from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
+from core.enums import OrderStatus
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
 logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
+
+
+_LOGICAL_ROOT_STATUS_ALLOWED_PREDECESSORS = {
+    OrderStatus.PENDING.value: (
+        OrderStatus.PENDING.value,
+    ),
+    OrderStatus.OPEN.value: (
+        OrderStatus.PENDING.value,
+        OrderStatus.OPEN.value,
+    ),
+    OrderStatus.FILLED.value: (
+        OrderStatus.PENDING.value,
+        OrderStatus.OPEN.value,
+        OrderStatus.FILLED.value,
+    ),
+    OrderStatus.CANCEL_QUEUED.value: (
+        OrderStatus.PENDING.value,
+        OrderStatus.OPEN.value,
+        OrderStatus.CANCEL_QUEUED.value,
+    ),
+    OrderStatus.CANCELLED.value: (
+        OrderStatus.PENDING.value,
+        OrderStatus.OPEN.value,
+        OrderStatus.CANCEL_QUEUED.value,
+        OrderStatus.CANCELLED.value,
+    ),
+    OrderStatus.EXPIRED.value: (
+        OrderStatus.PENDING.value,
+        OrderStatus.OPEN.value,
+        OrderStatus.EXPIRED.value,
+    ),
+    OrderStatus.FAILED.value: (
+        OrderStatus.PENDING.value,
+        OrderStatus.FAILED.value,
+    ),
+}
 
 
 def _json_default_for_db(value: Any):
@@ -948,6 +985,64 @@ def update_order_parent_status(
     else:
         logger.warning(f"No parent order found to update status: {client_order_id}")
     return result
+
+
+def update_order_parent_status_if_progressing(
+    client_order_id: str,
+    status: str,
+) -> int:
+    """Advance a logical parent status only when the transition is non-regressive.
+
+    This helper is intended for chain-root rows that drive dashboard/reporting
+    views. Placement rows should continue to use ``update_order_parent_status``
+    so they reflect the raw exchange lifecycle for that exact COID.
+
+    Args:
+        client_order_id: Logical root parent client order ID.
+        status: Proposed new status value.
+
+    Returns:
+        Number of rows updated (0 or 1).
+    """
+    normalized_status = str(status or "").upper()
+    allowed_predecessors = _LOGICAL_ROOT_STATUS_ALLOWED_PREDECESSORS.get(
+        normalized_status
+    )
+
+    if not allowed_predecessors:
+        return update_order_parent_status(client_order_id, normalized_status)
+
+    placeholders = ", ".join(["%s"] * len(allowed_predecessors))
+    query = f"""
+    UPDATE order_parent
+    SET status = %s
+    WHERE client_order_id = %s
+      AND status IN ({placeholders})
+    RETURNING client_order_id
+    """
+    params = (normalized_status, client_order_id, *allowed_predecessors)
+    results = DB_CLIENT.execute_query(query, params)
+
+    if results:
+        logger.info(
+            f"Logical parent order status advanced: {client_order_id} -> {normalized_status}"
+        )
+        return len(results)
+
+    current_rows = DB_CLIENT.execute_query(
+        "SELECT status FROM order_parent WHERE client_order_id = %s",
+        (client_order_id,),
+    )
+    if not current_rows:
+        logger.warning(f"No parent order found to advance status: {client_order_id}")
+        return 0
+
+    logger.info(
+        "Logical parent order status skipped as regressive: "
+        f"{client_order_id} stays {current_rows[0].get('status')} "
+        f"(attempted {normalized_status})"
+    )
+    return 0
 
 
 def update_order_parent_replacement_count(
