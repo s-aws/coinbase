@@ -3350,9 +3350,19 @@ class OrderEngine:
         if original_stealth_order:
             self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
 
-        # Check if this is an external order (not created by our engine)
-        # External orders are ones we didn't place, so we shouldn't create follow-ups
+        # ✅ FAIL-FAST: Check if this is an external order (not created by our engine)
+        # External orders are ones we didn't place, so we shouldn't create follow-ups.
+        # Fail fast to avoid wasting CPU/DB resources on orders we don't own (critical
+        # when running parallel prod + staging instances with separate environments).
         is_external_order = self._is_external_order(client_order_id)
+        if is_external_order and not original_stealth_order:
+            self._handle_external_order_tracking(
+                client_order_id,
+                order,
+                "filled",
+                processed_flag_name=None,  # Don't complete processing for filled orders
+            )
+            return
 
         # NOTE: Per-match fill recording happens in process_user_order via
         # _process_ws_order_delta, which derives one ledger row per real exchange
@@ -3406,17 +3416,6 @@ class OrderEngine:
                 parent_client_order_id = explicit_parent
                 # NOTE: Child registration already happened at line 2528, so don't call again here
                 # Calling twice would cause duplicate replacement count increments
-
-        # For external orders, just track them but don't create follow-ups
-        # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
-        if is_external_order and not original_stealth_order:
-            self._handle_external_order_tracking(
-                client_order_id,
-                order,
-                "filled",
-                processed_flag_name=None,  # Don't complete processing for filled orders
-            )
-            return
 
         # Handle stealth order fills - create a Child stealth order as follow-up
         # NOTE: This is handled in the later stealth order code path (around line 1663)
