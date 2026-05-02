@@ -723,6 +723,40 @@ class StealthOrderManager:
 
         return max(int(round(retreat)), 0)
 
+    def _resolve_post_only_retry_price(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        current_price: float,
+        increment: str,
+        reveal_pricing_policy: str,
+    ) -> tuple[float, str]:
+        """Resolve the next post-only retry price.
+
+        Prefer re-anchoring to the latest cached market under the original
+        reveal pricing policy, then step one safer tick away from that live
+        anchor. If no usable market snapshot is available, fall back to
+        stepping one safer tick away from the current rejected price.
+        """
+        anchor_price = float(current_price)
+        anchor_source = "rejected_price"
+
+        market_data = self._get_current_market_data(product_id) or {}
+        live_anchor_price, live_anchor_source, fallback_used = self._resolve_reveal_limit_price(
+            side=side,
+            configured_limit_price=float(current_price),
+            market_data=market_data,
+            reveal_pricing_policy=reveal_pricing_policy,
+        )
+        market_known = str(market_data.get("source") or "").lower() == "ticker"
+
+        if market_known and not fallback_used:
+            anchor_price = float(live_anchor_price)
+            anchor_source = str(live_anchor_source)
+
+        return self._next_safer_tick(anchor_price, side, increment), anchor_source
+
     @staticmethod
     def _is_post_only_rejection(order_result: Any) -> bool:
         """Return True if a Coinbase ``place_limit_order`` response shape
@@ -3165,10 +3199,15 @@ class StealthOrderManager:
                     client_order_id = attempt_coid
                     break
 
-                next_price = self._next_safer_tick(
-                    attempt_price,
-                    order_for_submission["side"],
-                    price_increment,
+                next_price, retry_anchor_source = self._resolve_post_only_retry_price(
+                    product_id=order_for_submission["product_id"],
+                    side=order_for_submission["side"],
+                    current_price=attempt_price,
+                    increment=price_increment,
+                    reveal_pricing_policy=order_for_submission.get(
+                        "reveal_pricing_policy",
+                        "configured_limit",
+                    ),
                 )
                 # Fresh client_order_id per retry: a rejected attempt may
                 # or may not consume the COID at the exchange and the
@@ -3186,6 +3225,7 @@ class StealthOrderManager:
                     "rejected_at_price": attempt_price,
                     "next_attempt_price": next_price,
                     "tick_increment": price_increment,
+                    "retry_anchor_source": retry_anchor_source,
                     "cumulative_retreat_ticks": self._post_only_retreat_ticks(
                         initial_attempt_price,
                         next_price,
