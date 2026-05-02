@@ -288,6 +288,21 @@ class OrderEngine:
         self._snapshot_drift_last_signature: Dict[str, tuple] = {}
         self._snapshot_drift_emit_lock = threading.Lock()
 
+        # Per-COID serialisation for the WS user-channel handler.
+        # ``process_user_order`` runs on a ThreadPoolExecutor, so two
+        # threads can race for the same brand-new external COID:
+        #   T_A: cache miss → resolve_parent_client_order_id populates
+        #        ``orderbook.parent_order_ids`` BEFORE the DB INSERT
+        #        commits.
+        #   T_B: cache check passes (T_A's in-memory write) → skips
+        #        ensure → calls _process_ws_order_delta →
+        #        upsert_partial_fill_progress fails with FK violation
+        #        because T_A's INSERT hasn't committed yet.
+        # Per-COID lock makes the ensure→delta pair atomic per order.
+        # Different COIDs still process in parallel.
+        self._coid_handler_locks: Dict[str, threading.Lock] = {}
+        self._coid_handler_locks_guard = threading.Lock()
+
         # Cooperative shutdown signal for all background loops/threads owned
         # by this engine. Set by ``stop()`` (registered as a runtime stop
         # hook in main.py); checked by every ``while`` loop below in lieu of
@@ -2320,21 +2335,27 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.order[client_order_id] = normalized_order
 
-        # Step 3a: Ensure the order_parent row exists before any FK-dependent
-        # write. partial_fill_progress.client_order_id_fkey requires a parent
-        # row, so for genuinely-unknown (external) orders we must create one
-        # NOW — before _process_ws_order_delta runs the watermark upsert.
-        # See genai_tools/TODO_2026_04_28_partial_fill_root_causes.md (#1).
-        self._ensure_order_parent_row_exists(normalized_order)
+        # Per-COID serialisation: prevents two WS workers from racing on
+        # the same external COID where T_A populates the in-memory cache
+        # before its INSERT commits and T_B then trips the FK violation
+        # on partial_fill_progress. See lock-init comment in __init__.
+        coid_lock = self._get_coid_handler_lock(client_order_id)
+        with coid_lock:
+            # Step 3a: Ensure the order_parent row exists before any FK-dependent
+            # write. partial_fill_progress.client_order_id_fkey requires a parent
+            # row, so for genuinely-unknown (external) orders we must create one
+            # NOW — before _process_ws_order_delta runs the watermark upsert.
+            # See genai_tools/TODO_2026_04_28_partial_fill_root_causes.md (#1).
+            self._ensure_order_parent_row_exists(normalized_order)
 
-        # Step 3b: Single ingestion point for WS-derived progress.
-        # Routes to fill ledger, audit table, watermark persistence and
-        # partial-fill follow-up creation in one place — see
-        # _process_ws_order_delta. Idempotent (deterministic
-        # derived_trade_key); safe on every event regardless of status. Must
-        # run before _finalize_partial_fill_progress wipes state on terminal
-        # status.
-        self._process_ws_order_delta(normalized_order)
+            # Step 3b: Single ingestion point for WS-derived progress.
+            # Routes to fill ledger, audit table, watermark persistence and
+            # partial-fill follow-up creation in one place — see
+            # _process_ws_order_delta. Idempotent (deterministic
+            # derived_trade_key); safe on every event regardless of status. Must
+            # run before _finalize_partial_fill_progress wipes state on terminal
+            # status.
+            self._process_ws_order_delta(normalized_order)
 
         if status == OrderStatus.FILLED and outstanding_hold_amount > 0:
             self.log_message(
@@ -2534,6 +2555,21 @@ class OrderEngine:
                 "allow_partial_fills": bool(parent_order.get("allow_partial_fills", False)),
             }
         return True
+
+    def _get_coid_handler_lock(self, client_order_id: str) -> threading.Lock:
+        """Return the per-COID handler lock, creating it on first access.
+
+        The map of locks is itself protected by a small guard lock so that
+        the get-or-create sequence is atomic. Locks are never evicted —
+        the working set is bounded by the number of distinct active COIDs
+        and entries are tiny (a single threading.Lock each).
+        """
+        with self._coid_handler_locks_guard:
+            lock = self._coid_handler_locks.get(client_order_id)
+            if lock is None:
+                lock = threading.Lock()
+                self._coid_handler_locks[client_order_id] = lock
+            return lock
 
     def _ensure_order_parent_row_exists(self, normalized_order: dict) -> None:
         """Idempotently guarantee an ``order_parent`` row exists for this COID.

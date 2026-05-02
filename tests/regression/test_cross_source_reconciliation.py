@@ -600,6 +600,10 @@ class TestTerminalStatusEvictsOrderbookEntry:
         engine = OrderEngine.__new__(OrderEngine)
         engine.orderbook = SimpleNamespace(order={})
         engine.orderbook_lock = threading.RLock()
+        # Per-COID handler-lock state required by process_user_order
+        # (added 2026-05-02 to close the FK race on external orders).
+        engine._coid_handler_locks = {}
+        engine._coid_handler_locks_guard = threading.Lock()
         engine.websocket_hooks = SimpleNamespace(
             call_pre_order_status=lambda *a, **k: None,
             call_order_normalizers=lambda *a, **k: None,
