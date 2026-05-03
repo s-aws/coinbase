@@ -180,16 +180,12 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# General AI considerations
+# Agent contract files — COMMIT THESE so fresh clones / new contributors
+# discover the project's agent rules. Working scratch (genai_data/,
+# genai_tools/) stays local-only.
 genai_data/
 genai_tools/
-.ai-context
-.agent.md
-AGENTS.md
 ID_USAGE_ANALYSIS.md
-.ai-context.md
-agent.md
-ai-context.md
 
 # Agent runtime caches and traces (Copilot / Aider / Continue / Cursor / Codeium)
 .aider*
