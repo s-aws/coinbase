@@ -20,11 +20,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.enums import (
-    EventSourceChannel,
-    EventStreamType,
-    OrderOwnershipScope,
-)
 from core.periodic_reconciler import PeriodicReconciler
 from core.startup_reconciler import (
     MissedFillsReport,
@@ -273,35 +268,6 @@ class TestAuditMissedFills:
         # One header + one per fill.
         assert any("orders we own" in m for m in warning_messages)
         assert sum(1 for m in warning_messages if m.startswith("Missed fill:")) == 2
-
-
-@pytest.mark.regression
-def test_exchange_order_mapping_uses_submission_evidence_only(monkeypatch):
-    """Ownership mapping must filter to rest-submitted order_submitted rows."""
-    from core import startup_reconciler as sr
-
-    captured = {}
-
-    class _FakeDb:
-        def execute_query(self, query, params=None):
-            captured["query"] = query
-            captured["params"] = params
-            return [{"order_id": "oid-1", "client_order_id": "coid-1"}]
-
-        def disconnect(self):
-            return None
-
-    monkeypatch.setattr("database.database.PostgresDB", lambda: _FakeDb())
-
-    mapping = sr._fetch_client_order_ids_for_exchange_order_ids({"oid-1"})
-
-    assert mapping == {"oid-1": "coid-1"}
-    assert "event_type = %s" in captured["query"]
-    assert "source_channel = %s" in captured["query"]
-    assert captured["params"][-2:] == (
-        EventStreamType.ORDER_SUBMITTED.value,
-        EventSourceChannel.REST_SUBMIT.value,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -632,11 +598,7 @@ class TestTerminalStatusEvictsOrderbookEntry:
         from core.order_engine import OrderEngine
 
         engine = OrderEngine.__new__(OrderEngine)
-        engine.orderbook = SimpleNamespace(
-            order={},
-            parent_order_ids={},
-            child_order_ids={},
-        )
+        engine.orderbook = SimpleNamespace(order={})
         engine.orderbook_lock = threading.RLock()
         # Per-COID handler-lock state required by process_user_order
         # (added 2026-05-02 to close the FK race on external orders).
@@ -656,11 +618,6 @@ class TestTerminalStatusEvictsOrderbookEntry:
         # Stub away every side effect that isn't the eviction we're testing.
         monkeypatch.setattr(engine, "normalize_product_type", lambda o: "FUTURE")
         monkeypatch.setattr(engine, "_sync_stealth_exchange_order_id", lambda o: None)
-        monkeypatch.setattr(
-            engine,
-            "_resolve_ws_order_ownership_scope",
-            lambda _coid: OrderOwnershipScope.LOCAL,
-        )
         monkeypatch.setattr(engine, "_ensure_order_parent_row_exists", lambda o: None)
         monkeypatch.setattr(engine, "_process_ws_order_delta", lambda o: None)
         monkeypatch.setattr(engine, "is_parent_order", lambda coid: False)
@@ -708,39 +665,3 @@ class TestTerminalStatusEvictsOrderbookEntry:
         }
         engine.process_user_order(order)
         assert "abc" in engine.orderbook.order
-
-    @pytest.mark.regression
-    def test_external_filled_with_hold_does_not_short_return(self, monkeypatch):
-        """External FILLED events should bypass the hold-clear early return.
-
-        The hold-clear guard is for engine-owned lifecycle handling. External
-        short-circuited events should still reach terminal routing so they get
-        tracked as external_order_filled and evicted from in-memory orderbook.
-        """
-        engine = self._engine_with_stubbed_handlers(monkeypatch)
-        monkeypatch.setattr(
-            engine,
-            "_resolve_ws_order_ownership_scope",
-            lambda _coid: OrderOwnershipScope.EXTERNAL,
-        )
-
-        calls = {"filled": 0}
-        monkeypatch.setattr(
-            engine,
-            "handle_filled_order",
-            lambda _o: calls.__setitem__("filled", calls["filled"] + 1),
-        )
-
-        order = {
-            "client_order_id": "ext-filled",
-            "status": "FILLED",
-            "product_id": "BTC-USDC",
-            "outstanding_hold_amount": "244.13",
-        }
-        engine.process_user_order(order)
-
-        assert calls["filled"] == 1, (
-            "external FILLED should continue to terminal handler even when "
-            "outstanding_hold_amount > 0"
-        )
-        assert "ext-filled" not in engine.orderbook.order

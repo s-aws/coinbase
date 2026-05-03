@@ -46,26 +46,6 @@ class StealthOrderBridge:
         # Pass order_engine's log_message to stealth_manager for consistent logging
         if hasattr(order_engine, 'log_message'):
             self.stealth_manager.log_callback = order_engine.log_message
-
-        # Wire the pre-submit placement registration hook so stealth-revealed
-        # placements (which mint a fresh COID under top_of_book / midpoint /
-        # anchor-reprice policies) are linked under their chain root in the
-        # engine's in-memory orderbook BEFORE the REST submit. This is what
-        # prevents the WS handler from misclassifying the placement as an
-        # EXTERNAL order and writing a phantom ``order_parent`` row with
-        # ``parent_order_id=NULL`` (incident 2026-05-02). ``bypass_replacement_cap``
-        # is correct here: a placement is the completion of an existing
-        # stealth slice, not new exposure, so it must not consume a slot in
-        # ``max_order_replacement``.
-        if hasattr(order_engine, "register_child_order"):
-            def _register_placement(placement_coid: str, chain_root_coid: str) -> None:
-                order_engine.register_child_order(
-                    placement_coid,
-                    chain_root_coid,
-                    bypass_replacement_cap=True,
-                )
-
-            self.stealth_manager.placement_register_callback = _register_placement
         self.evaluation_thread = None
         self.running = False
         # Drives interruptible sleeps in the background loops so stop()

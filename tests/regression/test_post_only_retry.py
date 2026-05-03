@@ -31,10 +31,6 @@ Contract under test:
 3. ``POST_ONLY_MAX_ATTEMPTS == 3`` — the industry-standard ladder.
 4. The retry/exhaustion code path is wired (static-source guards so
    nobody silently rips it out and replaces with a taker fallback).
-5. Retry telemetry includes cumulative retreat in ticks so later
-    saturation tuning is based on the actual drift from initial intent.
-6. Retry repricing re-anchors to the latest cached book when available,
-    instead of compounding drift from a stale rejected price.
 """
 from __future__ import annotations
 
@@ -98,20 +94,6 @@ def test_retry_loop_uses_fresh_client_order_id_per_attempt():
     assert "next_coid = str(uuid.uuid4())" in _STEALTH_MANAGER_SRC
 
 
-@pytest.mark.regression
-def test_retry_loop_emits_cumulative_retreat_tick_telemetry():
-    assert '"cumulative_retreat_ticks": self._post_only_retreat_ticks(' in _STEALTH_MANAGER_SRC
-    assert '"total_retreat_ticks": self._post_only_retreat_ticks(' in _STEALTH_MANAGER_SRC
-    assert '"post_only_total_retreat_ticks": self._post_only_retreat_ticks(' in _STEALTH_MANAGER_SRC
-    assert '"retry_anchor_source": retry_anchor_source' in _STEALTH_MANAGER_SRC
-
-
-@pytest.mark.regression
-def test_retry_loop_uses_live_book_retry_helper():
-    assert "def _resolve_post_only_retry_price(" in _STEALTH_MANAGER_SRC
-    assert "next_price, retry_anchor_source = self._resolve_post_only_retry_price(" in _STEALTH_MANAGER_SRC
-
-
 # ---------------------------------------------------------------------------
 # Behavioural tests — _next_safer_tick
 # ---------------------------------------------------------------------------
@@ -167,88 +149,6 @@ def test_next_safer_tick_handles_invalid_increment_gracefully():
         price=100.50, side="BUY", increment="not-a-number"
     )
     assert new_price == pytest.approx(100.50)
-
-
-@pytest.mark.regression
-def test_post_only_retreat_ticks_are_side_aware():
-    assert StealthOrderManager._post_only_retreat_ticks(100.0, 99.0, "BUY", "0.5") == 2
-    assert StealthOrderManager._post_only_retreat_ticks(100.0, 101.0, "SELL", "0.5") == 2
-    assert StealthOrderManager._post_only_retreat_ticks(100.0, 101.0, "BUY", "0.5") == 0
-
-
-@pytest.mark.regression
-def test_resolve_post_only_retry_price_reanchors_to_live_book_buy():
-    manager = StealthOrderManager.__new__(StealthOrderManager)
-    manager._market_cache = {
-        "BTC-USDC": {
-            "product_id": "BTC-USDC",
-            "source": "ticker",
-            "bid": 99.0,
-            "ask": 98.0,
-            "price": 98.5,
-        }
-    }
-
-    next_price, anchor_source = manager._resolve_post_only_retry_price(
-        product_id="BTC-USDC",
-        side="BUY",
-        current_price=100.0,
-        increment="0.5",
-        reveal_pricing_policy="top_of_book",
-    )
-
-    assert next_price == pytest.approx(97.5)
-    assert anchor_source == "ticker_best_ask"
-
-
-@pytest.mark.regression
-def test_resolve_post_only_retry_price_reanchors_to_live_book_midpoint():
-    manager = StealthOrderManager.__new__(StealthOrderManager)
-    manager._market_cache = {
-        "BTC-USDC": {
-            "product_id": "BTC-USDC",
-            "source": "ticker",
-            "bid": 99.0,
-            "ask": 101.0,
-            "price": 100.0,
-        }
-    }
-
-    next_price, anchor_source = manager._resolve_post_only_retry_price(
-        product_id="BTC-USDC",
-        side="BUY",
-        current_price=103.0,
-        increment="0.5",
-        reveal_pricing_policy="midpoint",
-    )
-
-    assert next_price == pytest.approx(99.5)
-    assert anchor_source == "ticker_midpoint"
-
-
-@pytest.mark.regression
-def test_resolve_post_only_retry_price_falls_back_without_live_book():
-    manager = StealthOrderManager.__new__(StealthOrderManager)
-    manager._market_cache = {
-        "BTC-USDC": {
-            "product_id": "BTC-USDC",
-            "source": "unavailable",
-            "bid": 0,
-            "ask": 0,
-            "price": 0,
-        }
-    }
-
-    next_price, anchor_source = manager._resolve_post_only_retry_price(
-        product_id="BTC-USDC",
-        side="BUY",
-        current_price=100.0,
-        increment="0.5",
-        reveal_pricing_policy="top_of_book",
-    )
-
-    assert next_price == pytest.approx(99.5)
-    assert anchor_source == "rejected_price"
 
 
 # ---------------------------------------------------------------------------

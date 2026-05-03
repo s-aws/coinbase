@@ -1,6 +1,3 @@
-> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
-> This file is useful operational context but is not the canonical source of truth.
-> Canonical living docs remain under genai_data/.
 # Coinbase WebSocket API Reference
 
 **Purpose**: Internal reference documentation for the `coinbase.websocket` module used in the trading engine.
@@ -550,5 +547,4 @@ When integrating or modifying WebSocket functionality, verify:
 - [ ] Event deduplication is implemented (to prevent duplicate processing)
 - [ ] Heavy processing is delegated to ThreadPoolExecutor, not done in callbacks
 - [ ] Subscription channels match the expected event types
-
 

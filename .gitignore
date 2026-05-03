@@ -180,14 +180,24 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# General AI considerations
+# Agent contract files — COMMIT THESE so fresh clones / new contributors
+# discover the project's agent rules. Working scratch (genai_data/,
+# genai_tools/) stays local-only.
 genai_data/
 genai_tools/
-.ai-context
-.agent.md
-AGENTS.md
 ID_USAGE_ANALYSIS.md
-.ai-context.md
-agent.md
-ai-context.md
+
+# Agent runtime caches and traces (Copilot / Aider / Continue / Cursor / Codeium)
+.aider*
+.continue/
+.codeium/
+.copilot-*
+*.copilot-debug.log
+*.agent-trace.json
+.github/copilot-instructions.md
+
+# Local runtime logs that agents tend to sweep into commits via `git add -A`.
+# Never commit these — they're regenerated on every run and bloat diffs.
+# (`*.log` is already covered above under "Django stuff".)
 server_logs.txt
+startup_output.txt

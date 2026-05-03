@@ -1,6 +1,3 @@
-> Documentation status (2026-05-02): **Supplemental (non-canonical active reference)**
-> This file is useful operational context but is not the canonical source of truth.
-> Canonical living docs remain under genai_data/.
 # Pre-Deployment Checklist
 
 Before deploying any changes to the platform (architectural changes, new features, bug fixes), follow this checklist:
@@ -146,4 +143,3 @@ When refactoring the engine architecture (adding hooks, events, middleware, etc.
 4. **Tests catch edge cases** - Handle scenarios developers might overlook
 
 The more comprehensive the test suite, the safer the refactoring.
-
