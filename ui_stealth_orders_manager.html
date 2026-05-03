@@ -1078,6 +1078,71 @@
                             </select>
                         </div>
 
+                        <!-- Tranche config (visible when Tranche selected) -->
+                        <div id="tranche-fields" class="policy-panel hidden">
+                            <div style="background: rgba(103,126,234,0.1); border: 1px solid rgba(103,126,234,0.35); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; font-size: 10px; color: #aaa; line-height: 1.5;">
+                                <b style="color:#7b9fff;">📑 Tranche Schedule</b> — cumulative percentages of total_size. Each value is a checkpoint; the engine reveals the delta from current executed size to the next checkpoint.
+                            </div>
+                            <div class="form-group">
+                                <label>Tranches (cumulative %, comma-separated)</label>
+                                <input type="text" id="tranche_schedule" value="0.25, 0.50, 0.75, 1.0" placeholder="0.25, 0.50, 0.75, 1.0">
+                                <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                    Decimals 0–1 (e.g. <b style="color:#888;">0.25</b> = 25%). Must be strictly increasing; final value should be <b style="color:#888;">1.0</b>.
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                    <input type="checkbox" id="tranche_iceberg_mode" checked style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>Iceberg Mode (recommended)</span>
+                                </label>
+                                <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                    <b style="color:#888;">On</b>: only one slice live at a time; next posts after previous fills/cancels (true stealth).<br>
+                                    <b style="color:#888;">Off</b>: burst — all tranches post in rapid succession (anti-stealth, legacy).
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Adaptive config (visible when Adaptive selected) -->
+                        <div id="adaptive-fields" class="policy-panel hidden">
+                            <div style="background: rgba(103,126,234,0.1); border: 1px solid rgba(103,126,234,0.35); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; font-size: 10px; color: #aaa; line-height: 1.5;">
+                                <b style="color:#7b9fff;">📈 Adaptive Slicing</b> — slice size scales with recent market volume:<br>
+                                <code style="color:#e0e0e0;">slice = base_size × (market_vol / baseline_vol) × multiplier</code><br>
+                                capped by <code style="color:#e0e0e0;">total_size × max_reveal_pct</code> and remaining size.
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Base Size</label>
+                                    <input type="number" id="adaptive_base_size" step="any" min="0" placeholder="(default: total_size)">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Reference size before volume scaling. Leave blank to use total_size.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Reveal Multiplier</label>
+                                    <input type="number" id="adaptive_reveal_multiplier" value="0.1" step="0.01" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Fraction of <code>base × ratio</code> to actually post. <b style="color:#888;">0.1</b> = 10%.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Max Reveal % per Slice</label>
+                                    <input type="number" id="adaptive_max_reveal_percentage" value="0.5" step="0.01" min="0" max="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Hard cap as fraction of <b>total_size</b>. <b style="color:#888;">0.5</b> = never reveal more than half at once.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Volume Window (sec)</label>
+                                    <input type="number" id="adaptive_volume_window" value="60" step="1" min="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Lookback for the market-volume term. Default 60s.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Max Order Replacements</label>
@@ -2453,7 +2518,56 @@
         }
 
         function updateSizingFields() {
-            // Could expand this for different sizing strategy options
+            const v = document.getElementById('sizing_strategy').value;
+            document.getElementById('tranche-fields').classList.toggle('hidden', v !== 'tranche');
+            document.getElementById('adaptive-fields').classList.toggle('hidden', v !== 'adaptive');
+            // Repaint preview when strategy changes (preview reads visibility-gated fields).
+            if (typeof recomputeLivePreview === 'function') recomputeLivePreview();
+        }
+
+        function _parseTrancheSchedule(raw) {
+            if (!raw) return { values: [], errors: ['empty'] };
+            const parts = String(raw).split(/[,\s]+/).filter(Boolean);
+            const values = [];
+            const errors = [];
+            for (const p of parts) {
+                const n = parseFloat(p);
+                if (!isFinite(n)) { errors.push(`bad number: ${p}`); continue; }
+                if (n <= 0 || n > 1) errors.push(`out of range (0,1]: ${n}`);
+                values.push(n);
+            }
+            for (let i = 1; i < values.length; i++) {
+                if (values[i] <= values[i - 1]) {
+                    errors.push(`not strictly increasing at ${values[i]}`);
+                    break;
+                }
+            }
+            return { values, errors };
+        }
+
+        function buildSizingStrategy() {
+            const t = document.getElementById('sizing_strategy').value;
+            if (t === 'tranche') {
+                const parsed = _parseTrancheSchedule(document.getElementById('tranche_schedule').value);
+                return {
+                    type: 'tranche',
+                    tranches: parsed.values.length ? parsed.values : [0.25, 0.50, 0.75, 1.0],
+                    iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
+                };
+            }
+            if (t === 'adaptive') {
+                const baseRaw = document.getElementById('adaptive_base_size').value;
+                const cfg = {
+                    type: 'adaptive',
+                    reveal_multiplier: parseFloat(document.getElementById('adaptive_reveal_multiplier').value),
+                    max_reveal_percentage: parseFloat(document.getElementById('adaptive_max_reveal_percentage').value),
+                    volume_window: parseInt(document.getElementById('adaptive_volume_window').value, 10),
+                };
+                const baseN = parseFloat(baseRaw);
+                if (isFinite(baseN) && baseN > 0) cfg.base_size = baseN;
+                return cfg;
+            }
+            return { type: 'fixed' };
         }
 
         // ---------------------------------------------------------------
@@ -2732,6 +2846,76 @@
                 sections.push(_lpSection('Market Repricing', anchorRows));
             }
 
+            // --- Sizing Strategy ---
+            const strat = document.getElementById('sizing_strategy').value;
+            const sizeRows = [];
+            if (strat === 'fixed') {
+                sizeRows.push(_lpRow('Strategy', 'Fixed (single placement)'));
+                if (isFinite(size) && size > 0) {
+                    sizeRows.push(_lpRow('Slice 1 of 1', _lpFmt(size, 8)));
+                }
+            } else if (strat === 'tranche') {
+                const raw = document.getElementById('tranche_schedule').value;
+                const ice = document.getElementById('tranche_iceberg_mode').checked;
+                const parsed = _parseTrancheSchedule(raw);
+                sizeRows.push(_lpRow('Strategy', `Tranche · ${ice ? 'iceberg (one slice live)' : 'burst (all at once)'}`));
+                sizeRows.push(_lpRow('Tranche count', String(parsed.values.length)));
+                if (parsed.errors.length) {
+                    sizeRows.push(_lpRow('⚠ Schedule', parsed.errors.join('; '), 'bad'));
+                }
+                if (parsed.values.length && isFinite(size) && size > 0) {
+                    let prev = 0;
+                    parsed.values.forEach((pct, i) => {
+                        const cum = size * pct;
+                        const slice = cum - prev;
+                        sizeRows.push(_lpRow(
+                            `  #${i + 1} @ ${_lpFmt(pct * 100, 2)}%`,
+                            `slice ${_lpFmt(slice, 8)} → cum ${_lpFmt(cum, 8)}`
+                        ));
+                        prev = cum;
+                    });
+                    const last = parsed.values[parsed.values.length - 1];
+                    if (Math.abs(last - 1.0) > 1e-9) {
+                        const uncovered = size * (1 - last);
+                        sizeRows.push(_lpRow('⚠ Final tranche < 100%',
+                            `${_lpFmt(uncovered, 8)} units will never be revealed`, 'warn'));
+                    }
+                }
+            } else if (strat === 'adaptive') {
+                const baseRaw = document.getElementById('adaptive_base_size').value;
+                const baseN = parseFloat(baseRaw);
+                const baseSize = (isFinite(baseN) && baseN > 0) ? baseN : (isFinite(size) ? size : NaN);
+                const mult = _lpNum('adaptive_reveal_multiplier');
+                const maxPct = _lpNum('adaptive_max_reveal_percentage');
+                const win = _lpNum('adaptive_volume_window');
+                sizeRows.push(_lpRow('Strategy', 'Adaptive (volume-scaled)'));
+                sizeRows.push(_lpRow('Base size', isFinite(baseSize)
+                    ? `${_lpFmt(baseSize, 8)}${(isFinite(baseN) && baseN > 0) ? '' : ' (= total_size)'}`
+                    : '—'));
+                sizeRows.push(_lpRow('Volume window', isFinite(win) ? `${win}s` : '—'));
+                sizeRows.push(_lpRow('Reveal multiplier', isFinite(mult) ? _lpFmt(mult, 4) : '—'));
+                if (isFinite(maxPct) && isFinite(size) && size > 0) {
+                    sizeRows.push(_lpRow('Per-slice cap', `${_lpFmt(maxPct * 100, 2)}% of total = ${_lpFmt(size * maxPct, 8)}`));
+                }
+                // Sensitivity table: slice size at volume_ratio ∈ {0.5, 1.0, 2.0, 5.0}
+                if (isFinite(baseSize) && isFinite(mult) && isFinite(maxPct) && isFinite(size) && size > 0) {
+                    const cap = size * maxPct;
+                    [0.5, 1.0, 2.0, 5.0].forEach(vr => {
+                        const raw_ = baseSize * vr * mult;
+                        const eff = Math.min(raw_, cap, size);
+                        const capped = (raw_ > cap) ? ' <span style="color:#fbbf24;">[capped]</span>' : '';
+                        sizeRows.push(_lpRow(`  @ vol_ratio=${vr}`, `${_lpFmt(eff, 8)}${capped}`));
+                    });
+                    if (mult <= 0) {
+                        sizeRows.push(_lpRow('⚠ multiplier ≤ 0', 'no slices will ever post', 'bad'));
+                    }
+                }
+            }
+            if (sizeRows.length) sections.push(_lpSection('Sizing Strategy', sizeRows,
+                strat === 'adaptive'
+                    ? 'Live <code>volume_ratio</code> is computed engine-side from market_volume / baseline_volume; preview shows sensitivity at fixed sample ratios.'
+                    : ''));
+
             // --- Target Movement (profit) ---
             const tmType = document.getElementById('target_movement_type').value; // 'P' or 'A'
             const tm     = _lpNum('target_movement');
@@ -2802,6 +2986,12 @@
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
                 anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
+                tranche_schedule: document.getElementById('tranche_schedule').value,
+                tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
+                adaptive_base_size: document.getElementById('adaptive_base_size').value,
+                adaptive_reveal_multiplier: document.getElementById('adaptive_reveal_multiplier').value,
+                adaptive_max_reveal_percentage: document.getElementById('adaptive_max_reveal_percentage').value,
+                adaptive_volume_window: document.getElementById('adaptive_volume_window').value,
                 notes: document.getElementById('notes').value
             };
             
@@ -2896,6 +3086,12 @@
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
                 anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
+                tranche_schedule: document.getElementById('tranche_schedule').value,
+                tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
+                adaptive_base_size: document.getElementById('adaptive_base_size').value,
+                adaptive_reveal_multiplier: document.getElementById('adaptive_reveal_multiplier').value,
+                adaptive_max_reveal_percentage: document.getElementById('adaptive_max_reveal_percentage').value,
+                adaptive_volume_window: document.getElementById('adaptive_volume_window').value,
                 notes: document.getElementById('notes').value,
                 allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked,
@@ -3040,7 +3236,7 @@
                     const formData = JSON.parse(savedData);
                     
                     // Restore main fields
-                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter'];
+                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'tranche_schedule', 'adaptive_base_size', 'adaptive_reveal_multiplier', 'adaptive_max_reveal_percentage', 'adaptive_volume_window'];
                     mainFields.forEach(fieldId => {
                         const element = document.getElementById(fieldId);
                         if (element && formData[fieldId] !== undefined) {
@@ -3065,9 +3261,14 @@
                     if (anchorSlide && formData['anchor_slide_mode'] !== undefined) {
                         anchorSlide.checked = formData['anchor_slide_mode'];
                     }
+                    const trancheIce = document.getElementById('tranche_iceberg_mode');
+                    if (trancheIce && formData['tranche_iceberg_mode'] !== undefined) {
+                        trancheIce.checked = formData['tranche_iceberg_mode'];
+                    }
                     toggleAnchorRepricingFields();
                     toggleAnchorFixedInterval();
                     toggleSlideMode();
+                    updateSizingFields();
                     
                     // Restore condition-specific field values
                     setTimeout(() => {
@@ -3129,9 +3330,7 @@
                 reveal_condition: buildRevealCondition(),
                 follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
                 reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
-                sizing_strategy: {
-                    type: document.getElementById('sizing_strategy').value
-                },
+                sizing_strategy: buildSizingStrategy(),
                 max_order_replacements: maxReplacements ? parseInt(maxReplacements) : null,
                 target_movement: targetMovement ? parseFloat(targetMovement) : 0.0,
                 target_movement_type: targetMovementType,
@@ -3500,6 +3699,7 @@
         updateHistoryDisplay();   // Display saved entries history
         initWebSocket();
         startRefreshTimer();
+        updateSizingFields();     // Show tranche/adaptive panels if pre-selected
         recomputeLivePreview();   // Initial preview render
         
         // Setup clear history button
