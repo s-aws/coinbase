@@ -2418,6 +2418,7 @@ class StealthOrderManager:
         reveal_pricing_policy: Optional[str] = None,
         allow_partial_fills: bool = False,
         anchor_repricing_policy: Optional[Dict[str, Any]] = None,
+        enable_hotpoint_replication: bool = False,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -2619,6 +2620,7 @@ class StealthOrderManager:
                 current_order_replacement=0,
                 status=StealthOrderStatus.PENDING.value,
                 allow_partial_fills=allow_partial_fills,
+                enable_hotpoint_replication=enable_hotpoint_replication,
             )
         
         return stealth_order_id

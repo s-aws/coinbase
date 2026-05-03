@@ -397,6 +397,13 @@ class OrderEngine:
         # Reconstructive timeline event stream integration via existing hooks.
         self._initialize_event_stream_integration()
 
+        # Hotpoint Auto-Replicate subsystem. See `business/hotpoint_*.py` and
+        # the 2026-05-03 design conversation. Detector + rate limiter live
+        # entirely in memory (rate limiter is restart-rebuilt from
+        # `order_parent` rows in `start_background_threads`). Sweeper is
+        # daemon-thread, also started in `start_background_threads`.
+        self._initialize_hotpoint_subsystem()
+
         self.websocket_events = {
             "SNAPSHOT": {
                 "type": "snapshot",
@@ -446,6 +453,377 @@ class OrderEngine:
                 self.log_message("warning", "[EVENT-STREAM] Integration disabled (table init failed)")
         except Exception as e:
             self.log_message("warning", f"[EVENT-STREAM] Integration init failed: {e}")
+
+    def _initialize_hotpoint_subsystem(self) -> None:
+        """Construct the hotpoint detector + rate limiter (in-memory).
+
+        Sweeper start + rate-limiter restart-rebuild happen in
+        :meth:`start_background_threads` once DB and REST are reachable.
+
+        Failures are logged and the subsystem is marked disabled rather
+        than aborting engine startup. The kill switch remains queryable
+        either way.
+        """
+        from core import constants as _constants
+
+        # Start with constants-defined runtime kill switch. Operator can
+        # flip via ``set_hotpoint_auto_place_enabled(bool)`` without a
+        # restart.
+        self._hotpoint_auto_place_enabled = bool(
+            getattr(_constants, "HOTPOINT_AUTO_PLACE_ENABLED", False)
+        )
+        self._hotpoint_detector = None
+        self._hotpoint_rate_limiter = None
+        self._hotpoint_decay_sweeper = None
+        self._hotpoint_policy = None
+        self._hotpoint_width_pct = float(
+            getattr(_constants, "HOTPOINT_WIDTH_PCT", 0.005)
+        )
+        self._hotpoint_rate_window_seconds = float(
+            getattr(_constants, "HOTPOINT_RATE_LIMIT_WINDOW_SECONDS", 300)
+        )
+
+        try:
+            from business.hotpoint_detector import HotpointDetector
+            from business.hotpoint_rate_limiter import HotpointRateLimiter
+            from core.enums import HotpointPlacementPolicy
+
+            self._hotpoint_detector = HotpointDetector(
+                width_pct=self._hotpoint_width_pct,
+                trigger_n=int(getattr(_constants, "HOTPOINT_TRIGGER_N", 3)),
+                trigger_window_seconds=float(
+                    getattr(_constants, "HOTPOINT_TRIGGER_WINDOW_SECONDS", 60)
+                ),
+            )
+            self._hotpoint_rate_limiter = HotpointRateLimiter(
+                cap_n=int(getattr(_constants, "HOTPOINT_RATE_LIMIT_N", 5)),
+                window_seconds=self._hotpoint_rate_window_seconds,
+            )
+            policy_name = str(
+                getattr(_constants, "HOTPOINT_DEFAULT_POLICY", "WINDOW_CENTER")
+            )
+            try:
+                self._hotpoint_policy = HotpointPlacementPolicy(policy_name)
+            except ValueError:
+                self.log_message(
+                    "warning",
+                    f"[HOTPOINT] Unknown policy {policy_name!r}, falling back to WINDOW_CENTER",
+                )
+                self._hotpoint_policy = HotpointPlacementPolicy.WINDOW_CENTER
+            self.log_message(
+                "info",
+                f"[HOTPOINT] Subsystem initialized: enabled={self._hotpoint_auto_place_enabled}, "
+                f"width_pct={self._hotpoint_width_pct}, policy={self._hotpoint_policy.value}",
+            )
+        except Exception as e:
+            self.log_message(
+                "warning",
+                f"[HOTPOINT] Subsystem init failed (feature disabled): {type(e).__name__}: {e}",
+            )
+
+    # ------------------------------------------------------------------
+    # Hotpoint Auto-Replicate — runtime API
+    # ------------------------------------------------------------------
+
+    def set_hotpoint_auto_place_enabled(self, enabled: bool) -> None:
+        """Runtime kill-switch toggle. Effective immediately for new triggers.
+
+        Detector continues to record fills regardless (so when re-enabled,
+        the recent history is intact). Only the placer gates on this flag.
+        """
+        self._hotpoint_auto_place_enabled = bool(enabled)
+        self.log_message(
+            "info",
+            f"[HOTPOINT] Auto-place {'ENABLED' if enabled else 'DISABLED'} via runtime toggle",
+        )
+
+    def is_hotpoint_auto_place_enabled(self) -> bool:
+        """Return current runtime kill-switch state."""
+        return bool(getattr(self, "_hotpoint_auto_place_enabled", False))
+
+    def get_hotpoint_state_snapshot(self) -> dict:
+        """Return a UI-friendly snapshot of the hotpoint subsystem.
+
+        Used by the dashboard's hotpoint manager page. All values are
+        plain JSON-safe types (dict / list / str / int / float / bool).
+
+        Returned shape:
+            {
+              "enabled": bool,                 # runtime kill switch
+              "subsystem_initialized": bool,   # detector + limiter exist
+              "config": {
+                "width_pct": float,
+                "trigger_n": int,
+                "trigger_window_seconds": float,
+                "rate_limit_n": int,
+                "rate_limit_window_seconds": float,
+                "decay_sweep_interval_seconds": float,
+                "default_policy": str,
+              },
+              "active_buckets": [
+                {
+                  "product_id", "side", "bucket_id",
+                  "bucket_center", "fills_in_window",
+                },
+                ...
+              ],
+              "recent_auto_placements": [
+                {
+                  "client_order_id", "product_id", "side",
+                  "price", "epoch_seconds",
+                },
+                ...
+              ],
+            }
+
+        Active-bucket enumeration walks the detector's internal state
+        under its lock; the cost is O(n_buckets), which is bounded by
+        the number of product/side/bucket triples ever seen since
+        startup. Practical bounds are tiny (single-digit triples per
+        active product).
+        """
+        from core import constants as _constants
+
+        out = {
+            "enabled": self.is_hotpoint_auto_place_enabled(),
+            "subsystem_initialized": bool(
+                getattr(self, "_hotpoint_detector", None)
+                and getattr(self, "_hotpoint_rate_limiter", None)
+            ),
+            "config": {
+                "width_pct": float(getattr(self, "_hotpoint_width_pct", 0.0)),
+                "trigger_n": int(getattr(_constants, "HOTPOINT_TRIGGER_N", 0)),
+                "trigger_window_seconds": float(
+                    getattr(_constants, "HOTPOINT_TRIGGER_WINDOW_SECONDS", 0)
+                ),
+                "rate_limit_n": int(
+                    getattr(_constants, "HOTPOINT_RATE_LIMIT_N", 0)
+                ),
+                "rate_limit_window_seconds": float(
+                    getattr(self, "_hotpoint_rate_window_seconds", 0.0)
+                ),
+                "decay_sweep_interval_seconds": float(
+                    getattr(_constants, "HOTPOINT_DECAY_SWEEP_INTERVAL_SECONDS", 0)
+                ),
+                "default_policy": getattr(
+                    self._hotpoint_policy, "value", "WINDOW_CENTER",
+                ) if getattr(self, "_hotpoint_policy", None) else "WINDOW_CENTER",
+            },
+            "active_buckets": [],
+            "recent_auto_placements": [],
+        }
+
+        # Snapshot active buckets from the detector.
+        det = getattr(self, "_hotpoint_detector", None)
+        if det is not None:
+            try:
+                from business.hotpoint_detector import bucket_center_price
+                width = float(self._hotpoint_width_pct)
+                # Reach into the detector under its lock for a consistent view.
+                with det._lock:  # noqa: SLF001 - intentional internal access
+                    keys = list(det._buckets.keys())  # noqa: SLF001
+                for product_id, side, bucket_id in keys:
+                    n = det.fills_in_window(
+                        product_id=product_id, side=side, bucket_id=bucket_id,
+                    )
+                    if n <= 0:
+                        continue
+                    out["active_buckets"].append({
+                        "product_id": product_id,
+                        "side": side,
+                        "bucket_id": bucket_id,
+                        "bucket_center": bucket_center_price(bucket_id, width),
+                        "fills_in_window": n,
+                    })
+            except Exception as e:
+                self.log_message(
+                    "warning",
+                    f"[HOTPOINT] active-bucket snapshot failed: {type(e).__name__}: {e}",
+                )
+
+        # Recent auto-placements from DB.
+        try:
+            from database.order import get_recent_auto_placed_hotpoint_rows
+            window = int(out["config"]["rate_limit_window_seconds"]) or 300
+            rows = get_recent_auto_placed_hotpoint_rows(window)
+            for r in rows:
+                out["recent_auto_placements"].append({
+                    "client_order_id": r.get("client_order_id"),
+                    "product_id": r.get("product_id"),
+                    "side": r.get("side"),
+                    "price": float(r.get("price") or 0.0),
+                    "epoch_seconds": float(r.get("epoch_seconds") or 0.0),
+                })
+        except Exception as e:
+            self.log_message(
+                "warning",
+                f"[HOTPOINT] recent-placements snapshot failed: {type(e).__name__}: {e}",
+            )
+
+        return out
+
+    def _start_hotpoint_background(self) -> None:
+        """Restart-rebuild the rate limiter and start the decay sweeper.
+
+        Called from :meth:`start_background_threads` after market-tick
+        recorder init. All steps are wrapped in try/except — a hotpoint
+        background failure must never block engine startup.
+        """
+        try:
+            from configuration import REST_CLIENT
+            from core import constants as _constants
+            from business.hotpoint_decay_sweeper import HotpointDecaySweeper
+            from business.hotpoint_detector import compute_bucket_id
+            from database.order import (
+                get_open_auto_placed_hotpoint_rows,
+                get_recent_auto_placed_hotpoint_rows,
+            )
+
+            # 1. Restart-rebuild rate limiter from persisted rows.
+            if self._hotpoint_rate_limiter is not None:
+                try:
+                    rows = get_recent_auto_placed_hotpoint_rows(
+                        int(self._hotpoint_rate_window_seconds)
+                    )
+                    hydrated = []
+                    for row in rows:
+                        try:
+                            price = float(row["price"])
+                            if price <= 0:
+                                continue
+                            bid = compute_bucket_id(price, self._hotpoint_width_pct)
+                            hydrated.append((
+                                row["product_id"],
+                                row["side"],
+                                bid,
+                                float(row["epoch_seconds"]),
+                            ))
+                        except Exception:
+                            continue
+                    n = self._hotpoint_rate_limiter.hydrate(hydrated)
+                    self.log_message(
+                        "info",
+                        f"[HOTPOINT] Rate limiter rebuilt from DB: {n} placement(s)",
+                    )
+                except Exception as e:
+                    self.log_message(
+                        "warning",
+                        f"[HOTPOINT] Rate limiter rebuild failed: {type(e).__name__}: {e}",
+                    )
+
+            # 2. Start decay sweeper daemon.
+            if self._hotpoint_detector is not None:
+                try:
+                    self._hotpoint_decay_sweeper = HotpointDecaySweeper(
+                        detector=self._hotpoint_detector,
+                        width_pct=self._hotpoint_width_pct,
+                        interval_seconds=float(getattr(
+                            _constants,
+                            "HOTPOINT_DECAY_SWEEP_INTERVAL_SECONDS",
+                            30,
+                        )),
+                        list_open_fn=get_open_auto_placed_hotpoint_rows,
+                        rest_client=REST_CLIENT,
+                        shutdown_event=self._shutdown_event,
+                        log_callback=self.log_message,
+                    )
+                    self._hotpoint_decay_sweeper.start()
+                    self.log_message("info", "[HOTPOINT] Decay sweeper started")
+                except Exception as e:
+                    self.log_message(
+                        "warning",
+                        f"[HOTPOINT] Decay sweeper start failed: {type(e).__name__}: {e}",
+                    )
+        except Exception as e:
+            self.log_message(
+                "warning",
+                f"[HOTPOINT] Background init failed: {type(e).__name__}: {e}",
+            )
+
+    def _maybe_dispatch_hotpoint(self, delta) -> None:
+        """Feed a fresh fill into the hotpoint detector and place if triggered.
+
+        Called from :meth:`_process_ws_order_delta` AFTER the per-match fill
+        ledger row has been recorded. Silently no-ops if:
+
+          * The hotpoint subsystem failed to initialise.
+          * The fill came from an order whose parent does NOT have
+            ``enable_hotpoint_replication=TRUE`` (lookup via the orderbook
+            cache, falling back to a single DB read).
+          * ``delta.derived_price`` is non-positive.
+
+        All errors are caught and logged. This method MUST NEVER raise into
+        the WS pipeline.
+        """
+        try:
+            detector = self._hotpoint_detector
+            rate_limiter = self._hotpoint_rate_limiter
+            policy = self._hotpoint_policy
+            if not (detector and rate_limiter and policy):
+                return
+            if not delta.is_new_match:
+                return
+            if delta.derived_price is None or delta.derived_price <= 0.0:
+                return
+
+            # Opt-in gate: only fills from parents flagged
+            # ``enable_hotpoint_replication=TRUE`` count toward triggers.
+            parent_root = self.get_parent_of_child(delta.client_order_id) or delta.client_order_id
+            if not self._get_parent_enable_hotpoint_replication(parent_root):
+                return
+
+            event = detector.record_fill(
+                product_id=delta.product_id,
+                side=delta.side,
+                fill_price=float(delta.derived_price),
+            )
+            if event is None:
+                return
+
+            from business.hotpoint_placer import place_hotpoint_order
+            from configuration import REST_CLIENT
+            from database.order import insert_order_parent
+
+            product_meta = self.orderbook.product.get(delta.product_id, {})
+            place_hotpoint_order(
+                event=event,
+                rate_limiter=rate_limiter,
+                product_meta=product_meta,
+                policy=policy,
+                rest_client=REST_CLIENT,
+                insert_order_parent_fn=insert_order_parent,
+                kill_switch_enabled=self.is_hotpoint_auto_place_enabled(),
+                log_callback=self.log_message,
+            )
+        except Exception as e:
+            self.log_message(
+                "warning",
+                f"[HOTPOINT] dispatch failed for {getattr(delta, 'client_order_id', '?')}: "
+                f"{type(e).__name__}: {e}",
+            )
+
+    def _get_parent_enable_hotpoint_replication(self, parent_id: str) -> bool:
+        """Return whether ``enable_hotpoint_replication`` is set for a parent.
+
+        Mirrors :meth:`_get_parent_allow_partial_fills`: orderbook cache first,
+        single DB lookup on miss.
+        """
+        if not parent_id:
+            return False
+        with self.orderbook_lock:
+            parent = self.orderbook.parent_order_ids.get(parent_id, {})
+            if "enable_hotpoint_replication" in parent:
+                return bool(parent["enable_hotpoint_replication"])
+        try:
+            row = self.db_helper.get_parent_order(parent_id)
+            if row:
+                return bool(row.get("enable_hotpoint_replication", False))
+        except Exception as e:
+            self.log_message(
+                "warning",
+                f"[HOTPOINT] enable_hotpoint_replication lookup failed for {parent_id}: {e}",
+            )
+        return False
 
     # ------------------------------------------------------------------
     # Partial-fill persistence helpers
@@ -575,6 +953,11 @@ class OrderEngine:
         # 1. Per-match fill-ledger row + post/pre fill hooks.
         if delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE:
             self._append_derived_fill_with_hooks(delta)
+
+            # 1b. Hotpoint Auto-Replicate dispatch. Silent no-op for orders
+            #     not flagged ``enable_hotpoint_replication=TRUE``. Failures
+            #     never propagate back into the WS pipeline.
+            self._maybe_dispatch_hotpoint(delta)
 
         # 2. Append-only audit row covering EVERY accepted snapshot.
         self._append_order_match_audit(delta, normalized_order)
@@ -4252,6 +4635,11 @@ class OrderEngine:
                     "warning",
                     f"market_tick recorder failed to initialise: {e}",
                 )
+
+        # Hotpoint Auto-Replicate: restart-rebuild the rate-limiter from
+        # `order_parent` rows + start the decay sweeper. Both are best-effort;
+        # failures degrade the feature, never abort engine startup.
+        self._start_hotpoint_background()
 
         # Decision-support warm-up: replay persisted ticks into the
         # in-memory Fibonacci/standard-window tracker so the longer

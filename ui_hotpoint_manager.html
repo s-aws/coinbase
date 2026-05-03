@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotpoint Auto-Replicate Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #e0e0e0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #444;
+        }
+        h1 {
+            font-size: 26px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .ws-status {
+            font-size: 13px;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ws-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #999;
+        }
+        .ws-dot.connected { background: #4ade80; animation: pulse 2s infinite; }
+        .ws-dot.disconnected { background: #f87171; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .killswitch-bar {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 18px 24px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+        .killswitch-bar.enabled { border-color: #4ade80; box-shadow: 0 0 12px rgba(74,222,128,0.15); }
+        .killswitch-bar.disabled { border-color: #f87171; box-shadow: 0 0 12px rgba(248,113,113,0.15); }
+        .killswitch-state {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .killswitch-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .killswitch-value {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .killswitch-value.on { color: #4ade80; }
+        .killswitch-value.off { color: #f87171; }
+        .killswitch-button {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: filter 0.15s;
+        }
+        .killswitch-button:hover { filter: brightness(1.15); }
+        .killswitch-button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .killswitch-button.kill { background: #f87171; color: #1a1a1a; }
+        .killswitch-button.enable { background: #4ade80; color: #1a1a1a; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .panel {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 18px 22px;
+        }
+        .panel.full { grid-column: 1 / -1; }
+        .panel h2 {
+            font-size: 15px;
+            color: #fff;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            text-align: left;
+            color: #999;
+            font-weight: 500;
+            padding: 8px 10px;
+            border-bottom: 1px solid #333;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #2a2a3a;
+            color: #ddd;
+            font-variant-numeric: tabular-nums;
+        }
+        tr:hover td { background: rgba(255,255,255,0.03); }
+        .empty {
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            padding: 24px 0;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px 20px;
+            font-size: 13px;
+        }
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px dashed #2a2a3a;
+        }
+        .config-key { color: #999; }
+        .config-val { color: #fff; font-variant-numeric: tabular-nums; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr auto;
+            gap: 10px;
+            align-items: end;
+        }
+        .form-field { display: flex; flex-direction: column; gap: 5px; }
+        .form-field label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .form-field input,
+        .form-field select {
+            padding: 8px 10px;
+            background: #1a1a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        .form-field input:focus,
+        .form-field select:focus {
+            outline: none;
+            border-color: #4ade80;
+        }
+        .submit-button {
+            padding: 9px 16px;
+            background: #4ade80;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .submit-button:hover { filter: brightness(1.15); }
+        .submit-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        details.docs {
+            background: rgba(74,222,128,0.05);
+            border: 1px solid #2a4a3a;
+            border-radius: 8px;
+            padding: 12px 18px;
+            margin-bottom: 20px;
+        }
+        details.docs summary {
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4ade80;
+            padding: 4px 0;
+            user-select: none;
+        }
+        details.docs summary:hover { color: #6ee7a0; }
+        details.docs .doc-body {
+            padding: 14px 0 4px 0;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #c0c0c0;
+        }
+        details.docs .doc-body h3 {
+            color: #fff;
+            font-size: 14px;
+            margin-top: 12px;
+            margin-bottom: 6px;
+        }
+        details.docs .doc-body code {
+            background: #1a1a2a;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: #fbbf24;
+        }
+        details.docs .doc-body ul { margin-left: 22px; margin-top: 4px; }
+        details.docs .doc-body li { margin-bottom: 4px; }
+        details.docs .doc-body .warn {
+            background: rgba(248,113,113,0.1);
+            border-left: 3px solid #f87171;
+            padding: 8px 12px;
+            margin: 10px 0;
+            color: #fca5a5;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #1a1a1a;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.2s, transform 0.2s;
+            pointer-events: none;
+            max-width: 380px;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.ok { background: #4ade80; }
+        .toast.err { background: #f87171; color: #fff; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .badge.buy { background: #4ade80; color: #1a1a1a; }
+        .badge.sell { background: #f87171; color: #1a1a1a; }
+
+        .meta-line { font-size: 12px; color: #888; margin-top: 6px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🔥 Hotpoint Auto-Replicate Manager</h1>
+        <div class="ws-status">
+            <span class="ws-dot" id="ws-dot"></span>
+            <span id="ws-status-text">connecting…</span>
+        </div>
+    </header>
+
+    <details class="docs">
+        <summary>How this works (read me first)</summary>
+        <div class="doc-body">
+            <p><strong>Hotpoint Auto-Replicate</strong> watches your fills. When an
+            opted-in order is filled <code>N</code> times in the same price
+            bucket within a rolling time window <code>T</code>, the engine
+            automatically places <strong>one additional limit order</strong> at that
+            bucket's center price.</p>
+
+            <h3>Vocabulary</h3>
+            <ul>
+                <li><strong>Bucket:</strong> a log-spaced price band of width
+                    <code>HOTPOINT_WIDTH_PCT</code> (e.g. 0.5%). At ~$100k BTC,
+                    one bucket is ~$500 wide. Buckets are deterministic — the
+                    same price always lands in the same bucket regardless of
+                    fill order or restart.</li>
+                <li><strong>Trigger:</strong> at least
+                    <code>HOTPOINT_TRIGGER_N</code> fills inside one bucket
+                    within <code>HOTPOINT_TRIGGER_WINDOW_SECONDS</code> seconds,
+                    same product + same side, same opt-in parent.</li>
+                <li><strong>Cap:</strong> at most
+                    <code>HOTPOINT_RATE_LIMIT_N</code> auto-placements per
+                    <code>(product, side, bucket)</code> per
+                    <code>HOTPOINT_RATE_LIMIT_WINDOW_SECONDS</code> seconds.</li>
+                <li><strong>Decay:</strong> resting auto-placed orders are
+                    cancelled when their bucket goes cold (no qualifying fills
+                    in the trigger window).</li>
+                <li><strong>No cascade:</strong> auto-placed rows themselves are
+                    NOT opted in, so their fills cannot trigger further
+                    auto-placements.</li>
+            </ul>
+
+            <h3>Opting an order in</h3>
+            <p>Use the <em>Place Test Order</em> form below, OR set
+            <code>enable_hotpoint_replication=True</code> on any
+            <code>insert_order_parent</code> call in your placement code.
+            Auto-placement happens transparently from there.</p>
+
+            <h3>Kill switch</h3>
+            <p>The big toggle at the top is a runtime kill switch — instant,
+            no restart. The detector keeps recording fills while disabled,
+            so when you re-enable the system already has recent context.</p>
+
+            <div class="warn">
+                <strong>Liquidation risk reminder:</strong> this feature places
+                real orders without per-order confirmation. The cap is your
+                primary safety net (defaults to
+                <code>HOTPOINT_RATE_LIMIT_N=5</code> per 5 minutes per bucket).
+                Watch the <em>Recent Auto-Placements</em> table during testing.
+            </div>
+        </div>
+    </details>
+
+    <div class="killswitch-bar" id="killswitch-bar">
+        <div class="killswitch-state">
+            <div>
+                <div class="killswitch-label">Auto-Place</div>
+                <div class="killswitch-value" id="killswitch-value">—</div>
+            </div>
+            <div style="height: 36px; width: 1px; background: #444;"></div>
+            <div>
+                <div class="killswitch-label">Subsystem</div>
+                <div class="killswitch-value" id="subsystem-value" style="font-size:14px;color:#999;">—</div>
+            </div>
+        </div>
+        <button class="killswitch-button" id="killswitch-button" disabled>—</button>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <h2>Configuration</h2>
+            <div class="config-grid" id="config-grid">
+                <div class="empty">Loading…</div>
+            </div>
+            <div class="meta-line" id="config-meta"></div>
+        </div>
+
+        <div class="panel">
+            <h2>Active Buckets</h2>
+            <table>
+                <thead><tr>
+                    <th>Product</th><th>Side</th><th>Bucket</th>
+                    <th style="text-align:right;">Center</th>
+                    <th style="text-align:right;">Fills/Window</th>
+                </tr></thead>
+                <tbody id="active-buckets-body">
+                    <tr><td colspan="5" class="empty">No active buckets</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel full">
+            <h2>Recent Auto-Placements (Rate-Limit Window)</h2>
+            <table>
+                <thead><tr>
+                    <th>Client Order ID</th>
+                    <th>Product</th>
+                    <th>Side</th>
+                    <th style="text-align:right;">Price</th>
+                    <th style="text-align:right;">Age (s)</th>
+                </tr></thead>
+                <tbody id="recent-placements-body">
+                    <tr><td colspan="5" class="empty">No recent auto-placements</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel full">
+            <h2>Place Test Order (opt-in)</h2>
+            <p style="font-size:12px;color:#999;margin-bottom:12px;">
+                Submits a normal limit order with
+                <code style="background:#1a1a2a;padding:1px 5px;border-radius:3px;color:#fbbf24;">enable_hotpoint_replication=TRUE</code>.
+                Once it fills <code style="background:#1a1a2a;padding:1px 5px;border-radius:3px;color:#fbbf24;">N</code>
+                times within the trigger window in its bucket, the engine places one extra order at the bucket center.
+            </p>
+            <form class="form-grid" id="test-order-form">
+                <div class="form-field">
+                    <label>Product</label>
+                    <input id="form-product" placeholder="BTC-USDC" autocomplete="off" />
+                </div>
+                <div class="form-field">
+                    <label>Side</label>
+                    <select id="form-side">
+                        <option value="BUY">BUY</option>
+                        <option value="SELL">SELL</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Limit Price</label>
+                    <input id="form-price" type="number" step="any" />
+                </div>
+                <div class="form-field">
+                    <label>Size</label>
+                    <input id="form-size" type="number" step="any" />
+                </div>
+                <button type="submit" class="submit-button" id="form-submit" disabled>Place</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const WS_URL = `ws://${window.location.hostname || 'localhost'}:8765`;
+const POLL_INTERVAL_MS = 5000;
+
+let ws = null;
+let pollTimer = null;
+let lastSnapshotEpoch = 0;
+let killSwitchEnabled = null;
+
+// -----------------------------------------------------------------
+// WebSocket lifecycle
+// -----------------------------------------------------------------
+function setStatus(connected, text) {
+    const dot = document.getElementById('ws-dot');
+    dot.classList.remove('connected', 'disconnected');
+    dot.classList.add(connected ? 'connected' : 'disconnected');
+    document.getElementById('ws-status-text').textContent = text;
+    document.getElementById('killswitch-button').disabled = !connected;
+    document.getElementById('form-submit').disabled = !connected;
+}
+
+function connect() {
+    setStatus(false, 'connecting…');
+    try {
+        ws = new WebSocket(WS_URL);
+    } catch (e) {
+        setStatus(false, 'failed to construct WebSocket');
+        scheduleReconnect();
+        return;
+    }
+    ws.addEventListener('open', () => {
+        setStatus(true, 'connected');
+        requestState();
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(requestState, POLL_INTERVAL_MS);
+    });
+    ws.addEventListener('close', () => {
+        setStatus(false, 'disconnected');
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        scheduleReconnect();
+    });
+    ws.addEventListener('error', () => {
+        // close handler will run after this; nothing to do here.
+    });
+    ws.addEventListener('message', (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch (e) { return; }
+        if (!msg || !msg.type) return;
+        switch (msg.type) {
+            case 'hotpoint_state':              return onHotpointState(msg);
+            case 'hotpoint_kill_switch_response': return onKillSwitchResponse(msg);
+            case 'place_hotpoint_test_order_response': return onPlaceResponse(msg);
+            // Ignore other broadcasts.
+        }
+    });
+}
+
+function scheduleReconnect() {
+    setTimeout(connect, 2000);
+}
+
+function send(obj) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify(obj));
+    return true;
+}
+
+function requestState() { send({ type: 'request_hotpoint_state' }); }
+
+// -----------------------------------------------------------------
+// Render
+// -----------------------------------------------------------------
+function onHotpointState(msg) {
+    if (!msg.available) {
+        setKillSwitchUI(false, 'subsystem unavailable');
+        document.getElementById('subsystem-value').textContent = 'NOT AVAILABLE';
+        document.getElementById('subsystem-value').style.color = '#f87171';
+        renderConfig({});
+        renderActiveBuckets([]);
+        renderRecentPlacements([]);
+        document.getElementById('config-meta').textContent =
+            'Engine not initialized. Start the trading engine first.';
+        return;
+    }
+    const s = msg.state || {};
+    killSwitchEnabled = !!s.enabled;
+    setKillSwitchUI(killSwitchEnabled, killSwitchEnabled ? 'ON' : 'OFF (KILL)');
+    document.getElementById('subsystem-value').textContent =
+        s.subsystem_initialized ? 'initialized' : 'init failed';
+    document.getElementById('subsystem-value').style.color =
+        s.subsystem_initialized ? '#4ade80' : '#f87171';
+    renderConfig(s.config || {});
+    renderActiveBuckets(s.active_buckets || []);
+    renderRecentPlacements(s.recent_auto_placements || []);
+    lastSnapshotEpoch = Math.floor(Date.now() / 1000);
+    document.getElementById('config-meta').textContent =
+        `Last refreshed at ${new Date().toLocaleTimeString()}`;
+}
+
+function setKillSwitchUI(enabled, label) {
+    const bar = document.getElementById('killswitch-bar');
+    const val = document.getElementById('killswitch-value');
+    const btn = document.getElementById('killswitch-button');
+    bar.classList.remove('enabled', 'disabled');
+    val.classList.remove('on', 'off');
+    if (enabled) {
+        bar.classList.add('enabled');
+        val.classList.add('on');
+        val.textContent = label;
+        btn.classList.remove('enable');
+        btn.classList.add('kill');
+        btn.textContent = 'Kill (Disable)';
+    } else {
+        bar.classList.add('disabled');
+        val.classList.add('off');
+        val.textContent = label;
+        btn.classList.remove('kill');
+        btn.classList.add('enable');
+        btn.textContent = 'Re-enable';
+    }
+}
+
+function renderConfig(cfg) {
+    const grid = document.getElementById('config-grid');
+    if (!cfg || Object.keys(cfg).length === 0) {
+        grid.innerHTML = '<div class="empty" style="grid-column:1 / -1;">No configuration available</div>';
+        return;
+    }
+    const rows = [
+        ['Bucket Width', `${(cfg.width_pct * 100).toFixed(3)} %`],
+        ['Trigger N', cfg.trigger_n],
+        ['Trigger Window', `${cfg.trigger_window_seconds} s`],
+        ['Rate-Limit N', cfg.rate_limit_n],
+        ['Rate-Limit Window', `${cfg.rate_limit_window_seconds} s`],
+        ['Decay Sweep Interval', `${cfg.decay_sweep_interval_seconds} s`],
+        ['Default Policy', cfg.default_policy || '—'],
+    ];
+    grid.innerHTML = rows.map(([k, v]) =>
+        `<div class="config-row"><span class="config-key">${k}</span>` +
+        `<span class="config-val">${v}</span></div>`
+    ).join('');
+}
+
+function renderActiveBuckets(rows) {
+    const body = document.getElementById('active-buckets-body');
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty">No active buckets</td></tr>';
+        return;
+    }
+    body.innerHTML = rows.map(r => {
+        const sideBadge = `<span class="badge ${r.side === 'BUY' ? 'buy' : 'sell'}">${r.side}</span>`;
+        return '<tr>' +
+            `<td>${escapeHtml(r.product_id)}</td>` +
+            `<td>${sideBadge}</td>` +
+            `<td>${r.bucket_id}</td>` +
+            `<td style="text-align:right;">${formatPrice(r.bucket_center)}</td>` +
+            `<td style="text-align:right;">${r.fills_in_window}</td>` +
+        '</tr>';
+    }).join('');
+}
+
+function renderRecentPlacements(rows) {
+    const body = document.getElementById('recent-placements-body');
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty">No recent auto-placements</td></tr>';
+        return;
+    }
+    const now = Date.now() / 1000;
+    body.innerHTML = rows
+        .slice()
+        .sort((a, b) => b.epoch_seconds - a.epoch_seconds)
+        .map(r => {
+            const age = Math.max(0, Math.floor(now - (r.epoch_seconds || 0)));
+            const sideBadge = `<span class="badge ${r.side === 'BUY' ? 'buy' : 'sell'}">${r.side}</span>`;
+            return '<tr>' +
+                `<td style="font-family:monospace;font-size:11px;">${escapeHtml(r.client_order_id)}</td>` +
+                `<td>${escapeHtml(r.product_id)}</td>` +
+                `<td>${sideBadge}</td>` +
+                `<td style="text-align:right;">${formatPrice(r.price)}</td>` +
+                `<td style="text-align:right;">${age}</td>` +
+            '</tr>';
+        }).join('');
+}
+
+function formatPrice(p) {
+    if (typeof p !== 'number' || !isFinite(p)) return '—';
+    if (p >= 1000) return p.toFixed(2);
+    if (p >= 1)    return p.toFixed(4);
+    return p.toFixed(6);
+}
+function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// -----------------------------------------------------------------
+// Actions
+// -----------------------------------------------------------------
+document.getElementById('killswitch-button').addEventListener('click', () => {
+    if (killSwitchEnabled === null) return;
+    const requested = !killSwitchEnabled;
+    if (requested === false) {
+        if (!confirm('Disable hotpoint auto-place? Resting auto-placed orders will continue to rest until the decay sweeper cancels them.')) return;
+    }
+    send({ type: 'set_hotpoint_kill_switch', enabled: requested });
+});
+
+function onKillSwitchResponse(msg) {
+    if (msg.success) {
+        toast(`Kill switch ${msg.enabled ? 'ENABLED' : 'DISABLED'}`, 'ok');
+        requestState();
+    } else {
+        toast(`Toggle failed: ${msg.error || 'unknown'}`, 'err');
+    }
+}
+
+document.getElementById('test-order-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const product_id = document.getElementById('form-product').value.trim();
+    const side = document.getElementById('form-side').value;
+    const price = parseFloat(document.getElementById('form-price').value);
+    const size = parseFloat(document.getElementById('form-size').value);
+    if (!product_id || !side || !(price > 0) || !(size > 0)) {
+        toast('Fill all fields with positive numbers', 'err');
+        return;
+    }
+    if (!confirm(`Place opt-in order: ${side} ${size} ${product_id} @ ${price}? This is a real exchange order.`)) return;
+    send({
+        type: 'place_hotpoint_test_order',
+        order: { product_id, side, price, size },
+    });
+});
+
+function onPlaceResponse(msg) {
+    if (msg.success) {
+        toast(`Test order placed: ${msg.client_order_id}`, 'ok');
+        document.getElementById('test-order-form').reset();
+        requestState();
+    } else {
+        toast(`Placement failed: ${msg.error || 'unknown'}`, 'err');
+    }
+}
+
+let toastTimer = null;
+function toast(text, kind) {
+    const el = document.getElementById('toast');
+    el.textContent = text;
+    el.classList.remove('ok', 'err', 'show');
+    el.classList.add(kind === 'ok' ? 'ok' : 'err');
+    requestAnimationFrame(() => el.classList.add('show'));
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// -----------------------------------------------------------------
+connect();
+</script>
+</body>
+</html>

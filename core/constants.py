@@ -172,3 +172,35 @@ DERIVATIVES_PRODUCT_IDS = [
 
 # All Trading Pairs
 ALL_PRODUCT_IDS = SPOT_PRODUCT_IDS + DERIVATIVES_PRODUCT_IDS
+
+
+# ============================================================================
+# HOTPOINT AUTO-REPLICATE
+# ============================================================================
+# Runtime kill switch. Operator-flippable without restart via
+# OrderEngine.set_hotpoint_auto_place_enabled(bool). Defaults TRUE per spec
+# (live from day one). Flip to FALSE to halt all auto-placement immediately;
+# detector + decay continue running, only the placer gates on this flag.
+HOTPOINT_AUTO_PLACE_ENABLED = True
+
+# Bucket width as % of price. Buckets are log-spaced and deterministic:
+#   bucket_id = floor(log(price) / log(1 + HOTPOINT_WIDTH_PCT))
+# At 0.5%, BTC ~$100k buckets are ~$500 wide; ETH ~$3k buckets are ~$15 wide.
+HOTPOINT_WIDTH_PCT = 0.005
+
+# Trigger: at least N qualifying fills inside the bucket within T seconds
+# (same product, same side, opted-in parents only).
+HOTPOINT_TRIGGER_N = 3
+HOTPOINT_TRIGGER_WINDOW_SECONDS = 60
+
+# Rate limit: at most N auto-placements per (product, side, bucket) per T seconds.
+# Restart-rebuilt from order_parent rows (auto_placed_by_hotpoint=TRUE within T).
+HOTPOINT_RATE_LIMIT_N = 5
+HOTPOINT_RATE_LIMIT_WINDOW_SECONDS = 300
+
+# Decay sweeper: how often to scan for resting auto-placed orders whose bucket
+# has gone cold (zero qualifying fills in the trigger window) and cancel them.
+HOTPOINT_DECAY_SWEEP_INTERVAL_SECONDS = 30
+
+# Default placement-price policy. See HotpointPlacementPolicy enum.
+HOTPOINT_DEFAULT_POLICY = "WINDOW_CENTER"

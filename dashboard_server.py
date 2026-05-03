@@ -1164,6 +1164,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     target_movement_type=order.get('target_movement_type', 'P'),
                     allow_partial_fills=bool(order.get('allow_partial_fills', True)),
                     anchor_repricing_policy=order.get('anchor_repricing_policy'),
+                    enable_hotpoint_replication=bool(order.get('enable_hotpoint_replication', False)),
                 )
                 
                 # Get the created order data and serialize for JSON
@@ -1755,7 +1756,148 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }
                 add_log_entry("ERROR", f"Parent target_movement update failed: {str(e)}")
                 await websocket.send(json.dumps(response))
-        
+
+        elif msg_type == "request_hotpoint_state":
+            # Hotpoint Auto-Replicate: full UI snapshot.
+            # Returns kill switch + config + active buckets + recent
+            # auto-placements. Polled by the hotpoint manager UI.
+            try:
+                engine = (
+                    stealth_order_bridge.order_engine
+                    if stealth_order_bridge
+                    and getattr(stealth_order_bridge, "order_engine", None)
+                    else None
+                )
+                if engine is None:
+                    await websocket.send(json.dumps({
+                        "type": "hotpoint_state",
+                        "available": False,
+                        "error": "engine_not_initialized",
+                    }))
+                else:
+                    snap = engine.get_hotpoint_state_snapshot()
+                    await websocket.send(json.dumps({
+                        "type": "hotpoint_state",
+                        "available": True,
+                        "state": snap,
+                    }))
+            except Exception as e:
+                logger.error(f"hotpoint_state request failed: {e}")
+                await websocket.send(json.dumps({
+                    "type": "hotpoint_state",
+                    "available": False,
+                    "error": str(e),
+                }))
+
+        elif msg_type == "set_hotpoint_kill_switch":
+            # Flip the runtime kill switch. {enabled: bool}
+            requested = bool(data.get("enabled", False))
+            try:
+                engine = (
+                    stealth_order_bridge.order_engine
+                    if stealth_order_bridge
+                    and getattr(stealth_order_bridge, "order_engine", None)
+                    else None
+                )
+                if engine is None:
+                    await websocket.send(json.dumps({
+                        "type": "hotpoint_kill_switch_response",
+                        "success": False,
+                        "error": "engine_not_initialized",
+                    }))
+                else:
+                    engine.set_hotpoint_auto_place_enabled(requested)
+                    add_log_entry(
+                        "INFO",
+                        f"Hotpoint auto-place {'ENABLED' if requested else 'DISABLED'} via UI",
+                    )
+                    await websocket.send(json.dumps({
+                        "type": "hotpoint_kill_switch_response",
+                        "success": True,
+                        "enabled": engine.is_hotpoint_auto_place_enabled(),
+                    }))
+            except Exception as e:
+                logger.error(f"set_hotpoint_kill_switch failed: {e}")
+                await websocket.send(json.dumps({
+                    "type": "hotpoint_kill_switch_response",
+                    "success": False,
+                    "error": str(e),
+                }))
+
+        elif msg_type == "place_hotpoint_test_order":
+            # Place a normal limit order with enable_hotpoint_replication=True.
+            # Used to seed the detector for live testing. Payload:
+            #   {product_id, side, price, size}
+            payload = data.get("order") or {}
+            product_id = payload.get("product_id")
+            side = payload.get("side")
+            try:
+                price = float(payload.get("price"))
+                size = float(payload.get("size"))
+            except (TypeError, ValueError):
+                price = size = 0.0
+
+            if not (product_id and side in ("BUY", "SELL") and price > 0 and size > 0):
+                await websocket.send(json.dumps({
+                    "type": "place_hotpoint_test_order_response",
+                    "success": False,
+                    "error": "invalid_payload",
+                }))
+                return
+
+            try:
+                from configuration import REST_CLIENT
+                from database.order import insert_order_parent
+                from core.enums import OrderStatus
+                import uuid as _uuid
+
+                client_order_id = str(_uuid.uuid4())
+                # Pre-insert order_parent row with the opt-in flag set.
+                # Auto-placed children of this order will spawn from the
+                # engine's hotpoint dispatcher when fills accumulate.
+                insert_order_parent(
+                    client_order_id=client_order_id,
+                    product_id=product_id,
+                    side=side,
+                    size=size,
+                    price=price,
+                    target_movement=0.0,
+                    target_movement_type="P",
+                    max_order_replacement=0,
+                    current_order_replacement=0,
+                    status=OrderStatus.PENDING.value,
+                    parent_order_id=None,
+                    allow_partial_fills=False,
+                    enable_hotpoint_replication=True,
+                    auto_placed_by_hotpoint=False,
+                )
+                # Submit GTC limit on the exchange.
+                REST_CLIENT.limit_order_gtc(
+                    product_id=product_id,
+                    side=side,
+                    base_size=str(size),
+                    limit_price=str(price),
+                    client_order_id=client_order_id,
+                    post_only=False,
+                )
+                add_log_entry(
+                    "INFO",
+                    f"Hotpoint test order placed: {client_order_id} {product_id} "
+                    f"{side} {size}@{price}",
+                )
+                await websocket.send(json.dumps({
+                    "type": "place_hotpoint_test_order_response",
+                    "success": True,
+                    "client_order_id": client_order_id,
+                }))
+            except Exception as e:
+                logger.error(f"place_hotpoint_test_order failed: {e}")
+                await websocket.send(json.dumps({
+                    "type": "place_hotpoint_test_order_response",
+                    "success": False,
+                    "error": str(e),
+                }))
+
         elif msg_type == "clear_all_stealth_orders":
             # Clear all stealth orders from BOTH the live engine (memory) and
             # the database. Without the in-memory step the reveal evaluator
