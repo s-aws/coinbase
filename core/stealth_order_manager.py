@@ -64,7 +64,7 @@ import uuid
 import json
 import time
 from datetime import datetime, timedelta
-from typing import Callable, Dict, Any, Iterator, Optional, Tuple, List
+from typing import Dict, Any, Iterator, Optional, Tuple, List
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
@@ -221,18 +221,6 @@ class StealthOrderManager:
         self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
         self.profit_validator = profit_validator
-
-        # Pre-submit hook: register a placement COID under its stealth chain
-        # root in the OrderEngine's in-memory orderbook BEFORE the REST call.
-        # Without this, a WS event for the placement COID can race the REST
-        # return, miss every cache, and be classified as ``EXTERNAL`` by
-        # ``_resolve_ws_order_ownership_scope`` -- which then inserts a
-        # phantom ``order_parent`` row with ``parent_order_id=NULL`` and
-        # ``ownership_scope='external'``, leaving the stealth root stuck at
-        # PENDING forever (incident 2026-05-02, rows 5/8 in audit).
-        # Wired by ``StealthOrderBridge``; default no-op preserves test
-        # construction without an engine.
-        self.placement_register_callback: Optional[Callable[[str, str], None]] = None
         
         # Order placement hooks for extensibility
         if order_placement_hooks is None:
@@ -698,78 +686,6 @@ class StealthOrderManager:
         return new_price
 
     @staticmethod
-    def _post_only_retreat_ticks(
-        initial_price: float,
-        current_price: float,
-        side: str,
-        increment: str,
-    ) -> int:
-        """Return cumulative retreat in ticks from the initial intent price.
-
-        The value is normalized so a safer post-only retreat is always
-        non-negative for supported sides:
-
-        - BUY: lower prices are positive retreat
-        - SELL: higher prices are positive retreat
-        """
-        try:
-            tick = float(increment)
-            if tick <= 0:
-                return 0
-        except (TypeError, ValueError):
-            return 0
-
-        try:
-            start = float(initial_price)
-            current = float(current_price)
-        except (TypeError, ValueError):
-            return 0
-
-        normalized_side = str(side or "").upper()
-        if normalized_side == OrderSide.BUY.value:
-            retreat = (start - current) / tick
-        elif normalized_side == OrderSide.SELL.value:
-            retreat = (current - start) / tick
-        else:
-            return 0
-
-        return max(int(round(retreat)), 0)
-
-    def _resolve_post_only_retry_price(
-        self,
-        *,
-        product_id: str,
-        side: str,
-        current_price: float,
-        increment: str,
-        reveal_pricing_policy: str,
-    ) -> tuple[float, str]:
-        """Resolve the next post-only retry price.
-
-        Prefer re-anchoring to the latest cached market under the original
-        reveal pricing policy, then step one safer tick away from that live
-        anchor. If no usable market snapshot is available, fall back to
-        stepping one safer tick away from the current rejected price.
-        """
-        anchor_price = float(current_price)
-        anchor_source = "rejected_price"
-
-        market_data = self._get_current_market_data(product_id) or {}
-        live_anchor_price, live_anchor_source, fallback_used = self._resolve_reveal_limit_price(
-            side=side,
-            configured_limit_price=float(current_price),
-            market_data=market_data,
-            reveal_pricing_policy=reveal_pricing_policy,
-        )
-        market_known = str(market_data.get("source") or "").lower() == "ticker"
-
-        if market_known and not fallback_used:
-            anchor_price = float(live_anchor_price)
-            anchor_source = str(live_anchor_source)
-
-        return self._next_safer_tick(anchor_price, side, increment), anchor_source
-
-    @staticmethod
     def _is_post_only_rejection(order_result: Any) -> bool:
         """Return True if a Coinbase ``place_limit_order`` response shape
         indicates a POST_ONLY rejection.
@@ -977,47 +893,6 @@ class StealthOrderManager:
             return str(uuid.uuid4())
         return order["stealth_order_id"]
 
-    def _pre_register_placement_in_orderbook(
-        self,
-        placement_client_order_id: str,
-        chain_root_client_order_id: Optional[str],
-    ) -> None:
-        """Notify the OrderEngine that ``placement_client_order_id`` belongs
-        to the stealth chain rooted at ``chain_root_client_order_id``.
-
-        Must be called BEFORE the REST submit so the inevitable WS event
-        for this placement COID resolves to ``LOCAL`` ownership and
-        ``_ensure_order_parent_row_exists`` finds it in the child cache.
-
-        No-op when:
-          * The placement COID equals the stealth root (no separate row).
-          * No chain root is resolvable.
-          * No callback is wired (e.g. unit tests).
-
-        Failures are swallowed and logged: the stealth manager's DB
-        pre-insert is still authoritative; this hook only repairs the
-        in-memory ownership classification used by the WS handler.
-        """
-        if not chain_root_client_order_id:
-            return
-        if placement_client_order_id == chain_root_client_order_id:
-            return
-        callback = getattr(self, "placement_register_callback", None)
-        if callback is None:
-            return
-        try:
-            callback(placement_client_order_id, chain_root_client_order_id)
-        except Exception as exc:
-            self.log_callback(
-                "warning",
-                {
-                    "event": "stealth_placement_pre_register_failed",
-                    "placement_client_order_id": placement_client_order_id,
-                    "chain_root_client_order_id": chain_root_client_order_id,
-                    "error": str(exc),
-                },
-            )
-
     def _mark_reveal_event_cancelled_for_reprice(
         self,
         order: Dict[str, Any],
@@ -1082,17 +957,6 @@ class StealthOrderManager:
         REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
 
         placement_client_order_id = str(uuid.uuid4())
-
-        # Pre-register the placement COID under the chain root in the engine's
-        # in-memory orderbook BEFORE the REST submit. Mirrors the DB pre-insert
-        # below; without this the WS event races the REST return and is
-        # misclassified as an EXTERNAL order. See incident note in
-        # ``_pre_register_placement_in_orderbook``.
-        self._pre_register_placement_in_orderbook(
-            placement_client_order_id,
-            resolve_stealth_chain_root(order),
-        )
-
         # Track the cancel+replace as a single in-flight critical section so a
         # concurrent drain waits for both the cancellation and the replacement
         # placement to settle before transitioning to STOPPED.
@@ -1493,15 +1357,6 @@ class StealthOrderManager:
                 plan.reveal_plan.submitted_limit_price,
                 default=plan.new_configured_limit_price,
             )
-
-            # Pre-register placement COID under the chain root so a racing WS
-            # event for it does not get classified as EXTERNAL. See note in
-            # ``_pre_register_placement_in_orderbook``.
-            self._pre_register_placement_in_orderbook(
-                placement_client_order_id,
-                plan.root_parent_client_order_id,
-            )
-
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
                     order_result = REST_CLIENT.place_limit_order(
@@ -2636,11 +2491,6 @@ class StealthOrderManager:
         if not stealth_order_id:
             stealth_order_id = str(uuid.uuid4())
 
-        normalized_reveal_pricing_policy = self._normalize_reveal_pricing_policy(
-            reveal_pricing_policy=reveal_pricing_policy,
-            reveal_condition=reveal_condition,
-        )
-
         # Boundary validation: snap size to base_increment AND verify
         # base_min_size / quote_min_size before any DB write or in-memory
         # registration. Mirrors the price-quantize pattern used at reveal
@@ -2673,7 +2523,7 @@ class StealthOrderManager:
                 order_size=float(total_size),
                 target_movement=float(target_movement),
                 target_movement_type=target_movement_type,
-                reveal_pricing_policy=normalized_reveal_pricing_policy,
+                reveal_pricing_policy=reveal_pricing_policy,
             )
             if infeasible_reason is not None:
                 raise OrderCreationError(
@@ -2698,7 +2548,7 @@ class StealthOrderManager:
             "visibility_score": 0.0,
             "reveal_condition_type": reveal_condition.get("type", "time_delay"),
             "reveal_condition_json": reveal_condition,
-            "reveal_pricing_policy": normalized_reveal_pricing_policy,
+            "reveal_pricing_policy": reveal_pricing_policy or "configured_limit",
             "follow_up_reveal_direction": follow_up_reveal_direction or FollowUpRevealDirection.OPPOSITE.value,
             "sizing_strategy_json": sizing_strategy or {"type": "fixed"},
             "parent_order_id": parent_order_id,
@@ -3138,15 +2988,6 @@ class StealthOrderManager:
                         allow_partial_fills=bool(order.get("allow_partial_fills", False)),
                     )
                     pre_inserted_attempt_coids.add(coid)
-
-                    # Pre-register in the engine's in-memory orderbook so
-                    # the WS handler classifies the placement as LOCAL and
-                    # does not insert a phantom EXTERNAL row that races and
-                    # beats this DB pre-insert. See note in
-                    # ``_pre_register_placement_in_orderbook``.
-                    self._pre_register_placement_in_orderbook(
-                        coid, root_parent_for_placement
-                    )
                     return True
                 except Exception as parent_insert_error:
                     self.log_callback(
@@ -3191,7 +3032,6 @@ class StealthOrderManager:
             retry_post_only = bool(order_for_submission.get("post_only"))
             max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
             attempt_price = float(order_for_submission["limit_price"])
-            initial_attempt_price = attempt_price
             attempt_coid = order_for_submission["client_order_id"]
             price_increment = self._get_price_increment(order_for_submission["product_id"])
             order_result = None
@@ -3286,15 +3126,10 @@ class StealthOrderManager:
                     client_order_id = attempt_coid
                     break
 
-                next_price, retry_anchor_source = self._resolve_post_only_retry_price(
-                    product_id=order_for_submission["product_id"],
-                    side=order_for_submission["side"],
-                    current_price=attempt_price,
-                    increment=price_increment,
-                    reveal_pricing_policy=order_for_submission.get(
-                        "reveal_pricing_policy",
-                        "configured_limit",
-                    ),
+                next_price = self._next_safer_tick(
+                    attempt_price,
+                    order_for_submission["side"],
+                    price_increment,
                 )
                 # Fresh client_order_id per retry: a rejected attempt may
                 # or may not consume the COID at the exchange and the
@@ -3312,13 +3147,6 @@ class StealthOrderManager:
                     "rejected_at_price": attempt_price,
                     "next_attempt_price": next_price,
                     "tick_increment": price_increment,
-                    "retry_anchor_source": retry_anchor_source,
-                    "cumulative_retreat_ticks": self._post_only_retreat_ticks(
-                        initial_attempt_price,
-                        next_price,
-                        order_for_submission["side"],
-                        price_increment,
-                    ),
                     "rejected_client_order_id": attempt_coid,
                     "next_client_order_id": next_coid,
                     "failure_reason": rejected_failure_reason,
@@ -3347,12 +3175,6 @@ class StealthOrderManager:
                     "product_id": order_for_submission["product_id"],
                     "side": order_for_submission["side"],
                     "attempts": post_only_attempts,
-                    "total_retreat_ticks": self._post_only_retreat_ticks(
-                        initial_attempt_price,
-                        attempt_price,
-                        order_for_submission["side"],
-                        price_increment,
-                    ),
                     "final_failure_reason": final_failure_reason,
                     "note": (
                         "Post-only rejected on every attempt after "
@@ -3435,12 +3257,6 @@ class StealthOrderManager:
                     else reveal_plan.reveal_price_source
                 ),
                 "post_only_retry_attempts": len(post_only_attempts),
-                "post_only_total_retreat_ticks": self._post_only_retreat_ticks(
-                    initial_attempt_price,
-                    actual_submitted_price,
-                    order_for_submission["side"],
-                    price_increment,
-                ),
             })
 
             # 🔔 LIFECYCLE HOOK: REVEAL_SUCCEEDED
@@ -4164,12 +3980,10 @@ class StealthOrderManager:
             self.db_client.execute_update(
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size, 
-                    limit_price, status, reveal_condition_type, reveal_condition_json,
-                          reveal_pricing_policy,
-                          follow_up_reveal_direction,
+                    limit_price, status, reveal_condition_type, reveal_condition_json, 
                           sizing_strategy_json, reason, notes, parent_order_id,
                           anchor_repricing_policy_json, anchor_repricing_state_json)
-                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -4179,11 +3993,6 @@ class StealthOrderManager:
                  order['status'],
                  order.get('reveal_condition_type', 'time_delay'),
                  json.dumps(order.get('reveal_condition_json', {})),
-                 self._normalize_reveal_pricing_policy(
-                     reveal_pricing_policy=order.get('reveal_pricing_policy'),
-                     reveal_condition=order.get('reveal_condition_json'),
-                 ),
-                 order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                  json.dumps(order.get('sizing_strategy_json', {})),
                  order.get('reason', ''),
                  order.get('notes', ''),
@@ -4239,8 +4048,6 @@ class StealthOrderManager:
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
                        limit_price = %s, reveal_condition_json = %s,
-                       reveal_pricing_policy = %s,
-                       follow_up_reveal_direction = %s,
                        anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
                        condition_first_met_at = %s, condition_confirmed_at = %s,
                        updated_at = CURRENT_TIMESTAMP
@@ -4253,11 +4060,6 @@ class StealthOrderManager:
                  last_placement,
                  order.get('limit_price'),
                  json.dumps(order.get('reveal_condition_json', {})),
-                 self._normalize_reveal_pricing_policy(
-                     reveal_pricing_policy=order.get('reveal_pricing_policy'),
-                     reveal_condition=order.get('reveal_condition_json'),
-                 ),
-                 order.get('follow_up_reveal_direction', FollowUpRevealDirection.OPPOSITE.value),
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
                  condition_first_met_at,
@@ -4266,40 +4068,6 @@ class StealthOrderManager:
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_update_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
-
-    def _hydrate_parent_runtime_fields(
-        self,
-        stealth_order_id: str,
-        order_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Overlay parent-row runtime fields onto a stealth order dict.
-
-        Some runtime paths read ``allow_partial_fills`` / ``max_order_replacements``
-        from the in-memory stealth order. Those fields are canonical on
-        ``order_parent`` and must be rehydrated on DB load to avoid drift
-        after restart.
-        """
-        parent_row = None
-        try:
-            parent_row = get_parent_order(stealth_order_id)
-        except Exception as exc:
-            self.logger.warning(
-                f"Failed to fetch order_parent for stealth runtime hydration "
-                f"({stealth_order_id}): {exc}"
-            )
-
-        max_replacements = 0
-        allow_partial_fills = False
-        if parent_row is not None:
-            try:
-                max_replacements = int(parent_row.get("max_order_replacement") or 0)
-            except (TypeError, ValueError):
-                max_replacements = 0
-            allow_partial_fills = bool(parent_row.get("allow_partial_fills", False))
-
-        order_data["max_order_replacements"] = max_replacements
-        order_data["allow_partial_fills"] = allow_partial_fills
-        return order_data
     
     def _load_stealth_order_from_db(self, stealth_order_id: str) -> Optional[Dict[str, Any]]:
         """Load stealth order from database."""
@@ -4324,13 +4092,7 @@ class StealthOrderManager:
                         return json.loads(value)
                     return default
                 
-                reveal_condition_json = parse_json_field(row.get('reveal_condition_json'), {})
-                reveal_pricing_policy = self._normalize_reveal_pricing_policy(
-                    reveal_pricing_policy=row.get('reveal_pricing_policy'),
-                    reveal_condition=reveal_condition_json,
-                )
-
-                order_data = {
+                return {
                     'stealth_order_id': row['stealth_order_id'],
                     'product_id': row['product_id'],
                     'side': row['side'],
@@ -4341,9 +4103,7 @@ class StealthOrderManager:
                     'limit_price': float(row['limit_price']),
                     'status': row['status'],
                     'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),
-                    'reveal_condition_json': reveal_condition_json,
-                    'reveal_pricing_policy': reveal_pricing_policy,
-                    'follow_up_reveal_direction': row.get('follow_up_reveal_direction') or FollowUpRevealDirection.OPPOSITE.value,
+                    'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
                     'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
                     'reason': row.get('reason', ''),
                     'notes': row.get('notes', ''),
@@ -4355,7 +4115,6 @@ class StealthOrderManager:
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
                 }
-                return self._hydrate_parent_runtime_fields(str(row['stealth_order_id']), order_data)
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_load_failed", "stealth_order_id": stealth_order_id, "error": str(e)})
         
@@ -4403,11 +4162,6 @@ class StealthOrderManager:
                     condition_type = row.get('reveal_condition_type', 'time_delay')
                     condition_first_met = row.get('condition_first_met_at')
                     condition_confirmed = row.get('condition_confirmed_at')
-                    reveal_condition_json = parse_json_field(row.get('reveal_condition_json'), {})
-                    reveal_pricing_policy = self._normalize_reveal_pricing_policy(
-                        reveal_pricing_policy=row.get('reveal_pricing_policy'),
-                        reveal_condition=reveal_condition_json,
-                    )
                     
                     order_data = {
                         'stealth_order_id': stealth_order_id,
@@ -4420,9 +4174,7 @@ class StealthOrderManager:
                         'limit_price': float(row['limit_price']),
                         'status': db_status if db_status in ['REVEALED', 'EXECUTED', 'CANCELLED'] else 'HIDDEN',
                         'reveal_condition_type': condition_type,
-                        'reveal_condition_json': reveal_condition_json,
-                        'reveal_pricing_policy': reveal_pricing_policy,
-                        'follow_up_reveal_direction': row.get('follow_up_reveal_direction') or FollowUpRevealDirection.OPPOSITE.value,
+                        'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
                         'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
                         'reason': row.get('reason', ''),
                         'notes': row.get('notes', ''),
@@ -4439,7 +4191,6 @@ class StealthOrderManager:
                         'revealed_count': 0,
                         'condition_monitoring_start': None,
                     }
-                    order_data = self._hydrate_parent_runtime_fields(stealth_order_id, order_data)
                     
                     self.in_memory_orders[stealth_order_id] = order_data
                     loaded_count += 1

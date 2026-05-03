@@ -14,32 +14,6 @@ from database.order import (
 )
 
 
-def _project_parent_order_for_dashboard(
-    order: Dict[str, Any],
-    logical_root_status_lookup: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Add explicit lineage/status fields for dashboard consumers."""
-    projected = dict(order)
-    root_client_order_id = (
-        projected.get("parent_order_id") or projected.get("client_order_id")
-    )
-    is_root_order = projected.get("parent_order_id") in (None, "")
-    placement_status = projected.get("status")
-    logical_root_status = placement_status
-    if logical_root_status_lookup is not None:
-        logical_root_status = logical_root_status_lookup.get(
-            root_client_order_id,
-            placement_status,
-        )
-
-    projected["logical_root_client_order_id"] = root_client_order_id
-    projected["is_root_order"] = is_root_order
-    projected["status_scope"] = "logical_root" if is_root_order else "placement"
-    projected["placement_status"] = placement_status
-    projected["logical_root_status"] = logical_root_status
-    return projected
-
-
 def _serialize_for_json(obj: Any) -> Any:
     """Recursively convert non-JSON-serializable objects for WebSocket transport.
     
@@ -75,20 +49,7 @@ def get_all_parent_orders() -> List[Dict[str, Any]]:
     """
     try:
         orders = get_parent_orders()
-        logical_root_status_lookup = {
-            order.get("client_order_id"): order.get("status")
-            for order in orders
-            if order.get("parent_order_id") in (None, "")
-        }
-        return [
-            _serialize_for_json(
-                _project_parent_order_for_dashboard(
-                    order,
-                    logical_root_status_lookup=logical_root_status_lookup,
-                )
-            )
-            for order in orders
-        ]
+        return [_serialize_for_json(o) for o in orders]
     except Exception as e:
         print(f"Error fetching parent orders: {e}")
         return []
@@ -105,25 +66,7 @@ def get_parent_order_by_client_id(client_order_id: str) -> Optional[Dict[str, An
     """
     try:
         order = get_parent_order(client_order_id)
-        if not order:
-            return None
-
-        logical_root_status_lookup = None
-        root_client_order_id = order.get("parent_order_id")
-        if root_client_order_id:
-            root_order = get_parent_order(root_client_order_id)
-            logical_root_status_lookup = {
-                root_client_order_id: (
-                    root_order.get("status") if root_order else order.get("status")
-                )
-            }
-
-        return _serialize_for_json(
-            _project_parent_order_for_dashboard(
-                order,
-                logical_root_status_lookup=logical_root_status_lookup,
-            )
-        )
+        return _serialize_for_json(order) if order else None
     except Exception as e:
         print(f"Error fetching parent order {client_order_id}: {e}")
         return None

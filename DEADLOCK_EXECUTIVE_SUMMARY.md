@@ -1,6 +1,3 @@
-> Documentation status (2026-05-02): **Archival (historical implementation note)**
-> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
-> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # Deadlock Analysis - Executive Summary
 
 **Date**: 2026-04-22  
@@ -288,4 +285,3 @@ def test_all_order_types_no_deadlock():
 The system has 3 confirmed deadlocks that will cause production failures. The fix is simple (change `Lock` to `RLock` in 2 lines) but critical. Without this fix, the order engine will randomly hang when processing certain order types, requiring manual restart.
 
 **Recommendation**: Deploy RLock change immediately as hotfix, then plan refactoring of lock-holding functions to extract I/O and reduce lock contention.
-

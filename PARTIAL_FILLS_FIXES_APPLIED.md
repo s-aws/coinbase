@@ -1,6 +1,3 @@
-> Documentation status (2026-05-02): **Archival (historical implementation note)**
-> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
-> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 #!/usr/bin/env python3
 """
 PARTIAL FILLS - TWO CRITICAL FIXES APPLIED
@@ -165,4 +162,3 @@ NEXT STEPS:
 3. Verify stealth_order_reveal_history has correct data
 
 ========================================================================================
-

@@ -1,6 +1,3 @@
-> Documentation status (2026-05-02): **Archival (historical implementation note)**
-> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
-> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # Test Coverage Summary
 
 ## Overview
@@ -227,4 +224,3 @@ tests/
 - ⚪ **External Tests** - API integration (requires credentials)
 
 All tests are ready to run, can be extended for additional components, and provide the foundation for safe architecture refactoring.
-

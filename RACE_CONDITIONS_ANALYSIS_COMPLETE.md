@@ -1,6 +1,3 @@
-> Documentation status (2026-05-02): **Archival (historical implementation note)**
-> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
-> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # Analysis: Other Race Condition Patterns with Partial Fills
 
 ## Question
@@ -109,4 +106,3 @@ All order event processing is now properly protected. Here's the complete analys
 All three fixes applied (schema migration, reveal event UPSERT, race condition ordering) completely resolve the partial fills issues. The race condition in order event processing is fixed, and partial fill follow-up creation is already protected by per-order locks.
 
 **No additional similar issues found.** ✓
-

@@ -1,6 +1,3 @@
-> Documentation status (2026-05-02): **Archival (historical implementation note)**
-> This file records point-in-time analysis or implementation history and may not match current runtime behavior.
-> Canonical living docs: genai_data/README.md, genai_data/ARCHITECTURE.md, genai_data/ORDER_ID_HANDLING.md, genai_data/TESTING_STRATEGY.md.
 # Database State Audit & Root Cause Analysis (2026-04-25)
 
 ## Issue Reported
@@ -212,4 +209,3 @@ The fixes ensure:
 - Only ONE call to register_child_order per order per event
 - Database increments ONLY when actually adding a new child
 - Memory and database stay synchronized
-

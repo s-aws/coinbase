@@ -295,38 +295,3 @@ def test_ui_field_names_match_policy_field_names():
             f"UI must expose an input with id='anchor_{field}' so operators "
             f"can configure {field!r}."
         )
-
-
-@pytest.mark.regression
-def test_ui_live_price_syncs_price_threshold_when_hold_is_empty_or_zero():
-    """Price-threshold setup must track live Limit Price only for instant reveals."""
-    from pathlib import Path
-
-    repo_root = Path(__file__).resolve().parents[2]
-    html = (repo_root / "ui_stealth_orders_manager.html").read_text(encoding="utf-8")
-
-    price_template = html.split("price: `", 1)[1].split("cumulative_volume:", 1)[0]
-    threshold_line = next(
-        line for line in price_template.splitlines()
-        if 'id="condition_price_threshold"' in line
-    )
-    hold_duration_line = next(
-        line for line in price_template.splitlines()
-        if 'id="condition_price_hold_duration"' in line
-    )
-
-    assert "readonly" not in threshold_line.lower()
-    assert 'id="condition_price_direction"' in price_template
-    assert "required" not in hold_duration_line
-
-    sync_helper = html.split("function syncPriceThresholdFromLimitPrice()", 1)[1].split(
-        "function syncLimitPriceFromLiveFeed()", 1
-    )[0]
-    assert "Boolean(fields.directionInput.value)" in sync_helper
-    assert "holdDurationValue === '' || Number(holdDurationValue) === 0" in sync_helper
-    assert "fields.thresholdInput.value = limitPriceInput.value" in sync_helper
-
-    live_price_sync = html.split("function syncLimitPriceFromLiveFeed()", 1)[1].split(
-        "function updateLimitPriceInputMode()", 1
-    )[0]
-    assert "syncPriceThresholdFromLimitPrice();" in live_price_sync
