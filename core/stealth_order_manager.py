@@ -2681,6 +2681,18 @@ class StealthOrderManager:
         
         Combines condition evaluation with status checks.
         
+        Snapshot-commit semantics: once the reveal condition has fired
+        (status == TRIGGERED), the bridge commits to placing on the next
+        admitting tick WITHOUT re-evaluating the live condition. The
+        ``hold_duration_seconds`` gate already exists to filter ticker
+        noise; re-running the evaluator after that gate has passed
+        defeats its purpose and silently strands orders when the
+        triggering tick ages out (incident 2026-05-03 stealth
+        4b6d2185: SELL @ 78190, ticker briefly touched 78195, status
+        flipped TRIGGERED, then last-trade fell back below threshold
+        and every subsequent re-evaluation returned False with no log
+        and no placement).
+        
         Returns:
             Tuple of (should_reveal: bool, reason: Optional[str])
         """
@@ -2694,6 +2706,14 @@ class StealthOrderManager:
         
         if order["remaining_size"] <= 0:
             return False, "All size already revealed"
+        
+        # Snapshot commit: TRIGGERED means the condition gate (including
+        # any hold_duration) already passed. Place on the next tick.
+        # REVEALED is set only when remaining_size <= 0 (handled above);
+        # a TRIGGERED order with remaining_size > 0 is awaiting placement
+        # of either the first slice or a follow-up slice.
+        if order["status"] == StealthOrderStatus.TRIGGERED.value:
+            return True, "Reveal condition previously committed (snapshot semantics)"
         
         condition_met, reason = self.evaluate_conditions(stealth_order_id)
         return condition_met, reason
