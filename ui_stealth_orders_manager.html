@@ -554,6 +554,63 @@
             cursor: not-allowed;
         }
 
+        /* Live Preview Panel - shows derived values in realtime */
+        .live-preview {
+            background: linear-gradient(135deg, rgba(59,130,246,0.10), rgba(139,92,246,0.08));
+            border: 1px solid rgba(139,92,246,0.35);
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-top: 14px;
+            font-size: 11px;
+            line-height: 1.55;
+        }
+        .live-preview h3 {
+            font-size: 12px;
+            color: #c4b5fd;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .live-preview .lp-section {
+            border-top: 1px dashed rgba(255,255,255,0.08);
+            padding-top: 6px;
+            margin-top: 6px;
+        }
+        .live-preview .lp-section:first-of-type {
+            border-top: none;
+            padding-top: 0;
+            margin-top: 0;
+        }
+        .live-preview .lp-section-title {
+            color: #a5b4fc;
+            font-weight: 600;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+        }
+        .live-preview .lp-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            color: #cbd5e1;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+        }
+        .live-preview .lp-row .lp-key { color: #94a3b8; }
+        .live-preview .lp-row .lp-val { color: #e0e7ff; font-weight: 600; }
+        .live-preview .lp-row .lp-val.good { color: #4ade80; }
+        .live-preview .lp-row .lp-val.warn { color: #fbbf24; }
+        .live-preview .lp-row .lp-val.bad  { color: #f87171; }
+        .live-preview .lp-note {
+            color: #64748b;
+            font-size: 10px;
+            font-style: italic;
+            margin-top: 4px;
+        }
+
         /* Advanced Condition Section */
         .condition-fields {
             background: rgba(0, 0, 0, 0.2);
@@ -1021,6 +1078,74 @@
                             </select>
                         </div>
 
+                        <!-- Tranche config (visible when Tranche selected) -->
+                        <div id="tranche-fields" class="policy-panel hidden">
+                            <div style="background: rgba(103,126,234,0.1); border: 1px solid rgba(103,126,234,0.35); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; font-size: 10px; color: #aaa; line-height: 1.5;">
+                                <b style="color:#7b9fff;">📑 Tranche Schedule</b> — cumulative percentages of total_size. Each value is a checkpoint; the engine reveals the delta from current executed size to the next checkpoint.
+                            </div>
+                            <div style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.3); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; font-size: 10px; color: #d4a017; line-height: 1.5;">
+                                <b>⚠ Price behavior (today):</b> all tranches post at the <b>same price</b>, sourced from your <b>Reveal Pricing Policy</b> above (top-of-book / configured limit / midpoint) and adjusted by anchor repricing if enabled. There is <b>no per-tranche price ladder</b> — tranches differ only in <b>size and timing</b>. If you need a price ladder, that's a separate engine feature.
+                            </div>
+                            <div class="form-group">
+                                <label>Tranches (cumulative %, comma-separated)</label>
+                                <input type="text" id="tranche_schedule" value="0.25, 0.50, 0.75, 1.0" placeholder="0.25, 0.50, 0.75, 1.0">
+                                <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                    Decimals 0–1 (e.g. <b style="color:#888;">0.25</b> = 25%). Must be strictly increasing; final value should be <b style="color:#888;">1.0</b>.
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                    <input type="checkbox" id="tranche_iceberg_mode" checked style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>Iceberg Mode (recommended)</span>
+                                </label>
+                                <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                    <b style="color:#888;">On</b>: only one slice live at a time; next posts after previous fills/cancels (true stealth).<br>
+                                    <b style="color:#888;">Off</b>: burst — all tranches post in rapid succession (anti-stealth, legacy).
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Adaptive config (visible when Adaptive selected) -->
+                        <div id="adaptive-fields" class="policy-panel hidden">
+                            <div style="background: rgba(103,126,234,0.1); border: 1px solid rgba(103,126,234,0.35); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; font-size: 10px; color: #aaa; line-height: 1.5;">
+                                <b style="color:#7b9fff;">📈 Adaptive Slicing</b> — slice size scales with recent market volume:<br>
+                                <code style="color:#e0e0e0;">slice = base_size × (market_vol / baseline_vol) × multiplier</code><br>
+                                capped by <code style="color:#e0e0e0;">total_size × max_reveal_pct</code> and remaining size.
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Base Size</label>
+                                    <input type="number" id="adaptive_base_size" step="any" min="0" placeholder="(default: total_size)">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Reference size before volume scaling. Leave blank to use total_size.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Reveal Multiplier</label>
+                                    <input type="number" id="adaptive_reveal_multiplier" value="0.1" step="0.01" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Fraction of <code>base × ratio</code> to actually post. <b style="color:#888;">0.1</b> = 10%.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Max Reveal % per Slice</label>
+                                    <input type="number" id="adaptive_max_reveal_percentage" value="0.5" step="0.01" min="0" max="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Hard cap as fraction of <b>total_size</b>. <b style="color:#888;">0.5</b> = never reveal more than half at once.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Volume Window (sec)</label>
+                                    <input type="number" id="adaptive_volume_window" value="60" step="1" min="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Lookback for the market-volume term. Default 60s.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Max Order Replacements</label>
@@ -1075,6 +1200,13 @@
                         <div class="form-group">
                             <label>Reason / Notes</label>
                             <textarea id="notes" placeholder="Optional notes about this order"></textarea>
+                        </div>
+
+                        <div class="live-preview" id="live-preview-panel">
+                            <h3>🧮 Live Preview <span style="color:#64748b; font-weight:400; font-size:10px;">(updates as you type)</span></h3>
+                            <div id="live-preview-body">
+                                <div class="lp-note">Enter values above to see calculated previews.</div>
+                            </div>
                         </div>
 
                         <button type="submit" class="create-btn">Create Stealth Order</button>
@@ -1671,6 +1803,7 @@
         let refreshCountdown = 5;
         let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
         let engineStatusData = {};
+        let liveTickers = {};  // product_id -> { price, bid, ask, mid, ts } from ticker + spread_snapshot
 
         function initWebSocket() {
             try {
@@ -1869,6 +2002,34 @@
                         updateOrdersTable();
                         updateStats();
                         showMessage(`✅ Cleared ${data.rows_deleted} stealth orders`, 'success');
+                    } else if (data.type === "ticker") {
+                        // Live last-trade price (per product)
+                        const t = data.data || {};
+                        if (t.product_id && isFinite(parseFloat(t.price))) {
+                            const slot = liveTickers[t.product_id] || {};
+                            slot.price = parseFloat(t.price);
+                            slot.ts = Date.now();
+                            liveTickers[t.product_id] = slot;
+                            if (t.product_id === document.getElementById('product_id').value) {
+                                recomputeLivePreview();
+                            }
+                        }
+                    } else if (data.type === "spread_snapshot") {
+                        // 1-sec averaged bid/ask/mid for many products
+                        const arr = Array.isArray(data.data) ? data.data : [];
+                        const sel = document.getElementById('product_id').value;
+                        let touchedSelected = false;
+                        arr.forEach(s => {
+                            if (!s || !s.product_id) return;
+                            const slot = liveTickers[s.product_id] || {};
+                            if (isFinite(parseFloat(s.bid))) slot.bid = parseFloat(s.bid);
+                            if (isFinite(parseFloat(s.ask))) slot.ask = parseFloat(s.ask);
+                            if (isFinite(parseFloat(s.mid))) slot.mid = parseFloat(s.mid);
+                            slot.ts = Date.now();
+                            liveTickers[s.product_id] = slot;
+                            if (s.product_id === sel) touchedSelected = true;
+                        });
+                        if (touchedSelected) recomputeLivePreview();
                     } else if (data.type === "export_active_stealth_orders_response") {
                         handleExportResponse(data);
                     } else if (data.type === "import_stealth_orders_response") {
@@ -2342,6 +2503,7 @@
                         autoSaveTimeout = setTimeout(() => {
                             saveFormValues();
                         }, 800);
+                        recomputeLivePreview();
                     });
                     
                     field.addEventListener('change', () => {
@@ -2349,15 +2511,459 @@
                         autoSaveTimeout = setTimeout(() => {
                             saveFormValues();
                         }, 300);
+                        recomputeLivePreview();
                     });
                 });
             } else {
                 container.innerHTML = '';
             }
+            recomputeLivePreview();
         }
 
         function updateSizingFields() {
-            // Could expand this for different sizing strategy options
+            const v = document.getElementById('sizing_strategy').value;
+            document.getElementById('tranche-fields').classList.toggle('hidden', v !== 'tranche');
+            document.getElementById('adaptive-fields').classList.toggle('hidden', v !== 'adaptive');
+            // Repaint preview when strategy changes (preview reads visibility-gated fields).
+            if (typeof recomputeLivePreview === 'function') recomputeLivePreview();
+        }
+
+        function _parseTrancheSchedule(raw) {
+            if (!raw) return { values: [], errors: ['empty'] };
+            const parts = String(raw).split(/[,\s]+/).filter(Boolean);
+            const values = [];
+            const errors = [];
+            for (const p of parts) {
+                const n = parseFloat(p);
+                if (!isFinite(n)) { errors.push(`bad number: ${p}`); continue; }
+                if (n <= 0 || n > 1) errors.push(`out of range (0,1]: ${n}`);
+                values.push(n);
+            }
+            for (let i = 1; i < values.length; i++) {
+                if (values[i] <= values[i - 1]) {
+                    errors.push(`not strictly increasing at ${values[i]}`);
+                    break;
+                }
+            }
+            return { values, errors };
+        }
+
+        function buildSizingStrategy() {
+            const t = document.getElementById('sizing_strategy').value;
+            if (t === 'tranche') {
+                const parsed = _parseTrancheSchedule(document.getElementById('tranche_schedule').value);
+                return {
+                    type: 'tranche',
+                    tranches: parsed.values.length ? parsed.values : [0.25, 0.50, 0.75, 1.0],
+                    iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
+                };
+            }
+            if (t === 'adaptive') {
+                const baseRaw = document.getElementById('adaptive_base_size').value;
+                const cfg = {
+                    type: 'adaptive',
+                    reveal_multiplier: parseFloat(document.getElementById('adaptive_reveal_multiplier').value),
+                    max_reveal_percentage: parseFloat(document.getElementById('adaptive_max_reveal_percentage').value),
+                    volume_window: parseInt(document.getElementById('adaptive_volume_window').value, 10),
+                };
+                const baseN = parseFloat(baseRaw);
+                if (isFinite(baseN) && baseN > 0) cfg.base_size = baseN;
+                return cfg;
+            }
+            return { type: 'fixed' };
+        }
+
+        // ---------------------------------------------------------------
+        // Live Preview: derived values shown in real time as user types.
+        // Pure read-from-DOM, write-to-#live-preview-body. No side effects.
+        // ---------------------------------------------------------------
+        function _lpFmt(n, d = 2) {
+            if (n === null || n === undefined || !isFinite(n)) return '—';
+            const abs = Math.abs(n);
+            if (abs !== 0 && abs < 0.0001) return n.toExponential(2);
+            return Number(n).toLocaleString(undefined, {
+                minimumFractionDigits: d,
+                maximumFractionDigits: d,
+            });
+        }
+        function _lpNum(id) {
+            const el = document.getElementById(id);
+            if (!el) return NaN;
+            const v = parseFloat(el.value);
+            return isNaN(v) ? NaN : v;
+        }
+        function _lpRow(key, val, klass = '') {
+            return `<div class="lp-row"><span class="lp-key">${key}</span><span class="lp-val ${klass}">${val}</span></div>`;
+        }
+        function _lpSection(title, rows, note = '') {
+            if (!rows.length) return '';
+            return `<div class="lp-section"><div class="lp-section-title">${title}</div>${rows.join('')}${note ? `<div class="lp-note">${note}</div>` : ''}</div>`;
+        }
+
+        function recomputeLivePreview() {
+            const body = document.getElementById('live-preview-body');
+            if (!body) return;
+
+            const product   = document.getElementById('product_id').value || '(no product)';
+            const side      = (document.getElementById('side').value || '').toUpperCase();
+            const size      = _lpNum('total_size');
+            const limitPx   = _lpNum('limit_price');
+            const sections  = [];
+
+            // --- Order basics: notional ---
+            const orderRows = [];
+            orderRows.push(_lpRow('Product / Side', `${product} ${side || '—'}`));
+            const liveTick = liveTickers[product] || {};
+            const liveBits = [];
+            if (isFinite(liveTick.price)) liveBits.push(`last $${_lpFmt(liveTick.price, 2)}`);
+            if (isFinite(liveTick.bid))   liveBits.push(`bid $${_lpFmt(liveTick.bid, 2)}`);
+            if (isFinite(liveTick.ask))   liveBits.push(`ask $${_lpFmt(liveTick.ask, 2)}`);
+            if (isFinite(liveTick.mid))   liveBits.push(`mid $${_lpFmt(liveTick.mid, 2)}`);
+            if (liveBits.length) {
+                const ageSec = liveTick.ts ? Math.round((Date.now() - liveTick.ts) / 1000) : null;
+                const ageStr = ageSec !== null ? ` <span style="color:#64748b;">(${ageSec}s ago)</span>` : '';
+                orderRows.push(_lpRow('Live ticker', liveBits.join(' · ') + ageStr));
+                if (isFinite(liveTick.bid) && isFinite(liveTick.ask) && liveTick.ask > liveTick.bid) {
+                    const sp = liveTick.ask - liveTick.bid;
+                    const spBps = (sp / ((liveTick.bid + liveTick.ask) / 2)) * 10000;
+                    orderRows.push(_lpRow('Live spread', `$${_lpFmt(sp, 4)} (${_lpFmt(spBps, 2)} bps)`));
+                }
+                // Limit price vs live mid: would this fill immediately?
+                if (isFinite(limitPx) && limitPx > 0 && side) {
+                    if (side === 'BUY' && isFinite(liveTick.ask) && limitPx >= liveTick.ask) {
+                        orderRows.push(_lpRow('⚠ Limit vs market', `BUY @ $${_lpFmt(limitPx, 2)} ≥ ask $${_lpFmt(liveTick.ask, 2)} — would cross (taker)`, 'bad'));
+                    } else if (side === 'SELL' && isFinite(liveTick.bid) && limitPx <= liveTick.bid) {
+                        orderRows.push(_lpRow('⚠ Limit vs market', `SELL @ $${_lpFmt(limitPx, 2)} ≤ bid $${_lpFmt(liveTick.bid, 2)} — would cross (taker)`, 'bad'));
+                    } else if (isFinite(liveTick.mid)) {
+                        const diff = limitPx - liveTick.mid;
+                        const pct = (diff / liveTick.mid) * 100;
+                        orderRows.push(_lpRow('Limit vs mid', `${diff >= 0 ? '+' : ''}$${_lpFmt(diff, 2)} (${pct >= 0 ? '+' : ''}${_lpFmt(pct, 3)}%)`));
+                    }
+                }
+            } else if (product && product !== '(no product)') {
+                orderRows.push(_lpRow('Live ticker', 'waiting for first tick…'));
+            }
+            if (isFinite(size) && isFinite(limitPx) && size > 0 && limitPx > 0) {
+                const notional = size * limitPx;
+                orderRows.push(_lpRow('Notional (size × price)', `$${_lpFmt(notional, 2)}`));
+            } else {
+                orderRows.push(_lpRow('Notional (size × price)', '—'));
+            }
+            sections.push(_lpSection('Order', orderRows));
+
+            // --- Reveal Condition ---
+            const condType = document.getElementById('condition_type').value;
+            const condContainer = document.getElementById('condition-fields-container');
+            const condField = (name) => {
+                if (!condContainer) return NaN;
+                const el = condContainer.querySelector(`[name="${name}"]`);
+                if (!el) return NaN;
+                const v = parseFloat(el.value);
+                return isNaN(v) ? NaN : v;
+            };
+            const condText = (name) => {
+                if (!condContainer) return '';
+                const el = condContainer.querySelector(`[name="${name}"]`);
+                return el ? el.value : '';
+            };
+            const condRows = [];
+            if (condType === 'price') {
+                const thr = condField('price_threshold');
+                const dir = condText('direction');
+                const hold = condField('hold_duration_seconds');
+                condRows.push(_lpRow('Type', 'Price Threshold'));
+                condRows.push(_lpRow('Trigger', isFinite(thr) ? `${dir || '?'} $${_lpFmt(thr, 2)}` : '—'));
+                if (isFinite(thr) && isFinite(limitPx) && limitPx > 0) {
+                    const diff = thr - limitPx;
+                    const pct = (diff / limitPx) * 100;
+                    condRows.push(_lpRow('Distance from limit', `${diff >= 0 ? '+' : ''}$${_lpFmt(diff, 2)} (${pct >= 0 ? '+' : ''}${_lpFmt(pct, 3)}%)`));
+                }
+                condRows.push(_lpRow('Sustain for', isFinite(hold) ? `${hold}s` : '—'));
+            } else if (condType === 'cumulative_volume') {
+                const lvl = condField('price_level');
+                const vol = condField('volume_threshold');
+                const lb = condField('lookback_seconds');
+                condRows.push(_lpRow('Type', 'Cumulative Volume'));
+                condRows.push(_lpRow('At price', isFinite(lvl) ? `$${_lpFmt(lvl, 2)}` : '—'));
+                condRows.push(_lpRow('Trigger volume', isFinite(vol) ? _lpFmt(vol, 4) : '—'));
+                if (isFinite(vol) && isFinite(lvl) && vol > 0 && lvl > 0) {
+                    condRows.push(_lpRow('Notional volume', `$${_lpFmt(vol * lvl, 2)}`));
+                }
+                if (isFinite(lb) && isFinite(vol) && lb > 0) {
+                    condRows.push(_lpRow('Implied rate', `${_lpFmt(vol / lb, 4)} / sec`));
+                }
+                condRows.push(_lpRow('Lookback window', isFinite(lb) ? `${lb}s` : '—'));
+            } else if (condType === 'time_delay') {
+                const d = condField('delay_seconds');
+                const j = condField('jitter_seconds');
+                condRows.push(_lpRow('Type', 'Time Delay'));
+                if (isFinite(d) && isFinite(j)) {
+                    const lo = Math.max(0, d - j);
+                    const hi = d + j;
+                    condRows.push(_lpRow('Reveal window', `${lo}s – ${hi}s (mean ${d}s ± ${j}s)`));
+                    if (hi >= 60) {
+                        condRows.push(_lpRow('  in minutes', `${_lpFmt(lo / 60, 2)}m – ${_lpFmt(hi / 60, 2)}m`));
+                    }
+                } else {
+                    condRows.push(_lpRow('Reveal window', '—'));
+                }
+            } else if (condType === 'spread') {
+                const ms = condField('max_spread');
+                const hd = condField('hold_duration_seconds');
+                condRows.push(_lpRow('Type', 'Spread Trigger'));
+                condRows.push(_lpRow('Reveal when spread ≤', isFinite(ms) ? `$${_lpFmt(ms, 4)}` : '—'));
+                if (isFinite(ms) && isFinite(limitPx) && limitPx > 0) {
+                    const bps = (ms / limitPx) * 10000;
+                    condRows.push(_lpRow('  ≈ bps of limit', `${_lpFmt(bps, 2)} bps`));
+                }
+                condRows.push(_lpRow('Sustain for', isFinite(hd) ? `${hd}s` : '—'));
+            } else if (condType === 'product_ratio') {
+                const r = condField('ratio_threshold');
+                const dir = condText('direction');
+                const a = condText('product_a');
+                const b = condText('product_b');
+                condRows.push(_lpRow('Type', 'Product Ratio'));
+                condRows.push(_lpRow('Pair', a && b ? `${a} / ${b}` : '—'));
+                condRows.push(_lpRow('Trigger', isFinite(r) ? `ratio ${dir || '?'} ${_lpFmt(r, 4)}` : '—'));
+                if (isFinite(r)) {
+                    condRows.push(_lpRow('  as percent', `${_lpFmt(r * 100, 3)}%`));
+                }
+            }
+            if (condRows.length) sections.push(_lpSection('Reveal Condition', condRows));
+
+            // --- Anchor Repricing ---
+            const anchorOn = document.getElementById('enable_anchor_repricing').checked;
+            if (anchorOn) {
+                const distType = document.getElementById('anchor_distance_type').value; // 'P' or 'A'
+                const isPct    = distType === 'P';
+                const tDist    = _lpNum('anchor_target_distance');
+                const mDist    = _lpNum('anchor_max_distance');
+                const refSrc   = document.getElementById('reference_price_source').value;
+
+                // Resolve live reference price from ticker cache.
+                // midpoint     -> spread_snapshot.mid
+                // last_trade   -> ticker.price
+                // top_of_book  -> bid for BUY, ask for SELL
+                const tick = (document.getElementById('product_id').value &&
+                              liveTickers[document.getElementById('product_id').value]) || {};
+                let ref = NaN;
+                let refLabel = '';
+                let refStale = false;
+                if (refSrc === 'midpoint' && isFinite(tick.mid)) {
+                    ref = tick.mid; refLabel = 'live mid';
+                } else if (refSrc === 'last_trade' && isFinite(tick.price)) {
+                    ref = tick.price; refLabel = 'live last';
+                } else if (refSrc === 'top_of_book') {
+                    if (side === 'BUY' && isFinite(tick.bid))  { ref = tick.bid; refLabel = 'live best bid'; }
+                    else if (side === 'SELL' && isFinite(tick.ask)) { ref = tick.ask; refLabel = 'live best ask'; }
+                }
+                if (isFinite(ref) && tick.ts && (Date.now() - tick.ts) > 10000) {
+                    refStale = true;
+                }
+                if (!isFinite(ref) && isFinite(limitPx) && limitPx > 0) {
+                    ref = limitPx;
+                    refLabel = 'limit price (no live ticker yet)';
+                }
+
+                const sideMult = side === 'BUY' ? -1 : (side === 'SELL' ? 1 : 0);
+                const anchorRows = [];
+
+                anchorRows.push(_lpRow('Reference source', refSrc));
+                anchorRows.push(_lpRow('Reference price', isFinite(ref)
+                    ? `$${_lpFmt(ref, 2)} <span style="color:#64748b;">(${refLabel}${refStale ? ', STALE' : ''})</span>`
+                    : '—', refStale ? 'warn' : ''));
+                anchorRows.push(_lpRow('Distance mode', isPct ? 'Percentage' : 'Absolute $'));
+
+                if (isFinite(ref) && sideMult !== 0) {
+                    if (isFinite(tDist)) {
+                        const td = isPct ? ref * tDist : tDist;
+                        const tgt = ref + sideMult * td;
+                        anchorRows.push(_lpRow('Target price', `$${_lpFmt(tgt, 2)} (${sideMult < 0 ? '−' : '+'}$${_lpFmt(td, 2)})`, 'good'));
+                    }
+                    if (isFinite(mDist)) {
+                        const md = isPct ? ref * mDist : mDist;
+                        const bnd = ref + sideMult * md;
+                        anchorRows.push(_lpRow('Boundary price (force-back)', `$${_lpFmt(bnd, 2)} (${sideMult < 0 ? '−' : '+'}$${_lpFmt(md, 2)})`, 'warn'));
+                    }
+                    if (isFinite(tDist) && isFinite(mDist) && mDist < tDist) {
+                        anchorRows.push(_lpRow('⚠ max < target', 'invalid: boundary inside target', 'bad'));
+                    }
+                    // Show drift if user-entered limit_price is outside the boundary already
+                    if (isFinite(limitPx) && limitPx > 0 && isFinite(mDist)) {
+                        const md = isPct ? ref * mDist : mDist;
+                        const bnd = ref + sideMult * md;
+                        const outside = side === 'BUY' ? limitPx < bnd : limitPx > bnd;
+                        if (outside) {
+                            anchorRows.push(_lpRow('⚠ Your limit vs boundary',
+                                `limit $${_lpFmt(limitPx, 2)} is past boundary — engine will force-back on first tick`, 'bad'));
+                        }
+                    }
+                } else {
+                    anchorRows.push(_lpRow('Target / Boundary', 'select side & wait for live ticker'));
+                }
+
+                // Hysteresis dollar value (uses live ref if available)
+                const hystBps = _lpNum('anchor_hysteresis_bps');
+                const hystBase = isFinite(ref) ? ref : limitPx;
+                if (isFinite(hystBps) && isFinite(hystBase) && hystBase > 0) {
+                    const dz = (hystBps / 10000) * hystBase;
+                    anchorRows.push(_lpRow(`Hysteresis dead-zone (${hystBps} bps)`, `$${_lpFmt(dz, 4)}`));
+                }
+
+                // Reprice pacing
+                const minInt = _lpNum('anchor_min_reprice_interval_seconds');
+                const maxHr  = _lpNum('anchor_max_reprices_per_hour');
+                if (isFinite(maxHr) && maxHr > 0) {
+                    const perMin = maxHr / 60;
+                    const avgGap = 3600 / maxHr;
+                    let klass = '';
+                    if (isFinite(minInt) && minInt > avgGap) klass = 'warn';
+                    anchorRows.push(_lpRow('Max reprice rate', `${maxHr}/hr ≈ ${_lpFmt(perMin, 2)}/min (avg gap ${_lpFmt(avgGap, 1)}s)`, klass));
+                }
+
+                // Slide mode
+                const slideOn = document.getElementById('anchor_slide_mode').checked;
+                if (slideOn) {
+                    const step = _lpNum('anchor_max_step_per_reprice');
+                    if (isFinite(step) && isFinite(maxHr)) {
+                        anchorRows.push(_lpRow('Slide max travel / hr', `$${_lpFmt(step * maxHr, 2)}`));
+                    }
+                }
+
+                // Follow-up retreat (anchored on live ref if available, else limit)
+                const retreat = _lpNum('anchor_follow_up_retreat_distance');
+                const jitter  = _lpNum('anchor_follow_up_retreat_jitter');
+                const retreatBase = isFinite(ref) ? ref : limitPx;
+                if (isFinite(retreat) && isFinite(retreatBase) && retreatBase > 0) {
+                    const r$ = retreat * retreatBase;
+                    const bps = retreat * 10000;
+                    let line = `${_lpFmt(bps, 2)} bps ≈ $${_lpFmt(r$, 4)}`;
+                    if (isFinite(jitter) && jitter > 0) {
+                        const lo = r$ * (1 - jitter);
+                        const hi = r$ * (1 + jitter);
+                        line += ` (jittered: $${_lpFmt(lo, 4)} – $${_lpFmt(hi, 4)})`;
+                    }
+                    anchorRows.push(_lpRow('Follow-up retreat', line));
+                }
+
+                sections.push(_lpSection('Market Repricing', anchorRows));
+            }
+
+            // --- Sizing Strategy ---
+            const strat = document.getElementById('sizing_strategy').value;
+            const sizeRows = [];
+            if (strat === 'fixed') {
+                sizeRows.push(_lpRow('Strategy', 'Fixed (single placement)'));
+                if (isFinite(size) && size > 0) {
+                    sizeRows.push(_lpRow('Slice 1 of 1', _lpFmt(size, 8)));
+                }
+            } else if (strat === 'tranche') {
+                const raw = document.getElementById('tranche_schedule').value;
+                const ice = document.getElementById('tranche_iceberg_mode').checked;
+                const parsed = _parseTrancheSchedule(raw);
+                sizeRows.push(_lpRow('Strategy', `Tranche · ${ice ? 'iceberg (one slice live)' : 'burst (all at once)'}`));
+                sizeRows.push(_lpRow('Tranche count', String(parsed.values.length)));
+                if (parsed.errors.length) {
+                    sizeRows.push(_lpRow('⚠ Schedule', parsed.errors.join('; '), 'bad'));
+                }
+                if (parsed.values.length && isFinite(size) && size > 0) {
+                    let prev = 0;
+                    parsed.values.forEach((pct, i) => {
+                        const cum = size * pct;
+                        const slice = cum - prev;
+                        sizeRows.push(_lpRow(
+                            `  #${i + 1} @ ${_lpFmt(pct * 100, 2)}%`,
+                            `slice ${_lpFmt(slice, 8)} → cum ${_lpFmt(cum, 8)}`
+                        ));
+                        prev = cum;
+                    });
+                    const last = parsed.values[parsed.values.length - 1];
+                    if (Math.abs(last - 1.0) > 1e-9) {
+                        const uncovered = size * (1 - last);
+                        sizeRows.push(_lpRow('⚠ Final tranche < 100%',
+                            `${_lpFmt(uncovered, 8)} units will never be revealed`, 'warn'));
+                    }
+                }
+            } else if (strat === 'adaptive') {
+                const baseRaw = document.getElementById('adaptive_base_size').value;
+                const baseN = parseFloat(baseRaw);
+                const baseSize = (isFinite(baseN) && baseN > 0) ? baseN : (isFinite(size) ? size : NaN);
+                const mult = _lpNum('adaptive_reveal_multiplier');
+                const maxPct = _lpNum('adaptive_max_reveal_percentage');
+                const win = _lpNum('adaptive_volume_window');
+                sizeRows.push(_lpRow('Strategy', 'Adaptive (volume-scaled)'));
+                sizeRows.push(_lpRow('Base size', isFinite(baseSize)
+                    ? `${_lpFmt(baseSize, 8)}${(isFinite(baseN) && baseN > 0) ? '' : ' (= total_size)'}`
+                    : '—'));
+                sizeRows.push(_lpRow('Volume window', isFinite(win) ? `${win}s` : '—'));
+                sizeRows.push(_lpRow('Reveal multiplier', isFinite(mult) ? _lpFmt(mult, 4) : '—'));
+                if (isFinite(maxPct) && isFinite(size) && size > 0) {
+                    sizeRows.push(_lpRow('Per-slice cap', `${_lpFmt(maxPct * 100, 2)}% of total = ${_lpFmt(size * maxPct, 8)}`));
+                }
+                // Sensitivity table: slice size at volume_ratio ∈ {0.5, 1.0, 2.0, 5.0}
+                if (isFinite(baseSize) && isFinite(mult) && isFinite(maxPct) && isFinite(size) && size > 0) {
+                    const cap = size * maxPct;
+                    [0.5, 1.0, 2.0, 5.0].forEach(vr => {
+                        const raw_ = baseSize * vr * mult;
+                        const eff = Math.min(raw_, cap, size);
+                        const capped = (raw_ > cap) ? ' <span style="color:#fbbf24;">[capped]</span>' : '';
+                        sizeRows.push(_lpRow(`  @ vol_ratio=${vr}`, `${_lpFmt(eff, 8)}${capped}`));
+                    });
+                    if (mult <= 0) {
+                        sizeRows.push(_lpRow('⚠ multiplier ≤ 0', 'no slices will ever post', 'bad'));
+                    }
+                }
+            }
+            if (sizeRows.length) sections.push(_lpSection('Sizing Strategy', sizeRows,
+                strat === 'adaptive'
+                    ? 'Live <code>volume_ratio</code> is computed engine-side from market_volume / baseline_volume; preview shows sensitivity at fixed sample ratios.'
+                    : strat === 'tranche'
+                        ? '<b>Price behavior:</b> all tranches post at the <b>same</b> price — taken from your <b>Reveal Pricing Policy</b> (top-of-book / configured / midpoint) and slid by anchor repricing if enabled. There is no per-tranche price offset / ladder today; tranches differ only in <b>size and timing</b>.'
+                        : ''));
+
+            // --- Target Movement (profit) ---
+            const tmType = document.getElementById('target_movement_type').value; // 'P' or 'A'
+            const tm     = _lpNum('target_movement');
+            const maxRep = _lpNum('max_order_replacements');
+            const tmRows = [];
+            if (isFinite(tm)) {
+                if (tmType === 'P') {
+                    tmRows.push(_lpRow('Mode', `Percentage (${_lpFmt(tm * 100, 4)}%)`));
+                    if (isFinite(limitPx) && limitPx > 0) {
+                        const profitPx = limitPx * tm;
+                        tmRows.push(_lpRow('Profit per unit', `$${_lpFmt(profitPx, 4)}`));
+                        if (isFinite(size) && size > 0) {
+                            tmRows.push(_lpRow('Total target profit', `$${_lpFmt(profitPx * size, 2)}`));
+                        }
+                        if (side === 'BUY') {
+                            tmRows.push(_lpRow('BUY → next SELL target', `$${_lpFmt(limitPx + profitPx, 2)}`));
+                        } else if (side === 'SELL') {
+                            tmRows.push(_lpRow('SELL → next BUY target', `$${_lpFmt(limitPx - profitPx, 2)}`));
+                        }
+                    }
+                } else {
+                    tmRows.push(_lpRow('Mode', `Absolute ($${_lpFmt(tm, 4)} per unit)`));
+                    if (isFinite(size) && size > 0) {
+                        tmRows.push(_lpRow('Total target profit', `$${_lpFmt(tm * size, 2)}`));
+                    }
+                    if (isFinite(limitPx) && limitPx > 0) {
+                        const pct = (tm / limitPx) * 100;
+                        tmRows.push(_lpRow('  as % of limit', `${_lpFmt(pct, 4)}%`));
+                        if (side === 'BUY') {
+                            tmRows.push(_lpRow('BUY → next SELL target', `$${_lpFmt(limitPx + tm, 2)}`));
+                        } else if (side === 'SELL') {
+                            tmRows.push(_lpRow('SELL → next BUY target', `$${_lpFmt(limitPx - tm, 2)}`));
+                        }
+                    }
+                }
+            }
+            if (isFinite(maxRep)) {
+                tmRows.push(_lpRow('Max follow-ups', `${maxRep} order${maxRep === 1 ? '' : 's'}`));
+            }
+            if (tmRows.length) sections.push(_lpSection('Target Movement', tmRows));
+
+            body.innerHTML = sections.join('') ||
+                '<div class="lp-note">Enter values above to see calculated previews.</div>';
         }
 
         function saveFormValues() {
@@ -2385,6 +2991,12 @@
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
                 anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
+                tranche_schedule: document.getElementById('tranche_schedule').value,
+                tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
+                adaptive_base_size: document.getElementById('adaptive_base_size').value,
+                adaptive_reveal_multiplier: document.getElementById('adaptive_reveal_multiplier').value,
+                adaptive_max_reveal_percentage: document.getElementById('adaptive_max_reveal_percentage').value,
+                adaptive_volume_window: document.getElementById('adaptive_volume_window').value,
                 notes: document.getElementById('notes').value
             };
             
@@ -2415,6 +3027,7 @@
                     autoSaveTimeout = setTimeout(() => {
                         saveFormValues();
                     }, 800); // Save 800ms after user stops typing
+                    recomputeLivePreview();
                 });
                 
                 input.addEventListener('change', () => {
@@ -2422,6 +3035,7 @@
                     autoSaveTimeout = setTimeout(() => {
                         saveFormValues();
                     }, 300); // Save 300ms after change for selects
+                    recomputeLivePreview();
                 });
             });
             
@@ -2429,6 +3043,7 @@
             document.getElementById('condition_type').addEventListener('change', () => {
                 setTimeout(() => {
                     saveFormValues();
+                    recomputeLivePreview();
                 }, 500);
             });
         }
@@ -2476,6 +3091,12 @@
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
                 anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
+                tranche_schedule: document.getElementById('tranche_schedule').value,
+                tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
+                adaptive_base_size: document.getElementById('adaptive_base_size').value,
+                adaptive_reveal_multiplier: document.getElementById('adaptive_reveal_multiplier').value,
+                adaptive_max_reveal_percentage: document.getElementById('adaptive_max_reveal_percentage').value,
+                adaptive_volume_window: document.getElementById('adaptive_volume_window').value,
                 notes: document.getElementById('notes').value,
                 allow_partial_fills: document.getElementById('allow_partial_fills').checked,
                 enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked,
@@ -2620,7 +3241,7 @@
                     const formData = JSON.parse(savedData);
                     
                     // Restore main fields
-                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter'];
+                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'tranche_schedule', 'adaptive_base_size', 'adaptive_reveal_multiplier', 'adaptive_max_reveal_percentage', 'adaptive_volume_window'];
                     mainFields.forEach(fieldId => {
                         const element = document.getElementById(fieldId);
                         if (element && formData[fieldId] !== undefined) {
@@ -2645,9 +3266,14 @@
                     if (anchorSlide && formData['anchor_slide_mode'] !== undefined) {
                         anchorSlide.checked = formData['anchor_slide_mode'];
                     }
+                    const trancheIce = document.getElementById('tranche_iceberg_mode');
+                    if (trancheIce && formData['tranche_iceberg_mode'] !== undefined) {
+                        trancheIce.checked = formData['tranche_iceberg_mode'];
+                    }
                     toggleAnchorRepricingFields();
                     toggleAnchorFixedInterval();
                     toggleSlideMode();
+                    updateSizingFields();
                     
                     // Restore condition-specific field values
                     setTimeout(() => {
@@ -2709,9 +3335,7 @@
                 reveal_condition: buildRevealCondition(),
                 follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
                 reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
-                sizing_strategy: {
-                    type: document.getElementById('sizing_strategy').value
-                },
+                sizing_strategy: buildSizingStrategy(),
                 max_order_replacements: maxReplacements ? parseInt(maxReplacements) : null,
                 target_movement: targetMovement ? parseFloat(targetMovement) : 0.0,
                 target_movement_type: targetMovementType,
@@ -3080,6 +3704,8 @@
         updateHistoryDisplay();   // Display saved entries history
         initWebSocket();
         startRefreshTimer();
+        updateSizingFields();     // Show tranche/adaptive panels if pre-selected
+        recomputeLivePreview();   // Initial preview render
         
         // Setup clear history button
         document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
