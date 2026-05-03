@@ -830,6 +830,9 @@
                         <div class="form-group">
                             <label>Limit Price *</label>
                             <input type="number" id="limit_price" placeholder="0.00" step="0.01" value="0.00" required>
+                            <div id="limit_price_mode_hint" style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Manual entry (used directly when Reveal Pricing Policy is Configured Limit).
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -1781,6 +1784,88 @@
         let refreshCountdown = 5;
         let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
         let engineStatusData = {};
+        const liveLimitPriceByProduct = {};  // product_id -> last known WS price
+
+        function formatLimitPriceForInput(productId, price) {
+            const numericPrice = Number(price);
+            if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+                return '';
+            }
+
+            const metadata = productMetadata[productId] || {};
+            const rawIncrement = metadata.price_increment;
+            if (!rawIncrement) {
+                return numericPrice.toString();
+            }
+
+            const incrementText = formatDecimal(rawIncrement);
+            const decimalPart = incrementText.includes('.') ? incrementText.split('.')[1] : '';
+            const decimals = Math.min(decimalPart.length, 12);
+            if (decimals <= 0) {
+                return Math.round(numericPrice).toString();
+            }
+            return numericPrice.toFixed(decimals);
+        }
+
+        function setLiveLimitPrice(productId, price, source = 'ws') {
+            const numericPrice = Number(price);
+            if (!productId || !Number.isFinite(numericPrice) || numericPrice <= 0) {
+                return;
+            }
+            liveLimitPriceByProduct[productId] = numericPrice;
+            console.log(`Live price update (${source}): ${productId}=${numericPrice}`);
+
+            const selectedProduct = document.getElementById('product_id')?.value;
+            if (selectedProduct && selectedProduct === productId) {
+                updateLimitPriceInputMode();
+            }
+        }
+
+        function syncLimitPriceFromLiveFeed() {
+            const productId = document.getElementById('product_id')?.value;
+            const limitPriceInput = document.getElementById('limit_price');
+            if (!limitPriceInput || !productId) {
+                return false;
+            }
+
+            const livePrice = liveLimitPriceByProduct[productId];
+            if (!Number.isFinite(livePrice) || livePrice <= 0) {
+                return false;
+            }
+
+            limitPriceInput.value = formatLimitPriceForInput(productId, livePrice);
+            return true;
+        }
+
+        function updateLimitPriceInputMode() {
+            const revealPolicy = document.getElementById('reveal_pricing_policy')?.value || 'configured_limit';
+            const limitPriceInput = document.getElementById('limit_price');
+            const hint = document.getElementById('limit_price_mode_hint');
+            const productId = document.getElementById('product_id')?.value || '';
+
+            if (!limitPriceInput || !hint) {
+                return;
+            }
+
+            const isConfiguredLimit = revealPolicy === 'configured_limit';
+            limitPriceInput.readOnly = !isConfiguredLimit;
+
+            if (isConfiguredLimit) {
+                hint.style.color = '#666';
+                hint.textContent = 'Manual entry (used directly when Reveal Pricing Policy is Configured Limit).';
+                return;
+            }
+
+            const hasLivePrice = syncLimitPriceFromLiveFeed();
+            if (hasLivePrice) {
+                hint.style.color = '#60cdff';
+                hint.textContent = `Read-only: auto-filled from live WS price for ${productId}.`;
+            } else {
+                limitPriceInput.value = '';
+                hint.style.color = '#ff922b';
+                hint.textContent = 'Read-only: waiting for live WS price for the selected product.';
+            }
+        }
 
         function initWebSocket() {
             try {
@@ -1805,12 +1890,19 @@
                         productMetadataHandler.setProductMetadata(data.metadata);  // Update shared handler
                         updateProductDropdown();
                         addProductChangeListener();  // Add event listener for product selection
+                        updateLimitPriceInputMode();
                         console.log(`Loaded ${allProducts.length} products from WebSocket`);
                     } else if (data.type === "state_update") {
                         // Initial state or periodic update from server
                         if (data.data && data.data.engine_status) {
                             engineStatusData = data.data.engine_status || {};
                             updateRegimeMetrics(engineStatusData);
+                        }
+                        if (data.data && data.data.market_metrics) {
+                            const metrics = data.data.market_metrics || {};
+                            Object.entries(metrics).forEach(([productId, metric]) => {
+                                setLiveLimitPrice(productId, metric && metric.price, "state_update.market_metrics");
+                            });
                         }
                         if (data.data && data.data.stealth_orders) {
                             ordersData = data.data.stealth_orders || {};
@@ -1823,6 +1915,9 @@
                             updateOrdersTable();
                             updateStats();
                         }
+                    } else if (data.type === "ticker") {
+                        const ticker = data.data || {};
+                        setLiveLimitPrice(ticker.product_id, ticker.price, "ticker");
                     } else if (data.type === "stealth_orders_snapshot") {
                         ordersData = data.orders || {};
                         console.log("Received stealth orders snapshot:", ordersData);
@@ -2158,6 +2253,8 @@
                     // Update the size field with the minimum size
                     document.getElementById('total_size').value = formattedSize;
                 }
+
+                updateLimitPriceInputMode();
             });
             
             // Initial setup: attach shared handler listener for step updates
@@ -2708,6 +2805,7 @@
                         }
                     });
                 }
+                updateLimitPriceInputMode();
             }, 100);
             
             showMessage('Entry loaded from history', 'success');
@@ -2782,6 +2880,7 @@
             // Always update condition fields based on current condition_type value
             // This ensures fields are shown on initial page load even if no data was restored
             updateConditionFields();
+            updateLimitPriceInputMode();
         }
 
         function buildRevealCondition() {
@@ -2806,6 +2905,7 @@
 
         document.getElementById('condition_type').addEventListener('change', updateConditionFields);
         document.getElementById('enable_anchor_repricing').addEventListener('change', toggleAnchorRepricingFields);
+        document.getElementById('reveal_pricing_policy').addEventListener('change', updateLimitPriceInputMode);
 
         document.getElementById('create-order-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -2814,15 +2914,31 @@
             const targetMovement = document.getElementById('target_movement').value;
             const targetMovementType = document.getElementById('target_movement_type').value;
             const allowPartialFills = document.getElementById('allow_partial_fills').checked;
+            const revealPricingPolicy = document.getElementById('reveal_pricing_policy').value;
+            const limitPriceInput = document.getElementById('limit_price');
+
+            if (revealPricingPolicy !== 'configured_limit') {
+                const hasLivePrice = syncLimitPriceFromLiveFeed();
+                if (!hasLivePrice) {
+                    showMessage('Waiting for live WS price for selected product before submit.', 'error');
+                    return;
+                }
+            }
+
+            const parsedLimitPrice = parseFloat(limitPriceInput.value);
+            if (!Number.isFinite(parsedLimitPrice) || parsedLimitPrice <= 0) {
+                showMessage('Limit Price must be a valid number greater than 0.', 'error');
+                return;
+            }
 
             const order = {
                 product_id: document.getElementById('product_id').value,
                 side: document.getElementById('side').value,
                 total_size: parseFloat(document.getElementById('total_size').value),
-                limit_price: parseFloat(document.getElementById('limit_price').value),
+                limit_price: parsedLimitPrice,
                 reveal_condition: buildRevealCondition(),
                 follow_up_reveal_direction: document.getElementById('follow_up_reveal_direction').value,
-                reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
+                reveal_pricing_policy: revealPricingPolicy,
                 sizing_strategy: {
                     type: document.getElementById('sizing_strategy').value
                 },
@@ -3189,6 +3305,7 @@
         restoreFormValues();      // Restore last used form values
         toggleAnchorRepricingFields();
         toggleAnchorFixedInterval();
+        updateLimitPriceInputMode();
         setupAutoSave();          // Setup auto-save on input changes
         updateHistoryDisplay();   // Display saved entries history
         initWebSocket();
