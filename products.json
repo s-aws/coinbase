@@ -1,33 +1,17 @@
 {
   "spot": [
-    "BTC-USD",
-    "ETH-USD",
-    "LTC-USD",
-    "MON-USD",
-    "NCT-USD",
-    "SENT-USD",
-    "WET-USD",
-    "XPL-USD",
-    "ZKP-USD"
+    "BTC-USD"
   ],
   "derivatives": [
     "BIP-20DEC30-CDE",
     "BIT-29MAY26-CDE",
-    "ET-29MAY26-CDE",
     "ETP-20DEC30-CDE",
+    "ET-29MAY26-CDE",
     "GOL-27MAY26-CDE",
     "PAU-20DEC30-CDE"
   ],
   "ticker_to_trading": {
-    "BTC-USD": "BTC-USDC",
-    "ETH-USD": "ETH-USDC",
-    "LTC-USD": "LTC-USDC",
-    "MON-USD": "MON-USDC",
-    "NCT-USD": "NCT-USDC",
-    "SENT-USD": "SENT-USDC",
-    "WET-USD": "WET-USDC",
-    "XPL-USD": "XPL-USDC",
-    "ZKP-USD": "ZKP-USDC"
+    "BTC-USD": "BTC-USDC"
   },
   "metadata": {
     "BIP-20DEC30-CDE": {
