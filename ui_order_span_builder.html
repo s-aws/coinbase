@@ -722,6 +722,19 @@
                                 <label>Notes</label>
                                 <input type="text" id="notes" placeholder="Optional notes">
                             </div>
+
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="enable_hotpoint_replication" style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>🔥 Enable Hotpoint Auto-Replicate</span>
+                                </label>
+                                <div class="help-text">
+                                    Applies to ALL orders in this span. When fills repeat in the same
+                                    price bucket, the engine auto-places ONE additional order at that
+                                    bucket. See <a href="ui_hotpoint_manager.html" target="_blank" style="color:#4ade80;">Hotpoint Manager</a>.
+                                    Off by default.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1151,7 +1164,8 @@
                 reveal_pricing_policy: document.getElementById('reveal_pricing_policy').value,
                 target_movement: parseFloat(document.getElementById('target_movement').value),
                 max_followups: parseInt(document.getElementById('max_followups').value),
-                notes: document.getElementById('notes').value
+                notes: document.getElementById('notes').value,
+                enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked
             };
 
             // Validate
@@ -1221,7 +1235,8 @@
                     max_order_replacements: formData.max_followups,
                     target_movement: formData.target_movement,
                     target_movement_type: 'P',
-                    notes: formData.notes ? `[SPAN #${i + 1}] ${formData.notes}` : `[SPAN #${i + 1}/${formData.order_count}]`
+                    notes: formData.notes ? `[SPAN #${i + 1}] ${formData.notes}` : `[SPAN #${i + 1}/${formData.order_count}]`,
+                    enable_hotpoint_replication: formData.enable_hotpoint_replication
                 };
 
                 // Send order creation request with a slight delay to ensure order
@@ -1272,7 +1287,8 @@
                     target_movement_type: 'P',
                     notes: i === 0 
                         ? `[SPAN] ${formData.notes} (Order 1/${formData.order_count})` 
-                        : `[SPAN] Child of span (Order ${i + 1}/${formData.order_count})`
+                        : `[SPAN] Child of span (Order ${i + 1}/${formData.order_count})`,
+                    enable_hotpoint_replication: formData.enable_hotpoint_replication
                 };
 
                 // First order becomes parent, others reference it

@@ -174,7 +174,7 @@ class FollowUpKind(str, Enum):
     The OrderEngine claims a per-order processing token before creating a
     follow-up so concurrent threads observing the same WS terminal event do
     not double-spawn. ``FILLED`` and ``CANCELLED`` use independent token
-    namespaces — a filled-side claim does not block a cancelled-side claim.
+    namespaces â€” a filled-side claim does not block a cancelled-side claim.
     """
 
     FILLED = "filled"
@@ -193,7 +193,7 @@ class StealthMutationKind(str, Enum):
     REPRICE attempt on the same order, and vice versa, to prevent
     double-cancellation of the exchange order.
 
-    Unlike :class:`FollowUpKind`, stealth mutations are **repeatable** —
+    Unlike :class:`FollowUpKind`, stealth mutations are **repeatable** â€”
     a moved order may later be moved again, a repriced order may later be
     repriced again. Callers must release the claim with ``release`` after
     both success and failure paths; there is no terminal ``done`` state.
@@ -468,19 +468,19 @@ class StealthLifecycleEvent(str, Enum):
 
     Provides a complete play-by-play audit trail of every stealth order from
     creation through final execution or failure. Stored in order_event_stream
-    via StealthLifecycleHookRegistry → OrderEventStreamPublisher.
+    via StealthLifecycleHookRegistry â†’ OrderEventStreamPublisher.
 
     State machine flow:
         CREATED
-          └─► CONDITION_WATCHING  (condition partially met, watching for hold duration)
-                └─► CONDITION_MET (condition fully confirmed, order TRIGGERED)
-                      └─► REVEAL_ATTEMPTED
-                            ├─► PLACEMENT_BLOCKED  (pre-submission hook raised)  [terminal/retriable]
-                            ├─► REVEAL_FAILED      (REST exception / network error) [terminal/retriable]
-                            └─► REVEAL_SUCCEEDED   (slice placed on exchange books)
-                                  ├─► FILL_RECEIVED (fill event arrived from exchange)
-                                  ├─► EXECUTED      (all size filled)               [terminal]
-                                  └─► CANCELLED     (cancelled at any stage)        [terminal]
+          â””â”€â–º CONDITION_WATCHING  (condition partially met, watching for hold duration)
+                â””â”€â–º CONDITION_MET (condition fully confirmed, order TRIGGERED)
+                      â””â”€â–º REVEAL_ATTEMPTED
+                            â”œâ”€â–º PLACEMENT_BLOCKED  (pre-submission hook raised)  [terminal/retriable]
+                            â”œâ”€â–º REVEAL_FAILED      (REST exception / network error) [terminal/retriable]
+                            â””â”€â–º REVEAL_SUCCEEDED   (slice placed on exchange books)
+                                  â”œâ”€â–º FILL_RECEIVED (fill event arrived from exchange)
+                                  â”œâ”€â–º EXECUTED      (all size filled)               [terminal]
+                                  â””â”€â–º CANCELLED     (cancelled at any stage)        [terminal]
 
     Integration:
         Dispatched from StealthOrderManager at each transition point. Hooks are
@@ -490,8 +490,8 @@ class StealthLifecycleEvent(str, Enum):
         See integration/stealth_lifecycle_hooks.py and data/order_inventory.py.
     """
     CREATED            = "CREATED"             # create_stealth_order() persisted
-    CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met → PENDING
-    CONDITION_MET      = "CONDITION_MET"       # condition confirmed → TRIGGERED
+    CONDITION_WATCHING = "CONDITION_WATCHING"  # condition first partially met â†’ PENDING
+    CONDITION_MET      = "CONDITION_MET"       # condition confirmed â†’ TRIGGERED
     REVEAL_ATTEMPTED   = "REVEAL_ATTEMPTED"    # slice placement about to be sent
     PLACEMENT_BLOCKED  = "PLACEMENT_BLOCKED"   # pre-submission hook blocked placement
     REVEAL_FAILED      = "REVEAL_FAILED"       # REST/network exception during placement
@@ -538,7 +538,7 @@ class EngineState(str, Enum):
         | DRAINING |    no      |     yes       |       yes       |    yes    |
         | STOPPED  |    no      |     no        |       no        |    no     |
 
-    "Soft pause" — pause stops *originating* new orders but keeps WS, fills,
+    "Soft pause" â€” pause stops *originating* new orders but keeps WS, fills,
     and cancellations active so existing positions remain manageable.
     """
     RUNNING = "RUNNING"
@@ -546,3 +546,33 @@ class EngineState(str, Enum):
     PAUSED = "PAUSED"
     DRAINING = "DRAINING"
     STOPPED = "STOPPED"
+
+
+# ============================================================================
+# HOTPOINT AUTO-REPLICATE
+# ============================================================================
+
+class HotpointPlacementPolicy(str, Enum):
+    """Price-derivation policy for hotpoint auto-placed orders.
+
+    Selected at trigger time. The auto-placed limit price is derived from the
+    bucket and recent fills inside the bucket.
+    """
+
+    # Midpoint of the log-spaced bucket. Restart-safe and order-independent.
+    WINDOW_CENTER = "WINDOW_CENTER"
+    # Price of the most recent qualifying fill that contributed to the trigger.
+    LAST_FILL = "LAST_FILL"
+    # Arithmetic mean of qualifying fill prices in the trigger window.
+    MEAN_OF_FILLS = "MEAN_OF_FILLS"
+
+
+class HotpointFillSource(str, Enum):
+    """Which fills feed the hotpoint detector.
+
+    v1 ships with OWN_ORDERS only. Adding TAPE later is additive: a new
+    subscriber pushes ticks into the same bucket ring buffer.
+    """
+
+    OWN_ORDERS = "OWN_ORDERS"
+    TAPE = "TAPE"

@@ -1049,6 +1049,19 @@
                         </div>
 
                         <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                <input type="checkbox" id="enable_hotpoint_replication" style="cursor: pointer; width: 14px; height: 14px;">
+                                <span>🔥 Enable Hotpoint Auto-Replicate</span>
+                            </label>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                When this order's fills repeat in the same price bucket, the engine
+                                auto-places ONE additional order at that bucket. See the
+                                <a href="ui_hotpoint_manager.html" target="_blank" style="color:#4ade80;">Hotpoint Manager</a>
+                                for live status and the kill switch. Off by default.
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Target Movement Type</label>
                             <select id="target_movement_type">
                                 <option value="P">Percentage (%)</option>
@@ -2465,6 +2478,7 @@
                 anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
                 notes: document.getElementById('notes').value,
                 allow_partial_fills: document.getElementById('allow_partial_fills').checked,
+                enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked,
                 timestamp: Date.now()
             };
             
@@ -2685,6 +2699,7 @@
             const targetMovement = document.getElementById('target_movement').value;
             const targetMovementType = document.getElementById('target_movement_type').value;
             const allowPartialFills = document.getElementById('allow_partial_fills').checked;
+            const enableHotpointReplication = document.getElementById('enable_hotpoint_replication').checked;
 
             const order = {
                 product_id: document.getElementById('product_id').value,
@@ -2701,6 +2716,7 @@
                 target_movement: targetMovement ? parseFloat(targetMovement) : 0.0,
                 target_movement_type: targetMovementType,
                 allow_partial_fills: allowPartialFills,
+                enable_hotpoint_replication: enableHotpointReplication,
                 anchor_repricing_policy: buildAnchorRepricingPolicy(),
                 notes: document.getElementById('notes').value
             };

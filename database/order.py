@@ -88,6 +88,20 @@ def create_order_parent_table() -> None:
             "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
             "allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE"
         )
+        # Hotpoint Auto-Replicate (per-order opt-in; provenance marker).
+        # `enable_hotpoint_replication=TRUE` opts a parent's fills into the
+        # hotpoint detector. `auto_placed_by_hotpoint=TRUE` marks rows this
+        # feature created â€” used by the rate-limiter restart rebuild and the
+        # decay sweeper. Auto-placed rows always carry
+        # enable_hotpoint_replication=FALSE so they cannot cascade.
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "enable_hotpoint_replication BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "auto_placed_by_hotpoint BOOLEAN NOT NULL DEFAULT FALSE"
+        )
         print("order_parent table done.")
 
 
@@ -266,7 +280,7 @@ def update_stealth_order_price_threshold(stealth_order_id: str, price_threshold:
 
         return rows_affected > 0
     except Exception as e:
-        logger.error(f"✗ Error updating stealth order threshold {stealth_order_id}: {type(e).__name__}: {e}")
+        logger.error(f"âœ— Error updating stealth order threshold {stealth_order_id}: {type(e).__name__}: {e}")
         logger.debug(f"  Update params - price_threshold: {price_threshold}, hold_duration_seconds: {hold_duration_seconds}")
         return False
 
@@ -629,6 +643,8 @@ def insert_order_parent(
     status: str = "pending",
     parent_order_id: Optional[str] = None,
     allow_partial_fills: bool = False,
+    enable_hotpoint_replication: bool = False,
+    auto_placed_by_hotpoint: bool = False,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
     
@@ -657,7 +673,7 @@ def insert_order_parent(
     # Check if parent order already exists (handles race condition with multiple threads)
     existing_parent = get_parent_order(client_order_id)
     if existing_parent:
-        logger.info(f"✓ Parent order already exists: {client_order_id} (DB ID: {existing_parent['id']})")
+        logger.info(f"âœ“ Parent order already exists: {client_order_id} (DB ID: {existing_parent['id']})")
         return existing_parent['id']
     
     query = """
@@ -673,9 +689,11 @@ def insert_order_parent(
         max_order_replacement,
         current_order_replacement,
         parent_order_id,
-        allow_partial_fills
+        allow_partial_fills,
+        enable_hotpoint_replication,
+        auto_placed_by_hotpoint
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     params = (
@@ -691,6 +709,8 @@ def insert_order_parent(
         int(current_order_replacement),
         parent_order_id,
         bool(allow_partial_fills),
+        bool(enable_hotpoint_replication),
+        bool(auto_placed_by_hotpoint),
     )
 
     try:
@@ -699,7 +719,7 @@ def insert_order_parent(
             inserted_id = results[0]["id"]
             row_kind = "Child" if parent_order_id else "Root parent"
             logger.info(
-                f"✓ {row_kind} order inserted: {client_order_id} (DB ID: {inserted_id}, "
+                f"âœ“ {row_kind} order inserted: {client_order_id} (DB ID: {inserted_id}, "
                 f"product: {product_id}, {side} {size} @ {price}"
                 + (f", parent: {parent_order_id})" if parent_order_id else ")")
             )
@@ -1193,15 +1213,15 @@ def adopt_child_to_parent(
                 if keep_adoption_history else ""
             )
             logger.info(
-                f"✓ Child order adopted: {child_client_order_id} "
-                f"{old_parent} → {new_parent_client_order_id}{history_note}"
+                f"âœ“ Child order adopted: {child_client_order_id} "
+                f"{old_parent} â†’ {new_parent_client_order_id}{history_note}"
             )
             return True
         else:
-            logger.error(f"✗ Adoption failed: No child order found: {child_client_order_id}")
+            logger.error(f"âœ— Adoption failed: No child order found: {child_client_order_id}")
             return False
     except Exception as e:
-        logger.error(f"✗ Error adopting child order {child_client_order_id}: {type(e).__name__}: {e}")
+        logger.error(f"âœ— Error adopting child order {child_client_order_id}: {type(e).__name__}: {e}")
         logger.debug(f"  Adoption details - new_parent: {new_parent_client_order_id}, keep_history: {keep_adoption_history}")
         return False
 
@@ -1322,10 +1342,10 @@ def adopt_orphaned_orders(
         }
         
         if not orphaned_children:
-            print(f"✅ No orphaned children found")
+            print(f"âœ… No orphaned children found")
             return result
         
-        print(f"\n📍 Found {len(orphaned_children)} orphaned child orders")
+        print(f"\nðŸ“ Found {len(orphaned_children)} orphaned child orders")
         print(f"   Searching for compatible parents (tolerance: {price_tolerance_pct}%)...")
         
         # Try to adopt each orphaned child
@@ -1398,7 +1418,7 @@ def adopt_orphaned_orders(
         
         # Print summary
         mode = "[DRY RUN] " if dry_run else ""
-        print(f"\n✅ {mode}Adoption Summary:")
+        print(f"\nâœ… {mode}Adoption Summary:")
         print(f"   Total children: {result['total_children']}")
         print(f"   Orphaned found: {result['orphaned_found']}")
         print(f"   Adoptions completed: {result['adoptions_completed']}")
@@ -1407,7 +1427,7 @@ def adopt_orphaned_orders(
         return result
         
     except Exception as e:
-        print(f"❌ Error during adoption process: {e}")
+        print(f"âŒ Error during adoption process: {e}")
         return {
             "total_children": 0,
             "orphaned_found": 0,
@@ -1603,10 +1623,10 @@ def adopt_orphaned_stealth_orders(
         }
         
         if not orphaned_stealth:
-            print(f"✅ No orphaned stealth orders found")
+            print(f"âœ… No orphaned stealth orders found")
             return result
         
-        print(f"\n📍 Found {len(orphaned_stealth)} orphaned stealth orders")
+        print(f"\nðŸ“ Found {len(orphaned_stealth)} orphaned stealth orders")
         print(f"   Found {len(all_parent_orders)} parent orders")
         print(f"   Searching for compatible parents (tolerance: {price_tolerance_pct}%)...")
         
@@ -1679,7 +1699,7 @@ def adopt_orphaned_stealth_orders(
         
         # Print summary
         mode = "[DRY RUN] " if dry_run else ""
-        print(f"\n✅ {mode}Stealth Adoption Summary:")
+        print(f"\nâœ… {mode}Stealth Adoption Summary:")
         print(f"   Total stealth orders: {result['total_stealth_orders']}")
         print(f"   Orphaned found: {result['orphaned_found']}")
         print(f"   Parent orders available: {result['parent_orders_available']}")
@@ -1689,7 +1709,7 @@ def adopt_orphaned_stealth_orders(
         return result
         
     except Exception as e:
-        print(f"❌ Error during stealth adoption process: {e}")
+        print(f"âŒ Error during stealth adoption process: {e}")
         return {
             "total_stealth_orders": 0,
             "orphaned_found": 0,
@@ -1866,12 +1886,12 @@ def insert_order_move(
             inserted_id = results[0]["id"]
             if new_parent_client_order_id:
                 logger.info(
-                    f"✓ Order move recorded: {original_parent_client_order_id} "
-                    f"→ {new_parent_client_order_id} (DB ID: {inserted_id}, reason: {reason})"
+                    f"âœ“ Order move recorded: {original_parent_client_order_id} "
+                    f"â†’ {new_parent_client_order_id} (DB ID: {inserted_id}, reason: {reason})"
                 )
             else:
                 logger.info(
-                    f"✓ Order move pre-marked: {original_parent_client_order_id} "
+                    f"âœ“ Order move pre-marked: {original_parent_client_order_id} "
                     f"(DB ID: {inserted_id}, move_on_cancel={move_on_cancel}, reason: {reason})"
                 )
             return inserted_id
@@ -1879,7 +1899,7 @@ def insert_order_move(
         logger.warning(f"Failed to retrieve inserted move record ID for: {original_parent_client_order_id}")
         return None
     except Exception as e:
-        logger.error(f"✗ Error inserting order move ({original_parent_client_order_id}): {type(e).__name__}: {e}")
+        logger.error(f"âœ— Error inserting order move ({original_parent_client_order_id}): {type(e).__name__}: {e}")
         logger.debug(f"  Move details - new_parent: {new_parent_client_order_id}, reason: {reason}, move_on_cancel: {move_on_cancel}")
         return None
 
@@ -2032,7 +2052,7 @@ def insert_stealth_order_move(
         return None
     except Exception as exc:
         logger.error(
-            f"✗ Error inserting stealth_order_move ({stealth_order_id}, "
+            f"âœ— Error inserting stealth_order_move ({stealth_order_id}, "
             f"status={status}): {type(exc).__name__}: {exc}"
         )
         return None
@@ -2054,7 +2074,7 @@ def get_stealth_order_moves(
         return DB_CLIENT.execute_query(query, (stealth_order_id, limit)) or []
     except Exception as exc:
         logger.error(
-            f"✗ Error fetching stealth_order_moves for {stealth_order_id}: "
+            f"âœ— Error fetching stealth_order_moves for {stealth_order_id}: "
             f"{type(exc).__name__}: {exc}"
         )
         return []
@@ -2338,16 +2358,16 @@ def create_fill_ledger_table() -> None:
     derived from per-match cumulative-counter deltas on the WebSocket user channel.
 
     Naming distinction (deliberate):
-        derived_trade_key   – synthetic, deterministic UUID5 keyed on
+        derived_trade_key   â€“ synthetic, deterministic UUID5 keyed on
                               (client_order_id, cumulative_quantity).
                               Always present. Idempotency / dedup key.
-        exchange_trade_id   – authoritative trade id from REST historical/fills.
+        exchange_trade_id   â€“ authoritative trade id from REST historical/fills.
                               NULL until reconciliation populates it.
 
     Reconciliation lifecycle (``reconciliation_status``):
-        WS_DERIVED  – just inserted from WS counters; not yet checked against REST.
-        RECONCILED  – matched 1:1 with a REST historical/fills row.
-        MISMATCH    – REST disagrees with WS-derived rows; operator review needed.
+        WS_DERIVED  â€“ just inserted from WS counters; not yet checked against REST.
+        RECONCILED  â€“ matched 1:1 with a REST historical/fills row.
+        MISMATCH    â€“ REST disagrees with WS-derived rows; operator review needed.
 
     Migration: idempotent ALTERs run after CREATE so existing deployments pick
     up the rename + new columns without manual intervention.
@@ -2528,7 +2548,7 @@ def insert_order_match_audit(
         return results[0]["id"] if results else None
     except Exception as e:
         logger.error(
-            f"✗ Error inserting order_match_audit row for {client_order_id} "
+            f"âœ— Error inserting order_match_audit row for {client_order_id} "
             f"seq={snapshot_seq}: {type(e).__name__}: {e}"
         )
         return None
@@ -2749,14 +2769,14 @@ def insert_fill_record(
         if results:
             inserted_id = results[0]["id"]
             logger.info(
-                f"✓ Fill recorded: {derived_trade_key} ({instrument} {side} {quantity} @ {price}, "
+                f"âœ“ Fill recorded: {derived_trade_key} ({instrument} {side} {quantity} @ {price}, "
                 f"fees: {fees}, commission: {commission_percentage})"
             )
             return inserted_id
         return None
     except Exception as e:
         logger.error(
-            f"✗ Error inserting fill record {derived_trade_key}: {type(e).__name__}: {e}"
+            f"âœ— Error inserting fill record {derived_trade_key}: {type(e).__name__}: {e}"
         )
         logger.debug(
             f"  Fill details - instrument: {instrument}, side: {side}, "
@@ -2933,13 +2953,13 @@ def insert_conditional_order(
         if results:
             inserted_id = results[0]["id"]
             logger.info(
-                f"✓ Conditional order inserted: {conditional_order_id} "
+                f"âœ“ Conditional order inserted: {conditional_order_id} "
                 f"({product_id} {side} {size} @ {price}, min_profit: {min_profitable_price})"
             )
             return inserted_id
         return None
     except Exception as e:
-        logger.error(f"✗ Error inserting conditional order {conditional_order_id}: {type(e).__name__}: {e}")
+        logger.error(f"âœ— Error inserting conditional order {conditional_order_id}: {type(e).__name__}: {e}")
         logger.debug(f"  Conditional order details - product: {product_id}, side: {side}, size: {size}, price: {price}")
         return None
 
@@ -3322,7 +3342,7 @@ def cancel_conditional_order(conditional_order_id: str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# partial_fill_progress table – restart-resilient partial fill watermarks
+# partial_fill_progress table â€“ restart-resilient partial fill watermarks
 # ---------------------------------------------------------------------------
 
 def create_partial_fill_progress_table() -> None:
@@ -3334,19 +3354,19 @@ def create_partial_fill_progress_table() -> None:
     to FINALIZED or CANCELLED) when the order reaches a terminal state.
 
     Table columns:
-        client_order_id               – FK to order_parent; also the natural PK
-        parent_client_order_id        – root parent for flat hierarchy linking
-        product_id                    – trading pair (informational)
-        side                          – BUY / SELL
-        original_order_size           – total size of the placed child order
-        min_order_size                – minimum base increment for the product
-        last_cumulative_qty_processed – highest cumulative_quantity seen and acted on
-        carry_remainder_qty           – sub-minimum accumulator carried forward
-        last_number_of_fills_seen     – dedup helper; mirrors number_of_fills field
-        last_completion_pct_seen      – completion_percentage watermark (0-100)
-        partial_follow_ups_created    – count of follow-up orders spawned so far
-        status                        – ACTIVE | FINALIZED | CANCELLED
-        created_at / updated_at       – timestamps
+        client_order_id               â€“ FK to order_parent; also the natural PK
+        parent_client_order_id        â€“ root parent for flat hierarchy linking
+        product_id                    â€“ trading pair (informational)
+        side                          â€“ BUY / SELL
+        original_order_size           â€“ total size of the placed child order
+        min_order_size                â€“ minimum base increment for the product
+        last_cumulative_qty_processed â€“ highest cumulative_quantity seen and acted on
+        carry_remainder_qty           â€“ sub-minimum accumulator carried forward
+        last_number_of_fills_seen     â€“ dedup helper; mirrors number_of_fills field
+        last_completion_pct_seen      â€“ completion_percentage watermark (0-100)
+        partial_follow_ups_created    â€“ count of follow-up orders spawned so far
+        status                        â€“ ACTIVE | FINALIZED | CANCELLED
+        created_at / updated_at       â€“ timestamps
     """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS partial_fill_progress (
@@ -3392,7 +3412,7 @@ def upsert_partial_fill_progress(
 ) -> bool:
     """Insert or update the partial-fill watermark for a single child order.
 
-    Uses INSERT … ON CONFLICT (client_order_id) DO UPDATE so both the initial
+    Uses INSERT â€¦ ON CONFLICT (client_order_id) DO UPDATE so both the initial
     row creation and every subsequent watermark advance are handled atomically.
 
     Returns:
@@ -3496,7 +3516,7 @@ def finalize_partial_fill_progress(client_order_id: str, status: str) -> bool:
 
     Args:
         client_order_id: The child order whose progress row to close.
-        status:          Terminal status string – 'FINALIZED' or 'CANCELLED'.
+        status:          Terminal status string â€“ 'FINALIZED' or 'CANCELLED'.
 
     Returns:
         True if a row was updated, False otherwise.
@@ -3516,3 +3536,68 @@ def finalize_partial_fill_progress(client_order_id: str, status: str) -> bool:
     except Exception as e:
         logger.error(f"[PARTIAL-FILL] finalize_partial_fill_progress failed for {client_order_id}: {type(e).__name__}: {e}")
         return False
+
+
+# ============================================================================
+# Hotpoint Auto-Replicate — query helpers
+# ============================================================================
+
+def get_recent_auto_placed_hotpoint_rows(window_seconds: int) -> List[Dict[str, Any]]:
+    """Return rows auto-placed by hotpoint within the last ``window_seconds``.
+
+    Used by ``HotpointRateLimiter`` at engine startup to rebuild the
+    sliding-window counter from persisted state. Returns the columns the
+    limiter needs to compute the bucket id (price + product) and an
+    ``epoch_seconds`` timestamp.
+
+    Returns:
+        List of dicts with keys: ``client_order_id``, ``product_id``,
+        ``side``, ``price``, ``epoch_seconds``.
+    """
+    query = """
+    SELECT client_order_id,
+           product_id,
+           side,
+           price,
+           EXTRACT(EPOCH FROM created_at)::float8 AS epoch_seconds
+      FROM order_parent
+     WHERE auto_placed_by_hotpoint = TRUE
+       AND created_at > NOW() - make_interval(secs => %s)
+    """
+    try:
+        rows = DB_CLIENT.execute_query(query, (int(window_seconds),)) or []
+        return list(rows)
+    except Exception as e:
+        logger.error(
+            f"\u2717 get_recent_auto_placed_hotpoint_rows failed: {type(e).__name__}: {e}"
+        )
+        return []
+
+
+def get_open_auto_placed_hotpoint_rows() -> List[Dict[str, Any]]:
+    """Return currently-resting auto-placed hotpoint rows.
+
+    Used by the decay sweeper to find candidates for cancellation when
+    their bucket has cooled.
+
+    Returns:
+        List of dicts with keys: ``client_order_id``, ``product_id``,
+        ``side``, ``price``.
+    """
+    query = """
+    SELECT client_order_id,
+           product_id,
+           side,
+           price
+      FROM order_parent
+     WHERE auto_placed_by_hotpoint = TRUE
+       AND status IN ('OPEN', 'PENDING', 'pending', 'open')
+    """
+    try:
+        rows = DB_CLIENT.execute_query(query) or []
+        return list(rows)
+    except Exception as e:
+        logger.error(
+            f"\u2717 get_open_auto_placed_hotpoint_rows failed: {type(e).__name__}: {e}"
+        )
+        return []
