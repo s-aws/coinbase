@@ -1083,6 +1083,9 @@
                             <div style="background: rgba(103,126,234,0.1); border: 1px solid rgba(103,126,234,0.35); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; font-size: 10px; color: #aaa; line-height: 1.5;">
                                 <b style="color:#7b9fff;">📑 Tranche Schedule</b> — cumulative percentages of total_size. Each value is a checkpoint; the engine reveals the delta from current executed size to the next checkpoint.
                             </div>
+                            <div style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.3); border-radius: 5px; padding: 8px 10px; margin-bottom: 8px; font-size: 10px; color: #d4a017; line-height: 1.5;">
+                                <b>⚠ Price behavior (today):</b> all tranches post at the <b>same price</b>, sourced from your <b>Reveal Pricing Policy</b> above (top-of-book / configured limit / midpoint) and adjusted by anchor repricing if enabled. There is <b>no per-tranche price ladder</b> — tranches differ only in <b>size and timing</b>. If you need a price ladder, that's a separate engine feature.
+                            </div>
                             <div class="form-group">
                                 <label>Tranches (cumulative %, comma-separated)</label>
                                 <input type="text" id="tranche_schedule" value="0.25, 0.50, 0.75, 1.0" placeholder="0.25, 0.50, 0.75, 1.0">
@@ -2914,7 +2917,9 @@
             if (sizeRows.length) sections.push(_lpSection('Sizing Strategy', sizeRows,
                 strat === 'adaptive'
                     ? 'Live <code>volume_ratio</code> is computed engine-side from market_volume / baseline_volume; preview shows sensitivity at fixed sample ratios.'
-                    : ''));
+                    : strat === 'tranche'
+                        ? '<b>Price behavior:</b> all tranches post at the <b>same</b> price — taken from your <b>Reveal Pricing Policy</b> (top-of-book / configured / midpoint) and slid by anchor repricing if enabled. There is no per-tranche price offset / ladder today; tranches differ only in <b>size and timing</b>.'
+                        : ''));
 
             // --- Target Movement (profit) ---
             const tmType = document.getElementById('target_movement_type').value; // 'P' or 'A'
