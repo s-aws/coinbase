@@ -221,6 +221,10 @@ class StealthOrderManager:
         self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
         self.profit_validator = profit_validator
+        # Throttle map for the "reveal returned size=0" diagnostic. Keyed
+        # by stealth_order_id, value is the unix-timestamp of the last
+        # emitted log line. See ``_maybe_log_no_slice``.
+        self._no_slice_log_emitted_at: Dict[str, float] = {}
         
         # Order placement hooks for extensibility
         if order_placement_hooks is None:
@@ -2742,10 +2746,17 @@ class StealthOrderManager:
                     f"Stealth order not found: {stealth_order_id}"
                 )
             
-            # Calculate slice size
+            # Calculate slice size (delegates to RevealStrategy in
+            # business/stealth_reveal_strategy.py).
             slice_size = self._calculate_reveal_size(order)
-            
+
             if slice_size <= 0:
+                # Throttled diagnostic so a tranche-iceberg lock or a
+                # fully-covered fixed strategy doesn't silently no-op
+                # at the bridge poll rate. Pattern parallels the
+                # 2026-05-03 stranded-order incident: silent loops
+                # at high frequency are unobservable.
+                self._maybe_log_no_slice(stealth_order_id, order)
                 return None
             
             # === PHASE 1: Build reveal execution plan ===
@@ -3580,60 +3591,78 @@ class StealthOrderManager:
     # ===================== PRIVATE METHODS =====================
     
     def _calculate_reveal_size(self, order: Dict[str, Any]) -> float:
-        """Calculate how much of hidden order to reveal now."""
-        sizing_strategy = order.get("sizing_strategy_json", {})
+        """Calculate how much of hidden order to reveal now.
+
+        Delegates to a ``RevealStrategy`` instance from
+        ``business.stealth_reveal_strategy``. Strategies are pure
+        size-computation functions; iceberg pacing is encoded inside
+        ``TrancheRevealStrategy`` by inspecting
+        ``anchor_repricing_state_json.active_placement_client_order_id``
+        (the same SSOT the reprice flow uses).
+
+        See 2026-05-03 incident notes in the strategy module for the
+        rationale behind this extraction.
+        """
+        from business.stealth_reveal_strategy import get_reveal_strategy
+
+        sizing_strategy = order.get("sizing_strategy_json", {}) or {}
         strategy_type = sizing_strategy.get("type", "fixed")
-        
-        if strategy_type == "fixed":
-            return order.get("total_size", 0)
-        
-        elif strategy_type == "adaptive":
-            return self._calculate_adaptive_reveal_size(order, sizing_strategy)
-        
-        elif strategy_type == "tranche":
-            return self._calculate_tranche_reveal_size(order, sizing_strategy)
-        
-        else:
-            return order.get("total_size", 0)
-    
-    def _calculate_adaptive_reveal_size(self, order: Dict[str, Any], strategy: Dict[str, Any]) -> float:
-        """Calculate reveal size proportional to market volume."""
-        base_size = float(strategy.get("base_size", order["total_size"]))
-        volume_window = int(strategy.get("volume_window", 60))
-        reveal_multiplier = float(strategy.get("reveal_multiplier", 0.1))
-        max_reveal_pct = float(strategy.get("max_reveal_percentage", 0.5))
-        
-        # Get market volume in window
-        market_volume = self._get_market_volume(order["product_id"], volume_window)
-        baseline_volume = self._get_baseline_volume(order["product_id"])
-        
-        if baseline_volume <= 0:
-            volume_ratio = 1.0
-        else:
-            volume_ratio = market_volume / baseline_volume
-        
-        # Calculate reveal: base_size * volume_ratio * multiplier
-        reveal_size = base_size * volume_ratio * reveal_multiplier
-        
-        # Cap at max percentage of total hidden size
-        max_reveal = order["total_size"] * max_reveal_pct
-        reveal_size = min(reveal_size, max_reveal)
-        
-        # Don't exceed remaining
-        reveal_size = min(reveal_size, order["remaining_size"])
-        
-        return reveal_size
-    
-    def _calculate_tranche_reveal_size(self, order: Dict[str, Any], strategy: Dict[str, Any]) -> float:
-        """Calculate tranche-based reveals (25%, 50%, 75%, 100%)."""
-        tranches = strategy.get("tranches", [0.25, 0.50, 0.75, 1.0])
-        reveal_count = len(order["revealed_orders"])
-        
-        if reveal_count >= len(tranches):
-            return 0
-        
-        tranche_pct = tranches[reveal_count]
-        return order["total_size"] * tranche_pct - order["revealed_size"]
+        strategy = get_reveal_strategy(
+            strategy_type,
+            sizing_strategy,
+            market_volume_provider=self._get_market_volume,
+            baseline_volume_provider=self._get_baseline_volume,
+        )
+        return strategy.next_slice_size(order)
+
+    # Throttle window for the "reveal returned size=0" diagnostic.
+    # 30s matches the operator's expected feedback latency for a
+    # never-progressing stealth without spamming the log at 10 Hz.
+    _NO_SLICE_LOG_COOLDOWN_SECONDS = 30.0
+
+    def _maybe_log_no_slice(
+        self, stealth_order_id: str, order: Dict[str, Any]
+    ) -> None:
+        """Throttled INFO when ``_calculate_reveal_size`` returns 0.
+
+        The bridge polls at ~10 Hz. Without throttling, a TRIGGERED
+        stealth whose strategy returns 0 (iceberg lock, fully-covered
+        fixed, exhausted tranche schedule) would emit ~10 lines/sec.
+        We log once per ``_NO_SLICE_LOG_COOLDOWN_SECONDS`` per stealth
+        so the operator sees "why isn't this progressing?" without
+        drowning in repeats.
+
+        Invariant: at least one line per status transition that lands
+        in the "no-slice" branch. Caller is responsible for clearing
+        ``_no_slice_log_emitted_at[stealth_order_id]`` if the throttle
+        needs to be reset (e.g. on cancel / restart).
+        """
+        import time
+
+        now = time.time()
+        last = self._no_slice_log_emitted_at.get(stealth_order_id, 0.0)
+        if now - last < self._NO_SLICE_LOG_COOLDOWN_SECONDS:
+            return
+        self._no_slice_log_emitted_at[stealth_order_id] = now
+
+        state = order.get("anchor_repricing_state_json") or {}
+        active = state.get("active_placement_client_order_id")
+        sizing = order.get("sizing_strategy_json") or {}
+        self.log_callback("info", {
+            "event": "stealth_reveal_no_slice",
+            "stealth_order_id": stealth_order_id,
+            "strategy_type": sizing.get("type", "fixed"),
+            "iceberg_mode": sizing.get("iceberg_mode"),
+            "status": order.get("status"),
+            "total_size": float(order.get("total_size", 0) or 0),
+            "revealed_size": float(order.get("revealed_size", 0) or 0),
+            "executed_size": float(order.get("executed_size", 0) or 0),
+            "active_placement_client_order_id": active,
+            "throttle": (
+                f"1_emit_per_{int(self._NO_SLICE_LOG_COOLDOWN_SECONDS)}s"
+            ),
+        })
+
     
     def _get_stealth_order(self, stealth_order_id: str, raise_if_missing: bool = False) -> Optional[Dict[str, Any]]:
         """Get stealth order from memory cache or database.
