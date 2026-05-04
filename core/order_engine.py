@@ -2436,15 +2436,22 @@ class OrderEngine:
             # Any drift is logged for operator review and is the cheapest
             # available signal that a delta was missed.
             elif "orders" in event and event["type"].upper() == "SNAPSHOT":
-                ws_client_order_ids = {
-                    o.get("client_order_id")
-                    for o in event.get("orders", [])
+                snapshot_orders = [
+                    o for o in event.get("orders", [])
                     if o.get("client_order_id")
+                ]
+                ws_client_order_ids = {
+                    o["client_order_id"] for o in snapshot_orders
                 }
+                # Drift check FIRST (compares venue snapshot against what we
+                # *believed*), then heal in-memory state from the snapshot.
+                # Order matters: if we hydrated first, drift would always be
+                # zero and we'd lose the signal that we missed a delta.
                 self.snapshot_drift_check(
                     ws_client_order_ids,
                     source="ws_user_snapshot",
                 )
+                self._hydrate_orderbook_from_ws_snapshot(snapshot_orders)
 
             elif "positions" in event:
                 self.process_user_snapshot(event)
@@ -2636,6 +2643,101 @@ class OrderEngine:
             )
 
         return report
+
+    def _hydrate_orderbook_from_ws_snapshot(self, snapshot_orders) -> None:
+        """Reconcile in-memory ``orderbook.order`` with a venue WS snapshot.
+
+        The venue's user-channel SNAPSHOT frame is the authoritative view of
+        every open order at the exchange. Without this hydration step the
+        in-memory orderbook starts empty at engine boot and is only ever
+        populated by live deltas, so:
+
+        * cold start: the first SNAPSHOT trips ``snapshot_drift_detected``
+          for every currently-open order at the venue (guaranteed noise).
+        * reconnect: any delta missed during the disconnect window stays
+          missed — we never observe the corrective state.
+
+        Strategy: snapshot is canonical. For each snapshot order:
+          - not in memory → insert minimal record.
+          - in memory with same status → no-op.
+          - in memory with different status → overwrite + emit
+            ``snapshot_overrode_in_memory_status`` for audit.
+
+        Only the small set of fields the drift check and downstream readers
+        care about is written. Snapshot rows are NOT routed through
+        ``process_user_order`` because that path mutates DB state (FK
+        creation, fill ledger, partial-fill follow-ups) and would
+        double-process orders the engine has already persisted.
+        """
+        if not snapshot_orders:
+            return
+
+        _MINIMAL_FIELDS = (
+            "client_order_id",
+            "order_id",
+            "status",
+            "product_id",
+            "product_type",
+            "side",
+            "cumulative_quantity",
+            "leaves_quantity",
+            "filled_size",
+            "creation_time",
+            "outstanding_hold_amount",
+        )
+
+        inserted = 0
+        overwritten = 0
+        with self.orderbook_lock:
+            for order in snapshot_orders:
+                coid = order.get("client_order_id")
+                if not coid:
+                    continue
+                existing = self.orderbook.order.get(coid)
+                minimal = {k: order.get(k) for k in _MINIMAL_FIELDS if k in order}
+
+                if existing is None:
+                    self.orderbook.order[coid] = minimal
+                    inserted += 1
+                    continue
+
+                existing_status = existing.get("status")
+                snapshot_status = order.get("status")
+                if existing_status == snapshot_status:
+                    continue
+
+                # Status disagreement: venue wins, but record the override
+                # so an operator can investigate why our in-memory belief
+                # diverged.
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "snapshot_overrode_in_memory_status",
+                        client_order_id=coid,
+                        in_memory_status=existing_status,
+                        snapshot_status=snapshot_status,
+                        product_id=order.get("product_id"),
+                    ),
+                )
+                # Merge minimal fields over the existing record to preserve
+                # any additional bookkeeping fields populated by other code
+                # paths (e.g. internal flags) while letting the venue's
+                # status / qty win.
+                merged = dict(existing)
+                merged.update(minimal)
+                self.orderbook.order[coid] = merged
+                overwritten += 1
+
+        if inserted or overwritten:
+            self.log_message(
+                "info",
+                self.build_event_log_payload(
+                    "orderbook_hydrated_from_ws_snapshot",
+                    inserted_count=inserted,
+                    overwritten_count=overwritten,
+                    snapshot_size=len(snapshot_orders),
+                ),
+            )
 
     def process_user_snapshot(self, snapshot: dict) -> None:
         """Process position snapshot from websocket.
