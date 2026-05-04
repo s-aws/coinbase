@@ -29,7 +29,7 @@ from typing import List, Dict, Optional
 from datetime import datetime
 import uuid
 from business.fill_ledger import FillLedger, FillLedgerRepository
-from business.position_lot import PositionLot, Position
+from business.position_lot import PositionLot, LotPosition
 from core.enums import OrderSide
 from logging_service import get_logger
 
@@ -55,7 +55,7 @@ class PositionLotBuilder:
     def build_position_lots(self, 
                            instrument: str, 
                            side: Optional[OrderSide] = None,
-                           profit_target_pct: float = 0.5) -> Position:
+                           profit_target_pct: float = 0.5) -> LotPosition:
         """Build position lots for an instrument from its fill history.
         
         Uses FIFO accounting: fills are grouped chronologically by entry price.
@@ -77,10 +77,10 @@ class PositionLotBuilder:
         
         if not fills:
             logger.info(f"No fills found for {instrument}")
-            return Position(instrument=instrument)
+            return LotPosition(instrument=instrument)
         
         # Group fills by side and entry price to create lots (FIFO)
-        position = Position(instrument=instrument)
+        position = LotPosition(instrument=instrument)
         lots_dict: Dict[str, PositionLot] = {}  # key: (side, price) -> lot
         
         for fill in fills:
@@ -163,7 +163,7 @@ class PositionLotBuilder:
     def build_position_by_product(self,
                                   product_id: str,
                                   side: Optional[OrderSide] = None,
-                                  profit_target_pct: float = 0.5) -> Position:
+                                  profit_target_pct: float = 0.5) -> LotPosition:
         """Build position lots filtered by product ID and optional side.
         
         Args:
@@ -181,10 +181,10 @@ class PositionLotBuilder:
             # Infer instrument from product_id
             instrument = product_id
             logger.info(f"No fills found for {product_id}")
-            return Position(instrument=instrument)
+            return LotPosition(instrument=instrument)
         
         # Build position using the fill list
-        position = Position(instrument=fills[0].instrument if fills else product_id)
+        position = LotPosition(instrument=fills[0].instrument if fills else product_id)
         lots_dict: Dict[str, PositionLot] = {}
         
         for fill in fills:
@@ -204,7 +204,7 @@ class PositionLotBuilder:
         return position
     
     def get_profitable_exit_strategy(self,
-                                    position: Position,
+                                    position: LotPosition,
                                     market_price: float) -> Dict:
         """Analyze position and return profitable exit strategy.
         
