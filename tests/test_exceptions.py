@@ -21,7 +21,6 @@ from core.exceptions import (
     RevealOrderSliceError,
 )
 from business.stealth_condition_evaluator import PriceThresholdEvaluator, get_evaluator
-from business.order_processor import OrderProcessor
 from business.event_processor import EventProcessor
 from bridges.event_bridge import EventBridge
 
@@ -81,21 +80,6 @@ class TestRevealConditionEvaluationError:
 
 class TestOrderProcessingError:
     """Test OrderProcessingError raising and context."""
-
-    def test_raises_on_none_order(self):
-        """Test that build_order_context raises on None order."""
-        with pytest.raises(OrderProcessingError) as exc_info:
-            OrderProcessor.build_order_context(None)
-        
-        error_msg = str(exc_info.value).lower()
-        assert "none" in error_msg or "empty" in error_msg
-
-    def test_raises_on_non_dict_order(self):
-        """Test that build_order_context raises on non-dict order."""
-        with pytest.raises(OrderProcessingError) as exc_info:
-            OrderProcessor.build_order_context("not a dict")
-        
-        assert "dict" in str(exc_info.value).lower()
 
     def test_exception_preserves_client_order_id(self):
         """Test that exception preserves client_order_id when available."""

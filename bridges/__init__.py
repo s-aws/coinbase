@@ -24,7 +24,10 @@ Historical note (2026-05-04):
 
     All three were deleted. ``main.py`` now calls ``engine.run_forever()``
     directly. The underlying business classes (``OrderCalculator``,
-    ``OrderProcessor``) survive in ``business/`` for any future consumer.
+    ``OrderProcessor``) were also removed later the same day after the
+    audit confirmed they had zero production callers once the bridges
+    were gone. ``business.EventProcessor`` survives — it backs the
+    live ``EventBridge``.
 
     See ``integration/__init__.py`` for the parallel cleanup of
     duplicate bridges that lived in ``integration/`` for the same reason.
