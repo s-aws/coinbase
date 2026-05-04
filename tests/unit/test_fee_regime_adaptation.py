@@ -1,4 +1,4 @@
-"""Unit tests for adaptive fee and target-movement regime integration."""
+﻿"""Unit tests for adaptive fee and target-movement regime integration."""
 
 from unittest.mock import Mock
 
@@ -27,15 +27,15 @@ def _create_engine_for_unit_tests() -> OrderEngine:
     orderbook.profit = {"SPOT": {"BUY": 0.001, "SELL": 0.001}}
     orderbook.mandatory_fee_per_contract = {}
 
-    db_helper = Mock()
-    db_helper.DB_CLIENT = Mock()
+    db_module = Mock()
+    db_module.DB_CLIENT = Mock()
 
     subscription = Mock()
     subscription.channels = []
 
     return OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

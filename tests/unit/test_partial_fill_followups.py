@@ -1,4 +1,4 @@
-"""Unit tests for the OrderEngine WS-derived progress pipeline.
+﻿"""Unit tests for the OrderEngine WS-derived progress pipeline.
 
 Exercises the post-Step-4 architecture where ``OrderProgressTracker`` is the
 single source of truth for cumulative-counter watermarks and the engine
@@ -49,8 +49,8 @@ def _build_engine_for_partial_fill_tests() -> OrderEngine:
         "child_order_ids": orderbook.child_order_ids,
     }
 
-    db_helper = Mock()
-    db_helper.get_parent_order.return_value = {
+    db_module = Mock()
+    db_module.get_parent_order.return_value = {
         "target_movement": 0.001,
         "target_movement_type": "P",
         "allow_partial_fills": True,
@@ -61,7 +61,7 @@ def _build_engine_for_partial_fill_tests() -> OrderEngine:
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -93,13 +93,13 @@ def _link_child_to_opted_in_parent(
 
 
 # ---------------------------------------------------------------------------
-# _process_ws_order_delta — fill ledger path
+# _process_ws_order_delta â€” fill ledger path
 # ---------------------------------------------------------------------------
 
 
 def test_process_ws_order_delta_emits_one_fill_per_cumulative_advance():
     """Successive WS events with growing cumulative_quantity must produce one
-    derived fill per delta — never one row for the final cumulative total."""
+    derived fill per delta â€” never one row for the final cumulative total."""
     engine = _build_engine_for_partial_fill_tests()
     client_order_id = "parent-incremental-1"
     _link_child_to_opted_in_parent(
@@ -334,7 +334,7 @@ def test_create_partial_fill_follow_up_bypasses_replacement_cap():
     already-counted placement, so they bypass ``max_order_replacement``
     entirely. With cap=1 already exhausted by the original child,
     a 5-unit follow-up demand against 5 units of carry must produce
-    5 units of follow-up — bounded by the carry, not the cap.
+    5 units of follow-up â€” bounded by the carry, not the cap.
     """
     engine = _build_engine_for_partial_fill_tests()
 
@@ -372,7 +372,7 @@ def test_create_partial_fill_follow_up_bypasses_replacement_cap():
     stealth_manager.create_follow_up_stealth_order.return_value = "stealth-child-1"
 
     engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
-    engine.db_helper.get_parent_order.return_value = {
+    engine.db_module.get_parent_order.return_value = {
         "target_movement": 0.001,
         "target_movement_type": "P",
     }
@@ -653,5 +653,5 @@ def test_partial_fill_template_flips_side_for_opposite_exit():
 
     partial_template = engine.compute_partial_fill_order_template(client_order_id)
     assert partial_template["side"] == "SELL"
-    # Price moved up by profit target (BUY parent → SELL exit above entry).
+    # Price moved up by profit target (BUY parent â†’ SELL exit above entry).
     assert float(partial_template["start_price"]) > 100.0

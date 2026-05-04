@@ -1,4 +1,4 @@
-"""Regression: order_parent row must exist BEFORE _process_ws_order_delta.
+﻿"""Regression: order_parent row must exist BEFORE _process_ws_order_delta.
 
 Bug seen 2026-04-28 (production logs):
 
@@ -10,7 +10,7 @@ Bug seen 2026-04-28 (production logs):
         "order_parent".
 
 For an externally-placed order arriving on the WS user channel, the parent
-row was created LATE — only after the FILLED/CANCELLED routing inside
+row was created LATE â€” only after the FILLED/CANCELLED routing inside
 ``handle_filled_order`` / ``handle_cancelled_order``. The watermark write
 in ``_process_ws_order_delta`` ran first, hit the FK, and the order's
 fills (already in ``fill_ledger``) were left without a watermark row.
@@ -19,7 +19,7 @@ Contract pinned by this module:
 
   1. ``process_user_order`` must call ``_ensure_order_parent_row_exists``
      BEFORE ``_process_ws_order_delta``.
-  2. ``_ensure_order_parent_row_exists`` is idempotent — already-tracked
+  2. ``_ensure_order_parent_row_exists`` is idempotent â€” already-tracked
      orders see no extra DB inserts.
   3. ``_is_external_order`` continues to return True for orders that
      arrived from outside our engine, even after the hoisted insert tags
@@ -57,19 +57,19 @@ def _build_engine():
     orderbook.profit_target = orderbook.profit
     orderbook.get_position_side = Mock(return_value=None)
 
-    db_helper = Mock()
-    db_helper.insert_order_parent = Mock(return_value=1)
+    db_module = Mock()
+    db_module.insert_order_parent = Mock(return_value=1)
     # Crucially: get_parent_order returns None so the order is treated as
     # genuinely unknown (the bug condition).
-    db_helper.get_parent_order = Mock(return_value=None)
-    db_helper.update_order_parent_status = Mock(return_value=True)
+    db_module.get_parent_order = Mock(return_value=None)
+    db_module.update_order_parent_status = Mock(return_value=True)
 
     subscription = Mock()
     subscription.channels = ["user"]
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -137,7 +137,7 @@ def test_parent_row_is_created_before_ws_order_delta_processing():
     assert call_order.index("ensure_parent") < call_order.index("process_delta"), (
         f"ensure_parent must run before process_delta; got {call_order}"
     )
-    engine.db_helper.insert_order_parent.assert_called_once()
+    engine.db_module.insert_order_parent.assert_called_once()
 
 
 @pytest.mark.regression
@@ -167,8 +167,8 @@ def test_ensure_is_idempotent_for_already_tracked_orders():
         "filled_size": "0",
     })
 
-    engine.db_helper.insert_order_parent.assert_not_called()
-    engine.db_helper.get_parent_order.assert_not_called()
+    engine.db_module.insert_order_parent.assert_not_called()
+    engine.db_module.get_parent_order.assert_not_called()
 
 
 @pytest.mark.regression
@@ -178,7 +178,7 @@ def test_ensure_hydrates_from_db_without_inserting_when_row_exists():
     coid = "stealth-already-persisted"
 
     # Stealth order manager already inserted the row at creation time.
-    engine.db_helper.get_parent_order = Mock(return_value={
+    engine.db_module.get_parent_order = Mock(return_value={
         "id": 42,
         "client_order_id": coid,
         "target_movement": "0.002",
@@ -197,8 +197,8 @@ def test_ensure_hydrates_from_db_without_inserting_when_row_exists():
         "filled_size": "0",
     })
 
-    engine.db_helper.get_parent_order.assert_called_once_with(coid)
-    engine.db_helper.insert_order_parent.assert_not_called()
+    engine.db_module.get_parent_order.assert_called_once_with(coid)
+    engine.db_module.insert_order_parent.assert_not_called()
     assert coid in engine.orderbook.parent_order_ids
 
 

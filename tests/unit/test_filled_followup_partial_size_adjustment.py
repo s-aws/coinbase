@@ -1,4 +1,4 @@
-"""Unit tests for FILLED follow-up sizing when partial follow-ups already exist."""
+﻿"""Unit tests for FILLED follow-up sizing when partial follow-ups already exist."""
 
 from unittest.mock import Mock, patch
 
@@ -20,8 +20,8 @@ def _build_engine() -> OrderEngine:
     orderbook.mandatory_fee_per_contract = {}
     orderbook.get_position_side = Mock(return_value=None)
 
-    db_helper = Mock()
-    db_helper.get_parent_order.return_value = {
+    db_module = Mock()
+    db_module.get_parent_order.return_value = {
         "id": 1,
         "target_movement": 0.001,
         "target_movement_type": "P",
@@ -35,7 +35,7 @@ def _build_engine() -> OrderEngine:
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

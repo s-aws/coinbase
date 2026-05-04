@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test to verify that stealth orders preserve their target_movement when revealed and filled.
 
 This test validates the fix for the issue where stealth orders with target_movement=0.005
@@ -30,14 +30,14 @@ def test_stealth_revealed_order_preserves_target_movement():
     orderbook.default_max_order_replacement = 11
     orderbook.profit_target = {"FUTURE": {"BUY": 0.0012, "SELL": 0.0012}, "SPOT": {"BUY": 0.004, "SELL": 0.004}}
     
-    db_helper = Mock()
+    db_module = Mock()
     subscription = Mock()
     subscription.channels = []  # Mock subscription channels
     
     # Create OrderEngine
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -81,8 +81,8 @@ def test_stealth_revealed_order_preserves_target_movement():
         "status": "PENDING",
     }
     
-    db_helper.get_parent_order = Mock(return_value=parent_order_data)
-    db_helper.insert_order_parent = Mock(return_value=1)
+    db_module.get_parent_order = Mock(return_value=parent_order_data)
+    db_module.insert_order_parent = Mock(return_value=1)
     
     # Create the fill event
     fill_event = {
@@ -135,12 +135,12 @@ def test_stealth_revealed_order_preserves_target_movement():
         assert orderbook.parent_order_ids[revealed_order_id]["target_movement"]["type"] == "P"
         
         # Verify: Database insertion was called with correct target_movement
-        db_helper.insert_order_parent.assert_called_once()
-        call_kwargs = db_helper.insert_order_parent.call_args[1]
+        db_module.insert_order_parent.assert_called_once()
+        call_kwargs = db_module.insert_order_parent.call_args[1]
         assert call_kwargs["target_movement"] == 0.005
         assert call_kwargs["target_movement_type"] == "P"
         
-        print("✓ Test passed: Stealth order target_movement=0.005 was preserved correctly")
+        print("âœ“ Test passed: Stealth order target_movement=0.005 was preserved correctly")
 
 
 def test_process_user_order_backfills_stealth_exchange_order_id_before_hold_return():
@@ -153,13 +153,13 @@ def test_process_user_order_backfills_stealth_exchange_order_id_before_hold_retu
     orderbook.default_max_order_replacement = 11
     orderbook.profit_target = {"FUTURE": {"BUY": 0.0012, "SELL": 0.0012}, "SPOT": {"BUY": 0.004, "SELL": 0.004}}
 
-    db_helper = Mock()
+    db_module = Mock()
     subscription = Mock()
     subscription.channels = []
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -199,8 +199,8 @@ def test_seed_parent_order_cache_from_db_hydrates_existing_stealth_parent():
     orderbook.default_max_order_replacement = 11
     orderbook.profit_target = {"FUTURE": {"BUY": 0.0012, "SELL": 0.0012}, "SPOT": {"BUY": 0.004, "SELL": 0.004}}
 
-    db_helper = Mock()
-    db_helper.get_parent_order.return_value = {
+    db_module = Mock()
+    db_module.get_parent_order.return_value = {
         "id": 3,
         "client_order_id": "19b099e6-ea7d-4dbf-86a1-958d74bd4616",
         "target_movement": 0.002,
@@ -213,7 +213,7 @@ def test_seed_parent_order_cache_from_db_hydrates_existing_stealth_parent():
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test OrderEngine integration with lot tracking.
 This verifies that fill_repo is initialized and ready.
 """
@@ -22,11 +22,11 @@ def test_order_engine_with_lot_tracking():
     try:
         # Initialize database
         db = PostgresDB()
-        print("✓ Database connection established")
+        print("âœ“ Database connection established")
         
         # Initialize orderbook
         orderbook = OrderBook()
-        print("✓ Orderbook initialized")
+        print("âœ“ Orderbook initialized")
         
         # Mock API credentials
         api_key = "test_key"
@@ -39,7 +39,7 @@ def test_order_engine_with_lot_tracking():
         
         engine = OrderEngine(
             orderbook=orderbook,
-            db_helper=db,
+            db_module=db,
             subscription=subscription,
             api_key=api_key,
             api_secret=api_secret,
@@ -47,25 +47,25 @@ def test_order_engine_with_lot_tracking():
             websocket_thread_maximum=1,
             max_workers=2,
         )
-        print("✓ OrderEngine instantiated successfully")
+        print("âœ“ OrderEngine instantiated successfully")
         
         # Verify fill_repo is initialized
         if hasattr(engine, 'fill_repo'):
             if engine.fill_repo is not None:
-                print(f"✓ Fill repository initialized: {type(engine.fill_repo).__name__}")
+                print(f"âœ“ Fill repository initialized: {type(engine.fill_repo).__name__}")
                 print(f"  - FillLedgerRepository ready for recording fills")
             else:
-                print("⚠ Fill repository is None (lot tracking disabled)")
+                print("âš  Fill repository is None (lot tracking disabled)")
         else:
-            print("✗ OrderEngine missing fill_repo attribute")
+            print("âœ— OrderEngine missing fill_repo attribute")
             return False
         
         # Test that the fill recording hook is available
         from core.order_engine import LOT_TRACKING_AVAILABLE, post_fill_hook_on_order_filled
-        print(f"✓ Lot tracking module available: {LOT_TRACKING_AVAILABLE}")
+        print(f"âœ“ Lot tracking module available: {LOT_TRACKING_AVAILABLE}")
         
         print("\n" + "="*80)
-        print("✅ ORDERENGINE LOT TRACKING INTEGRATION TEST PASSED")
+        print("âœ… ORDERENGINE LOT TRACKING INTEGRATION TEST PASSED")
         print("="*80 + "\n")
         print("Next: When orders are filled in production, they will be recorded with:")
         print("  [LOT-TRACK] Fill appended to ledger: trade_id=..., instrument=..., ...")
@@ -74,7 +74,7 @@ def test_order_engine_with_lot_tracking():
         return True
         
     except Exception as e:
-        print(f"\n✗ ERROR: {type(e).__name__}: {e}")
+        print(f"\nâœ— ERROR: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
         return False

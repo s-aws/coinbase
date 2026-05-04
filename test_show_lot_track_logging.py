@@ -1,4 +1,4 @@
-"""
+﻿"""
 Production Integration Test - Show [LOT-TRACK] logging with INFO level.
 
 Demonstrates fills being recorded with visible [LOT-TRACK] logging.
@@ -41,7 +41,7 @@ def test_lot_track_logging():
         print("[SETUP] Initializing OrderEngine...\n")
         engine = OrderEngine(
             orderbook=orderbook,
-            db_helper=db,
+            db_module=db,
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",
@@ -155,7 +155,7 @@ def test_lot_track_logging():
         
         # Summary
         print("="*80)
-        print("✅ TEST COMPLETE - Check output above for [LOT-TRACK] logging entries")
+        print("âœ… TEST COMPLETE - Check output above for [LOT-TRACK] logging entries")
         print("="*80)
         print("\nFills recorded to fill_ledger:")
         if engine.fill_repo:
@@ -164,11 +164,11 @@ def test_lot_track_logging():
             for fill in fills[-3:]:  # Show last 3
                 print(f"  - {fill.side:4} {fill.quantity:5.1f} @ {fill.price:8.1f}")
         
-        print("\n✅ [LOT-TRACK] logging will appear in production logs with the same format")
+        print("\nâœ… [LOT-TRACK] logging will appear in production logs with the same format")
         print()
         
     except Exception as e:
-        print(f"\n✗ ERROR: {type(e).__name__}: {e}")
+        print(f"\nâœ— ERROR: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
     finally:

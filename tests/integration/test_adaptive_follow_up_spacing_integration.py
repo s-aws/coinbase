@@ -1,4 +1,4 @@
-"""Integration test for adaptive follow-up spacing through OrderEngine flow."""
+﻿"""Integration test for adaptive follow-up spacing through OrderEngine flow."""
 
 from unittest.mock import Mock
 
@@ -69,15 +69,15 @@ def _build_engine_with_mocked_orderbook() -> OrderEngine:
         "current_order_replacement": 0,
     }
 
-    db_helper = Mock()
-    db_helper.DB_CLIENT = Mock()
+    db_module = Mock()
+    db_module.DB_CLIENT = Mock()
 
     subscription = Mock()
     subscription.channels = []
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test the fixed fill recording with proper size resolution.
 
 Demonstrates that filled_size is now properly extracted from:
@@ -37,7 +37,7 @@ def test_fill_recording_with_proper_size_resolution():
         print("[SETUP] Initializing OrderEngine with lot tracking...\n")
         engine = OrderEngine(
             orderbook=orderbook,
-            db_helper=db,
+            db_module=db,
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",
@@ -70,7 +70,7 @@ def test_fill_recording_with_proper_size_resolution():
             "status": "FILLED",
             "price": 77100.0,
             "avg_price": 77100.0,
-            "cumulative_quantity": "5.0",  # ✓ Has filled amount
+            "cumulative_quantity": "5.0",  # âœ“ Has filled amount
             "total_fees": "0.0",
         }
         
@@ -122,7 +122,7 @@ def test_fill_recording_with_proper_size_resolution():
             "status": "FILLED",
             "price": 78100.0,
             "avg_price": 78100.0,
-            # ❌ No size field in this event
+            # âŒ No size field in this event
             "total_fees": "0.0",
         }
         
@@ -156,7 +156,7 @@ def test_fill_recording_with_proper_size_resolution():
             "status": "FILLED",
             "price": 77600.0,
             "avg_price": 77600.0,
-            # ❌ No size field
+            # âŒ No size field
             "total_fees": "0.0",
         }
         
@@ -179,7 +179,7 @@ def test_fill_recording_with_proper_size_resolution():
                 print(f"  - {fill.side} {fill.quantity} @ {fill.price}")
         
         print("\n" + "="*80)
-        print("✅ FILL RECORDING TEST PASSED")
+        print("âœ… FILL RECORDING TEST PASSED")
         print("="*80)
         print("\nFixed behavior:")
         print("1. Resolves filled_size from websocket cumulative_quantity")

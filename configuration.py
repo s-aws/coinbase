@@ -1,4 +1,4 @@
-"""Configuration module for Coinbase Advanced API trading.
+﻿"""Configuration module for Coinbase Advanced API trading.
 
 This module provides:
 - REST API client initialization with authentication
@@ -99,10 +99,10 @@ ORDER_DIRECTION = {
 
 # DERIVATIVES_PER_SIDE_FEE_* and DEFAULT_MAX_ORDER_REPLACEMENT
 # are imported above from ``core.constants`` (canonical source of truth).
-# Do NOT redefine them here — see 2026-04-30 audit.
+# Do NOT redefine them here â€” see 2026-04-30 audit.
 
 
-# ``safe_float`` returns ``None`` when callers explicitly pass ``default=None`` —
+# ``safe_float`` returns ``None`` when callers explicitly pass ``default=None`` â€”
 # this is exercised in the engine's market-data resolution paths (bid/ask may
 # be missing). Express both shapes as overloads so Pylance's strict mode sees
 # the precise return type at each call site instead of a polymorphic
@@ -648,7 +648,7 @@ def determine_open_close_sides(product_type: str, position_side: str = None, par
       * Fee applies only to closing portion
     
     CRITICAL: When account position reaches 0 contracts, the next order opens a new position.
-    Position resets when balance → 0, so the direction of that next order determines whether
+    Position resets when balance â†’ 0, so the direction of that next order determines whether
     it's opening LONG or SHORT.
     
     POSITION FLIP SCENARIO:
@@ -688,7 +688,7 @@ def determine_open_close_sides(product_type: str, position_side: str = None, par
         >>> determine_open_close_sides('FUTURE', position_side='SHORT')
         ('SELL', 'BUY')
         
-        >>> # Position flip: LONG 5 + SELL 10 → SHORT 5
+        >>> # Position flip: LONG 5 + SELL 10 â†’ SHORT 5
         >>> determine_open_close_sides('FUTURE', position_side='LONG', 
         ...                              parent_order_side='SELL', 
         ...                              position_size=5.0, order_size=10.0)
@@ -742,7 +742,7 @@ def detect_position_flip(position_side: str, position_size: float, order_side: s
             'new_position_size': float - Size after order
     
     Examples:
-        >>> # LONG 5 + SELL 10 → SHORT 5
+        >>> # LONG 5 + SELL 10 â†’ SHORT 5
         >>> detect_position_flip('LONG', 5.0, 'SELL', 10.0)
         {
             'will_flip': True,
@@ -855,7 +855,7 @@ class OrderBook():
         # ``calculate_new_order_move_from_snapshot`` as a price offset to
         # recover the **round-trip** mandatory commission on a single
         # contract. Coinbase's March 2026 schedule charges per side, so
-        # round-trip = 2 × per-side. We pre-divide by ``contract_size`` so
+        # round-trip = 2 Ã— per-side. We pre-divide by ``contract_size`` so
         # the consumer can add the value directly to a per-unit price.
         mandatory_fees = {
             product_id: {
@@ -896,7 +896,7 @@ class OrderBook():
         self.default_max_order_replacement = DEFAULT_MAX_ORDER_REPLACEMENT
 
     # ------------------------------------------------------------------
-    # Follow-up processing claim API — pass-through to v2 OrderBook
+    # Follow-up processing claim API â€” pass-through to v2 OrderBook
     # ------------------------------------------------------------------
 
     def try_claim_follow_up(self, kind, client_order_id):
@@ -1020,14 +1020,14 @@ class OrderBook():
             self._impl._should_replace = dict(value)
 
     @property
-    def db_helper(self):
-        return self._impl._db_helper
+    def db_module(self):
+        return self._impl._db_module
 
-    @db_helper.setter
-    def db_helper(self, value):
+    @db_module.setter
+    def db_module(self, value):
         # Used by ``core/order_engine.py`` line 338: the engine grafts its
-        # db_helper onto the orderbook at startup.  Preserved verbatim.
-        self._impl.set_db_helper(value)
+        # db_module onto the orderbook at startup.  Preserved verbatim.
+        self._impl.set_db_module(value)
 
     # ------------------------------------------------------------------
     # Legacy method surface \u2014 delegated to the v2 implementation

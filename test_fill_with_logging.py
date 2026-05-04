@@ -1,4 +1,4 @@
-"""
+﻿"""
 Simplified test showing the fixed fill recording with INFO logging.
 """
 
@@ -37,7 +37,7 @@ def test_fill_with_websocket_fields():
     try:
         engine = OrderEngine(
             orderbook=orderbook,
-            db_helper=db,
+            db_module=db,
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",
@@ -68,7 +68,7 @@ def test_fill_with_websocket_fields():
             "status": "FILLED",
             "price": 78100.0,
             "avg_price": 78100.0,
-            "cumulative_quantity": "5.0",  # ✓ Complete websocket event has this
+            "cumulative_quantity": "5.0",  # âœ“ Complete websocket event has this
             "total_fees": "100.0",
         }
         
