@@ -7,7 +7,7 @@
       "stealth_order_id": "31ec31d4-d4a7-4b87-ad08-c12b8a00a326",
       "product_id": "BIT-29MAY26-CDE",
       "side": "SELL",
-      "total_size": 5,
+      "total_size": 1,
       "limit_price": 80455,
       "reveal_condition": {
         "type": "price",
