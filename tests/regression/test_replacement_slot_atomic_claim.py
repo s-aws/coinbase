@@ -1,4 +1,4 @@
-"""Regression: replacement-cap atomic claim + partial-fill bypass.
+﻿"""Regression: replacement-cap atomic claim + partial-fill bypass.
 
 Two related contracts pinned here.
 
@@ -122,7 +122,7 @@ def test_register_child_order_consumes_pending_claim_no_double_count():
 @pytest.mark.regression
 def test_concurrent_claim_replacement_slots_never_exceeds_cap():
     """N threads racing to claim slots must collectively grant at
-    most ``max_order_replacement`` slots — never one per thread.
+    most ``max_order_replacement`` slots â€” never one per thread.
     Pre-fix: every thread saw ``current=0`` snapshot and passed the
     can_create check, breaching the cap."""
     engine = _build_engine_for_partial_fill_tests()
@@ -168,7 +168,7 @@ def test_partial_fill_follow_up_bypasses_replacement_cap():
     ``max_order_replacement = 1`` (already exhausted by the
     original child), N concurrent
     ``_create_partial_fill_follow_up`` calls must collectively
-    produce ``min(carry_units, follow_ups_due)`` follow-ups —
+    produce ``min(carry_units, follow_ups_due)`` follow-ups â€”
     NOT clamp at the replacement cap.
     """
     engine = _build_engine_for_partial_fill_tests()
@@ -182,7 +182,7 @@ def test_partial_fill_follow_up_bypasses_replacement_cap():
     engine.orderbook.parent_order_ids[parent_coid]["max_order_replacement"] = 1
     engine.orderbook.parent_order_ids[parent_coid]["current_order_replacement"] = 1
 
-    # 9 carry units available — the carry, not the cap, must gate.
+    # 9 carry units available â€” the carry, not the cap, must gate.
     engine.order_progress_tracker.hydrate([
         {
             "client_order_id": placed_coid,
@@ -227,7 +227,7 @@ def test_partial_fill_follow_up_bypasses_replacement_cap():
 
     stealth_manager.create_follow_up_stealth_order.side_effect = _create_fu
     engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
-    engine.db_helper.get_parent_order.return_value = {
+    engine.db_module.get_parent_order.return_value = {
         "target_movement": 0.001,
         "target_movement_type": "P",
     }
@@ -275,7 +275,7 @@ def test_partial_fill_follow_up_bypasses_replacement_cap():
         f"stranded-exposure regression)."
     )
     # At least one follow-up was created (could be any number from 1
-    # to 9 depending on thread interleaving — the atomic claim may
+    # to 9 depending on thread interleaving â€” the atomic claim may
     # let one thread grab everything or N threads grab partial slices).
     assert len(follow_up_ids) >= 1
 

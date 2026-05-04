@@ -1,12 +1,12 @@
-"""Regression tests for cross-source reconciliation (Phase 3).
+﻿"""Regression tests for cross-source reconciliation (Phase 3).
 
 Covers:
 
-* :func:`core.startup_reconciler.audit_missed_fills` — paginates the REST
+* :func:`core.startup_reconciler.audit_missed_fills` â€” paginates the REST
   fills endpoint, diffs against local ledger, and never mutates state.
-* :class:`core.periodic_reconciler.PeriodicReconciler` — start/stop
+* :class:`core.periodic_reconciler.PeriodicReconciler` â€” start/stop
   lifecycle, cooperative shutdown, runs the audit on cadence.
-* :meth:`core.order_engine.OrderEngine.snapshot_drift_check` — detects
+* :meth:`core.order_engine.OrderEngine.snapshot_drift_check` â€” detects
   WS-only and in-memory-only drift cases without mutating state.
 """
 
@@ -202,7 +202,7 @@ class TestAuditMissedFills:
         summary, not one WARNING per fill.
 
         This subsumes the old fresh-DB special case: a fresh DB has
-        zero mappings → all fills are unowned → silent INFO.
+        zero mappings â†’ all fills are unowned â†’ silent INFO.
         """
         rest = _FakeRestClient(
             [
@@ -239,7 +239,7 @@ class TestAuditMissedFills:
         self, patch_rest_and_ledger, caplog
     ):
         """The inverse case: when a missing REST fill IS for an order we
-        own, the WARNING loop must still fire — that's a real WS gap."""
+        own, the WARNING loop must still fire â€” that's a real WS gap."""
         rest = _FakeRestClient(
             [
                 {
@@ -378,7 +378,7 @@ class _FakeEngine:
     """Minimal stand-in carrying just what snapshot_drift_check uses.
 
     Entries default to status=OPEN because the drift check filters its
-    in-memory side to only "venue-open" statuses (OPEN / UPDATE) — empty
+    in-memory side to only "venue-open" statuses (OPEN / UPDATE) â€” empty
     dicts would be invisible to the comparison and break the legacy
     test cases that just want "this id is in memory".
     """
@@ -536,7 +536,7 @@ class TestSnapshotDriftCheck:
     def test_repeated_drift_call_dedups_emission(self):
         """Each WS user-event worker thread independently calls
         snapshot_drift_check with the same WS SNAPSHOT frame. Without
-        dedup, ~6 worker threads produce 6× duplicated WARNING blocks
+        dedup, ~6 worker threads produce 6Ã— duplicated WARNING blocks
         per snapshot. The first call emits; subsequent calls with an
         identical drift signature must be silent until the signature
         changes.
@@ -548,7 +548,7 @@ class TestSnapshotDriftCheck:
         from core.order_engine import OrderEngine
 
         engine = _FakeEngine({"a", "b"})
-        # First call: drift → emit.
+        # First call: drift â†’ emit.
         OrderEngine.snapshot_drift_check(engine, {"a"}, source="test")
         first_emits = [p["event"] for _, p in engine.log_calls]
         assert first_emits.count("snapshot_drift_detected") == 1
@@ -574,11 +574,133 @@ class TestSnapshotDriftCheck:
             "duplicate clean report must be suppressed"
         )
 
-        # Fifth: drift returns with same signature as first → emits again
-        # (the source transitioned clean → drifted).
+        # Fifth: drift returns with same signature as first â†’ emits again
+        # (the source transitioned clean â†’ drifted).
         OrderEngine.snapshot_drift_check(engine, {"a"}, source="test")
         fifth_emits = [p["event"] for _, p in engine.log_calls]
         assert fifth_emits.count("snapshot_drift_detected") == 2
+
+
+# ---------------------------------------------------------------------------
+# OrderEngine._hydrate_orderbook_from_ws_snapshot
+#
+# Regression for cold-start drift noise: every engine boot logged
+# `snapshot_drift_detected` with `ws_only_count == <open orders at venue>`
+# because the in-memory orderbook started empty and the SNAPSHOT body was
+# discarded. Hydrating from the snapshot eliminates the false positive
+# while preserving the real signal during reconnect drift.
+# ---------------------------------------------------------------------------
+
+
+class TestHydrateOrderbookFromWsSnapshot:
+    @pytest.mark.regression
+    def test_inserts_missing_orders_from_snapshot(self):
+        from core.order_engine import OrderEngine
+
+        engine = _FakeEngine(set())
+        OrderEngine._hydrate_orderbook_from_ws_snapshot(
+            engine,
+            [
+                {
+                    "client_order_id": "venue-1",
+                    "status": "OPEN",
+                    "product_id": "BTC-USDC",
+                    "cumulative_quantity": "0",
+                    "leaves_quantity": "1",
+                },
+                {
+                    "client_order_id": "venue-2",
+                    "status": "UPDATE",
+                    "product_id": "BIP-20DEC30-CDE",
+                },
+            ],
+        )
+        assert "venue-1" in engine.orderbook.order
+        assert engine.orderbook.order["venue-1"]["status"] == "OPEN"
+        assert engine.orderbook.order["venue-1"]["product_id"] == "BTC-USDC"
+        assert "venue-2" in engine.orderbook.order
+        events = [p["event"] for _, p in engine.log_calls]
+        assert "orderbook_hydrated_from_ws_snapshot" in events
+
+    @pytest.mark.regression
+    def test_no_op_when_status_matches(self):
+        from core.order_engine import OrderEngine
+
+        engine = _FakeEngine(
+            {"a": {"status": "OPEN", "product_id": "BTC-USDC", "internal_flag": True}}
+        )
+        OrderEngine._hydrate_orderbook_from_ws_snapshot(
+            engine,
+            [{"client_order_id": "a", "status": "OPEN", "product_id": "BTC-USDC"}],
+        )
+        # Existing record preserved (including non-snapshot fields).
+        assert engine.orderbook.order["a"]["internal_flag"] is True
+        events = [p["event"] for _, p in engine.log_calls]
+        # No insert and no overwrite means no summary log either.
+        assert "orderbook_hydrated_from_ws_snapshot" not in events
+        assert "snapshot_overrode_in_memory_status" not in events
+
+    @pytest.mark.regression
+    def test_overwrites_when_status_differs_and_logs(self):
+        from core.order_engine import OrderEngine
+
+        engine = _FakeEngine(
+            {"a": {"status": "OPEN", "product_id": "BTC-USDC", "internal_flag": True}}
+        )
+        OrderEngine._hydrate_orderbook_from_ws_snapshot(
+            engine,
+            [{"client_order_id": "a", "status": "FILLED", "product_id": "BTC-USDC"}],
+        )
+        assert engine.orderbook.order["a"]["status"] == "FILLED"
+        # Non-snapshot fields are preserved through the merge.
+        assert engine.orderbook.order["a"]["internal_flag"] is True
+        events = [p["event"] for _, p in engine.log_calls]
+        assert "snapshot_overrode_in_memory_status" in events
+
+    @pytest.mark.regression
+    def test_skips_orders_without_client_order_id(self):
+        from core.order_engine import OrderEngine
+
+        engine = _FakeEngine(set())
+        OrderEngine._hydrate_orderbook_from_ws_snapshot(
+            engine,
+            [{"status": "OPEN"}, {"client_order_id": None, "status": "OPEN"}],
+        )
+        assert engine.orderbook.order == {}
+
+    @pytest.mark.regression
+    def test_empty_snapshot_is_noop(self):
+        from core.order_engine import OrderEngine
+
+        engine = _FakeEngine({"a"})
+        OrderEngine._hydrate_orderbook_from_ws_snapshot(engine, [])
+        assert "a" in engine.orderbook.order
+        assert engine.log_calls == []
+
+    @pytest.mark.regression
+    def test_drift_check_runs_against_pre_hydration_state(self):
+        """SNAPSHOT branch must call drift_check BEFORE hydrating;
+        otherwise drift would always be zero and we'd lose the
+        signal that the engine missed deltas during a disconnect.
+        """
+        from core.order_engine import OrderEngine
+
+        engine = _FakeEngine(set())
+        # Simulate the SNAPSHOT branch ordering directly.
+        snapshot = [
+            {"client_order_id": "venue-1", "status": "OPEN"},
+            {"client_order_id": "venue-2", "status": "OPEN"},
+        ]
+        ws_ids = {o["client_order_id"] for o in snapshot}
+        OrderEngine.snapshot_drift_check(engine, ws_ids, source="ws_user_snapshot")
+        OrderEngine._hydrate_orderbook_from_ws_snapshot(engine, snapshot)
+
+        events = [p["event"] for _, p in engine.log_calls]
+        # Drift fires (memory was empty pre-hydration).
+        assert "snapshot_drift_detected" in events
+        # Hydration backfilled.
+        assert "venue-1" in engine.orderbook.order
+        assert "venue-2" in engine.orderbook.order
 
 
 # ---------------------------------------------------------------------------
@@ -610,7 +732,7 @@ class TestTerminalStatusEvictsOrderbookEntry:
             call_post_order_status=lambda *a, **k: None,
         )
         engine.stealth_order_bridge = None
-        engine.db_helper = SimpleNamespace(
+        engine.db_module = SimpleNamespace(
             update_order_parent_status=lambda **kw: None,
             get_parent_order=lambda *_a, **_k: None,
         )

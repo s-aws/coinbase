@@ -1,4 +1,4 @@
-"""
+﻿"""
 Production Integration - Show all [LOT-TRACK] logging in complete flow.
 """
 
@@ -39,7 +39,7 @@ def test_complete_integration_logging():
         print("[SETUP] Initializing OrderEngine with lot tracking...\n")
         engine = OrderEngine(
             orderbook=orderbook,
-            db_helper=db,
+            db_module=db,
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",

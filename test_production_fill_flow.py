@@ -1,4 +1,4 @@
-"""
+﻿"""
 Production Integration Test - Demonstrate LOT-TRACK logging in action.
 
 This test simulates:
@@ -28,7 +28,7 @@ class MockSubscription:
 
 
 def test_production_fill_flow():
-    """Test the complete production flow: order placed → filled → [LOT-TRACK] logged."""
+    """Test the complete production flow: order placed â†’ filled â†’ [LOT-TRACK] logged."""
     print("\n" + "="*80)
     print("PRODUCTION INTEGRATION - ORDERENGINE FILL FLOW WITH LOT-TRACK LOGGING")
     print("="*80 + "\n")
@@ -41,7 +41,7 @@ def test_production_fill_flow():
         print("[SETUP] Initializing OrderEngine with lot tracking...")
         engine = OrderEngine(
             orderbook=orderbook,
-            db_helper=db,
+            db_module=db,
             subscription=MockSubscription(),
             api_key="test_key",
             api_secret="test_secret",
@@ -49,7 +49,7 @@ def test_production_fill_flow():
             websocket_thread_maximum=1,
             max_workers=2,
         )
-        print("✓ OrderEngine ready with fill_repo\n")
+        print("âœ“ OrderEngine ready with fill_repo\n")
         
         # Create a parent order (simulating dashboard order placement)
         print("[SCENARIO 1] Creating parent order (BUY 1 BTC @ $40,000)...")
@@ -63,7 +63,7 @@ def test_production_fill_flow():
             target_movement=0.005,
             target_movement_type="P"
         )
-        print(f"✓ Parent order created: {parent_order_id}\n")
+        print(f"âœ“ Parent order created: {parent_order_id}\n")
         
         # Simulate the order being filled (as if it came from Coinbase websocket)
         print("[SCENARIO 2] Simulating order fill (ORDER FILLS at market)...")
@@ -97,19 +97,19 @@ def test_production_fill_flow():
             logger.info(f"Note: Follow-up processing had expected exception: {type(e).__name__}")
         print("-" * 60)
         
-        print("\n✅ FILL RECORDED - Check output above for [LOT-TRACK] logging\n")
+        print("\nâœ… FILL RECORDED - Check output above for [LOT-TRACK] logging\n")
         
         # Verify fill was recorded by querying the fill ledger
         print("[VERIFICATION] Checking fill ledger...")
         if engine.fill_repo:
             fills = engine.fill_repo.get_fills_by_instrument("BTC-USDC")
-            print(f"✓ Fill ledger contains {len(fills)} fill(s) for BTC-USDC")
+            print(f"âœ“ Fill ledger contains {len(fills)} fill(s) for BTC-USDC")
             if fills:
                 latest_fill = fills[-1]
                 print(f"  - Latest fill: {latest_fill.side} {latest_fill.quantity} @ {latest_fill.price}")
         
         print("\n" + "="*80)
-        print("✅ PRODUCTION INTEGRATION TEST COMPLETE")
+        print("âœ… PRODUCTION INTEGRATION TEST COMPLETE")
         print("="*80)
         print("\nKey Points:")
         print("1. OrderEngine now has fill_repo initialized")
@@ -120,7 +120,7 @@ def test_production_fill_flow():
         print()
         
     except Exception as e:
-        print(f"\n✗ ERROR: {type(e).__name__}: {e}")
+        print(f"\nâœ— ERROR: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
     finally:

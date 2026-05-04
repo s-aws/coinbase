@@ -15,7 +15,7 @@ from the fill ledger, enabling reconstruction at any historical point.
 
 Example:
     >>> from datetime import datetime
-    >>> from business.position_lot import PositionLot, Position
+    >>> from business.position_lot import PositionLot, LotPosition
     >>> from core.enums import OrderSide
     >>>
     >>> lot = PositionLot(
@@ -28,7 +28,7 @@ Example:
     ...     fees=2.0,
     ...     target_profit_percentage=0.5,
     ... )
-    >>> position = Position(instrument='BTC-USDC', lots=[lot])
+    >>> position = LotPosition(instrument='BTC-USDC', lots=[lot])
     >>> position.total_quantity
     0.5
 """
@@ -190,59 +190,65 @@ class PositionLot:
 
 
 @dataclass
-class Position:
+class LotPosition:
     """Aggregate position across all lots for an instrument.
-    
+
+    Distinct from ``core.models.Position`` (the API-response dataclass for
+    futures contracts). This class represents the internal lot-tracking
+    aggregate — a collection of ``PositionLot`` entries with FIFO
+    accounting helpers. Renamed from ``Position`` on 2026-05-04 to remove
+    the same-name collision that made stack traces and imports ambiguous.
+
     Attributes:
         instrument: Trading pair
         total_quantity: Sum of all lots
         lots: List of PositionLot objects
         average_entry_price: FIFO-weighted entry price
     """
-    
+
     instrument: str
     lots: List[PositionLot] = field(default_factory=list)
-    
+
     @property
     def total_quantity(self) -> float:
         """Total quantity across all lots."""
         return sum(lot.quantity for lot in self.lots)
-    
+
     @property
     def remaining_quantity(self) -> float:
         """Remaining unexited quantity."""
         return sum(lot.remaining_quantity for lot in self.lots)
-    
+
     @property
     def average_entry_price(self) -> float:
         """FIFO-weighted average entry price."""
         total_value = sum(lot.entry_value for lot in self.lots)
         total_qty = self.total_quantity
         return total_value / total_qty if total_qty > 0 else 0.0
-    
+
     @property
     def total_fees(self) -> float:
         """Total fees across all lots."""
         return sum(lot.fees for lot in self.lots)
-    
+
     def add_lot(self, lot: PositionLot) -> None:
         """Add a new lot to the position."""
         self.lots.append(lot)
         logger.info(f"Position {self.instrument}: Added lot {lot.lot_id} "
                    f"({lot.quantity} @ {lot.entry_price})")
-    
+
     def get_profitable_lots_at_price(self, market_price: float) -> List[PositionLot]:
         """Get all lots that can exit profitably at market price.
-        
+
         Args:
             market_price: Current market price
-        
+
         Returns:
             List of lots that satisfy profit threshold
         """
-        return [lot for lot in self.lots 
+        return [lot for lot in self.lots
                 if lot.remaining_quantity > 0 and lot.can_exit_profitably_at(market_price)]
-    
+
     def get_unexited_lots(self) -> List[PositionLot]:
         """Get all lots with remaining quantity."""
         return [lot for lot in self.lots if lot.remaining_quantity > 0]

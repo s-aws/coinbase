@@ -1,4 +1,4 @@
-"""Order event stream publisher and hook registration.
+﻿"""Order event stream publisher and hook registration.
 
 Provides a thin integration layer that writes normalized lifecycle events
 through existing extension hooks (fill, websocket status, order submission,
@@ -30,8 +30,8 @@ logger = get_logger("OrderEventStream")
 class OrderEventStreamPublisher:
     """Append-only event stream publisher for reconstructive timelines."""
 
-    def __init__(self, db_helper) -> None:
-        self.db_helper = db_helper
+    def __init__(self, db_module) -> None:
+        self.db_module = db_module
         self.enabled = False
         self._fee_info_provider = None
         self._initialize_table()
@@ -72,11 +72,11 @@ class OrderEventStreamPublisher:
 
     def _initialize_table(self) -> None:
         try:
-            self.db_helper.create_order_event_stream_table()
-            self.db_helper.create_stealth_order_lifecycle_history_table()
-            self.db_helper.create_stealth_order_reveal_history_table()
-            self.db_helper.create_stealth_order_snapshots_table()
-            self.db_helper.create_partial_fill_progress_table()
+            self.db_module.create_order_event_stream_table()
+            self.db_module.create_stealth_order_lifecycle_history_table()
+            self.db_module.create_stealth_order_reveal_history_table()
+            self.db_module.create_stealth_order_snapshots_table()
+            self.db_module.create_partial_fill_progress_table()
             self.enabled = True
             logger.info("order_event_stream integration enabled")
         except Exception as exc:
@@ -111,7 +111,7 @@ class OrderEventStreamPublisher:
             if fee_manager_audit is not None:
                 raw_payload["fee_manager_audit"] = fee_manager_audit
 
-            inserted_id = self.db_helper.insert_order_event(
+            inserted_id = self.db_module.insert_order_event(
                 event_id=event_id,
                 event_type=event_type,
                 source_channel=source_channel,

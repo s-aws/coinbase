@@ -1,11 +1,10 @@
-"""Main entry point for Coinbase Advanced API trading engine.
+﻿"""Main entry point for Coinbase Advanced API trading engine.
 
 This module provides the entry point for launching the multithreaded trading engine
 that manages real-time order processing with Coinbase.
 
 Architecture:
     - OrderEngine: Main engine class (imported from core.order_engine)
-    - OrderEngineOrchestrator: Facade/Orchestrator pattern (imported from bridges)
     - Background Threads:
         * websocket_threads: Maintain connections to Coinbase (configurable count)
         * event_workers: Process events from specific channels (ticker, user, heartbeats)
@@ -18,20 +17,18 @@ Architecture:
 
 Example:
     >>> from core.order_engine import OrderEngine
-    >>> from bridges.engine_orchestrator import OrderEngineOrchestrator
     >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
-    >>> import database.order as DB_HELPER
+    >>> import database.order as DB_MODULE
     >>> 
     >>> engine = OrderEngine(
     ...     orderbook=ORDERBOOK,
-    ...     db_helper=DB_HELPER,
+    ...     db_module=DB_MODULE,
     ...     subscription=Subscription,
     ...     api_key=API_KEY,
     ...     api_secret=API_SECRET,
     ...     order_post_only=ORDER_POST_ONLY
     ... )
-    >>> orchestrator = OrderEngineOrchestrator(engine)
-    >>> orchestrator.run_forever()  # Blocks indefinitely, runs all background threads
+    >>> engine.run_forever()  # Blocks indefinitely, runs all background threads
 """
 
 import logging
@@ -55,12 +52,11 @@ from configuration import (
     ORDER_POST_ONLY,
 )
 
-import database.order as DB_HELPER
+import database.order as DB_MODULE
 from core.order_engine import OrderEngine
 from core.periodic_reconciler import PeriodicReconciler
 from core.runtime_controller import get_runtime_controller
 from core.startup_reconciler import run_startup_reconciliation
-from bridges.engine_orchestrator import OrderEngineOrchestrator
 from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
 
 # Set up custom logging backend to use dashboard's add_log_entry function
@@ -75,7 +71,7 @@ if __name__ == "__main__":
         from bridges.stealth_order_bridge import StealthOrderBridge
         from core.stealth_order_manager import StealthOrderManager
         
-        stealth_manager = StealthOrderManager(DB_HELPER.DB_CLIENT)
+        stealth_manager = StealthOrderManager(DB_MODULE.DB_CLIENT)
         stealth_bridge = StealthOrderBridge(stealth_manager, None)  # engine will be set later
     except Exception as e:
         import traceback
@@ -83,7 +79,7 @@ if __name__ == "__main__":
     
     engine = OrderEngine(
         orderbook=ORDERBOOK,
-        db_helper=DB_HELPER,
+        db_module=DB_MODULE,
         subscription=Subscription,
         api_key=API_KEY,
         api_secret=API_SECRET,
@@ -99,8 +95,6 @@ if __name__ == "__main__":
             stealth_bridge.stealth_manager.profit_validator = engine.profit_validator
             logger.info("StealthOrderManager wired with OrderEngine profit_validator")
 
-    orchestrator = OrderEngineOrchestrator(engine)
-    
     # Start dashboard server
     import sys
     start_dashboard_server()
@@ -127,7 +121,7 @@ if __name__ == "__main__":
         )
 
     # Register the OrderEngine stop hook AFTER the stealth bridge so producers
-    # (reveal loop) wind down before consumers (event workers) — matches the
+    # (reveal loop) wind down before consumers (event workers) â€” matches the
     # industry-standard "stop producers first, then consumers" drain order.
     controller.register_stop_hook("order_engine", engine.stop)
 
@@ -164,12 +158,12 @@ if __name__ == "__main__":
     # auto_heal=True: marks the safe drift bucket
     # (closed-on-exchange / open-locally) as RECONCILED_CLOSED so they
     # stop being treated as live. Risky buckets (unknown to local /
-    # terminal locally but open on exchange) are NEVER auto-healed —
+    # terminal locally but open on exchange) are NEVER auto-healed â€”
     # those are logged for operator review only.
     #
     # audit_fills=True: cross-checks REST historical fills against the
     # local fill_ledger to surface any fills the WS pipeline missed.
-    # Read-only — operators decide whether to backfill.
+    # Read-only â€” operators decide whether to backfill.
     #
     # Set fail_on_drift=True in stricter environments to block startup
     # when ANY drift is detected.
@@ -208,4 +202,4 @@ if __name__ == "__main__":
         controller.register_stop_hook("periodic_reconciler", periodic_reconciler.stop)
         periodic_reconciler.start()
 
-    orchestrator.run_forever()
+    engine.run_forever()

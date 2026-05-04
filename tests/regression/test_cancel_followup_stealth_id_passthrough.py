@@ -1,4 +1,4 @@
-"""Regression: 2026-05-04 phantom-child / stranded-exposure incident.
+﻿"""Regression: 2026-05-04 phantom-child / stranded-exposure incident.
 
 Background
 ==========
@@ -88,7 +88,7 @@ def test_register_child_order_rejects_none_child_without_burning_slot():
 
     parent = engine.orderbook.parent_order_ids[parent_id]
     assert parent["current_order_replacement"] == 0, (
-        "register_child_order(None, ...) burned a replacement slot — "
+        "register_child_order(None, ...) burned a replacement slot â€” "
         "the 2026-05-04 phantom-child bug regressed."
     )
     assert parent["orders"] == [], (
@@ -99,7 +99,7 @@ def test_register_child_order_rejects_none_child_without_burning_slot():
 
 
 # ---------------------------------------------------------------------------
-# Layer 1+2: handle_cancelled_order — stealth_id pass-through + None guard
+# Layer 1+2: handle_cancelled_order â€” stealth_id pass-through + None guard
 # ---------------------------------------------------------------------------
 
 
@@ -120,7 +120,7 @@ def _wire_cancel_path(
         "orders": [placement_uuid],
         "target_movement": {"movement": 0.001, "type": "P"},
         "max_order_replacement": 1,
-        # Cap already consumed by the original placement — exact prod scenario.
+        # Cap already consumed by the original placement â€” exact prod scenario.
         "current_order_replacement": 1,
         "externally_created": False,
     }
@@ -155,7 +155,7 @@ def _wire_cancel_path(
     engine.register_child_order = Mock()
 
     # DB lookups used in the branch.
-    engine.db_helper.get_parent_order = Mock(return_value=parent_db_row)
+    engine.db_module.get_parent_order = Mock(return_value=parent_db_row)
 
     return stealth_manager, stealth_record
 

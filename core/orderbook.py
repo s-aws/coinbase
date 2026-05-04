@@ -1,4 +1,4 @@
-"""Instance-scoped, thread-safe order book.
+﻿"""Instance-scoped, thread-safe order book.
 
 This is the v2 replacement for ``configuration.OrderBook``.  See
 ``genai_tools/ORDERBOOK_TARGET_API.md`` for the design spec and the rationale
@@ -18,7 +18,7 @@ Every mutating method takes ``self._lock`` (an :class:`threading.RLock`).  The
 lock is exposed as :attr:`lock` so callers that compose multi-step atomic
 operations (e.g. ``OrderEngine``) can hold it across several method calls.
 Read methods that return collections return either deepcopy snapshots or
-``MappingProxyType`` views — never the live underlying dict — so iterating a
+``MappingProxyType`` views â€” never the live underlying dict â€” so iterating a
 returned object is always safe even if another thread mutates the orderbook
 concurrently.
 
@@ -45,13 +45,13 @@ from __future__ import annotations
 import threading
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
-from types import MappingProxyType
+from types import MappingProxyType, ModuleType
 from typing import TYPE_CHECKING, Any, Iterator, Mapping
 
 from core.enums import OrderStatus
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only
-    from data.db_helper import DBHelper
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -132,10 +132,10 @@ class ClaimLedger:
     Reusable kernel of the follow-up processing claim mechanism. Each
     ``(kind, key)`` slot is in one of three states:
 
-    - **absent**  — ``try_claim`` will succeed.
-    - **processing** — owned by some thread; further claims fail until
+    - **absent**  â€” ``try_claim`` will succeed.
+    - **processing** â€” owned by some thread; further claims fail until
       :meth:`release` (failure path) or :meth:`complete` (terminal).
-    - **done** — terminal; further claims fail forever.
+    - **done** â€” terminal; further claims fail forever.
 
     The ``kind`` argument to every method is validated at the boundary
     against a caller-supplied :class:`enum.Enum` subclass, so a typo on
@@ -210,7 +210,7 @@ class ClaimLedger:
         """Release a ``processing`` claim so it may be retried.
 
         No-op if the entry is absent or in any state other than
-        ``processing`` — completed claims must stay completed.
+        ``processing`` â€” completed claims must stay completed.
         """
 
         kind_key = self._coerce_kind(kind)
@@ -230,7 +230,7 @@ class ClaimLedger:
             ledger[key] = "done"
 
     def state(self, kind, key: str):
-        """Inspect current state — ``None``, ``"processing"`` or ``"done"``."""
+        """Inspect current state â€” ``None``, ``"processing"`` or ``"done"``."""
 
         kind_key = self._coerce_kind(kind)
         with self._lock:
@@ -272,13 +272,13 @@ class OrderBook:
         mandatory_fee_per_contract: Mapping[str, dict] | None = None,
         should_replace: Mapping[str, bool] | None = None,
         positions: Mapping[str, Mapping[str, dict]] | None = None,
-        db_helper: "DBHelper | None" = None,
+        db_module: "ModuleType | None" = None,
         read_only: bool = False,
     ) -> None:
         self._lock = threading.RLock()
         self._read_only = bool(read_only)
 
-        # Static reference data — deep-copied so external mutation of the
+        # Static reference data â€” deep-copied so external mutation of the
         # source dict cannot leak into the orderbook (and vice versa).
         self._products: dict[str, dict] = deepcopy(dict(products or {}))
         self._profit: dict[str, dict] = deepcopy(dict(profit or {}))
@@ -288,9 +288,9 @@ class OrderBook:
         self._should_replace: dict[str, bool] = dict(
             should_replace or {"FILLED": True, "CANCELLED": True}
         )
-        self._db_helper = db_helper
+        self._db_module = db_module
 
-        # Mutable runtime state — instance-scoped (NOT class-level).
+        # Mutable runtime state â€” instance-scoped (NOT class-level).
         self._orders: dict[str, dict] = {}
         self._parents: dict[str, dict] = {}
         self._child_to_parent: dict[str, str] = {}
@@ -322,7 +322,7 @@ class OrderBook:
         """The re-entrant lock guarding all mutable state.
 
         Callers composing multi-step atomic operations should ``with ob.lock:``
-        and then call methods normally — the methods will re-enter the lock
+        and then call methods normally â€” the methods will re-enter the lock
         cheaply.
         """
 
@@ -375,7 +375,7 @@ class OrderBook:
             return client_order_id in self._orders
 
     def order_keys(self) -> list[str]:
-        """Snapshot of current order ids — safe to iterate without the lock."""
+        """Snapshot of current order ids â€” safe to iterate without the lock."""
 
         with self._lock:
             return list(self._orders.keys())
@@ -433,7 +433,7 @@ class OrderBook:
         """Release a ``processing`` claim so it may be retried.
 
         No-op if the entry is absent or in any state other than
-        ``processing`` — completed claims must stay completed.
+        ``processing`` â€” completed claims must stay completed.
         """
 
         self._follow_up_ledger.release(kind, client_order_id)
@@ -448,7 +448,7 @@ class OrderBook:
     def follow_up_claim_state(
         self, kind: "str | FollowUpKind", client_order_id: str
     ) -> "str | None":
-        """Inspect the current claim state — returns ``None``, ``"processing"`` or ``"done"``."""
+        """Inspect the current claim state â€” returns ``None``, ``"processing"`` or ``"done"``."""
 
         return self._follow_up_ledger.state(kind, client_order_id)
 
@@ -506,7 +506,7 @@ class OrderBook:
         parent's ``current_order_replacement`` counter.
 
         The parent entry is created with default fields if it does not yet
-        exist — matches the legacy ``setdefault``-style behaviour at
+        exist â€” matches the legacy ``setdefault``-style behaviour at
         ``core/order_engine.py:1552``.
         """
 
@@ -535,7 +535,7 @@ class OrderBook:
             return deepcopy(self._parents)
 
     def children_snapshot(self) -> dict[str, str]:
-        """Deepcopy snapshot of the child→parent map."""
+        """Deepcopy snapshot of the childâ†’parent map."""
 
         with self._lock:
             return dict(self._child_to_parent)
@@ -674,8 +674,8 @@ class OrderBook:
         return MappingProxyType(self._should_replace)
 
     @property
-    def db_helper(self) -> "DBHelper | None":
-        return self._db_helper
+    def db_module(self) -> "ModuleType | None":
+        return self._db_module
 
     def set_products(self, products: Mapping[str, dict]) -> None:
         self._check_writable("set_products")
@@ -699,13 +699,13 @@ class OrderBook:
         with self._lock:
             self._should_replace = dict(mapping)
 
-    def set_db_helper(self, db_helper: "DBHelper | None") -> None:
-        self._check_writable("set_db_helper")
+    def set_db_module(self, db_module: "ModuleType | None") -> None:
+        self._check_writable("set_db_module")
         with self._lock:
-            self._db_helper = db_helper
+            self._db_module = db_module
 
     # ------------------------------------------------------------------
-    # Diagnostic snapshot — replaces the ad-hoc deepcopy block in OrderEngine
+    # Diagnostic snapshot â€” replaces the ad-hoc deepcopy block in OrderEngine
     # ------------------------------------------------------------------
 
     def diagnostic_snapshot(self) -> dict[str, Any]:

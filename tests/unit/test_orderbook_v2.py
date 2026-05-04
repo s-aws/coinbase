@@ -1,8 +1,8 @@
-"""Unit tests for the v2 :mod:`core.orderbook` module.
+﻿"""Unit tests for the v2 :mod:`core.orderbook` module.
 
 These tests exercise the new instance-scoped, thread-safe ``OrderBook`` class
 in isolation.  They are intentionally independent of the legacy
-``configuration.OrderBook`` shim — the shim has its own integration tests in
+``configuration.OrderBook`` shim â€” the shim has its own integration tests in
 the wider regression suite.
 
 Coverage targets every public method on :class:`core.orderbook.OrderBook` and
@@ -360,7 +360,7 @@ class TestPositions:
             ({"side": "LONG", "number_of_contracts": "0.0"}, None),
             ({"side": "LONG", "number_of_contracts": "0.00000001"}, None),  # at threshold
             ({"side": "LONG", "number_of_contracts": "not-a-number"}, None),
-            ({"side": "LONG"}, None),  # missing contracts → 0 → None
+            ({"side": "LONG"}, None),  # missing contracts â†’ 0 â†’ None
             ({}, None),
         ],
     )
@@ -423,14 +423,14 @@ class TestStaticReferences:
         assert ob.mandatory_fee_per_contract["X"]["mandatory_fee_per_contract"] == 2.0
         assert ob.should_replace["FILLED"] is False
 
-    def test_db_helper_default_none(self):
-        assert OrderBook().db_helper is None
+    def test_db_module_default_none(self):
+        assert OrderBook().db_module is None
 
-    def test_set_db_helper(self):
+    def test_set_db_module(self):
         sentinel = object()
         ob = OrderBook()
-        ob.set_db_helper(sentinel)
-        assert ob.db_helper is sentinel
+        ob.set_db_module(sentinel)
+        assert ob.db_module is sentinel
 
 
 # ---------------------------------------------------------------------------
@@ -473,7 +473,7 @@ class TestDiagnosticSnapshot:
 
 
 # ---------------------------------------------------------------------------
-# Lock contract — exposed for composed atomic ops
+# Lock contract â€” exposed for composed atomic ops
 # ---------------------------------------------------------------------------
 
 
@@ -570,7 +570,7 @@ class TestReadOnlyMode:
             ("set_profit", lambda ob: ob.set_profit({})),
             ("set_mandatory_fee_per_contract", lambda ob: ob.set_mandatory_fee_per_contract({})),
             ("set_should_replace", lambda ob: ob.set_should_replace({})),
-            ("set_db_helper", lambda ob: ob.set_db_helper(None)),
+            ("set_db_module", lambda ob: ob.set_db_module(None)),
         ],
     )
     def test_every_mutator_raises_in_read_only(self, op_name, call):

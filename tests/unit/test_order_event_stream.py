@@ -1,4 +1,4 @@
-"""Focused tests for OrderEventStreamPublisher stealth lifecycle auditing."""
+﻿"""Focused tests for OrderEventStreamPublisher stealth lifecycle auditing."""
 
 from datetime import datetime
 
@@ -6,7 +6,7 @@ from business.order_event_stream import OrderEventStreamPublisher
 from core.enums import StealthLifecycleEvent
 
 
-class FakeDBHelper:
+class FakeDBModule:
     def __init__(self):
         self.created_event_stream_table = False
         self.created_lifecycle_history_table = False
@@ -36,20 +36,20 @@ class FakeDBHelper:
 
 
 def test_initialize_table_creates_lifecycle_history_table():
-    db_helper = FakeDBHelper()
+    db_module = FakeDBModule()
 
-    publisher = OrderEventStreamPublisher(db_helper)
+    publisher = OrderEventStreamPublisher(db_module)
 
     assert publisher.enabled is True
-    assert db_helper.created_event_stream_table is True
-    assert db_helper.created_lifecycle_history_table is True
-    assert db_helper.created_reveal_history_table is True
-    assert db_helper.created_snapshots_table is True
+    assert db_module.created_event_stream_table is True
+    assert db_module.created_lifecycle_history_table is True
+    assert db_module.created_reveal_history_table is True
+    assert db_module.created_snapshots_table is True
 
 
 def test_stealth_lifecycle_hook_writes_history_and_updates_latest(monkeypatch):
-    db_helper = FakeDBHelper()
-    publisher = OrderEventStreamPublisher(db_helper)
+    db_module = FakeDBModule()
+    publisher = OrderEventStreamPublisher(db_module)
 
     captured = {
         "history": None,
@@ -116,9 +116,9 @@ def test_stealth_lifecycle_hook_writes_history_and_updates_latest(monkeypatch):
         context,
     )
 
-    assert len(db_helper.inserted_events) == 1
-    assert db_helper.inserted_events[0]["event_type"] == "stealth_condition_met"
-    assert db_helper.inserted_events[0]["raw_payload_json"]["lifecycle_event"] == "CONDITION_MET"
+    assert len(db_module.inserted_events) == 1
+    assert db_module.inserted_events[0]["event_type"] == "stealth_condition_met"
+    assert db_module.inserted_events[0]["raw_payload_json"]["lifecycle_event"] == "CONDITION_MET"
 
     assert captured["history"] is not None
     assert captured["history"]["stealth_order_id"] == "550e8400-e29b-41d4-a716-446655440000"
@@ -136,8 +136,8 @@ def test_stealth_lifecycle_hook_writes_history_and_updates_latest(monkeypatch):
 
 
 def test_stealth_lifecycle_hook_skips_snapshot_for_created(monkeypatch):
-    db_helper = FakeDBHelper()
-    publisher = OrderEventStreamPublisher(db_helper)
+    db_module = FakeDBModule()
+    publisher = OrderEventStreamPublisher(db_module)
 
     called = {"snapshot": 0}
 
@@ -164,8 +164,8 @@ def test_stealth_lifecycle_hook_skips_snapshot_for_created(monkeypatch):
 
 
 def test_publish_event_enriches_payload_with_fee_manager_audit():
-    db_helper = FakeDBHelper()
-    publisher = OrderEventStreamPublisher(db_helper)
+    db_module = FakeDBModule()
+    publisher = OrderEventStreamPublisher(db_module)
 
     publisher.set_fee_info_provider(
         lambda product_id=None: {
@@ -195,9 +195,9 @@ def test_publish_event_enriches_payload_with_fee_manager_audit():
     )
 
     assert ok is True
-    assert len(db_helper.inserted_events) == 1
+    assert len(db_module.inserted_events) == 1
 
-    inserted = db_helper.inserted_events[0]
+    inserted = db_module.inserted_events[0]
     fee_audit = inserted["raw_payload_json"].get("fee_manager_audit")
     assert fee_audit is not None
     assert fee_audit["product_id"] == "BTC-USDC"

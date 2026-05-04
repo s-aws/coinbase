@@ -1,4 +1,4 @@
-"""Integration tests for OrderEngine ID handling and parent-child workflow."""
+﻿"""Integration tests for OrderEngine ID handling and parent-child workflow."""
 
 from unittest.mock import Mock
 
@@ -21,15 +21,15 @@ def _build_engine():
     }
     orderbook.get_position_side = Mock(return_value=None)
 
-    db_helper = Mock()
-    db_helper.insert_order_parent = Mock(return_value=1)
+    db_module = Mock()
+    db_module.insert_order_parent = Mock(return_value=1)
 
     subscription = Mock()
     subscription.channels = ["user"]
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
