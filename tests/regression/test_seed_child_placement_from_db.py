@@ -1,4 +1,4 @@
-"""Regression: stealth reveal-placement persisted as a child must seed correctly.
+﻿"""Regression: stealth reveal-placement persisted as a child must seed correctly.
 
 Background (2026-04-29 incident)
 --------------------------------
@@ -8,7 +8,7 @@ row carries ``parent_order_id = <chain root>`` so the flat hierarchy is
 preserved.
 
 A WS confirmation for that placement then reaches ``OrderEngine.process_user_order``
-which calls ``_ensure_order_parent_row_exists`` → ``_seed_parent_order_cache_from_db``
+which calls ``_ensure_order_parent_row_exists`` â†’ ``_seed_parent_order_cache_from_db``
 to hydrate the in-memory cache.
 
 Bug: the original implementation of ``_seed_parent_order_cache_from_db``
@@ -17,7 +17,7 @@ a ROOT in ``orderbook.parent_order_ids``. Consequences:
 
   1. ``is_parent_order(placement_coid)`` returned True, so status updates
      ran ``UPDATE order_parent SET status=... WHERE client_order_id=<placement>``
-     — the chain ROOT row never received status updates and stayed PENDING
+     â€” the chain ROOT row never received status updates and stayed PENDING
      forever even after the placement filled (observed: stealth row 61
      stuck at PENDING while placement row 62 went FILLED).
 
@@ -64,18 +64,18 @@ def _build_engine():
     orderbook.profit_target = orderbook.profit
     orderbook.get_position_side = Mock(return_value=None)
 
-    db_helper = Mock()
-    db_helper.insert_order_parent = Mock(return_value=1)
-    db_helper.get_parent_order = Mock(return_value=None)
-    db_helper.update_order_parent_status = Mock(return_value=True)
-    db_helper.increment_order_parent_replacement_count = Mock(return_value=1)
+    db_module = Mock()
+    db_module.insert_order_parent = Mock(return_value=1)
+    db_module.get_parent_order = Mock(return_value=None)
+    db_module.update_order_parent_status = Mock(return_value=True)
+    db_module.increment_order_parent_replacement_count = Mock(return_value=1)
 
     subscription = Mock()
     subscription.channels = ["user"]
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -116,9 +116,9 @@ def _child_row(coid: str, root_coid: str) -> dict:
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Contract A: hydrating a row whose parent_order_id is set seeds as CHILD.
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @pytest.mark.regression
 def test_seed_from_db_registers_child_when_parent_link_present():
     engine = _build_engine()
@@ -132,14 +132,14 @@ def test_seed_from_db_registers_child_when_parent_link_present():
             return _root_row(root)
         return None
 
-    engine.db_helper.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
 
     seeded = engine._seed_parent_order_cache_from_db(placement)
     assert seeded is True
 
     # Placement is a CHILD, not a root.
     assert engine.is_child_order(placement), (
-        "Pre-inserted placement row was seeded as a ROOT — this is the "
+        "Pre-inserted placement row was seeded as a ROOT â€” this is the "
         "2026-04-29 status-stuck-at-PENDING bug."
     )
     assert not engine.is_parent_order(placement)
@@ -149,9 +149,9 @@ def test_seed_from_db_registers_child_when_parent_link_present():
     assert engine.is_parent_order(root)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Contract B: hydrating a child must not re-increment the root's counter.
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @pytest.mark.regression
 def test_seed_from_db_does_not_reincrement_root_replacement_counter():
     engine = _build_engine()
@@ -165,7 +165,7 @@ def test_seed_from_db_does_not_reincrement_root_replacement_counter():
             return _root_row(root)
         return None
 
-    engine.db_helper.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
 
     # Persisted root already has current_order_replacement=1 (the placement).
     engine._seed_parent_order_cache_from_db(placement)
@@ -178,12 +178,12 @@ def test_seed_from_db_does_not_reincrement_root_replacement_counter():
     )
     # And we MUST NOT have written an INCREMENT to the DB (that's the
     # observable side-effect of the duplicated-rule footgun).
-    engine.db_helper.increment_order_parent_replacement_count.assert_not_called()
+    engine.db_module.increment_order_parent_replacement_count.assert_not_called()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Contract C: status updates on a child propagate to the chain root.
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @pytest.mark.regression
 def test_status_update_propagates_from_child_placement_to_chain_root():
     """When the placement is a child of a stealth root, ``process_user_order``
@@ -201,7 +201,7 @@ def test_status_update_propagates_from_child_placement_to_chain_root():
             return _root_row(root)
         return None
 
-    engine.db_helper.get_parent_order = Mock(side_effect=fake_get_parent_order)
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
 
     placement_order = {
         "client_order_id": placement,
@@ -218,14 +218,14 @@ def test_status_update_propagates_from_child_placement_to_chain_root():
     engine.process_user_order(placement_order)
 
     # Both rows must have received the OPEN status update.
-    update_calls = engine.db_helper.update_order_parent_status.call_args_list
+    update_calls = engine.db_module.update_order_parent_status.call_args_list
     targets = {
         call.kwargs.get("client_order_id") or call.args[0]
         for call in update_calls
     }
     assert placement in targets, "placement row was not updated"
     assert root in targets, (
-        f"chain root {root} did not receive the status update — this is the "
+        f"chain root {root} did not receive the status update â€” this is the "
         "observable symptom of the 2026-04-29 stealth-status-stuck-at-PENDING "
         f"bug. update_order_parent_status calls: {update_calls}"
     )

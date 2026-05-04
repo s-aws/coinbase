@@ -1,12 +1,12 @@
-"""Regression tests for cross-source reconciliation (Phase 3).
+﻿"""Regression tests for cross-source reconciliation (Phase 3).
 
 Covers:
 
-* :func:`core.startup_reconciler.audit_missed_fills` — paginates the REST
+* :func:`core.startup_reconciler.audit_missed_fills` â€” paginates the REST
   fills endpoint, diffs against local ledger, and never mutates state.
-* :class:`core.periodic_reconciler.PeriodicReconciler` — start/stop
+* :class:`core.periodic_reconciler.PeriodicReconciler` â€” start/stop
   lifecycle, cooperative shutdown, runs the audit on cadence.
-* :meth:`core.order_engine.OrderEngine.snapshot_drift_check` — detects
+* :meth:`core.order_engine.OrderEngine.snapshot_drift_check` â€” detects
   WS-only and in-memory-only drift cases without mutating state.
 """
 
@@ -202,7 +202,7 @@ class TestAuditMissedFills:
         summary, not one WARNING per fill.
 
         This subsumes the old fresh-DB special case: a fresh DB has
-        zero mappings → all fills are unowned → silent INFO.
+        zero mappings â†’ all fills are unowned â†’ silent INFO.
         """
         rest = _FakeRestClient(
             [
@@ -239,7 +239,7 @@ class TestAuditMissedFills:
         self, patch_rest_and_ledger, caplog
     ):
         """The inverse case: when a missing REST fill IS for an order we
-        own, the WARNING loop must still fire — that's a real WS gap."""
+        own, the WARNING loop must still fire â€” that's a real WS gap."""
         rest = _FakeRestClient(
             [
                 {
@@ -378,7 +378,7 @@ class _FakeEngine:
     """Minimal stand-in carrying just what snapshot_drift_check uses.
 
     Entries default to status=OPEN because the drift check filters its
-    in-memory side to only "venue-open" statuses (OPEN / UPDATE) — empty
+    in-memory side to only "venue-open" statuses (OPEN / UPDATE) â€” empty
     dicts would be invisible to the comparison and break the legacy
     test cases that just want "this id is in memory".
     """
@@ -536,7 +536,7 @@ class TestSnapshotDriftCheck:
     def test_repeated_drift_call_dedups_emission(self):
         """Each WS user-event worker thread independently calls
         snapshot_drift_check with the same WS SNAPSHOT frame. Without
-        dedup, ~6 worker threads produce 6× duplicated WARNING blocks
+        dedup, ~6 worker threads produce 6Ã— duplicated WARNING blocks
         per snapshot. The first call emits; subsequent calls with an
         identical drift signature must be silent until the signature
         changes.
@@ -548,7 +548,7 @@ class TestSnapshotDriftCheck:
         from core.order_engine import OrderEngine
 
         engine = _FakeEngine({"a", "b"})
-        # First call: drift → emit.
+        # First call: drift â†’ emit.
         OrderEngine.snapshot_drift_check(engine, {"a"}, source="test")
         first_emits = [p["event"] for _, p in engine.log_calls]
         assert first_emits.count("snapshot_drift_detected") == 1
@@ -574,8 +574,8 @@ class TestSnapshotDriftCheck:
             "duplicate clean report must be suppressed"
         )
 
-        # Fifth: drift returns with same signature as first → emits again
-        # (the source transitioned clean → drifted).
+        # Fifth: drift returns with same signature as first â†’ emits again
+        # (the source transitioned clean â†’ drifted).
         OrderEngine.snapshot_drift_check(engine, {"a"}, source="test")
         fifth_emits = [p["event"] for _, p in engine.log_calls]
         assert fifth_emits.count("snapshot_drift_detected") == 2
@@ -610,7 +610,7 @@ class TestTerminalStatusEvictsOrderbookEntry:
             call_post_order_status=lambda *a, **k: None,
         )
         engine.stealth_order_bridge = None
-        engine.db_helper = SimpleNamespace(
+        engine.db_module = SimpleNamespace(
             update_order_parent_status=lambda **kw: None,
             get_parent_order=lambda *_a, **_k: None,
         )

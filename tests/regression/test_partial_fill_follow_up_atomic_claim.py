@@ -1,4 +1,4 @@
-"""Regression: 2026-04-29 duplicate-buy / over-buy incident.
+﻿"""Regression: 2026-04-29 duplicate-buy / over-buy incident.
 
 Background
 ==========
@@ -189,7 +189,7 @@ def test_concurrent_create_partial_fill_follow_up_does_not_overspawn():
     placed_coid = "race-coid-1"
     parent_coid = "race-parent-1"
     _link_child_to_opted_in_parent(engine, placed_coid, parent_coid)
-    # Cap is no longer mocked — the real claim_replacement_slots gate
+    # Cap is no longer mocked â€” the real claim_replacement_slots gate
     # uses parent.max_order_replacement directly. Lift it well above
     # carry so the carry race is the only thing under test.
     engine.orderbook.parent_order_ids[parent_coid]["max_order_replacement"] = 1000
@@ -250,7 +250,7 @@ def test_concurrent_create_partial_fill_follow_up_does_not_overspawn():
 
     stealth_manager.create_follow_up_stealth_order.side_effect = _create_fu
     engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
-    engine.db_helper.get_parent_order.return_value = {
+    engine.db_module.get_parent_order.return_value = {
         "target_movement": 0.001,
         "target_movement_type": "P",
     }

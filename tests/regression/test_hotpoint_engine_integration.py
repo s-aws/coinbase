@@ -1,4 +1,4 @@
-"""Integration: ``OrderEngine._maybe_dispatch_hotpoint`` end-to-end with mocks.
+﻿"""Integration: ``OrderEngine._maybe_dispatch_hotpoint`` end-to-end with mocks.
 
 Covers the wiring path that pure-unit tests on the building blocks
 (detector / rate limiter / placer / sweeper) cannot reach:
@@ -50,16 +50,16 @@ def _build_engine():
         },
     }
 
-    db_helper = Mock()
-    db_helper.insert_order_parent = Mock(return_value=1)
-    db_helper.get_parent_order = Mock(return_value=None)
+    db_module = Mock()
+    db_module.insert_order_parent = Mock(return_value=1)
+    db_module.get_parent_order = Mock(return_value=None)
 
     subscription = Mock()
     subscription.channels = ["user"]
 
     engine = OrderEngine(
         orderbook=orderbook,
-        db_helper=db_helper,
+        db_module=db_module,
         subscription=subscription,
         api_key="test_key",
         api_secret="test_secret",
@@ -110,7 +110,7 @@ def test_subsystem_initialised_at_engine_construction():
 
 
 # ----------------------------------------------------------------------------
-# Opt-in gate — only flagged parents feed the detector
+# Opt-in gate â€” only flagged parents feed the detector
 # ----------------------------------------------------------------------------
 
 def test_non_optin_parent_never_feeds_detector():
@@ -189,7 +189,7 @@ def test_kill_switch_off_blocks_placement_but_records_fills():
 
     fake_rest.limit_order_gtc.assert_not_called()
     fake_insert.assert_not_called()
-    # Detector has 3 fills recorded — flipping the switch back on later
+    # Detector has 3 fills recorded â€” flipping the switch back on later
     # should immediately allow the next trigger to fire.
     from business.hotpoint_detector import compute_bucket_id
     bid = compute_bucket_id(100.0, engine._hotpoint_width_pct)
@@ -208,7 +208,7 @@ def test_kill_switch_can_be_toggled_at_runtime():
 
 
 # ----------------------------------------------------------------------------
-# No cascade — auto-placed rows must not be opted in
+# No cascade â€” auto-placed rows must not be opted in
 # ----------------------------------------------------------------------------
 
 def test_auto_placed_rows_inserted_without_cascade_flag():
@@ -243,7 +243,7 @@ def test_auto_placed_rows_inserted_without_cascade_flag():
 
 
 # ----------------------------------------------------------------------------
-# Robustness — failures inside dispatch never propagate
+# Robustness â€” failures inside dispatch never propagate
 # ----------------------------------------------------------------------------
 
 def test_dispatch_swallows_unexpected_exceptions():
