@@ -2038,6 +2038,21 @@ class OrderEngine:
             >>> engine.register_child_order('child_123', 'parent_123')
             >>> # Now child_123 is tracked as child of parent_123 and count is incremented
         """
+        # Contract guard: never register a phantom child. Passing None
+        # here previously consumed a replacement slot on the parent and
+        # appended `None` into the orders list, stranding exposure (see
+        # incident 2026-05-04, cancel-path follow-up returning None).
+        if child_client_order_id is None:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "register_child_order_rejected_null_child",
+                    parent_client_order_id=parent_client_order_id,
+                    child_client_order_id=None,
+                ),
+            )
+            return
+
         # Flag to track if this is a new registration
         is_new_child = False
         registered_now = False
@@ -3486,8 +3501,26 @@ class OrderEngine:
                 parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
                 parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
                 
+                # Pure-cancel of a non-stealth-tracked placement should not
+                # land here under current flow (all orders are stealth).
+                # Fail closed rather than feed `None` into the lookup, which
+                # would silently return None below and burn a replacement
+                # slot on a phantom child (see incident 2026-05-04).
+                if not original_stealth_order:
+                    self.log_message(
+                        "warning",
+                        self.build_follow_up_log_payload(
+                            "stealth_follow_up_skipped_no_stealth_record",
+                            source_order=order,
+                            parent_client_order_id=parent_client_order_id,
+                            details={"reason": "no_stealth_order_for_cancelled_placement"},
+                        ),
+                    )
+                    self.complete_follow_up_processing("cancelled", client_order_id)
+                    return
+
                 stealth_follow_up_id = self.stealth_order_bridge.stealth_manager.create_follow_up_stealth_order(
-                    original_stealth_order_id=client_order_id,
+                    original_stealth_order_id=original_stealth_order["stealth_order_id"],
                     side=order_template["side"],
                     total_size=order_template["order_base_size"],
                     limit_price=follow_up_price,
@@ -3498,16 +3531,30 @@ class OrderEngine:
                     target_movement=parent_target_movement,
                     target_movement_type=parent_target_movement_type
                 )
-                
+
+                # Defensive: if the follow-up creator returned None the
+                # follow-up was NOT persisted. Do NOT register a phantom
+                # child (would burn a replacement slot on `None` and
+                # strand exposure). Release the processing flag so a
+                # later retry path stays open.
+                if stealth_follow_up_id is None:
+                    self.log_message(
+                        "error",
+                        {
+                            "event": "stealth_follow_up_creation_returned_none_on_cancel",
+                            "parent_id": parent_client_order_id,
+                            "client_order_id": client_order_id,
+                            "original_stealth_order_id": original_stealth_order["stealth_order_id"],
+                        },
+                    )
+                    self.release_follow_up_processing("cancelled", client_order_id)
+                    return
+
                 # Register stealth follow-up as child of the chain ROOT.
                 # Single canonical resolver — see resolve_stealth_chain_root.
-                root_parent_client_order_id = (
-                    resolve_stealth_chain_root(original_stealth_order)
-                    if original_stealth_order
-                    else parent_client_order_id
-                )
+                root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
                 self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
-                
+
                 self.log_message(
                     "order",
                     {
@@ -3518,7 +3565,7 @@ class OrderEngine:
                         "side": order_template["side"],
                     }
                 )
-                
+
                 self.complete_follow_up_processing("cancelled", client_order_id)
                 return
             except Exception as e:
