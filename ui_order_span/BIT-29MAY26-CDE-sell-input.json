@@ -30,7 +30,7 @@
         "reference_price_source": "top_of_book",
         "distance_type": "A",
         "target_distance": 200,
-        "max_distance": 3200,
+        "max_distance": 800,
         "update_mode": "fixed",
         "fixed_interval_seconds": 60,
         "allow_revealed_reprice": true,
