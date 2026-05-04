@@ -5,7 +5,6 @@ that manages real-time order processing with Coinbase.
 
 Architecture:
     - OrderEngine: Main engine class (imported from core.order_engine)
-    - OrderEngineOrchestrator: Facade/Orchestrator pattern (imported from bridges)
     - Background Threads:
         * websocket_threads: Maintain connections to Coinbase (configurable count)
         * event_workers: Process events from specific channels (ticker, user, heartbeats)
@@ -18,7 +17,6 @@ Architecture:
 
 Example:
     >>> from core.order_engine import OrderEngine
-    >>> from bridges.engine_orchestrator import OrderEngineOrchestrator
     >>> from configuration import ORDERBOOK, ORDER_POST_ONLY, Subscription, API_KEY, API_SECRET
     >>> import database.order as DB_MODULE
     >>> 
@@ -30,8 +28,7 @@ Example:
     ...     api_secret=API_SECRET,
     ...     order_post_only=ORDER_POST_ONLY
     ... )
-    >>> orchestrator = OrderEngineOrchestrator(engine)
-    >>> orchestrator.run_forever()  # Blocks indefinitely, runs all background threads
+    >>> engine.run_forever()  # Blocks indefinitely, runs all background threads
 """
 
 import logging
@@ -60,7 +57,6 @@ from core.order_engine import OrderEngine
 from core.periodic_reconciler import PeriodicReconciler
 from core.runtime_controller import get_runtime_controller
 from core.startup_reconciler import run_startup_reconciliation
-from bridges.engine_orchestrator import OrderEngineOrchestrator
 from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
 
 # Set up custom logging backend to use dashboard's add_log_entry function
@@ -99,8 +95,6 @@ if __name__ == "__main__":
             stealth_bridge.stealth_manager.profit_validator = engine.profit_validator
             logger.info("StealthOrderManager wired with OrderEngine profit_validator")
 
-    orchestrator = OrderEngineOrchestrator(engine)
-    
     # Start dashboard server
     import sys
     start_dashboard_server()
@@ -208,4 +202,4 @@ if __name__ == "__main__":
         controller.register_stop_hook("periodic_reconciler", periodic_reconciler.stop)
         periodic_reconciler.start()
 
-    orchestrator.run_forever()
+    engine.run_forever()

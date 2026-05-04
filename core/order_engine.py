@@ -12,7 +12,6 @@ Current feature set:
 - Stealth order integration via StealthOrderBridge and reveal-linked fills.
 - Optional lot tracking via post-fill hooks.
 - Optional dashboard broadcasting for orders, positions, ticker, and logs.
-- Calculation/processing helpers through CalculatorBridge and ProcessorBridge.
 
 Critical ID semantics:
 - Use client_order_id for all internal tracking and parent-child linkage.
@@ -92,8 +91,6 @@ from calculation.resolver import (
     resolve_partial_fill_delta,
 )
 from calculation.formatter import safe_float
-from bridges.calculator_bridge import CalculatorBridge
-from bridges.processor_bridge import ProcessorBridge
 from bridges.event_bridge import EventBridge
 from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
 from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
@@ -176,8 +173,6 @@ class OrderEngine:
         event_queue: Dict mapping channel name to Queue.
         logging_flags: Dict controlling which log types are emitted.
         debug_logging_enabled: Whether to include debug fields in logs.
-        calc_bridge: CalculatorBridge instance for order calculations.
-        proc_bridge: ProcessorBridge instance for order processing.
         evt_bridge: EventBridge instance for event deduplication and bucket rotation.
         websocket_events: Event type schemas (internal reference).
         websocket_hooks: Registry for WebSocket extension hooks.
@@ -343,9 +338,7 @@ class OrderEngine:
         }
         self.debug_logging_enabled = False
         
-        # Phase 4 Integration: CalculatorBridge, ProcessorBridge, & EventBridge
-        self.calc_bridge = CalculatorBridge()
-        self.proc_bridge = ProcessorBridge()
+        # WebSocket event deduplication bridge
         self.evt_bridge = EventBridge(
             max_dedup_buckets=max_seen_event_buckets,
             dedup_bucket_duration_secs=max_rotate_seen_events_bucket_seconds,
