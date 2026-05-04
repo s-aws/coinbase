@@ -18,7 +18,7 @@ For SELL lots:
 
 Example:
     >>> from datetime import datetime
-    >>> from business.position_lot import PositionLot, Position
+    >>> from business.position_lot import PositionLot, LotPosition
     >>> from business.profit_threshold_engine import ProfitThresholdEngine
     >>> from core.enums import OrderSide
     >>>
@@ -32,7 +32,7 @@ Example:
     ...     fees=1.0,
     ...     target_profit_percentage=0.5,
     ... )
-    >>> position = Position(instrument='BTC-USDC', lots=[lot])
+    >>> position = LotPosition(instrument='BTC-USDC', lots=[lot])
     >>> engine = ProfitThresholdEngine(profit_margin_pct=0.5)
     >>> targets, meta = engine.compute_execution_targets(position, exit_quantity=0.1, market_price=42300.0)
     >>> len(targets) > 0 and meta['status'] == 'OK'
@@ -41,7 +41,7 @@ Example:
 
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
-from business.position_lot import PositionLot, Position
+from business.position_lot import PositionLot, LotPosition
 from core.enums import OrderSide
 from logging_service import get_logger
 
@@ -97,7 +97,7 @@ class ProfitThresholdEngine:
         self.profit_margin_pct = profit_margin_pct
     
     def compute_execution_targets(self,
-                                  position: Position,
+                                  position: LotPosition,
                                   exit_quantity: float,
                                   market_price: float,
                                   strategy: str = 'FIFO') -> Tuple[List[ExecutionTarget], Dict]:
@@ -171,7 +171,7 @@ class ProfitThresholdEngine:
         return (targets, metadata)
     
     def _select_lots(self, 
-                    position: Position, 
+                    position: LotPosition, 
                     exit_quantity: float,
                     strategy: str = 'FIFO') -> List[Tuple[PositionLot, float]]:
         """Select lots to exit based on strategy.
@@ -245,7 +245,7 @@ class ProfitThresholdEngine:
         message = None if is_profitable else msg
         return (is_profitable, message)
     
-    def get_price_range(self, position: Position) -> Dict:
+    def get_price_range(self, position: LotPosition) -> Dict:
         """Get the price range for fully profitable execution.
         
         Args:

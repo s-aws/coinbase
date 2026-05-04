@@ -40,7 +40,7 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from business.lot_builder import PositionLotBuilder
 from business.profit_threshold_engine import ProfitThresholdEngine, ExecutionTarget
-from business.position_lot import Position
+from business.position_lot import LotPosition
 from business.fill_ledger import FillLedgerRepository
 from core.enums import OrderSide
 from logging_service import get_logger

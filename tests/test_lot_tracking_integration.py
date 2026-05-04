@@ -16,7 +16,7 @@ import unittest
 import uuid
 from datetime import datetime, timedelta
 from business.fill_ledger import FillLedger, FillLedgerRepository
-from business.position_lot import PositionLot, Position
+from business.position_lot import PositionLot, LotPosition
 from business.lot_builder import PositionLotBuilder
 from business.profit_threshold_engine import ProfitThresholdEngine, ExecutionTarget
 from business.order_interception_layer import OrderInterceptionLayer
@@ -224,7 +224,7 @@ class TestProfitThresholdEngine(unittest.TestCase):
     def test_execution_targets_fifo(self):
         """Test execution target selection with FIFO strategy."""
         # Create position with 3 lots
-        position = Position(instrument="BTC-USDC")
+        position = LotPosition(instrument="BTC-USDC")
         
         lots = [
             PositionLot(

@@ -1,24 +1,21 @@
-"""This package provides integration points for connecting:
-- OrderCalculator: Order value computations
-- OrderProcessor: Order validation and enrichment
-- EventProcessor: WebSocket event deduplication and routing
+"""Hook registries for OrderEngine and StealthOrderManager extension points.
 
-Example:
-    >>> from integration.engine_integration import OrderEngineIntegration
-    >>> from main import OrderEngine
-    >>> engine = OrderEngine(...)
-    >>> integrated = OrderEngineIntegration(engine)
-    >>> integrated.run_forever()
+This package provides hook registry modules that the engine and manager use
+to fan out lifecycle events (placements, fills, websocket messages, state
+transitions) to opt-in subscribers.
+
+All consumers import the specific hook module they need directly, e.g.:
+
+    from integration.websocket_hooks import WebSocketHookRegistry
+    from integration.fill_event_hooks import get_global_fill_event_hook_registry
+
+This package previously also contained a parallel set of bridge wrappers
+(``CalculatorBridge``, ``ProcessorBridge``, ``EventBridge``) and an
+unwired ``OrderEngineIntegration`` orchestrator. Those were duplicates of
+classes in ``bridges/`` that nothing outside this package imported. They
+were deleted on 2026-05-04 after one of them (``EventBridge``) caused a
+runtime crash by silently diverging from its live twin in ``bridges/``.
+
+The live orchestrator is ``bridges.engine_orchestrator.OrderEngineOrchestrator``
+(wired by ``main.py``).
 """
-
-from integration.engine_integration import OrderEngineIntegration
-from integration.calculator_bridge import CalculatorBridge
-from integration.processor_bridge import ProcessorBridge
-from integration.event_bridge import EventBridge
-
-__all__ = [
-    'OrderEngineIntegration',
-    'CalculatorBridge',
-    'ProcessorBridge',
-    'EventBridge',
-]
