@@ -3831,19 +3831,28 @@ class OrderEngine:
         # No need to claim again here
         
         try:
+            # Post-fill profit-taking follow-up bypasses ``max_order_replacement``.
+            # The cap is meant to gate pre-fill cancel/reprice (anchor track) cycles,
+            # not the closing leg that completes the round-trip after a fill.
+            # Conflating the two strands the operator with un-hedged exposure when
+            # earlier reprices have already exhausted the slot (incident 2026-05-04,
+            # parent 514563cc-607b-446f-b92f-c3714594fc44). See
+            # /memories/budget-vs-completion-cap.md and the partial-fill bypass
+            # precedent in _create_partial_fill_follow_up.
             can_replace, replacement_details = self.can_create_follow_up_order(parent_client_order_id)
             if not can_replace:
                 self.log_message(
                     "order",
                     self.build_follow_up_log_payload(
-                        "follow_up_max_replacements_reached",
+                        "follow_up_replacement_cap_bypassed_post_fill",
                         source_order=order,
                         parent_client_order_id=parent_client_order_id,
-                        details=replacement_details,
+                        details={
+                            **replacement_details,
+                            "reason": "post_fill_profit_taking_bypasses_cap",
+                        },
                     ),
                 )
-                self.complete_follow_up_processing("filled", client_order_id)
-                return
 
             target_movement = self.resolve_parent_target_movement(parent_client_order_id)
             order_template = self.compute_order_template(
@@ -4068,8 +4077,16 @@ class OrderEngine:
                     
                     # Register stealth follow-up as child of the chain ROOT.
                     # Single canonical resolver — see resolve_stealth_chain_root.
+                    # bypass_replacement_cap=True: matches the gate-bypass above.
+                    # The post-fill closing leg must not consume a replacement slot,
+                    # otherwise pre-fill anchor reprices can starve it (incident
+                    # 2026-05-04). See /memories/budget-vs-completion-cap.md.
                     root_parent_client_order_id = resolve_stealth_chain_root(original_stealth_order)
-                    self.register_child_order(stealth_follow_up_id, root_parent_client_order_id)
+                    self.register_child_order(
+                        stealth_follow_up_id,
+                        root_parent_client_order_id,
+                        bypass_replacement_cap=True,
+                    )
                     
                     self.log_message(
                         "order",
