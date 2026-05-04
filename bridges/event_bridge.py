@@ -54,22 +54,36 @@ class EventBridge:
         """
         return self.processor.hash_event(event)
 
+    def claim_event(self, event: dict) -> bool:
+        """Atomically claim an event for processing.
+
+        Returns True if this caller is the first to see the event; False if
+        another thread already claimed it. Use this in any path where
+        multiple WSClient threads may deliver the same payload \u2014 the
+        check-and-mark happens under EventProcessor's dedup lock as one step,
+        which prevents the fan-out race that bare
+        is_duplicate_event/mark_event_seen had.
+
+        Args:
+            event: Event dict to claim.
+
+        Returns:
+            True if newly claimed; False if already seen.
+        """
+        return self.processor.claim_event(event)
+
     def is_duplicate_event(self, event: dict) -> bool:
         """Check if event has been seen before.
-        
+
+        WARNING: Not atomic with mark_event_seen. For the normal dedup path
+        across threads, use ``claim_event``. This method is retained for
+        read-only callers (audits, strict checks, tests).
+
         Args:
             event: Event dict to check.
-        
+
         Returns:
             True if event seen in any dedup bucket.
-        
-        Example:
-            >>> bridge = EventBridge()
-            >>> is_dup = bridge.is_duplicate_event(
-            ...     {'type': 'filled', 'id': '123'}
-            ... )
-            >>> is_dup
-            False
         """
         return self.processor.is_duplicate_event(event)
 
