@@ -23,6 +23,7 @@ Example:
 
 from hashlib import sha256
 import json
+import threading
 from typing import List, Dict, Set, Any, Optional
 from queue import Queue
 from core.exceptions import WebSocketMessageError, DuplicateEventError
@@ -40,8 +41,15 @@ class EventProcessor:
         """
         self.max_dedup_buckets = max_dedup_buckets
         self.dedup_bucket_duration_secs = dedup_bucket_duration_secs
-        
-        # Hash buckets for event deduplication
+
+        # Hash buckets for event deduplication. All access (read, write,
+        # rotation) MUST go through ``self._dedup_lock`` — multiple WSClient
+        # threads call into this processor concurrently and any non-atomic
+        # check-then-mark sequence reintroduces the fan-out duplicate-event
+        # bug. Use ``claim_event`` for the normal dedup path; the legacy
+        # ``is_duplicate_event`` / ``mark_event_seen`` pair is preserved for
+        # back-compat callers but is NOT safe to combine across threads.
+        self._dedup_lock = threading.Lock()
         self.seen_events = {i: set() for i in range(max_dedup_buckets)}
         self.current_bucket = 0
 
@@ -78,54 +86,70 @@ class EventProcessor:
                 raw_data=str(event),
             )
 
-    def is_duplicate_event(self, event: dict) -> bool:
-        """Check if an event has been seen before.
-        
-        Checks across all dedup buckets to detect duplicate events.
-        Events are considered duplicates if they hash to the same value.
-        
+    def claim_event(self, event: dict) -> bool:
+        """Atomically claim an event for processing.
+
+        Returns ``True`` if this caller is the first to see the event
+        (caller should proceed to process it). Returns ``False`` if another
+        thread already claimed it (caller should drop it).
+
+        This is the correct entry point when multiple WSClient threads can
+        deliver the same payload. The check-against-buckets and add-to-current
+        bucket happen under a single lock, so concurrent callers cannot all
+        observe "new" and then all enqueue.
+
         Args:
-            event: Event dict to check.
-        
+            event: Event dict to claim.
+
         Returns:
-            True if event is a duplicate, False if new.
-        
-        Examples:
-            >>> processor = EventProcessor()
-            >>> event = {'type': 'filled', 'order_id': '123'}
-            >>> processor.is_duplicate_event(event)
-            False
-            >>> processor.mark_event_seen(event)
-            >>> processor.is_duplicate_event(event)
-            True
+            True if newly claimed; False if already seen.
         """
         event_hash = self.hash_event(event)
-        for bucket in self.seen_events.values():
-            if event_hash in bucket:
-                return True
-        return False
+        with self._dedup_lock:
+            for bucket in self.seen_events.values():
+                if event_hash in bucket:
+                    return False
+            self.seen_events[self.current_bucket].add(event_hash)
+            return True
+
+    def is_duplicate_event(self, event: dict) -> bool:
+        """Check if an event has been seen before.
+
+        WARNING: This method is NOT atomic with ``mark_event_seen``. Combining
+        them in a check-then-mark sequence across threads reintroduces the
+        fan-out duplicate bug. For the normal dedup path use ``claim_event``
+        instead. This method is retained for read-only callers (audits,
+        strict-check helpers, tests).
+
+        Args:
+            event: Event dict to check.
+
+        Returns:
+            True if event is a duplicate, False if new.
+        """
+        event_hash = self.hash_event(event)
+        with self._dedup_lock:
+            for bucket in self.seen_events.values():
+                if event_hash in bucket:
+                    return True
+            return False
 
     def mark_event_seen(self, event: dict) -> None:
         """Mark an event as seen in the current bucket.
-        
-        Adds the event hash to the current dedup bucket. When bucket rotation
-        occurs (via rotate_dedup_buckets), older events fall out.
-        
+
+        WARNING: Not atomic with ``is_duplicate_event``. Use ``claim_event``
+        for the normal dedup path. Retained for back-compat callers that
+        already hold an external lock or only need one half of the operation.
+
         Args:
             event: Event dict to mark.
-        
+
         Returns:
             None
-        
-        Examples:
-            >>> processor = EventProcessor()
-            >>> event = {'type': 'filled', 'order_id': '123'}
-            >>> processor.mark_event_seen(event)
-            >>> processor.is_duplicate_event(event)
-            True
         """
         event_hash = self.hash_event(event)
-        self.seen_events[self.current_bucket].add(event_hash)
+        with self._dedup_lock:
+            self.seen_events[self.current_bucket].add(event_hash)
 
     def rotate_dedup_buckets(self) -> None:
         """Rotate dedup hash buckets, dropping oldest bucket.
@@ -147,10 +171,13 @@ class EventProcessor:
             >>> processor.current_bucket
             1
         """
-        # Clear the oldest bucket (one past the current position, wrapping)
-        next_bucket = (self.current_bucket + 1) % self.max_dedup_buckets
-        self.seen_events[next_bucket] = set()
-        self.current_bucket = next_bucket
+        # Clear the oldest bucket (one past the current position, wrapping).
+        # Lock so concurrent ``claim_event`` / ``mark_event_seen`` cannot
+        # observe a half-rotated state or mutate the bucket being replaced.
+        with self._dedup_lock:
+            next_bucket = (self.current_bucket + 1) % self.max_dedup_buckets
+            self.seen_events[next_bucket] = set()
+            self.current_bucket = next_bucket
 
     def filter_events_by_channel(
         self,

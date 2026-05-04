@@ -2367,15 +2367,17 @@ class OrderEngine:
                 return
 
             for event in json_msg["events"]:
-                # Use EventBridge for duplicate detection
-                if self.evt_bridge.is_duplicate_event(event):
+                # Atomic claim: under EventProcessor's dedup lock, check all
+                # buckets and add to the current bucket in one step. This
+                # prevents the fan-out race where N WSClient threads all
+                # observe "new" for the same payload and all enqueue it.
+                # The legacy is_duplicate_event/mark_event_seen pair was
+                # racy across threads — do not reintroduce it here.
+                if not self.evt_bridge.claim_event(event):
                     continue
 
                 try:
                     self.event_queue[channel].put(deepcopy(event), timeout=0.01)
-
-                    # Use EventBridge to mark event as seen
-                    self.evt_bridge.mark_event_seen(event)
 
                 except Full:
                     self.log_message(

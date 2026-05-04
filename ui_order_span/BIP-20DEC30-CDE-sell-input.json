@@ -8,10 +8,10 @@
       "product_id": "BIP-20DEC30-CDE",
       "side": "SELL",
       "total_size": 0,
-      "limit_price": 80015,
+      "limit_price": 79000,
       "reveal_condition": {
         "type": "price",
-        "price_threshold": 80255,
+        "price_threshold": 79000,
         "direction": "above",
         "hold_duration_seconds": 0
       },
