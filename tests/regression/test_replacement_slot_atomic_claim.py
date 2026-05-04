@@ -290,3 +290,67 @@ def test_partial_fill_follow_up_bypasses_replacement_cap():
     # Carry must be fully drained.
     record = engine.order_progress_tracker.get_record(placed_coid)
     assert float(record.carry_remainder_qty) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Post-fill profit-taking follow-up must BYPASS the replacement cap
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.regression
+def test_post_fill_follow_up_bypasses_replacement_cap_in_source():
+    """2026-05-04 incident: parent ``514563cc-607b-446f-b92f-c3714594fc44``
+    was configured with ``max_order_replacement = 1``. Pre-fill stealth
+    re-anchor cycles consumed the slot. When the placement finally filled
+    9/9, the post-fill profit-taking SELL was blocked by
+    ``follow_up_max_replacements_reached``, leaving 9 contracts un-hedged.
+
+    Same root cause as the 2026-04-30 partial-fill incident: a single
+    counter conflated *re-anchor* (new exposure) with *closing-leg*
+    (completion) placements. Per
+    /memories/budget-vs-completion-cap.md the closing leg must not be
+    gated by the cap.
+
+    Static-source guard (per /memories/duplicated-rule-pattern.md):
+    pin the contract that ``handle_filled_order``'s post-fill stealth
+    follow-up registration uses ``bypass_replacement_cap=True``. A
+    runtime test here would require mocking the entire
+    ``handle_filled_order`` call graph (profit validator, stealth
+    manager, market cache, ws-derived progress tracker) which is
+    brittle. The source guard is unambiguous.
+    """
+    import inspect
+
+    from core import order_engine
+
+    src = inspect.getsource(order_engine.OrderEngine.handle_filled_order)
+
+    # The post-fill stealth follow-up registration is the only
+    # ``register_child_order`` call inside ``handle_filled_order``.
+    # It must pass ``bypass_replacement_cap=True``.
+    assert "register_child_order(" in src, (
+        "handle_filled_order no longer calls register_child_order; "
+        "this guard needs to be re-pointed at the new call site."
+    )
+    assert "bypass_replacement_cap=True" in src, (
+        "handle_filled_order's post-fill follow-up registration is "
+        "no longer passing bypass_replacement_cap=True. The 2026-05-04 "
+        "stranded-exposure regression is back: pre-fill anchor reprices "
+        "can starve the cap and block the closing-leg follow-up. See "
+        "/memories/budget-vs-completion-cap.md."
+    )
+
+    # And the gate itself must be advisory, not a hard return:
+    # the old ``follow_up_max_replacements_reached`` log + return
+    # branch must be gone.
+    assert "follow_up_max_replacements_reached" not in src, (
+        "handle_filled_order still hard-blocks on "
+        "follow_up_max_replacements_reached. The post-fill closing leg "
+        "must proceed regardless of the cap. See incident 2026-05-04."
+    )
+    assert "follow_up_replacement_cap_bypassed_post_fill" in src, (
+        "handle_filled_order is not emitting the bypass audit event "
+        "(follow_up_replacement_cap_bypassed_post_fill). Without it, "
+        "operators lose visibility into when the cap would have "
+        "blocked the closing leg."
+    )
