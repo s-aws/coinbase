@@ -4267,6 +4267,44 @@ class OrderEngine:
         
         return True
 
+    # Fields inside ``parent_order_ids[coid]`` whose value is a list whose
+    # ORDER IS NOT SEMANTICALLY MEANINGFUL. The two writers — the
+    # in-memory ``register_child_order`` path (WS arrival order) and the
+    # DB-rehydrated ``build_parent_child_order_ids_snapshot`` path (SQL
+    # order) — produce these lists in different orders for the same
+    # underlying state. Comparing them as ordered lists produces phantom
+    # drift on every reconciler tick. Compare as multisets instead.
+    _PARENT_FIELDS_WITH_SET_SEMANTICS = frozenset({"orders"})
+
+    @classmethod
+    def _field_values_equivalent(cls, field: str, a: Any, b: Any) -> bool:
+        """Compare two field values, treating set-semantics fields as multisets."""
+        if (
+            field in cls._PARENT_FIELDS_WITH_SET_SEMANTICS
+            and isinstance(a, list)
+            and isinstance(b, list)
+        ):
+            return sorted(a) == sorted(b)
+        return a == b
+
+    @classmethod
+    def _parents_equivalent(cls, a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+        """Compare two parent dicts, normalizing set-semantics fields."""
+        if a.keys() != b.keys():
+            return False
+        return all(cls._field_values_equivalent(k, a[k], b[k]) for k in a)
+
+    @classmethod
+    def _parent_maps_equivalent(
+        cls,
+        a: Dict[str, Dict[str, Any]],
+        b: Dict[str, Dict[str, Any]],
+    ) -> bool:
+        """Compare two parent_order_ids maps, normalizing set-semantics fields."""
+        if a.keys() != b.keys():
+            return False
+        return all(cls._parents_equivalent(a[k], b[k]) for k in a)
+
     def _build_reconcile_diff_diagnostic(
         self,
         old_parents: Dict[str, Any],
@@ -4318,7 +4356,7 @@ class OrderEngine:
         for coid in sorted(common):
             old_v = old_parents[coid]
             new_v = new_parents[coid]
-            if old_v == new_v:
+            if self._parents_equivalent(old_v, new_v):
                 continue
             # Build per-field diff (limit to top-level keys; nested
             # dicts compared as opaque values for diagnostic clarity).
@@ -4327,13 +4365,18 @@ class OrderEngine:
             for f in sorted(all_fields):
                 ov = old_v.get(f, "<MISSING>")
                 nv = new_v.get(f, "<MISSING>")
-                if ov != nv:
-                    field_diffs[f] = {
-                        "in_memory": repr(ov),
-                        "in_memory_type": type(ov).__name__,
-                        "from_db": repr(nv),
-                        "from_db_type": type(nv).__name__,
-                    }
+                if self._field_values_equivalent(f, ov, nv):
+                    continue
+                field_diffs[f] = {
+                    "in_memory": repr(ov),
+                    "in_memory_type": type(ov).__name__,
+                    "from_db": repr(nv),
+                    "from_db_type": type(nv).__name__,
+                }
+            if not field_diffs:
+                # All differences were order-only on set-semantics
+                # fields; not real drift.
+                continue
             differing.append({
                 "client_order_id": coid,
                 "field_diffs": field_diffs,
@@ -4357,7 +4400,8 @@ class OrderEngine:
                 "parents_added": len(added),
                 "parents_removed": len(removed),
                 "parents_modified": sum(
-                    1 for k in common if old_parents[k] != new_parents[k]
+                    1 for k in common
+                    if not self._parents_equivalent(old_parents[k], new_parents[k])
                 ),
                 "child_mappings_added": child_added,
                 "child_mappings_removed": child_removed,
@@ -4401,7 +4445,9 @@ class OrderEngine:
 
         with self.orderbook_lock:
             if all((
-                self.orderbook.parent_order_ids == new_parent_order_ids,
+                self._parent_maps_equivalent(
+                    self.orderbook.parent_order_ids, new_parent_order_ids
+                ),
                 self.orderbook.child_order_ids == new_child_order_ids,
             )):
                 if force_log:
