@@ -16,6 +16,7 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - Single code path per behavior; do not introduce parallel implementations.
 - Use enums (`core/enums.py`), not magic strings.
 - Respect existing module locks; never bypass thread-safety.
+- Stealth order local state must reflect live exchange reality. Do not mark a revealed order hidden, re-hidden, cancelled, or moved unless the corresponding live Coinbase placement has been handled through the existing cancel/move/reconcile path.
 - All non-agent-file changes must pass `pytest tests/regression/ -v` before being considered done.
   Exception: if the change set is limited to agent-instruction/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 

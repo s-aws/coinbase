@@ -59,6 +59,23 @@ When adding order lifecycle behavior, validate flat hierarchy explicitly.
 
 ---
 
+## Critical Design Constraint: Stealth State Must Match Exchange Reality
+
+Stealth visibility is not just a UI label.
+
+- `HIDDEN`, `PENDING`, and `TRIGGERED` stealth orders must not have a live resting Coinbase placement.
+- `REVEALED` means a placement was submitted to the exchange and may still be live until fills, cancellation, move/reprice replacement, or reconciliation proves otherwise.
+- Any feature that makes a revealed order hidden again must first cancel or otherwise account for the active exchange placement. If the exchange cancel fails, do not mark the order hidden.
+- The old UI "Hide" duplicate behavior is not a true re-hide. A true re-hide must cancel the live placement, preserve auditability, reset reveal-condition tracking, and then allow the original condition to trigger again.
+
+### Re-hide / Move / Reprice Extension Checklist
+- Use the existing `StealthOrderManager` mutation claim paths; do not add a parallel lifecycle implementation.
+- Keep dashboard wiring complete: UI message -> `dashboard_server.py` handler -> `bridges/stealth_order_bridge.py` method -> `StealthOrderManager` method.
+- Update `genai_data/API_REFERENCE.md` only for message types that are actually implemented end to end.
+- Add regression tests for the real exchange-cancel boundary, bridge method presence, dashboard handler route, UI payload, and zero-fill guard.
+
+---
+
 ## Files Not To Edit Without Deep Understanding
 
 - `database/order.py` - canonical schema and write paths
