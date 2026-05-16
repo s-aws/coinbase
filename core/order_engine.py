@@ -1565,6 +1565,17 @@ class OrderEngine:
         logger.info(f"{threading.current_thread().name} [{log_type.upper()}] {message}")
 
     @staticmethod
+    def _is_uuid_like(value: Any) -> bool:
+        """Return True when value can be used against a PostgreSQL UUID column."""
+        if value is None:
+            return False
+        try:
+            uuid.UUID(str(value))
+        except (AttributeError, TypeError, ValueError):
+            return False
+        return True
+
+    @staticmethod
     def order_limit_price_or_avg_price(order: dict) -> float:
         """Extract the price from an order, preferring limit_price over avg_price.
         
@@ -4285,6 +4296,20 @@ class OrderEngine:
             }
 
             # All children are stealth children (stored in stealth_orders table)
+            # ``stealth_orders.parent_order_id`` is UUID-typed. Old polluted
+            # ``order_parent`` rows from pre-guard tests may contain values
+            # like ``test_order_6``; querying with those would abort the whole
+            # reconcile pass with InvalidTextRepresentation.
+            if not self._is_uuid_like(parent_client_order_id):
+                self.log_message(
+                    "error",
+                    self.build_event_log_payload(
+                        "parent_child_snapshot_skipped_non_uuid_parent",
+                        client_order_id=parent_client_order_id,
+                    ),
+                )
+                continue
+
             stealth_children = get_stealth_children_for_parent(parent_client_order_id)
             for stealth_child in stealth_children:
                 stealth_child_id = stealth_child["client_order_id"]  # This is stealth_order_id

@@ -17,6 +17,7 @@ Example:
 """
 
 import os
+import sys
 import threading
 import psycopg2
 from psycopg2 import sql, Error
@@ -104,6 +105,7 @@ class PostgresDB:
         Raises:
             Error: If connection fails due to invalid credentials or database unavailable.
         """
+        self._refuse_test_process_prod_connection()
         try:
             logger.debug(f"Attempting connection to PostgreSQL at {self.host}:{self.port} (db: {self.database})")
             self._conn = psycopg2.connect(
@@ -117,6 +119,28 @@ class PostgresDB:
         except Error as e:
             logger.error(f"Failed to connect to PostgreSQL at {self.host}:{self.port}: {type(e).__name__}: {e}")
             raise
+
+    def _refuse_test_process_prod_connection(self) -> None:
+        """Block test-shaped processes from using the local production port."""
+        if os.environ.get("ALLOW_PROD_DB") == "1":
+            return
+        if self.port != 5432 or self.host not in ("127.0.0.1", "localhost"):
+            return
+
+        argv0 = os.path.basename(sys.argv[0] or "").lower()
+        argv_text = " ".join(sys.argv[:2]).lower()
+        if not (
+            argv0.startswith("test_")
+            or argv0.endswith("_test.py")
+            or "pytest" in argv_text
+        ):
+            return
+
+        raise RuntimeError(
+            f"REFUSED: test-shaped process attempted to connect to prod DB at "
+            f"{self.host}:{self.port}. Use port 9876 for tests or set "
+            f"ALLOW_PROD_DB=1 to override."
+        )
     
     def disconnect(self) -> None:
         """

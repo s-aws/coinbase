@@ -8,6 +8,7 @@ It manages the parent-child order relationship for the trading engine.
 """
 
 import json
+import uuid
 from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
@@ -31,6 +32,27 @@ def _json_default_for_db(value: Any):
     except Exception:
         pass
     return str(value)
+
+
+def _is_uuid_text(value: Any) -> bool:
+    """Return True when value is valid UUID text."""
+    if value is None:
+        return False
+    try:
+        uuid.UUID(str(value))
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return True
+
+
+def _require_uuid_text(value: Any, field_name: str, client_order_id: Optional[str] = None) -> None:
+    """Reject parent-order identifiers that cannot participate in UUID joins."""
+    if not _is_uuid_text(value):
+        raise OrderPersistenceError(
+            error_type="ValidationError",
+            message=f"{field_name} must be a valid UUID, got {value!r}",
+            client_order_id=client_order_id or str(value),
+        )
 
 
 def create_order_parent_table() -> None:
@@ -680,6 +702,10 @@ def insert_order_parent(
     Raises:
         OrderPersistenceError: If database insertion fails.
     """
+    _require_uuid_text(client_order_id, "client_order_id", client_order_id=client_order_id)
+    if parent_order_id is not None:
+        _require_uuid_text(parent_order_id, "parent_order_id", client_order_id=client_order_id)
+
     # Check if parent order already exists (handles race condition with multiple threads)
     existing_parent = get_parent_order(client_order_id)
     if existing_parent:
