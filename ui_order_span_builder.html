@@ -719,6 +719,54 @@
                             </div>
 
                             <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="enable_cancel_reentry_policy" style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>Enable Cancel/Re-entry Limit</span>
+                                </label>
+                                <div class="help-text">Cancels revealed, unfilled orders near the market and re-enters after the market moves away.</div>
+                            </div>
+
+                            <div id="cancel-reentry-fields" class="warning-box" style="display: none;">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Reference</label>
+                                        <select id="cancel_reentry_reference_price_source">
+                                            <option value="midpoint" selected>Midpoint</option>
+                                            <option value="last_trade">Last Trade</option>
+                                            <option value="top_of_book">Top of Book</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Distance Type</label>
+                                        <select id="cancel_reentry_distance_type">
+                                            <option value="A" selected>Absolute</option>
+                                            <option value="P">Percentage</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Cancel Distance</label>
+                                        <input type="number" id="cancel_reentry_cancel_distance" value="0" step="any" min="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Re-entry Distance</label>
+                                        <input type="number" id="cancel_reentry_reentry_distance" value="0" step="any" min="0">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Cooldown Seconds</label>
+                                        <input type="number" id="cancel_reentry_cooldown_seconds" value="0" min="0" step="1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Max Re-entries</label>
+                                        <input type="number" id="cancel_reentry_max_reentry_count" value="0" min="0" step="1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
                                 <label>Notes</label>
                                 <input type="text" id="notes" placeholder="Optional notes">
                             </div>
@@ -1026,8 +1074,10 @@
             });
 
             document.getElementById('reveal_type').addEventListener('change', updateRevealFields);
+            document.getElementById('enable_cancel_reentry_policy').addEventListener('change', toggleCancelReentryFields);
             document.getElementById('reveal_type').value = 'price';
             updateRevealFields();
+            toggleCancelReentryFields();
         }
 
         function updateRevealFields() {
@@ -1150,7 +1200,47 @@
             return sizes;
         }
 
+        function toggleCancelReentryFields() {
+            const enabled = document.getElementById('enable_cancel_reentry_policy').checked;
+            document.getElementById('cancel-reentry-fields').style.display = enabled ? 'block' : 'none';
+        }
+
+        function buildCancelReentryPolicy() {
+            const enabled = document.getElementById('enable_cancel_reentry_policy').checked;
+            if (!enabled) {
+                return { enabled: false };
+            }
+
+            const cancelDistance = parseFloat(document.getElementById('cancel_reentry_cancel_distance').value);
+            const reentryDistance = parseFloat(document.getElementById('cancel_reentry_reentry_distance').value);
+            if (!(cancelDistance > 0)) {
+                throw new Error('Cancel/re-entry cancel distance must be greater than 0');
+            }
+            if (!(reentryDistance > cancelDistance)) {
+                throw new Error('Cancel/re-entry re-entry distance must be greater than cancel distance');
+            }
+
+            return {
+                enabled: true,
+                reference_price_source: document.getElementById('cancel_reentry_reference_price_source').value,
+                distance_type: document.getElementById('cancel_reentry_distance_type').value,
+                cancel_distance: cancelDistance,
+                reentry_distance: reentryDistance,
+                cooldown_seconds: parseInt(document.getElementById('cancel_reentry_cooldown_seconds').value, 10) || 0,
+                max_reentry_count: parseInt(document.getElementById('cancel_reentry_max_reentry_count').value, 10) || 0,
+                inherit_to_follow_ups: true
+            };
+        }
+
         function createOrderSpan() {
+            let cancelReentryPolicy;
+            try {
+                cancelReentryPolicy = buildCancelReentryPolicy();
+            } catch (error) {
+                showMessage(error.message, 'error');
+                return;
+            }
+
             const formData = {
                 product_id: document.getElementById('product_id').value,
                 side: document.getElementById('side').value,
@@ -1165,6 +1255,7 @@
                 target_movement: parseFloat(document.getElementById('target_movement').value),
                 max_followups: parseInt(document.getElementById('max_followups').value),
                 notes: document.getElementById('notes').value,
+                cancel_reentry_policy: cancelReentryPolicy,
                 enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked
             };
 
@@ -1234,6 +1325,7 @@
                     max_order_replacements: formData.max_followups,
                     target_movement: formData.target_movement,
                     target_movement_type: 'P',
+                    cancel_reentry_policy: formData.cancel_reentry_policy,
                     notes: formData.notes ? `[SPAN #${i + 1}] ${formData.notes}` : `[SPAN #${i + 1}/${formData.order_count}]`,
                     enable_hotpoint_replication: formData.enable_hotpoint_replication
                 };
@@ -1284,6 +1376,7 @@
                     max_order_replacements: formData.max_followups,
                     target_movement: formData.target_movement,
                     target_movement_type: 'P',
+                    cancel_reentry_policy: formData.cancel_reentry_policy,
                     notes: i === 0 
                         ? `[SPAN] ${formData.notes} (Order 1/${formData.order_count})` 
                         : `[SPAN] Child of span (Order ${i + 1}/${formData.order_count})`,
@@ -1397,6 +1490,13 @@
             document.getElementById('size_distribution').value = 'equal';
             document.getElementById('target_movement').value = '0.002';
             document.getElementById('max_followups').value = '11';
+            document.getElementById('enable_cancel_reentry_policy').checked = false;
+            document.getElementById('cancel_reentry_reference_price_source').value = 'midpoint';
+            document.getElementById('cancel_reentry_distance_type').value = 'A';
+            document.getElementById('cancel_reentry_cancel_distance').value = '0';
+            document.getElementById('cancel_reentry_reentry_distance').value = '0';
+            document.getElementById('cancel_reentry_cooldown_seconds').value = '0';
+            document.getElementById('cancel_reentry_max_reentry_count').value = '0';
             document.getElementById('notes').value = '';
             document.getElementById('reveal_type').value = 'price';
             
@@ -1407,6 +1507,7 @@
             
             updatePreview();
             updateRevealFields();
+            toggleCancelReentryFields();
         }
 
         function updateOrdersTable() {

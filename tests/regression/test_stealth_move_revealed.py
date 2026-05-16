@@ -591,6 +591,9 @@ _SANCTIONED_CANCEL_CALLERS = (
     # cancel-and-replace, no claim ledger interaction. Single source for
     # both single-order Cancel and bulk Clear All in dashboard_server.
     "_best_effort_cancel_active_exchange_order",
+    # Ticker-driven cancel/re-entry policy intentionally cancels a revealed
+    # unfilled exchange placement, then waits for hysteresis before re-entry.
+    "_apply_cancel_reentry_cancel",
 )
 
 

@@ -3468,6 +3468,21 @@ class OrderEngine:
         # placement uuid equals stealth_order_id (same logical order).
         if original_stealth_order:
             self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
+            policy_cancelled = self.stealth_order_bridge.stealth_manager.is_policy_cancelled_placement(
+                original_stealth_order,
+                client_order_id,
+            )
+            if policy_cancelled is True:
+                self.log_message(
+                    "order",
+                    {
+                        "event": "cancel_reentry_policy_cancel_confirmed",
+                        "client_order_id": client_order_id,
+                        "stealth_order_id": original_stealth_order.get("stealth_order_id"),
+                    },
+                )
+                self.complete_follow_up_processing("cancelled", client_order_id)
+                return
 
         # Check if this is an external order (not created by our engine)
         # External orders are ones we didn't place, so we shouldn't create follow-ups
@@ -3595,7 +3610,21 @@ class OrderEngine:
                 
                 # Get target_movement from parent order (source of truth)
                 from database.order import get_parent_order
-                parent_order_data = get_parent_order(parent_client_order_id)
+                try:
+                    if getattr(self, "db_module", None) and hasattr(self.db_module, "get_parent_order"):
+                        parent_order_data = self.db_module.get_parent_order(parent_client_order_id)
+                    else:
+                        parent_order_data = get_parent_order(parent_client_order_id)
+                except Exception as lookup_exc:
+                    self.log_message(
+                        "warning",
+                        {
+                            "event": "cancel_follow_up_parent_lookup_failed",
+                            "parent_client_order_id": parent_client_order_id,
+                            "error": str(lookup_exc),
+                        },
+                    )
+                    parent_order_data = None
                 parent_target_movement = parent_order_data.get("target_movement") if parent_order_data else None
                 parent_target_movement_type = parent_order_data.get("target_movement_type", TargetMovementType.PERCENTAGE.value) if parent_order_data else TargetMovementType.PERCENTAGE.value
                 

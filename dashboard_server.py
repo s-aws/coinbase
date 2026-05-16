@@ -92,6 +92,7 @@ _EXPORT_FIELDS = (
     "target_movement_type",
     "allow_partial_fills",
     "anchor_repricing_policy_json",  # → anchor_repricing_policy
+    "cancel_reentry_policy_json",    # → cancel_reentry_policy
 )
 
 logger = get_logger("DashboardServer")
@@ -1004,6 +1005,8 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                             dst_key = "sizing_strategy"
                         elif src_key == "anchor_repricing_policy_json":
                             dst_key = "anchor_repricing_policy"
+                        elif src_key == "cancel_reentry_policy_json":
+                            dst_key = "cancel_reentry_policy"
                         else:
                             dst_key = src_key
                         payload[dst_key] = serialized[src_key]
@@ -1085,6 +1088,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         target_movement_type=entry.get("target_movement_type", "P"),
                         allow_partial_fills=bool(entry.get("allow_partial_fills", True)),
                         anchor_repricing_policy=entry.get("anchor_repricing_policy"),
+                        cancel_reentry_policy=entry.get("cancel_reentry_policy"),
                     )
                     results.append({
                         "status": "success",
@@ -1164,6 +1168,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     target_movement_type=order.get('target_movement_type', 'P'),
                     allow_partial_fills=bool(order.get('allow_partial_fills', True)),
                     anchor_repricing_policy=order.get('anchor_repricing_policy'),
+                    cancel_reentry_policy=order.get('cancel_reentry_policy'),
                     enable_hotpoint_replication=bool(order.get('enable_hotpoint_replication', False)),
                 )
                 

@@ -1070,6 +1070,63 @@
                         </div>
 
                         <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                <input type="checkbox" id="enable_cancel_reentry_policy" style="cursor: pointer; width: 14px; height: 14px;">
+                                <span>Enable Cancel/Re-entry Limit</span>
+                            </label>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                Cancels revealed, unfilled orders near the market and re-enters after the market moves away.
+                            </div>
+                        </div>
+
+                        <div id="cancel-reentry-fields" class="policy-panel hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Reference Price Source</label>
+                                    <select id="cancel_reentry_reference_price_source">
+                                        <option value="midpoint" selected>Midpoint</option>
+                                        <option value="last_trade">Last Trade</option>
+                                        <option value="top_of_book">Top of Book</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Distance Type</label>
+                                    <select id="cancel_reentry_distance_type">
+                                        <option value="A" selected>Absolute Amount</option>
+                                        <option value="P">Percentage (%)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Cancel Distance</label>
+                                    <input type="number" id="cancel_reentry_cancel_distance" value="0" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Cancel when limit-to-reference distance is at or inside this value.
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Re-entry Distance</label>
+                                    <input type="number" id="cancel_reentry_reentry_distance" value="0" step="any" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Must be greater than cancel distance to avoid churn.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Cooldown Seconds</label>
+                                    <input type="number" id="cancel_reentry_cooldown_seconds" value="0" step="1" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Re-entries</label>
+                                    <input type="number" id="cancel_reentry_max_reentry_count" value="0" step="1" min="0">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">0 = unlimited</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Sizing Strategy</label>
                             <select id="sizing_strategy" onchange="updateSizingFields()">
                                 <option value="fixed">Fixed (All at once)</option>
@@ -1694,6 +1751,32 @@
                 `</div>`;
         }
 
+        function formatCancelReentryStateDetail(order) {
+            const policy = order.cancel_reentry_policy_json || {};
+            if (!policy.enabled) return '';
+
+            const state = order.cancel_reentry_state_json || {};
+            const isAbs = policy.distance_type === 'A';
+            const cancelLabel = isAbs
+                ? `${policy.cancel_distance} (abs)`
+                : `${(policy.cancel_distance * 100).toFixed(2)}%`;
+            const reentryLabel = isAbs
+                ? `${policy.reentry_distance} (abs)`
+                : `${(policy.reentry_distance * 100).toFixed(2)}%`;
+            const lastCancel = state.last_cancel_at
+                ? new Date(state.last_cancel_at).toLocaleTimeString() : 'none';
+            const count = state.reentry_count || 0;
+            const limit = policy.max_reentry_count || 0;
+            const stateLabel = state.state || 'resting';
+
+            return `<div style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">` +
+                `<div style="color: #ffb347; font-weight: 600; margin-bottom: 4px;">Cancel/Re-entry (${policy.reference_price_source || 'midpoint'})</div>` +
+                `<div style="color:#888; font-size:10px;">Cancel at: ${cancelLabel} | Re-enter at: ${reentryLabel}</div>` +
+                `<div style="color:#888; font-size:10px;">State: ${stateLabel} | Last cancel: ${lastCancel}</div>` +
+                `<div style="color:#888; font-size:10px;">Re-entries: ${count}${limit > 0 ? ` / ${limit}` : ''} | Cooldown: ${policy.cooldown_seconds || 0}s</div>` +
+                `</div>`;
+        }
+
         function createConditionTooltipHTML(order) {
             const conditionJson = order.reveal_condition_json || {};
             const type = order.reveal_condition_type || conditionJson.type || 'N/A';
@@ -1704,8 +1787,9 @@
             }
 
             const anchorDetail = formatAnchorRepricingStateDetail(order);
+            const cancelReentryDetail = formatCancelReentryStateDetail(order);
             const details = detailParts.join('<br><br>');
-            const hasTooltip = details || anchorDetail;
+            const hasTooltip = details || anchorDetail || cancelReentryDetail;
 
             const anchorPolicy = order.anchor_repricing_policy_json || {};
             const repriceBadge = anchorPolicy.enabled
@@ -1723,15 +1807,20 @@
                 ? `<span title="Reveal threshold tracks limit price (offsets: ${Object.entries(offsets).map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${Number(v).toFixed(2)}`).join(', ')})" style="color:#fbbf24; font-size:11px; margin-left:4px; cursor:default;">🔗</span>`
                 : '';
 
+            const cancelReentryPolicy = order.cancel_reentry_policy_json || {};
+            const cancelReentryBadge = cancelReentryPolicy.enabled
+                ? `<span title="Cancel/re-entry policy active" style="color:#ffb347; font-size:11px; margin-left:4px; cursor:default;">C/R</span>`
+                : '';
+
             if (!hasTooltip) {
-                return `<span class="condition-type">${type}${repriceBadge}${trackingBadge}</span>`;
+                return `<span class="condition-type">${type}${repriceBadge}${trackingBadge}${cancelReentryBadge}</span>`;
             }
             
             return `<span class="condition-type">
-                ${type}${repriceBadge}${trackingBadge}
+                ${type}${repriceBadge}${trackingBadge}${cancelReentryBadge}
                 <div class="condition-tooltip">
                     <div style="font-weight: 600; margin-bottom: 6px; color: #4ade80;">${type}</div>
-                    <div class="condition-details" style="white-space: normal; width: 240px;">${details}${anchorDetail}</div>
+                    <div class="condition-details" style="white-space: normal; width: 240px;">${details}${anchorDetail}${cancelReentryDetail}</div>
                 </div>
             </span>`;
         }
@@ -1739,6 +1828,11 @@
         function toggleAnchorRepricingFields() {
             const enabled = document.getElementById('enable_anchor_repricing').checked;
             document.getElementById('anchor-repricing-fields').classList.toggle('hidden', !enabled);
+        }
+
+        function toggleCancelReentryFields() {
+            const enabled = document.getElementById('enable_cancel_reentry_policy').checked;
+            document.getElementById('cancel-reentry-fields').classList.toggle('hidden', !enabled);
         }
 
         function toggleAnchorFixedInterval() {
@@ -1790,6 +1884,33 @@
                 max_step_per_reprice: parseFloat(document.getElementById('anchor_max_step_per_reprice').value),
                 follow_up_retreat_distance: parseFloat(document.getElementById('anchor_follow_up_retreat_distance').value),
                 follow_up_retreat_jitter: parseFloat(document.getElementById('anchor_follow_up_retreat_jitter').value),
+            };
+        }
+
+        function buildCancelReentryPolicy() {
+            const enabled = document.getElementById('enable_cancel_reentry_policy').checked;
+            if (!enabled) {
+                return { enabled: false };
+            }
+
+            const cancelDistance = parseFloat(document.getElementById('cancel_reentry_cancel_distance').value);
+            const reentryDistance = parseFloat(document.getElementById('cancel_reentry_reentry_distance').value);
+            if (!(cancelDistance > 0)) {
+                throw new Error('Cancel/re-entry cancel distance must be greater than 0');
+            }
+            if (!(reentryDistance > cancelDistance)) {
+                throw new Error('Cancel/re-entry re-entry distance must be greater than cancel distance');
+            }
+
+            return {
+                enabled: true,
+                reference_price_source: document.getElementById('cancel_reentry_reference_price_source').value,
+                distance_type: document.getElementById('cancel_reentry_distance_type').value,
+                cancel_distance: cancelDistance,
+                reentry_distance: reentryDistance,
+                cooldown_seconds: parseInt(document.getElementById('cancel_reentry_cooldown_seconds').value, 10) || 0,
+                max_reentry_count: parseInt(document.getElementById('cancel_reentry_max_reentry_count').value, 10) || 0,
+                inherit_to_follow_ups: true
             };
         }
 
@@ -2991,6 +3112,13 @@
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
                 anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
+                enable_cancel_reentry_policy: document.getElementById('enable_cancel_reentry_policy').checked,
+                cancel_reentry_reference_price_source: document.getElementById('cancel_reentry_reference_price_source').value,
+                cancel_reentry_distance_type: document.getElementById('cancel_reentry_distance_type').value,
+                cancel_reentry_cancel_distance: document.getElementById('cancel_reentry_cancel_distance').value,
+                cancel_reentry_reentry_distance: document.getElementById('cancel_reentry_reentry_distance').value,
+                cancel_reentry_cooldown_seconds: document.getElementById('cancel_reentry_cooldown_seconds').value,
+                cancel_reentry_max_reentry_count: document.getElementById('cancel_reentry_max_reentry_count').value,
                 tranche_schedule: document.getElementById('tranche_schedule').value,
                 tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
                 adaptive_base_size: document.getElementById('adaptive_base_size').value,
@@ -3091,6 +3219,13 @@
                 anchor_max_step_per_reprice: document.getElementById('anchor_max_step_per_reprice').value,
                 anchor_follow_up_retreat_distance: document.getElementById('anchor_follow_up_retreat_distance').value,
                 anchor_follow_up_retreat_jitter: document.getElementById('anchor_follow_up_retreat_jitter').value,
+                enable_cancel_reentry_policy: document.getElementById('enable_cancel_reentry_policy').checked,
+                cancel_reentry_reference_price_source: document.getElementById('cancel_reentry_reference_price_source').value,
+                cancel_reentry_distance_type: document.getElementById('cancel_reentry_distance_type').value,
+                cancel_reentry_cancel_distance: document.getElementById('cancel_reentry_cancel_distance').value,
+                cancel_reentry_reentry_distance: document.getElementById('cancel_reentry_reentry_distance').value,
+                cancel_reentry_cooldown_seconds: document.getElementById('cancel_reentry_cooldown_seconds').value,
+                cancel_reentry_max_reentry_count: document.getElementById('cancel_reentry_max_reentry_count').value,
                 tranche_schedule: document.getElementById('tranche_schedule').value,
                 tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
                 adaptive_base_size: document.getElementById('adaptive_base_size').value,
@@ -3175,7 +3310,7 @@
             const entry = history[index];
             
             // Restore main fields
-            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter'];
+            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'cancel_reentry_reference_price_source', 'cancel_reentry_distance_type', 'cancel_reentry_cancel_distance', 'cancel_reentry_reentry_distance', 'cancel_reentry_cooldown_seconds', 'cancel_reentry_max_reentry_count'];
             mainFields.forEach(fieldId => {
                 const element = document.getElementById(fieldId);
                 if (element && entry[fieldId] !== undefined) {
@@ -3200,7 +3335,12 @@
             if (anchorSlide && entry['anchor_slide_mode'] !== undefined) {
                 anchorSlide.checked = entry['anchor_slide_mode'];
             }
+            const cancelReentryCheckbox = document.getElementById('enable_cancel_reentry_policy');
+            if (cancelReentryCheckbox && entry['enable_cancel_reentry_policy'] !== undefined) {
+                cancelReentryCheckbox.checked = entry['enable_cancel_reentry_policy'];
+            }
             toggleAnchorRepricingFields();
+            toggleCancelReentryFields();
             toggleAnchorFixedInterval();
             toggleSlideMode();
             
@@ -3241,7 +3381,7 @@
                     const formData = JSON.parse(savedData);
                     
                     // Restore main fields
-                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'tranche_schedule', 'adaptive_base_size', 'adaptive_reveal_multiplier', 'adaptive_max_reveal_percentage', 'adaptive_volume_window'];
+                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'cancel_reentry_reference_price_source', 'cancel_reentry_distance_type', 'cancel_reentry_cancel_distance', 'cancel_reentry_reentry_distance', 'cancel_reentry_cooldown_seconds', 'cancel_reentry_max_reentry_count', 'tranche_schedule', 'adaptive_base_size', 'adaptive_reveal_multiplier', 'adaptive_max_reveal_percentage', 'adaptive_volume_window'];
                     mainFields.forEach(fieldId => {
                         const element = document.getElementById(fieldId);
                         if (element && formData[fieldId] !== undefined) {
@@ -3266,11 +3406,16 @@
                     if (anchorSlide && formData['anchor_slide_mode'] !== undefined) {
                         anchorSlide.checked = formData['anchor_slide_mode'];
                     }
+                    const cancelReentryCheckbox = document.getElementById('enable_cancel_reentry_policy');
+                    if (cancelReentryCheckbox && formData['enable_cancel_reentry_policy'] !== undefined) {
+                        cancelReentryCheckbox.checked = formData['enable_cancel_reentry_policy'];
+                    }
                     const trancheIce = document.getElementById('tranche_iceberg_mode');
                     if (trancheIce && formData['tranche_iceberg_mode'] !== undefined) {
                         trancheIce.checked = formData['tranche_iceberg_mode'];
                     }
                     toggleAnchorRepricingFields();
+                    toggleCancelReentryFields();
                     toggleAnchorFixedInterval();
                     toggleSlideMode();
                     updateSizingFields();
@@ -3297,6 +3442,7 @@
             // Always update condition fields based on current condition_type value
             // This ensures fields are shown on initial page load even if no data was restored
             updateConditionFields();
+            toggleCancelReentryFields();
         }
 
         function buildRevealCondition() {
@@ -3317,6 +3463,7 @@
 
         document.getElementById('condition_type').addEventListener('change', updateConditionFields);
         document.getElementById('enable_anchor_repricing').addEventListener('change', toggleAnchorRepricingFields);
+        document.getElementById('enable_cancel_reentry_policy').addEventListener('change', toggleCancelReentryFields);
 
         document.getElementById('create-order-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -3326,6 +3473,13 @@
             const targetMovementType = document.getElementById('target_movement_type').value;
             const allowPartialFills = document.getElementById('allow_partial_fills').checked;
             const enableHotpointReplication = document.getElementById('enable_hotpoint_replication').checked;
+            let cancelReentryPolicy;
+            try {
+                cancelReentryPolicy = buildCancelReentryPolicy();
+            } catch (error) {
+                showMessage(error.message, 'error');
+                return;
+            }
 
             const order = {
                 product_id: document.getElementById('product_id').value,
@@ -3342,6 +3496,7 @@
                 allow_partial_fills: allowPartialFills,
                 enable_hotpoint_replication: enableHotpointReplication,
                 anchor_repricing_policy: buildAnchorRepricingPolicy(),
+                cancel_reentry_policy: cancelReentryPolicy,
                 notes: document.getElementById('notes').value
             };
 
@@ -3415,6 +3570,7 @@
                 sizing_strategy: {strategy: "equal_slices"},
                 allow_partial_fills: order.allow_partial_fills !== undefined ? order.allow_partial_fills : true,
                 anchor_repricing_policy: order.anchor_repricing_policy_json || { enabled: false },
+                cancel_reentry_policy: order.cancel_reentry_policy_json || { enabled: false },
                 notes: `Follow-up hidden order from ${orderID}`
             };
             
@@ -3699,6 +3855,7 @@
         loadProductsFromJSON();  // Load all products at startup
         restoreFormValues();      // Restore last used form values
         toggleAnchorRepricingFields();
+        toggleCancelReentryFields();
         toggleAnchorFixedInterval();
         setupAutoSave();          // Setup auto-save on input changes
         updateHistoryDisplay();   // Display saved entries history

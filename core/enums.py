@@ -213,6 +213,26 @@ class StealthMoveReason(str, Enum):
     OPERATOR_REPRICE = "operator_reprice"
 
 
+class CancelReentryState(str, Enum):
+    """Runtime state for cancel/re-entry policy.
+
+    RESTING means the order is either hidden before first reveal or has an
+    active revealed placement. CANCELLED_BY_POLICY means a policy-triggered
+    exchange cancel succeeded and the order is waiting for re-entry distance.
+    """
+
+    RESTING = "resting"
+    CANCELLED_BY_POLICY = "cancelled_by_policy"
+
+
+class CancelReentryDecision(str, Enum):
+    """Pure evaluator decision for cancel/re-entry policy."""
+
+    HOLD = "hold"
+    CANCEL = "cancel"
+    REENTER = "reenter"
+
+
 class RevealPricingPolicy(str, Enum):
     """Pricing policy for stealth order reveal.
 

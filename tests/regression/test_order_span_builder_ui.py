@@ -18,3 +18,11 @@ def test_create_span_preserves_submitted_form_values():
 
     assert "resetForm(" not in create_span_body
     assert 'onclick="resetForm()"' in source
+
+
+def test_order_span_builder_sends_cancel_reentry_policy():
+    source = HTML_PATH.read_text(encoding="utf-8")
+
+    assert 'id="enable_cancel_reentry_policy"' in source
+    assert "function buildCancelReentryPolicy()" in source
+    assert "cancel_reentry_policy: formData.cancel_reentry_policy" in source

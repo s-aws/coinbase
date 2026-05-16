@@ -74,6 +74,8 @@ from configuration import (
     safe_float,
 )
 from core.enums import (
+    CancelReentryDecision,
+    CancelReentryState,
     FollowUpRevealDirection,
     OrderSide,
     OrderStatus,
@@ -92,9 +94,14 @@ from core.exceptions import (
     StealthOrderNotFoundError,
     StealthOrderPersistenceError,
 )
+from business.cancel_reentry_policy import (
+    CancelReentryPolicy,
+    CancelReentryRuntimeState,
+    evaluate_cancel_reentry,
+)
 from business.stealth_condition_evaluator import get_evaluator
 from core.models import MarketData, RepricingPolicy, RepricingState
-from core.runtime_controller import INFLIGHT_REST_PLACE, get_runtime_controller
+from core.runtime_controller import INFLIGHT_REST_CANCEL, INFLIGHT_REST_PLACE, get_runtime_controller
 from database.order import get_parent_order, insert_order_parent, update_order_parent_status
 from logging_service import get_logger
 
@@ -473,6 +480,27 @@ class StealthOrderManager:
         if policy.enabled and policy.target_distance <= 0:
             policy = RepricingPolicy.disabled()
         return policy.to_dict()
+
+    def _normalize_cancel_reentry_policy(
+        self,
+        cancel_reentry_policy: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Normalize cancel/re-entry policy for storage."""
+        try:
+            return CancelReentryPolicy.from_dict(cancel_reentry_policy).to_dict()
+        except ValueError as exc:
+            from core.exceptions import OrderCreationError
+
+            raise OrderCreationError(
+                f"invalid cancel_reentry_policy: {exc}"
+            ) from exc
+
+    def _normalize_cancel_reentry_state(
+        self,
+        cancel_reentry_state: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Normalize cancel/re-entry runtime state for storage."""
+        return CancelReentryRuntimeState.from_dict(cancel_reentry_state).to_dict()
 
     @staticmethod
     def _parse_runtime_datetime(value: Any) -> Optional[datetime]:
@@ -1604,6 +1632,12 @@ class StealthOrderManager:
             if not order or order.get("product_id") != product_id:
                 continue
 
+            cancel_reentry_state = CancelReentryRuntimeState.from_dict(
+                order.get("cancel_reentry_state_json")
+            )
+            if cancel_reentry_state.state == CancelReentryState.CANCELLED_BY_POLICY:
+                continue
+
             policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
             if not policy.enabled:
                 continue
@@ -1769,6 +1803,249 @@ class StealthOrderManager:
                 self.release_mutation(StealthMutationKind.REPRICE, stealth_order_id)
 
         return processed
+
+    def process_cancel_reentry_for_product(self, product_id: str) -> int:
+        """Apply cancel/re-entry policy for eligible stealth orders on one product."""
+        processed = 0
+        market_data = self._get_current_market_data(product_id)
+        if (market_data or {}).get("source") != "ticker":
+            return 0
+
+        for stealth_order_id in list(self._get_active_stealth_orders()):
+            order = self.in_memory_orders.get(stealth_order_id)
+            if not order or order.get("product_id") != product_id:
+                continue
+
+            try:
+                policy = CancelReentryPolicy.from_dict(
+                    order.get("cancel_reentry_policy_json")
+                )
+            except ValueError as exc:
+                self.log_callback(
+                    "warning",
+                    {
+                        "event": "cancel_reentry_policy_invalid",
+                        "stealth_order_id": stealth_order_id,
+                        "error": str(exc),
+                    },
+                )
+                continue
+
+            if not policy.enabled:
+                continue
+
+            state = CancelReentryRuntimeState.from_dict(
+                order.get("cancel_reentry_state_json")
+            )
+            evaluation = evaluate_cancel_reentry(order, market_data, policy, state)
+
+            if evaluation.decision == CancelReentryDecision.CANCEL:
+                if self._apply_cancel_reentry_cancel(order, state, evaluation):
+                    processed += 1
+            elif evaluation.decision == CancelReentryDecision.REENTER:
+                if self._apply_cancel_reentry_reenter(order, state, evaluation):
+                    processed += 1
+
+        return processed
+
+    def is_policy_cancelled_placement(
+        self,
+        order: Dict[str, Any],
+        placement_client_order_id: str,
+    ) -> bool:
+        """Return True when a WS cancel belongs to a policy-triggered cancel."""
+        state = CancelReentryRuntimeState.from_dict(
+            order.get("cancel_reentry_state_json")
+        )
+        return (
+            bool(placement_client_order_id)
+            and state.cancelled_placement_client_order_id == placement_client_order_id
+        )
+
+    def _apply_cancel_reentry_cancel(
+        self,
+        order: Dict[str, Any],
+        state: CancelReentryRuntimeState,
+        evaluation: Any,
+    ) -> bool:
+        """Cancel the active revealed placement for cancel/re-entry policy."""
+        from core.enums import StealthMutationKind
+        from configuration import REST_CLIENT
+
+        stealth_order_id = order.get("stealth_order_id")
+        if not stealth_order_id:
+            return False
+        if safe_float(order.get("executed_size"), default=0.0) > 0:
+            return False
+        if order.get("status") != StealthOrderStatus.REVEALED.value:
+            return False
+
+        anchor_state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        placement_client_order_id = anchor_state.get("active_placement_client_order_id")
+        exchange_order_id = anchor_state.get("active_exchange_order_id")
+        if not exchange_order_id:
+            return False
+
+        if not self.try_claim_mutation(StealthMutationKind.MOVE, stealth_order_id):
+            return False
+
+        try:
+            pre_cancel_state = CancelReentryRuntimeState(
+                state=CancelReentryState.CANCELLED_BY_POLICY,
+                last_cancel_at=state.last_cancel_at,
+                last_reentry_at=state.last_reentry_at,
+                reentry_count=state.reentry_count,
+                cancelled_placement_client_order_id=placement_client_order_id,
+                cancelled_exchange_order_id=exchange_order_id,
+                last_reason=evaluation.reason,
+            )
+            order["cancel_reentry_state_json"] = pre_cancel_state.to_dict()
+            try:
+                with get_runtime_controller().track_inflight(INFLIGHT_REST_CANCEL):
+                    REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
+            except Exception as cancel_exc:
+                order["cancel_reentry_state_json"] = state.to_dict()
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "cancel_reentry_cancel_failed",
+                        "stealth_order_id": stealth_order_id,
+                        "exchange_order_id": exchange_order_id,
+                        "reason": evaluation.reason,
+                        "error": str(cancel_exc),
+                    },
+                )
+                return False
+
+            self._mark_reveal_event_cancelled_for_reprice(
+                order,
+                placement_client_order_id,
+                "cancel_reentry_policy",
+            )
+
+            now = datetime.utcnow()
+            anchor_state["active_placement_client_order_id"] = None
+            anchor_state["active_exchange_order_id"] = None
+            anchor_state["active_exchange_price"] = None
+            anchor_state["cancel_reentry_last_reference_price"] = evaluation.reference_price
+            anchor_state["cancel_reentry_last_distance"] = evaluation.distance
+            order["anchor_repricing_state_json"] = anchor_state
+
+            order["status"] = StealthOrderStatus.HIDDEN.value
+            order["revealed_size"] = 0.0
+            order["remaining_size"] = float(order.get("total_size", 0) or 0)
+            order["visibility_score"] = 0.0
+            order["condition_first_met_at"] = None
+            order["condition_confirmed_at"] = None
+            order["updated_at"] = now
+
+            policy_state = CancelReentryRuntimeState(
+                state=CancelReentryState.CANCELLED_BY_POLICY,
+                last_cancel_at=now.isoformat(),
+                last_reentry_at=state.last_reentry_at,
+                reentry_count=state.reentry_count,
+                cancelled_placement_client_order_id=placement_client_order_id,
+                cancelled_exchange_order_id=exchange_order_id,
+                last_reason=evaluation.reason,
+            )
+            order["cancel_reentry_state_json"] = policy_state.to_dict()
+            self._update_stealth_order(order)
+
+            self.log_callback(
+                "info",
+                {
+                    "event": "cancel_reentry_cancelled",
+                    "stealth_order_id": stealth_order_id,
+                    "placement_client_order_id": placement_client_order_id,
+                    "exchange_order_id": exchange_order_id,
+                    "reference_price": evaluation.reference_price,
+                    "distance": evaluation.distance,
+                    "reason": evaluation.reason,
+                },
+            )
+            return True
+        finally:
+            self.release_mutation(StealthMutationKind.MOVE, stealth_order_id)
+
+    def _apply_cancel_reentry_reenter(
+        self,
+        order: Dict[str, Any],
+        state: CancelReentryRuntimeState,
+        evaluation: Any,
+    ) -> bool:
+        """Re-enter a policy-cancelled stealth order through reveal_order_slice."""
+        from core.enums import StealthMutationKind
+
+        stealth_order_id = order.get("stealth_order_id")
+        if not stealth_order_id:
+            return False
+        if safe_float(order.get("executed_size"), default=0.0) > 0:
+            return False
+        if state.state != CancelReentryState.CANCELLED_BY_POLICY:
+            return False
+
+        if not self.try_claim_mutation(StealthMutationKind.MOVE, stealth_order_id):
+            return False
+
+        try:
+            now = datetime.utcnow()
+            order["status"] = StealthOrderStatus.TRIGGERED.value
+            order["condition_confirmed_at"] = now
+            order["remaining_size"] = float(order.get("total_size", 0) or 0)
+            order["revealed_size"] = 0.0
+            order["visibility_score"] = 0.0
+
+            placed_order_id = None
+            try:
+                placed_order_id = self.reveal_order_slice(stealth_order_id)
+            except Exception as reveal_exc:
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "cancel_reentry_reentry_failed",
+                        "stealth_order_id": stealth_order_id,
+                        "reason": evaluation.reason,
+                        "error": str(reveal_exc),
+                    },
+                )
+
+            if not placed_order_id:
+                order["status"] = StealthOrderStatus.HIDDEN.value
+                order["condition_confirmed_at"] = None
+                order["cancel_reentry_state_json"] = state.to_dict()
+                self._update_stealth_order(order)
+                return False
+
+            fresh_order = self._get_stealth_order(stealth_order_id) or order
+            policy_state = CancelReentryRuntimeState(
+                state=CancelReentryState.RESTING,
+                last_cancel_at=state.last_cancel_at,
+                last_reentry_at=datetime.utcnow().isoformat(),
+                reentry_count=state.reentry_count + 1,
+                cancelled_placement_client_order_id=state.cancelled_placement_client_order_id,
+                cancelled_exchange_order_id=state.cancelled_exchange_order_id,
+                last_reason=evaluation.reason,
+            )
+            fresh_order["cancel_reentry_state_json"] = policy_state.to_dict()
+            self._update_stealth_order(fresh_order)
+
+            self.log_callback(
+                "info",
+                {
+                    "event": "cancel_reentry_reentered",
+                    "stealth_order_id": stealth_order_id,
+                    "placement_client_order_id": placed_order_id,
+                    "reference_price": evaluation.reference_price,
+                    "distance": evaluation.distance,
+                    "reason": evaluation.reason,
+                    "reentry_count": policy_state.reentry_count,
+                },
+            )
+            return True
+        finally:
+            self.release_mutation(StealthMutationKind.MOVE, stealth_order_id)
 
     def build_reveal_execution_plan(
         self,
@@ -2419,6 +2696,7 @@ class StealthOrderManager:
         allow_partial_fills: bool = False,
         anchor_repricing_policy: Optional[Dict[str, Any]] = None,
         enable_hotpoint_replication: bool = False,
+        cancel_reentry_policy: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -2452,6 +2730,9 @@ class StealthOrderManager:
             target_movement_type: Type of target ('P' for percentage, 'A' for absolute, default 'P')
             reveal_pricing_policy: Per-order reveal pricing policy (configured_limit, top_of_book, midpoint).
                                   If None, defaults to configured_limit.
+            cancel_reentry_policy: Optional policy that cancels a revealed,
+                                  zero-fill placement when it is too close to
+                                  market and re-enters when safely away.
             
         Returns:
             order_id (UUID string) - Used as client_order_id for all internal tracking
@@ -2538,6 +2819,7 @@ class StealthOrderManager:
                 )
 
         normalized_anchor_repricing_policy = self._normalize_anchor_repricing_policy(anchor_repricing_policy)
+        normalized_cancel_reentry_policy = self._normalize_cancel_reentry_policy(cancel_reentry_policy)
 
         order_data = {
             "stealth_order_id": stealth_order_id,
@@ -2566,6 +2848,8 @@ class StealthOrderManager:
             "allow_partial_fills": allow_partial_fills,
             "anchor_repricing_policy_json": normalized_anchor_repricing_policy,
             "anchor_repricing_state_json": self._normalize_anchor_repricing_state(None),
+            "cancel_reentry_policy_json": normalized_cancel_reentry_policy,
+            "cancel_reentry_state_json": self._normalize_cancel_reentry_state(None),
         }
         
         # Store in memory for quick access
@@ -2709,6 +2993,12 @@ class StealthOrderManager:
         
         if order["status"] in [StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value]:
             return False, f"Order already {order['status']}"
+
+        cancel_reentry_state = CancelReentryRuntimeState.from_dict(
+            order.get("cancel_reentry_state_json")
+        )
+        if cancel_reentry_state.state == CancelReentryState.CANCELLED_BY_POLICY:
+            return False, "Order is waiting for cancel/re-entry threshold"
         
         if order["remaining_size"] <= 0:
             return False, "All size already revealed"
@@ -3878,7 +4168,8 @@ class StealthOrderManager:
         reveal_pricing_policy: Optional[str] = None,
         notes: str = "",
         target_movement: Optional[float] = None,
-        target_movement_type: str = "P"
+        target_movement_type: str = "P",
+        cancel_reentry_policy: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
@@ -3898,6 +4189,8 @@ class StealthOrderManager:
             notes: Additional notes
             target_movement: Optional override for target movement. If not provided, uses original's target_movement.
             target_movement_type: Type for target movement ('P' or 'A'). Default 'P'.
+            cancel_reentry_policy: Optional override for cancel/re-entry policy. If None,
+                inherits from original only when that policy allows follow-up inheritance.
             
         Returns:
             New stealth_order_id if created, None if original not found
@@ -3920,6 +4213,19 @@ class StealthOrderManager:
             anchor_repricing_policy = original_repricing.to_dict()
         else:
             anchor_repricing_policy = RepricingPolicy.disabled().to_dict()
+
+        if cancel_reentry_policy is not None:
+            inherited_cancel_reentry_policy = self._normalize_cancel_reentry_policy(
+                cancel_reentry_policy
+            )
+        else:
+            original_cancel_reentry = CancelReentryPolicy.from_dict(
+                original_order.get("cancel_reentry_policy_json")
+            )
+            if original_cancel_reentry.inherit_to_follow_ups:
+                inherited_cancel_reentry_policy = original_cancel_reentry.to_dict()
+            else:
+                inherited_cancel_reentry_policy = CancelReentryPolicy.disabled().to_dict()
         
         # Use provided target movement or inherit from original. Resolve via the
         # canonical resolver so root stealth orders (which keep target_movement on
@@ -3989,6 +4295,7 @@ class StealthOrderManager:
             reason="follow_up_replacement",
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}{retreat_audit}",
             anchor_repricing_policy=anchor_repricing_policy,
+            cancel_reentry_policy=inherited_cancel_reentry_policy,
             target_movement=follow_up_target_movement,
             target_movement_type=follow_up_target_movement_type,
             stealth_order_id=follow_up_stealth_order_id,
@@ -4030,11 +4337,12 @@ class StealthOrderManager:
         try:
             self.db_client.execute_update(
                 """INSERT INTO stealth_orders 
-                   (stealth_order_id, product_id, side, total_size, remaining_size, 
-                    limit_price, status, reveal_condition_type, reveal_condition_json, 
-                          sizing_strategy_json, reason, notes, parent_order_id,
-                          anchor_repricing_policy_json, anchor_repricing_state_json)
-                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   (stealth_order_id, product_id, side, total_size, remaining_size,
+                    limit_price, status, reveal_condition_type, reveal_condition_json,
+                    sizing_strategy_json, reason, notes, parent_order_id,
+                    anchor_repricing_policy_json, anchor_repricing_state_json,
+                    cancel_reentry_policy_json, cancel_reentry_state_json)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -4049,7 +4357,9 @@ class StealthOrderManager:
                  order.get('notes', ''),
                   order.get('parent_order_id'),
                   json.dumps(order.get('anchor_repricing_policy_json', {})),
-                  json.dumps(order.get('anchor_repricing_state_json', {})))
+                  json.dumps(order.get('anchor_repricing_state_json', {})),
+                  json.dumps(order.get('cancel_reentry_policy_json', {})),
+                  json.dumps(order.get('cancel_reentry_state_json', {})))
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
@@ -4079,6 +4389,11 @@ class StealthOrderManager:
                 key: value.isoformat() if hasattr(value, 'isoformat') else value
                 for key, value in dict(anchor_repricing_state or {}).items()
             })
+            cancel_reentry_state = order.get('cancel_reentry_state_json', {})
+            cancel_reentry_state_json = json.dumps({
+                key: value.isoformat() if hasattr(value, 'isoformat') else value
+                for key, value in dict(cancel_reentry_state or {}).items()
+            })
 
             # Condition timestamps: serialise datetimes to ISO strings.
             # These mark when the reveal condition first became plausible
@@ -4100,6 +4415,7 @@ class StealthOrderManager:
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
                        limit_price = %s, reveal_condition_json = %s,
                        anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
+                       cancel_reentry_policy_json = %s, cancel_reentry_state_json = %s,
                        condition_first_met_at = %s, condition_confirmed_at = %s,
                        updated_at = CURRENT_TIMESTAMP
                    WHERE stealth_order_id = %s""",
@@ -4113,6 +4429,8 @@ class StealthOrderManager:
                  json.dumps(order.get('reveal_condition_json', {})),
                  json.dumps(order.get('anchor_repricing_policy_json', {})),
                  anchor_repricing_state_json,
+                 json.dumps(order.get('cancel_reentry_policy_json', {})),
+                 cancel_reentry_state_json,
                  condition_first_met_at,
                  condition_confirmed_at,
                  order['stealth_order_id'])
@@ -4162,6 +4480,8 @@ class StealthOrderManager:
                     'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
                     'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
                     'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
+                    'cancel_reentry_policy_json': parse_json_field(row.get('cancel_reentry_policy_json'), {}),
+                    'cancel_reentry_state_json': parse_json_field(row.get('cancel_reentry_state_json'), {}),
                     'created_at': row.get('created_at'),
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
@@ -4233,6 +4553,8 @@ class StealthOrderManager:
                         'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
                         'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
                         'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
+                        'cancel_reentry_policy_json': parse_json_field(row.get('cancel_reentry_policy_json'), {}),
+                        'cancel_reentry_state_json': parse_json_field(row.get('cancel_reentry_state_json'), {}),
                         'created_at': row.get('created_at'),
                         'updated_at': row.get('updated_at'),
                         'visibility_score': float(row.get('visibility_score', 0.0)),
