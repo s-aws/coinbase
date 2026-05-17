@@ -1,7 +1,8 @@
 # agent.md - Project-Specific Rules
 
 For session entry rules and required reading order see [AGENTS.md](AGENTS.md).
-For canonical engineering principles (DRY, single code path, ID discipline) see `genai_data/`.
+For public agent ownership boundaries see `docs/agents/` and `.agents/ownership.yaml`.
+For expanded local engineering context (DRY, single code path, ID discipline) see `genai_data/` when present.
 
 This file documents constraints and references that are specific to this codebase
 and not duplicated in global agent instructions.
@@ -123,7 +124,7 @@ When extending UI behavior, update both dashboard handler logic and the correspo
 ## Testing Commands (PowerShell)
 
 `pytest tests/regression/ -v --tb=short` must pass before any non-agent-file change is done.
-Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
+Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell
 # Regression - required for non-agent-file changes

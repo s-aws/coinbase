@@ -35,9 +35,11 @@ class MarketData(TypedDict, total=False):
                        repricing volume guardrail).
         market_spread: Pre-computed ``ask - bid`` when available.
         time:          Timestamp of the snapshot (engine-local datetime).
-        source:        Provenance tag — one of ``ticker``, ``snapshot``,
-                       ``unavailable``, ``synthetic_follow_up_seed``.
-                       Audit/log only; never used for control flow.
+        source:        Provenance/control tag -- one of ``ticker``,
+                       ``snapshot``, ``unavailable``,
+                       ``synthetic_follow_up_seed``. Live-ticker-only
+                       paths require ``ticker``; other values block those
+                       paths and are also persisted/logged for audit.
     """
     product_id: str
     price: float
@@ -358,7 +360,7 @@ class StealthMovePlan:
     - **Audit-friendly** — every field is persisted alongside the move
       audit row.
 
-    v1 scope (pinned by ``tests/regression/test_stealth_move_revealed.py``):
+    Current move scope (pinned by ``tests/regression/test_stealth_move_revealed.py``):
     - Order must be ``REVEALED`` with ``executed_size == 0`` (no partial
       fills); reject at build time otherwise.
     - Move always resets per-order anchor repricing state and

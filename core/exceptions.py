@@ -259,7 +259,7 @@ class StealthMoveError(StealthOrderError):
     Build-time causes:
     - Stealth order not found / cannot be loaded
     - Status is not ``REVEALED`` (moves are only valid against revealed orders)
-    - ``executed_size > 0`` (v1: partial-fill moves are out of scope)
+    - ``executed_size > 0`` (partial-fill moves are currently out of scope)
     - No active exchange order id to cancel
     - New limit price <= 0
 
@@ -603,7 +603,7 @@ class StateInconsistencyError(StateManagementError):
 
 
 # ============================================================================
-# TYPE ALIASES FOR COMMON PATTERNS
+# ANCHOR REPRICING ERRORS
 # ============================================================================
 
 class AnchorRepricingError(StealthOrderError):

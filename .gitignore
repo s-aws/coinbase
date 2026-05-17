@@ -180,9 +180,8 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-# Agent contract files — COMMIT THESE so fresh clones / new contributors
-# discover the project's agent rules. Working scratch (genai_data/,
-# genai_tools/) stays local-only.
+# Public agent contracts live in docs/agents/ and .agents/.
+# Local expanded context stays local-only.
 genai_data/
 genai_tools/
 ID_USAGE_ANALYSIS.md
@@ -201,3 +200,5 @@ ID_USAGE_ANALYSIS.md
 # (`*.log` is already covered above under "Django stuff".)
 server_logs.txt
 startup_output.txt
+!docs/archive/v2/runtime-output/
+!docs/archive/v2/runtime-output/startup_output.txt

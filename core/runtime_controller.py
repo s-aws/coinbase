@@ -113,16 +113,19 @@ class RuntimeController:
 
     @property
     def state(self) -> EngineState:
-        """Current engine lifecycle state (snapshot, lock-free read)."""
-        return self._state
+        """Current engine lifecycle state (lock-guarded snapshot)."""
+        with self._state_lock:
+            return self._state
 
     def is_admitting(self) -> bool:
         """True iff the engine is RUNNING and accepting new work."""
-        return self._state is EngineState.RUNNING
+        with self._state_lock:
+            return self._state is EngineState.RUNNING
 
     def is_stopping(self) -> bool:
         """True iff a shutdown has been requested (DRAINING or STOPPED)."""
-        return self._state in (EngineState.DRAINING, EngineState.STOPPED)
+        with self._state_lock:
+            return self._state in (EngineState.DRAINING, EngineState.STOPPED)
 
     # ------------------------------------------------------------------
     # Admission gate
@@ -136,7 +139,8 @@ class RuntimeController:
         STOPPED. Originating categories (new order placement, stealth
         reveal of new slices) are gated on RUNNING.
         """
-        state = self._state
+        with self._state_lock:
+            state = self._state
         if state is EngineState.STOPPED:
             raise EngineNotAdmittingError(state, category)
         if category in _ALWAYS_ALLOWED:
@@ -293,7 +297,7 @@ class RuntimeController:
           4. Mark state STOPPED.
         """
         started = monotonic()
-        state_before = self._state
+        state_before = self.state
         self.request_shutdown()  # idempotent; ensures DRAINING
 
         # Snapshot hooks under lock, then invoke without holding it.

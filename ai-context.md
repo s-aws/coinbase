@@ -1,10 +1,21 @@
 # AI Context Marker
 
-This file marks `genai_data/` as the canonical AI context directory for this project.
+This file marks `genai_data/` as the local expanded AI context directory for this project.
+Public, tracked agent contracts live in `docs/agents/` and `.agents/ownership.yaml`.
 
 CONTEXT_DIRECTORY=genai_data/
 
-## Read in this order
+## Public Tracked Agent Context
+
+1. `docs/agents/README.md` - Public agent contract entry point
+2. `docs/agents/AGENT_ARCHITECT.md` - Architect role and assignment checklist
+3. `docs/agents/INVARIANTS.md` - Public engineering invariants
+4. `docs/agents/OWNERSHIP.md` - Human-readable ownership boundaries
+5. `.agents/ownership.yaml` - Machine-readable ownership manifest
+6. `docs/agents/AGENT_<ROLE>.md` - Specialist context packs
+7. `docs/agents/PUBLIC_PRIVATE_SPLIT.md` - Public/private repository split rules
+
+## Local Expanded Context Read Order
 
 1. `genai_data/README.md` - Project overview and navigation
 2. `genai_data/ARCHITECTURE.md` - Runtime architecture, threading, and data flow

@@ -1,0 +1,303 @@
+# Public ownership manifest.
+#
+# This file is intentionally model-agnostic. Private repos may map these owner
+# ids to model names, prompts, budgets, and routing rules.
+
+version: 1
+
+owners:
+  architect:
+    context: docs/agents/AGENT_ARCHITECT.md
+    owns:
+      - docs/agents/**
+      - docs/PUBLIC_ROADMAP.md
+      - docs/REPO_CLEANUP_CLASSIFICATION.md
+      - .agents/**
+      - .github/workflows/public-agent-checks.yml
+      - .github/PULL_REQUEST_TEMPLATE.md
+      - .github/skills/**
+      - tools/check_ownership.py
+      - tools/classify_repo_files.py
+      - ai-context.md
+      - AGENTS.md
+      - agent.md
+      - .gitignore
+      - .vscode/settings.json
+      - genai_data/AGENT_*.md
+      - genai_data/agent_state.md
+    tests:
+      - python tools/check_ownership.py --owner architect
+    requires_regression: false
+
+  core_types:
+    context: docs/agents/AGENT_CORE_TYPES.md
+    owns:
+      - core/enums.py
+      - core/models.py
+      - core/constants.py
+      - core/exceptions.py
+      - core/__init__.py
+    test_owns:
+      - tests/unit/test_models.py
+      - tests/regression/test_exception_kwargs_signature.py
+    tests:
+      - pytest tests/unit/test_models.py tests/regression/test_exception_kwargs_signature.py -v --tb=short
+    requires_regression: true
+
+  runtime_lifecycle:
+    context: docs/agents/AGENT_RUNTIME_LIFECYCLE.md
+    owns:
+      - main.py
+      - core/runtime_controller.py
+      - core/startup_reconciler.py
+      - core/periodic_reconciler.py
+      - logging_service.py
+    test_owns:
+      - tests/regression/test_runtime_controller.py
+      - tests/regression/test_cross_source_reconciliation.py
+    tests:
+      - pytest tests/regression/test_runtime_controller.py tests/regression/test_cross_source_reconciliation.py -v --tb=short
+    requires_regression: true
+
+  order_lifecycle:
+    context: docs/agents/AGENT_ORDER_LIFECYCLE.md
+    owns:
+      - core/order_engine.py
+      - core/orderbook.py
+      - business/order_progress.py
+      - business/move_manager.py
+    test_owns:
+      - tests/regression/test_order_id_regression.py
+      - tests/regression/test_parent_row_before_ws_delta.py
+      - tests/regression/test_replacement_slot_atomic_claim.py
+      - tests/regression/test_process_user_order_per_coid_lock.py
+      - tests/regression/test_partial_fill_follow_up_atomic_claim.py
+      - tests/regression/test_follow_up_*.py
+      - tests/regression/test_flat_hierarchy_*.py
+      - tests/unit/test_orderbook_v2.py
+      - tests/unit/test_order_progress_tracker.py
+      - tests/unit/test_order_moves.py
+    tests:
+      - pytest tests/regression/test_order_id_regression.py tests/regression/test_parent_row_before_ws_delta.py tests/regression/test_replacement_slot_atomic_claim.py -v --tb=short
+    requires_regression: true
+
+  stealth_lifecycle:
+    context: docs/agents/AGENT_STEALTH_LIFECYCLE.md
+    owns:
+      - core/stealth_order_manager.py
+      - business/stealth_condition_evaluator.py
+      - business/stealth_reveal_strategy.py
+      - business/cancel_reentry_policy.py
+    test_owns:
+      - tests/regression/test_stealth_*.py
+      - tests/regression/test_cancel_reentry_policy.py
+      - tests/regression/test_repricing_policy.py
+      - tests/regression/test_reveal_*.py
+      - tests/regression/test_post_only_*.py
+      - tests/regression/test_anchor_*.py
+      - tests/regression/test_triggered_snapshot_commit.py
+      - tests/unit/test_stealth_*.py
+      - tests/unit/test_condition_evaluators.py
+      - tests/integration/test_stealth_*.py
+      - tests/integration/test_anchor_*.py
+    tests:
+      - pytest tests/regression/test_stealth_cancel_reentry.py tests/regression/test_stealth_move_revealed.py tests/regression/test_repricing_policy.py -v --tb=short
+    requires_regression: true
+
+  bridge_hook:
+    context: docs/agents/AGENT_BRIDGE_HOOK.md
+    owns:
+      - bridges/**
+      - integration/**
+      - business/event_processor.py
+    test_owns:
+      - tests/integration/test_bridges.py
+      - tests/unit/test_order_event_stream.py
+    tests:
+      - pytest tests/integration/test_bridges.py tests/regression/test_dashboard_move_revealed_handler.py -v --tb=short
+    requires_regression: true
+
+  dashboard_contract:
+    context: docs/agents/AGENT_DASHBOARD_CONTRACT.md
+    owns:
+      - dashboard_server.py
+      - order.py
+      - engine_console.py
+      - ui_*.html
+      - ui_console.py
+      - Dashboard.*
+      - TradeChart.*
+      - App.*
+      - index.*
+      - gemini_dashboard.*
+    test_owns:
+      - tests/regression/test_dashboard_*.py
+      - tests/regression/test_order_span_builder_ui.py
+      - tests/regression/test_create_limit_order_span_smoke.py
+      - tests/e2e/**
+    tests:
+      - pytest tests/regression/test_dashboard_move_revealed_handler.py tests/regression/test_order_span_builder_ui.py -v --tb=short
+    requires_regression: true
+
+  persistence:
+    context: docs/agents/AGENT_PERSISTENCE.md
+    owns:
+      - database/**
+      - data/**
+    test_owns:
+      - tests/regression/test_db_*.py
+      - tests/regression/test_reconciler_schema.py
+      - tests/unit/test_database.py
+      - tests/unit/test_order_inventory.py
+    tests:
+      - pytest tests/regression/test_db_cursor_thread_safety.py tests/regression/test_db_prod_guard.py tests/regression/test_reconciler_schema.py -v --tb=short
+    requires_regression: true
+
+  fill_audit:
+    context: docs/agents/AGENT_FILL_AUDIT.md
+    owns:
+      - business/fill_ledger.py
+      - business/fill_reconciler.py
+      - business/order_event_stream.py
+      - business/post_fill_hook.py
+    test_owns:
+      - tests/regression/test_cross_source_reconciliation.py
+      - tests/regression/test_two_sided_fee_accounting.py
+      - tests/unit/test_fill_*.py
+    tests:
+      - pytest tests/regression/test_cross_source_reconciliation.py tests/unit/test_fill_reconciler.py tests/unit/test_fill_ledger_append_derived.py -v --tb=short
+    requires_regression: true
+
+  calculation:
+    context: docs/agents/AGENT_CALCULATION.md
+    owns:
+      - calculation/**
+    test_owns:
+      - tests/regression/test_size_validation.py
+      - tests/regression/test_quantize_to_increment.py
+      - tests/regression/test_maker_taker_fee_selection.py
+      - tests/regression/test_per_side_mandatory_fee.py
+      - tests/regression/test_fee_multiplier_by_product_type.py
+      - tests/unit/test_profit_validator.py
+      - tests/unit/test_fee_regime_adaptation.py
+    tests:
+      - pytest tests/regression/test_size_validation.py tests/regression/test_quantize_to_increment.py tests/regression/test_maker_taker_fee_selection.py -v --tb=short
+    requires_regression: true
+
+  configuration:
+    context: docs/agents/AGENT_CONFIGURATION.md
+    owns:
+      - configuration.py
+      - products.json
+      - pyproject.toml
+    test_owns:
+      - tests/regression/test_size_validation.py
+      - tests/regression/test_fee_multiplier_by_product_type.py
+      - tests/unit/test_product_type_profitability_fix.py
+    tests:
+      - pytest tests/regression/test_size_validation.py tests/regression/test_fee_multiplier_by_product_type.py -v --tb=short
+    requires_regression: true
+
+  exchange_integration:
+    context: docs/agents/AGENT_EXCHANGE_INTEGRATION.md
+    owns:
+      - external/**
+      - websocket/**
+      - api_reference/**
+      - websocket_reference/**
+    test_owns:
+      - tests/regression/test_place_limit_order_returns_dict.py
+      - tests/regression/test_list_fills_param_mapping.py
+      - tests/unit/test_coinbase_api.py
+      - tests/external/**
+    tests:
+      - pytest tests/regression/test_place_limit_order_returns_dict.py tests/regression/test_list_fills_param_mapping.py -v --tb=short
+    requires_regression: true
+
+  market_analytics:
+    context: docs/agents/AGENT_MARKET_ANALYTICS.md
+    owns:
+      - market_intel/**
+      - business/market_tick_recorder.py
+      - business/market_metrics.py
+    test_owns:
+      - tests/regression/test_market_*.py
+      - tests/regression/test_cross_venue_monitor.py
+      - tests/regression/test_slide_calibration_summary.py
+      - tests/unit/test_cross_venue_aggregator.py
+    tests:
+      - pytest tests/regression/test_market_tick_recorder.py tests/regression/test_market_metrics_tracker.py tests/regression/test_market_chart_data.py -v --tb=short
+    requires_regression: true
+
+  strategy:
+    context: docs/agents/AGENT_STRATEGY.md
+    owns:
+      - business/position_lot.py
+      - business/lot_builder.py
+      - business/lot_config.py
+      - business/profit_threshold_engine.py
+      - business/order_interception_layer.py
+      - business/conditional_execution.py
+      - business/hotpoint_detector.py
+      - business/hotpoint_rate_limiter.py
+      - business/hotpoint_placer.py
+      - business/hotpoint_decay_sweeper.py
+    test_owns:
+      - tests/regression/test_hotpoint_*.py
+      - tests/regression/test_tranche_iceberg_pacing.py
+      - tests/unit/test_generate_order_ladder_random.py
+      - tests/test_lot_tracking_integration.py
+    tests:
+      - pytest tests/regression/test_hotpoint_detector.py tests/regression/test_hotpoint_rate_limiter.py tests/regression/test_hotpoint_placer.py -v --tb=short
+    requires_regression: true
+
+  test_quality:
+    context: docs/agents/AGENT_TEST_QUALITY.md
+    owns:
+      - tests/conftest.py
+      - tests/pytest.ini
+      - tests/fixtures/**
+      - tests/README.md
+      - tests/TEST_*.md
+      - tests/SETUP_SUMMARY.md
+      - tests/DEPLOYMENT_CHECKLIST.md
+      - tests/requirements.txt
+    tests:
+      - pytest tests/regression/test_db_prod_guard.py -v --tb=short
+    requires_regression: true
+
+  ops_diagnostics:
+    context: docs/agents/AGENT_OPS_DIAGNOSTICS.md
+    owns:
+      - docs/archive/**
+      - tools/diagnostics/**
+      - genai_tools/**
+      - ui_order_span/**
+      - check_*.py
+      - audit_*.py
+      - debug_*.py
+      - test_*.py
+      - verify_tables.py
+      - "*investor_dashboard.html"
+      - bounce_arc_dashboard.html
+      - sample.html
+      - startup_output.txt
+      - demo_*.py
+      - main_place_order.py
+      - cli_parent_child_orders.py
+      - __dangerous_delete_all_tables__.py
+      - "*.log"
+      - "*_COMPLETE.md"
+      - "*_FIX*.md"
+      - "*_ANALYSIS*.md"
+      - "*_SUMMARY.md"
+      - PARTIAL_FILLS*.md
+      - WEBSOCKET_*.md
+      - EXCEPTIONS_IMPLEMENTATION.md
+      - DATABASE_AUDIT_ROOT_CAUSE_FIXES.md
+      - DEADLOCK_EXECUTIVE_SUMMARY.md
+      - RACE_CONDITIONS_ANALYSIS_COMPLETE.md
+      - COMPREHENSIVE_TEST_SUITE_CREATED.md
+    tests:
+      - python tools/check_ownership.py --owner ops_diagnostics
+    requires_regression: false

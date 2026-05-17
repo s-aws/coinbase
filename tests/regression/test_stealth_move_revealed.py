@@ -711,12 +711,12 @@ class TestStealthOrderMovesAuditTable:
         """The danger-script must (re)create stealth_order_moves so a
         fresh dev DB has the table without manual migration."""
         repo_root = Path(__file__).resolve().parents[2]
-        src = (repo_root / "__dangerous_delete_all_tables__.py").read_text(
-            encoding="utf-8"
-        )
+        script_path = repo_root / "tools" / "diagnostics" / "__dangerous_delete_all_tables__.py"
+        src = script_path.read_text(encoding="utf-8")
         assert "create_stealth_order_moves_table" in src, (
             "create_stealth_order_moves_table is not invoked by "
-            "__dangerous_delete_all_tables__.py; new dev DBs will be "
+            "tools/diagnostics/__dangerous_delete_all_tables__.py; "
+            "new dev DBs will be "
             "missing the audit table."
         )
 
