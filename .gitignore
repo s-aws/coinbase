@@ -202,3 +202,4 @@ server_logs.txt
 startup_output.txt
 !docs/archive/v2/runtime-output/
 !docs/archive/v2/runtime-output/startup_output.txt
+.claude/
