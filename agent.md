@@ -1,5 +1,7 @@
 # agent.md - Project-Specific Rules
 
+This project is built on Windows. CRLF is the standard line ending.
+CRTIICAL: For Linux, avoid formatters. Use surgical patches only.
 For session entry rules and required reading order see [AGENTS.md](AGENTS.md).
 For public agent ownership boundaries see `docs/agents/` and `.agents/ownership.yaml`.
 For expanded local engineering context (DRY, single code path, ID discipline) see `genai_data/` when present.
