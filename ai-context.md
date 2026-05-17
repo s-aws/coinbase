@@ -17,8 +17,9 @@ CONTEXT_DIRECTORY=genai_data/
 9. `genai_data/TESTING_STRATEGY.md` - Required test commands and change validation workflow
 10. `genai_data/COMPREHENSIVE_TEST_SUITE.md` - Current suite inventory and coverage map
 11. `genai_data/AGENT_CONSISTENCY_PROTOCOL.md` - Session context and pruning rules
-12. `genai_data/agent_state.md` - Durable handoff state
-13. `genai_data/AGENT_HANDOFF_TEMPLATE.md` - Standard pause/resume handoff format
+12. `genai_data/AGENT_ARCHITECT.md` - Specialist ownership boundaries and dependency rules
+13. `genai_data/agent_state.md` - Durable handoff state
+14. `genai_data/AGENT_HANDOFF_TEMPLATE.md` - Standard pause/resume handoff format
 
 ## Companion Files in Repo Root
 
