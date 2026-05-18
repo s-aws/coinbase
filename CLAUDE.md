@@ -82,3 +82,8 @@ Coinbase repo-specific:
 - `ORDERBOOK` is mutable runtime state. Existing callers may read and write attributes.
 - Any non-agent-file change must pass `pytest tests/regression/ -v --tb=short`.
 - Use surgical patches only; do not normalize line endings or run broad formatters.
+
+CRITICAL:
+- `genai_data\AGENT_ARCHITECT.md` must be read to understand when and where edits can be made.
+
+CRITICAL: Do not invent behavior. If a behavior is missing, raise it to the user as a request to create a plan.
