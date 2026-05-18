@@ -18,10 +18,9 @@ from os import getenv
 from copy import deepcopy
 import json
 from pathlib import Path
+from threading import Lock
 from typing import Any, Optional, Union, overload
-from coinbase.rest import RESTClient
 
-from external import CoinbaseRestClient
 from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
 from core.constants import (  # noqa: F401  (re-exported for legacy ``from configuration import ...``)
     DERIVATIVES_PER_SIDE_FEE_DEFAULT,
@@ -46,6 +45,71 @@ except (FileNotFoundError, json.JSONDecodeError) as e:
     PRODUCT_METADATA = {}
     TICKER_TO_TRADING = {}
 
+class LazyProxy:
+    """Transparent proxy that initialises the real object on first use (thread-safe)."""
+
+    __slots__ = ("_factory", "_real", "_lock")
+
+    def __init__(self, factory):
+        self._factory = factory
+        self._real = None
+        self._lock = Lock()
+
+    def _ensure(self):
+        """Initialise the real object if it hasn't been created yet.
+
+        Uses double-checked locking so the lock is only contended on the very
+        first access — subsequent hits return immediately from the inline guard.
+        """
+        if self._real is None:
+            with self._lock:
+                if self._real is None:
+                    self._real = self._factory()
+
+    def __getattr__(self, name):
+        self._ensure()
+        return getattr(self._real, name)
+
+    def __setattr__(self, name, value):
+        # Private slots (_factory, _real, _lock) are managed by the proxy
+        # itself.  Every other attribute write is forwarded to the real
+        # object so that callers like ``orderbook.db_module = mod`` reach
+        # the legacy OrderBook shim property setters.
+        if name.startswith("_"):
+            super().__setattr__(name, value)
+            return
+        self._ensure()
+        setattr(self._real, name, value)
+
+    def __call__(self, *args, **kwargs):
+        self._ensure()
+        return self._real(*args, **kwargs)
+
+
+API_KEY = getenv("COINBASE_API_KEY")
+API_SECRET = getenv("COINBASE_API_SECRET")
+
+
+def _make_rest_client():
+    """Create the SDK + wrapper client (called once by the LazyProxy)."""
+    from coinbase.rest import RESTClient
+    from external import CoinbaseRestClient
+
+    _sdk = RESTClient(
+        api_key=API_KEY,
+        api_secret=API_SECRET,
+        rate_limit_headers=True,
+    )
+    return CoinbaseRestClient(_sdk)
+
+
+REST_CLIENT = LazyProxy(_make_rest_client)
+
+def get_rest_client() -> "CoinbaseRestClient":
+    """Return the (lazily initialised) REST client singleton."""
+    REST_CLIENT._ensure()
+    return REST_CLIENT._real
+
 def get_trading_product_id(ticker_product_id: str) -> str:
     """
     Convert a ticker product ID to its trading equivalent.
@@ -66,14 +130,6 @@ def get_trading_product_id(ticker_product_id: str) -> str:
     # Otherwise assume it's already a trading product
     return ticker_product_id
 
-API_KEY = getenv("COINBASE_API_KEY")
-API_SECRET = getenv("COINBASE_API_SECRET")
-
-_sdk_client = RESTClient(
-    api_key=API_KEY,
-    api_secret=API_SECRET,
-    rate_limit_headers=True)
-REST_CLIENT = CoinbaseRestClient(_sdk_client)
 
 ORDER_SIDE_SWITCH = {
     "BUY": "SELL",
@@ -331,7 +387,7 @@ def rest_get_account_wallets() -> dict:
         ...     print(f"BTC balance: {btc_wallet['available_balance']}")
         >>> all_currencies = list(wallets.keys())
     """
-    accounts_list = REST_CLIENT.get_accounts()["accounts"]
+    accounts_list = get_rest_client().get_accounts()["accounts"]
 
     account_wallets = {
         item["currency"]: item for item in accounts_list if item["deleted_at"] is None
@@ -362,7 +418,7 @@ def rest_get_products() -> dict:
         >>> print(f"Can trade {base_increment} BTC increments")
     """
     products_list = [
-        REST_CLIENT.get_product_dict(product_id) for
+        get_rest_client().get_product_dict(product_id) for
             product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS]
 
     products = {
@@ -391,7 +447,7 @@ def get_futures_positions() -> dict:
         ...     pos = positions['BIP-20DEC30-CDE']
         ...     print(f"Contracts: {pos['number_of_contracts']}")
     """
-    futures_list = REST_CLIENT.list_futures_positions().to_dict()["positions"]
+    futures_list = get_rest_client().list_futures_positions().to_dict()["positions"]
 
     if futures_list:
         positions = {
@@ -420,7 +476,7 @@ def get_open_orders() -> dict:
         >>> for client_id, order_data in open_orders.items():
         ...     print(f"Order {client_id}: {order_data['product_id']} {order_data['side']}")
     """
-    orders_list = REST_CLIENT.list_orders(order_status=["OPEN"]).to_dict()["orders"]
+    orders_list = get_rest_client().list_orders(order_status=["OPEN"]).to_dict()["orders"]
 
     orders = {
         order["client_order_id"]: order for order in orders_list
@@ -1118,4 +1174,9 @@ class Subscription():
         "futures_balance_summary",
     ]
 
-ORDERBOOK = OrderBook()
+ORDERBOOK = LazyProxy(OrderBook)
+
+def get_orderbook():
+    """Return the (lazily initialised) OrderBook singleton."""
+    ORDERBOOK._ensure()
+    return ORDERBOOK._real

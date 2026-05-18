@@ -193,6 +193,7 @@ owners:
     test_owns:
       - tests/regression/test_size_validation.py
       - tests/regression/test_fee_multiplier_by_product_type.py
+      - tests/regression/test_lazy_import.py
       - tests/unit/test_product_type_profitability_fix.py
     tests:
       - pytest tests/regression/test_size_validation.py tests/regression/test_fee_multiplier_by_product_type.py -v --tb=short
