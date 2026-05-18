@@ -65,6 +65,18 @@ authoritative enough for fresh public clones.
 - Do not bypass claim ledgers for follow-ups, replacement slots, or stealth
   mutations.
 
+## Invariant Escalation Rule
+
+- If a request conflicts with any invariant in this document, do not implement it.
+- Name the invariant, explain the conflict, and route the decision to the Architect Agent.
+- Rejecting the request is the correct default. Invariant changes are architectural decisions, not implementation details.
+
+## Conditional Planning Rule
+
+- For invariant-conflicting requests, you may provide impact analysis and an exchange-truth-preserving design sketch, but label it conditional.
+- Do not present conditional plans as approved implementation work.
+- A conditional plan exists to inform the user's decision, not to do the work.
+
 ## Tests
 
 - Non-agent-file changes require:
