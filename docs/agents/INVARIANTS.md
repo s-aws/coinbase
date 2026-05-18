@@ -4,6 +4,13 @@ These are the minimum rules every specialist agent must keep in context.
 Expanded local context may exist in `genai_data/`, but these public rules are
 authoritative enough for fresh public clones.
 
+## Domain Boundaries
+
+- Do not edit files outside the owned files listed in the agent Owns section.
+- If a change requires editing files owned by another agent, route the change to
+  that owner or coordinate through the architect.
+- Read-only access to files outside the domain for context is always allowed.
+
 ## IDs
 
 - Use `client_order_id` for internal tracking, parent/child linkage, orderbook

@@ -42,6 +42,10 @@ If those seven fields cannot be stated clearly, the task is not ready.
 Public code must never depend on private files. Private orchestration may copy
 or inspect public files through an allowlisted publish path.
 
+## Must Not Do
+
+- Do not edit source code files owned by other agents. The architect owns boundaries, routing, and governance — not runtime behavior. Route implementation work to the primary owner.
+
 ## Public Enforcement
 
 - `.agents/ownership.yaml` maps public files and test files to one owner id.

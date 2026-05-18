@@ -16,6 +16,7 @@ bridge/domain method -> response/state update -> regression coverage.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not implement trading lifecycle behavior in dashboard handlers.
 - Do not document speculative WebSocket message types as active.
 - Do not route to a bridge method that does not exist.

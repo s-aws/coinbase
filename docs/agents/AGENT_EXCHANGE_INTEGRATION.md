@@ -14,6 +14,7 @@ lifecycle semantics belong to lifecycle owners.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not decide local parent linkage, stealth state, or fill ownership.
 - Do not make external tests part of the default regression gate.
 - Do not leak credentials into reference payloads.

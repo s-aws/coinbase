@@ -17,6 +17,7 @@ specialist-owned module only after the canonical path is identified.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not productionize `genai_tools/` directly.
 - Do not run destructive scripts without explicit approval.
 - Do not treat historical notes as current architecture unless they are updated

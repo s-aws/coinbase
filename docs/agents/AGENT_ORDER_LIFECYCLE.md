@@ -15,6 +15,7 @@ follow-up path.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not create grandchildren. Every child points to the original root parent.
 - Do not use `order_id` as an internal parent key.
 - Do not implement stealth reveal, hide, reprice, or cancel/re-entry behavior.

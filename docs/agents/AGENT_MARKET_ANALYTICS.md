@@ -17,6 +17,7 @@ shape changes.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not mutate trading state from cross-venue or chart signals.
 - Do not crash engine loops when analytics data is missing.
 - Do not bypass persistence owner for analytics table changes.

@@ -13,6 +13,7 @@ Domain behavior remains in its owner module.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not recreate deleted pass-through orchestrator/facade layers.
 - Do not dispatch hooks inside lock-critical sections unless the existing module
   already documents that ordering.

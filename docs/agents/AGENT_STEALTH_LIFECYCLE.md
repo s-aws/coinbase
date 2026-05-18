@@ -14,6 +14,7 @@ evaluation, but lifecycle truth lives in the manager.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not mark a revealed stealth order hidden, cancelled, or moved without
   cancelling, replacing, filling, moving, or reconciling the active Coinbase
   placement.

@@ -15,6 +15,7 @@ truth audits flow through the reconciler modules.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not admit originating work while paused, draining, or stopped.
 - Do not bypass `track_inflight` for critical REST, DB, fill, or stealth work.
 - Do not classify exchange ownership without submission evidence.

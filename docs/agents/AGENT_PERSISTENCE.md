@@ -12,6 +12,7 @@ Schema and SQL helpers live in `database/order.py`; DB access is serialized by
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not add business decisions to SQL helper code when an engine, manager, or
   policy module owns the behavior.
 - Do not bypass `PostgresDB._cursor_lock`.

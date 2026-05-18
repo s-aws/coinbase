@@ -14,6 +14,7 @@ Shared vocabulary is defined here before behavior owners consume it.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not add magic strings for statuses, policies, channels, or events.
 - Do not add persisted fields without coordinating with `persistence`.
 - Do not change ID semantics: `client_order_id` is internal, `order_id` is exchange-facing.

@@ -15,6 +15,7 @@ events.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not replace `derived_trade_key` with exchange ids in live WS ingestion.
 - Do not treat exchange `order_id` as local ownership proof.
 - Do not mutate order lifecycle directly from audit helpers.

@@ -20,6 +20,7 @@ mutation still flow through the canonical order/stealth paths.
 
 ## Must Not Do
 
+- Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
 - Do not create a competing order lifecycle.
 - Do not let auto-placed hotpoint orders cascade into new hotpoint triggers.
 - Do not bypass rate limits or kill switches.
