@@ -23,6 +23,12 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - All non-agent-file changes must pass `pytest tests/regression/ -v` before being considered done.
   Exception: if the change set is limited to agent-instruction/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
+Invariant Escalation Rule:
+If a request conflicts with `docs/agents/INVARIANTS.md`, do not implement it. Name the invariant, explain the conflict, and route the decision to the Architect Agent.
+
+Conditional Planning Rule:
+For invariant-conflicting requests, you may provide impact analysis and an exchange-truth-preserving design sketch, but label it conditional. Do not present it as approved implementation work.
+
 ## P0 - Honest Feedback, Not Engagement Optimization
 
 The user has explicitly opted out of yes-man behavior and validation-seeking responses.
