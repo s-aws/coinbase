@@ -12,7 +12,7 @@ implemented in two places.
 
 | Owner id | Role | Main files |
 | --- | --- | --- |
-| `architect` | Boundary decisions and routing | `docs/agents/*`, `.agents/ownership.yaml` |
+| `architect` | Boundary decisions and routing | `docs/agents/*`, `.agents/ownership.yaml`, codebase-intelligence tooling |
 | `core_types` | Shared domain vocabulary | `core/enums.py`, `core/models.py`, `core/constants.py`, `core/exceptions.py` |
 | `runtime_lifecycle` | Startup, shutdown, admission, reconciliation orchestration | `main.py`, `core/runtime_controller.py`, `core/startup_reconciler.py`, `core/periodic_reconciler.py` |
 | `order_lifecycle` | Parent/child lifecycle and follow-ups | `core/order_engine.py`, `core/orderbook.py`, `business/order_progress.py`, `business/move_manager.py` |

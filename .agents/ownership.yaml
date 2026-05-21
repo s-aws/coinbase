@@ -16,6 +16,8 @@ owners:
       - .github/workflows/public-agent-checks.yml
       - .github/PULL_REQUEST_TEMPLATE.md
       - .github/skills/**
+      - tools/__init__.py
+      - tools/codebase_intelligence/**
       - tools/check_ownership.py
       - tools/classify_repo_files.py
       - ai-context.md
@@ -25,6 +27,8 @@ owners:
       - .vscode/settings.json
       - genai_data/AGENT_*.md
       - genai_data/agent_state.md
+    test_owns:
+      - tests/regression/test_codebase_intelligence.py
     tests:
       - python tools/check_ownership.py --owner architect
     requires_regression: false
