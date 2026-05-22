@@ -182,9 +182,9 @@ cython_debug/
 
 # Public agent contracts live in docs/agents/ and .agents/.
 # Local expanded context stays local-only.
-genai_data/
+# genai_data/
 genai_tools/
-ID_USAGE_ANALYSIS.md
+# ID_USAGE_ANALYSIS.md
 
 # Agent runtime caches and traces (Copilot / Aider / Continue / Cursor / Codeium)
 .aider*
