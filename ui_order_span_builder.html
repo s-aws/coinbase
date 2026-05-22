@@ -767,6 +767,23 @@
                             </div>
 
                             <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="enable_post_fill_retreat_policy" style="cursor: pointer; width: 14px; height: 14px;">
+                                    <span>Enable Same-Side Post-Fill Retreat</span>
+                                </label>
+                                <div class="help-text">Closest eligible hidden same-side order retreats by price tick(s) after a fill.</div>
+                            </div>
+
+                            <div id="post-fill-retreat-fields" class="warning-box" style="display: none;">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Retreat Ticks</label>
+                                        <input type="number" id="post_fill_retreat_ticks" value="1" step="1" min="1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
                                 <label>Notes</label>
                                 <input type="text" id="notes" placeholder="Optional notes">
                             </div>
@@ -1075,9 +1092,11 @@
 
             document.getElementById('reveal_type').addEventListener('change', updateRevealFields);
             document.getElementById('enable_cancel_reentry_policy').addEventListener('change', toggleCancelReentryFields);
+            document.getElementById('enable_post_fill_retreat_policy').addEventListener('change', togglePostFillRetreatFields);
             document.getElementById('reveal_type').value = 'price';
             updateRevealFields();
             toggleCancelReentryFields();
+            togglePostFillRetreatFields();
         }
 
         function updateRevealFields() {
@@ -1205,6 +1224,11 @@
             document.getElementById('cancel-reentry-fields').style.display = enabled ? 'block' : 'none';
         }
 
+        function togglePostFillRetreatFields() {
+            const enabled = document.getElementById('enable_post_fill_retreat_policy').checked;
+            document.getElementById('post-fill-retreat-fields').style.display = enabled ? 'block' : 'none';
+        }
+
         function buildCancelReentryPolicy() {
             const enabled = document.getElementById('enable_cancel_reentry_policy').checked;
             if (!enabled) {
@@ -1232,10 +1256,31 @@
             };
         }
 
+        function buildPostFillRetreatPolicy() {
+            const enabled = document.getElementById('enable_post_fill_retreat_policy').checked;
+            if (!enabled) {
+                return { enabled: false };
+            }
+
+            const retreatTicks = parseInt(document.getElementById('post_fill_retreat_ticks').value, 10);
+            if (!(retreatTicks >= 1)) {
+                throw new Error('Post-fill retreat ticks must be at least 1');
+            }
+
+            return {
+                enabled: true,
+                scope: 'same_product_same_side',
+                retreat_ticks: retreatTicks,
+                inherit_to_follow_ups: true
+            };
+        }
+
         function createOrderSpan() {
             let cancelReentryPolicy;
+            let postFillRetreatPolicy;
             try {
                 cancelReentryPolicy = buildCancelReentryPolicy();
+                postFillRetreatPolicy = buildPostFillRetreatPolicy();
             } catch (error) {
                 showMessage(error.message, 'error');
                 return;
@@ -1256,6 +1301,7 @@
                 max_followups: parseInt(document.getElementById('max_followups').value),
                 notes: document.getElementById('notes').value,
                 cancel_reentry_policy: cancelReentryPolicy,
+                post_fill_retreat_policy: postFillRetreatPolicy,
                 enable_hotpoint_replication: document.getElementById('enable_hotpoint_replication').checked
             };
 
@@ -1326,6 +1372,7 @@
                     target_movement: formData.target_movement,
                     target_movement_type: 'P',
                     cancel_reentry_policy: formData.cancel_reentry_policy,
+                    post_fill_retreat_policy: formData.post_fill_retreat_policy,
                     notes: formData.notes ? `[SPAN #${i + 1}] ${formData.notes}` : `[SPAN #${i + 1}/${formData.order_count}]`,
                     enable_hotpoint_replication: formData.enable_hotpoint_replication
                 };
@@ -1377,6 +1424,7 @@
                     target_movement: formData.target_movement,
                     target_movement_type: 'P',
                     cancel_reentry_policy: formData.cancel_reentry_policy,
+                    post_fill_retreat_policy: formData.post_fill_retreat_policy,
                     notes: i === 0 
                         ? `[SPAN] ${formData.notes} (Order 1/${formData.order_count})` 
                         : `[SPAN] Child of span (Order ${i + 1}/${formData.order_count})`,
@@ -1497,6 +1545,8 @@
             document.getElementById('cancel_reentry_reentry_distance').value = '0';
             document.getElementById('cancel_reentry_cooldown_seconds').value = '0';
             document.getElementById('cancel_reentry_max_reentry_count').value = '0';
+            document.getElementById('enable_post_fill_retreat_policy').checked = false;
+            document.getElementById('post_fill_retreat_ticks').value = '1';
             document.getElementById('notes').value = '';
             document.getElementById('reveal_type').value = 'price';
             
@@ -1508,6 +1558,7 @@
             updatePreview();
             updateRevealFields();
             toggleCancelReentryFields();
+            togglePostFillRetreatFields();
         }
 
         function updateOrdersTable() {

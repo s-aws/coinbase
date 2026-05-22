@@ -1127,6 +1127,28 @@
                         </div>
 
                         <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #aaa; margin-bottom: 0; cursor: pointer;">
+                                <input type="checkbox" id="enable_post_fill_retreat_policy" style="cursor: pointer; width: 14px; height: 14px;">
+                                <span>Enable Same-Side Post-Fill Retreat</span>
+                            </label>
+                            <div style="font-size: 10px; color: #666; margin-top: 4px;">
+                                When another same-product, same-side order fills, this hidden order can retreat away from the market.
+                            </div>
+                        </div>
+
+                        <div id="post-fill-retreat-fields" class="policy-panel hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Retreat Ticks</label>
+                                    <input type="number" id="post_fill_retreat_ticks" value="1" step="1" min="1">
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">
+                                        Uses the product price tick. BUY retreats lower; SELL retreats higher.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label>Sizing Strategy</label>
                             <select id="sizing_strategy" onchange="updateSizingFields()">
                                 <option value="fixed">Fixed (All at once)</option>
@@ -1777,6 +1799,23 @@
                 `</div>`;
         }
 
+        function formatPostFillRetreatStateDetail(order) {
+            const policy = order.post_fill_retreat_policy_json || {};
+            if (!policy.enabled) return '';
+
+            const state = order.anchor_repricing_state_json || {};
+            const count = state.post_fill_retreat_count || 0;
+            const offset = state.post_fill_retreat_offset || 0;
+            const lastAt = state.last_post_fill_retreat_at
+                ? new Date(state.last_post_fill_retreat_at).toLocaleTimeString() : 'none';
+
+            return `<div style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">` +
+                `<div style="color: #c084fc; font-weight: 600; margin-bottom: 4px;">Same-Side Post-Fill Retreat</div>` +
+                `<div style="color:#888; font-size:10px;">Retreat: ${policy.retreat_ticks || 1} price tick(s)</div>` +
+                `<div style="color:#888; font-size:10px;">Applied: ${count} | Offset: ${Number(offset).toFixed(2)} | Last: ${lastAt}</div>` +
+                `</div>`;
+        }
+
         function createConditionTooltipHTML(order) {
             const conditionJson = order.reveal_condition_json || {};
             const type = order.reveal_condition_type || conditionJson.type || 'N/A';
@@ -1788,8 +1827,9 @@
 
             const anchorDetail = formatAnchorRepricingStateDetail(order);
             const cancelReentryDetail = formatCancelReentryStateDetail(order);
+            const postFillRetreatDetail = formatPostFillRetreatStateDetail(order);
             const details = detailParts.join('<br><br>');
-            const hasTooltip = details || anchorDetail || cancelReentryDetail;
+            const hasTooltip = details || anchorDetail || cancelReentryDetail || postFillRetreatDetail;
 
             const anchorPolicy = order.anchor_repricing_policy_json || {};
             const repriceBadge = anchorPolicy.enabled
@@ -1812,15 +1852,20 @@
                 ? `<span title="Cancel/re-entry policy active" style="color:#ffb347; font-size:11px; margin-left:4px; cursor:default;">C/R</span>`
                 : '';
 
+            const postFillRetreatPolicy = order.post_fill_retreat_policy_json || {};
+            const postFillRetreatBadge = postFillRetreatPolicy.enabled
+                ? `<span title="Same-side post-fill retreat active" style="color:#c084fc; font-size:11px; margin-left:4px; cursor:default;">PFR</span>`
+                : '';
+
             if (!hasTooltip) {
-                return `<span class="condition-type">${type}${repriceBadge}${trackingBadge}${cancelReentryBadge}</span>`;
+                return `<span class="condition-type">${type}${repriceBadge}${trackingBadge}${cancelReentryBadge}${postFillRetreatBadge}</span>`;
             }
             
             return `<span class="condition-type">
-                ${type}${repriceBadge}${trackingBadge}${cancelReentryBadge}
+                ${type}${repriceBadge}${trackingBadge}${cancelReentryBadge}${postFillRetreatBadge}
                 <div class="condition-tooltip">
                     <div style="font-weight: 600; margin-bottom: 6px; color: #4ade80;">${type}</div>
-                    <div class="condition-details" style="white-space: normal; width: 240px;">${details}${anchorDetail}${cancelReentryDetail}</div>
+                    <div class="condition-details" style="white-space: normal; width: 240px;">${details}${anchorDetail}${cancelReentryDetail}${postFillRetreatDetail}</div>
                 </div>
             </span>`;
         }
@@ -1833,6 +1878,11 @@
         function toggleCancelReentryFields() {
             const enabled = document.getElementById('enable_cancel_reentry_policy').checked;
             document.getElementById('cancel-reentry-fields').classList.toggle('hidden', !enabled);
+        }
+
+        function togglePostFillRetreatFields() {
+            const enabled = document.getElementById('enable_post_fill_retreat_policy').checked;
+            document.getElementById('post-fill-retreat-fields').classList.toggle('hidden', !enabled);
         }
 
         function toggleAnchorFixedInterval() {
@@ -1910,6 +1960,25 @@
                 reentry_distance: reentryDistance,
                 cooldown_seconds: parseInt(document.getElementById('cancel_reentry_cooldown_seconds').value, 10) || 0,
                 max_reentry_count: parseInt(document.getElementById('cancel_reentry_max_reentry_count').value, 10) || 0,
+                inherit_to_follow_ups: true
+            };
+        }
+
+        function buildPostFillRetreatPolicy() {
+            const enabled = document.getElementById('enable_post_fill_retreat_policy').checked;
+            if (!enabled) {
+                return { enabled: false };
+            }
+
+            const retreatTicks = parseInt(document.getElementById('post_fill_retreat_ticks').value, 10);
+            if (!(retreatTicks >= 1)) {
+                throw new Error('Post-fill retreat ticks must be at least 1');
+            }
+
+            return {
+                enabled: true,
+                scope: 'same_product_same_side',
+                retreat_ticks: retreatTicks,
                 inherit_to_follow_ups: true
             };
         }
@@ -3119,6 +3188,8 @@
                 cancel_reentry_reentry_distance: document.getElementById('cancel_reentry_reentry_distance').value,
                 cancel_reentry_cooldown_seconds: document.getElementById('cancel_reentry_cooldown_seconds').value,
                 cancel_reentry_max_reentry_count: document.getElementById('cancel_reentry_max_reentry_count').value,
+                enable_post_fill_retreat_policy: document.getElementById('enable_post_fill_retreat_policy').checked,
+                post_fill_retreat_ticks: document.getElementById('post_fill_retreat_ticks').value,
                 tranche_schedule: document.getElementById('tranche_schedule').value,
                 tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
                 adaptive_base_size: document.getElementById('adaptive_base_size').value,
@@ -3226,6 +3297,8 @@
                 cancel_reentry_reentry_distance: document.getElementById('cancel_reentry_reentry_distance').value,
                 cancel_reentry_cooldown_seconds: document.getElementById('cancel_reentry_cooldown_seconds').value,
                 cancel_reentry_max_reentry_count: document.getElementById('cancel_reentry_max_reentry_count').value,
+                enable_post_fill_retreat_policy: document.getElementById('enable_post_fill_retreat_policy').checked,
+                post_fill_retreat_ticks: document.getElementById('post_fill_retreat_ticks').value,
                 tranche_schedule: document.getElementById('tranche_schedule').value,
                 tranche_iceberg_mode: document.getElementById('tranche_iceberg_mode').checked,
                 adaptive_base_size: document.getElementById('adaptive_base_size').value,
@@ -3310,7 +3383,7 @@
             const entry = history[index];
             
             // Restore main fields
-            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'cancel_reentry_reference_price_source', 'cancel_reentry_distance_type', 'cancel_reentry_cancel_distance', 'cancel_reentry_reentry_distance', 'cancel_reentry_cooldown_seconds', 'cancel_reentry_max_reentry_count'];
+            const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'cancel_reentry_reference_price_source', 'cancel_reentry_distance_type', 'cancel_reentry_cancel_distance', 'cancel_reentry_reentry_distance', 'cancel_reentry_cooldown_seconds', 'cancel_reentry_max_reentry_count', 'post_fill_retreat_ticks'];
             mainFields.forEach(fieldId => {
                 const element = document.getElementById(fieldId);
                 if (element && entry[fieldId] !== undefined) {
@@ -3339,8 +3412,13 @@
             if (cancelReentryCheckbox && entry['enable_cancel_reentry_policy'] !== undefined) {
                 cancelReentryCheckbox.checked = entry['enable_cancel_reentry_policy'];
             }
+            const postFillRetreatCheckbox = document.getElementById('enable_post_fill_retreat_policy');
+            if (postFillRetreatCheckbox && entry['enable_post_fill_retreat_policy'] !== undefined) {
+                postFillRetreatCheckbox.checked = entry['enable_post_fill_retreat_policy'];
+            }
             toggleAnchorRepricingFields();
             toggleCancelReentryFields();
+            togglePostFillRetreatFields();
             toggleAnchorFixedInterval();
             toggleSlideMode();
             
@@ -3381,7 +3459,7 @@
                     const formData = JSON.parse(savedData);
                     
                     // Restore main fields
-                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'cancel_reentry_reference_price_source', 'cancel_reentry_distance_type', 'cancel_reentry_cancel_distance', 'cancel_reentry_reentry_distance', 'cancel_reentry_cooldown_seconds', 'cancel_reentry_max_reentry_count', 'tranche_schedule', 'adaptive_base_size', 'adaptive_reveal_multiplier', 'adaptive_max_reveal_percentage', 'adaptive_volume_window'];
+                    const mainFields = ['product_id', 'side', 'total_size', 'limit_price', 'condition_type', 'sizing_strategy', 'notes', 'reference_price_source', 'anchor_distance_type', 'anchor_target_distance', 'anchor_max_distance', 'anchor_update_mode', 'anchor_fixed_interval_seconds', 'anchor_min_price_change', 'anchor_hysteresis_bps', 'anchor_min_reprice_interval_seconds', 'anchor_max_reprices_per_hour', 'anchor_max_step_per_reprice', 'anchor_follow_up_retreat_distance', 'anchor_follow_up_retreat_jitter', 'cancel_reentry_reference_price_source', 'cancel_reentry_distance_type', 'cancel_reentry_cancel_distance', 'cancel_reentry_reentry_distance', 'cancel_reentry_cooldown_seconds', 'cancel_reentry_max_reentry_count', 'post_fill_retreat_ticks', 'tranche_schedule', 'adaptive_base_size', 'adaptive_reveal_multiplier', 'adaptive_max_reveal_percentage', 'adaptive_volume_window'];
                     mainFields.forEach(fieldId => {
                         const element = document.getElementById(fieldId);
                         if (element && formData[fieldId] !== undefined) {
@@ -3410,12 +3488,17 @@
                     if (cancelReentryCheckbox && formData['enable_cancel_reentry_policy'] !== undefined) {
                         cancelReentryCheckbox.checked = formData['enable_cancel_reentry_policy'];
                     }
+                    const postFillRetreatCheckbox = document.getElementById('enable_post_fill_retreat_policy');
+                    if (postFillRetreatCheckbox && formData['enable_post_fill_retreat_policy'] !== undefined) {
+                        postFillRetreatCheckbox.checked = formData['enable_post_fill_retreat_policy'];
+                    }
                     const trancheIce = document.getElementById('tranche_iceberg_mode');
                     if (trancheIce && formData['tranche_iceberg_mode'] !== undefined) {
                         trancheIce.checked = formData['tranche_iceberg_mode'];
                     }
                     toggleAnchorRepricingFields();
                     toggleCancelReentryFields();
+                    togglePostFillRetreatFields();
                     toggleAnchorFixedInterval();
                     toggleSlideMode();
                     updateSizingFields();
@@ -3443,6 +3526,7 @@
             // This ensures fields are shown on initial page load even if no data was restored
             updateConditionFields();
             toggleCancelReentryFields();
+            togglePostFillRetreatFields();
         }
 
         function buildRevealCondition() {
@@ -3464,6 +3548,7 @@
         document.getElementById('condition_type').addEventListener('change', updateConditionFields);
         document.getElementById('enable_anchor_repricing').addEventListener('change', toggleAnchorRepricingFields);
         document.getElementById('enable_cancel_reentry_policy').addEventListener('change', toggleCancelReentryFields);
+        document.getElementById('enable_post_fill_retreat_policy').addEventListener('change', togglePostFillRetreatFields);
 
         document.getElementById('create-order-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -3474,8 +3559,10 @@
             const allowPartialFills = document.getElementById('allow_partial_fills').checked;
             const enableHotpointReplication = document.getElementById('enable_hotpoint_replication').checked;
             let cancelReentryPolicy;
+            let postFillRetreatPolicy;
             try {
                 cancelReentryPolicy = buildCancelReentryPolicy();
+                postFillRetreatPolicy = buildPostFillRetreatPolicy();
             } catch (error) {
                 showMessage(error.message, 'error');
                 return;
@@ -3497,6 +3584,7 @@
                 enable_hotpoint_replication: enableHotpointReplication,
                 anchor_repricing_policy: buildAnchorRepricingPolicy(),
                 cancel_reentry_policy: cancelReentryPolicy,
+                post_fill_retreat_policy: postFillRetreatPolicy,
                 notes: document.getElementById('notes').value
             };
 
@@ -3571,6 +3659,7 @@
                 allow_partial_fills: order.allow_partial_fills !== undefined ? order.allow_partial_fills : true,
                 anchor_repricing_policy: order.anchor_repricing_policy_json || { enabled: false },
                 cancel_reentry_policy: order.cancel_reentry_policy_json || { enabled: false },
+                post_fill_retreat_policy: order.post_fill_retreat_policy_json || { enabled: false },
                 notes: `Follow-up hidden order from ${orderID}`
             };
             
@@ -3856,6 +3945,7 @@
         restoreFormValues();      // Restore last used form values
         toggleAnchorRepricingFields();
         toggleCancelReentryFields();
+        togglePostFillRetreatFields();
         toggleAnchorFixedInterval();
         setupAutoSave();          // Setup auto-save on input changes
         updateHistoryDisplay();   // Display saved entries history

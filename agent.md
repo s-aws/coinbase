@@ -70,6 +70,7 @@ Stealth visibility is not just a UI label.
 - `REVEALED` means a placement was submitted to the exchange and may still be live until fills, cancellation, move/reprice replacement, or reconciliation proves otherwise.
 - Any feature that makes a revealed order hidden again must first cancel or otherwise account for the active exchange placement. If the exchange cancel fails, do not mark the order hidden.
 - Cancel/re-entry policy is not general hide-again behavior. It applies only to no-fill revealed placements, cancels the tracked exchange placement, records `cancelled_by_policy` state, then re-enters through the existing reveal path when thresholds allow.
+- Same-side post-fill retreat is not re-hide and does not touch live placements. It is an opt-in policy on the affected hidden order: when a same-product, same-side order fills, the nearest eligible hidden order retreats by configured price ticks, its reveal price fields move with the limit, and the cumulative offset is stored in `anchor_repricing_state_json` so future anchor repricing does not erase it.
 - The old UI "Hide" duplicate behavior is not the same contract. Do not describe cancel/re-entry or UI Hide as re-hide.
 
 ### Cancel/Re-entry / Move / Reprice Extension Checklist

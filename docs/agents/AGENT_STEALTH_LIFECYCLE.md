@@ -21,10 +21,13 @@ evaluation, but lifecycle truth lives in the manager.
 - Do not create a second active-placement pointer outside
   `anchor_repricing_state_json`.
 - Do not treat cancel/re-entry as general hide-again behavior.
+- Do not implement same-side post-fill retreat as a generic cross-order rules
+  engine. The implemented scope is an opt-in hidden-order policy that retreats
+  one nearest same-product/same-side hidden order and stores anchor offset in
+  `anchor_repricing_state_json`.
 
 ## Focused Tests
 
 ```powershell
 pytest tests/regression/test_stealth_cancel_reentry.py tests/regression/test_stealth_move_revealed.py tests/regression/test_repricing_policy.py -v --tb=short
 ```
-

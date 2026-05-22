@@ -187,6 +187,7 @@ class StealthMutationKind(str, Enum):
     Stealth orders may be mutated concurrently by two independent paths:
     - The ticker-driven anchor reprice loop (background, REPRICE)
     - User-initiated "move REVEALED" actions from the dashboard (MOVE)
+    - Fill-driven hidden order retreat (background, RETREAT)
 
     Each kind has its own per-(kind, stealth_order_id) claim namespace in
     a :class:`core.orderbook.ClaimLedger`. A held MOVE claim must block a
@@ -201,6 +202,7 @@ class StealthMutationKind(str, Enum):
 
     MOVE = "move"
     REPRICE = "reprice"
+    RETREAT = "retreat"
 
 
 class StealthMoveReason(str, Enum):
@@ -231,6 +233,18 @@ class CancelReentryDecision(str, Enum):
     HOLD = "hold"
     CANCEL = "cancel"
     REENTER = "reenter"
+
+
+class PostFillRetreatScope(str, Enum):
+    """Which hidden orders a post-fill retreat policy may affect."""
+
+    SAME_PRODUCT_SAME_SIDE = "same_product_same_side"
+
+
+class PostFillRetreatReason(str, Enum):
+    """Audit reason for hidden-order post-fill retreat."""
+
+    SAME_SIDE_FILL = "same_side_post_fill_retreat"
 
 
 class RevealPricingPolicy(str, Enum):

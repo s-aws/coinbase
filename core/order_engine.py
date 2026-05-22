@@ -4074,6 +4074,22 @@ class OrderEngine:
                     order_side = resolve_order_side(order) or "BUY"
                     order_size = float(order_template["order_base_size"])
                     product_id = order.get("product_id")
+                    try:
+                        self.stealth_order_bridge.stealth_manager.apply_same_side_post_fill_retreat(
+                            original_stealth_order,
+                            filled_placement_client_order_id=client_order_id,
+                            filled_price=filled_price,
+                        )
+                    except Exception as retreat_error:
+                        self.log_message(
+                            "warning",
+                            {
+                                "event": "same_side_post_fill_retreat_failed",
+                                "client_order_id": client_order_id,
+                                "stealth_order_id": original_stealth_order.get("stealth_order_id"),
+                                "error": str(retreat_error),
+                            },
+                        )
 
                     # Debug: Log what we're about to validate (product context auto-resolved by validator)
                     self.log_message(

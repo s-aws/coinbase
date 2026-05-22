@@ -159,6 +159,7 @@ def create_stealth_orders_table() -> None:
         - target_movement_type: 'P' for percentage or 'A' for absolute amount
         - cancel_reentry_policy_json: Optional cancel/re-entry policy config
         - cancel_reentry_state_json: Runtime state for policy-cancelled placements
+        - post_fill_retreat_policy_json: Optional same-side hidden-order retreat policy
         - reason: Reason for creation (e.g., 'follow_up', 'user_created')
         - notes: Optional additional details
     
@@ -207,6 +208,7 @@ def create_stealth_orders_table() -> None:
         target_movement_type VARCHAR(1),
         cancel_reentry_policy_json JSONB DEFAULT '{}'::jsonb,
         cancel_reentry_state_json JSONB DEFAULT '{}'::jsonb,
+        post_fill_retreat_policy_json JSONB DEFAULT '{"enabled": false}'::jsonb,
         
         reason VARCHAR(255),
         notes TEXT,
@@ -231,6 +233,11 @@ def create_stealth_orders_table() -> None:
         )
         cursor.execute(
             "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS cancel_reentry_state_json JSONB DEFAULT '{}'::jsonb"
+        )
+        cursor.execute(
+            """ALTER TABLE stealth_orders
+               ADD COLUMN IF NOT EXISTS post_fill_retreat_policy_json
+               JSONB DEFAULT '{"enabled": false}'::jsonb"""
         )
         print("stealth_orders table done.")
 

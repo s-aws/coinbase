@@ -37,6 +37,10 @@ authoritative enough for fresh public clones.
   reconciled closed first.
 - Cancel/re-entry is a narrow policy for no-fill revealed placements. It is not
   general hide-again behavior.
+- Same-side post-fill retreat applies only to opted-in hidden orders with no
+  active exchange placement. It moves the hidden order's limit/reveal prices and
+  persists the cumulative anchor offset; it must not mutate a live revealed
+  placement directly.
 
 ## Single Path
 
@@ -87,4 +91,3 @@ pytest tests/regression/ -v --tb=short
 
 - Focused tests in `.agents/ownership.yaml` are development checks only. They
   do not replace the regression gate.
-

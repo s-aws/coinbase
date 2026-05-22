@@ -94,6 +94,10 @@ class RepricingState(TypedDict, total=False):
             reveal-condition price thresholds can be moved in lock-step
             with the limit price. See
             ``_apply_reveal_condition_price_tracking``.
+        post_fill_retreat_offset / post_fill_retreat_count:
+            Cumulative absolute price offset and count from same-side
+            post-fill retreat. Future anchor repricing adds this offset
+            to target bands so the retreat is not erased on the next tick.
     """
     active_placement_client_order_id: Optional[str]
     active_exchange_order_id: Optional[str]
@@ -105,6 +109,8 @@ class RepricingState(TypedDict, total=False):
     reprice_history: List[str]
     last_profitability_block_reason: str
     reveal_condition_price_offsets: Dict[str, float]
+    post_fill_retreat_offset: float
+    post_fill_retreat_count: int
 
 
 def _required_str(data: Dict[str, Any], key: str, owner: str) -> str:

@@ -79,6 +79,8 @@ from core.enums import (
     FollowUpRevealDirection,
     OrderSide,
     OrderStatus,
+    PostFillRetreatReason,
+    PostFillRetreatScope,
     RepricingReferenceSource,
     RevealConditionType,
     RevealPricingPolicy,
@@ -99,6 +101,7 @@ from business.cancel_reentry_policy import (
     CancelReentryRuntimeState,
     evaluate_cancel_reentry,
 )
+from business.post_fill_retreat_policy import PostFillRetreatPolicy
 from business.stealth_condition_evaluator import get_evaluator
 from core.models import MarketData, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_CANCEL, INFLIGHT_REST_PLACE, get_runtime_controller
@@ -495,6 +498,13 @@ class StealthOrderManager:
                 f"invalid cancel_reentry_policy: {exc}"
             ) from exc
 
+    def _normalize_post_fill_retreat_policy(
+        self,
+        post_fill_retreat_policy: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Normalize same-side post-fill retreat policy for storage."""
+        return PostFillRetreatPolicy.from_dict(post_fill_retreat_policy).to_dict()
+
     def _normalize_cancel_reentry_state(
         self,
         cancel_reentry_state: Optional[Dict[str, Any]],
@@ -625,6 +635,20 @@ class StealthOrderManager:
         policy: Any,
     ) -> Dict[str, float]:
         return RepricingPolicy.coerce(policy).compute_distance_bands(side, reference_price)
+
+    @staticmethod
+    def _apply_post_fill_retreat_offset_to_target_prices(
+        target_prices: Dict[str, float],
+        state: Dict[str, Any],
+    ) -> Dict[str, float]:
+        """Carry cumulative hidden-order retreat into future anchor reprices."""
+        offset = safe_float(state.get("post_fill_retreat_offset"), default=0.0)
+        if not offset:
+            return target_prices
+        adjusted = dict(target_prices)
+        for key in ("target_price", "max_boundary_price"):
+            adjusted[key] = float(adjusted[key]) + float(offset)
+        return adjusted
 
     @staticmethod
     def _apply_slide_step_clamp(
@@ -1668,6 +1692,10 @@ class StealthOrderManager:
                     reference_price,
                     policy,
                 )
+                target_prices = self._apply_post_fill_retreat_offset_to_target_prices(
+                    target_prices,
+                    state,
+                )
 
                 current_price = safe_float(
                     state.get("active_exchange_price") if order.get("status") == StealthOrderStatus.REVEALED.value else order.get("limit_price"),
@@ -2697,6 +2725,7 @@ class StealthOrderManager:
         anchor_repricing_policy: Optional[Dict[str, Any]] = None,
         enable_hotpoint_replication: bool = False,
         cancel_reentry_policy: Optional[Dict[str, Any]] = None,
+        post_fill_retreat_policy: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -2731,8 +2760,11 @@ class StealthOrderManager:
             reveal_pricing_policy: Per-order reveal pricing policy (configured_limit, top_of_book, midpoint).
                                   If None, defaults to configured_limit.
             cancel_reentry_policy: Optional policy that cancels a revealed,
-                                  zero-fill placement when it is too close to
-                                  market and re-enters when safely away.
+                                   zero-fill placement when it is too close to
+                                   market and re-enters when safely away.
+            post_fill_retreat_policy: Optional policy that lets this hidden
+                                      order retreat when a same-product,
+                                      same-side order fills.
             
         Returns:
             order_id (UUID string) - Used as client_order_id for all internal tracking
@@ -2820,6 +2852,7 @@ class StealthOrderManager:
 
         normalized_anchor_repricing_policy = self._normalize_anchor_repricing_policy(anchor_repricing_policy)
         normalized_cancel_reentry_policy = self._normalize_cancel_reentry_policy(cancel_reentry_policy)
+        normalized_post_fill_retreat_policy = self._normalize_post_fill_retreat_policy(post_fill_retreat_policy)
 
         order_data = {
             "stealth_order_id": stealth_order_id,
@@ -2850,6 +2883,7 @@ class StealthOrderManager:
             "anchor_repricing_state_json": self._normalize_anchor_repricing_state(None),
             "cancel_reentry_policy_json": normalized_cancel_reentry_policy,
             "cancel_reentry_state_json": self._normalize_cancel_reentry_state(None),
+            "post_fill_retreat_policy_json": normalized_post_fill_retreat_policy,
         }
         
         # Store in memory for quick access
@@ -4156,6 +4190,197 @@ class StealthOrderManager:
                 )
 
         return updated
+
+    def apply_same_side_post_fill_retreat(
+        self,
+        filled_order: Dict[str, Any],
+        *,
+        filled_placement_client_order_id: Optional[str] = None,
+        filled_price: Optional[float] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Retreat the nearest eligible hidden same-side order after a fill.
+
+        This mutates only hidden, non-live stealth orders. Revealed exchange
+        placements remain under the existing cancel/move/reprice paths.
+        """
+        if not filled_order:
+            return None
+
+        source_stealth_order_id = str(filled_order.get("stealth_order_id") or "")
+        source_key = str(filled_placement_client_order_id or source_stealth_order_id or "")
+        product_id = str(filled_order.get("product_id") or "")
+        side = str(filled_order.get("side") or "").upper()
+        if not source_key or not product_id or side not in {OrderSide.BUY.value, OrderSide.SELL.value}:
+            return None
+
+        fill_reference_price = safe_float(filled_price, default=None)
+        if fill_reference_price is None or fill_reference_price <= 0:
+            source_state = self._normalize_anchor_repricing_state(
+                filled_order.get("anchor_repricing_state_json")
+            )
+            fill_reference_price = safe_float(
+                source_state.get("active_exchange_price"),
+                default=safe_float(filled_order.get("limit_price"), default=None),
+            )
+        if fill_reference_price is None or fill_reference_price <= 0:
+            return None
+
+        hidden_statuses = {
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+            StealthOrderStatus.TRIGGERED.value,
+        }
+
+        for order in list(self.in_memory_orders.values()):
+            state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+            if source_key in list(state.get("post_fill_retreat_source_order_ids") or []):
+                return None
+
+        candidates: List[Tuple[float, str, Dict[str, Any], PostFillRetreatPolicy]] = []
+        for stealth_order_id, order in list(self.in_memory_orders.items()):
+            if str(stealth_order_id) == source_stealth_order_id:
+                continue
+            if order.get("product_id") != product_id:
+                continue
+            if str(order.get("side") or "").upper() != side:
+                continue
+            if str(order.get("status") or "").upper() not in hidden_statuses:
+                continue
+
+            state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+            if state.get("active_placement_client_order_id") or state.get("active_exchange_order_id"):
+                continue
+
+            policy = PostFillRetreatPolicy.from_dict(order.get("post_fill_retreat_policy_json"))
+            if not policy.enabled:
+                continue
+            if policy.scope is not PostFillRetreatScope.SAME_PRODUCT_SAME_SIDE:
+                continue
+
+            candidate_price = safe_float(order.get("limit_price"), default=None)
+            if candidate_price is None or candidate_price <= 0:
+                continue
+            candidates.append(
+                (
+                    abs(candidate_price - fill_reference_price),
+                    str(stealth_order_id),
+                    order,
+                    policy,
+                )
+            )
+
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        _, target_stealth_order_id, target_order, target_policy = candidates[0]
+
+        from core.enums import StealthMutationKind
+
+        if not self.try_claim_mutation(StealthMutationKind.RETREAT, target_stealth_order_id):
+            return None
+
+        try:
+            current_status = str(target_order.get("status") or "").upper()
+            if current_status not in hidden_statuses:
+                return None
+            return self._apply_post_fill_retreat_to_hidden_order(
+                target_order,
+                target_policy,
+                source_key=source_key,
+                source_stealth_order_id=source_stealth_order_id,
+                fill_reference_price=fill_reference_price,
+            )
+        finally:
+            self.release_mutation(StealthMutationKind.RETREAT, target_stealth_order_id)
+
+    def _apply_post_fill_retreat_to_hidden_order(
+        self,
+        order: Dict[str, Any],
+        policy: PostFillRetreatPolicy,
+        *,
+        source_key: str,
+        source_stealth_order_id: str,
+        fill_reference_price: float,
+    ) -> Optional[Dict[str, Any]]:
+        increment = self._get_price_increment(order.get("product_id"))
+        price_tick = safe_float(increment, default=0.0)
+        if price_tick <= 0:
+            return None
+
+        current_price = safe_float(order.get("limit_price"), default=None)
+        if current_price is None or current_price <= 0:
+            return None
+
+        normalized_side = str(order.get("side") or "").upper()
+        retreat_amount = float(price_tick) * int(policy.retreat_ticks)
+        if normalized_side == OrderSide.BUY.value:
+            raw_new_price = current_price - retreat_amount
+        elif normalized_side == OrderSide.SELL.value:
+            raw_new_price = current_price + retreat_amount
+        else:
+            return None
+
+        new_price = self._quantize_reprice_price(
+            order.get("product_id"),
+            normalized_side,
+            raw_new_price,
+            boundary_enforced=False,
+        )
+        if new_price <= 0 or new_price == current_price:
+            return None
+
+        now = datetime.utcnow()
+        state = self._normalize_anchor_repricing_state(order.get("anchor_repricing_state_json"))
+        applied_sources = list(state.get("post_fill_retreat_source_order_ids") or [])
+        if source_key in applied_sources:
+            return None
+
+        self._apply_reveal_condition_price_tracking(order, state, new_price)
+        order["limit_price"] = new_price
+        order["status"] = StealthOrderStatus.HIDDEN.value
+        order["condition_first_met_at"] = None
+        order["condition_confirmed_at"] = None
+        order["updated_at"] = now
+
+        applied_sources.append(source_key)
+        state["post_fill_retreat_source_order_ids"] = applied_sources
+        state["post_fill_retreat_offset"] = (
+            safe_float(state.get("post_fill_retreat_offset"), default=0.0)
+            + (new_price - current_price)
+        )
+        state["post_fill_retreat_count"] = int(
+            safe_float(state.get("post_fill_retreat_count"), default=0.0)
+        ) + 1
+        state["last_post_fill_retreat_at"] = now.isoformat()
+        state["last_post_fill_retreat_source_order_id"] = source_stealth_order_id
+        state["last_post_fill_retreat_source_placement_client_order_id"] = source_key
+        state["last_post_fill_retreat_from_price"] = current_price
+        state["last_post_fill_retreat_to_price"] = new_price
+        state["last_post_fill_retreat_fill_price"] = fill_reference_price
+        state["current_logical_limit_price"] = new_price
+        state["reprice_reason"] = PostFillRetreatReason.SAME_SIDE_FILL.value
+        order["anchor_repricing_state_json"] = state
+
+        self._update_stealth_order(order)
+        result = {
+            "stealth_order_id": order.get("stealth_order_id"),
+            "source_stealth_order_id": source_stealth_order_id,
+            "source_placement_client_order_id": source_key,
+            "previous_price": current_price,
+            "new_price": new_price,
+            "retreat_ticks": policy.retreat_ticks,
+            "price_tick": price_tick,
+            "fill_reference_price": fill_reference_price,
+        }
+        self.log_callback(
+            "info",
+            {
+                "event": "same_side_post_fill_retreat_applied",
+                **result,
+            },
+        )
+        return result
     
     def create_follow_up_stealth_order(
         self,
@@ -4170,6 +4395,7 @@ class StealthOrderManager:
         target_movement: Optional[float] = None,
         target_movement_type: str = "P",
         cancel_reentry_policy: Optional[Dict[str, Any]] = None,
+        post_fill_retreat_policy: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
@@ -4191,6 +4417,8 @@ class StealthOrderManager:
             target_movement_type: Type for target movement ('P' or 'A'). Default 'P'.
             cancel_reentry_policy: Optional override for cancel/re-entry policy. If None,
                 inherits from original only when that policy allows follow-up inheritance.
+            post_fill_retreat_policy: Optional override for same-side post-fill retreat.
+                If None, inherits from original only when that policy allows follow-up inheritance.
             
         Returns:
             New stealth_order_id if created, None if original not found
@@ -4226,6 +4454,19 @@ class StealthOrderManager:
                 inherited_cancel_reentry_policy = original_cancel_reentry.to_dict()
             else:
                 inherited_cancel_reentry_policy = CancelReentryPolicy.disabled().to_dict()
+
+        if post_fill_retreat_policy is not None:
+            inherited_post_fill_retreat_policy = self._normalize_post_fill_retreat_policy(
+                post_fill_retreat_policy
+            )
+        else:
+            original_post_fill_retreat = PostFillRetreatPolicy.from_dict(
+                original_order.get("post_fill_retreat_policy_json")
+            )
+            if original_post_fill_retreat.inherit_to_follow_ups:
+                inherited_post_fill_retreat_policy = original_post_fill_retreat.to_dict()
+            else:
+                inherited_post_fill_retreat_policy = PostFillRetreatPolicy.disabled().to_dict()
         
         # Use provided target movement or inherit from original. Resolve via the
         # canonical resolver so root stealth orders (which keep target_movement on
@@ -4296,6 +4537,7 @@ class StealthOrderManager:
             notes=f"Follow-up to {original_stealth_order_id[:8]}... {notes}{retreat_audit}",
             anchor_repricing_policy=anchor_repricing_policy,
             cancel_reentry_policy=inherited_cancel_reentry_policy,
+            post_fill_retreat_policy=inherited_post_fill_retreat_policy,
             target_movement=follow_up_target_movement,
             target_movement_type=follow_up_target_movement_type,
             stealth_order_id=follow_up_stealth_order_id,
@@ -4341,8 +4583,9 @@ class StealthOrderManager:
                     limit_price, status, reveal_condition_type, reveal_condition_json,
                     sizing_strategy_json, reason, notes, parent_order_id,
                     anchor_repricing_policy_json, anchor_repricing_state_json,
-                    cancel_reentry_policy_json, cancel_reentry_state_json)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    cancel_reentry_policy_json, cancel_reentry_state_json,
+                    post_fill_retreat_policy_json)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (order['stealth_order_id'],
                  order['product_id'],
                  order['side'],
@@ -4356,10 +4599,11 @@ class StealthOrderManager:
                  order.get('reason', ''),
                  order.get('notes', ''),
                   order.get('parent_order_id'),
-                  json.dumps(order.get('anchor_repricing_policy_json', {})),
-                  json.dumps(order.get('anchor_repricing_state_json', {})),
-                  json.dumps(order.get('cancel_reentry_policy_json', {})),
-                  json.dumps(order.get('cancel_reentry_state_json', {})))
+                   json.dumps(order.get('anchor_repricing_policy_json', {})),
+                   json.dumps(order.get('anchor_repricing_state_json', {})),
+                   json.dumps(order.get('cancel_reentry_policy_json', {})),
+                   json.dumps(order.get('cancel_reentry_state_json', {})),
+                   json.dumps(order.get('post_fill_retreat_policy_json', {"enabled": False})))
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
@@ -4414,11 +4658,12 @@ class StealthOrderManager:
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
                        limit_price = %s, reveal_condition_json = %s,
-                       anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
-                       cancel_reentry_policy_json = %s, cancel_reentry_state_json = %s,
-                       condition_first_met_at = %s, condition_confirmed_at = %s,
-                       updated_at = CURRENT_TIMESTAMP
-                   WHERE stealth_order_id = %s""",
+                        anchor_repricing_policy_json = %s, anchor_repricing_state_json = %s,
+                        cancel_reentry_policy_json = %s, cancel_reentry_state_json = %s,
+                        post_fill_retreat_policy_json = %s,
+                        condition_first_met_at = %s, condition_confirmed_at = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE stealth_order_id = %s""",
                 (order['status'],
                  order.get('revealed_size', 0),
                  order.get('remaining_size', 0),
@@ -4427,13 +4672,14 @@ class StealthOrderManager:
                  last_placement,
                  order.get('limit_price'),
                  json.dumps(order.get('reveal_condition_json', {})),
-                 json.dumps(order.get('anchor_repricing_policy_json', {})),
-                 anchor_repricing_state_json,
-                 json.dumps(order.get('cancel_reentry_policy_json', {})),
-                 cancel_reentry_state_json,
-                 condition_first_met_at,
-                 condition_confirmed_at,
-                 order['stealth_order_id'])
+                  json.dumps(order.get('anchor_repricing_policy_json', {})),
+                  anchor_repricing_state_json,
+                  json.dumps(order.get('cancel_reentry_policy_json', {})),
+                  cancel_reentry_state_json,
+                  json.dumps(order.get('post_fill_retreat_policy_json', {"enabled": False})),
+                  condition_first_met_at,
+                  condition_confirmed_at,
+                  order['stealth_order_id'])
             )
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_update_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
@@ -4482,6 +4728,7 @@ class StealthOrderManager:
                     'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
                     'cancel_reentry_policy_json': parse_json_field(row.get('cancel_reentry_policy_json'), {}),
                     'cancel_reentry_state_json': parse_json_field(row.get('cancel_reentry_state_json'), {}),
+                    'post_fill_retreat_policy_json': parse_json_field(row.get('post_fill_retreat_policy_json'), {"enabled": False}),
                     'created_at': row.get('created_at'),
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
@@ -4555,6 +4802,7 @@ class StealthOrderManager:
                         'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
                         'cancel_reentry_policy_json': parse_json_field(row.get('cancel_reentry_policy_json'), {}),
                         'cancel_reentry_state_json': parse_json_field(row.get('cancel_reentry_state_json'), {}),
+                        'post_fill_retreat_policy_json': parse_json_field(row.get('post_fill_retreat_policy_json'), {"enabled": False}),
                         'created_at': row.get('created_at'),
                         'updated_at': row.get('updated_at'),
                         'visibility_score': float(row.get('visibility_score', 0.0)),
