@@ -29,7 +29,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "BIT-29MAY26-CDE": {
+    "BIT-26JUN26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -38,23 +38,7 @@
       "price_increment": "5",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "BTC 29 MAY 26",
-      "status": "",
-      "mid_price": null,
-      "trading_disabled": false,
-      "contract_size": null,
-      "expiry": null
-    },
-    "ET-29MAY26-CDE": {
-      "type": "FUTURE",
-      "base_currency": null,
-      "quote_currency": null,
-      "base_increment": "1",
-      "quote_increment": "0.01",
-      "price_increment": "0.5",
-      "base_min_size": "1",
-      "quote_min_size": "0",
-      "display_name": "ETH 29 MAY 26",
+      "display_name": "BTC 26 JUN 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
@@ -77,7 +61,7 @@
       "contract_size": null,
       "expiry": null
     },
-    "GOL-27MAY26-CDE": {
+    "GOL-29JUL26-CDE": {
       "type": "FUTURE",
       "base_currency": null,
       "quote_currency": null,
@@ -86,7 +70,7 @@
       "price_increment": "0.1",
       "base_min_size": "1",
       "quote_min_size": "0",
-      "display_name": "GLD 27 MAY 26",
+      "display_name": "GLD 29 JUL 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
