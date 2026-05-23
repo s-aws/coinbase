@@ -5,6 +5,7 @@
   "derivatives": [
     "BIP-20DEC30-CDE",
     "BIT-26JUN26-CDE",
+    "ET-26JUN26-CDE",
     "ETP-20DEC30-CDE",
     "GOL-29JUL26-CDE",
     "PAU-20DEC30-CDE"
@@ -55,6 +56,22 @@
       "base_min_size": "1",
       "quote_min_size": "0",
       "display_name": "ETH PERP",
+      "status": "",
+      "mid_price": null,
+      "trading_disabled": false,
+      "contract_size": null,
+      "expiry": null
+    },
+    "ET-26JUN26-CDE": {
+      "type": "FUTURE",
+      "base_currency": null,
+      "quote_currency": null,
+      "base_increment": "1",
+      "quote_increment": "0.01",
+      "price_increment": "0.5",
+      "base_min_size": "1",
+      "quote_min_size": "0",
+      "display_name": "ETH 26 JUN 26",
       "status": "",
       "mid_price": null,
       "trading_disabled": false,
