@@ -4,10 +4,9 @@
   ],
   "derivatives": [
     "BIP-20DEC30-CDE",
-    "BIT-29MAY26-CDE",
-    "ET-29MAY26-CDE",
+    "BIT-26JUN26-CDE",
     "ETP-20DEC30-CDE",
-    "GOL-27MAY26-CDE",
+    "GOL-29JUL26-CDE",
     "PAU-20DEC30-CDE"
   ],
   "ticker_to_trading": {
