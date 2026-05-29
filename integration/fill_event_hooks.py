@@ -16,6 +16,10 @@ Example:
     ...     # Can also modify: fill_data['commission_percentage'] = 0.001
     ...
     >>> registry.register_pre_fill(validate_fill)
+    >>>
+    >>> def log_fill(fill_data, trade_id):
+    ...     print(f"Recorded fill {trade_id}: {fill_data['side']} {fill_data['quantity']} @ {fill_data['price']}")
+    >>> registry.register_post_fill(log_fill)
 """
 
 import threading
@@ -24,20 +28,35 @@ from typing import Callable, List, Optional, Dict, Any
 
 class FillEventHookRegistry:
     """Registry for fill event hooks (pre/post recording to fill ledger).
-    
+
     Allows extensions to:
     - Validate fills before recording to ledger
     - Enrich fills (add commission, adjust price, etc.) before persistence
     - Block fills entirely by raising exceptions
     - Log/track fills after recording to ledger
-    
+
     Hooks run sequentially. If any pre-fill hook raises an exception,
     recording is blocked and the exception is propagated.
-    
+
     Attributes:
         _pre_fill_hooks: List of callbacks to run before fill recording.
         _post_fill_hooks: List of callbacks to run after fill recording.
         _lock: Thread lock for thread-safe hook registration.
+
+    Example:
+        >>> from integration.fill_event_hooks import get_global_fill_event_hook_registry
+        >>> registry = get_global_fill_event_hook_registry()
+        >>>
+        >>> def validate_fill(fill_data):
+        ...     if fill_data['quantity'] <= 0:
+        ...         raise ValueError("Fill quantity must be > 0")
+        ...     # Can also modify: fill_data['commission_percentage'] = 0.001
+        ...
+        >>> registry.register_pre_fill(validate_fill)
+        >>>
+        >>> def log_fill(fill_data, trade_id):
+        ...     print(f"Recorded fill {trade_id}: {fill_data['side']} {fill_data['quantity']} @ {fill_data['price']}")
+        >>> registry.register_post_fill(log_fill)
     """
     
     def __init__(self):
@@ -62,12 +81,12 @@ class FillEventHookRegistry:
     
     def register_pre_fill(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Register a hook to run BEFORE fill recording to ledger.
-        
+
         Hook signature: callback(fill_data: dict) -> None
-        
+
         The fill_data dict is passed by reference, so hooks CAN modify it before recording.
         If the hook raises an exception, fill recording is blocked and exception is propagated.
-        
+
         Fill data structure:
             {
                 'instrument': str (e.g. 'BTC-USD'),
@@ -79,14 +98,14 @@ class FillEventHookRegistry:
                 'timestamp': datetime,
                 'commission_percentage': float (optional, default 0.0)
             }
-        
+
         Args:
             callback: Function with signature (fill_data: dict) -> None.
                      Can modify fill_data in-place or raise exception to block recording.
-        
+
         Returns:
             None
-        
+
         Example:
             >>> def validate_fill(fill):
             ...     if fill['quantity'] <= 0:
@@ -100,19 +119,19 @@ class FillEventHookRegistry:
     
     def register_post_fill(self, callback: Callable[[Dict[str, Any], str], None]) -> None:
         """Register a hook to run AFTER fill recording to ledger.
-        
+
         Hook signature: callback(fill_data: dict, trade_id: str) -> None
-        
+
         Post-fill hooks run after the fill is recorded. Exceptions here do not
         affect fill recording (fill is already in database). Use for logging/tracking.
-        
+
         Args:
             callback: Function with signature (fill_data: dict, trade_id: str) -> None.
                      'trade_id' is the unique identifier for the recorded fill.
-        
+
         Returns:
             None
-        
+
         Example:
             >>> def log_fill(fill, trade_id):
             ...     print(f"Recorded {fill['side']} {fill['quantity']} {fill['instrument']} @ {fill['price']}")

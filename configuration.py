@@ -12,6 +12,16 @@ Example:
     >>> products = rest_get_products()
     >>> wallets = rest_get_account_wallets()
     >>> product_data = products.get('BTC-USDC', {})
+
+Example usage:
+    >>> from configuration import get_orderbook, rest_get_products
+    >>> # Get product information
+    >>> products = rest_get_products()
+    >>> print(products.get('BTC-USDC', {}).get('price_increment'))
+    >>>
+    >>> # Get orderbook
+    >>> orderbook = get_orderbook()
+    >>> print(orderbook.product.get('BTC-USDC', {}).get('base_increment'))
 """
 
 from os import getenv
@@ -113,16 +123,21 @@ def get_rest_client() -> "CoinbaseRestClient":
 def get_trading_product_id(ticker_product_id: str) -> str:
     """
     Convert a ticker product ID to its trading equivalent.
-    
+
     Example:
         get_trading_product_id("BTC-USD") -> "BTC-USDC"
         get_trading_product_id("BTC-USDC") -> "BTC-USDC"  # Already a trading product
-    
+
     Args:
         ticker_product_id: Product ID from ticker feed
-        
+
     Returns:
         Trading product ID to use for order placement
+
+    Example:
+        >>> trading_id = get_trading_product_id("BTC-USD")
+        >>> print(trading_id)
+        "BTC-USDC"
     """
     # If it's in the mapping, use the mapped value
     if ticker_product_id in TICKER_TO_TRADING:
@@ -372,20 +387,24 @@ def rest_get_account_wallets() -> dict:
 
     Fetches account information for all currencies with active wallets.
     Filters out deleted accounts. Performs a single REST API call.
-    
+
     Returns:
         A dictionary mapping currency codes (e.g., 'BTC', 'USDC') to wallet data.
         Structure: {'BTC': {...wallet_data...}, 'USDC': {...}, ...}
-    
+
     Raises:
         APIError: If REST API call fails (authentication, network, etc.).
-    
+
     Examples:
         >>> wallets = rest_get_account_wallets()
         >>> btc_wallet = wallets.get('BTC')
         >>> if btc_wallet:
         ...     print(f"BTC balance: {btc_wallet['available_balance']}")
         >>> all_currencies = list(wallets.keys())
+
+    Example:
+        >>> wallets = rest_get_account_wallets()
+        >>> print(wallets.get('BTC', {}).get('available_balance'))
     """
     accounts_list = get_rest_client().get_accounts()["accounts"]
 
@@ -406,16 +425,21 @@ def rest_get_products() -> dict:
         A dictionary mapping product IDs (e.g., 'BTC-USDC') to product data.
         Each product dict contains fields like: product_id, base_increment,
         quote_increment, price_increment, product_type, etc.
-    
+
     Raises:
         APIError: If any REST API call fails.
-    
+
     Examples:
         >>> products = rest_get_products()
         >>> btc_usdc = products.get('BTC-USDC')
         >>> price_increment = btc_usdc['price_increment']
         >>> base_increment = btc_usdc['base_increment']
         >>> print(f"Can trade {base_increment} BTC increments")
+
+    Example:
+        >>> products = rest_get_products()
+        >>> product = products.get('BTC-USDC', {})
+        >>> print(product.get('price_increment'))
     """
     products_list = [
         get_rest_client().get_product_dict(product_id) for
@@ -437,15 +461,20 @@ def get_futures_positions() -> dict:
         A dictionary mapping product IDs (e.g., 'BIP-20DEC30-CDE') to position data.
         Structure: {'product_id': {position_data...}, ...}
         Returns {} if no positions exist.
-    
+
     Raises:
         APIError: If REST API call fails.
-    
+
     Examples:
         >>> positions = get_futures_positions()
         >>> if 'BIP-20DEC30-CDE' in positions:
         ...     pos = positions['BIP-20DEC30-CDE']
         ...     print(f"Contracts: {pos['number_of_contracts']}")
+
+    Example:
+        >>> positions = get_futures_positions()
+        >>> position = positions.get('BIP-20DEC30-CDE', {})
+        >>> print(position.get('number_of_contracts'))
     """
     futures_list = get_rest_client().list_futures_positions().to_dict()["positions"]
 
@@ -467,14 +496,19 @@ def get_open_orders() -> dict:
     Returns:
         A dictionary mapping client_order_id to order data dictionaries.
         Structure: {'client_order_id': {order_data...}, ...}
-    
+
     Raises:
         APIError: If REST API call fails.
-    
+
     Examples:
         >>> open_orders = get_open_orders()
         >>> for client_id, order_data in open_orders.items():
         ...     print(f"Order {client_id}: {order_data['product_id']} {order_data['side']}")
+
+    Example:
+        >>> open_orders = get_open_orders()
+        >>> order = open_orders.get('order-12345', {})
+        >>> print(order.get('product_id'))
     """
     orders_list = get_rest_client().list_orders(order_status=["OPEN"]).to_dict()["orders"]
 
@@ -555,7 +589,7 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
         - 'start_price': New order price (formatted string)
         - 'position_update': Optional position update dict (None if no change)
         Returns {} if order_id not found or insufficient data.
-    
+
     Examples:
         >>> snapshot = {
         ...     'order': {'order123': {'product_id': 'BTC-USDC', 'status': 'FILLED',
@@ -568,6 +602,19 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
         ... }
         >>> result = calculate_new_order_move_from_snapshot(snapshot, 'order123')
         >>> print(result['product_id'], result['side'], result['start_price'])
+
+    Example:
+        >>> snapshot = {
+        ...     'order': {'order123': {'product_id': 'BTC-USDC', 'status': 'FILLED',
+        ...                            'order_side': 'BUY', 'limit_price': '40000.00'}},
+        ...     'positions': {'FUTURE': {}},
+        ...     'product': {'BTC-USDC': {'base_increment': '0.001', 'price_increment': '1',
+        ...                              'quote_increment': '0.01'}},
+        ...     'profit': {'SPOT': {'BUY': 0.004, 'SELL': 0.004}},
+        ...     'mandatory_fee_per_contract': {}
+        ... }
+        >>> result = calculate_new_order_move_from_snapshot(snapshot, 'order123')
+        >>> print(result.get('start_price'))
     """
     orders = snapshot.get("order", {})
     positions = deepcopy(snapshot.get("positions", {}))
@@ -685,12 +732,12 @@ def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, target
     }
 
 
-def determine_open_close_sides(product_type: str, position_side: str = None, parent_order_side: str = None, 
+def determine_open_close_sides(product_type: str, position_side: str = None, parent_order_side: str = None,
                                 position_size: float = None, order_size: float = None) -> tuple:
     """Determine which order side is 'open' and which is 'close' based on product type and position.
-    
+
     For SPOT products: All BUY orders are OPEN, all SELL orders are CLOSE (always).
-    
+
     For FUTURE/PERPETUAL products: Depends on account position:
     - If position is LONG: BUY=open (add), SELL=close (reduce)
     - If position is SHORT: SELL=open (add), BUY=close (reduce)
@@ -702,57 +749,62 @@ def determine_open_close_sides(product_type: str, position_side: str = None, par
       * First portion closes existing position (opposite order closes position)
       * Remaining portion opens new position in opposite direction
       * Fee applies only to closing portion
-    
+
     CRITICAL: When account position reaches 0 contracts, the next order opens a new position.
     Position resets when balance â†’ 0, so the direction of that next order determines whether
     it's opening LONG or SHORT.
-    
+
     POSITION FLIP SCENARIO:
     - Current: LONG 5 contracts
     - Order: SELL 10 contracts
     - Interpretation: 5 SELL to close LONG + 5 SELL to open SHORT
     - New position: SHORT 5
-    
+
     Args:
         product_type: 'SPOT', 'FUTURE', or 'PERPETUAL'
         position_side: Current position ('LONG', 'SHORT', or None if closed)
         parent_order_side: The side of the parent/opening order ('BUY' or 'SELL') for context
         position_size: Current position size (contracts) - for flip detection
         order_size: New order size (contracts) - for flip detection
-    
+
     Returns:
         Tuple of (open_side, close_side) where each is 'BUY' or 'SELL'
         Example: ('BUY', 'SELL') or ('SELL', 'BUY')
-        
+
     Important for Flips:
         When flip is detected, the open_side/close_side still represents the IMMEDIATE
         behavior of this order. For LONG 5 + SELL 10:
         - First 5 SELL close LONG (use current logic)
         - Next 5 SELL open SHORT (determined by position_side that will result)
         This function returns close_side for the closing portion.
-    
+
     Examples:
         >>> # SPOT: always same regardless of position
         >>> determine_open_close_sides('SPOT')
         ('BUY', 'SELL')
-        
+
         >>> # FUTURE LONG: BUY opens, SELL closes
         >>> determine_open_close_sides('FUTURE', position_side='LONG')
         ('BUY', 'SELL')
-        
+
         >>> # FUTURE SHORT: SELL opens, BUY closes
         >>> determine_open_close_sides('FUTURE', position_side='SHORT')
         ('SELL', 'BUY')
-        
+
         >>> # Position flip: LONG 5 + SELL 10 â†’ SHORT 5
-        >>> determine_open_close_sides('FUTURE', position_side='LONG', 
-        ...                              parent_order_side='SELL', 
+        >>> determine_open_close_sides('FUTURE', position_side='LONG',
+        ...                              parent_order_side='SELL',
         ...                              position_size=5.0, order_size=10.0)
         ('BUY', 'SELL')  # SELL closes LONG portion (fee applies here)
-        
+
         >>> # After flip completes, position is SHORT
         >>> determine_open_close_sides('FUTURE', position_side='SHORT')
         ('SELL', 'BUY')  # SELL opens, BUY closes SHORT
+
+    Example:
+        >>> sides = determine_open_close_sides('FUTURE', position_side='LONG')
+        >>> print(sides)
+        ('BUY', 'SELL')
     """
     # SPOT products always use BUY=open, SELL=close
     if product_type == ProductType.SPOT.value:

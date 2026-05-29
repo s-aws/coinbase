@@ -91,3 +91,15 @@ pytest tests/regression/ -v --tb=short
 
 - Focused tests in `.agents/ownership.yaml` are development checks only. They
   do not replace the regression gate.
+
+## Key Invariants from Change Plan
+
+The following invariants are specifically required by the documentation change plan:
+
+- Use `client_order_id` for all internal tracking; use `order_id` only for exchange APIs
+- Single code path per behavior; do not introduce parallel implementations
+- Use enums (`core/enums.py`), not magic strings
+- Respect existing module locks; never bypass thread-safety
+- Stealth order local state must reflect live exchange reality
+- Cancel/re-entry is not general hide-again behavior - it's a narrower policy for no-fill revealed stealth placements
+- Same-side post-fill retreat is a hidden-order policy only

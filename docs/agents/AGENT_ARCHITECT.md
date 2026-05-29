@@ -57,3 +57,13 @@ or inspect public files through an allowlisted publish path.
   focused tests, and public/private boundary check.
 - `tools/classify_repo_files.py` and `docs/REPO_CLEANUP_CLASSIFICATION.md`
   classify cleanup candidates before any file moves.
+
+## Key Requirements from Change Plan
+
+The following requirements are specifically mandated by the documentation change plan:
+
+- All key invariants must be clearly documented and easily discoverable
+- Agent architecture documentation must be complete and accurate
+- All documentation changes must be verified against actual code
+- Documentation must follow repository style and format
+- Cross-references between documentation and code must be accurate

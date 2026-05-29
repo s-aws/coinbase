@@ -31,6 +31,31 @@ Example:
     >>> position = LotPosition(instrument='BTC-USDC', lots=[lot])
     >>> position.total_quantity
     0.5
+
+Example usage:
+    >>> from business.position_lot import PositionLot, LotPosition
+    >>> from core.enums import OrderSide
+    >>> from datetime import datetime
+    >>>
+    >>> # Create a position lot
+    >>> lot = PositionLot(
+    ...     lot_id='lot-001',
+    ...     instrument='BTC-USDC',
+    ...     side=OrderSide.BUY,
+    ...     quantity=0.5,
+    ...     entry_price=42000.0,
+    ...     entry_timestamp=datetime.utcnow(),
+    ...     fees=2.0,
+    ...     target_profit_percentage=0.5
+    ... )
+    >>>
+    >>> # Create a position with the lot
+    >>> position = LotPosition(instrument='BTC-USDC', lots=[lot])
+    >>>
+    >>> # Check if lot can be exited profitably
+    >>> can_exit = lot.can_exit_profitably_at(42500.0)
+    >>> print(can_exit)
+    True
 """
 
 from dataclasses import dataclass, field
@@ -46,7 +71,11 @@ logger = get_logger("PositionLot")
 @dataclass
 class PositionLot:
     """Immutable position lot - a discrete quantity at a specific entry price.
-    
+
+    This class represents a single lot of a position, which is a discrete
+    quantity acquired at a specific entry price. It's immutable once created
+    and tracks all relevant information for profit calculation and exit decisions.
+
     Attributes:
         lot_id: Unique identifier for this lot (UUID or derived)
         instrument: Trading pair (e.g., 'BTC-USDC')
@@ -56,16 +85,36 @@ class PositionLot:
         entry_timestamp: When this lot was first created
         fees: Total fees paid to acquire this lot
         entry_value: Total value = quantity * entry_price
-        
+
         # Profit tracking
         target_profit_percentage: Target profit margin for this lot (%)
+        target_profit_amount: Target profit amount in quote currency
         min_profitable_exit_price: Minimum price needed to be profitable
-        min_profitable_exit_amount: Minimum price in absolute terms
-        
+
         # Tracking
         partially_exited_quantity: How much has been sold/closed
         partially_exited_value: Total value received from partial exits
         remaining_quantity: Still available for exit
+        source_fills: List of trade IDs that comprise this lot
+        created_at: When the lot was created (default: current time)
+
+    Example:
+        >>> from business.position_lot import PositionLot
+        >>> from core.enums import OrderSide
+        >>> from datetime import datetime
+        >>>
+        >>> lot = PositionLot(
+        ...     lot_id='lot-001',
+        ...     instrument='BTC-USDC',
+        ...     side=OrderSide.BUY,
+        ...     quantity=0.5,
+        ...     entry_price=42000.0,
+        ...     entry_timestamp=datetime.utcnow(),
+        ...     fees=2.0,
+        ...     target_profit_percentage=0.5
+        ... )
+        >>> print(lot.entry_value)
+        21000.0
     """
     
     lot_id: str  # Unique identifier
@@ -105,7 +154,34 @@ class PositionLot:
         self._compute_exit_threshold()
     
     def _compute_exit_threshold(self) -> None:
-        """Compute minimum profitable exit price based on fees and target profit."""
+        """Compute minimum profitable exit price based on fees and target profit.
+
+        This method calculates the minimum price at which the lot can be exited
+        profitably, taking into account both the entry fees and the target profit
+        percentage. The calculation differs based on whether the lot is a BUY or SELL.
+
+        For BUY lots:
+        - Cost per unit = entry_price + (fees / quantity)
+        - Profit target = cost per unit * (target_profit_percentage / 100)
+        - Minimum exit price = cost per unit + profit target
+
+        For SELL lots:
+        - Proceeds per unit = entry_price - (fees / quantity)
+        - Profit target = proceeds per unit * (target_profit_percentage / 100)
+        - Minimum exit price = proceeds per unit - profit target
+
+        Example:
+            >>> lot = PositionLot(
+            ...     lot_id='lot-001',
+            ...     instrument='BTC-USDC',
+            ...     side=OrderSide.BUY,
+            ...     quantity=0.5,
+            ...     entry_price=42000.0,
+            ...     fees=2.0,
+            ...     target_profit_percentage=0.5
+            ... )
+            >>> print(lot.min_profitable_exit_price)
+        """
         if self.side == OrderSide.BUY:
             # For buys: exit_price = (entry_price + fees/quantity) * (1 + profit_pct)
             cost_per_unit = self.entry_price + (self.fees / self.quantity if self.quantity > 0 else 0)
@@ -120,10 +196,28 @@ class PositionLot:
     
     def set_profit_target(self, target_pct: Optional[float] = None, target_amt: Optional[float] = None) -> None:
         """Update profit target and recompute exit threshold.
-        
+
+        This method allows updating the profit target for the lot, either as
+        a percentage or as an absolute amount. After updating, it recomputes
+        the minimum profitable exit price.
+
         Args:
             target_pct: Profit target as percentage (e.g., 0.5 for 0.5%)
             target_amt: Profit target as absolute amount
+
+        Example:
+            >>> lot = PositionLot(
+            ...     lot_id='lot-001',
+            ...     instrument='BTC-USDC',
+            ...     side=OrderSide.BUY,
+            ...     quantity=0.5,
+            ...     entry_price=42000.0,
+            ...     fees=2.0,
+            ...     target_profit_percentage=0.5
+            ... )
+            >>> lot.set_profit_target(target_pct=1.0)  # Update to 1%
+            >>> print(lot.target_profit_percentage)
+            1.0
         """
         if target_pct is not None:
             self.target_profit_percentage = target_pct
@@ -134,13 +228,29 @@ class PositionLot:
     
     def mark_partially_exited(self, exit_quantity: float, exit_price: float) -> float:
         """Record a partial exit from this lot.
-        
+
+        This method records a partial exit of the lot, updating the tracking
+        information and returning the realized value from the exit.
+
         Args:
             exit_quantity: Amount exited
             exit_price: Price per unit at exit
-        
+
         Returns:
-            Realized value from this exit
+            float: Realized value from this exit (exit_quantity * exit_price)
+
+        Example:
+            >>> lot = PositionLot(
+            ...     lot_id='lot-001',
+            ...     instrument='BTC-USDC',
+            ...     side=OrderSide.BUY,
+            ...     quantity=0.5,
+            ...     entry_price=42000.0,
+            ...     fees=2.0
+            ... )
+            >>> realized_value = lot.mark_partially_exited(0.2, 42500.0)
+            >>> print(realized_value)
+            8500.0
         """
         exit_value = exit_quantity * exit_price
         self.partially_exited_quantity += exit_quantity
@@ -158,12 +268,30 @@ class PositionLot:
     
     def can_exit_profitably_at(self, market_price: float) -> bool:
         """Check if lot can exit profitably at given market price.
-        
+
+        This method determines whether exiting the lot at the given market price
+        would result in a profitable transaction, taking into account the entry
+        price, fees, and target profit.
+
         Args:
             market_price: Current market price
-        
+
         Returns:
-            True if profitable, False otherwise
+            bool: True if profitable, False otherwise
+
+        Example:
+            >>> lot = PositionLot(
+            ...     lot_id='lot-001',
+            ...     instrument='BTC-USDC',
+            ...     side=OrderSide.BUY,
+            ...     quantity=0.5,
+            ...     entry_price=42000.0,
+            ...     fees=2.0,
+            ...     target_profit_percentage=0.5
+            ... )
+            >>> can_exit = lot.can_exit_profitably_at(42500.0)
+            >>> print(can_exit)
+            True
         """
         if self.side == OrderSide.BUY:
             return market_price >= self.min_profitable_exit_price
@@ -204,6 +332,27 @@ class LotPosition:
         total_quantity: Sum of all lots
         lots: List of PositionLot objects
         average_entry_price: FIFO-weighted entry price
+
+    Example:
+        >>> from business.position_lot import PositionLot, LotPosition
+        >>> from core.enums import OrderSide
+        >>> from datetime import datetime
+        >>>
+        >>> # Create a position lot
+        >>> lot = PositionLot(
+        ...     lot_id='lot-001',
+        ...     instrument='BTC-USDC',
+        ...     side=OrderSide.BUY,
+        ...     quantity=0.5,
+        ...     entry_price=42000.0,
+        ...     entry_timestamp=datetime.utcnow(),
+        ...     fees=2.0
+        ... )
+        >>>
+        >>> # Create a position with the lot
+        >>> position = LotPosition(instrument='BTC-USDC', lots=[lot])
+        >>> print(position.total_quantity)
+        0.5
     """
 
     instrument: str

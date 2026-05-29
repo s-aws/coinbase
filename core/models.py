@@ -67,25 +67,30 @@ class RepricingState(TypedDict, total=False):
     until the first reprice or placement event populates the rest.
 
     Field semantics:
-        active_placement_client_order_id / active_exchange_order_id:
-            IDs of the order currently resting on the exchange. Cleared
-            when the order is cancelled or fills.
-        active_exchange_price:        Limit price actually submitted to
-                                      the exchange (may differ from the
-                                      logical target if clamped).
-        current_logical_limit_price:  The unclamped target price the
-                                      policy resolved for this round.
-        last_reprice_at / next_reprice_at: ISO-8601 strings (JSONB-safe).
-                                      ``next_reprice_at`` is the
-                                      scheduling deadline; the loop checks
-                                      it on every tick.
-        reprice_reason:               Tag for the most recent reprice
-                                      (``adaptive``, ``slide_step``,
-                                      ``blocked_unprofitable``, ...).
-        reprice_history:              Append-only list of ISO timestamps,
-                                      one per successful reprice. Used by
-                                      slide-calibration analytics — see
-                                      ``database/slide_calibration_helpers.py``.
+        active_placement_client_order_id:
+            Client order ID of the order currently resting on the exchange.
+            Cleared when the order is cancelled or fills.
+        active_exchange_order_id:
+            Exchange order ID of the order currently resting on the exchange.
+            Cleared when the order is cancelled or fills.
+        active_exchange_price:
+            Limit price actually submitted to the exchange (may differ from the
+            logical target if clamped).
+        current_logical_limit_price:
+            The unclamped target price the policy resolved for this round.
+        last_reprice_at:
+            ISO-8601 string (JSONB-safe) of the last reprice timestamp.
+            Used for rate limiting and analytics.
+        next_reprice_at:
+            ISO-8601 string (JSONB-safe) of the scheduling deadline.
+            The repricing loop checks this on every tick to determine when to reprice.
+        reprice_reason:
+            Tag for the most recent reprice (``adaptive``, ``slide_step``,
+            ``blocked_unprofitable``, ...). Used for analytics and debugging.
+        reprice_history:
+            Append-only list of ISO timestamps, one per successful reprice.
+            Used by slide-calibration analytics — see
+            ``database/slide_calibration_helpers.py``.
         last_profitability_block_reason:
             Set when the reveal-time profitability gate blocks a reprice.
             Cleared on the next successful reprice.
@@ -94,10 +99,13 @@ class RepricingState(TypedDict, total=False):
             reveal-condition price thresholds can be moved in lock-step
             with the limit price. See
             ``_apply_reveal_condition_price_tracking``.
-        post_fill_retreat_offset / post_fill_retreat_count:
-            Cumulative absolute price offset and count from same-side
-            post-fill retreat. Future anchor repricing adds this offset
-            to target bands so the retreat is not erased on the next tick.
+        post_fill_retreat_offset:
+            Cumulative absolute price offset from same-side post-fill retreat.
+            Future anchor repricing adds this offset to target bands so the retreat
+            is not erased on the next tick.
+        post_fill_retreat_count:
+            Cumulative count of same-side post-fill retreats. Used for tracking
+            and analytics.
     """
     active_placement_client_order_id: Optional[str]
     active_exchange_order_id: Optional[str]
@@ -133,7 +141,32 @@ def _required_str(data: Dict[str, Any], key: str, owner: str) -> str:
 
 @dataclass
 class Product:
-    """Trading product metadata."""
+    """Trading product metadata.
+
+    Represents a trading product (spot or futures) with its market characteristics.
+    This class is used to store and manage product information retrieved from
+    Coinbase's API, including pricing increments, minimum sizes, and trading status.
+
+    Attributes:
+        product_id: Coinbase product symbol (e.g. ``BTC-USDC``).
+        product_type: Type of product (SPOT or FUTURE).
+        base_increment: Minimum increment for base currency (e.g. '0.001' for BTC).
+        quote_increment: Minimum increment for quote currency (e.g. '0.01' for USDC).
+        price_increment: Minimum price increment (e.g. '0.01' for USDC).
+        base_min_size: Minimum order size in base currency (e.g. '0.001' for BTC).
+        trading_disabled: Boolean indicating if trading is disabled for this product.
+
+    Example:
+        >>> product = Product(
+        ...     product_id="BTC-USDC",
+        ...     product_type=ProductType.SPOT,
+        ...     base_increment="0.001",
+        ...     quote_increment="0.01",
+        ...     price_increment="0.01",
+        ...     base_min_size="0.001",
+        ...     trading_disabled=False
+        ... )
+    """
     product_id: str
     product_type: ProductType
     base_increment: str
@@ -141,10 +174,31 @@ class Product:
     price_increment: str
     base_min_size: str = "0"
     trading_disabled: bool = False
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Product':
-        """Create Product from API response dict."""
+        """Create Product from API response dict.
+
+        This method is used to construct a Product instance from a dictionary
+        typically received from Coinbase's API. It handles type conversion and
+        default values for missing fields.
+
+        Args:
+            data: Dictionary containing product information from Coinbase API.
+
+        Returns:
+            Product: A new Product instance populated with data from the dict.
+
+        Example:
+            >>> api_data = {
+            ...     'product_id': 'BTC-USDC',
+            ...     'product_type': 'SPOT',
+            ...     'base_increment': '0.001',
+            ...     'quote_increment': '0.01',
+            ...     'price_increment': '0.01'
+            ... }
+            >>> product = Product.from_dict(api_data)
+        """
         return cls(
             product_id=_required_str(data, 'product_id', 'Product'),
             product_type=ProductType(str(data.get('product_type', 'SPOT')).upper()),
@@ -158,16 +212,57 @@ class Product:
 
 @dataclass
 class Position:
-    """Futures position - contract holdings."""
+    """Futures position - contract holdings.
+
+    Represents a futures position with its current holdings and pricing information.
+    This class is used to track position details for futures contracts.
+
+    Attributes:
+        product_id: Coinbase product symbol (e.g. ``BTC-USDC``).
+        side: Position side ('LONG' or 'SHORT').
+        number_of_contracts: Number of contracts in the position.
+        current_price: Current market price of the position (optional).
+        entry_price: Entry price of the position (optional).
+
+    Example:
+        >>> position = Position(
+        ...     product_id="BTC-USDC",
+        ...     side="LONG",
+        ...     number_of_contracts="10",
+        ...     current_price="40000.00",
+        ...     entry_price="38000.00"
+        ... )
+    """
     product_id: str
     side: str  # 'LONG' or 'SHORT'
     number_of_contracts: str
     current_price: Optional[str] = None
     entry_price: Optional[str] = None
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Position':
-        """Create Position from API response dict."""
+        """Create Position from API response dict.
+
+        This method is used to construct a Position instance from a dictionary
+        typically received from Coinbase's API. It handles type conversion and
+        default values for missing fields.
+
+        Args:
+            data: Dictionary containing position information from Coinbase API.
+
+        Returns:
+            Position: A new Position instance populated with data from the dict.
+
+        Example:
+            >>> api_data = {
+            ...     'product_id': 'BTC-USDC',
+            ...     'side': 'LONG',
+            ...     'number_of_contracts': '10',
+            ...     'current_price': '40000.00',
+            ...     'entry_price': '38000.00'
+            ... }
+            >>> position = Position.from_dict(api_data)
+        """
         return cls(
             product_id=_required_str(data, 'product_id', 'Position'),
             side=_required_str(data, 'side', 'Position'),
@@ -179,17 +274,58 @@ class Position:
 
 @dataclass
 class Wallet:
-    """Account wallet - currency balance."""
+    """Account wallet - currency balance.
+
+    Represents a wallet with currency balance information for a Coinbase account.
+    This class is used to track wallet details including available and total balances.
+
+    Attributes:
+        currency: Currency code (e.g. ``BTC``, ``USDC``).
+        available_balance: Available balance for trading (excluding reserved amounts).
+        total_balance: Total balance including reserved amounts.
+        created_at: ISO timestamp when the wallet was created (optional).
+        updated_at: ISO timestamp when the wallet was last updated (optional).
+        deleted_at: ISO timestamp when the wallet was deleted (optional).
+
+    Example:
+        >>> wallet = Wallet(
+        ...     currency="BTC",
+        ...     available_balance="1.5",
+        ...     total_balance="2.0",
+        ...     created_at="2026-05-01T10:00:00Z",
+        ...     updated_at="2026-05-01T12:00:00Z"
+        ... )
+    """
     currency: str
     available_balance: str
     total_balance: str
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     deleted_at: Optional[str] = None
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Wallet':
-        """Create Wallet from API response dict."""
+        """Create Wallet from API response dict.
+
+        This method is used to construct a Wallet instance from a dictionary
+        typically received from Coinbase's API. It handles type conversion and
+        default values for missing fields.
+
+        Args:
+            data: Dictionary containing wallet information from Coinbase API.
+
+        Returns:
+            Wallet: A new Wallet instance populated with data from the dict.
+
+        Example:
+            >>> api_data = {
+            ...     'currency': 'BTC',
+            ...     'available_balance': '1.5',
+            ...     'total_balance': '2.0',
+            ...     'created_at': '2026-05-01T10:00:00Z'
+            ... }
+            >>> wallet = Wallet.from_dict(api_data)
+        """
         return cls(
             currency=_required_str(data, 'currency', 'Wallet'),
             available_balance=str(data.get('available_balance', '0')),
@@ -202,7 +338,42 @@ class Wallet:
 
 @dataclass
 class Order:
-    """Trading order - spot or futures."""
+    """Trading order - spot or futures.
+
+    Represents a trading order with all relevant information for spot and futures trading.
+    This class is used to track order details including status, pricing, and execution information.
+
+    Attributes:
+        client_order_id: Internal client order ID for tracking (UUID).
+        product_id: Coinbase product symbol (e.g. ``BTC-USDC``).
+        order_side: Direction of the order (BUY or SELL).
+        status: Current status of the order (OPEN, FILLED, CANCELLED, etc.).
+        size: Total order size in base currency.
+        price: Order price (for market orders).
+        filled_size: Size that has been filled.
+        limit_price: Limit price for limit orders (optional).
+        avg_price: Average price at which the order was filled (optional).
+        order_id: Exchange order ID (only for exchange-facing operations).
+        product_type: Type of product (SPOT or FUTURE).
+        created_at: ISO timestamp when the order was created.
+        custom_metadata: Additional metadata for custom tracking.
+
+    Example:
+        >>> order = Order(
+        ...     client_order_id="uuid-12345",
+        ...     product_id="BTC-USDC",
+        ...     order_side=OrderSide.BUY,
+        ...     status=OrderStatus.OPEN,
+        ...     size=0.5,
+        ...     price=40000.0,
+        ...     filled_size=0.0,
+        ...     limit_price=40000.0,
+        ...     avg_price=None,
+        ...     order_id="exchange-12345",
+        ...     product_type=ProductType.SPOT,
+        ...     created_at=datetime.utcnow()
+        ... )
+    """
     client_order_id: str
     product_id: str
     order_side: OrderSide
@@ -216,10 +387,37 @@ class Order:
     product_type: ProductType = ProductType.SPOT
     created_at: Optional[datetime] = None
     custom_metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Order':
-        """Create Order from API response dict."""
+        """Create Order from API response dict.
+
+        This method is used to construct an Order instance from a dictionary
+        typically received from Coinbase's API. It handles type conversion,
+        default values, and validation for missing fields.
+
+        Args:
+            data: Dictionary containing order information from Coinbase API.
+
+        Returns:
+            Order: A new Order instance populated with data from the dict.
+
+        Example:
+            >>> api_data = {
+            ...     'client_order_id': 'uuid-12345',
+            ...     'product_id': 'BTC-USDC',
+            ...     'order_side': 'BUY',
+            ...     'status': 'OPEN',
+            ...     'size': '0.5',
+            ...     'price': '40000.0',
+            ...     'filled_size': '0.0',
+            ...     'limit_price': '40000.0',
+            ...     'avg_price': None,
+            ...     'order_id': 'exchange-12345',
+            ...     'product_type': 'SPOT'
+            ... }
+            >>> order = Order.from_dict(api_data)
+        """
         from calculation.resolver import safe_float, normalize_product_type
 
         side_raw = data.get('order_side') or data.get('side')
@@ -282,7 +480,7 @@ class FollowUpOrderTemplate:
 @dataclass
 class RevealExecutionPlan:
     """Plan for revealing a stealth order - captures pricing intent and market context.
-    
+
     Encapsulates all information needed to execute a stealth order reveal, including
     what price to submit, why that price was chosen, and current market context.
     Used for:
@@ -290,16 +488,16 @@ class RevealExecutionPlan:
     - Reveal-time price resolution
     - Post-reveal profitability revalidation
     - Audit trail of reveal decisions
-    
+
     Attributes:
-        configured_limit_price: Original limit price from stealth order creation
-        submitted_limit_price: Actual limit price that will be submitted to exchange
-        reveal_pricing_policy: Policy that determined the price (enum value as string)
-        reveal_price_source: How the price was sourced (RevealPriceSource enum value, e.g. ticker_best_ask)
-        fallback_used: Whether configured limit was used as fallback (market data unavailable)
-        market_source: Source of market data (ticker, snapshot, unavailable)
-        market_bid: Best bid price at reveal time
-        market_ask: Best ask price at reveal time
+        configured_limit_price: Original limit price from stealth order creation.
+        submitted_limit_price: Actual limit price that will be submitted to exchange.
+        reveal_pricing_policy: Policy that determined the price (RevealPricingPolicy enum value as string).
+        reveal_price_source: How the price was sourced (RevealPriceSource enum value, e.g. ticker_best_ask).
+        fallback_used: Whether configured limit was used as fallback (market data unavailable).
+        market_source: Source of market data (ticker, snapshot, unavailable).
+        market_bid: Best bid price at reveal time.
+        market_ask: Best ask price at reveal time.
         target_movement: Profit target (decimal, e.g. 0.003 for 0.3%) resolved
             from the canonical ``order_parent`` row. Used by the reveal-time
             profitability gate. ``None`` when no target is configured.
@@ -316,6 +514,22 @@ class RevealExecutionPlan:
             ``MIDPOINT`` → ``True`` (maker). Drives both the fee tier used
             in profitability validation (maker vs taker) and the actual
             ``post_only`` flag passed to ``REST_CLIENT.place_limit_order``.
+
+    Example:
+        >>> plan = RevealExecutionPlan(
+        ...     configured_limit_price=40000.0,
+        ...     submitted_limit_price=40005.0,
+        ...     reveal_pricing_policy="top_of_book",
+        ...     reveal_price_source="ticker_best_ask",
+        ...     fallback_used=False,
+        ...     market_source="ticker",
+        ...     market_bid=39995.0,
+        ...     market_ask=40005.0,
+        ...     target_movement=0.003,
+        ...     target_movement_type="P",
+        ...     target_movement_source="order_parent",
+        ...     post_only=True
+        ... )
     """
     configured_limit_price: float
     submitted_limit_price: float
@@ -331,7 +545,16 @@ class RevealExecutionPlan:
     post_only: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dict for persistence/serialization."""
+        """Convert to dict for persistence/serialization.
+
+        Returns:
+            Dictionary representation of the RevealExecutionPlan for persistence.
+
+        Example:
+            >>> plan = RevealExecutionPlan(...)
+            >>> plan_dict = plan.to_dict()
+            >>> print(plan_dict['configured_limit_price'])
+        """
         return {
             'configured_limit_price': self.configured_limit_price,
             'submitted_limit_price': self.submitted_limit_price,
@@ -401,7 +624,20 @@ class StealthMovePlan:
         reason: Why the move was triggered (audit field).
         notes: Optional human-readable note for the audit row.
         market_bid: Best bid at plan-build time (audit snapshot).
-        market_ask: Best ask at plan-build time (audit snapshot).
+        market_ask: Best ask at plan-build time (audit snapshot.
+
+    Example:
+        >>> move_plan = StealthMovePlan(
+        ...     stealth_order_id="stealth-12345",
+        ...     root_parent_client_order_id="parent-12345",
+        ...     old_exchange_order_id="exchange-12345",
+        ...     old_submitted_price=40000.0,
+        ...     new_configured_limit_price=40050.0,
+        ...     reveal_plan=RevealExecutionPlan(...),
+        ...     reason=StealthMoveReason.MANUAL_USER_MOVE,
+        ...     market_bid=39995.0,
+        ...     market_ask=40005.0
+        ... )
     """
 
     stealth_order_id: str
@@ -420,7 +656,16 @@ class StealthMovePlan:
     market_ask: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize for persistence in the move audit row."""
+        """Serialize for persistence in the move audit row.
+
+        Returns:
+            Dictionary representation of the StealthMovePlan for audit persistence.
+
+        Example:
+            >>> move_plan = StealthMovePlan(...)
+            >>> move_dict = move_plan.to_dict()
+            >>> print(move_dict['stealth_order_id'])
+        """
         return {
             'stealth_order_id': self.stealth_order_id,
             'root_parent_client_order_id': self.root_parent_client_order_id,
@@ -501,6 +746,59 @@ class RepricingPolicy:
     ``StealthOrderManager._normalize_anchor_repricing_policy`` and are
     pinned by tests in ``tests/integration/test_anchor_repricing_phase2.py``
     and ``tests/regression/test_repricing_policy.py``.
+
+    Attributes:
+        enabled: Whether anchor repricing is enabled for this stealth order.
+        reference_price_source: Source of reference price for repricing (MIDPOINT, TOP_OF_BOOK, LAST_TRADE).
+        distance_type: How target_distance and max_distance are interpreted (PERCENT or ABSOLUTE).
+        target_distance: Target distance from reference price for repricing.
+        max_distance: Maximum distance from reference price for repricing.
+        update_mode: How often the repricing loop evaluates a new target (ADAPTIVE or FIXED).
+        fixed_interval_seconds: Interval in seconds for FIXED update mode.
+        allow_revealed_reprice: Whether repricing applies to already-revealed orders.
+        min_price_change: Minimum price change required to trigger a reprice.
+        hysteresis_bps: Hysteresis in basis points to prevent oscillation.
+        min_reprice_interval_seconds: Minimum interval between reprices in seconds.
+        max_reprices_per_hour: Maximum number of reprices allowed per hour.
+        post_only_required: Whether repriced orders must submit with post_only=True.
+        converge_to_target: Whether to converge toward the target price.
+        inherit_to_follow_ups: Whether this policy is inherited by follow-up orders.
+        slide_mode: Whether to use slide mode for repricing.
+        max_step_per_reprice: Maximum price step per reprice in slide mode.
+        volatility_sensitivity: Sensitivity to market volatility for guardrails.
+        max_reprice_window_seconds: Maximum window for reprice rate limiting.
+        require_minimum_volume: Minimum volume required for repricing.
+        enable_spread_monitoring: Whether to monitor bid-ask spread.
+        max_spread_bps: Maximum allowed spread in basis points.
+        follow_up_retreat_distance: Distance for post-fill follow-up retreat (fingerprint-hiding).
+        follow_up_retreat_jitter: Jitter for retreat distance (fingerprint-hiding).
+
+    Example:
+        >>> policy = RepricingPolicy(
+        ...     enabled=True,
+        ...     reference_price_source=RepricingReferenceSource.MIDPOINT,
+        ...     distance_type=RepricingDistanceType.PERCENT,
+        ...     target_distance=0.005,  # 0.5%
+        ...     max_distance=0.01,      # 1%
+        ...     update_mode=RepricingUpdateMode.ADAPTIVE,
+        ...     allow_revealed_reprice=True,
+        ...     min_price_change=0.01,
+        ...     hysteresis_bps=5.0,
+        ...     min_reprice_interval_seconds=30,
+        ...     max_reprices_per_hour=20,
+        ...     post_only_required=True,
+        ...     converge_to_target=True,
+        ...     inherit_to_follow_ups=True,
+        ...     slide_mode=False,
+        ...     max_step_per_reprice=0.0,
+        ...     volatility_sensitivity=1.0,
+        ...     max_reprice_window_seconds=600,
+        ...     require_minimum_volume=0.0,
+        ...     enable_spread_monitoring=False,
+        ...     max_spread_bps=50.0,
+        ...     follow_up_retreat_distance=0.0005,  # 5 bps
+        ...     follow_up_retreat_jitter=0.5
+        ... )
     """
 
     enabled: bool = False
@@ -547,7 +845,16 @@ class RepricingPolicy:
 
     @classmethod
     def disabled(cls) -> 'RepricingPolicy':
-        """Canonical \"no repricing\" instance. Equivalent to ``{\"enabled\": False}``."""
+        """Canonical \"no repricing\" instance. Equivalent to ``{\"enabled\": False}``.
+
+        Returns:
+            RepricingPolicy: A disabled repricing policy instance.
+
+        Example:
+            >>> policy = RepricingPolicy.disabled()
+            >>> print(policy.enabled)
+            False
+        """
         return cls(enabled=False)
 
     @classmethod
@@ -561,6 +868,20 @@ class RepricingPolicy:
         :meth:`StealthOrderManager._normalize_anchor_repricing_policy` —
         because consumers that read already-stored policies shouldn't have
         their config silently collapsed by a re-read.
+
+        Args:
+            raw: Dictionary containing policy configuration.
+
+        Returns:
+            RepricingPolicy: A normalized RepricingPolicy instance.
+
+        Example:
+            >>> policy_dict = {
+            ...     'enabled': True,
+            ...     'target_distance': 0.005,
+            ...     'distance_type': 'P'
+            ... }
+            >>> policy = RepricingPolicy.from_dict(policy_dict)
         """
         # Local import keeps models.py free of calculation-layer cycles.
         from configuration import safe_float
@@ -704,6 +1025,16 @@ class RepricingPolicy:
         Lets internal helpers be called from both refactored sites and
         legacy dict callers (incl. tests) without forcing wrapping at every
         call site.
+
+        Args:
+            value: Either a dict, None, or an existing RepricingPolicy instance.
+
+        Returns:
+            RepricingPolicy: A RepricingPolicy instance.
+
+        Example:
+            >>> policy_dict = {'enabled': True, 'target_distance': 0.005}
+            >>> policy = RepricingPolicy.coerce(policy_dict)
         """
         if isinstance(value, cls):
             return value
@@ -717,6 +1048,14 @@ class RepricingPolicy:
         Disabled policies serialize to ``{\"enabled\": False}`` only —
         matches what the previous normalizer wrote so persistence is a
         bit-for-bit no-op.
+
+        Returns:
+            Dict[str, Any]: Dictionary representation of the policy for persistence.
+
+        Example:
+            >>> policy = RepricingPolicy(...)
+            >>> policy_dict = policy.to_dict()
+            >>> print(policy_dict['enabled'])
         """
         if not self.enabled:
             return {'enabled': False}
@@ -756,6 +1095,19 @@ class RepricingPolicy:
 
         Encapsulates the percent-vs-absolute branch so callers don't have
         to inspect ``distance_type`` themselves.
+
+        Args:
+            side: Order side ('BUY' or 'SELL').
+            reference_price: Reference price for computing bands.
+
+        Returns:
+            Dict[str, float]: Dictionary with target_price, max_boundary_price,
+            target_distance_amount, and max_distance_amount.
+
+        Example:
+            >>> policy = RepricingPolicy(target_distance=0.005, distance_type=RepricingDistanceType.PERCENT)
+            >>> bands = policy.compute_distance_bands('BUY', 40000.0)
+            >>> print(bands['target_price'])
         """
         if self.distance_type is RepricingDistanceType.ABSOLUTE:
             target = self.target_distance
@@ -785,6 +1137,17 @@ class RepricingPolicy:
 
         Returns ``(price, clamped)`` where ``clamped`` is True if the move
         was reduced. No-op when slide mode is off or step is non-positive.
+
+        Args:
+            current_price: Current price of the order.
+            desired_price: Desired price to reprice to.
+
+        Returns:
+            Tuple[float, bool]: (clamped_price, is_clamped).
+
+        Example:
+            >>> policy = RepricingPolicy(slide_mode=True, max_step_per_reprice=10.0)
+            >>> clamped_price, is_clamped = policy.clamp_to_step(40000.0, 40100.0)
         """
         if not self.slide_mode or self.max_step_per_reprice <= 0:
             return float(desired_price), False
@@ -825,6 +1188,22 @@ class RepricingPolicy:
         (typically the follow-up creation path) must run the price
         through ``calculation.formatter.quantize_to_increment`` with the
         product's ``price_increment`` before placement.
+
+        Args:
+            anchor_price: The anchor price to retreat from.
+            side: Order side ('BUY' or 'SELL').
+            follow_up_client_order_id: Client order ID for deterministic jitter.
+
+        Returns:
+            float: The computed follow-up price.
+
+        Example:
+            >>> policy = RepricingPolicy(follow_up_retreat_distance=0.0005)
+            >>> follow_up_price = policy.compute_follow_up_price(
+            ...     anchor_price=40000.0,
+            ...     side='BUY',
+            ...     follow_up_client_order_id='follow-up-123'
+            ... )
         """
         # A disabled policy is fully inert: no anchor repricing AND no
         # retreat. The defaults on the dataclass are the OPT-OUT values
@@ -867,9 +1246,28 @@ class RepricingPolicy:
 
     @property
     def should_reprice_revealed(self) -> bool:
-        """True iff repricing applies to already-revealed orders."""
+        """True iff repricing applies to already-revealed orders.
+
+        Returns:
+            bool: True if repricing applies to revealed orders.
+
+        Example:
+            >>> policy = RepricingPolicy(allow_revealed_reprice=True)
+            >>> print(policy.should_reprice_revealed)
+            True
+        """
         return self.enabled and self.allow_revealed_reprice
 
     @property
     def is_fixed_interval(self) -> bool:
+        """True iff update mode is FIXED.
+
+        Returns:
+            bool: True if update mode is FIXED.
+
+        Example:
+            >>> policy = RepricingPolicy(update_mode=RepricingUpdateMode.FIXED)
+            >>> print(policy.is_fixed_interval)
+            True
+        """
         return self.update_mode is RepricingUpdateMode.FIXED

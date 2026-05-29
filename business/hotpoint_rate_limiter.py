@@ -16,6 +16,20 @@ The limiter does **not** persist counters of its own — `order_parent`
 is the source of truth. New successful placements call
 :meth:`HotpointRateLimiter.record_placement` synchronously after the
 DB insert.
+
+Example:
+    >>> from business.hotpoint_rate_limiter import HotpointRateLimiter
+    >>> limiter = HotpointRateLimiter(cap_n=10, window_seconds=60.0)
+    >>> decision = limiter.try_acquire(
+    ...     product_id="BTC-USDC",
+    ...     side="BUY",
+    ...     bucket_id=133
+    ... )
+    >>> if decision.allowed:
+    ...     print("Placement allowed")
+    ...     limiter.commit(product_id="BTC-USDC", side="BUY", bucket_id=133)
+    ... else:
+    ...     print("Placement denied")
 """
 
 from __future__ import annotations
@@ -48,6 +62,32 @@ class HotpointRateLimiter:
     :meth:`commit` (after the placement succeeded and was inserted) or
     :meth:`rollback` (if placement failed). This avoids two threads racing
     past the cap before either has finished its REST call.
+
+    This rate limiter is used to control the rate of auto-placed orders
+    in hotpoint scenarios, preventing excessive order placement during
+    high-fill-rate periods.
+
+    Attributes:
+        _cap: Maximum number of placements allowed in the window.
+        _window_s: Rate limit window in seconds.
+        _placements: Dictionary storing committed placements.
+        _in_flight: Dictionary storing in-flight placements.
+        _lock: Thread lock for thread safety.
+        _clock: Clock function for time tracking.
+
+    Example:
+        >>> limiter = HotpointRateLimiter(cap_n=10, window_seconds=60.0)
+        >>> decision = limiter.try_acquire(
+        ...     product_id="BTC-USDC",
+        ...     side="BUY",
+        ...     bucket_id=133
+        ... )
+        >>> if decision.allowed:
+        ...     # Place order here
+        ...     limiter.commit(product_id="BTC-USDC", side="BUY", bucket_id=133)
+        ... else:
+        ...     # Handle rate limit
+        ...     pass
     """
 
     def __init__(
@@ -87,6 +127,29 @@ class HotpointRateLimiter:
 
         Returns a decision; on ``allowed=True`` the caller MUST eventually
         call :meth:`commit` or :meth:`rollback` for the same key.
+
+        Args:
+            product_id: Product identifier (e.g. "BTC-USDC").
+            side: Order side ("BUY" or "SELL").
+            bucket_id: The bucket ID to check.
+            now: Optional override of the monotonic clock for testing.
+
+        Returns:
+            HotpointRateLimitDecision: Decision with allowance status and details.
+
+        Example:
+            >>> limiter = HotpointRateLimiter(cap_n=10, window_seconds=60.0)
+            >>> decision = limiter.try_acquire(
+            ...     product_id="BTC-USDC",
+            ...     side="BUY",
+            ...     bucket_id=133
+            ... )
+            >>> if decision.allowed:
+            ...     # Proceed with order placement
+            ...     limiter.commit(product_id="BTC-USDC", side="BUY", bucket_id=133)
+            ... else:
+            ...     # Handle rate limit
+            ...     print(f"Rate limit hit: {decision.reason}")
         """
         key: _BucketKey = (product_id, side, bucket_id)
         ts = float(now) if now is not None else self._clock()
@@ -116,7 +179,24 @@ class HotpointRateLimiter:
         bucket_id: int,
         now: Optional[float] = None,
     ) -> None:
-        """Convert an in-flight reservation into a recorded placement."""
+        """Convert an in-flight reservation into a recorded placement.
+
+        This method should be called after a successful order placement
+        to record the placement in the rate limit window.
+
+        Args:
+            product_id: Product identifier (e.g. "BTC-USDC").
+            side: Order side ("BUY" or "SELL").
+            bucket_id: The bucket ID to commit.
+            now: Optional override of the monotonic clock for testing.
+
+        Example:
+            >>> limiter = HotpointRateLimiter(cap_n=10, window_seconds=60.0)
+            >>> decision = limiter.try_acquire(product_id="BTC-USDC", side="BUY", bucket_id=133)
+            >>> if decision.allowed:
+            ...     # Place order here
+            ...     limiter.commit(product_id="BTC-USDC", side="BUY", bucket_id=133)
+        """
         key: _BucketKey = (product_id, side, bucket_id)
         ts = float(now) if now is not None else self._clock()
         with self._lock:
@@ -134,7 +214,28 @@ class HotpointRateLimiter:
         side: str,
         bucket_id: int,
     ) -> None:
-        """Release an in-flight reservation that did not result in placement."""
+        """Release an in-flight reservation that did not result in placement.
+
+        This method should be called when an order placement fails or is
+        cancelled, to release the rate limit slot.
+
+        Args:
+            product_id: Product identifier (e.g. "BTC-USDC").
+            side: Order side ("BUY" or "SELL").
+            bucket_id: The bucket ID to rollback.
+
+        Example:
+            >>> limiter = HotpointRateLimiter(cap_n=10, window_seconds=60.0)
+            >>> decision = limiter.try_acquire(product_id="BTC-USDC", side="BUY", bucket_id=133)
+            >>> if decision.allowed:
+            ...     # Attempt order placement
+            ...     try:
+            ...         # Place order
+            ...         pass
+            ...     except Exception:
+            ...         # Rollback if placement fails
+            ...         limiter.rollback(product_id="BTC-USDC", side="BUY", bucket_id=133)
+        """
         key: _BucketKey = (product_id, side, bucket_id)
         with self._lock:
             if self._in_flight[key] > 0:
@@ -153,6 +254,21 @@ class HotpointRateLimiter:
         Does NOT consult the cap. Used when reconstructing state from
         ``order_parent`` rows — those rows were already accepted, the
         cap check happened at the time they were placed.
+
+        Args:
+            product_id: Product identifier (e.g. "BTC-USDC").
+            side: Order side ("BUY" or "SELL").
+            bucket_id: The bucket ID to record.
+            at_epoch: Optional timestamp for the placement (default: current time).
+
+        Example:
+            >>> limiter = HotpointRateLimiter(cap_n=10, window_seconds=60.0)
+            >>> limiter.record_placement(
+            ...     product_id="BTC-USDC",
+            ...     side="BUY",
+            ...     bucket_id=133,
+            ...     at_epoch=1682841600.0
+            ... )
         """
         key: _BucketKey = (product_id, side, bucket_id)
         ts = float(at_epoch) if at_epoch is not None else self._clock()
@@ -167,7 +283,26 @@ class HotpointRateLimiter:
         bucket_id: int,
         now: Optional[float] = None,
     ) -> int:
-        """Return the current in-window count (committed + in-flight)."""
+        """Return the current in-window count (committed + in-flight).
+
+        Args:
+            product_id: Product identifier (e.g. "BTC-USDC").
+            side: Order side ("BUY" or "SELL").
+            bucket_id: The bucket ID to check.
+            now: Optional override of the monotonic clock for testing.
+
+        Returns:
+            int: The current in-window count including both committed and in-flight placements.
+
+        Example:
+            >>> limiter = HotpointRateLimiter(cap_n=10, window_seconds=60.0)
+            >>> count = limiter.current_count(
+            ...     product_id="BTC-USDC",
+            ...     side="BUY",
+            ...     bucket_id=133
+            ... )
+            >>> print(count)
+        """
         key: _BucketKey = (product_id, side, bucket_id)
         ts = float(now) if now is not None else self._clock()
         with self._lock:
