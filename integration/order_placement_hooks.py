@@ -14,10 +14,6 @@ Example:
     ...     # Can also modify: order['limit_price'] = round(order['limit_price'], 2)
     ...
     >>> registry.register_pre_submission(validate_order)
-    >>>
-    >>> def log_submission(order, result):
-    ...     print(f"Placed {order['side']} {order['product_id']} @ {order['limit_price']}")
-    >>> registry.register_post_submission(log_submission)
 """
 
 import threading
@@ -26,35 +22,20 @@ from typing import Callable, List, Optional, Dict, Any
 
 class OrderPlacementHookRegistry:
     """Registry for order placement hooks (pre/post submission to Coinbase).
-
+    
     Allows extensions to:
     - Validate orders before REST API submission
     - Modify orders (price, size, etc.) before sending to Coinbase
     - Block orders entirely by raising exceptions
     - Log/track submission events after REST call
-
+    
     Hooks run sequentially. If any pre-submission hook raises an exception,
     submission is blocked and the exception is propagated.
-
+    
     Attributes:
         _pre_submission_hooks: List of callbacks to run before REST submission.
         _post_submission_hooks: List of callbacks to run after REST submission.
         _lock: Thread lock for thread-safe hook registration.
-
-    Example:
-        >>> from integration.order_placement_hooks import get_global_placement_hook_registry
-        >>> registry = get_global_placement_hook_registry()
-        >>>
-        >>> def validate_order(order):
-        ...     if order['limit_price'] < 0:
-        ...         raise ValueError("Price cannot be negative")
-        ...     # Can also modify: order['limit_price'] = round(order['limit_price'], 2)
-        ...
-        >>> registry.register_pre_submission(validate_order)
-        >>>
-        >>> def log_submission(order, result):
-        ...     print(f"Placed {order['side']} {order['product_id']} @ {order['limit_price']}")
-        >>> registry.register_post_submission(log_submission)
     """
     
     def __init__(self):
@@ -77,19 +58,19 @@ class OrderPlacementHookRegistry:
     
     def register_pre_submission(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Register a hook to run BEFORE REST API submission.
-
+        
         Hook signature: callback(order: dict) -> None
-
+        
         The order dict is passed by reference, so hooks CAN modify it before submission.
         If the hook raises an exception, submission is blocked and exception is propagated.
-
+        
         Args:
             callback: Function with signature (order: dict) -> None.
                      Can modify order in-place or raise exception to block submission.
-
+        
         Returns:
             None
-
+        
         Example:
             >>> def validate_price(order):
             ...     if order['limit_price'] <= 0:
@@ -103,19 +84,19 @@ class OrderPlacementHookRegistry:
     
     def register_post_submission(self, callback: Callable[[Dict[str, Any], Any], None]) -> None:
         """Register a hook to run AFTER REST API submission.
-
+        
         Hook signature: callback(order: dict, result: Any) -> None
-
+        
         Post-submission hooks run after the order is placed. Exceptions here do not
         affect order placement (order is already submitted). Use for logging/tracking.
-
+        
         Args:
             callback: Function with signature (order: dict, result: Any) -> None.
                      'result' is the return value from REST_CLIENT.place_limit_order().
-
+        
         Returns:
             None
-
+        
         Example:
             >>> def log_submission(order, result):
             ...     print(f"Placed {order['side']} {order['product_id']} @ {order['limit_price']}")

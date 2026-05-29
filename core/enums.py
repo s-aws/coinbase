@@ -5,13 +5,6 @@ derived from Coinbase API responses and WebSocket messages. Using enums improves
 - Type safety and IDE autocomplete
 - Code readability and maintainability
 - Consistency across the codebase
-
-Example:
-    >>> from core.enums import OrderSide, OrderStatus
-    >>> side = OrderSide.BUY
-    >>> status = OrderStatus.OPEN
-    >>> print(side.value, status.value)
-    "BUY" "OPEN"
 """
 
 from enum import Enum

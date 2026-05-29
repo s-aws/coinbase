@@ -1,6 +1,11 @@
 # Test Suite Documentation
 
-This document serves as the index and primary documentation for the test suite in this repository.
+External test operations runbook: `docs/EXTERNAL_TESTING_RUNBOOK.md`
+
+Comprehensive regression testing suite for the Coinbase Advanced Trading Platform. This test structure follows enterprise standards (Google, Meta) for safe deployments across all project components.
+
+**Current Focus:** Stealth order management (foundation for other features)  
+**Scope:** Entire project - covers order management, conditions, portfolio, dashboard, and Coinbase API integration
 
 ## Test Structure
 
@@ -12,6 +17,32 @@ tests/
 ├── external/      - Coinbase API/WebSocket tests (ISOLATED)
 ├── fixtures/      - Test data and mocks
 └── regression/    - Critical path tests (runs before deploy)
+```
+
+## Running Tests
+
+### Run All Tests
+```bash
+pytest tests/ -v
+```
+
+### Run Specific Test Category
+```bash
+pytest tests/unit/ -v              # Unit tests only
+pytest tests/integration/ -v       # Integration tests
+pytest tests/regression/ -v        # Regression tests (critical)
+pytest tests/external/ -v          # Coinbase API tests (requires API key)
+```
+
+### Run with Coverage
+```bash
+pytest tests/ --cov=. --cov-report=html
+```
+
+### Run Regression Before Deploy
+```bash
+pytest tests/regression/ -v --tb=short
+# Must pass 100% before deploying changes
 ```
 
 ## Test Categories
@@ -115,6 +146,27 @@ tests/
 - Slow (depends on network)
 - Run in CI/CD after unit/integration pass
 
+**Run only external tests:**
+```bash
+pytest tests/external/ -v -m external
+```
+
+**Run websocket external tests only (default includes safe skips):**
+```bash
+pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+```
+
+**Enable live websocket smoke test explicitly:**
+```bash
+export COINBASE_ENABLE_WEBSOCKET_EXTERNAL=true
+pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
+```
+
+**Skip external tests in normal development:**
+```bash
+pytest tests/ -v -m "not external"
+```
+
 ### 5. Regression Tests (`tests/regression/`)
 **Purpose:** Critical path tests that must pass before deployment.
 
@@ -146,6 +198,17 @@ tests/
 - Fast (run in < 30 seconds total)
 - No external API calls (all mocked)
 - Cover high-value functionality that users depend on
+
+**Run before deploy:**
+```bash
+pytest tests/regression/ -v --tb=short
+exit_code=$?
+if [ $exit_code -ne 0 ]; then
+    echo "REGRESSION TESTS FAILED - DO NOT DEPLOY"
+    exit 1
+fi
+echo "Regression tests passed - safe to deploy"
+```
 
 ## Test Data & Fixtures (`tests/fixtures/`)
 
@@ -183,30 +246,63 @@ Store fixture data in `tests/fixtures/`:
 - `order_samples.json` - Test order data
 - `market_data.json` - Ticker/market data
 
-## Running Tests
+## Workflow: Before Making Architectural Changes
 
-### Run All Tests
-```bash
-pytest tests/ -v
+1. **Run full test suite to establish baseline:**
+   ```bash
+   pytest tests/ -v --tb=short > test_baseline.log
+   ```
+
+2. **Make changes to core engine**
+
+3. **Run regression tests immediately:**
+   ```bash
+   pytest tests/regression/ -v
+   ```
+   - Must pass 100% or revert changes
+
+4. **Run full test suite:**
+   ```bash
+   pytest tests/ -v --tb=short
+   ```
+   - Review any new failures
+   - Update tests if behavior changed intentionally
+
+5. **Run external tests (if API integration changed):**
+   ```bash
+   pytest tests/external/ -v -m external
+   ```
+
+6. **Deploy only if all tests pass**
+
+## Continuous Integration
+
+### GitHub Actions / GitLab CI Example
+
+```yaml
+test:
+  script:
+    # Unit tests (fast, no deps)
+    - pytest tests/unit/ -v
+    
+    # Integration tests (medium speed)
+    - pytest tests/integration/ -v
+    
+    # Regression tests (must pass)
+    - pytest tests/regression/ -v
+    
+  only:
+    - merge_requests
+    - main
 ```
 
-### Run Specific Test Category
-```bash
-pytest tests/unit/ -v              # Unit tests only
-pytest tests/integration/ -v       # Integration tests
-pytest tests/regression/ -v        # Regression tests (critical)
-pytest tests/external/ -v          # Coinbase API tests (requires API key)
-```
-
-### Run with Coverage
-```bash
-pytest tests/ --cov=. --cov-report=html
-```
-
-### Run Regression Before Deploy
-```bash
-pytest tests/regression/ -v --tb=short
-# Must pass 100% before deploying changes
+```yaml
+test:external:
+  script:
+    - pytest tests/external/ -v -m external
+  only:
+    - main  # Only run on main branch
+  when: manual  # Requires approval
 ```
 
 ## Test Organization Best Practices
@@ -242,37 +338,48 @@ def test_order_creation():
     assert order.created_at is not None
 ```
 
-## Continuous Integration
+## Test Dependencies
 
-### GitHub Actions / GitLab CI Example
+See `requirements.txt` for test-specific dependencies.
 
-```yaml
-test:
-  script:
-    # Unit tests (fast, no deps)
-    - pytest tests/unit/ -v
-    
-    # Integration tests (medium speed)
-    - pytest tests/integration/ -v
-    
-    # Regression tests (must pass)
-    - pytest tests/regression/ -v
-    
-  only:
-    - merge_requests
-    - main
+## Troubleshooting Tests
+
+### External tests fail with "API key not found"
+```bash
+export COINBASE_API_KEY=your_key
+export COINBASE_API_SECRET=your_secret
+pytest tests/external/ -v
 ```
 
-```yaml
-test:external:
-  script:
-    - pytest tests/external/ -v -m external
-  only:
-    - main  # Only run on main branch
-  when: manual  # Requires approval
+### Live websocket smoke test is skipped
+By default, live websocket smoke tests are disabled for safety.
+
+Enable them explicitly:
+```bash
+export COINBASE_ENABLE_WEBSOCKET_EXTERNAL=true
+pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 ```
 
-## Project Components Covered by Tests
+If disabled, websocket tests still run deterministic contract/wrapper checks and skip only the live network scenarios.
+
+### Database tests fail with "connection error"
+Tests use SQLite in-memory database. Ensure `database.py` supports `":memory:"` mode.
+
+### WebSocket tests timeout
+Increase timeout in `tests/external/conftest.py`:
+```python
+WEBSOCKET_TIMEOUT = 10  # seconds
+```
+
+## Metrics to Track
+
+After running tests, track:
+- **Test Count:** Total unit, integration, regression
+- **Coverage:** Code coverage % (aim for > 80%)
+- **Regression Pass Rate:** Must be 100% before deploy
+- **Test Execution Time:** Should complete in < 5 minutes
+
+## Project Components (Ready for Test Coverage)
 
 This test suite covers the entire platform. Key components include:
 
@@ -309,6 +416,12 @@ This test suite covers the entire platform. Key components include:
 - Account management operations
 - Portfolio calculations and tracking
 
-## External Test Operations Runbook
+## Next Steps
 
-For detailed external testing procedures, see: [External Testing Runbook](../docs/EXTERNAL_TESTING_RUNBOOK.md)
+1. ✓ Create test infrastructure (done)
+2. ✓ Create example tests for stealth orders (done)
+3. Add unit tests for OrderCalculator, ConditionEvaluators
+4. Add integration tests for order workflows
+5. Add E2E tests for dashboard and portfolio
+6. Add external tests for Coinbase API integration
+7. Run regression tests before architectural refactoring

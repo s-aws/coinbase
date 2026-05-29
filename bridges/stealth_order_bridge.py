@@ -7,18 +7,6 @@ Provides background tasks for:
 
 The bridge connects StealthOrderManager (responsible for order creation and state)
 with OrderEngine (responsible for event processing and follow-up creation).
-
-Example:
-    >>> from bridges.stealth_order_bridge import StealthOrderBridge
-    >>> from core.stealth_order_manager import StealthOrderManager
-    >>> # Create bridge instance
-    >>> bridge = StealthOrderBridge(stealth_manager, order_engine)
-    >>> # Start the bridge
-    >>> bridge.start()
-    >>> # Process market data
-    >>> bridge.process_ticker_update("BTC-USDC", ticker_data)
-    >>> # Stop the bridge
-    >>> bridge.stop()
 """
 
 import threading
@@ -40,33 +28,9 @@ logger = get_logger("StealthOrderBridge")
 
 class StealthOrderBridge:
     """Bridges StealthOrderManager with OrderEngine.
-
+    
     Runs background tasks to evaluate conditions and trigger reveals
     based on market data updates.
-
-    This bridge serves as the integration point between the StealthOrderManager
-    and the OrderEngine, handling the coordination of stealth order conditions
-    and reveal triggers with the broader order processing system.
-
-    Attributes:
-        stealth_manager: Instance of StealthOrderManager for stealth order operations.
-        order_engine: Instance of OrderEngine for order processing.
-        evaluation_thread: Background thread for condition evaluation.
-        reconciliation_thread: Background thread for database reconciliation.
-        running: Boolean flag indicating if the bridge is running.
-        _shutdown_event: Threading event for graceful shutdown.
-
-    Example:
-        >>> from bridges.stealth_order_bridge import StealthOrderBridge
-        >>> from core.stealth_order_manager import StealthOrderManager
-        >>> # Create bridge instance
-        >>> bridge = StealthOrderBridge(stealth_manager, order_engine)
-        >>> # Start the bridge
-        >>> bridge.start()
-        >>> # Process market data
-        >>> bridge.process_ticker_update("BTC-USDC", ticker_data)
-        >>> # Stop the bridge
-        >>> bridge.stop()
     """
     
     def __init__(self, stealth_manager: StealthOrderManager, order_engine):
@@ -91,16 +55,11 @@ class StealthOrderBridge:
     
     def start(self):
         """Start background evaluation and reconciliation threads.
-
+        
         Initializes:
         - Loads existing orders from database
         - Starts evaluation thread (100ms condition checks)
         - Starts reconciliation thread (30s database sync)
-
-        Example:
-            >>> bridge = StealthOrderBridge(stealth_manager, order_engine)
-            >>> bridge.start()
-            >>> # Bridge is now running and processing orders
         """
         if self.running:
             return
@@ -141,13 +100,6 @@ class StealthOrderBridge:
         next interruptible wait point (not at the end of the current
         sleep tick), then joins each thread with a generous safety
         ceiling. Typical observed shutdown latency is < 100ms.
-
-        Example:
-            >>> bridge = StealthOrderBridge(stealth_manager, order_engine)
-            >>> bridge.start()
-            >>> # ... processing ...
-            >>> bridge.stop()
-            >>> # Bridge has stopped
         """
         if not self.running and not self._shutdown_event.is_set():
             return
@@ -301,21 +253,12 @@ class StealthOrderBridge:
     def process_ticker_update(self, product_id: str, ticker_data: Dict[str, Any]):
         """
         Process ticker update to feed market data to evaluators.
-
+        
         Should be called from OrderEngine's ticker processing.
-
+        
         Args:
             product_id: Product that was updated (may be ticker product like BTC-USD)
             ticker_data: Latest ticker data from Coinbase
-
-        Example:
-            >>> ticker_data = {
-            ...     'price': 40000.0,
-            ...     'best_bid': 39995.0,
-            ...     'best_ask': 40005.0,
-            ...     'volume_24_h': 1000000.0
-            ... }
-            >>> bridge.process_ticker_update("BTC-USDC", ticker_data)
         """
         from configuration import get_trading_product_id
         

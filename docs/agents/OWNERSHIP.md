@@ -50,14 +50,3 @@ python tools/check_ownership.py --list
 
 The public CI workflow checks that changed files are owned. Private
 orchestration can run the stricter `--owner <owner_id>` form before publishing.
-
-## Key Requirements from Change Plan
-
-The following ownership requirements are specifically mandated by the documentation change plan:
-
-- All core data models must be documented (core/models.py)
-- All key invariants must be documented in INVARIANTS.md
-- Agent architecture documentation must be complete and accurate
-- Business logic components must be documented
-- Integration components must be documented
-- Configuration and enum documentation must be complete
