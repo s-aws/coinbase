@@ -315,6 +315,96 @@ Then maintain two lookups in memory:
 
 This lets fill and cancel events still resolve back to the logical order while supporting repeated replacements.
 
+## Audit Trail Specification
+
+All anchor repricing actions must be logged with detailed context to support debugging and compliance:
+
+- Timestamp of each repricing decision
+- Reason for the action (within band, outside max boundary, converge to target)
+- Reference price source and value at time of decision
+- Target and max boundary prices
+- Replacement price and exchange order ID
+- Reprice reason for audit purposes
+
+The audit trail must include:
+1. Every hidden order repricing decision with reference price context
+2. Every revealed order replacement with full placement history
+3. All state transitions and boundary violations
+4. Timestamps for all events to enable temporal analysis
+
+### Audit Trail Implementation Details
+
+The audit trail implementation includes:
+
+1. **Hidden Order Repricing**: Each time a hidden order is repriced, the system logs:
+   - Timestamp of repricing
+   - Reference price source and value
+   - Computed target and max boundary prices
+   - New logical limit price
+   - Reason for repricing (e.g., "reference_price_updated", "outside_max_boundary")
+
+2. **Revealed Order Replacement**: When replacing a live order:
+   - Timestamp of replacement attempt
+   - Reference price source and value
+   - Original exchange order ID
+   - New placement client order ID
+   - Replacement price and reason
+   - Exchange response details
+
+3. **State Transitions**: All state changes in the anchor repricing policy are logged:
+   - From "within_band" to "outside_max_boundary"
+   - From "outside_max_boundary" to "converging_to_target"
+   - Any policy changes or overrides
+
+4. **Error Cases**: When repricing fails:
+   - The reason for failure (network timeout, exchange error, etc.)
+   - The state before the failure
+   - Any retry attempts made
+
+## Convergence to Target in Edge Cases
+
+The convergence behavior in edge cases is implemented as follows:
+
+1. When an order is outside the max boundary, it immediately moves to the max boundary price to bring it back within limits
+2. After reaching the max boundary, if the `converge_to_target` policy is enabled, it gradually converges back toward the target boundary
+3. If the `converge_to_target` policy is disabled, the order remains at the max boundary until the next scheduled check
+4. The system enforces minimum price change thresholds to prevent excessive small adjustments
+5. When the order is within the target band but not at the target price, it will converge toward the target if the policy allows it
+6. The adaptive scheduler prioritizes immediate correction when outside max boundary, regardless of distance from target
+7. All convergence decisions are logged with the reason and context for audit purposes
+
+### Detailed Edge Case Handling
+
+#### 1. Order Already at Max Boundary
+If an order is already at the max boundary price and is still outside the target boundary, the system:
+- Checks if the `converge_to_target` policy is enabled
+- If enabled, it will gradually move the order back toward the target boundary
+- If disabled, the order remains at the max boundary until the next scheduled check
+
+#### 2. Multiple Boundary Violations
+When multiple boundary violations occur in quick succession:
+- The system prioritizes immediate correction for orders outside max boundary
+- The adaptive scheduler resets the next check time to the shortest interval (60 seconds)
+- Subsequent convergence attempts are based on the current state and policy settings
+
+#### 3. Price Drift During Repricing
+If the reference price moves significantly during a repricing operation:
+- The system recalculates all boundaries using the new reference price
+- If the order is now within the target band, it may hold without changes
+- If it's still outside the max boundary, it will move to the new max boundary immediately
+
+#### 4. Policy Configuration Changes
+When the anchor repricing policy is modified:
+- The system validates new policy parameters against existing order state
+- Orders are re-evaluated immediately for any violations
+- New convergence rules are applied to subsequent repricing cycles
+
+#### 5. External Factors
+In edge cases involving external factors:
+- Network timeouts or API errors during cancellation/replacement are logged
+- The system maintains the previous state and retries according to configured limits
+- If an order fills during a repricing attempt, the system treats the fill as authoritative and stops the replacement process
+
 ## Proposed Runtime Flow
 
 ### 1. Order creation

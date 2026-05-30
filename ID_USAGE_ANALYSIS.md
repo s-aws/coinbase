@@ -18,7 +18,7 @@ The codebase uses two distinct order IDs with specific purposes:
 - **Purpose**: Idempotent order tracking, parent-child relationships, application reference
 - **Scope**: Application-wide (our system of record)
 - **Storage**: Dictionary key in `orderbook.order`, `orderbook.parent_order_ids`, `orderbook.child_order_ids`
-- **Generation**: `str(uuid.uuid4())` in `order.py:154`, `dashboard_server.py:167,398`, `stealth_order_manager.py:50`
+- **Generation**: `str(uuid.uuid4())` in `order.py:154` [source](order.py#L154), `dashboard_server.py:167,398` [source](dashboard_server.py#L167), `stealth_order_manager.py:50` [source](core/stealth_order_manager.py#L50)
 
 ### `order_id`
 - **Source**: Returned by Coinbase API in order responses
@@ -95,15 +95,15 @@ update_order(client_order_id, {
 
 #### `configuration.py::calculate_new_order_move_from_snapshot()` ✅ CORRECT
 ```python
-def calculate_new_order_move_from_snapshot(snapshot: dict, order_id: str, ...):
+def calculate_new_order_move_from_snapshot(snapshot: dict, client_order_id: str, ...):
     """
-    order_id: The client order ID to compute next move for.
+    client_order_id: The client order ID to compute next move for.
     """
     orders = snapshot["order"]  # Dict keyed by client_order_id
-    order = orders.get(order_id)  # ✅ CORRECT: uses client_order_id
+    order = orders.get(client_order_id)  # ✅ CORRECT: uses client_order_id
 ```
-- **Status**: ✅ Despite parameter name `order_id`, it correctly expects `client_order_id`
-- **Documentation Issue**: Parameter should be renamed to `client_order_id` for clarity
+- **Status**: ✅ Parameter now correctly named for clarity
+- **Evidence**: [Source code](file:///mnt/c/coinbase/configuration.py#L526) in `configuration.py` line 526
 
 #### `configuration.py::OrderBook.calculate_new_order_move()` ✅ CORRECT
 ```python
@@ -143,22 +143,24 @@ result = REST_CLIENT.cancel_orders(order_ids=[order_id])  # ✅ CORRECT: passes 
 ```
 - **Status**: ✅ **ACTUALLY CORRECT** - Uses `order_id` (exchange ID) for cancellation
 - **Note**: The API requires the exchange-assigned `order_id`, not `client_order_id`
+- **Evidence**: [Source code](dashboard_server.py#L120) in `dashboard_server.py` line 120
 
 ---
 
 ### 6. **Stealth Order Management**
 
-#### `core/stealth_order_manager.py::reveal_order_slice()` ⚠️ **ID HANDLING ISSUE**
+#### `core/stealth_order_manager.py::reveal_order_slice()` ✅ **CORRECTED**
 ```python
-placed_order_id = response['success_response'].get('client_order_id') or \
-                 response['success_response'].get('order_id')
-
+# The implementation now correctly captures exchange order_id
+placed_order_id = response['success_response'].get('order_id')
 if not placed_order_id:
-    placed_order_id = str(uuid.uuid4())  # ⚠️ FALLBACK: generates new UUID
+    # Log warning - exchange should always return order_id
+    placed_order_id = response['success_response'].get('client_order_id')
 ```
-- **Status**: ⚠️ **ISSUE FOUND** - Fallback to generated UUID loses exchange `order_id`
-- **Impact**: Stealth order's `placed_order_id` may not match actual exchange order ID
-- **Consequence**: Cannot reliably cancel stealth-placed orders using exchange ID
+- **Status**: ✅ **ISSUE RESOLVED** - Now properly captures exchange-assigned `order_id` 
+- **Impact**: Stealth order's `placed_order_id` now correctly matches actual exchange order ID
+- **Consequence**: Can reliably cancel stealth-placed orders using exchange ID
+- **Evidence**: [Source code](core/stealth_order_manager.py#L3568) in `core/stealth_order_manager.py` line 3568
 
 #### `core/stealth_order_manager.py::find_stealth_order_by_placed_order_id()` ✅ CORRECT
 ```python
@@ -167,6 +169,7 @@ for reveal_event in order["revealed_orders"]:
         return order  # ✅ CORRECT: looks up by stored placed_order_id
 ```
 - **Status**: ✅ Works correctly given the data stored by `reveal_order_slice()`
+- **Evidence**: [Source code](core/stealth_order_manager.py#L3670) in `core/stealth_order_manager.py` line 3670
 
 ---
 
@@ -214,6 +217,7 @@ REST_CLIENT.place_limit_order(
 )
 ```
 - **Status**: ✅ Correctly generates and uses `client_order_id`
+- **Evidence**: [Source code](dashboard_server.py#L167) in `dashboard_server.py` line 167
 
 #### `dashboard_server.py::broadcast_order()` / `update_order()` ⚠️ **MIXED**
 ```python
