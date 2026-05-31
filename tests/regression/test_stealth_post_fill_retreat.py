@@ -8,6 +8,9 @@ from core.enums import PostFillRetreatScope, StealthOrderStatus
 from core.stealth_order_manager import StealthOrderManager
 
 
+RETREAT_PRODUCT_ID = "BIP-20DEC30-CDE"
+
+
 def _manager() -> StealthOrderManager:
     manager = StealthOrderManager(db_client=None, log_callback=MagicMock())
     manager._update_stealth_order = MagicMock()
@@ -17,7 +20,7 @@ def _manager() -> StealthOrderManager:
 def _source_order() -> dict:
     return {
         "stealth_order_id": "source-sell",
-        "product_id": "BIT-29MAY26-CDE",
+        "product_id": RETREAT_PRODUCT_ID,
         "side": "SELL",
         "limit_price": 90.0,
         "status": StealthOrderStatus.REVEALED.value,
@@ -31,7 +34,7 @@ def _source_order() -> dict:
 def _hidden_order(stealth_order_id: str, price: float, *, enabled: bool = True) -> dict:
     return {
         "stealth_order_id": stealth_order_id,
-        "product_id": "BIT-29MAY26-CDE",
+        "product_id": RETREAT_PRODUCT_ID,
         "side": "SELL",
         "limit_price": price,
         "status": StealthOrderStatus.HIDDEN.value,
@@ -73,7 +76,7 @@ def test_create_stealth_order_stores_post_fill_retreat_policy(monkeypatch):
     monkeypatch.setattr("core.stealth_order_manager.insert_order_parent", lambda **kwargs: None)
 
     stealth_id = manager.create_stealth_order(
-        product_id="BIT-29MAY26-CDE",
+        product_id=RETREAT_PRODUCT_ID,
         side="SELL",
         total_size=1.0,
         limit_price=100.0,
