@@ -233,7 +233,7 @@ class PositionLotBuilder:
         
         return {
             'can_exit_profitably': True,
-            'profitable_lots': [lot.to_dict() for lot in profitable_lots],
+            'profitable_lots': [lot.to_position_lot_dict() for lot in profitable_lots],
             'total_profitable_quantity': total_profitable_qty,
             'market_price': market_price,
             'threshold_prices': [lot.min_profitable_exit_price for lot in profitable_lots]

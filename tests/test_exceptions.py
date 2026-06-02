@@ -20,7 +20,11 @@ from core.exceptions import (
     RevealPricingError,
     RevealOrderSliceError,
 )
-from business.stealth_condition_evaluator import PriceThresholdEvaluator, get_evaluator
+from business.stealth_condition_evaluator import (
+    PriceThresholdEvaluator,
+    evaluate_stealth_reveal_condition,
+    get_evaluator,
+)
 from business.event_processor import EventProcessor
 from bridges.event_bridge import EventBridge
 
@@ -38,7 +42,7 @@ class TestRevealConditionEvaluationError:
         }
         
         with pytest.raises(RevealConditionEvaluationError) as exc_info:
-            evaluator.evaluate({}, condition_config, {})
+            evaluate_stealth_reveal_condition(evaluator, {}, condition_config, {})
         
         assert "price_threshold" in str(exc_info.value).lower()
         assert exc_info.value.condition_type == "PRICE_THRESHOLD"
@@ -52,7 +56,7 @@ class TestRevealConditionEvaluationError:
         }
         
         with pytest.raises(RevealConditionEvaluationError) as exc_info:
-            evaluator.evaluate({}, condition_config, {})
+            evaluate_stealth_reveal_condition(evaluator, {}, condition_config, {})
         
         error_msg = str(exc_info.value).lower()
         assert "price_level" in error_msg or "volume_threshold" in error_msg
@@ -67,7 +71,7 @@ class TestRevealConditionEvaluationError:
         }
         
         with pytest.raises(RevealConditionEvaluationError) as exc_info:
-            evaluator.evaluate({}, condition_config, {})
+            evaluate_stealth_reveal_condition(evaluator, {}, condition_config, {})
         
         error_msg = str(exc_info.value).lower()
         assert "conditions" in error_msg
@@ -259,7 +263,7 @@ class TestExceptionHandlingPatterns:
         evaluator = PriceThresholdEvaluator()
         
         try:
-            evaluator.evaluate({}, {"direction": "below"}, {})
+            evaluate_stealth_reveal_condition(evaluator, {}, {"direction": "below"}, {})
             pytest.fail("Should have raised RevealConditionEvaluationError")
         except RevealConditionEvaluationError as e:
             assert "price_threshold" in str(e).lower()
@@ -272,7 +276,7 @@ class TestExceptionHandlingPatterns:
         
         caught_count = 0
         try:
-            evaluator.evaluate({}, {"direction": "below"}, {})
+            evaluate_stealth_reveal_condition(evaluator, {}, {"direction": "below"}, {})
         except CoinbaseEngineError as e:
             caught_count += 1
         
@@ -283,7 +287,7 @@ class TestExceptionHandlingPatterns:
         evaluator = get_evaluator("composite")
         
         with pytest.raises(RevealConditionEvaluationError) as exc_info:
-            evaluator.evaluate({}, {"operator": "AND"}, {})
+            evaluate_stealth_reveal_condition(evaluator, {}, {"operator": "AND"}, {})
         
         error_msg = str(exc_info.value).lower()
         assert "conditions" in error_msg
@@ -311,7 +315,7 @@ class TestExceptionIntegration:
         
         with pytest.raises(RevealConditionEvaluationError):
             # Missing price_threshold will raise
-            evaluator.evaluate({}, {}, {})
+            evaluate_stealth_reveal_condition(evaluator, {}, {}, {})
 
     def test_order_processing_exception_includes_context(self):
         """Test that order processing exceptions include context."""

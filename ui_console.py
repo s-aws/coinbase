@@ -372,9 +372,9 @@ class CrossVenueMonitor:
             ("okx_swap",     OkxSwapTickerClient),
         ]
         started = 0
-        for name, factory in venue_factories:
+        for name, client_factory in venue_factories:
             try:
-                client = factory(self._aggregator)
+                client = client_factory(self._aggregator)
                 client.start()
             except Exception as e:
                 # Fail-soft: log and continue with the remaining venues.

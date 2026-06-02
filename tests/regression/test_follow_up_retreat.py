@@ -50,7 +50,7 @@ def _enabled(**overrides) -> RepricingPolicy:
         "follow_up_retreat_jitter": 0.0,
     }
     base.update(overrides)
-    return RepricingPolicy.from_dict(base)
+    return RepricingPolicy.from_anchor_repricing_policy_dict(base)
 
 
 # ---- opt-in / opt-out --------------------------------------------------------
@@ -76,7 +76,7 @@ def test_defaults_are_opt_out_not_opt_in():
 
     Bypasses ``_enabled`` because that helper pins jitter=0 for the
     other tests; here we want to verify the from_dict default."""
-    p = RepricingPolicy.from_dict({
+    p = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True,
         "target_distance": 0.001,
         "max_distance": 0.005,

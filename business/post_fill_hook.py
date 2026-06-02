@@ -208,7 +208,7 @@ def trigger_lot_update(fill_repo: FillLedgerRepository,
             'product_id': product_id,
             'num_lots': len(position.lots),
             'total_quantity': position.total_quantity,
-            'lots': [lot.to_dict() for lot in position.lots]
+            'lots': [lot.to_position_lot_dict() for lot in position.lots]
         }
     
     except Exception as e:

@@ -102,7 +102,10 @@ from business.cancel_reentry_policy import (
     evaluate_cancel_reentry,
 )
 from business.post_fill_retreat_policy import PostFillRetreatPolicy
-from business.stealth_condition_evaluator import get_evaluator
+from business.stealth_condition_evaluator import (
+    evaluate_stealth_reveal_condition,
+    get_evaluator,
+)
 from core.models import MarketData, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_CANCEL, INFLIGHT_REST_PLACE, get_runtime_controller
 from database.order import get_parent_order, insert_order_parent, update_order_parent_status
@@ -467,7 +470,7 @@ class StealthOrderManager:
         """Normalize anchor-repricing policy for storage.
 
         Two-step canonicalisation:
-        1. :meth:`RepricingPolicy.from_dict` does field-by-field clamping,
+        1. :meth:`RepricingPolicy.from_anchor_repricing_policy_dict` does field-by-field clamping,
            enum coercion, and slide-mode coupling.
         2. The storage gate below collapses semantically meaningless
            configurations (``enabled=True`` but no ``target_distance``) to
@@ -479,10 +482,12 @@ class StealthOrderManager:
         :meth:`RepricingPolicy.coerce` directly — they don't need this
         gate because storage already enforced it.
         """
-        policy = RepricingPolicy.from_dict(anchor_repricing_policy)
+        policy = RepricingPolicy.from_anchor_repricing_policy_dict(
+            anchor_repricing_policy
+        )
         if policy.enabled and policy.target_distance <= 0:
             policy = RepricingPolicy.disabled()
-        return policy.to_dict()
+        return policy.to_anchor_repricing_policy_dict()
 
     def _normalize_cancel_reentry_policy(
         self,
@@ -490,7 +495,12 @@ class StealthOrderManager:
     ) -> Dict[str, Any]:
         """Normalize cancel/re-entry policy for storage."""
         try:
-            return CancelReentryPolicy.from_dict(cancel_reentry_policy).to_dict()
+            return (
+                CancelReentryPolicy.from_cancel_reentry_policy_dict(
+                    cancel_reentry_policy
+                )
+                .to_cancel_reentry_policy_dict()
+            )
         except ValueError as exc:
             from core.exceptions import OrderCreationError
 
@@ -503,14 +513,24 @@ class StealthOrderManager:
         post_fill_retreat_policy: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Normalize same-side post-fill retreat policy for storage."""
-        return PostFillRetreatPolicy.from_dict(post_fill_retreat_policy).to_dict()
+        return (
+            PostFillRetreatPolicy.from_post_fill_retreat_policy_dict(
+                post_fill_retreat_policy
+            )
+            .to_post_fill_retreat_policy_dict()
+        )
 
     def _normalize_cancel_reentry_state(
         self,
         cancel_reentry_state: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Normalize cancel/re-entry runtime state for storage."""
-        return CancelReentryRuntimeState.from_dict(cancel_reentry_state).to_dict()
+        return (
+            CancelReentryRuntimeState.from_cancel_reentry_runtime_state_dict(
+                cancel_reentry_state
+            )
+            .to_cancel_reentry_runtime_state_dict()
+        )
 
     @staticmethod
     def _parse_runtime_datetime(value: Any) -> Optional[datetime]:
@@ -1656,13 +1676,17 @@ class StealthOrderManager:
             if not order or order.get("product_id") != product_id:
                 continue
 
-            cancel_reentry_state = CancelReentryRuntimeState.from_dict(
-                order.get("cancel_reentry_state_json")
+            cancel_reentry_state = (
+                CancelReentryRuntimeState.from_cancel_reentry_runtime_state_dict(
+                    order.get("cancel_reentry_state_json")
+                )
             )
             if cancel_reentry_state.state == CancelReentryState.CANCELLED_BY_POLICY:
                 continue
 
-            policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
+            policy = RepricingPolicy.from_anchor_repricing_policy_dict(
+                order.get("anchor_repricing_policy_json")
+            )
             if not policy.enabled:
                 continue
 
@@ -1845,7 +1869,7 @@ class StealthOrderManager:
                 continue
 
             try:
-                policy = CancelReentryPolicy.from_dict(
+                policy = CancelReentryPolicy.from_cancel_reentry_policy_dict(
                     order.get("cancel_reentry_policy_json")
                 )
             except ValueError as exc:
@@ -1862,7 +1886,7 @@ class StealthOrderManager:
             if not policy.enabled:
                 continue
 
-            state = CancelReentryRuntimeState.from_dict(
+            state = CancelReentryRuntimeState.from_cancel_reentry_runtime_state_dict(
                 order.get("cancel_reentry_state_json")
             )
             evaluation = evaluate_cancel_reentry(order, market_data, policy, state)
@@ -1882,7 +1906,7 @@ class StealthOrderManager:
         placement_client_order_id: str,
     ) -> bool:
         """Return True when a WS cancel belongs to a policy-triggered cancel."""
-        state = CancelReentryRuntimeState.from_dict(
+        state = CancelReentryRuntimeState.from_cancel_reentry_runtime_state_dict(
             order.get("cancel_reentry_state_json")
         )
         return (
@@ -1929,12 +1953,16 @@ class StealthOrderManager:
                 cancelled_exchange_order_id=exchange_order_id,
                 last_reason=evaluation.reason,
             )
-            order["cancel_reentry_state_json"] = pre_cancel_state.to_dict()
+            order["cancel_reentry_state_json"] = (
+                pre_cancel_state.to_cancel_reentry_runtime_state_dict()
+            )
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_CANCEL):
                     REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
             except Exception as cancel_exc:
-                order["cancel_reentry_state_json"] = state.to_dict()
+                order["cancel_reentry_state_json"] = (
+                    state.to_cancel_reentry_runtime_state_dict()
+                )
                 self.log_callback(
                     "error",
                     {
@@ -1978,7 +2006,9 @@ class StealthOrderManager:
                 cancelled_exchange_order_id=exchange_order_id,
                 last_reason=evaluation.reason,
             )
-            order["cancel_reentry_state_json"] = policy_state.to_dict()
+            order["cancel_reentry_state_json"] = (
+                policy_state.to_cancel_reentry_runtime_state_dict()
+            )
             self._update_stealth_order(order)
 
             self.log_callback(
@@ -2042,7 +2072,9 @@ class StealthOrderManager:
             if not placed_order_id:
                 order["status"] = StealthOrderStatus.HIDDEN.value
                 order["condition_confirmed_at"] = None
-                order["cancel_reentry_state_json"] = state.to_dict()
+                order["cancel_reentry_state_json"] = (
+                    state.to_cancel_reentry_runtime_state_dict()
+                )
                 self._update_stealth_order(order)
                 return False
 
@@ -2056,7 +2088,9 @@ class StealthOrderManager:
                 cancelled_exchange_order_id=state.cancelled_exchange_order_id,
                 last_reason=evaluation.reason,
             )
-            fresh_order["cancel_reentry_state_json"] = policy_state.to_dict()
+            fresh_order["cancel_reentry_state_json"] = (
+                policy_state.to_cancel_reentry_runtime_state_dict()
+            )
             self._update_stealth_order(fresh_order)
 
             self.log_callback(
@@ -2968,7 +3002,12 @@ class StealthOrderManager:
         condition_config = order.get("reveal_condition_json", {})
         
         evaluator = get_evaluator(condition_type)
-        condition_met, reason = evaluator.evaluate(market_data, condition_config, order)
+        condition_met, reason = evaluate_stealth_reveal_condition(
+            evaluator,
+            market_data,
+            condition_config,
+            order,
+        )
         
         # Update condition tracking
         if condition_met and not order.get("condition_confirmed_at"):
@@ -3028,8 +3067,10 @@ class StealthOrderManager:
         if order["status"] in [StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value]:
             return False, f"Order already {order['status']}"
 
-        cancel_reentry_state = CancelReentryRuntimeState.from_dict(
-            order.get("cancel_reentry_state_json")
+        cancel_reentry_state = (
+            CancelReentryRuntimeState.from_cancel_reentry_runtime_state_dict(
+                order.get("cancel_reentry_state_json")
+            )
         )
         if cancel_reentry_state.state == CancelReentryState.CANCELLED_BY_POLICY:
             return False, "Order is waiting for cancel/re-entry threshold"
@@ -3930,6 +3971,7 @@ class StealthOrderManager:
         rationale behind this extraction.
         """
         from business.stealth_reveal_strategy import get_reveal_strategy
+        from business.stealth_reveal_strategy import compute_reveal_strategy_slice_size
 
         sizing_strategy = order.get("sizing_strategy_json", {}) or {}
         strategy_type = sizing_strategy.get("type", "fixed")
@@ -3939,7 +3981,7 @@ class StealthOrderManager:
             market_volume_provider=self._get_market_volume,
             baseline_volume_provider=self._get_baseline_volume,
         )
-        return strategy.next_slice_size(order)
+        return compute_reveal_strategy_slice_size(strategy, order)
 
     # Throttle window for the "reveal returned size=0" diagnostic.
     # 30s matches the operator's expected feedback latency for a
@@ -4251,7 +4293,9 @@ class StealthOrderManager:
             if state.get("active_placement_client_order_id") or state.get("active_exchange_order_id"):
                 continue
 
-            policy = PostFillRetreatPolicy.from_dict(order.get("post_fill_retreat_policy_json"))
+            policy = PostFillRetreatPolicy.from_post_fill_retreat_policy_dict(
+                order.get("post_fill_retreat_policy_json")
+            )
             if not policy.enabled:
                 continue
             if policy.scope is not PostFillRetreatScope.SAME_PRODUCT_SAME_SIDE:
@@ -4434,39 +4478,51 @@ class StealthOrderManager:
         # Inherit anchor-repricing policy unless explicitly opted out. Build via
         # ``RepricingPolicy`` so the inheritance check uses the dataclass field
         # (not a magic string lookup) and on-disk shape stays identical.
-        original_repricing = RepricingPolicy.from_dict(
+        original_repricing = RepricingPolicy.from_anchor_repricing_policy_dict(
             original_order.get("anchor_repricing_policy_json")
         )
         if original_repricing.inherit_to_follow_ups:
-            anchor_repricing_policy = original_repricing.to_dict()
+            anchor_repricing_policy = original_repricing.to_anchor_repricing_policy_dict()
         else:
-            anchor_repricing_policy = RepricingPolicy.disabled().to_dict()
+            anchor_repricing_policy = (
+                RepricingPolicy.disabled().to_anchor_repricing_policy_dict()
+            )
 
         if cancel_reentry_policy is not None:
             inherited_cancel_reentry_policy = self._normalize_cancel_reentry_policy(
                 cancel_reentry_policy
             )
         else:
-            original_cancel_reentry = CancelReentryPolicy.from_dict(
+            original_cancel_reentry = CancelReentryPolicy.from_cancel_reentry_policy_dict(
                 original_order.get("cancel_reentry_policy_json")
             )
             if original_cancel_reentry.inherit_to_follow_ups:
-                inherited_cancel_reentry_policy = original_cancel_reentry.to_dict()
+                inherited_cancel_reentry_policy = (
+                    original_cancel_reentry.to_cancel_reentry_policy_dict()
+                )
             else:
-                inherited_cancel_reentry_policy = CancelReentryPolicy.disabled().to_dict()
+                inherited_cancel_reentry_policy = (
+                    CancelReentryPolicy.disabled().to_cancel_reentry_policy_dict()
+                )
 
         if post_fill_retreat_policy is not None:
             inherited_post_fill_retreat_policy = self._normalize_post_fill_retreat_policy(
                 post_fill_retreat_policy
             )
         else:
-            original_post_fill_retreat = PostFillRetreatPolicy.from_dict(
-                original_order.get("post_fill_retreat_policy_json")
+            original_post_fill_retreat = (
+                PostFillRetreatPolicy.from_post_fill_retreat_policy_dict(
+                    original_order.get("post_fill_retreat_policy_json")
+                )
             )
             if original_post_fill_retreat.inherit_to_follow_ups:
-                inherited_post_fill_retreat_policy = original_post_fill_retreat.to_dict()
+                inherited_post_fill_retreat_policy = (
+                    original_post_fill_retreat.to_post_fill_retreat_policy_dict()
+                )
             else:
-                inherited_post_fill_retreat_policy = PostFillRetreatPolicy.disabled().to_dict()
+                inherited_post_fill_retreat_policy = (
+                    PostFillRetreatPolicy.disabled().to_post_fill_retreat_policy_dict()
+                )
         
         # Use provided target movement or inherit from original. Resolve via the
         # canonical resolver so root stealth orders (which keep target_movement on
@@ -4495,7 +4551,9 @@ class StealthOrderManager:
         # when retreat is disabled (distance == 0). Tick-align the
         # result via the same chokepoint used at reveal time so the
         # follow-up posts on a valid price grid.
-        retreat_policy = RepricingPolicy.from_dict(anchor_repricing_policy)
+        retreat_policy = RepricingPolicy.from_anchor_repricing_policy_dict(
+            anchor_repricing_policy
+        )
         anchored_limit_price = retreat_policy.compute_follow_up_price(
             anchor_price=float(limit_price),
             side=side,
@@ -4684,6 +4742,17 @@ class StealthOrderManager:
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_update_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
     
+    @staticmethod
+    def _parse_stealth_order_json_field(value: Any, default: Any) -> Any:
+        """Parse JSONB/text fields returned by stealth order queries."""
+        if value is None:
+            return default
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            return json.loads(value)
+        return default
+
     def _load_stealth_order_from_db(self, stealth_order_id: str) -> Optional[Dict[str, Any]]:
         """Load stealth order from database."""
         if not self.db_client:
@@ -4697,16 +4766,6 @@ class StealthOrderManager:
             if results:
                 row = results[0]
                 
-                # Helper function to parse JSON safely (handles both str and dict)
-                def parse_json_field(value, default):
-                    if value is None:
-                        return default
-                    if isinstance(value, dict):
-                        return value  # Already parsed by PostgreSQL
-                    if isinstance(value, str):
-                        return json.loads(value)
-                    return default
-                
                 return {
                     'stealth_order_id': row['stealth_order_id'],
                     'product_id': row['product_id'],
@@ -4718,17 +4777,33 @@ class StealthOrderManager:
                     'limit_price': float(row['limit_price']),
                     'status': row['status'],
                     'reveal_condition_type': row.get('reveal_condition_type', 'time_delay'),
-                    'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
-                    'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
+                    'reveal_condition_json': self._parse_stealth_order_json_field(
+                        row.get('reveal_condition_json'), {}
+                    ),
+                    'sizing_strategy_json': self._parse_stealth_order_json_field(
+                        row.get('sizing_strategy_json'), {}
+                    ),
                     'reason': row.get('reason', ''),
                     'notes': row.get('notes', ''),
                     'parent_order_id': row.get('parent_order_id'),
-                    'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
-                    'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
-                    'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
-                    'cancel_reentry_policy_json': parse_json_field(row.get('cancel_reentry_policy_json'), {}),
-                    'cancel_reentry_state_json': parse_json_field(row.get('cancel_reentry_state_json'), {}),
-                    'post_fill_retreat_policy_json': parse_json_field(row.get('post_fill_retreat_policy_json'), {"enabled": False}),
+                    'revealed_orders': self._parse_stealth_order_json_field(
+                        row.get('revealed_orders'), []
+                    ),
+                    'anchor_repricing_policy_json': self._parse_stealth_order_json_field(
+                        row.get('anchor_repricing_policy_json'), {}
+                    ),
+                    'anchor_repricing_state_json': self._parse_stealth_order_json_field(
+                        row.get('anchor_repricing_state_json'), {}
+                    ),
+                    'cancel_reentry_policy_json': self._parse_stealth_order_json_field(
+                        row.get('cancel_reentry_policy_json'), {}
+                    ),
+                    'cancel_reentry_state_json': self._parse_stealth_order_json_field(
+                        row.get('cancel_reentry_state_json'), {}
+                    ),
+                    'post_fill_retreat_policy_json': self._parse_stealth_order_json_field(
+                        row.get('post_fill_retreat_policy_json'), {"enabled": False}
+                    ),
                     'created_at': row.get('created_at'),
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
@@ -4762,16 +4837,6 @@ class StealthOrderManager:
                    ORDER BY created_at ASC"""
             )
             
-            # Helper function to parse JSON safely (handles both str and dict)
-            def parse_json_field(value, default):
-                if value is None:
-                    return default
-                if isinstance(value, dict):
-                    return value  # Already parsed by PostgreSQL
-                if isinstance(value, str):
-                    return json.loads(value)
-                return default
-            
             loaded_count = 0
             for row in results:
                 try:
@@ -4792,17 +4857,33 @@ class StealthOrderManager:
                         'limit_price': float(row['limit_price']),
                         'status': db_status if db_status in ['REVEALED', 'EXECUTED', 'CANCELLED'] else 'HIDDEN',
                         'reveal_condition_type': condition_type,
-                        'reveal_condition_json': parse_json_field(row.get('reveal_condition_json'), {}),
-                        'sizing_strategy_json': parse_json_field(row.get('sizing_strategy_json'), {}),
+                        'reveal_condition_json': self._parse_stealth_order_json_field(
+                            row.get('reveal_condition_json'), {}
+                        ),
+                        'sizing_strategy_json': self._parse_stealth_order_json_field(
+                            row.get('sizing_strategy_json'), {}
+                        ),
                         'reason': row.get('reason', ''),
                         'notes': row.get('notes', ''),
                         'parent_order_id': row.get('parent_order_id'),
-                        'revealed_orders': parse_json_field(row.get('revealed_orders'), []),
-                        'anchor_repricing_policy_json': parse_json_field(row.get('anchor_repricing_policy_json'), {}),
-                        'anchor_repricing_state_json': parse_json_field(row.get('anchor_repricing_state_json'), {}),
-                        'cancel_reentry_policy_json': parse_json_field(row.get('cancel_reentry_policy_json'), {}),
-                        'cancel_reentry_state_json': parse_json_field(row.get('cancel_reentry_state_json'), {}),
-                        'post_fill_retreat_policy_json': parse_json_field(row.get('post_fill_retreat_policy_json'), {"enabled": False}),
+                        'revealed_orders': self._parse_stealth_order_json_field(
+                            row.get('revealed_orders'), []
+                        ),
+                        'anchor_repricing_policy_json': self._parse_stealth_order_json_field(
+                            row.get('anchor_repricing_policy_json'), {}
+                        ),
+                        'anchor_repricing_state_json': self._parse_stealth_order_json_field(
+                            row.get('anchor_repricing_state_json'), {}
+                        ),
+                        'cancel_reentry_policy_json': self._parse_stealth_order_json_field(
+                            row.get('cancel_reentry_policy_json'), {}
+                        ),
+                        'cancel_reentry_state_json': self._parse_stealth_order_json_field(
+                            row.get('cancel_reentry_state_json'), {}
+                        ),
+                        'post_fill_retreat_policy_json': self._parse_stealth_order_json_field(
+                            row.get('post_fill_retreat_policy_json'), {"enabled": False}
+                        ),
                         'created_at': row.get('created_at'),
                         'updated_at': row.get('updated_at'),
                         'visibility_score': float(row.get('visibility_score', 0.0)),

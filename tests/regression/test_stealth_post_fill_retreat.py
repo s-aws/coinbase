@@ -61,13 +61,17 @@ def test_post_fill_retreat_policy_round_trip():
         "inherit_to_follow_ups": False,
     }
 
-    policy = PostFillRetreatPolicy.from_dict(raw)
+    policy = PostFillRetreatPolicy.from_post_fill_retreat_policy_dict(raw)
 
     assert policy.enabled is True
     assert policy.scope is PostFillRetreatScope.SAME_PRODUCT_SAME_SIDE
     assert policy.retreat_ticks == 2
-    assert policy.to_dict() == raw
-    assert PostFillRetreatPolicy.from_dict(None).to_dict() == {"enabled": False}
+    assert policy.to_post_fill_retreat_policy_dict() == raw
+    assert (
+        PostFillRetreatPolicy.from_post_fill_retreat_policy_dict(None)
+        .to_post_fill_retreat_policy_dict()
+        == {"enabled": False}
+    )
 
 
 @pytest.mark.regression

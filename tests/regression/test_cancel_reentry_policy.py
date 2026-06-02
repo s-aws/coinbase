@@ -22,7 +22,7 @@ def _policy(**overrides):
         "max_reentry_count": 0,
     }
     data.update(overrides)
-    return CancelReentryPolicy.from_dict(data)
+    return CancelReentryPolicy.from_cancel_reentry_policy_dict(data)
 
 
 def _order(side="SELL", status="REVEALED", executed_size=0):

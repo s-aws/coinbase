@@ -26,6 +26,14 @@ from core.models import Product, Wallet, Position, Order
 from core.enums import OrderSide, TimeInForce
 
 
+def coinbase_sdk_response_to_dict(response: Any) -> Any:
+    """Return a plain dict for Coinbase SDK response objects when possible."""
+    converter = getattr(response, "to_dict", None)
+    if callable(converter):
+        return converter()
+    return response
+
+
 class CoinbaseRestClient:
     """Wrapper around Coinbase REST SDK client.
     
@@ -75,7 +83,7 @@ class CoinbaseRestClient:
         for account in accounts_list:
             if account.get("deleted_at") is None:
                 currency = account.get("currency")
-                wallet = Wallet.from_dict(account)
+                wallet = Wallet.from_wallet_dict(account)
                 wallets[currency] = wallet
         
         return wallets
@@ -96,7 +104,7 @@ class CoinbaseRestClient:
             >>> fees = summary.get('total_fees')
         """
         response = self._client.get_transaction_summary()
-        return response.to_dict() if hasattr(response, 'to_dict') else response
+        return coinbase_sdk_response_to_dict(response)
     
     # ========================================================================
     # Product Methods
@@ -121,8 +129,8 @@ class CoinbaseRestClient:
         """
         try:
             response = self._client.get_product(product_id)
-            data = response.to_dict() if hasattr(response, 'to_dict') else response
-            return Product.from_dict(data)
+            data = coinbase_sdk_response_to_dict(response)
+            return Product.from_product_dict(data)
         except Exception as e:
             # Check if it's a 404 - product not found
             if "404" in str(e) or "not found" in str(e).lower():
@@ -180,12 +188,13 @@ class CoinbaseRestClient:
             >>> for client_id, order in open_orders.items():
             ...     print(f"Order {client_id}: {order.product_id} {order.order_side}")
         """
-        orders_list = self._client.list_orders(order_status=["OPEN"]).to_dict()["orders"]
+        response = self._client.list_orders(order_status=["OPEN"])
+        orders_list = coinbase_sdk_response_to_dict(response)["orders"]
         
         orders = {}
         for order_data in orders_list:
             client_order_id = order_data.get("client_order_id")
-            order = Order.from_dict(order_data)
+            order = Order.from_order_dict(order_data)
             orders[client_order_id] = order
         
         return orders
@@ -244,7 +253,7 @@ class CoinbaseRestClient:
             post_only=post_only
         )
 
-        return response.to_dict() if hasattr(response, 'to_dict') else response
+        return coinbase_sdk_response_to_dict(response)
 
     def cancel_order(self, client_order_id: str) -> bool:
         """Cancel a single order by client order ID.
@@ -293,13 +302,14 @@ class CoinbaseRestClient:
             ...     pos = positions['BIP-20DEC30-CDE']
             ...     print(f"Contracts: {pos.number_of_contracts}")
         """
-        futures_response = self._client.list_futures_positions().to_dict()
+        response = self._client.list_futures_positions()
+        futures_response = coinbase_sdk_response_to_dict(response)
         futures_list = futures_response.get("positions", [])
         
         positions = {}
         for position_data in futures_list:
             product_id = position_data.get("product_id")
-            position = Position.from_dict(position_data)
+            position = Position.from_position_dict(position_data)
             positions[product_id] = position
         
         return positions
@@ -324,7 +334,8 @@ class CoinbaseRestClient:
             >>> portfolio = client.get_portfolio('default')
             >>> balance = portfolio.get('breakdown', {}).get('total_balance')
         """
-        return self._client.get_portfolio(portfolio_id).to_dict()
+        response = self._client.get_portfolio(portfolio_id)
+        return coinbase_sdk_response_to_dict(response)
     
     def list_portfolios(self) -> List[Dict[str, Any]]:
         """List all portfolios.
@@ -341,7 +352,7 @@ class CoinbaseRestClient:
             ...     print(f"Portfolio: {portfolio['name']}")
         """
         response = self._client.list_portfolios()
-        return response.to_dict().get("portfolios", [])
+        return coinbase_sdk_response_to_dict(response).get("portfolios", [])
     
     # ========================================================================
     # Pass-through Methods (Raw SDK Access)
@@ -363,7 +374,7 @@ class CoinbaseRestClient:
         """
         try:
             response = self._client.get_product(product_id)
-            return response.to_dict() if hasattr(response, 'to_dict') else response
+            return coinbase_sdk_response_to_dict(response)
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
                 return None
@@ -379,7 +390,7 @@ class CoinbaseRestClient:
             Exception: If API call fails
         """
         response = self._client.get_accounts()
-        return response.to_dict() if hasattr(response, 'to_dict') else response
+        return coinbase_sdk_response_to_dict(response)
     
     def list_orders(self, order_status: Optional[List[str]] = None) -> Dict[str, Any]:
         """List orders with optional status filter.
@@ -451,7 +462,7 @@ class CoinbaseRestClient:
             kwargs["cursor"] = cursor
 
         response = self._client.get_fills(**kwargs)
-        return response.to_dict() if hasattr(response, "to_dict") else response
+        return coinbase_sdk_response_to_dict(response)
 
     def get_candles(
         self,
@@ -495,7 +506,7 @@ class CoinbaseRestClient:
             end=str(int(end)),
             granularity=granularity,
         )
-        data = response.to_dict() if hasattr(response, "to_dict") else response
+        data = coinbase_sdk_response_to_dict(response)
         return list(data.get("candles", []) or [])
 
     def list_futures_positions(self):

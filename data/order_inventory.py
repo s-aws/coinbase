@@ -222,7 +222,7 @@ class OrderInventoryEntry:
         """
         return self.total_size * self.avg_price * self.contract_size
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_order_inventory_entry_dict(self) -> Dict[str, Any]:
         """Serialise to a JSON-safe dict for dashboard / API responses."""
         return {
             "product_id": self.product_id,
@@ -245,6 +245,10 @@ class OrderInventoryEntry:
                 self.last_placed_at.isoformat() if self.last_placed_at else None
             ),
         }
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Backward-compatible alias for older callers."""
+        return self.to_order_inventory_entry_dict()
 
 
 @dataclass
@@ -286,7 +290,7 @@ class StealthInventoryEntry:
     created_at: Optional[datetime] = None
     last_updated_at: Optional[datetime] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_stealth_inventory_entry_dict(self) -> Dict[str, Any]:
         """Serialise to a JSON-safe dict for dashboard / API responses."""
         return {
             "stealth_order_id": self.stealth_order_id,
@@ -317,6 +321,10 @@ class StealthInventoryEntry:
                 self.last_updated_at.isoformat() if self.last_updated_at else None
             ),
         }
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Backward-compatible alias for older callers."""
+        return self.to_stealth_inventory_entry_dict()
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +399,8 @@ class OrderInventory:
         Args:
             order: The Order that became working.
         """
-        from configuration import ORDERBOOK, safe_float
+        from calculation.formatter import safe_float
+        from configuration import ORDERBOOK
         
         product_type = order.product_type or _infer_product_type(order.product_id)
         side = order.order_side
@@ -797,8 +806,14 @@ class OrderInventory:
         """
         with self._lock:
             return {
-                "exchange_orders": [e.to_dict() for e in self._exchange_orders.values()],
-                "stealth_orders": [e.to_dict() for e in self._stealth_orders.values()],
+                "exchange_orders": [
+                    e.to_order_inventory_entry_dict()
+                    for e in self._exchange_orders.values()
+                ],
+                "stealth_orders": [
+                    e.to_stealth_inventory_entry_dict()
+                    for e in self._stealth_orders.values()
+                ],
                 "total_open_count": sum(
                     e.count for e in self._exchange_orders.values()
                 ),
@@ -844,7 +859,8 @@ class OrderInventory:
             >>> inventory.rebuild_from_database(db_client)
             INFO [OrderInventory] Rebuilt 4 working exchange orders, 7 stealth entries
         """
-        from configuration import ORDERBOOK, safe_float
+        from calculation.formatter import safe_float
+        from configuration import ORDERBOOK
         
         exchange_count = 0
         stealth_count = 0

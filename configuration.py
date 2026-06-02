@@ -19,7 +19,6 @@ from copy import deepcopy
 import json
 from pathlib import Path
 from threading import Lock
-from typing import Any, Optional, Union, overload
 
 from core.enums import OrderStatus, OrderSide, ProductType, RoundingDirection, TargetMovementType
 from core.constants import (  # noqa: F401  (re-exported for legacy ``from configuration import ...``)
@@ -158,61 +157,11 @@ ORDER_DIRECTION = {
 # Do NOT redefine them here â€” see 2026-04-30 audit.
 
 
-# ``safe_float`` returns ``None`` when callers explicitly pass ``default=None`` â€”
-# this is exercised in the engine's market-data resolution paths (bid/ask may
-# be missing). Express both shapes as overloads so Pylance's strict mode sees
-# the precise return type at each call site instead of a polymorphic
-# ``Optional[float]`` everywhere.
-
-
-@overload
-def safe_float(value: Any) -> float: ...
-@overload
-def safe_float(value: Any, default: float) -> float: ...
-@overload
-def safe_float(value: Any, default: None) -> Optional[float]: ...
-def safe_float(
-    value: Any, default: Union[float, None] = 0.0
-) -> Optional[float]:
-    """Safely convert a value to float, returning ``default`` on error.
-
-    Handles ``None``, empty strings, and invalid types gracefully. Useful for
-    converting API responses where numeric fields may be missing or invalid.
-
-    Args:
-        value: The value to convert (any type).
-        default: The default value to return if conversion fails (default: 0.0).
-            Pass ``None`` explicitly to opt into ``Optional[float]`` returns
-            (used by the engine when a missing bid/ask should propagate as
-            ``None`` rather than ``0.0``).
-
-    Returns:
-        The converted float value, or ``default`` if conversion fails. The
-        return type matches the type of ``default``: pass a ``float`` to get
-        a guaranteed ``float`` back, or pass ``None`` to allow ``None``.
-
-    Examples:
-        >>> safe_float('123.45')
-        123.45
-        >>> safe_float(None)
-        0.0
-        >>> safe_float('')
-        0.0
-        >>> safe_float('invalid')
-        0.0
-        >>> safe_float('99.99', default=1.0)
-        99.99
-        >>> safe_float('invalid', default=1.0)
-        1.0
-        >>> safe_float(None, default=None) is None
-        True
-    """
-    try:
-        if value is None or value == "":
-            return default
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+# Single canonical implementation lives in calculation.formatter.
+# Re-exported here for back-compat with callers doing
+# ``from configuration import safe_float``. Keep this as an import alias,
+# not a second implementation.
+from calculation.formatter import safe_float  # noqa: E402,F401
 
 
 def normalize_product_type(order: dict, products: dict = None) -> str:
@@ -447,7 +396,10 @@ def get_futures_positions() -> dict:
         ...     pos = positions['BIP-20DEC30-CDE']
         ...     print(f"Contracts: {pos['number_of_contracts']}")
     """
-    futures_list = get_rest_client().list_futures_positions().to_dict()["positions"]
+    from external.coinbase_client import coinbase_sdk_response_to_dict
+
+    futures_response = get_rest_client().list_futures_positions()
+    futures_list = coinbase_sdk_response_to_dict(futures_response)["positions"]
 
     if futures_list:
         positions = {
@@ -476,7 +428,10 @@ def get_open_orders() -> dict:
         >>> for client_id, order_data in open_orders.items():
         ...     print(f"Order {client_id}: {order_data['product_id']} {order_data['side']}")
     """
-    orders_list = get_rest_client().list_orders(order_status=["OPEN"]).to_dict()["orders"]
+    from external.coinbase_client import coinbase_sdk_response_to_dict
+
+    orders_response = get_rest_client().list_orders(order_status=["OPEN"])
+    orders_list = coinbase_sdk_response_to_dict(orders_response)["orders"]
 
     orders = {
         order["client_order_id"]: order for order in orders_list

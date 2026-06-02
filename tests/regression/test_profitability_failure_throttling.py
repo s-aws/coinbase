@@ -290,7 +290,7 @@ def test_preflight_returns_none_for_feasible_target():
 
     mgr = som.StealthOrderManager.__new__(som.StealthOrderManager)
 
-    class _Validator:
+    class _FeasibleTargetValidator:
         def derive_follow_up_price_from_target(self, **kwargs):
             return kwargs["parent_filled_price"] * (
                 1 + kwargs["target_movement"]
@@ -302,7 +302,7 @@ def test_preflight_returns_none_for_feasible_target():
             # 1% target on $100 \u00d7 1 unit = $1 gross, $0.10 fees \u2192 profitable.
             return {"is_profitable": True, "total_fees": 0.10}
 
-    mgr.profit_validator = _Validator()
+    mgr.profit_validator = _FeasibleTargetValidator()
     out = mgr._check_target_movement_feasibility(
         product_id="BTC-USDC", side="BUY", limit_price=100.0,
         order_size=1.0, target_movement=0.01, target_movement_type="P",
@@ -319,7 +319,7 @@ def test_preflight_blocks_when_target_below_soft_floor():
 
     mgr = som.StealthOrderManager.__new__(som.StealthOrderManager)
 
-    class _Validator:
+    class _BelowSoftFloorValidator:
         def derive_follow_up_price_from_target(self, **kwargs):
             return kwargs["parent_filled_price"] * 0.999
 
@@ -328,7 +328,7 @@ def test_preflight_blocks_when_target_below_soft_floor():
             # 2026-04-30 incident shape).
             return {"is_profitable": False, "total_fees": 9.17}
 
-    mgr.profit_validator = _Validator()
+    mgr.profit_validator = _BelowSoftFloorValidator()
     # 0.001 (P) at price=76802.5, size=10 \u2192 strict min-viable \u2248 1.19e-5,
     # but the validator says total_fees=9.17 \u2192 strict min-viable
     # = 9.17 / (76802.5 * 10) \u2248 1.19e-5. Configured 0.001 is FAR

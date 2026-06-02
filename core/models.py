@@ -143,7 +143,7 @@ class Product:
     trading_disabled: bool = False
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Product':
+    def from_product_dict(cls, data: Dict[str, Any]) -> 'Product':
         """Create Product from API response dict."""
         return cls(
             product_id=_required_str(data, 'product_id', 'Product'),
@@ -154,6 +154,11 @@ class Product:
             base_min_size=str(data.get('base_min_size', '0')),
             trading_disabled=bool(data.get('trading_disabled', False)),
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Product':
+        """Backward-compatible alias for older callers."""
+        return cls.from_product_dict(data)
 
 
 @dataclass
@@ -166,7 +171,7 @@ class Position:
     entry_price: Optional[str] = None
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Position':
+    def from_position_dict(cls, data: Dict[str, Any]) -> 'Position':
         """Create Position from API response dict."""
         return cls(
             product_id=_required_str(data, 'product_id', 'Position'),
@@ -175,6 +180,11 @@ class Position:
             current_price=data.get('current_price'),
             entry_price=data.get('entry_price'),
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Position':
+        """Backward-compatible alias for older callers."""
+        return cls.from_position_dict(data)
 
 
 @dataclass
@@ -188,7 +198,7 @@ class Wallet:
     deleted_at: Optional[str] = None
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Wallet':
+    def from_wallet_dict(cls, data: Dict[str, Any]) -> 'Wallet':
         """Create Wallet from API response dict."""
         return cls(
             currency=_required_str(data, 'currency', 'Wallet'),
@@ -198,6 +208,11 @@ class Wallet:
             updated_at=data.get('updated_at'),
             deleted_at=data.get('deleted_at'),
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Wallet':
+        """Backward-compatible alias for older callers."""
+        return cls.from_wallet_dict(data)
 
 
 @dataclass
@@ -218,9 +233,10 @@ class Order:
     custom_metadata: Dict[str, Any] = field(default_factory=dict)
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Order':
+    def from_order_dict(cls, data: Dict[str, Any]) -> 'Order':
         """Create Order from API response dict."""
-        from calculation.resolver import safe_float, normalize_product_type
+        from calculation.formatter import safe_float
+        from calculation.resolver import normalize_product_type
 
         side_raw = data.get('order_side') or data.get('side')
         if isinstance(side_raw, OrderSide):
@@ -249,6 +265,11 @@ class Order:
             created_at=data.get('created_at'),
             custom_metadata=data,
         )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Order':
+        """Backward-compatible alias for older callers."""
+        return cls.from_order_dict(data)
 
 
 @dataclass
@@ -330,7 +351,7 @@ class RevealExecutionPlan:
     target_movement_source: Optional[str] = None
     post_only: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_reveal_execution_plan_dict(self) -> Dict[str, Any]:
         """Convert to dict for persistence/serialization."""
         return {
             'configured_limit_price': self.configured_limit_price,
@@ -346,6 +367,10 @@ class RevealExecutionPlan:
             'target_movement_source': self.target_movement_source,
             'post_only': self.post_only,
         }
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Backward-compatible alias for older callers."""
+        return self.to_reveal_execution_plan_dict()
 
 
 @dataclass
@@ -429,7 +454,11 @@ class StealthMovePlan:
             'new_configured_limit_price': self.new_configured_limit_price,
             'new_target_movement': self.new_target_movement,
             'new_target_movement_type': self.new_target_movement_type,
-            'reveal_plan': self.reveal_plan.to_dict() if self.reveal_plan else None,
+            'reveal_plan': (
+                self.reveal_plan.to_reveal_execution_plan_dict()
+                if self.reveal_plan
+                else None
+            ),
             'reset_repricing_state': self.reset_repricing_state,
             'reset_reveal_counters': self.reset_reveal_counters,
             'reason': self.reason.value if self.reason is not None else None,
@@ -475,17 +504,19 @@ class RepricingPolicy:
 
     Single source of truth for every field stored in
     ``stealth_orders.anchor_repricing_policy_json``. Built once via
-    :meth:`from_dict` (the canonical normalizer) and consumed at every read
-    site via attribute access — no more ``policy.get("x")`` magic-string
-    duplication scattered across the manager and the dashboard.
+    :meth:`from_anchor_repricing_policy_dict` (the canonical normalizer) and
+    consumed at every read site via attribute access — no more
+    ``policy.get("x")`` magic-string duplication scattered across the manager
+    and the dashboard.
 
-    On-disk shape is preserved by :meth:`to_dict`: enum fields serialize as
-    their string ``.value`` so existing JSONB rows load without migration.
+    On-disk shape is preserved by :meth:`to_anchor_repricing_policy_dict`:
+    enum fields serialize as their string ``.value`` so existing JSONB rows
+    load without migration.
 
     Build helpers:
-    - ``from_dict(raw)`` — normalize a raw dict (clamps, default fill-in,
-      enum coercion). Disabled policy returns a minimal ``enabled=False``
-      instance.
+    - ``from_anchor_repricing_policy_dict(raw)`` — normalize a raw dict
+      (clamps, default fill-in, enum coercion). Disabled policy returns a
+      minimal ``enabled=False`` instance.
     - ``coerce(policy_or_dict)`` — accept either a dict or an existing
       ``RepricingPolicy`` and return a ``RepricingPolicy``. Used by every
       internal helper so callers don't have to wrap.
@@ -545,13 +576,27 @@ class RepricingPolicy:
 
     # ---- builders ----
 
+    @staticmethod
+    def _read_policy_field(
+        policy: Dict[str, Any],
+        field_name: str,
+        default: Any = None,
+    ) -> Any:
+        """Read a policy field without an ambiguous ``dict.get`` call edge."""
+        if field_name in policy:
+            return policy[field_name]
+        return default
+
     @classmethod
     def disabled(cls) -> 'RepricingPolicy':
         """Canonical \"no repricing\" instance. Equivalent to ``{\"enabled\": False}``."""
         return cls(enabled=False)
 
     @classmethod
-    def from_dict(cls, raw: Optional[Dict[str, Any]]) -> 'RepricingPolicy':
+    def from_anchor_repricing_policy_dict(
+        cls,
+        raw: Optional[Dict[str, Any]],
+    ) -> 'RepricingPolicy':
         """Field-by-field normalizer for an arbitrary dict.
 
         Lenient: missing fields fall back to documented defaults; only the
@@ -563,15 +608,16 @@ class RepricingPolicy:
         their config silently collapsed by a re-read.
         """
         # Local import keeps models.py free of calculation-layer cycles.
-        from configuration import safe_float
+        from calculation.formatter import safe_float
 
         policy = dict(raw or {})
-        if not bool(policy.get('enabled')):
+        field = cls._read_policy_field
+        if not bool(field(policy, 'enabled')):
             return cls.disabled()
 
         # Reference source (enum, fallback to MIDPOINT)
         ref_raw = str(
-            policy.get('reference_price_source')
+            field(policy, 'reference_price_source')
             or RepricingReferenceSource.MIDPOINT.value
         ).strip().lower()
         try:
@@ -581,7 +627,7 @@ class RepricingPolicy:
 
         # Distance type (enum, fallback to PERCENT)
         dist_raw = str(
-            policy.get('distance_type') or RepricingDistanceType.PERCENT.value
+            field(policy, 'distance_type') or RepricingDistanceType.PERCENT.value
         ).strip().upper()
         try:
             distance_type = RepricingDistanceType(dist_raw)
@@ -593,14 +639,18 @@ class RepricingPolicy:
         # not here, so consumers that pass partial dicts (e.g. tests
         # exercising a single guardrail) keep all the field overrides they
         # set.
-        target_distance = max(safe_float(policy.get('target_distance'), default=0.0), 0.0)
-        max_distance = safe_float(policy.get('max_distance'), default=target_distance)
+        target_distance = max(
+            safe_float(field(policy, 'target_distance'), default=0.0), 0.0
+        )
+        max_distance = safe_float(
+            field(policy, 'max_distance'), default=target_distance
+        )
         if max_distance < target_distance:
             max_distance = target_distance
 
         # Update mode (enum, fallback to ADAPTIVE)
         mode_raw = str(
-            policy.get('update_mode') or RepricingUpdateMode.ADAPTIVE.value
+            field(policy, 'update_mode') or RepricingUpdateMode.ADAPTIVE.value
         ).strip().lower()
         try:
             update_mode = RepricingUpdateMode(mode_raw)
@@ -608,53 +658,66 @@ class RepricingPolicy:
             update_mode = RepricingUpdateMode.ADAPTIVE
 
         fixed_interval_seconds = int(
-            safe_float(policy.get('fixed_interval_seconds'), default=60.0)
+            safe_float(field(policy, 'fixed_interval_seconds'), default=60.0)
         )
         if fixed_interval_seconds <= 0:
             fixed_interval_seconds = 60
 
         min_price_change = max(
-            safe_float(policy.get('min_price_change'), default=0.01), 0.0
+            safe_float(field(policy, 'min_price_change'), default=0.01), 0.0
         )
         hysteresis_bps = max(
-            safe_float(policy.get('hysteresis_bps'), default=5.0), 0.0
+            safe_float(field(policy, 'hysteresis_bps'), default=5.0), 0.0
         )
 
         # Slide-mode coupling: sub-tick gates would suppress slide steps,
         # so force them to zero when slide mode is active. Pacing is
         # controlled by the throttles instead.
-        slide_mode = bool(policy.get('slide_mode', False))
+        slide_mode = bool(field(policy, 'slide_mode', False))
         max_step_per_reprice = max(
-            safe_float(policy.get('max_step_per_reprice'), default=0.0), 0.0
+            safe_float(field(policy, 'max_step_per_reprice'), default=0.0), 0.0
         )
         if slide_mode and max_step_per_reprice > 0:
             min_price_change = 0.0
             hysteresis_bps = 0.0
 
         min_reprice_interval_seconds = max(
-            int(safe_float(policy.get('min_reprice_interval_seconds'), default=30.0)),
+            int(
+                safe_float(
+                    field(policy, 'min_reprice_interval_seconds'), default=30.0
+                )
+            ),
             0,
         )
         max_reprices_per_hour = max(
-            int(safe_float(policy.get('max_reprices_per_hour'), default=20.0)),
+            int(safe_float(field(policy, 'max_reprices_per_hour'), default=20.0)),
             1,
         )
 
         # Phase 2 guardrails
         volatility_sensitivity = max(
-            min(safe_float(policy.get('volatility_sensitivity'), default=1.0), 2.0),
+            min(
+                safe_float(field(policy, 'volatility_sensitivity'), default=1.0),
+                2.0,
+            ),
             0.1,
         )
         max_reprice_window_seconds = max(
-            int(safe_float(policy.get('max_reprice_window_seconds'), default=600.0)),
+            int(
+                safe_float(
+                    field(policy, 'max_reprice_window_seconds'), default=600.0
+                )
+            ),
             min_reprice_interval_seconds,
         )
         require_minimum_volume = max(
-            safe_float(policy.get('require_minimum_volume'), default=0.0), 0.0
+            safe_float(field(policy, 'require_minimum_volume'), default=0.0), 0.0
         )
-        enable_spread_monitoring = bool(policy.get('enable_spread_monitoring', False))
+        enable_spread_monitoring = bool(
+            field(policy, 'enable_spread_monitoring', False)
+        )
         max_spread_bps = max(
-            safe_float(policy.get('max_spread_bps'), default=50.0), 0.0
+            safe_float(field(policy, 'max_spread_bps'), default=50.0), 0.0
         )
 
         # Follow-up retreat (fingerprint-hiding). Both clamped to >= 0;
@@ -663,10 +726,16 @@ class RepricingPolicy:
         # dataclass defaults (opt-out: 5bps / 0.5 jitter) so loading a
         # legacy policy that omits these fields gets the new behavior.
         follow_up_retreat_distance = max(
-            safe_float(policy.get('follow_up_retreat_distance'), default=0.0005), 0.0
+            safe_float(
+                field(policy, 'follow_up_retreat_distance'), default=0.0005
+            ),
+            0.0,
         )
         follow_up_retreat_jitter = max(
-            min(safe_float(policy.get('follow_up_retreat_jitter'), default=0.5), 1.0),
+            min(
+                safe_float(field(policy, 'follow_up_retreat_jitter'), default=0.5),
+                1.0,
+            ),
             0.0,
         )
 
@@ -678,14 +747,16 @@ class RepricingPolicy:
             max_distance=max_distance,
             update_mode=update_mode,
             fixed_interval_seconds=fixed_interval_seconds,
-            allow_revealed_reprice=bool(policy.get('allow_revealed_reprice', True)),
+            allow_revealed_reprice=bool(
+                field(policy, 'allow_revealed_reprice', True)
+            ),
             min_price_change=min_price_change,
             hysteresis_bps=hysteresis_bps,
             min_reprice_interval_seconds=min_reprice_interval_seconds,
             max_reprices_per_hour=max_reprices_per_hour,
-            post_only_required=bool(policy.get('post_only_required', True)),
-            converge_to_target=bool(policy.get('converge_to_target', True)),
-            inherit_to_follow_ups=bool(policy.get('inherit_to_follow_ups', True)),
+            post_only_required=bool(field(policy, 'post_only_required', True)),
+            converge_to_target=bool(field(policy, 'converge_to_target', True)),
+            inherit_to_follow_ups=bool(field(policy, 'inherit_to_follow_ups', True)),
             slide_mode=slide_mode,
             max_step_per_reprice=max_step_per_reprice,
             volatility_sensitivity=volatility_sensitivity,
@@ -698,6 +769,11 @@ class RepricingPolicy:
         )
 
     @classmethod
+    def from_dict(cls, raw: Optional[Dict[str, Any]]) -> 'RepricingPolicy':
+        """Backward-compatible alias for older callers."""
+        return cls.from_anchor_repricing_policy_dict(raw)
+
+    @classmethod
     def coerce(cls, value: Any) -> 'RepricingPolicy':
         """Accept a dict, ``None``, or an existing ``RepricingPolicy``.
 
@@ -707,11 +783,13 @@ class RepricingPolicy:
         """
         if isinstance(value, cls):
             return value
-        return cls.from_dict(value if isinstance(value, dict) else None)
+        return cls.from_anchor_repricing_policy_dict(
+            value if isinstance(value, dict) else None
+        )
 
     # ---- serialization ----
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_anchor_repricing_policy_dict(self) -> Dict[str, Any]:
         """JSONB-compatible dict; preserves the historical on-disk shape.
 
         Disabled policies serialize to ``{\"enabled\": False}`` only —
@@ -746,6 +824,10 @@ class RepricingPolicy:
             'follow_up_retreat_distance': self.follow_up_retreat_distance,
             'follow_up_retreat_jitter': self.follow_up_retreat_jitter,
         }
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Backward-compatible alias for older callers."""
+        return self.to_anchor_repricing_policy_dict()
 
     # ---- behavior helpers ----
 

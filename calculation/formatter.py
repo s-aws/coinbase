@@ -1,21 +1,25 @@
 """Calculation utilities - Formatting and quantization functions."""
 
-from typing import Union
+from typing import Any, Optional
 from core.enums import RoundingDirection
 
 
-def safe_float(value: Union[str, int, float, None], default: float = 0.0) -> float:
-    """Safely convert a value to float, returning default on error.
-    
-    Handles None, empty strings, and invalid types gracefully.
-    
+def safe_float(
+    value: Any, default: Optional[float] = 0.0
+) -> Optional[float]:
+    """Safely convert a value to float, returning ``default`` on error.
+
+    Handles ``None``, empty strings, and invalid types gracefully. Pass
+    ``default=None`` when missing values should propagate as ``None`` instead
+    of ``0.0``.
+
     Args:
-        value: The value to convert (str, int, float, None, etc.)
-        default: The default value to return if conversion fails (default: 0.0)
-    
+        value: The value to convert.
+        default: The default value to return if conversion fails.
+
     Returns:
-        The converted float value, or default if conversion fails
-    
+        The converted float value, or ``default`` if conversion fails.
+
     Examples:
         >>> safe_float('123.45')
         123.45
@@ -23,9 +27,11 @@ def safe_float(value: Union[str, int, float, None], default: float = 0.0) -> flo
         0.0
         >>> safe_float('invalid', 10.0)
         10.0
+        >>> safe_float(None, default=None) is None
+        True
     """
     try:
-        if value in (None, ""):
+        if value is None or value == "":
             return default
         return float(value)
     except (TypeError, ValueError):

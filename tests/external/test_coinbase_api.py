@@ -24,6 +24,7 @@ from unittest.mock import Mock
 from coinbase.websocket import WSClient
 
 from external import CoinbaseWebSocketClient
+from external.coinbase_client import coinbase_sdk_response_to_dict
 
 
 def _load_contract_example(api_reference_root: Path, *parts):
@@ -105,7 +106,7 @@ class TestCoinbaseRESTAPI:
         """
         # Coinbase rejects OPEN mixed with other statuses in one request.
         orders_response = coinbase_rest_client.list_orders(order_status=["OPEN"])
-        orders_dict = orders_response.to_dict() if hasattr(orders_response, "to_dict") else orders_response
+        orders_dict = coinbase_sdk_response_to_dict(orders_response)
 
         assert isinstance(orders_dict, dict)
         assert "orders" in orders_dict

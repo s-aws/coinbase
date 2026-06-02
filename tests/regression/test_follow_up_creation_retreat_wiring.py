@@ -288,7 +288,7 @@ def test_ui_field_names_match_policy_field_names():
         # Python-side key in the JSON object
         assert f"{field}:" in html, (
             f"buildAnchorRepricingPolicy must emit the {field!r} key so the "
-            f"backend's RepricingPolicy.from_dict can pick it up."
+            f"backend's RepricingPolicy normalizer can pick it up."
         )
         # Matching HTML id (anchor_<field>) the JS reads from
         assert f"id=\"anchor_{field}\"" in html, (

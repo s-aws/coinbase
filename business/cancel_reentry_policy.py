@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from configuration import safe_float
+from calculation.formatter import safe_float
 from core.enums import (
     CancelReentryDecision,
     CancelReentryState,
@@ -36,19 +36,33 @@ class CancelReentryPolicy:
     max_reentry_count: int = 0
     inherit_to_follow_ups: bool = True
 
+    @staticmethod
+    def _read_cancel_reentry_policy_field(
+        config: Dict[str, Any],
+        field_name: str,
+        default: Any = None,
+    ) -> Any:
+        if field_name in config:
+            return config[field_name]
+        return default
+
     @classmethod
     def disabled(cls) -> "CancelReentryPolicy":
         return cls(enabled=False)
 
     @classmethod
-    def from_dict(cls, raw: Optional[Dict[str, Any]]) -> "CancelReentryPolicy":
+    def from_cancel_reentry_policy_dict(
+        cls,
+        raw: Optional[Dict[str, Any]],
+    ) -> "CancelReentryPolicy":
         config = dict(raw or {})
-        if not bool(config.get("enabled")):
+        field = cls._read_cancel_reentry_policy_field
+        if not bool(field(config, "enabled")):
             return cls.disabled()
 
         ref_raw = str(
-            config.get("reference_price_source")
-            or config.get("reference_price")
+            field(config, "reference_price_source")
+            or field(config, "reference_price")
             or RepricingReferenceSource.MIDPOINT.value
         ).strip().lower()
         if ref_raw == "mid":
@@ -59,26 +73,26 @@ class CancelReentryPolicy:
             reference_price_source = RepricingReferenceSource.MIDPOINT
 
         dist_raw = str(
-            config.get("distance_type") or RepricingDistanceType.ABSOLUTE.value
+            field(config, "distance_type") or RepricingDistanceType.ABSOLUTE.value
         ).strip().upper()
         try:
             distance_type = RepricingDistanceType(dist_raw)
         except ValueError:
             distance_type = RepricingDistanceType.ABSOLUTE
 
-        cancel_distance = safe_float(config.get("cancel_distance"), default=0.0)
-        reentry_distance = safe_float(config.get("reentry_distance"), default=0.0)
+        cancel_distance = safe_float(field(config, "cancel_distance"), default=0.0)
+        reentry_distance = safe_float(field(config, "reentry_distance"), default=0.0)
         if cancel_distance <= 0:
             raise ValueError("cancel_distance must be > 0")
         if reentry_distance <= cancel_distance:
             raise ValueError("reentry_distance must be greater than cancel_distance")
 
         cooldown_seconds = max(
-            int(safe_float(config.get("cooldown_seconds"), default=0.0)),
+            int(safe_float(field(config, "cooldown_seconds"), default=0.0)),
             0,
         )
         max_reentry_count = max(
-            int(safe_float(config.get("max_reentry_count"), default=0.0)),
+            int(safe_float(field(config, "max_reentry_count"), default=0.0)),
             0,
         )
 
@@ -90,10 +104,15 @@ class CancelReentryPolicy:
             reentry_distance=reentry_distance,
             cooldown_seconds=cooldown_seconds,
             max_reentry_count=max_reentry_count,
-            inherit_to_follow_ups=bool(config.get("inherit_to_follow_ups", True)),
+            inherit_to_follow_ups=bool(field(config, "inherit_to_follow_ups", True)),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    @classmethod
+    def from_dict(cls, raw: Optional[Dict[str, Any]]) -> "CancelReentryPolicy":
+        """Backward-compatible alias for older callers."""
+        return cls.from_cancel_reentry_policy_dict(raw)
+
+    def to_cancel_reentry_policy_dict(self) -> Dict[str, Any]:
         if not self.enabled:
             return {"enabled": False}
         return {
@@ -106,6 +125,10 @@ class CancelReentryPolicy:
             "max_reentry_count": self.max_reentry_count,
             "inherit_to_follow_ups": self.inherit_to_follow_ups,
         }
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Backward-compatible alias for older callers."""
+        return self.to_cancel_reentry_policy_dict()
 
 
 @dataclass(frozen=True)
@@ -120,11 +143,25 @@ class CancelReentryRuntimeState:
     cancelled_exchange_order_id: Optional[str] = None
     last_reason: Optional[str] = None
 
+    @staticmethod
+    def _read_cancel_reentry_runtime_state_field(
+        state_dict: Dict[str, Any],
+        field_name: str,
+        default: Any = None,
+    ) -> Any:
+        if field_name in state_dict:
+            return state_dict[field_name]
+        return default
+
     @classmethod
-    def from_dict(cls, raw: Optional[Dict[str, Any]]) -> "CancelReentryRuntimeState":
+    def from_cancel_reentry_runtime_state_dict(
+        cls,
+        raw: Optional[Dict[str, Any]],
+    ) -> "CancelReentryRuntimeState":
         state_dict = dict(raw or {})
+        field = cls._read_cancel_reentry_runtime_state_field
         state_raw = str(
-            state_dict.get("state") or CancelReentryState.RESTING.value
+            field(state_dict, "state") or CancelReentryState.RESTING.value
         ).strip().lower()
         try:
             state = CancelReentryState(state_raw)
@@ -133,20 +170,29 @@ class CancelReentryRuntimeState:
 
         return cls(
             state=state,
-            last_cancel_at=state_dict.get("last_cancel_at"),
-            last_reentry_at=state_dict.get("last_reentry_at"),
+            last_cancel_at=field(state_dict, "last_cancel_at"),
+            last_reentry_at=field(state_dict, "last_reentry_at"),
             reentry_count=max(
-                int(safe_float(state_dict.get("reentry_count"), default=0.0)),
+                int(safe_float(field(state_dict, "reentry_count"), default=0.0)),
                 0,
             ),
-            cancelled_placement_client_order_id=state_dict.get(
+            cancelled_placement_client_order_id=field(
+                state_dict,
                 "cancelled_placement_client_order_id"
             ),
-            cancelled_exchange_order_id=state_dict.get("cancelled_exchange_order_id"),
-            last_reason=state_dict.get("last_reason"),
+            cancelled_exchange_order_id=field(
+                state_dict,
+                "cancelled_exchange_order_id",
+            ),
+            last_reason=field(state_dict, "last_reason"),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    @classmethod
+    def from_dict(cls, raw: Optional[Dict[str, Any]]) -> "CancelReentryRuntimeState":
+        """Backward-compatible alias for older callers."""
+        return cls.from_cancel_reentry_runtime_state_dict(raw)
+
+    def to_cancel_reentry_runtime_state_dict(self) -> Dict[str, Any]:
         return {
             "state": self.state.value,
             "last_cancel_at": self.last_cancel_at,
@@ -156,6 +202,10 @@ class CancelReentryRuntimeState:
             "cancelled_exchange_order_id": self.cancelled_exchange_order_id,
             "last_reason": self.last_reason,
         }
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Backward-compatible alias for older callers."""
+        return self.to_cancel_reentry_runtime_state_dict()
 
 
 @dataclass(frozen=True)

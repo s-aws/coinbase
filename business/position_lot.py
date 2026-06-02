@@ -170,7 +170,7 @@ class PositionLot:
         else:  # SELL
             return market_price <= self.min_profitable_exit_price
     
-    def to_dict(self) -> Dict:
+    def to_position_lot_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
         return {
             'lot_id': self.lot_id,
@@ -187,6 +187,10 @@ class PositionLot:
             'remaining_quantity': self.remaining_quantity,
             'source_fills': self.source_fills,
         }
+
+    def to_dict(self) -> Dict:
+        """Backward-compatible alias for older callers."""
+        return self.to_position_lot_dict()
 
 
 @dataclass

@@ -114,5 +114,5 @@ def test_reveal_execution_plan_post_only_round_trips_through_to_dict():
         fallback_used=False,
         post_only=True,
     )
-    payload = plan.to_dict()
+    payload = plan.to_reveal_execution_plan_dict()
     assert payload.get("post_only") is True

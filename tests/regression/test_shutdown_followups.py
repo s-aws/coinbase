@@ -161,13 +161,13 @@ class TestPreRevealStatusesExcluded:
             {"client_order_id": "filled-1", "status": "FILLED"},
         ]
 
-        class _StubDB:
+        class _PreRevealStatusStubDB:
             def execute_query(self, sql, params=None):
                 return rows
             def disconnect(self):
                 pass
 
-        with patch("database.database.PostgresDB", return_value=_StubDB()):
+        with patch("database.database.PostgresDB", return_value=_PreRevealStatusStubDB()):
             ids = _fetch_local_open_client_order_ids()
 
         # Only the truly placed-on-exchange row should be returned.
@@ -192,13 +192,13 @@ class TestPreRevealStatusesExcluded:
             {"client_order_id": "open-1", "status": "OPEN"},
         ]
 
-        class _StubDB:
+        class _ReconciledClosedStubDB:
             def execute_query(self, sql, params=None):
                 return rows
             def disconnect(self):
                 pass
 
-        with patch("database.database.PostgresDB", return_value=_StubDB()):
+        with patch("database.database.PostgresDB", return_value=_ReconciledClosedStubDB()):
             ids = _fetch_local_open_client_order_ids()
 
         assert ids == {"open-1"}, (

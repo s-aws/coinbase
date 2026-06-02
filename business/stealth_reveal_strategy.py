@@ -40,8 +40,13 @@ class RevealStrategy(ABC):
     """
 
     @abstractmethod
-    def next_slice_size(self, order: Dict[str, Any]) -> float:
+    def compute_next_reveal_slice_size(self, order: Dict[str, Any]) -> float:
         """Return size of the next slice to post, or 0.0 to post nothing now."""
+
+    def next_slice_size(self, order: Dict[str, Any]) -> float:
+        """Backward-compatible alias for older callers."""
+        compute = getattr(self, "compute_next_reveal_slice_size")
+        return compute(order)
 
 
 class FixedRevealStrategy(RevealStrategy):
@@ -52,7 +57,7 @@ class FixedRevealStrategy(RevealStrategy):
     slice to consider.
     """
 
-    def next_slice_size(self, order: Dict[str, Any]) -> float:
+    def compute_next_reveal_slice_size(self, order: Dict[str, Any]) -> float:
         if float(order.get("revealed_size", 0) or 0) > 0:
             return 0.0
         return float(order.get("total_size", 0) or 0)
@@ -76,7 +81,7 @@ class AdaptiveRevealStrategy(RevealStrategy):
         self._market_volume = market_volume_provider
         self._baseline_volume = baseline_volume_provider
 
-    def next_slice_size(self, order: Dict[str, Any]) -> float:
+    def compute_next_reveal_slice_size(self, order: Dict[str, Any]) -> float:
         cfg = self._config
         total_size = float(order.get("total_size", 0) or 0)
         remaining = float(order.get("remaining_size", 0) or 0)
@@ -154,7 +159,7 @@ class TrancheRevealStrategy(RevealStrategy):
         # Default True: burst behaviour is anti-stealth. See incident note.
         self._iceberg_mode = bool(cfg.get("iceberg_mode", True))
 
-    def next_slice_size(self, order: Dict[str, Any]) -> float:
+    def compute_next_reveal_slice_size(self, order: Dict[str, Any]) -> float:
         total_size = float(order.get("total_size", 0) or 0)
         if total_size <= 0:
             return 0.0
@@ -238,3 +243,12 @@ def get_reveal_strategy(
     if t == "tranche":
         return TrancheRevealStrategy(config)
     return FixedRevealStrategy()
+
+
+def compute_reveal_strategy_slice_size(
+    strategy: RevealStrategy,
+    order: Dict[str, Any],
+) -> float:
+    """Single dispatch point for reveal strategy sizing."""
+    compute = getattr(strategy, "compute_next_reveal_slice_size")
+    return compute(order)

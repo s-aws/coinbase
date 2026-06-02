@@ -102,7 +102,7 @@ class HealResult:
     def total_healed(self) -> int:
         return len(self.healed_parent_ids)
 
-    def summary(self) -> Dict[str, Any]:
+    def to_auto_heal_summary_dict(self) -> Dict[str, Any]:
         return {
             "healed_parents": len(self.healed_parent_ids),
             "failed": len(self.failed_ids),
@@ -112,6 +112,9 @@ class HealResult:
             ),
             "total_healed": self.total_healed,
         }
+
+    def summary(self) -> Dict[str, Any]:
+        return self.to_auto_heal_summary_dict()
 
 
 @dataclass
@@ -150,7 +153,7 @@ class ReconciliationReport:
             or self.closed_on_exchange_open_locally
         )
 
-    def summary(self) -> Dict[str, Any]:
+    def to_startup_reconciliation_summary_dict(self) -> Dict[str, Any]:
         return {
             "exchange_open_count": self.exchange_open_count,
             "local_open_count": self.local_open_count,
@@ -165,6 +168,9 @@ class ReconciliationReport:
             "has_drift": self.has_drift,
         }
 
+    def summary(self) -> Dict[str, Any]:
+        return self.to_startup_reconciliation_summary_dict()
+
 
 def _fetch_exchange_open_client_order_ids() -> Set[str]:
     """Return the set of ``client_order_id`` values currently OPEN on Coinbase.
@@ -174,9 +180,10 @@ def _fetch_exchange_open_client_order_ids() -> Set[str]:
     production code sees.
     """
     from configuration import REST_CLIENT  # late import to avoid cycles
+    from external.coinbase_client import coinbase_sdk_response_to_dict
 
     response = REST_CLIENT.list_orders(order_status=["OPEN"])
-    raw = response.to_dict() if hasattr(response, "to_dict") else response
+    raw = coinbase_sdk_response_to_dict(response)
     orders = raw.get("orders", []) if isinstance(raw, dict) else []
     ids: Set[str] = set()
     for order in orders:
@@ -333,7 +340,7 @@ def run_startup_reconciliation(
         if coid not in exchange_ids:
             report.closed_on_exchange_open_locally.append(coid)
 
-    summary = report.summary()
+    summary = report.to_startup_reconciliation_summary_dict()
     if report.has_drift:
         logger.warning(
             "Startup reconciliation: drift detected. Inspect the report "
@@ -373,7 +380,7 @@ def run_startup_reconciliation(
         heal_result = apply_auto_heal(report)
         logger.info(
             "Startup reconciliation: auto-heal completed",
-            extra={"auto_heal_summary": heal_result.summary()},
+            extra={"auto_heal_summary": heal_result.to_auto_heal_summary_dict()},
         )
 
     if audit_fills:
@@ -514,7 +521,7 @@ class MissedFillsReport:
     def has_missed_fills(self) -> bool:
         return bool(self.missed)
 
-    def summary(self) -> Dict[str, Any]:
+    def to_missed_fills_summary_dict(self) -> Dict[str, Any]:
         return {
             "scanned_since": self.scanned_since,
             "scanned_until": self.scanned_until,
@@ -523,6 +530,9 @@ class MissedFillsReport:
             "missed_count": len(self.missed),
             "failed_pages": self.failed_pages,
         }
+
+    def summary(self) -> Dict[str, Any]:
+        return self.to_missed_fills_summary_dict()
 
 
 def _fetch_local_recorded_entry_ids() -> Set[str]:
@@ -872,7 +882,7 @@ def audit_missed_fills(
 
         report.missed = owned
 
-    summary = report.summary()
+    summary = report.to_missed_fills_summary_dict()
     if report.has_missed_fills:
         logger.warning(
             "Missed-fills audit [window %s -> %s, product=%s, "

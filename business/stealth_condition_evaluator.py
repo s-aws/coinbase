@@ -50,10 +50,12 @@ class ConditionEvaluator(ABC):
     """Base class for all reveal condition evaluators."""
     
     @abstractmethod
-    def evaluate(self, 
-                market_data: Dict[str, Any],
-                condition_config: Dict[str, Any],
-                order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def evaluate_reveal_condition(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
         """
         Evaluate if reveal condition is met.
         
@@ -67,12 +69,26 @@ class ConditionEvaluator(ABC):
         """
         pass
 
+    def evaluate(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
+        """Backward-compatible alias for older callers."""
+        evaluate = getattr(self, "evaluate_reveal_condition")
+        return evaluate(market_data, condition_config, order_data)
+
 
 class PriceThresholdEvaluator(ConditionEvaluator):
     """Reveals when price crosses threshold and holds for minimum duration."""
     
-    def evaluate(self, market_data: Dict[str, Any], condition_config: Dict[str, Any], 
-                 order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def evaluate_reveal_condition(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check if price crossed threshold and held.
         
@@ -131,8 +147,12 @@ class CumulativeVolumeEvaluator(ConditionEvaluator):
         self.volume_buckets = defaultdict(lambda: defaultdict(float))
         self.bucket_start_time = defaultdict(lambda: defaultdict(lambda: datetime.utcnow()))
     
-    def evaluate(self, market_data: Dict[str, Any], condition_config: Dict[str, Any],
-                 order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def evaluate_reveal_condition(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check if cumulative volume at price level met.
         
@@ -187,8 +207,12 @@ class CumulativeVolumeEvaluator(ConditionEvaluator):
 class TimeDelayEvaluator(ConditionEvaluator):
     """Reveals after specified delay with random jitter."""
     
-    def evaluate(self, market_data: Dict[str, Any], condition_config: Dict[str, Any],
-                 order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def evaluate_reveal_condition(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check if minimum time delay passed.
         
@@ -221,8 +245,12 @@ class TimeDelayEvaluator(ConditionEvaluator):
 class SpreadEvaluator(ConditionEvaluator):
     """Reveals when bid-ask spread narrows below threshold."""
     
-    def evaluate(self, market_data: Dict[str, Any], condition_config: Dict[str, Any],
-                 order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def evaluate_reveal_condition(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check if spread narrowed enough.
         
@@ -271,8 +299,12 @@ class SpreadEvaluator(ConditionEvaluator):
 class ProductRatioEvaluator(ConditionEvaluator):
     """Reveals when price ratio between two products meets threshold."""
     
-    def evaluate(self, market_data: Dict[str, Any], condition_config: Dict[str, Any],
-                 order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def evaluate_reveal_condition(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check if product ratio triggered.
         
@@ -318,8 +350,12 @@ class ProductRatioEvaluator(ConditionEvaluator):
 class CompositeEvaluator(ConditionEvaluator):
     """Evaluates multiple conditions with AND/OR logic."""
     
-    def evaluate(self, market_data: Dict[str, Any], condition_config: Dict[str, Any],
-                 order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def evaluate_reveal_condition(
+        self,
+        market_data: Dict[str, Any],
+        condition_config: Dict[str, Any],
+        order_data: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check multiple conditions.
         
@@ -360,7 +396,12 @@ class CompositeEvaluator(ConditionEvaluator):
             if not evaluator:
                 continue
             
-            met, reason = evaluator.evaluate(market_data, cond, order_data)
+            met, reason = evaluate_stealth_reveal_condition(
+                evaluator,
+                market_data,
+                cond,
+                order_data,
+            )
             results.append(met)
             if reason:
                 reasons.append(f"{cond_type}: {reason}")
@@ -419,3 +460,14 @@ def get_evaluator(condition_type: str) -> ConditionEvaluator:
     
     evaluator_class = evaluators.get(condition_type.lower(), TimeDelayEvaluator)
     return evaluator_class()
+
+
+def evaluate_stealth_reveal_condition(
+    evaluator: ConditionEvaluator,
+    market_data: Dict[str, Any],
+    condition_config: Dict[str, Any],
+    order_data: Dict[str, Any],
+) -> Tuple[bool, Optional[str]]:
+    """Single dispatch point for reveal-condition evaluation."""
+    evaluate = getattr(evaluator, "evaluate_reveal_condition")
+    return evaluate(market_data, condition_config, order_data)

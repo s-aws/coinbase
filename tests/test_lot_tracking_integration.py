@@ -39,7 +39,7 @@ class TestFillLedger(unittest.TestCase):
             password="postgres"
         )
         # Initialize tables on test database
-        self._init_test_db_tables()
+        self._init_fill_ledger_tables()
         self.fill_repo = FillLedgerRepository(self.db)
     
     def tearDown(self):
@@ -47,7 +47,7 @@ class TestFillLedger(unittest.TestCase):
         # Optional: truncate table for clean state
         pass
     
-    def _init_test_db_tables(self):
+    def _init_fill_ledger_tables(self):
         """Initialize fill_ledger table on test database."""
         create_table_query = """
         CREATE TABLE IF NOT EXISTS fill_ledger (
@@ -129,11 +129,11 @@ class TestPositionLotBuilder(unittest.TestCase):
     def setUp(self):
         """Set up test infrastructure."""
         self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
-        self._init_test_db_tables()
+        self._init_position_lot_builder_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.builder = PositionLotBuilder(self.fill_repo)
     
-    def _init_test_db_tables(self):
+    def _init_position_lot_builder_tables(self):
         """Initialize fill_ledger table on test database."""
         create_table_query = """
         CREATE TABLE IF NOT EXISTS fill_ledger (
@@ -272,11 +272,11 @@ class TestOrderInterceptionLayer(unittest.TestCase):
     def setUp(self):
         """Set up interception layer."""
         self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
-        self._init_test_db_tables()
+        self._init_order_interception_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.layer = OrderInterceptionLayer(self.fill_repo, profit_margin_pct=0.5)
     
-    def _init_test_db_tables(self):
+    def _init_order_interception_tables(self):
         """Initialize fill_ledger table on test database."""
         create_table_query = """
         CREATE TABLE IF NOT EXISTS fill_ledger (
@@ -333,12 +333,12 @@ class TestConditionalExecution(unittest.TestCase):
     def setUp(self):
         """Set up conditional execution wrapper."""
         self.db = PostgresDB(host="127.0.0.1", port=9876, database="postgres")
-        self._init_test_db_tables()
+        self._init_conditional_execution_tables()
         self.fill_repo = FillLedgerRepository(self.db)
         self.interception = OrderInterceptionLayer(self.fill_repo)
         self.wrapper = ConditionalExecutionWrapper(self.interception)
     
-    def _init_test_db_tables(self):
+    def _init_conditional_execution_tables(self):
         """Initialize fill_ledger table on test database."""
         create_table_query = """
         CREATE TABLE IF NOT EXISTS fill_ledger (

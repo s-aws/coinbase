@@ -759,7 +759,7 @@ class TestRevealProfitabilityValidation:
         captured = {}
         helper_calls = {}
 
-        class FakeProfitValidator:
+        class ProfitableRevealValidator:
             def derive_follow_up_price_from_target(self, **kwargs):
                 helper_calls.update(kwargs)
                 parent_price = kwargs["parent_filled_price"]
@@ -770,7 +770,7 @@ class TestRevealProfitabilityValidation:
                 captured.update(kwargs)
                 return {"is_profitable": True, "net_profit": 12.34}
 
-        manager = StealthOrderManager(db_client=None, profit_validator=FakeProfitValidator())
+        manager = StealthOrderManager(db_client=None, profit_validator=ProfitableRevealValidator())
         stealth_order_id = "aa1e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,
@@ -808,7 +808,7 @@ class TestRevealProfitabilityValidation:
         """Test that unprofitable reveals raise RevealPricingError."""
         from core.exceptions import RevealPricingError
         
-        class FakeProfitValidator:
+        class UnprofitableRevealValidator:
             def derive_follow_up_price_from_target(self, **kwargs):
                 parent_price = kwargs["parent_filled_price"]
                 movement = kwargs["target_movement"]
@@ -817,7 +817,7 @@ class TestRevealProfitabilityValidation:
             def validate_order_profitability(self, **kwargs):
                 return {"is_profitable": False, "net_profit": -5.0}
 
-        manager = StealthOrderManager(db_client=None, profit_validator=FakeProfitValidator())
+        manager = StealthOrderManager(db_client=None, profit_validator=UnprofitableRevealValidator())
         stealth_order_id = "aa2e8400-e29b-41d4-a716-446655440000"
         manager.in_memory_orders[stealth_order_id] = {
             "stealth_order_id": stealth_order_id,

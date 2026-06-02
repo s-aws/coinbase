@@ -1350,7 +1350,9 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     }))
                     return
 
-                policy = RepricingPolicy.from_dict(order.get("anchor_repricing_policy_json"))
+                policy = RepricingPolicy.from_anchor_repricing_policy_dict(
+                    order.get("anchor_repricing_policy_json")
+                )
                 if not policy.enabled:
                     await websocket.send(json.dumps({
                         "type": "reprice_now_result",
@@ -2820,7 +2822,9 @@ def _calculate_repricing_statistics(orders: Dict[str, Any]) -> Dict[str, Any]:
 
         # Build typed view of the policy. Disabled policies short-circuit
         # without touching any field except ``enabled``.
-        policy = RepricingPolicy.from_dict(order_data.get("anchor_repricing_policy_json"))
+        policy = RepricingPolicy.from_anchor_repricing_policy_dict(
+            order_data.get("anchor_repricing_policy_json")
+        )
         if not policy.enabled:
             continue
 

@@ -130,7 +130,9 @@ def test_policy_reentry_uses_existing_reveal_path():
     manager.in_memory_orders[order["stealth_order_id"]] = order
     manager.reveal_order_slice = MagicMock(return_value="placement-2")
 
-    state = CancelReentryRuntimeState.from_dict(order["cancel_reentry_state_json"])
+    state = CancelReentryRuntimeState.from_cancel_reentry_runtime_state_dict(
+        order["cancel_reentry_state_json"]
+    )
     assert manager._apply_cancel_reentry_reenter(order, state, _evaluation()) is True
 
     manager.reveal_order_slice.assert_called_once_with("stealth-1")

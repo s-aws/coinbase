@@ -2,8 +2,9 @@
 
 Pins:
 
-* On-disk shape preserved \u2014 ``RepricingPolicy.from_dict({...}).to_dict()``
-  round-trips a fully-populated policy without changing keys or values.
+* On-disk shape preserved \u2014
+  ``RepricingPolicy.from_anchor_repricing_policy_dict({...})`` round-trips a
+  fully-populated policy without changing keys or values.
 * Disabled policies serialise to the minimal ``{"enabled": False}`` form
   that existing JSONB rows already use.
 * The dataclass is the **single source of truth** \u2014 no consumer site in
@@ -32,14 +33,14 @@ from core.models import RepricingPolicy
 def test_disabled_policy_serialises_minimally():
     p = RepricingPolicy.disabled()
     assert p.enabled is False
-    assert p.to_dict() == {"enabled": False}
+    assert p.to_anchor_repricing_policy_dict() == {"enabled": False}
 
 
 def test_from_dict_handles_none_and_empty():
-    assert RepricingPolicy.from_dict(None).enabled is False
-    assert RepricingPolicy.from_dict({}).enabled is False
+    assert RepricingPolicy.from_anchor_repricing_policy_dict(None).enabled is False
+    assert RepricingPolicy.from_anchor_repricing_policy_dict({}).enabled is False
     # enabled=False explicitly \u2192 still disabled
-    assert RepricingPolicy.from_dict({"enabled": False}).enabled is False
+    assert RepricingPolicy.from_anchor_repricing_policy_dict({"enabled": False}).enabled is False
 
 
 def test_round_trip_preserves_on_disk_shape():
@@ -70,7 +71,10 @@ def test_round_trip_preserves_on_disk_shape():
         "follow_up_retreat_distance": 0.005,
         "follow_up_retreat_jitter": 0.4,
     }
-    out = RepricingPolicy.from_dict(raw).to_dict()
+    out = (
+        RepricingPolicy.from_anchor_repricing_policy_dict(raw)
+        .to_anchor_repricing_policy_dict()
+    )
     assert out == raw
 
 
@@ -79,9 +83,19 @@ def test_round_trip_uses_opt_out_defaults_when_retreat_omitted():
     opt-out defaults (5bps / 0.5 jitter) written back. Pinned so a
     future tweak to defaults doesn't silently change persisted shape."""
     raw = {"enabled": True, "target_distance": 0.001, "max_distance": 0.005}
-    out = RepricingPolicy.from_dict(raw).to_dict()
+    out = (
+        RepricingPolicy.from_anchor_repricing_policy_dict(raw)
+        .to_anchor_repricing_policy_dict()
+    )
     assert out["follow_up_retreat_distance"] == 0.0005
     assert out["follow_up_retreat_jitter"] == 0.5
+
+
+def test_legacy_aliases_delegate_to_canonical_methods():
+    raw = {"enabled": True, "target_distance": 0.001, "max_distance": 0.005}
+    policy = getattr(RepricingPolicy, "from_dict")(raw)
+    assert policy == RepricingPolicy.from_anchor_repricing_policy_dict(raw)
+    assert getattr(policy, "to_dict")() == policy.to_anchor_repricing_policy_dict()
 
 
 def test_coerce_accepts_dataclass_dict_or_none():
@@ -95,7 +109,7 @@ def test_coerce_accepts_dataclass_dict_or_none():
 
 
 def test_unknown_enum_strings_fall_back_to_safe_defaults():
-    p = RepricingPolicy.from_dict({
+    p = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True,
         "reference_price_source": "garbage",
         "distance_type": "Z",
@@ -110,7 +124,7 @@ def test_unknown_enum_strings_fall_back_to_safe_defaults():
 # ---- behaviour helpers -------------------------------------------------------
 
 def test_compute_distance_bands_percent_buy():
-    p = RepricingPolicy.from_dict({
+    p = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True,
         "distance_type": "P",
         "target_distance": 0.001,    # 10 bps
@@ -123,7 +137,7 @@ def test_compute_distance_bands_percent_buy():
 
 
 def test_compute_distance_bands_absolute_sell():
-    p = RepricingPolicy.from_dict({
+    p = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True,
         "distance_type": "A",
         "target_distance": 50.0,
@@ -135,7 +149,7 @@ def test_compute_distance_bands_absolute_sell():
 
 
 def test_clamp_to_step_noop_when_slide_mode_off():
-    p = RepricingPolicy.from_dict({
+    p = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True, "target_distance": 1.0,
         "slide_mode": False, "max_step_per_reprice": 2.0,
     })
@@ -144,7 +158,7 @@ def test_clamp_to_step_noop_when_slide_mode_off():
 
 
 def test_clamp_to_step_caps_when_slide_mode_on():
-    p = RepricingPolicy.from_dict({
+    p = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True, "target_distance": 1.0,
         "slide_mode": True, "max_step_per_reprice": 3.0,
     })
@@ -157,11 +171,11 @@ def test_clamp_to_step_caps_when_slide_mode_on():
 
 
 def test_should_reprice_revealed_property():
-    on = RepricingPolicy.from_dict({
+    on = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True, "target_distance": 1.0,
         "allow_revealed_reprice": True,
     })
-    off = RepricingPolicy.from_dict({
+    off = RepricingPolicy.from_anchor_repricing_policy_dict({
         "enabled": True, "target_distance": 1.0,
         "allow_revealed_reprice": False,
     })
