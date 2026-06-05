@@ -2,6 +2,15 @@
 
 This repository contains the Coinbase Advanced Trading engine, which provides functionality for managing stealth orders, fills, and lifecycle control for trading on Coinbase Advanced Trade.
 
+## What To Expect
+
+- Multithreaded Coinbase Advanced Trade automation.
+- Stealth order lifecycle, reveal, repricing, cancel/re-entry, and fill reconciliation.
+- Browser and terminal dashboard surfaces.
+- A self-contained portfolio site: [Netflix AI Engineer Workbench](README.netflix-ai-engineer-site.md).
+
+For the ordered documentation index, start at [docs/README.md](docs/README.md).
+
 ## Setup
 
 To set up the environment, install the package in development mode:

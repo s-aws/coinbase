@@ -10,6 +10,7 @@ owners:
     context: docs/agents/AGENT_ARCHITECT.md
     owns:
       - docs/agents/**
+      - docs/README.md
       - docs/PUBLIC_ROADMAP.md
       - docs/REPO_CLEANUP_CLASSIFICATION.md
       - .agents/**
@@ -23,6 +24,7 @@ owners:
       - ai-context.md
       - AGENTS.md
       - agent.md
+      - README.md
       - .gitignore
       - .vscode/settings.json
       - genai_data/AGENT_*.md
@@ -135,6 +137,9 @@ owners:
       - App.*
       - index.*
       - gemini_dashboard.*
+      - netflix_ai_engineer_site/**
+      - README.netflix-ai-engineer-site.md
+      - docs/examples/netflix-ai-engineer-site.md
     test_owns:
       - tests/regression/test_dashboard_*.py
       - tests/regression/test_order_span_builder_ui.py
