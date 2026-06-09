@@ -70,10 +70,11 @@ from configuration import (
     apply_calculated_position_update,
     get_futures_positions,
     get_trading_product_id,
+    normalize_product_type as normalize_config_product_type,
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel, SpotFollowUpTrigger
 from core.stealth_order_manager import resolve_stealth_chain_root
 from core.exceptions import (
     OrderProcessingError,
@@ -1306,7 +1307,32 @@ class OrderEngine:
                     ),
                     target_movement=parent_target_movement,
                     target_movement_type=parent_target_movement_type,
+                    follow_up_trigger=SpotFollowUpTrigger.PARTIAL_FILL.value,
                 )
+                if stealth_follow_up_id is None:
+                    self.log_message(
+                        "warning",
+                        self.build_follow_up_log_payload(
+                            "partial_fill_follow_up_blocked",
+                            source_order={
+                                "client_order_id": client_order_id,
+                                "product_id": original_stealth_order.get("product_id"),
+                                "side": original_stealth_order.get("side"),
+                            },
+                            parent_client_order_id=parent_client_order_id,
+                            details={
+                                "reason": "spot_follow_up_policy_blocked",
+                                "follow_up_side": order_template["side"],
+                                "follow_up_trigger": (
+                                    SpotFollowUpTrigger.PARTIAL_FILL.value
+                                ),
+                            },
+                        ),
+                    )
+                    self.order_progress_tracker.release_follow_up_units(
+                        client_order_id, units_to_create
+                    )
+                    return 0
 
                 # Flat hierarchy: register the follow-up against the chain ROOT,
                 # never against the placement uuid that just settled (which is
@@ -1689,21 +1715,14 @@ class OrderEngine:
             >>> ptype
             'SPOT'
         """
-        product_type = str(order.get("product_type") or "").upper()
-        if product_type in {"SPOT", "FUTURE"}:
-            return product_type
-
         product_id = order.get("product_id")
         with self.orderbook_lock:
             product = self.orderbook.product.get(product_id, {})
 
-        configured_product_type = str(product.get("product_type") or "").upper()
-        if configured_product_type in {"SPOT", "FUTURE"}:
-            return configured_product_type
-
-        if product_id and product_id.endswith("-CDE"):
-            return "FUTURE"
-        return "SPOT"
+        return normalize_config_product_type(
+            order,
+            products={product_id: product} if product_id else None,
+        )
 
     # Note: resolve_order_size is now imported from calculation.resolver
 
@@ -3175,7 +3194,7 @@ class OrderEngine:
         if not order:
             return {}
 
-        if self.normalize_product_type(order) == ProductType.FUTURE:
+        if self.normalize_product_type(order) == ProductType.FUTURE.value:
             product_id = order.get("product_id")
             if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
                 self.refresh_positions_if_needed(product_id)
@@ -3205,7 +3224,7 @@ class OrderEngine:
         if not order:
             return {}
 
-        if self.normalize_product_type(order) == ProductType.FUTURE:
+        if self.normalize_product_type(order) == ProductType.FUTURE.value:
             product_id = order.get("product_id")
             if product_id not in snapshot.get("positions", {}).get("FUTURE", {}):
                 self.refresh_positions_if_needed(product_id)
@@ -3667,7 +3686,8 @@ class OrderEngine:
                     reveal_pricing_policy=None,  # Inherit from original
                     notes=f"Auto follow-up from cancelled order",
                     target_movement=parent_target_movement,
-                    target_movement_type=parent_target_movement_type
+                    target_movement_type=parent_target_movement_type,
+                    follow_up_trigger=SpotFollowUpTrigger.CANCELLED.value,
                 )
 
                 # Defensive: if the follow-up creator returned None the
@@ -4226,8 +4246,32 @@ class OrderEngine:
                         reveal_pricing_policy=None,  # Inherit from original
                         notes=f"Auto follow-up from stealth order reveal",
                         target_movement=parent_target_movement,
-                        target_movement_type=parent_target_movement_type
+                        target_movement_type=parent_target_movement_type,
+                        follow_up_trigger=SpotFollowUpTrigger.FILLED.value,
                     )
+                    if stealth_follow_up_id is None:
+                        self.log_message(
+                            "warning",
+                            self.build_follow_up_log_payload(
+                                "stealth_follow_up_blocked",
+                                source_order=order,
+                                parent_client_order_id=parent_client_order_id,
+                                attempted_new_order={
+                                    "product_id": product_id,
+                                    "side": order_template["side"],
+                                    "price": follow_up_price,
+                                    "size": adjusted_follow_up_size,
+                                },
+                                details={
+                                    "reason": "spot_follow_up_policy_blocked",
+                                    "follow_up_trigger": (
+                                        SpotFollowUpTrigger.FILLED.value
+                                    ),
+                                },
+                            ),
+                        )
+                        self.complete_follow_up_processing("filled", client_order_id)
+                        return
                     
                     # Register stealth follow-up as child of the chain ROOT.
                     # Single canonical resolver â€” see resolve_stealth_chain_root.

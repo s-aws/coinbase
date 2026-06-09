@@ -55,7 +55,7 @@ def test_create_follow_up_uses_root_parent_and_inherits_pricing_policy():
     root_parent_id = "880e8400-e29b-41d4-a716-446655440000"
     manager.in_memory_orders[original_stealth_order_id] = {
         "stealth_order_id": original_stealth_order_id,
-        "product_id": "BTC-USDC",
+        "product_id": "BIP-20DEC30-CDE",
         "side": "SELL",
         "total_size": 1.0,
         "limit_price": 50000.0,

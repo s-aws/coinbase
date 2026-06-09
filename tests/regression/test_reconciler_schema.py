@@ -183,6 +183,26 @@ class TestSchemaParser:
         assert "status" in schema["order_parent"]
         assert "exchange_entry_id" in schema["fill_ledger"]
 
+    @pytest.mark.regression
+    def test_fill_ledger_client_order_id_schema_accepts_long_exchange_ids(self):
+        text = SCHEMA_PATH.read_text(encoding="utf-8")
+
+        assert "client_order_id VARCHAR(128)" in text
+        assert (
+            "ALTER TABLE fill_ledger ALTER COLUMN client_order_id TYPE VARCHAR(128)"
+            in text
+        )
+
+    @pytest.mark.regression
+    def test_fill_ledger_price_schema_preserves_low_price_spot_fills(self):
+        text = SCHEMA_PATH.read_text(encoding="utf-8")
+
+        assert "price DECIMAL(24, 12) NOT NULL" in text
+        assert (
+            "ALTER TABLE fill_ledger ALTER COLUMN price TYPE DECIMAL(24, 12)"
+            in text
+        )
+
 
 class TestReconcilerSqlMatchesSchema:
     """The actual guard: every SQL ref in the reconciler must exist."""

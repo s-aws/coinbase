@@ -49,7 +49,7 @@ def _build_manager_with_filled_child(retreat_distance: float, retreat_jitter: fl
     filled_child_id = "filled-child-bbb"
     manager.in_memory_orders[filled_child_id] = {
         "stealth_order_id": filled_child_id,
-        "product_id": "BTC-USDC",
+        "product_id": "BIP-20DEC30-CDE",
         "side": "SELL",
         "total_size": 1.0,
         "limit_price": 50_000.0,
@@ -85,7 +85,7 @@ def test_follow_up_creation_applies_retreat_from_inherited_policy():
     sent_price = kwargs["limit_price"]
     # BUY retreat: posted price must be LOWER than the caller's anchor.
     # 50000 * (1 - 0.005) = 49750. Allow a bit of room for tick-alignment
-    # (BTC-USDC price_increment is "1" per products.json so no shift here,
+    # (BIP-20DEC30-CDE price_increment is "5" per products.json so no shift here,
     # but other products tick differently).
     assert sent_price < 50_000.0
     assert sent_price == pytest.approx(49_750.0, abs=1.0)
@@ -126,7 +126,7 @@ def test_disabled_policy_skips_retreat_in_follow_up_creation():
     # Disabled policy via explicit enabled=False.
     manager.in_memory_orders["filled-child"] = {
         "stealth_order_id": "filled-child",
-        "product_id": "BTC-USDC",
+        "product_id": "BIP-20DEC30-CDE",
         "side": "SELL",
         "total_size": 1.0,
         "limit_price": 50_000.0,
@@ -236,7 +236,7 @@ def test_follow_up_audit_records_no_op_when_retreat_disabled():
     manager = StealthOrderManager(db_client=None)
     manager.in_memory_orders["filled-child"] = {
         "stealth_order_id": "filled-child",
-        "product_id": "BTC-USDC",
+        "product_id": "BIP-20DEC30-CDE",
         "side": "SELL",
         "total_size": 1.0,
         "limit_price": 50_000.0,

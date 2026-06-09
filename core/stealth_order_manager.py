@@ -73,7 +73,16 @@ from configuration import (
     quantize_to_increment,
     safe_float,
 )
+from core.action_condition_guard import (
+    ActionConditionGuard,
+    collect_spot_planned_budget_commitments,
+    fetch_account_wallets,
+    get_action_condition_guard_policy,
+    normalize_action_guard_wallet_policy,
+    rest_credentials_configured,
+)
 from core.enums import (
+    ActionGuardPhase,
     CancelReentryDecision,
     CancelReentryState,
     FollowUpRevealDirection,
@@ -81,11 +90,13 @@ from core.enums import (
     OrderStatus,
     PostFillRetreatReason,
     PostFillRetreatScope,
+    ProductCapability,
     RepricingReferenceSource,
     RevealConditionType,
     RevealPricingPolicy,
     RevealPriceSource,
     RoundingDirection,
+    SpotFollowUpTrigger,
     StealthLifecycleEvent,
     StealthOrderStatus,
 )
@@ -96,6 +107,8 @@ from core.exceptions import (
     StealthOrderNotFoundError,
     StealthOrderPersistenceError,
 )
+from core.product_capability import evaluate_product_capability
+from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 from business.cancel_reentry_policy import (
     CancelReentryPolicy,
     CancelReentryRuntimeState,
@@ -217,7 +230,15 @@ class StealthOrderManager:
         ... )
     """
     
-    def __init__(self, db_client, log_callback=None, order_placement_hooks=None, profit_validator=None):
+    def __init__(
+        self,
+        db_client,
+        log_callback=None,
+        order_placement_hooks=None,
+        profit_validator=None,
+        action_condition_guard_policy=None,
+        fill_ledger_repo=None,
+    ):
         """
         Initialize StealthOrderManager.
         
@@ -226,6 +247,8 @@ class StealthOrderManager:
             log_callback: Optional logging callback (log_type, message). Defaults to proper logging_service.
             order_placement_hooks: Optional OrderPlacementHookRegistry for pre/post submission hooks.
             profit_validator: Optional ProfitValidator for reveal-time profitability revalidation.
+            action_condition_guard_policy: Optional account/action guard policy override.
+            fill_ledger_repo: Optional FillLedgerRepository for known spot inventory authority.
         """
         self.db_client = db_client
         self.logger = get_logger("StealthOrderManager")
@@ -234,10 +257,13 @@ class StealthOrderManager:
         self._market_cache: Dict[str, MarketData] = {}  # product_id -> latest market snapshot
         self._placed_order_index = {}  # Index: placed_order_id -> stealth_order (O(1) lookup)
         self.profit_validator = profit_validator
+        self.fill_ledger_repo = fill_ledger_repo
         # Throttle map for the "reveal returned size=0" diagnostic. Keyed
         # by stealth_order_id, value is the unix-timestamp of the last
         # emitted log line. See ``_maybe_log_no_slice``.
         self._no_slice_log_emitted_at: Dict[str, float] = {}
+        self.action_condition_guard_policy = action_condition_guard_policy
+        self._action_guard_blocked_until: Dict[str, float] = {}
         
         # Order placement hooks for extensibility
         if order_placement_hooks is None:
@@ -1030,6 +1056,34 @@ class StealthOrderManager:
             if normalized_side == "SELL" and bid and desired_price <= bid:
                 return False
 
+        action_guard_ok, action_guard_failure = (
+            self._evaluate_replacement_action_condition_guard(
+                phase=ActionGuardPhase.REVEAL,
+                product_id=str(order.get("product_id") or ""),
+                side=str(order.get("side") or ""),
+                size=remaining_size,
+                limit_price=desired_price,
+                existing_side=str(order.get("side") or ""),
+                existing_size=remaining_size,
+                existing_limit_price=current_price,
+                stealth_order_id=order.get("stealth_order_id"),
+                parent_order_id=order.get("parent_order_id"),
+                replaced_client_order_id=state.get(
+                    "active_placement_client_order_id"
+                ),
+                replaced_exchange_order_id=exchange_order_id,
+            )
+        )
+        if not action_guard_ok:
+            self.log_callback(
+                "info",
+                {
+                    "event": "stealth_anchor_reprice_blocked_by_action_guard",
+                    **(action_guard_failure or {}),
+                },
+            )
+            return False
+
         REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
 
         placement_client_order_id = str(uuid.uuid4())
@@ -1240,6 +1294,18 @@ class StealthOrderManager:
                 stage="validate",
             )
 
+        capability = evaluate_product_capability(
+            product_id=order.get("product_id", ""),
+            capability=ProductCapability.MOVE_REVEALED,
+        )
+        if not capability.allowed:
+            raise StealthMoveError(
+                f"cannot move stealth order {stealth_order_id!r}: "
+                f"{capability.reason}",
+                stealth_order_id=stealth_order_id,
+                stage="validate",
+            )
+
         status = str(order.get("status") or "")
         if status != StealthOrderStatus.REVEALED.value:
             raise StealthMoveError(
@@ -1283,6 +1349,40 @@ class StealthOrderManager:
             state.get("active_exchange_price"),
             default=safe_float(order.get("limit_price"), default=0.0),
         )
+
+        remaining_size = safe_float(order.get("remaining_size"), default=0.0) or 0.0
+        action_guard_ok, action_guard_failure = (
+            self._evaluate_replacement_action_condition_guard(
+                phase=ActionGuardPhase.REVEAL,
+                product_id=str(order.get("product_id") or ""),
+                side=str(order.get("side") or ""),
+                size=remaining_size,
+                limit_price=new_price,
+                existing_side=str(order.get("side") or ""),
+                existing_size=remaining_size,
+                existing_limit_price=old_submitted_price,
+                stealth_order_id=stealth_order_id,
+                parent_order_id=order.get("parent_order_id"),
+                replaced_client_order_id=state.get(
+                    "active_placement_client_order_id"
+                ),
+                replaced_exchange_order_id=str(old_exchange_order_id),
+            )
+        )
+        if not action_guard_ok:
+            self.log_callback(
+                "info",
+                {
+                    "event": "stealth_move_planning_blocked_by_action_guard",
+                    **(action_guard_failure or {}),
+                },
+            )
+            raise StealthMoveError(
+                f"cannot move stealth order {stealth_order_id!r}: "
+                f"{(action_guard_failure or {}).get('reason', 'blocked')}",
+                stealth_order_id=stealth_order_id,
+                stage="validate",
+            )
 
         market_data = self._get_current_market_data(order.get("product_id", "")) or {}
 
@@ -1379,6 +1479,49 @@ class StealthOrderManager:
                     stage="validate",
                 )
 
+            new_price = safe_float(
+                plan.reveal_plan.submitted_limit_price,
+                default=plan.new_configured_limit_price,
+            )
+            current_state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            remaining_size = (
+                safe_float(order.get("remaining_size"), default=0.0) or 0.0
+            )
+            action_guard_ok, action_guard_failure = (
+                self._evaluate_replacement_action_condition_guard(
+                    phase=ActionGuardPhase.REVEAL,
+                    product_id=str(order.get("product_id") or ""),
+                    side=str(order.get("side") or ""),
+                    size=remaining_size,
+                    limit_price=new_price,
+                    existing_side=str(order.get("side") or ""),
+                    existing_size=remaining_size,
+                    existing_limit_price=plan.old_submitted_price,
+                    stealth_order_id=sid,
+                    parent_order_id=order.get("parent_order_id"),
+                    replaced_client_order_id=current_state.get(
+                        "active_placement_client_order_id"
+                    ),
+                    replaced_exchange_order_id=plan.old_exchange_order_id,
+                )
+            )
+            if not action_guard_ok:
+                self.log_callback(
+                    "info",
+                    {
+                        "event": "stealth_move_execution_blocked_by_action_guard",
+                        **(action_guard_failure or {}),
+                    },
+                )
+                raise StealthMoveError(
+                    f"cannot execute move for stealth order {sid!r}: "
+                    f"{(action_guard_failure or {}).get('reason', 'blocked')}",
+                    stealth_order_id=sid,
+                    stage="validate",
+                )
+
             # === CANCEL ===
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
@@ -1429,10 +1572,6 @@ class StealthOrderManager:
 
             # === PLACE ===
             placement_client_order_id = str(uuid.uuid4())
-            new_price = safe_float(
-                plan.reveal_plan.submitted_limit_price,
-                default=plan.new_configured_limit_price,
-            )
             try:
                 with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
                     order_result = REST_CLIENT.place_limit_order(
@@ -1666,6 +1805,13 @@ class StealthOrderManager:
         """Apply ticker-anchored repricing for eligible stealth orders on one product."""
         from core.enums import StealthMutationKind
 
+        capability = evaluate_product_capability(
+            product_id=product_id,
+            capability=ProductCapability.REPRICE_REVEALED,
+        )
+        if not capability.allowed:
+            return 0
+
         processed = 0
         market_data = self._get_current_market_data(product_id)
         if (market_data or {}).get("source") != "ticker":
@@ -1801,6 +1947,53 @@ class StealthOrderManager:
 
                 if order.get("status") in {StealthOrderStatus.HIDDEN.value, StealthOrderStatus.PENDING.value, StealthOrderStatus.TRIGGERED.value}:
                     if not self._should_skip_anchor_reprice(state, policy, desired_price, current_price, outside_max, market_data):
+                        action_guard_ok, action_guard_failure = (
+                            self._evaluate_action_condition_guard(
+                                phase=ActionGuardPhase.PLANNING,
+                                product_id=str(order.get("product_id") or ""),
+                                side=str(order.get("side") or ""),
+                                size=(
+                                    safe_float(
+                                        order.get("remaining_size"),
+                                        default=0.0,
+                                    )
+                                    or 0.0
+                                ),
+                                limit_price=desired_price,
+                                stealth_order_id=stealth_order_id,
+                                parent_order_id=order.get("parent_order_id"),
+                            )
+                        )
+                        if not action_guard_ok:
+                            state["reprice_reason"] = "blocked_by_action_guard"
+                            state["last_action_guard_block_reason"] = (
+                                action_guard_failure or {}
+                            ).get("reason")
+                            self.log_callback(
+                                "info",
+                                {
+                                    "event": (
+                                        "stealth_anchor_reprice_hidden_blocked_"
+                                        "by_action_guard"
+                                    ),
+                                    **(action_guard_failure or {}),
+                                },
+                            )
+                            state["next_reprice_at"] = (
+                                now + timedelta(
+                                    seconds=self._next_anchor_reprice_seconds(
+                                        policy,
+                                        current_price,
+                                        target_prices["target_price"],
+                                        max_boundary_price,
+                                        market_data,
+                                    )
+                                )
+                            ).isoformat()
+                            order["anchor_repricing_state_json"] = state
+                            self._update_stealth_order(order)
+                            continue
+
                         # Track reveal_condition price thresholds before mutating limit_price
                         # so the helper can capture the pre-reprice baseline on first call.
                         self._apply_reveal_condition_price_tracking(order, state, desired_price)
@@ -1858,6 +2051,13 @@ class StealthOrderManager:
 
     def process_cancel_reentry_for_product(self, product_id: str) -> int:
         """Apply cancel/re-entry policy for eligible stealth orders on one product."""
+        capability = evaluate_product_capability(
+            product_id=product_id,
+            capability=ProductCapability.CANCEL_REENTRY,
+        )
+        if not capability.allowed:
+            return 0
+
         processed = 0
         market_data = self._get_current_market_data(product_id)
         if (market_data or {}).get("source") != "ticker":
@@ -2256,6 +2456,152 @@ class StealthOrderManager:
             return tm, str(tm_type), "stealth_order"
 
         return None, None, "unavailable"
+
+    # ------------------------------------------------------------------
+    # Action-condition guard (planning + reveal)
+    # ------------------------------------------------------------------
+
+    def _get_action_condition_guard_policy(self) -> Dict[str, Any]:
+        """Return configured action-condition policy for account-level gates."""
+        return get_action_condition_guard_policy(
+            getattr(self, "action_condition_guard_policy", None)
+        )
+
+    @staticmethod
+    def _rest_credentials_configured() -> bool:
+        return rest_credentials_configured()
+
+    def _get_account_wallets_for_action_guard(self) -> Dict[str, Any]:
+        return fetch_account_wallets()
+
+    def _get_spot_planned_budget_commitments(
+        self,
+        *,
+        exclude_stealth_order_id: Optional[str] = None,
+    ) -> Dict[str, float]:
+        """Return local pre-exchange spot commitments by currency."""
+        return collect_spot_planned_budget_commitments(
+            getattr(self, "in_memory_orders", {}),
+            exclude_stealth_order_id=exclude_stealth_order_id,
+            product_metadata=PRODUCT_METADATA,
+        )
+
+    def _evaluate_spot_lot_authority_for_action(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        size: float,
+        limit_price: float,
+    ) -> Dict[str, Any]:
+        """Return known-cost inventory authority for a spot sell action."""
+        from business.spot_inventory_authority import (
+            evaluate_spot_sell_lot_authority,
+        )
+
+        return evaluate_spot_sell_lot_authority(
+            product_id=product_id,
+            side=side,
+            size=size,
+            limit_price=limit_price,
+            fill_ledger_repo=getattr(self, "fill_ledger_repo", None),
+        ).to_dict()
+
+    def _evaluate_action_condition_guard(
+        self,
+        *,
+        phase: ActionGuardPhase,
+        product_id: str,
+        side: str,
+        size: float,
+        limit_price: float,
+        stealth_order_id: Optional[str] = None,
+        parent_order_id: Optional[str] = None,
+    ) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """Evaluate account/action conditions for a planned or revealed action."""
+        policy = self._get_action_condition_guard_policy()
+        return ActionConditionGuard(
+            policy=policy,
+            credentials_configured=self._rest_credentials_configured,
+            wallet_fetcher=self._get_account_wallets_for_action_guard,
+            planned_budget_fetcher=(
+                lambda: self._get_spot_planned_budget_commitments(
+                    exclude_stealth_order_id=stealth_order_id,
+                )
+            ),
+            lot_authority_evaluator=self._evaluate_spot_lot_authority_for_action,
+        ).evaluate(
+            phase=phase,
+            product_id=product_id,
+            side=side,
+            size=size,
+            limit_price=limit_price,
+            stealth_order_id=stealth_order_id,
+            parent_order_id=parent_order_id,
+        )
+
+    def _evaluate_replacement_action_condition_guard(
+        self,
+        *,
+        phase: ActionGuardPhase,
+        product_id: str,
+        side: str,
+        size: float,
+        limit_price: float,
+        existing_side: Optional[str] = None,
+        existing_size: Optional[float] = None,
+        existing_limit_price: Optional[float] = None,
+        stealth_order_id: Optional[str] = None,
+        parent_order_id: Optional[str] = None,
+        replaced_client_order_id: Optional[str] = None,
+        replaced_exchange_order_id: Optional[str] = None,
+    ) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """Evaluate account/action conditions for a live replacement."""
+        policy = self._get_action_condition_guard_policy()
+        return ActionConditionGuard(
+            policy=policy,
+            credentials_configured=self._rest_credentials_configured,
+            wallet_fetcher=self._get_account_wallets_for_action_guard,
+            planned_budget_fetcher=(
+                lambda: self._get_spot_planned_budget_commitments(
+                    exclude_stealth_order_id=stealth_order_id,
+                )
+            ),
+        ).evaluate_replacement(
+            phase=phase,
+            product_id=product_id,
+            side=side,
+            size=size,
+            limit_price=limit_price,
+            existing_side=existing_side,
+            existing_size=existing_size,
+            existing_limit_price=existing_limit_price,
+            stealth_order_id=stealth_order_id,
+            parent_order_id=parent_order_id,
+            replaced_client_order_id=replaced_client_order_id,
+            replaced_exchange_order_id=replaced_exchange_order_id,
+        )
+
+    def _get_action_guard_blocked_until(self, stealth_order_id: str) -> float:
+        blocked_until = getattr(self, "_action_guard_blocked_until", None)
+        if not isinstance(blocked_until, dict):
+            blocked_until = {}
+            self._action_guard_blocked_until = blocked_until
+        return safe_float(blocked_until.get(stealth_order_id), default=0.0) or 0.0
+
+    def _set_action_guard_blocked_until(self, stealth_order_id: str) -> None:
+        policy = self._get_action_condition_guard_policy()
+        wallet_policy = normalize_action_guard_wallet_policy(policy)
+        retry_seconds = safe_float(
+            wallet_policy.get("blocked_retry_seconds"),
+            default=5.0,
+        )
+        retry_seconds = retry_seconds if retry_seconds and retry_seconds > 0 else 5.0
+        blocked_until = getattr(self, "_action_guard_blocked_until", None)
+        if not isinstance(blocked_until, dict):
+            blocked_until = {}
+            self._action_guard_blocked_until = blocked_until
+        blocked_until[stealth_order_id] = time.monotonic() + retry_seconds
 
     # ------------------------------------------------------------------
     # Profitability-failure log throttling (paired with reveal_order_slice)
@@ -2862,6 +3208,66 @@ class StealthOrderManager:
             )
         total_size = size_check.size
 
+        capability = evaluate_product_capability(
+            product_id=product_id,
+            capability=ProductCapability.STEALTH_PLANNING,
+        )
+        if not capability.allowed:
+            raise OrderCreationError(
+                "Stealth order rejected by product capability policy: "
+                f"{capability.reason}",
+                product_id=product_id,
+                capability=capability.to_dict(),
+            )
+
+        normalized_cancel_reentry_policy = self._normalize_cancel_reentry_policy(cancel_reentry_policy)
+        if normalized_cancel_reentry_policy.get("enabled"):
+            capability = evaluate_product_capability(
+                product_id=product_id,
+                capability=ProductCapability.CANCEL_REENTRY,
+            )
+            if not capability.allowed:
+                raise OrderCreationError(
+                    "Stealth order rejected by product capability policy: "
+                    f"{capability.reason}",
+                    product_id=product_id,
+                    capability=capability.to_dict(),
+                )
+
+        if enable_hotpoint_replication:
+            capability = evaluate_product_capability(
+                product_id=product_id,
+                capability=ProductCapability.HOTPOINT_AUTO_PLACEMENT,
+            )
+            if not capability.allowed:
+                raise OrderCreationError(
+                    "Stealth order rejected by product capability policy: "
+                    f"{capability.reason}",
+                    product_id=product_id,
+                    capability=capability.to_dict(),
+                )
+
+        action_guard_ok, action_guard_failure = self._evaluate_action_condition_guard(
+            phase=ActionGuardPhase.PLANNING,
+            product_id=product_id,
+            side=side,
+            size=float(total_size),
+            limit_price=float(limit_price),
+            stealth_order_id=stealth_order_id,
+            parent_order_id=parent_order_id,
+        )
+        if not action_guard_ok:
+            self.log_callback("warning", {
+                "event": "stealth_order_planning_blocked_by_action_guard",
+                **(action_guard_failure or {}),
+            })
+            raise OrderCreationError(
+                "Stealth order rejected by action-condition guard: "
+                f"{(action_guard_failure or {}).get('reason', 'blocked')}",
+                product_id=product_id,
+                guard=action_guard_failure,
+            )
+
         # Pre-flight profitability check (root orders only). Catches the
         # "target_movement below fee floor" misconfiguration at submission
         # rather than 30 minutes later when the reveal condition triggers
@@ -2885,7 +3291,6 @@ class StealthOrderManager:
                 )
 
         normalized_anchor_repricing_policy = self._normalize_anchor_repricing_policy(anchor_repricing_policy)
-        normalized_cancel_reentry_policy = self._normalize_cancel_reentry_policy(cancel_reentry_policy)
         normalized_post_fill_retreat_policy = self._normalize_post_fill_retreat_policy(post_fill_retreat_policy)
 
         order_data = {
@@ -3195,6 +3600,59 @@ class StealthOrderManager:
                         },
                     )
                     return None
+
+            blocked_until = self._get_action_guard_blocked_until(stealth_order_id)
+            if blocked_until > time.monotonic():
+                return None
+
+            capability = evaluate_product_capability(
+                product_id=order["product_id"],
+                capability=ProductCapability.STEALTH_REVEAL,
+            )
+            if not capability.allowed:
+                self.log_callback("warning", {
+                    "event": "stealth_order_reveal_blocked_by_product_capability",
+                    **capability.to_dict(),
+                    "stealth_order_id": stealth_order_id,
+                })
+                self._dispatch_lifecycle_event(
+                    stealth_order_id=stealth_order_id,
+                    event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                    order_data=order,
+                    extra={
+                        "failure_reason": capability.reason,
+                        **capability.to_dict(),
+                    },
+                )
+                return None
+
+            action_guard_ok, action_guard_failure = self._evaluate_action_condition_guard(
+                phase=ActionGuardPhase.REVEAL,
+                product_id=order["product_id"],
+                side=order["side"],
+                size=float(slice_size),
+                limit_price=float(reveal_plan.submitted_limit_price),
+                stealth_order_id=stealth_order_id,
+                parent_order_id=order.get("parent_order_id"),
+            )
+            if not action_guard_ok:
+                self._set_action_guard_blocked_until(stealth_order_id)
+                self.log_callback("warning", {
+                    "event": "stealth_order_reveal_blocked_by_action_guard",
+                    **(action_guard_failure or {}),
+                })
+                self._dispatch_lifecycle_event(
+                    stealth_order_id=stealth_order_id,
+                    event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                    order_data=order,
+                    extra={
+                        "failure_reason": (
+                            action_guard_failure or {}
+                        ).get("reason", "action-condition guard blocked reveal"),
+                        **(action_guard_failure or {}),
+                    },
+                )
+                return None
         except RevealOrderSliceError as e:
             # Order not found or slice failed
             self.log_callback("error", {
@@ -4440,6 +4898,7 @@ class StealthOrderManager:
         target_movement_type: str = "P",
         cancel_reentry_policy: Optional[Dict[str, Any]] = None,
         post_fill_retreat_policy: Optional[Dict[str, Any]] = None,
+        follow_up_trigger: Optional[str] = None,
     ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
@@ -4463,12 +4922,31 @@ class StealthOrderManager:
                 inherits from original only when that policy allows follow-up inheritance.
             post_fill_retreat_policy: Optional override for same-side post-fill retreat.
                 If None, inherits from original only when that policy allows follow-up inheritance.
+            follow_up_trigger: Event that requested this follow-up
+                (filled, partial_fill, or cancelled).
             
         Returns:
             New stealth_order_id if created, None if original not found
         """
         original_order = self._get_stealth_order(original_stealth_order_id)
         if not original_order:
+            return None
+
+        spot_follow_up = evaluate_spot_follow_up_policy(
+            product_id=original_order["product_id"],
+            source_side=original_order.get("side"),
+            follow_up_side=side,
+            trigger=follow_up_trigger or SpotFollowUpTrigger.FILLED.value,
+        )
+        if not spot_follow_up.allowed:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "spot_follow_up_blocked",
+                    "original_stealth_order_id": original_stealth_order_id,
+                    **spot_follow_up.to_dict(),
+                },
+            )
             return None
         
         # Use provided reveal condition or inherit from original

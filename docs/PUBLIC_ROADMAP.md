@@ -17,6 +17,8 @@ private model routing, private release planning, or internal research notes.
 - Keep dashboard message contracts synchronized with implemented behavior.
 - Keep stealth exchange-truth invariants documented and covered by regression
   tests.
+- Bring spot trading to a readiness baseline before adding spot-specific
+  strategy features. See [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md).
 - Reduce root-level historical/debug clutter by archiving or moving it behind
   explicit owners.
 
@@ -29,4 +31,3 @@ Private repo only:
 - private release scripts and release-only tests
 - private future roadmap and research notes
 - agent run logs and eval output
-

@@ -107,6 +107,62 @@
             line-height: 1.45;
         }
 
+        .readiness-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .readiness-item {
+            background: rgba(0, 0, 0, 0.24);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            padding: 10px;
+            min-height: 64px;
+        }
+
+        .readiness-label {
+            color: #9ca3af;
+            font-size: 10px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .readiness-value {
+            color: #e5e7eb;
+            font-size: 13px;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .readiness-row {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .readiness-row:last-child {
+            border-bottom: none;
+        }
+
+        .readiness-muted {
+            color: #9ca3af;
+            font-size: 11px;
+        }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            margin: 2px 4px 2px 0;
+            text-transform: uppercase;
+        }
+
+        .mode-enabled { background: rgba(74, 222, 128, 0.18); color: #4ade80; }
+        .mode-conditional { background: rgba(250, 204, 21, 0.18); color: #facc15; }
+        .mode-disabled, .mode-not_applicable { background: rgba(248, 113, 113, 0.16); color: #f87171; }
+
         /* Table Styles */
         .orders-table {
             width: 100%;
@@ -657,6 +713,7 @@
             margin-bottom: 15px;
             font-size: 12px;
             display: none;
+            white-space: pre-line;
         }
 
         .message.show {
@@ -820,6 +877,39 @@
 
         <div class="content">
             <div class="right-sidebar">
+                <div class="section">
+                    <h2>Spot Readiness</h2>
+                    <div class="readiness-grid" id="spot-readiness-panel">
+                        <div class="readiness-item">
+                            <div class="readiness-label">Status</div>
+                            <div class="readiness-value">Waiting for dashboard data</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="requestSpotReadiness()" style="margin-top: 10px;">Refresh</button>
+                </div>
+
+                <div class="section">
+                    <h2>Spot Sweep Status</h2>
+                    <div class="readiness-grid" id="spot-sweep-status-panel">
+                        <div class="readiness-item">
+                            <div class="readiness-label">Status</div>
+                            <div class="readiness-value">Waiting for sweep ledger</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="requestSpotSweepStatus()" style="margin-top: 10px;">Refresh</button>
+                </div>
+
+                <div class="section">
+                    <h2>Spot Sweep P/L</h2>
+                    <div class="readiness-grid" id="spot-sweep-pnl-panel">
+                        <div class="readiness-item">
+                            <div class="readiness-label">Status</div>
+                            <div class="readiness-value">Waiting for P/L data</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="requestSpotSweepPnl()" style="margin-top: 10px;">Refresh</button>
+                </div>
+
                 <!-- Create Order Section -->
                 <div class="section">
                     <h2>➕ Create New Order</h2>
@@ -1994,6 +2084,9 @@
         let accordionState = {};  // Track which parents are expanded: { parent_id: true/false }
         let engineStatusData = {};
         let liveTickers = {};  // product_id -> { price, bid, ask, mid, ts } from ticker + spread_snapshot
+        let spotReadinessData = null;
+        let spotSweepStatusData = null;
+        let spotSweepPnlData = null;
 
         function initWebSocket() {
             try {
@@ -2006,6 +2099,9 @@
                     ws.send(JSON.stringify({
                         type: "request_stealth_orders"
                     }));
+                    requestSpotReadiness();
+                    requestSpotSweepStatus();
+                    requestSpotSweepPnl();
                 };
 
                 ws.onmessage = (event) => {
@@ -2019,6 +2115,18 @@
                         updateProductDropdown();
                         addProductChangeListener();  // Add event listener for product selection
                         console.log(`Loaded ${allProducts.length} products from WebSocket`);
+                    } else if (data.type === "spot_readiness") {
+                        spotReadinessData = data;
+                        updateSpotReadinessPanel();
+                    } else if (data.type === "spot_sweep_status") {
+                        spotSweepStatusData = data;
+                        updateSpotSweepStatusPanel();
+                    } else if (data.type === "spot_sweep_pnl") {
+                        spotSweepPnlData = data;
+                        updateSpotSweepPnlPanel();
+                    } else if (data.type === "order_response") {
+                        const messageType = data.status === 'error' ? 'error' : 'success';
+                        showMessage(formatDashboardResponseMessage(data), messageType);
                     } else if (data.type === "state_update") {
                         // Initial state or periodic update from server
                         if (data.data && data.data.engine_status) {
@@ -2226,7 +2334,7 @@
                         handleImportResponse(data);
                     } else if (data.type === "error") {
                         // Handle generic error messages from server
-                        showMessage(`Error: ${data.message || 'Unknown error'}`, 'error');
+                        showMessage(formatDashboardResponseMessage(data), 'error');
                     }
                 };
 
@@ -2334,6 +2442,364 @@
             if (currentValue && products.includes(currentValue)) {
                 select.value = currentValue;
             }
+        }
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function requestSpotReadiness() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "request_spot_readiness" }));
+            }
+        }
+
+        function requestSpotSweepStatus() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "request_spot_sweep_status" }));
+            }
+        }
+
+        function requestSpotSweepPnl() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "request_spot_sweep_pnl" }));
+            }
+        }
+
+        function latestSweepConfig(status) {
+            const configs = (status && status.configs) || [];
+            if (!configs.length) return null;
+            return configs
+                .slice()
+                .sort((a, b) => {
+                    const aTime = Date.parse(((a.latest_run || {}).started_at) || a.disabled_at || 0) || 0;
+                    const bTime = Date.parse(((b.latest_run || {}).started_at) || b.disabled_at || 0) || 0;
+                    return bTime - aTime;
+                })[0];
+        }
+
+        function updateSpotSweepStatusPanel() {
+            const panel = document.getElementById('spot-sweep-status-panel');
+            if (!panel) return;
+            if (!spotSweepStatusData || spotSweepStatusData.status !== 'success') {
+                panel.innerHTML = `
+                    <div class="readiness-item">
+                        <div class="readiness-label">Status</div>
+                        <div class="readiness-value">${escapeHtml((spotSweepStatusData && spotSweepStatusData.message) || 'Unavailable')}</div>
+                    </div>`;
+                return;
+            }
+
+            const status = spotSweepStatusData.operator_status || {};
+            const latest = latestSweepConfig(status);
+            const latestRun = (latest && latest.latest_run) || {};
+            const latestConfig = (latest && latest.config) || {};
+            const reconciliation = (latest && latest.latest_reconciliation) || {};
+            const fillBackfill = latestRun.fill_backfill || {};
+            const latestOrders = (latestRun.orders || [])
+                .slice(0, 6)
+                .map(order => {
+                    const product = escapeHtml(order.product_id || '--');
+                    const statusText = escapeHtml(order.status || '--');
+                    const side = escapeHtml(order.side || '--');
+                    const executed = formatReadinessAmount(order.executed_notional_usdc || 0);
+                    return `${product} ${side} ${statusText} ${executed} USDC`;
+                })
+                .join('<br>') || 'No order detail';
+            panel.innerHTML = `
+                <div class="readiness-item">
+                    <div class="readiness-label">Ledger</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(spotSweepStatusData.state_file || '--')}<br>
+                        <span class="readiness-muted">${escapeHtml(status.generated_at || '--')}</span>
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Runs</div>
+                    <div class="readiness-value">
+                        configs ${formatReadinessAmount(status.config_count || 0)}<br>
+                        runs ${formatReadinessAmount(status.run_count || 0)}<br>
+                        orders ${formatReadinessAmount(status.submitted_order_count || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Notional</div>
+                    <div class="readiness-value">
+                        submitted ${formatReadinessAmount(status.total_submitted_notional_usdc || 0)} USDC<br>
+                        executed ${formatReadinessAmount(status.total_executed_notional_usdc || 0)} USDC
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Latest Config</div>
+                    <div class="readiness-value">
+                        ${escapeHtml((latest && latest.config_id) || '--')}<br>
+                        ${escapeHtml(latestConfig.side || '--')} ${escapeHtml(latestConfig.quote_notional || '--')} USDC<br>
+                        ${escapeHtml(latestConfig.order_type || '--')}
+                        ${latest && latest.disabled ? '<br><span class="readiness-muted">disabled</span>' : ''}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Latest Run</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(latestRun.status || '--')}<br>
+                        ${escapeHtml(latestRun.run_id || '--')}<br>
+                        <span class="readiness-muted">${escapeHtml(latestRun.started_at || '--')}</span>
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Reconciliation</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(reconciliation.status || '--')}<br>
+                        <span class="readiness-muted">${escapeHtml(reconciliation.created_at || '--')}</span>
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Latest Orders</div>
+                    <div class="readiness-value">${latestOrders}</div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Fill Backfill</div>
+                    <div class="readiness-value">
+                        fetched ${formatReadinessAmount(fillBackfill.total_fetched_fill_count || 0)}<br>
+                        appended ${formatReadinessAmount(fillBackfill.total_appended_fill_count || 0)}<br>
+                        skipped ${formatReadinessAmount(fillBackfill.total_skipped_fill_count || 0)}
+                    </div>
+                </div>`;
+        }
+
+        function updateSpotSweepPnlPanel() {
+            const panel = document.getElementById('spot-sweep-pnl-panel');
+            if (!panel) return;
+            if (!spotSweepPnlData || spotSweepPnlData.status !== 'success') {
+                panel.innerHTML = `
+                    <div class="readiness-item">
+                        <div class="readiness-label">Status</div>
+                        <div class="readiness-value">${escapeHtml((spotSweepPnlData && spotSweepPnlData.message) || 'Unavailable')}</div>
+                    </div>`;
+                return;
+            }
+
+            const report = spotSweepPnlData.pnl_report || {};
+            const snapshot = report.snapshot || {};
+            const portfolio = snapshot.portfolio || {};
+            const products = snapshot.products || [];
+            const topProducts = products
+                .slice()
+                .sort((a, b) => Math.abs(Number(b.total_pnl || 0)) - Math.abs(Number(a.total_pnl || 0)))
+                .slice(0, 8)
+                .map(product => {
+                    const since = product.since_last_purchase || {};
+                    return `${escapeHtml(product.product_id)} ${formatReadinessAmount(product.total_pnl || 0)} USDC ` +
+                        `net ${formatReadinessAmount(product.net_base_size || 0)} ` +
+                        `since ${formatReadinessAmount(since.total_pnl || 0)} USDC`;
+                })
+                .join('<br>') || 'No fill-ledger rows';
+
+            panel.innerHTML = `
+                <div class="readiness-item">
+                    <div class="readiness-label">Portfolio</div>
+                    <div class="readiness-value">
+                        total P/L ${formatReadinessAmount(portfolio.total_pnl || 0)} USDC<br>
+                        mark value ${formatReadinessAmount(portfolio.mark_value || 0)} USDC<br>
+                        fees ${formatReadinessAmount(portfolio.fees || 0)} USDC
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Coverage</div>
+                    <div class="readiness-value">
+                        selected ${formatReadinessAmount(report.selected_product_count || 0)}<br>
+                        marks ${formatReadinessAmount(report.mark_price_count || 0)}<br>
+                        products with fills ${formatReadinessAmount(products.length || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Product Details</div>
+                    <div class="readiness-value">${topProducts}</div>
+                </div>`;
+        }
+
+        function renderModeBadge(label, capability) {
+            const mode = (capability && capability.mode) || 'unknown';
+            const className = `mode-${String(mode).replace(/[^a-zA-Z0-9_]/g, '_')}`;
+            return `<span class="mode-badge ${className}" title="${escapeHtml((capability && capability.reason) || '')}">${escapeHtml(label)}: ${escapeHtml(mode)}</span>`;
+        }
+
+        function formatReadinessAmount(value) {
+            const numberValue = Number(value);
+            if (!Number.isFinite(numberValue)) {
+                return escapeHtml(value == null ? '--' : value);
+            }
+            const formatted = numberValue.toFixed(8).replace(/\.?0+$/, '');
+            return formatted || '0';
+        }
+
+        function formatReadinessBudget(budget) {
+            const entries = Object.entries(budget || {});
+            if (!entries.length) return 'None';
+            return entries
+                .map(([currency, amount]) => `${escapeHtml(currency)} ${formatReadinessAmount(amount)}`)
+                .join('<br>');
+        }
+
+        function formatReadinessPhases(phases) {
+            return Array.isArray(phases) && phases.length
+                ? phases.map(phase => String(phase)).join(', ')
+                : 'all phases';
+        }
+
+        function renderActionGuardSummary(summary, guards) {
+            const rows = Array.isArray(summary) ? summary : [];
+            if (rows.length) {
+                return rows.map(item => `
+                    <div class="readiness-row">
+                        ${renderModeBadge(item.label || item.condition || 'guard', item)}
+                        <div class="readiness-muted">${escapeHtml(formatReadinessPhases(item.phases))}</div>
+                        <div>${escapeHtml(item.reason || '')}</div>
+                    </div>
+                `).join('');
+            }
+
+            return [
+                `wallet: ${(guards.wallet_available || {}).enabled !== false ? 'enabled' : 'disabled'}`,
+                `known inventory: ${(guards.known_inventory_available || {}).enabled ? 'enabled' : 'disabled'}`
+            ].join('<br>');
+        }
+
+        function renderInventoryBaselines(inventory) {
+            const baselines = ((inventory || {}).imported_baselines) || {};
+            const lots = Array.isArray(baselines.lots) ? baselines.lots : [];
+            const lotRows = lots.slice(0, 4).map(lot => {
+                const status = lot.cost_basis_status || 'unknown';
+                const source = lot.source_id || lot.lot_id || 'baseline';
+                const remaining = formatReadinessAmount(lot.remaining_quantity);
+                const price = lot.entry_price == null
+                    ? ''
+                    : ` @ ${formatReadinessAmount(lot.entry_price)}`;
+                return `<div class="readiness-row">${escapeHtml(source)}: ${escapeHtml(status)} ${remaining}${price}</div>`;
+            });
+            if (lots.length > 4) {
+                lotRows.push(`<div class="readiness-muted">+${lots.length - 4} more baseline lot(s)</div>`);
+            }
+
+            return `
+                known ${formatReadinessAmount(baselines.known_quantity || 0)}<br>
+                unknown ${formatReadinessAmount(baselines.unknown_cost_basis_quantity || 0)}
+                ${lotRows.length ? lotRows.join('') : '<div class="readiness-muted">No imported baselines</div>'}
+                ${baselines.reason ? `<div class="readiness-muted">${escapeHtml(baselines.reason)}</div>` : ''}
+            `;
+        }
+
+        function formatInventoryAuthority(authority) {
+            if (!authority || typeof authority !== 'object') return '';
+            const parts = [];
+            if (authority.status) parts.push(`inventory status: ${authority.status}`);
+            if (authority.known_profitable_quantity != null) {
+                parts.push(`known profitable: ${formatReadinessAmount(authority.known_profitable_quantity)}`);
+            }
+            if (authority.unknown_cost_basis_quantity != null) {
+                parts.push(`unknown cost basis: ${formatReadinessAmount(authority.unknown_cost_basis_quantity)}`);
+            }
+            if (authority.reason) parts.push(`inventory reason: ${authority.reason}`);
+            return parts.join('\n');
+        }
+
+        function formatDashboardResponseMessage(data) {
+            const lines = [];
+            const baseMessage = data.message || data.error || 'Unknown dashboard response';
+            lines.push(data.type === 'error' ? `Error: ${baseMessage}` : baseMessage);
+
+            const capability = data.capability || {};
+            if (capability.capability || capability.mode || capability.reason) {
+                lines.push(`capability: ${capability.capability || '--'} ${capability.mode || '--'}`);
+                if (capability.reason) lines.push(`capability reason: ${capability.reason}`);
+            }
+
+            const guard = data.guard || {};
+            if (guard.condition || guard.block_category || guard.reason) {
+                lines.push(`guard: ${guard.block_category || guard.condition || '--'}`);
+                if (guard.currency) lines.push(`currency: ${guard.currency}`);
+                if (guard.available != null) lines.push(`available: ${formatReadinessAmount(guard.available)}`);
+                if (guard.planned_commitment != null) lines.push(`planned: ${formatReadinessAmount(guard.planned_commitment)}`);
+                if (guard.available_after_planned != null) lines.push(`after planned: ${formatReadinessAmount(guard.available_after_planned)}`);
+                if (guard.required != null) lines.push(`required: ${formatReadinessAmount(guard.required)}`);
+                if (guard.reason) lines.push(`guard reason: ${guard.reason}`);
+                const inventoryDetails = formatInventoryAuthority(guard.inventory_authority);
+                if (inventoryDetails) lines.push(inventoryDetails);
+            }
+
+            return lines.join('\n');
+        }
+
+        function updateSpotReadinessPanel() {
+            const panel = document.getElementById('spot-readiness-panel');
+            if (!panel) return;
+            if (!spotReadinessData || spotReadinessData.status !== 'success') {
+                panel.innerHTML = `
+                    <div class="readiness-item">
+                        <div class="readiness-label">Status</div>
+                        <div class="readiness-value">Unavailable</div>
+                    </div>`;
+                return;
+            }
+
+            const products = spotReadinessData.products || [];
+            const spot = products[0] || {};
+            const caps = spot.capabilities || {};
+            const wallet = spotReadinessData.wallet_snapshot || {};
+            const walletText = wallet.available
+                ? `Fresh (${wallet.age_seconds || 0}s)`
+                : escapeHtml(wallet.reason || 'Unavailable');
+            const walletCurrencies = wallet.currencies || {};
+            const walletSummary = Object.entries(walletCurrencies)
+                .map(([currency, info]) => `${escapeHtml(currency)} ${formatReadinessAmount(info.available_balance || 0)}`)
+                .join('<br>') || 'None';
+            const guards = spotReadinessData.action_guards || {};
+            const guardText = renderActionGuardSummary(
+                spotReadinessData.action_guard_summary,
+                guards
+            );
+
+            panel.innerHTML = `
+                <div class="readiness-item">
+                    <div class="readiness-label">Product</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(spot.product_id || '--')}<br>
+                        ${escapeHtml(spot.product_type || '--')}<br>
+                        <span class="readiness-muted">${escapeHtml(spot.base_currency || '--')} / ${escapeHtml(spot.quote_currency || '--')}</span>
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Capabilities</div>
+                    <div class="readiness-value">
+                        ${renderModeBadge('direct', caps.direct_placement)}
+                        ${renderModeBadge('plan', caps.stealth_planning)}
+                        ${renderModeBadge('reveal', caps.stealth_reveal)}
+                        ${renderModeBadge('move', caps.move_revealed)}
+                        ${renderModeBadge('reprice', caps.reprice_revealed)}
+                        ${renderModeBadge('hotpoint', caps.hotpoint_auto_placement)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Planned Budget</div>
+                    <div class="readiness-value">${formatReadinessBudget(spotReadinessData.planned_budget)}</div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Wallet Snapshot</div>
+                    <div class="readiness-value">${walletText}<br>${walletSummary}</div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Imported Inventory</div>
+                    <div class="readiness-value">${renderInventoryBaselines(spot.inventory)}</div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Action Guards</div>
+                    <div class="readiness-value">${guardText}</div>
+                </div>`;
         }
 
         function formatDecimal(num) {

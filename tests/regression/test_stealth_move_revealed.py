@@ -49,6 +49,56 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+def _enable_spot_capability(monkeypatch, capability):
+    from core.enums import ProductCapabilityMode, ProductType
+
+    monkeypatch.setattr(
+        "configuration.PRODUCT_CAPABILITIES",
+        {
+            "product_type": {
+                ProductType.SPOT.value: {
+                    capability.value: ProductCapabilityMode.ENABLED.value,
+                },
+            },
+        },
+    )
+
+
+def _revealed_spot_order(
+    *,
+    stealth_order_id="sid_spot_move",
+    side="BUY",
+    remaining_size=0.1,
+    limit_price=100.0,
+    executed_size=0.0,
+):
+    from core.enums import StealthOrderStatus
+
+    return {
+        "stealth_order_id": stealth_order_id,
+        "parent_order_id": "root_spot_parent",
+        "product_id": "BTC-USD",
+        "side": side,
+        "status": StealthOrderStatus.REVEALED.value,
+        "executed_size": executed_size,
+        "remaining_size": remaining_size,
+        "total_size": remaining_size + executed_size,
+        "limit_price": limit_price,
+        "anchor_repricing_state_json": {
+            "active_placement_client_order_id": "old_spot_placement",
+            "active_exchange_order_id": "old_spot_exchange",
+            "active_exchange_price": limit_price,
+        },
+        "anchor_repricing_policy_json": {"enabled": True},
+        "revealed_orders": [
+            {
+                "reveal_number": 1,
+                "placed_order_id": "old_spot_placement",
+            },
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # 1) ClaimLedger extraction preserves follow-up semantics
 # ---------------------------------------------------------------------------
@@ -238,7 +288,7 @@ class TestRepricingSkipsHeldMoveClaim:
         mgr.in_memory_orders = {
             "sid_1": {
                 "stealth_order_id": "sid_1",
-                "product_id": "BTC-USD",
+                "product_id": "BIP-20DEC30-CDE",
                 "side": "BUY",
                 "status": StealthOrderStatus.REVEALED.value,
                 "remaining_size": 1.0,
@@ -301,7 +351,7 @@ class TestRepricingSkipsHeldMoveClaim:
         with patches[0], patches[1], patches[2], patches[3], patch.object(
             mgr, "_apply_revealed_anchor_reprice", return_value=True
         ) as apply_mock:
-            mgr.process_anchor_repricing_for_product("BTC-USD")
+            mgr.process_anchor_repricing_for_product("BIP-20DEC30-CDE")
 
         assert apply_mock.called, (
             "Positive control failed: the reprice loop short-circuited "
@@ -327,7 +377,7 @@ class TestRepricingSkipsHeldMoveClaim:
         with patches[0], patches[1], patches[2], patches[3], patch.object(
             mgr, "_apply_revealed_anchor_reprice"
         ) as apply_mock:
-            mgr.process_anchor_repricing_for_product("BTC-USD")
+            mgr.process_anchor_repricing_for_product("BIP-20DEC30-CDE")
 
         assert apply_mock.call_count == 0, (
             "process_anchor_repricing_for_product reached "
@@ -361,7 +411,7 @@ class TestBuildStealthMovePlanRejectsPartialFills:
                 "executed_size": 0.25,
                 "remaining_size": 0.75,
                 "side": "BUY",
-                "product_id": "BTC-USD",
+                "product_id": "BIP-20DEC30-CDE",
                 "limit_price": 100.0,
             },
         ):
@@ -374,6 +424,33 @@ class TestBuildStealthMovePlanRejectsPartialFills:
         # accept any subclass of Exception but require a clear message.
         assert "executed_size" in str(exc_info.value).lower() or \
                "partial" in str(exc_info.value).lower()
+
+    def test_spot_rejects_partial_fill_when_move_capability_enabled(
+        self,
+        monkeypatch,
+    ):
+        from core.enums import ProductCapability
+        from core.stealth_order_manager import StealthOrderManager
+
+        _enable_spot_capability(monkeypatch, ProductCapability.MOVE_REVEALED)
+
+        mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr.log_callback = lambda *a, **k: None
+        mgr._get_account_wallets_for_action_guard = MagicMock()
+        with patch.object(
+            mgr,
+            "_get_stealth_order",
+            return_value=_revealed_spot_order(executed_size=0.01),
+        ):
+            with pytest.raises(Exception) as exc_info:
+                mgr.build_stealth_move_plan(
+                    stealth_order_id="sid_spot_move",
+                    new_limit_price=101.0,
+                )
+
+        assert "executed_size" in str(exc_info.value).lower() or \
+               "partial" in str(exc_info.value).lower()
+        mgr._get_account_wallets_for_action_guard.assert_not_called()
 
     def test_rejects_when_status_not_revealed(self):
         from core.enums import StealthOrderStatus
@@ -390,7 +467,7 @@ class TestBuildStealthMovePlanRejectsPartialFills:
                 "executed_size": 0.0,
                 "remaining_size": 1.0,
                 "side": "BUY",
-                "product_id": "BTC-USD",
+                "product_id": "BIP-20DEC30-CDE",
                 "limit_price": 100.0,
             },
         ):
@@ -404,7 +481,112 @@ class TestBuildStealthMovePlanRejectsPartialFills:
 
 
 # ---------------------------------------------------------------------------
-# 5) execute_stealth_move resets state and preserves flat hierarchy
+# 5) spot move/reprice replacement guards use net wallet deltas
+# ---------------------------------------------------------------------------
+
+
+class TestSpotReplaceAwareActionGuard:
+    def test_spot_move_plan_blocks_unfunded_replacement_delta(self, monkeypatch):
+        from core.enums import ProductCapability
+        from core.exceptions import StealthMoveError
+        from core.stealth_order_manager import StealthOrderManager
+
+        _enable_spot_capability(monkeypatch, ProductCapability.MOVE_REVEALED)
+
+        mgr = StealthOrderManager(db_client=None, log_callback=MagicMock())
+        mgr._rest_credentials_configured = MagicMock(return_value=True)
+        mgr._get_account_wallets_for_action_guard = MagicMock(
+            return_value={"USD": {"available_balance": {"value": "5.0"}}}
+        )
+        order = _revealed_spot_order(remaining_size=0.1, limit_price=100.0)
+        mgr.in_memory_orders[order["stealth_order_id"]] = order
+
+        with pytest.raises(StealthMoveError) as exc_info:
+            mgr.build_stealth_move_plan(
+                stealth_order_id=order["stealth_order_id"],
+                new_limit_price=200.0,
+            )
+
+        assert exc_info.value.stage == "validate"
+        assert "net replacement requirement" in str(exc_info.value)
+        mgr._get_account_wallets_for_action_guard.assert_called_once()
+
+    def test_spot_move_execute_rechecks_delta_before_cancel(self):
+        from core.enums import StealthMutationKind, StealthOrderStatus
+        from core.exceptions import StealthMoveError
+        from core.models import StealthMovePlan
+        from core.orderbook import ClaimLedger
+        from core.stealth_order_manager import StealthOrderManager
+
+        mgr = StealthOrderManager.__new__(StealthOrderManager)
+        mgr._mutation_claims = ClaimLedger(StealthMutationKind)
+        mgr._placed_order_index = {}
+        mgr.in_memory_orders = {}
+        mgr.log_callback = MagicMock()
+        mgr._rest_credentials_configured = MagicMock(return_value=True)
+        mgr._get_account_wallets_for_action_guard = MagicMock(
+            return_value={"USD": {"available_balance": {"value": "5.0"}}}
+        )
+
+        order = _revealed_spot_order(remaining_size=0.1, limit_price=100.0)
+        mgr.in_memory_orders[order["stealth_order_id"]] = order
+
+        plan = MagicMock(spec=StealthMovePlan)
+        plan.stealth_order_id = order["stealth_order_id"]
+        plan.old_exchange_order_id = "old_spot_exchange"
+        plan.old_submitted_price = 100.0
+        plan.new_configured_limit_price = 200.0
+        plan.reveal_plan = MagicMock(submitted_limit_price=200.0)
+        plan.root_parent_client_order_id = "root_spot_parent"
+        plan.reason = MagicMock(value="manual_user_move")
+        plan.notes = None
+
+        with patch.object(mgr, "_get_stealth_order", return_value=order), \
+             patch("configuration.REST_CLIENT") as rest_mock:
+            with pytest.raises(StealthMoveError) as exc_info:
+                mgr.execute_stealth_move(plan)
+
+        assert exc_info.value.stage == "validate"
+        rest_mock.cancel_orders.assert_not_called()
+        rest_mock.place_limit_order.assert_not_called()
+        assert order["status"] == StealthOrderStatus.REVEALED.value
+
+    def test_spot_revealed_anchor_reprice_blocks_delta_before_cancel(self):
+        from core.stealth_order_manager import StealthOrderManager
+
+        mgr = StealthOrderManager(db_client=None, log_callback=MagicMock())
+        mgr._rest_credentials_configured = MagicMock(return_value=True)
+        mgr._get_account_wallets_for_action_guard = MagicMock(
+            return_value={"USD": {"available_balance": {"value": "5.0"}}}
+        )
+        mgr._update_stealth_order = MagicMock()
+        order = _revealed_spot_order(remaining_size=0.1, limit_price=100.0)
+        state = dict(order["anchor_repricing_state_json"])
+
+        with patch("configuration.REST_CLIENT") as rest_mock:
+            applied = mgr._apply_revealed_anchor_reprice(
+                order,
+                {
+                    "enabled": True,
+                    "allow_revealed_reprice": True,
+                    "post_only_required": False,
+                },
+                state,
+                {"source": "ticker", "bid": 99.0, "ask": 101.0, "price": 100.0},
+                desired_price=200.0,
+                target_price=200.0,
+                max_boundary_price=200.0,
+                reprice_reason="reference_price_updated",
+            )
+
+        assert applied is False
+        rest_mock.cancel_orders.assert_not_called()
+        rest_mock.place_limit_order.assert_not_called()
+        mgr._update_stealth_order.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# 6) execute_stealth_move resets state and preserves flat hierarchy
 # ---------------------------------------------------------------------------
 
 
@@ -428,7 +610,7 @@ class TestExecuteStealthMoveResetsState:
         order = {
             "stealth_order_id": "sid_1",
             "parent_order_id": "root_parent_coid",
-            "product_id": "BTC-USD",
+            "product_id": "BIP-20DEC30-CDE",
             "side": "BUY",
             "status": StealthOrderStatus.REVEALED.value,
             "executed_size": 0.0,
@@ -510,7 +692,7 @@ class TestExecuteStealthMoveResetsState:
         order = {
             "stealth_order_id": "sid_1",
             "parent_order_id": "root_parent_coid",
-            "product_id": "BTC-USD",
+            "product_id": "BIP-20DEC30-CDE",
             "side": "BUY",
             "status": "REVEALED",
             "executed_size": 0.0,
@@ -574,7 +756,7 @@ class TestExecuteStealthMoveResetsState:
 
 
 # ---------------------------------------------------------------------------
-# 6) Static-source guard — REST_CLIENT.cancel_orders allowlist
+# 7) Static-source guard — REST_CLIENT.cancel_orders allowlist
 # ---------------------------------------------------------------------------
 #
 # The duplicated-rule pattern (see /memories/duplicated-rule-pattern.md)
@@ -652,7 +834,7 @@ def test_no_inline_cancel_orders_outside_sanctioned_methods():
 
 
 # ---------------------------------------------------------------------------
-# 7) stealth_order_moves audit table
+# 8) stealth_order_moves audit table
 # ---------------------------------------------------------------------------
 
 
@@ -736,7 +918,7 @@ class TestStealthOrderMovesAuditTable:
         order = {
             "stealth_order_id": "sid_audit",
             "parent_order_id": "root_parent_coid",
-            "product_id": "BTC-USD",
+            "product_id": "BIP-20DEC30-CDE",
             "side": "BUY",
             "status": StealthOrderStatus.REVEALED.value,
             "executed_size": 0.0,
@@ -823,16 +1005,20 @@ class TestStealthOrderMovesAuditTable:
         assert "simulated REST failure" in (kwargs.get("error_message") or "")
 
     def test_audit_row_inserted_when_cancel_fails(self):
+        from core.enums import StealthOrderStatus
         from core.exceptions import StealthMoveError
 
         mgr, order, plan = self._build_executor_fixture()
         with patch.object(mgr, "_get_stealth_order", return_value=order), \
+             patch.object(mgr, "_update_stealth_order") as update_mock, \
              patch("configuration.REST_CLIENT") as rest_mock, \
              patch("database.order.insert_stealth_order_move") as audit_mock:
             rest_mock.cancel_orders.side_effect = RuntimeError("cancel boom")
             with pytest.raises(StealthMoveError) as exc_info:
                 mgr.execute_stealth_move(plan)
         assert exc_info.value.stage == "cancel"
+        assert order["status"] == StealthOrderStatus.REVEALED.value
+        update_mock.assert_not_called()
 
         assert audit_mock.called, (
             "execute_stealth_move must insert an audit row when the cancel "

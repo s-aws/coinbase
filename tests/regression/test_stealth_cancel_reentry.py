@@ -10,6 +10,9 @@ from core.stealth_order_manager import StealthOrderManager
 from tests.unit.test_partial_fill_followups import _build_engine_for_partial_fill_tests
 
 
+CANCEL_REENTRY_PRODUCT_ID = "BIP-20DEC30-CDE"
+
+
 def _manager():
     manager = StealthOrderManager(db_client=None, log_callback=MagicMock())
     manager._save_stealth_order_to_db = MagicMock()
@@ -20,7 +23,7 @@ def _manager():
 def _revealed_order():
     return {
         "stealth_order_id": "stealth-1",
-        "product_id": "BTC-USDC",
+        "product_id": CANCEL_REENTRY_PRODUCT_ID,
         "side": "SELL",
         "total_size": 1.0,
         "remaining_size": 0.0,
@@ -56,7 +59,7 @@ def test_create_stealth_order_stores_cancel_reentry_policy(monkeypatch):
     monkeypatch.setattr("core.stealth_order_manager.insert_order_parent", lambda **kwargs: None)
 
     stealth_id = manager.create_stealth_order(
-        product_id="BTC-USDC",
+        product_id=CANCEL_REENTRY_PRODUCT_ID,
         side="SELL",
         total_size=1.0,
         limit_price=100.0,
@@ -175,7 +178,7 @@ def test_cancel_ack_for_policy_cancel_does_not_spawn_follow_up():
 
     stealth_record = {
         "stealth_order_id": stealth_root_id,
-        "product_id": "BTC-USDC",
+        "product_id": CANCEL_REENTRY_PRODUCT_ID,
         "side": "SELL",
     }
     stealth_manager = Mock()
@@ -191,7 +194,7 @@ def test_cancel_ack_for_policy_cancel_does_not_spawn_follow_up():
         engine.handle_cancelled_order(
             {
                 "client_order_id": placement_uuid,
-                "product_id": "BTC-USDC",
+                "product_id": CANCEL_REENTRY_PRODUCT_ID,
                 "side": "SELL",
                 "status": "CANCELLED",
                 "price": 100.0,

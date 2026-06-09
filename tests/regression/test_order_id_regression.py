@@ -75,7 +75,7 @@ def test_filled_order_lookup_uses_client_order_id_not_exchange_order_id():
     filled_order = {
         "client_order_id": "client-order-001",
         "order_id": "exchange-order-001",
-        "product_id": "BTC-USDC",
+        "product_id": "BIP-20DEC30-CDE",
         "side": "BUY",
         "status": OrderStatus.FILLED.value,
         "outstanding_hold_amount": "0",
@@ -95,7 +95,7 @@ def test_follow_up_stealth_order_keeps_flat_parent_hierarchy():
     filled_child_id = "filled-child-bbb"
     manager.in_memory_orders[filled_child_id] = {
         "stealth_order_id": filled_child_id,
-        "product_id": "BTC-USDC",
+        "product_id": "BIP-20DEC30-CDE",
         "side": "SELL",
         "total_size": 1.0,
         "limit_price": 50000.0,

@@ -26,6 +26,7 @@ from core.order_engine import OrderEngine
 
 
 pytestmark = pytest.mark.regression
+HOTPOINT_PRODUCT_ID = "BIP-20DEC30-CDE"
 
 
 def _build_engine():
@@ -43,7 +44,7 @@ def _build_engine():
     orderbook.profit_target = orderbook.profit
     orderbook.get_position_side = Mock(return_value=None)
     orderbook.product = {
-        "BTC-USDC": {
+        HOTPOINT_PRODUCT_ID: {
             "base_min_size": "0.001",
             "base_increment": "0.001",
             "price_increment": "0.5",
@@ -76,7 +77,7 @@ def _build_engine():
 def _delta(coid="child-coid", side="BUY", price=100.0):
     return OrderSnapshotDelta(
         client_order_id=coid,
-        product_id="BTC-USDC",
+        product_id=HOTPOINT_PRODUCT_ID,
         side=side,
         cumulative_quantity=0.001,
         filled_value=0.1,
@@ -194,7 +195,7 @@ def test_kill_switch_off_blocks_placement_but_records_fills():
     from business.hotpoint_detector import compute_bucket_id
     bid = compute_bucket_id(100.0, engine._hotpoint_width_pct)
     assert engine._hotpoint_detector.fills_in_window(
-        product_id="BTC-USDC", side="BUY", bucket_id=bid, now=999.0,
+        product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=bid, now=999.0,
     ) == 3
 
 
@@ -325,7 +326,7 @@ def test_state_snapshot_includes_active_bucket_after_fill():
         snap = engine.get_hotpoint_state_snapshot()
     assert len(snap["active_buckets"]) == 1
     bucket = snap["active_buckets"][0]
-    assert bucket["product_id"] == "BTC-USDC"
+    assert bucket["product_id"] == HOTPOINT_PRODUCT_ID
     assert bucket["side"] == "BUY"
     assert bucket["fills_in_window"] == 1
 

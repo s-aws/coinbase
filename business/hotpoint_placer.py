@@ -29,7 +29,8 @@ from typing import Any, Callable, Dict, Optional
 
 from business.hotpoint_detector import HotpointTriggerEvent
 from business.hotpoint_rate_limiter import HotpointRateLimiter
-from core.enums import HotpointPlacementPolicy, OrderSide, OrderStatus
+from core.enums import HotpointPlacementPolicy, OrderSide, OrderStatus, ProductCapability
+from core.product_capability import evaluate_product_capability
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ STATUS_KILL_SWITCH_OFF = "kill_switch_off"
 STATUS_RATE_LIMITED = "rate_limited"
 STATUS_PRODUCT_META_MISSING = "product_meta_missing"
 STATUS_INVALID_PRICE = "invalid_price"
+STATUS_PRODUCT_CAPABILITY_BLOCKED = "product_capability_blocked"
 STATUS_REST_FAILED = "rest_failed"
 STATUS_DB_INSERT_FAILED = "db_insert_failed"
 STATUS_PLACED = "placed"
@@ -127,6 +129,22 @@ def place_hotpoint_order(
 
     if not kill_switch_enabled:
         return HotpointPlacementResult(status=STATUS_KILL_SWITCH_OFF)
+
+    capability = evaluate_product_capability(
+        product_id=event.product_id,
+        capability=ProductCapability.HOTPOINT_AUTO_PLACEMENT,
+    )
+    if not capability.allowed:
+        log("warning", {
+            "event": "hotpoint_product_capability_blocked",
+            **capability.to_dict(),
+            "side": event.side,
+            "bucket_id": event.bucket_id,
+        })
+        return HotpointPlacementResult(
+            status=STATUS_PRODUCT_CAPABILITY_BLOCKED,
+            error=capability.reason,
+        )
 
     # 1. Rate-limit slot acquisition.
     decision = rate_limiter.try_acquire(

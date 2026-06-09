@@ -14,6 +14,10 @@ This file covers active API surfaces in the codebase:
 - `get_portfolio(portfolio_id)`
 - `list_portfolios()`
 
+`get_account_wallets()` follows Coinbase `get_accounts` pagination before
+building the currency-to-wallet map. Do not replace it with a single
+`get_accounts()` call at guard boundaries.
+
 ### Product metadata
 - `get_product(product_id)`
 - `get_products(product_ids)`
@@ -98,6 +102,7 @@ Move and product utilities:
 - `premark_move`
 - `request_products`
 - `update_products_list`
+- `request_spot_readiness`
 
 Analytics/storyboard:
 - `request_slide_calibration_summary`
@@ -145,6 +150,7 @@ Move/product/analytics responses:
 - `order_premarked`
 - `products_list`
 - `products_list_updated`
+- `spot_readiness`
 - `slide_calibration_summary`
 - `market_chart_history`
 - `storyboard_products`
@@ -219,6 +225,88 @@ Import/export contract:
 - Import maps those names back to request names such as `cancel_reentry_policy` and `post_fill_retreat_policy`.
 - `ui_order_span_builder.html` and `ui_stealth_orders_manager.html` both send `cancel_reentry_policy` and `post_fill_retreat_policy` when configured.
 
+### `request_spot_readiness`
+
+Request shape:
+
+```json
+{"type": "request_spot_readiness"}
+```
+
+Optional product filter:
+
+```json
+{
+  "type": "request_spot_readiness",
+  "params": {"product_ids": ["BTC-USD"]}
+}
+```
+
+Response shape:
+
+```json
+{
+  "type": "spot_readiness",
+  "status": "success",
+  "generated_at": "2026-06-08T00:00:00",
+  "products": [
+    {
+      "product_id": "BTC-USD",
+      "product_type": "SPOT",
+      "base_currency": "BTC",
+      "quote_currency": "USD",
+      "capabilities": {
+        "direct_placement": {"mode": "enabled", "reason": "allowed by policy"}
+      },
+      "inventory": {
+        "imported_baselines": {
+          "configured": true,
+          "known_quantity": 0.25,
+          "unknown_cost_basis_quantity": 0.1,
+          "lots": [
+            {
+              "source_id": "manual-baseline",
+              "cost_basis_status": "known",
+              "remaining_quantity": 0.25,
+              "entry_price": 90000.0,
+              "min_profitable_exit_price": 90450.0
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "planned_budget": {"USD": 125.5},
+  "wallet_snapshot": {
+    "available": true,
+    "age_seconds": 0.0,
+    "currencies": {"USD": {"available_balance": 1000.0}}
+  },
+  "action_guards": {
+    "wallet_available": {"enabled": true},
+    "known_inventory_available": {"enabled": true}
+  },
+  "action_guard_summary": [
+    {
+      "condition": "planned_budget_available",
+      "label": "planned spot budget",
+      "mode": "enabled",
+      "phases": ["planning", "reveal"],
+      "reason": "spot wallet availability is reduced by local hidden, pending, and triggered spot commitments"
+    }
+  ]
+}
+```
+
+Operator contract:
+- The dashboard may render `capabilities`, `action_guard_summary`, wallet
+  snapshot data, planned budget, and imported baseline inventory directly.
+- `inventory.imported_baselines` is an operator summary, not a replacement for
+  the lot-authority guard. Concrete spot `SELL` admission still requires a size
+  and price and is decided by the shared action-condition guard.
+- Structured `error` payloads may include `guard` or `capability` dictionaries
+  when a planning boundary rejects an action.
+
 ## 4) Internal Runtime Control API
 
 `core/runtime_controller.py` exposes:
@@ -244,4 +332,4 @@ Inflight categories used by callers include:
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-06-08

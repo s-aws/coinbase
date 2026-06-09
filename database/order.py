@@ -2425,11 +2425,11 @@ def create_fill_ledger_table() -> None:
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
         quantity DECIMAL(16, 8) NOT NULL,
-        price DECIMAL(16, 2) NOT NULL,
+        price DECIMAL(24, 12) NOT NULL,
         timestamp TIMESTAMP NOT NULL,
         fees DECIMAL(16, 8) DEFAULT 0,
         commission_percentage DECIMAL(5, 4) DEFAULT 0,
-        client_order_id VARCHAR(40),
+        client_order_id VARCHAR(128),
         reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'WS_DERIVED'
             CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH')),
         reconciled_at TIMESTAMP
@@ -2446,6 +2446,8 @@ def create_fill_ledger_table() -> None:
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(16)
         NOT NULL DEFAULT 'WS_DERIVED';
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMP;
+    ALTER TABLE fill_ledger ALTER COLUMN client_order_id TYPE VARCHAR(128);
+    ALTER TABLE fill_ledger ALTER COLUMN price TYPE DECIMAL(24, 12);
     DO $$
     BEGIN
         ALTER TABLE fill_ledger
@@ -2472,11 +2474,11 @@ def create_fill_ledger_table() -> None:
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
         quantity DECIMAL(16, 8) NOT NULL,
-        price DECIMAL(16, 2) NOT NULL,
+        price DECIMAL(24, 12) NOT NULL,
         timestamp TIMESTAMP NOT NULL,
         fees DECIMAL(16, 8) DEFAULT 0,
         commission_percentage DECIMAL(5, 4) DEFAULT 0,
-        client_order_id VARCHAR(40),
+        client_order_id VARCHAR(128),
         reconciliation_status VARCHAR(16) NOT NULL DEFAULT 'WS_DERIVED'
             CHECK (reconciliation_status IN ('WS_DERIVED','RECONCILED','MISMATCH')),
         reconciled_at TIMESTAMP

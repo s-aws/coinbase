@@ -23,6 +23,7 @@ from core.enums import HotpointPlacementPolicy
 
 
 pytestmark = pytest.mark.regression
+HOTPOINT_PRODUCT_ID = "BIP-20DEC30-CDE"
 
 
 # ----------------------------------------------------------------------------
@@ -31,7 +32,7 @@ pytestmark = pytest.mark.regression
 
 def _make_event(**overrides):
     defaults = dict(
-        product_id="BTC-USDC",
+        product_id=HOTPOINT_PRODUCT_ID,
         side="BUY",
         bucket_id=42,
         bucket_center=100.0,
@@ -107,7 +108,7 @@ def test_happy_path_places_and_persists():
     assert kw["enable_hotpoint_replication"] is False
     assert kw["parent_order_id"] is None
     # Slot was committed (not rolled back).
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 1
+    assert rl.current_count(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0) == 1
 
 
 def test_quantize_price_to_tick():
@@ -130,13 +131,13 @@ def test_kill_switch_off_skips_everything():
     rest.limit_order_gtc.assert_not_called()
     insert.assert_not_called()
     # Slot was never acquired.
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 0
+    assert rl.current_count(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0) == 0
 
 
 def test_rate_limit_blocks_placement():
     rl = HotpointRateLimiter(cap_n=1, window_seconds=60)
-    rl.try_acquire(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0)
-    rl.commit(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0)
+    rl.try_acquire(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0)
+    rl.commit(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0)
     result, _, rest, insert = _make_call(rate_limiter=rl)
     assert result.status == STATUS_RATE_LIMITED
     rest.limit_order_gtc.assert_not_called()
@@ -149,7 +150,7 @@ def test_missing_price_increment_returns_meta_missing_and_releases_slot():
     assert result.status == STATUS_PRODUCT_META_MISSING
     rest.limit_order_gtc.assert_not_called()
     insert.assert_not_called()
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 0
+    assert rl.current_count(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0) == 0
 
 
 def test_missing_base_min_size_returns_meta_missing():
@@ -165,7 +166,7 @@ def test_negative_derived_price_releases_slot():
     result, rl, rest, _ = _make_call(event=ev)
     assert result.status == STATUS_INVALID_PRICE
     rest.limit_order_gtc.assert_not_called()
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 0
+    assert rl.current_count(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0) == 0
 
 
 # ----------------------------------------------------------------------------
@@ -180,7 +181,7 @@ def test_rest_failure_releases_slot_and_returns_status():
     assert "boom" in (result.error or "")
     insert.assert_not_called()
     # Slot was rolled back.
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 0
+    assert rl.current_count(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0) == 0
 
 
 def test_db_insert_failure_keeps_slot_committed():
@@ -195,7 +196,7 @@ def test_db_insert_failure_keeps_slot_committed():
     assert result.status == STATUS_DB_INSERT_FAILED
     rest.limit_order_gtc.assert_called_once()
     # Slot committed (count = 1).
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 1
+    assert rl.current_count(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0) == 1
 
 
 def test_unexpected_exception_in_meta_read_releases_slot():
@@ -209,4 +210,4 @@ def test_unexpected_exception_in_meta_read_releases_slot():
     assert result.status == STATUS_REST_FAILED
     assert "meta exploded" in (result.error or "")
     rest.limit_order_gtc.assert_not_called()
-    assert rl.current_count(product_id="BTC-USDC", side="BUY", bucket_id=42, now=0.0) == 0
+    assert rl.current_count(product_id=HOTPOINT_PRODUCT_ID, side="BUY", bucket_id=42, now=0.0) == 0

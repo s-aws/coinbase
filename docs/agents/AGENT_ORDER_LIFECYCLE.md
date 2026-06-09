@@ -4,6 +4,9 @@
 
 - `core/order_engine.py`
 - `core/orderbook.py`
+- `core/action_condition_guard.py`
+- `core/product_capability.py`
+- `core/spot_follow_up_policy.py`
 - `business/order_progress.py`
 - `business/move_manager.py`
 
@@ -25,4 +28,3 @@ follow-up path.
 ```powershell
 pytest tests/regression/test_order_id_regression.py tests/regression/test_parent_row_before_ws_delta.py tests/regression/test_replacement_slot_atomic_claim.py -v --tb=short
 ```
-

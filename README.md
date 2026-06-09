@@ -5,11 +5,17 @@ This repository contains the Coinbase Advanced Trading engine, which provides fu
 ## What To Expect
 
 - Multithreaded Coinbase Advanced Trade automation.
+- Spot and Coinbase Derivatives product support through one shared order path.
 - Stealth order lifecycle, reveal, repricing, cancel/re-entry, and fill reconciliation.
 - Browser and terminal dashboard surfaces.
 - A self-contained portfolio site: [Netflix AI Engineer Workbench](README.netflix-ai-engineer-site.md).
 
 For the ordered documentation index, start at [docs/README.md](docs/README.md).
+For spot setup notes, see [README.spot-trading.md](README.spot-trading.md).
+For USDC-only spot portfolio sweep planning, see
+[README.spot-portfolio-sweep.md](README.spot-portfolio-sweep.md).
+For account-level stealth planning/reveal guards, see
+[README.action-condition-guards.md](README.action-condition-guards.md).
 
 ## Setup
 

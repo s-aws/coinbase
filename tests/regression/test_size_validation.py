@@ -198,3 +198,35 @@ def test_metadata_keys_match_dashboard_populator():
             f"dashboard_server.update_products_json_from_api no longer "
             f"writes {required_key!r}; validator will silently degrade."
         )
+
+
+def test_product_catalog_type_alias_resolves_for_spot_and_futures():
+    """products.json stores ``type``; runtime consumers need canonical ProductType values."""
+    from configuration import normalize_product_type
+    from core.enums import ProductType
+
+    products = {
+        "BTC-USD": {"type": "SPOT"},
+        "BIP-20DEC30-CDE": {"type": "FUTURE"},
+        "ETP-20DEC30-CDE": {"type": "PERPETUAL_FUTURE"},
+    }
+
+    assert normalize_product_type({"product_id": "BTC-USD"}, products) == ProductType.SPOT.value
+    assert normalize_product_type({"product_id": "BIP-20DEC30-CDE"}, products) == ProductType.FUTURE.value
+    assert normalize_product_type({"product_id": "ETP-20DEC30-CDE"}, products) == ProductType.FUTURE.value
+
+
+def test_calculation_resolver_uses_catalog_type_alias():
+    from calculation.resolver import normalize_product_type
+    from core.enums import ProductType
+
+    products = {"BIP-20DEC30-CDE": {"type": "FUTURE"}}
+
+    assert normalize_product_type({"product_id": "BIP-20DEC30-CDE"}, products) == ProductType.FUTURE.value
+
+
+def test_btc_spot_ticker_does_not_remap_to_delisted_usdc_pair():
+    """BTC-USD market data must place BTC-USD orders unless the catalog says otherwise."""
+    from configuration import get_trading_product_id
+
+    assert get_trading_product_id("BTC-USD") == "BTC-USD"

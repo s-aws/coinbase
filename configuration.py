@@ -27,6 +27,52 @@ from core.constants import (  # noqa: F401  (re-exported for legacy ``from confi
     DEFAULT_MAX_ORDER_REPLACEMENT,
 )
 
+
+_PRODUCT_TYPE_ALIASES = {
+    ProductType.SPOT.value: ProductType.SPOT.value,
+    ProductType.FUTURE.value: ProductType.FUTURE.value,
+    "PERPETUAL_FUTURE": ProductType.FUTURE.value,
+}
+
+
+def _normalize_product_type_value(raw) -> str:
+    """Return a canonical ProductType value for API/catalog variants."""
+    if isinstance(raw, ProductType):
+        return raw.value
+    raw_value = getattr(raw, "value", raw)
+    normalized = str(raw_value or "").upper()
+    return _PRODUCT_TYPE_ALIASES.get(normalized, "")
+
+
+def _product_type_from_product(product) -> str:
+    """Read product type from Product objects or dict metadata."""
+    if not product:
+        return ""
+    if isinstance(product, dict):
+        return _normalize_product_type_value(
+            product.get("product_type") or product.get("type")
+        )
+    return _normalize_product_type_value(
+        getattr(product, "product_type", None) or getattr(product, "type", None)
+    )
+
+
+def _normalize_product_metadata(metadata: dict) -> dict:
+    """Add canonical product_type aliases to products.json metadata."""
+    normalized_metadata = {}
+    for product_id, product_data in dict(metadata or {}).items():
+        if not isinstance(product_data, dict):
+            normalized_metadata[product_id] = product_data
+            continue
+        item = dict(product_data)
+        product_type = _product_type_from_product(item)
+        if product_type:
+            item["product_type"] = product_type
+            item.setdefault("type", product_type)
+        normalized_metadata[product_id] = item
+    return normalized_metadata
+
+
 # Load products from products.json
 PRODUCTS_FILE = Path(__file__).parent / "products.json"
 try:
@@ -34,8 +80,12 @@ try:
         _products_config = json.load(f)
         DERIVATIVES_PRODUCT_IDS = _products_config.get("derivatives", [])
         SPOT_PRODUCT_IDS = _products_config.get("spot", [])
-        PRODUCT_METADATA = _products_config.get("metadata", {})
+        PRODUCT_METADATA = _normalize_product_metadata(_products_config.get("metadata", {}))
         TICKER_TO_TRADING = _products_config.get("ticker_to_trading", {})
+        _ACTION_CONDITION_GUARDS_DEFAULT = _products_config.get("action_condition_guards", {})
+        _PRODUCT_CAPABILITIES_DEFAULT = _products_config.get("product_capabilities", {})
+        _SPOT_FOLLOW_UP_POLICY_DEFAULT = _products_config.get("spot_follow_up_policy", {})
+        _SPOT_INVENTORY_BASELINES_DEFAULT = _products_config.get("spot_inventory_baselines", [])
 except (FileNotFoundError, json.JSONDecodeError) as e:
     print(f"Warning: Failed to load products.json: {e}")
     # Fallback to hardcoded values
@@ -43,6 +93,101 @@ except (FileNotFoundError, json.JSONDecodeError) as e:
     SPOT_PRODUCT_IDS = []
     PRODUCT_METADATA = {}
     TICKER_TO_TRADING = {}
+    _ACTION_CONDITION_GUARDS_DEFAULT = {}
+    _PRODUCT_CAPABILITIES_DEFAULT = {}
+    _SPOT_FOLLOW_UP_POLICY_DEFAULT = {}
+    _SPOT_INVENTORY_BASELINES_DEFAULT = []
+
+
+def _load_action_condition_guards(default: dict) -> dict:
+    """Load optional account/action guard policy from environment JSON.
+
+    ``ACTION_CONDITION_GUARDS_JSON`` is intentionally optional so local test
+    runs and dashboard-only inspection do not need account-risk config. When
+    absent, the repository-level default from ``products.json`` is used.
+    """
+    raw = getenv("ACTION_CONDITION_GUARDS_JSON")
+    if not raw:
+        return default if isinstance(default, dict) else {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Warning: Failed to parse ACTION_CONDITION_GUARDS_JSON: {exc}")
+        return default if isinstance(default, dict) else {}
+    if not isinstance(parsed, dict):
+        print("Warning: ACTION_CONDITION_GUARDS_JSON must decode to an object")
+        return default if isinstance(default, dict) else {}
+    return parsed
+
+
+ACTION_CONDITION_GUARDS = _load_action_condition_guards(
+    _ACTION_CONDITION_GUARDS_DEFAULT
+)
+
+
+def _load_product_capabilities(default: dict) -> dict:
+    """Load optional product capability overrides from environment JSON."""
+    raw = getenv("PRODUCT_CAPABILITIES_JSON")
+    if not raw:
+        return default if isinstance(default, dict) else {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Warning: Failed to parse PRODUCT_CAPABILITIES_JSON: {exc}")
+        return default if isinstance(default, dict) else {}
+    if not isinstance(parsed, dict):
+        print("Warning: PRODUCT_CAPABILITIES_JSON must decode to an object")
+        return default if isinstance(default, dict) else {}
+    return parsed
+
+
+PRODUCT_CAPABILITIES = _load_product_capabilities(
+    _PRODUCT_CAPABILITIES_DEFAULT
+)
+
+
+def _load_spot_follow_up_policy(default: dict) -> dict:
+    """Load optional spot follow-up intent policy from environment JSON."""
+    raw = getenv("SPOT_FOLLOW_UP_POLICY_JSON")
+    if not raw:
+        return default if isinstance(default, dict) else {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Warning: Failed to parse SPOT_FOLLOW_UP_POLICY_JSON: {exc}")
+        return default if isinstance(default, dict) else {}
+    if not isinstance(parsed, dict):
+        print("Warning: SPOT_FOLLOW_UP_POLICY_JSON must decode to an object")
+        return default if isinstance(default, dict) else {}
+    return parsed
+
+
+SPOT_FOLLOW_UP_POLICY = _load_spot_follow_up_policy(
+    _SPOT_FOLLOW_UP_POLICY_DEFAULT
+)
+
+
+def _load_spot_inventory_baselines(default: list) -> list:
+    """Load optional imported spot inventory baselines from environment JSON."""
+    raw = getenv("SPOT_INVENTORY_BASELINES_JSON")
+    if not raw:
+        return default if isinstance(default, list) else []
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Warning: Failed to parse SPOT_INVENTORY_BASELINES_JSON: {exc}")
+        return default if isinstance(default, list) else []
+    if isinstance(parsed, dict):
+        parsed = parsed.get("lots") or parsed.get("baselines") or []
+    if not isinstance(parsed, list):
+        print("Warning: SPOT_INVENTORY_BASELINES_JSON must decode to a list")
+        return default if isinstance(default, list) else []
+    return parsed
+
+
+SPOT_INVENTORY_BASELINES = _load_spot_inventory_baselines(
+    _SPOT_INVENTORY_BASELINES_DEFAULT
+)
 
 class LazyProxy:
     """Transparent proxy that initialises the real object on first use (thread-safe)."""
@@ -189,19 +334,21 @@ def normalize_product_type(order: dict, products: dict = None) -> str:
         >>> normalize_product_type(order)
         'SPOT'
     """
-    product_type = str(order.get("product_type") or "").upper()
-    if product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
+    product_type = _normalize_product_type_value(
+        order.get("product_type") or order.get("type")
+    )
+    if product_type:
         return product_type
 
     product_id = order.get("product_id")
     product = (products or {}).get(product_id, {})
-    configured_product_type = str(product.get("product_type") or "").upper()
-    if configured_product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
+    configured_product_type = _product_type_from_product(product)
+    if configured_product_type:
         return configured_product_type
 
     if product_id and product_id.endswith("-CDE"):
-        return "FUTURE"
-    return "SPOT"
+        return ProductType.FUTURE.value
+    return ProductType.SPOT.value
 
 
 def resolve_order_size(order: dict) -> float:
@@ -320,7 +467,7 @@ def rest_get_account_wallets() -> dict:
     """Retrieve all active account wallets from Coinbase REST API.
 
     Fetches account information for all currencies with active wallets.
-    Filters out deleted accounts. Performs a single REST API call.
+    Filters out deleted accounts. Follows Coinbase account-list pagination.
     
     Returns:
         A dictionary mapping currency codes (e.g., 'BTC', 'USDC') to wallet data.
@@ -336,7 +483,9 @@ def rest_get_account_wallets() -> dict:
         ...     print(f"BTC balance: {btc_wallet['available_balance']}")
         >>> all_currencies = list(wallets.keys())
     """
-    accounts_list = get_rest_client().get_accounts()["accounts"]
+    from external.coinbase_client import list_all_account_dicts
+
+    accounts_list = list_all_account_dicts(get_rest_client())
 
     account_wallets = {
         item["currency"]: item for item in accounts_list if item["deleted_at"] is None

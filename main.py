@@ -94,6 +94,9 @@ if __name__ == "__main__":
         if hasattr(engine, "profit_validator"):
             stealth_bridge.stealth_manager.profit_validator = engine.profit_validator
             logger.info("StealthOrderManager wired with OrderEngine profit_validator")
+        if hasattr(engine, "fill_repo"):
+            stealth_bridge.stealth_manager.fill_ledger_repo = engine.fill_repo
+            logger.info("StealthOrderManager wired with OrderEngine fill ledger")
 
     # Start dashboard server
     import sys

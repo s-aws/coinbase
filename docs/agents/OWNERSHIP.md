@@ -15,7 +15,7 @@ implemented in two places.
 | `architect` | Boundary decisions and routing | `docs/agents/*`, `.agents/ownership.yaml`, codebase-intelligence tooling |
 | `core_types` | Shared domain vocabulary | `core/enums.py`, `core/models.py`, `core/constants.py`, `core/exceptions.py` |
 | `runtime_lifecycle` | Startup, shutdown, admission, reconciliation orchestration | `main.py`, `core/runtime_controller.py`, `core/startup_reconciler.py`, `core/periodic_reconciler.py` |
-| `order_lifecycle` | Parent/child lifecycle and follow-ups | `core/order_engine.py`, `core/orderbook.py`, `business/order_progress.py`, `business/move_manager.py` |
+| `order_lifecycle` | Parent/child lifecycle, follow-ups, and shared action/capability admission | `core/order_engine.py`, `core/orderbook.py`, `core/action_condition_guard.py`, `core/product_capability.py`, `core/spot_follow_up_policy.py`, `business/order_progress.py`, `business/move_manager.py` |
 | `stealth_lifecycle` | Stealth state machine and active placement truth | `core/stealth_order_manager.py`, stealth policy/strategy modules |
 | `bridge_hook` | Bridges, hook registries, dedup entrypoints | `bridges/*`, `integration/*`, `business/event_processor.py` |
 | `dashboard_contract` | WebSocket contract and operator UI | `dashboard_server.py`, `order.py`, `ui_*.html`, console UIs |

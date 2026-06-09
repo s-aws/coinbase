@@ -34,6 +34,35 @@ def coinbase_sdk_response_to_dict(response: Any) -> Any:
     return response
 
 
+def list_all_account_dicts(
+    sdk_client: RESTClient,
+    *,
+    limit: int = 250,
+) -> List[Dict[str, Any]]:
+    """Return every account from Coinbase, following list-account cursors."""
+    accounts: List[Dict[str, Any]] = []
+    cursor: Optional[str] = None
+    seen_cursors: set[str] = set()
+
+    while True:
+        response = coinbase_sdk_response_to_dict(
+            sdk_client.get_accounts(limit=limit, cursor=cursor)
+        )
+        page_accounts = response.get("accounts") or []
+        accounts.extend(page_accounts)
+
+        if not response.get("has_next"):
+            break
+
+        next_cursor = response.get("cursor")
+        if not next_cursor or next_cursor in seen_cursors:
+            break
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+
+    return accounts
+
+
 class CoinbaseRestClient:
     """Wrapper around Coinbase REST SDK client.
     
@@ -77,7 +106,7 @@ class CoinbaseRestClient:
             >>> if btc_wallet:
             ...     print(f"BTC available: {btc_wallet.available_balance}")
         """
-        accounts_list = self._client.get_accounts()["accounts"]
+        accounts_list = list_all_account_dicts(self._client)
         
         wallets = {}
         for account in accounts_list:

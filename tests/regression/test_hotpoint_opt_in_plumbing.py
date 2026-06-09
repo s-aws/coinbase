@@ -22,6 +22,9 @@ from unittest.mock import MagicMock
 from core.stealth_order_manager import StealthOrderManager
 
 
+HOTPOINT_PRODUCT_ID = "BIP-20DEC30-CDE"
+
+
 def _make_manager():
     mgr = StealthOrderManager(db_client=None, log_callback=MagicMock())
     mgr._save_stealth_order_to_db = MagicMock()
@@ -44,7 +47,7 @@ def test_root_stealth_order_propagates_hotpoint_flag_true(monkeypatch):
     calls = _capture_insert(monkeypatch)
 
     mgr.create_stealth_order(
-        product_id="BTC-USDC",
+        product_id=HOTPOINT_PRODUCT_ID,
         side="BUY",
         total_size=1.0,
         limit_price=100000.0,
@@ -62,7 +65,7 @@ def test_root_stealth_order_default_is_opt_out(monkeypatch):
     calls = _capture_insert(monkeypatch)
 
     mgr.create_stealth_order(
-        product_id="BTC-USDC",
+        product_id=HOTPOINT_PRODUCT_ID,
         side="BUY",
         total_size=1.0,
         limit_price=100000.0,
@@ -86,7 +89,7 @@ def test_stealth_child_branch_does_not_set_hotpoint_flag(monkeypatch):
     # against accidental cascade if a future caller passes the kwarg through
     # a follow-up creation path.
     mgr.create_stealth_order(
-        product_id="BTC-USDC",
+        product_id=HOTPOINT_PRODUCT_ID,
         side="SELL",
         total_size=1.0,
         limit_price=100000.0,

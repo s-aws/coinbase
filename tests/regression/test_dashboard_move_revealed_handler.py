@@ -28,6 +28,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
+MOVE_REVEALED_PRODUCT_ID = "BIP-20DEC30-CDE"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -54,7 +57,7 @@ def _sent_payloads(ws: MagicMock) -> list[dict]:
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +316,7 @@ def _make_real_manager_with_revealed_order(stealth_order_id: str = "sid_smoke"):
     order = {
         "stealth_order_id": stealth_order_id,
         "parent_order_id": "root_parent_coid",
-        "product_id": "BTC-USD",
+        "product_id": MOVE_REVEALED_PRODUCT_ID,
         "side": "BUY",
         "status": StealthOrderStatus.REVEALED.value,
         "executed_size": 0.0,
@@ -412,7 +415,7 @@ def test_smoke_handler_drives_real_build_and_execute_end_to_end():
     rest_mock.cancel_orders.assert_called_once()
     rest_mock.place_limit_order.assert_called_once()
     place_kwargs = rest_mock.place_limit_order.call_args.kwargs
-    assert place_kwargs["product_id"] == "BTC-USD"
+    assert place_kwargs["product_id"] == MOVE_REVEALED_PRODUCT_ID
     assert place_kwargs["side"] == "BUY"
     assert float(place_kwargs["limit_price"]) == 101.5
 

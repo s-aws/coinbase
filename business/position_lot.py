@@ -36,7 +36,7 @@ Example:
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Set
 from datetime import datetime
-from core.enums import OrderSide
+from core.enums import InventoryCostBasisStatus, InventoryLotSource, OrderSide
 from business.fill_ledger import FillLedger
 from logging_service import get_logger
 
@@ -91,10 +91,23 @@ class PositionLot:
     
     # Metadata
     source_fills: List[str] = field(default_factory=list)  # trade_ids that comprise this lot
+    cost_basis_status: InventoryCostBasisStatus = InventoryCostBasisStatus.KNOWN
+    lot_source: InventoryLotSource = InventoryLotSource.FILL_LEDGER
     created_at: datetime = field(default_factory=datetime.utcnow)
     
     def __post_init__(self):
         """Compute derived fields after initialization."""
+        if not isinstance(self.cost_basis_status, InventoryCostBasisStatus):
+            self.cost_basis_status = InventoryCostBasisStatus(
+                str(
+                    self.cost_basis_status or InventoryCostBasisStatus.UNKNOWN.value
+                ).lower()
+            )
+        if not isinstance(self.lot_source, InventoryLotSource):
+            self.lot_source = InventoryLotSource(
+                str(self.lot_source or InventoryLotSource.FILL_LEDGER.value).lower()
+            )
+
         if self.entry_value == 0.0:
             self.entry_value = self.quantity * self.entry_price
         
@@ -106,6 +119,14 @@ class PositionLot:
     
     def _compute_exit_threshold(self) -> None:
         """Compute minimum profitable exit price based on fees and target profit."""
+        if (
+            self.cost_basis_status != InventoryCostBasisStatus.KNOWN
+            or self.entry_price <= 0
+            or self.quantity <= 0
+        ):
+            self.min_profitable_exit_price = 0.0
+            return
+
         if self.side == OrderSide.BUY:
             # For buys: exit_price = (entry_price + fees/quantity) * (1 + profit_pct)
             cost_per_unit = self.entry_price + (self.fees / self.quantity if self.quantity > 0 else 0)
@@ -165,6 +186,9 @@ class PositionLot:
         Returns:
             True if profitable, False otherwise
         """
+        if self.cost_basis_status != InventoryCostBasisStatus.KNOWN:
+            return False
+
         if self.side == OrderSide.BUY:
             return market_price >= self.min_profitable_exit_price
         else:  # SELL
@@ -186,6 +210,8 @@ class PositionLot:
             'partially_exited_quantity': self.partially_exited_quantity,
             'remaining_quantity': self.remaining_quantity,
             'source_fills': self.source_fills,
+            'cost_basis_status': self.cost_basis_status.value,
+            'lot_source': self.lot_source.value,
         }
 
     def to_dict(self) -> Dict:

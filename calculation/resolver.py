@@ -27,6 +27,14 @@ def normalize_product_type(order: Dict[str, Any], products: Optional[Dict[str, P
         >>> normalize_product_type({'product_id': 'BIP-20DEC30-CDE'})
         'FUTURE'
     """
+    try:
+        from configuration import normalize_product_type as _canonical_normalize_product_type
+    except Exception:
+        _canonical_normalize_product_type = None
+
+    if callable(_canonical_normalize_product_type):
+        return _canonical_normalize_product_type(order, products=products)
+
     product_type = str(order.get("product_type") or "").upper()
     if product_type in {ProductType.SPOT.value, ProductType.FUTURE.value}:
         return product_type

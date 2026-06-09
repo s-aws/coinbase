@@ -25,12 +25,12 @@ Example:
     'BTC-USDC'
 """
 
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 from datetime import datetime
 import uuid
 from business.fill_ledger import FillLedger, FillLedgerRepository
 from business.position_lot import PositionLot, LotPosition
-from core.enums import OrderSide
+from core.enums import InventoryCostBasisStatus, InventoryLotSource, OrderSide
 from logging_service import get_logger
 
 logger = get_logger("PositionLotBuilder")
@@ -44,13 +44,136 @@ class PositionLotBuilder:
     and derives lots on-demand from the database.
     """
     
-    def __init__(self, fill_ledger_repo: FillLedgerRepository):
+    def __init__(
+        self,
+        fill_ledger_repo: FillLedgerRepository,
+        inventory_baselines: Optional[Any] = None,
+    ):
         """Initialize lot builder.
         
         Args:
             fill_ledger_repo: FillLedgerRepository for accessing fills
         """
         self.fill_ledger_repo = fill_ledger_repo
+        self.inventory_baselines = self._resolve_inventory_baselines(
+            inventory_baselines
+        )
+
+    def _resolve_inventory_baselines(self, override: Optional[Any]) -> Any:
+        if override is not None:
+            return override
+        try:
+            from configuration import SPOT_INVENTORY_BASELINES
+            return SPOT_INVENTORY_BASELINES
+        except Exception:
+            return []
+
+    def _baseline_entries_for_product(self, product_id: str) -> List[Dict[str, Any]]:
+        raw = self.inventory_baselines or []
+        if isinstance(raw, dict):
+            if isinstance(raw.get(product_id), list):
+                raw = raw.get(product_id) or []
+            else:
+                raw = raw.get("lots") or raw.get("baselines") or []
+        if not isinstance(raw, list):
+            return []
+
+        entries: List[Dict[str, Any]] = []
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            entry_product_id = (
+                entry.get("product_id")
+                or entry.get("instrument")
+                or entry.get("symbol")
+            )
+            if str(entry_product_id or "") != str(product_id or ""):
+                continue
+            entries.append(entry)
+        return entries
+
+    def _coerce_baseline_side(self, value: Any) -> OrderSide:
+        try:
+            return OrderSide(str(value or OrderSide.BUY.value).upper())
+        except ValueError:
+            return OrderSide.BUY
+
+    def _coerce_cost_basis_status(
+        self,
+        *,
+        raw_status: Any,
+        entry_price: float,
+    ) -> InventoryCostBasisStatus:
+        if raw_status is not None:
+            try:
+                return InventoryCostBasisStatus(str(raw_status).lower())
+            except ValueError:
+                return InventoryCostBasisStatus.UNKNOWN
+        if entry_price > 0:
+            return InventoryCostBasisStatus.KNOWN
+        return InventoryCostBasisStatus.UNKNOWN
+
+    def _build_baseline_lots(
+        self,
+        product_id: str,
+        *,
+        side: Optional[OrderSide],
+        profit_target_pct: float,
+    ) -> List[PositionLot]:
+        from calculation.formatter import safe_float
+
+        lots: List[PositionLot] = []
+        for index, entry in enumerate(self._baseline_entries_for_product(product_id)):
+            entry_side = self._coerce_baseline_side(entry.get("side"))
+            if side is not None and entry_side != side:
+                continue
+
+            quantity = safe_float(entry.get("quantity"), default=0.0) or 0.0
+            if quantity <= 0:
+                continue
+            remaining_quantity = (
+                safe_float(entry.get("remaining_quantity"), default=quantity)
+                or quantity
+            )
+            entry_price = safe_float(entry.get("entry_price"), default=0.0) or 0.0
+            fees = safe_float(entry.get("fees"), default=0.0) or 0.0
+            cost_basis_status = self._coerce_cost_basis_status(
+                raw_status=entry.get("cost_basis_status"),
+                entry_price=entry_price,
+            )
+            timestamp = entry.get("entry_timestamp") or entry.get("timestamp")
+            if isinstance(timestamp, str):
+                try:
+                    timestamp = datetime.fromisoformat(
+                        timestamp.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    timestamp = datetime.utcnow()
+            elif timestamp is None:
+                timestamp = datetime.utcnow()
+
+            source_id = entry.get("source_id") or entry.get("lot_id") or index
+            known_entry_price = (
+                entry_price
+                if cost_basis_status == InventoryCostBasisStatus.KNOWN
+                else 0.0
+            )
+            lot = PositionLot(
+                lot_id=f"baseline:{product_id}:{source_id}",
+                instrument=product_id,
+                side=entry_side,
+                quantity=quantity,
+                entry_price=known_entry_price,
+                entry_timestamp=timestamp,
+                fees=fees,
+                target_profit_percentage=profit_target_pct,
+                remaining_quantity=remaining_quantity,
+                source_fills=[],
+                cost_basis_status=cost_basis_status,
+                lot_source=InventoryLotSource.IMPORTED_BASELINE,
+            )
+            lots.append(lot)
+        return lots
     
     def build_position_lots(self, 
                            instrument: str, 
@@ -74,13 +197,20 @@ class PositionLotBuilder:
         
         if side:
             fills = [f for f in fills if OrderSide[f.side.upper()] == side]
+
+        position = LotPosition(instrument=instrument)
+        for baseline_lot in self._build_baseline_lots(
+            instrument,
+            side=side,
+            profit_target_pct=profit_target_pct,
+        ):
+            position.add_lot(baseline_lot)
         
         if not fills:
             logger.info(f"No fills found for {instrument}")
-            return LotPosition(instrument=instrument)
+            return position
         
         # Group fills by side and entry price to create lots (FIFO)
-        position = LotPosition(instrument=instrument)
         lots_dict: Dict[str, PositionLot] = {}  # key: (side, price) -> lot
         
         for fill in fills:
@@ -176,15 +306,22 @@ class PositionLotBuilder:
         """
         fills = self.fill_ledger_repo.get_fills_by_product(product_id, 
                                                            side.name if side else None)
+
+        position = LotPosition(instrument=product_id)
+        for baseline_lot in self._build_baseline_lots(
+            product_id,
+            side=side,
+            profit_target_pct=profit_target_pct,
+        ):
+            position.add_lot(baseline_lot)
         
         if not fills:
             # Infer instrument from product_id
-            instrument = product_id
             logger.info(f"No fills found for {product_id}")
-            return LotPosition(instrument=instrument)
+            return position
         
         # Build position using the fill list
-        position = LotPosition(instrument=fills[0].instrument if fills else product_id)
+        position.instrument = fills[0].instrument if fills else product_id
         lots_dict: Dict[str, PositionLot] = {}
         
         for fill in fills:

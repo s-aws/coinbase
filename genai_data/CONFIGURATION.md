@@ -33,6 +33,41 @@ The host `9876` mapping must point to container port `5432`. Mapping `9876->9876
   - controls metrics window preset in `business/market_metrics.py`.
   - supported: `standard` (default), `fibonacci`.
 
+- `ACTION_CONDITION_GUARDS_JSON`
+  - optional JSON object for stealth planning, reveal, and replacement
+    account-condition guards.
+  - direct dashboard `place_order` also evaluates this policy before REST
+    placement.
+  - overrides top-level `products.json::action_condition_guards` when set.
+  - supported keys: `wallet_available`, `known_inventory_available`, and
+    `limits`.
+  - see [Action Condition Guards](../README.action-condition-guards.md).
+
+- `PRODUCT_CAPABILITIES_JSON`
+  - optional JSON object for product capability overrides.
+  - overrides top-level `products.json::product_capabilities` when set.
+  - supports `product_type` and `product_id` maps.
+  - default spot policy enables direct placement, stealth planning, and stealth
+    reveal, while disabling spot move/reprice replacement, cancel/re-entry, and
+    hotpoint auto-placement by default. If move/reprice is explicitly enabled,
+    the replacement action guard credits the active same-currency Coinbase hold
+    and checks only the net new wallet requirement before cancel-and-replace.
+
+- `SPOT_FOLLOW_UP_POLICY_JSON`
+  - optional JSON object for spot follow-up intent policy.
+  - overrides top-level `products.json::spot_follow_up_policy` when set.
+  - default spot policy allows `exit` follow-ups and blocks `rebuy` and
+    `same_side_replacement` until explicitly enabled.
+
+- `SPOT_INVENTORY_BASELINES_JSON`
+  - optional JSON list for imported spot inventory lots.
+  - overrides top-level `products.json::spot_inventory_baselines` when set.
+  - each entry should include `product_id`, `quantity`, and optional
+    `entry_price`, `fees`, `entry_timestamp`, `source_id`, and
+    `cost_basis_status`.
+  - entries without positive known `entry_price` are treated as unknown cost
+    basis and cannot satisfy `known_inventory_available`.
+
 ### External test toggles
 - `COINBASE_USE_SANDBOX` (expected `true` for external tests)
 - `COINBASE_ENABLE_WEBSOCKET_EXTERNAL` (opt-in live websocket smoke)
@@ -47,13 +82,28 @@ Contains:
 - `spot`: spot product ids
 - `derivatives`: derivatives product ids
 - `ticker_to_trading`: ticker product id to trading product id mapping
-- `metadata`: per-product increments/min sizes/type data
+- `metadata`: per-product increments/min sizes/type data. Metadata may carry
+  API-style `type`; `configuration.py` normalizes this into canonical
+  `product_type` values for runtime consumers.
+- `action_condition_guards`: optional file-backed default for stealth planning,
+  reveal, and replacement action guards. `ACTION_CONDITION_GUARDS_JSON`
+  overrides it.
+- `product_capabilities`: optional file-backed default for product capability
+  overrides. `PRODUCT_CAPABILITIES_JSON` overrides it.
+- `spot_follow_up_policy`: optional file-backed default for spot follow-up
+  intent policy. `SPOT_FOLLOW_UP_POLICY_JSON` overrides it.
+- `spot_inventory_baselines`: optional file-backed imported spot inventory
+  lots. `SPOT_INVENTORY_BASELINES_JSON` overrides it.
 
 Loaded by `configuration.py` into:
 - `SPOT_PRODUCT_IDS`
 - `DERIVATIVES_PRODUCT_IDS`
 - `PRODUCT_METADATA`
 - `TICKER_TO_TRADING`
+- `ACTION_CONDITION_GUARDS`
+- `PRODUCT_CAPABILITIES`
+- `SPOT_FOLLOW_UP_POLICY`
+- `SPOT_INVENTORY_BASELINES`
 
 ### `pyproject.toml`
 Project/package metadata and package inclusion list.
@@ -131,6 +181,8 @@ Do not introduce duplicate global settings when a per-order canonical field alre
 - Price increment enforcement uses `calculation/formatter.py::quantize_to_increment`.
 - Size validation uses `calculation/size_validation.py::validate_and_quantize_size`.
 - Product increments/min sizes come from `PRODUCT_METADATA` (from `products.json`).
+- Spot ticker/trading mappings must only point to live tradable products. The
+  default BTC spot path keeps `BTC-USD` as both ticker and trading product.
 
 ## 7) Operational Commands (PowerShell)
 

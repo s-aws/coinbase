@@ -28,8 +28,28 @@ except ImportError:
 
 # Use custom logging service
 from logging_service import get_logger
-from core.enums import EngineState, FollowUpRevealDirection, RepricingReferenceSource, StealthOrderStatus
+from core.action_condition_guard import (
+    ActionConditionGuard,
+    fetch_account_wallets,
+    get_action_condition_guard_policy,
+    normalize_action_guard_known_inventory_policy,
+    normalize_action_guard_wallet_policy,
+    rest_credentials_configured,
+)
+from core.enums import (
+    ActionConditionType,
+    ActionGuardPhase,
+    EngineState,
+    FollowUpRevealDirection,
+    InventoryCostBasisStatus,
+    InventoryLotSource,
+    ProductCapability,
+    ProductCapabilityMode,
+    RepricingReferenceSource,
+    StealthOrderStatus,
+)
 from core.models import RepricingPolicy
+from core.product_capability import evaluate_product_capability
 from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
@@ -140,6 +160,368 @@ server_event_loop = None
 
 # Stealth order bridge reference (set during integration)
 stealth_order_bridge = None
+
+
+def _get_dashboard_spot_planned_budget_commitments() -> Dict[str, float]:
+    """Return stealth-manager planned spot commitments for dashboard actions."""
+    bridge = stealth_order_bridge
+    manager = getattr(bridge, "stealth_manager", None) if bridge else None
+    if manager is None:
+        return {}
+    budget_getter = getattr(manager, "_get_spot_planned_budget_commitments", None)
+    if not callable(budget_getter):
+        return {}
+    return budget_getter()
+
+
+def _get_dashboard_spot_lot_authority_evaluator():
+    """Return the stealth-manager lot authority evaluator when attached."""
+    bridge = stealth_order_bridge
+    manager = getattr(bridge, "stealth_manager", None) if bridge else None
+    if manager is None:
+        return None
+    evaluator = getattr(manager, "_evaluate_spot_lot_authority_for_action", None)
+    return evaluator if callable(evaluator) else None
+
+
+def _extract_readiness_wallet_available(wallet: Any) -> float:
+    raw_balance = None
+    if isinstance(wallet, dict):
+        raw_balance = wallet.get("available_balance")
+        if raw_balance is None:
+            raw_balance = wallet.get("available")
+    else:
+        raw_balance = getattr(wallet, "available_balance", None)
+        if raw_balance is None:
+            raw_balance = getattr(wallet, "available", None)
+    if isinstance(raw_balance, dict):
+        raw_balance = (
+            raw_balance.get("value")
+            if raw_balance.get("value") is not None
+            else raw_balance.get("amount")
+        )
+    return safe_float(raw_balance, default=0.0) or 0.0
+
+
+def _build_wallet_readiness_snapshot() -> Dict[str, Any]:
+    fetched_at = datetime.utcnow()
+    if not rest_credentials_configured():
+        return {
+            "available": False,
+            "fetched_at": None,
+            "age_seconds": None,
+            "currencies": {},
+            "reason": "Coinbase REST credentials are not configured",
+        }
+    try:
+        wallets = fetch_account_wallets() or {}
+    except Exception as exc:
+        return {
+            "available": False,
+            "fetched_at": None,
+            "age_seconds": None,
+            "currencies": {},
+            "reason": f"wallet fetch failed: {type(exc).__name__}: {exc}",
+        }
+
+    return {
+        "available": True,
+        "fetched_at": fetched_at.isoformat(),
+        "age_seconds": 0.0,
+        "currencies": {
+            str(currency).upper(): {
+                "available_balance": _extract_readiness_wallet_available(wallet),
+            }
+            for currency, wallet in wallets.items()
+        },
+    }
+
+
+def _readiness_mode(enabled: bool) -> str:
+    return (
+        ProductCapabilityMode.ENABLED.value
+        if enabled
+        else ProductCapabilityMode.DISABLED.value
+    )
+
+
+def _readiness_policy_phases(policy: Dict[str, Any]) -> list[str]:
+    phases = policy.get("phases")
+    if phases is None:
+        return [phase.value for phase in ActionGuardPhase]
+    if isinstance(phases, str):
+        phases = [phases]
+
+    normalized = []
+    for phase in phases or []:
+        try:
+            normalized.append(ActionGuardPhase(str(phase)).value)
+        except ValueError:
+            normalized.append(str(phase))
+    return normalized
+
+
+def _build_action_guard_readiness_summary(
+    *,
+    wallet_policy: Dict[str, Any],
+    known_inventory_policy: Dict[str, Any],
+) -> list[Dict[str, Any]]:
+    wallet_enabled = wallet_policy.get("enabled", True) is not False
+    known_inventory_enabled = bool(known_inventory_policy.get("enabled", False))
+
+    return [
+        {
+            "condition": ActionConditionType.WALLET_AVAILABLE.value,
+            "label": "wallet availability",
+            "mode": _readiness_mode(wallet_enabled),
+            "phases": _readiness_policy_phases(wallet_policy),
+            "reason": (
+                "Coinbase wallet balance is checked before spot placement"
+                if wallet_enabled
+                else "wallet_available guard is disabled by policy"
+            ),
+        },
+        {
+            "condition": ActionConditionType.PLANNED_BUDGET_AVAILABLE.value,
+            "label": "planned spot budget",
+            "mode": _readiness_mode(wallet_enabled),
+            "phases": _readiness_policy_phases(wallet_policy),
+            "reason": (
+                "spot wallet availability is reduced by local hidden, pending, "
+                "and triggered spot commitments"
+                if wallet_enabled
+                else "planned-budget checks are disabled because wallet_available is disabled"
+            ),
+        },
+        {
+            "condition": ActionConditionType.KNOWN_INVENTORY_AVAILABLE.value,
+            "label": "known profitable inventory",
+            "mode": _readiness_mode(known_inventory_enabled),
+            "phases": _readiness_policy_phases(known_inventory_policy),
+            "reason": (
+                "spot SELL admission requires known profitable fill-ledger or baseline lots"
+                if known_inventory_enabled
+                else "known_inventory_available guard is disabled by policy"
+            ),
+        },
+    ]
+
+
+class _ReadinessEmptyFillLedgerRepo:
+    def get_fills_by_instrument(self, _instrument: str) -> list:
+        return []
+
+    def get_fills_by_product(self, _product_id: str, *_args: Any) -> list:
+        return []
+
+
+def _baseline_source_id(product_id: str, lot_id: Any) -> str:
+    lot_id_text = str(lot_id or "")
+    prefix = f"baseline:{product_id}:"
+    if lot_id_text.startswith(prefix):
+        return lot_id_text[len(prefix):]
+    return lot_id_text
+
+
+def _build_spot_inventory_baseline_summary(product_id: str) -> Dict[str, Any]:
+    try:
+        from business.lot_builder import PositionLotBuilder
+        from business.lot_config import get_profit_target_for_product
+        from configuration import SPOT_INVENTORY_BASELINES
+
+        position = PositionLotBuilder(
+            _ReadinessEmptyFillLedgerRepo(),
+            inventory_baselines=SPOT_INVENTORY_BASELINES,
+        ).build_position_by_product(
+            product_id,
+            profit_target_pct=get_profit_target_for_product(product_id),
+        )
+    except Exception as exc:
+        return {
+            "configured": False,
+            "known_quantity": 0.0,
+            "unknown_cost_basis_quantity": 0.0,
+            "lots": [],
+            "reason": (
+                "inventory baseline summary failed: "
+                f"{type(exc).__name__}: {exc}"
+            ),
+        }
+
+    lots = []
+    known_quantity = 0.0
+    unknown_cost_basis_quantity = 0.0
+    for lot in position.lots:
+        if lot.lot_source != InventoryLotSource.IMPORTED_BASELINE:
+            continue
+
+        remaining_quantity = (
+            safe_float(lot.remaining_quantity, default=0.0) or 0.0
+        )
+        cost_basis_status = lot.cost_basis_status
+        if cost_basis_status == InventoryCostBasisStatus.KNOWN:
+            known_quantity += remaining_quantity
+            entry_price = safe_float(lot.entry_price, default=0.0) or 0.0
+            min_exit = (
+                safe_float(lot.min_profitable_exit_price, default=0.0) or 0.0
+            )
+        else:
+            unknown_cost_basis_quantity += remaining_quantity
+            entry_price = None
+            min_exit = None
+
+        lots.append({
+            "lot_id": lot.lot_id,
+            "source_id": _baseline_source_id(product_id, lot.lot_id),
+            "lot_source": lot.lot_source.value,
+            "cost_basis_status": cost_basis_status.value,
+            "quantity": safe_float(lot.quantity, default=0.0) or 0.0,
+            "remaining_quantity": remaining_quantity,
+            "entry_price": entry_price,
+            "min_profitable_exit_price": min_exit,
+        })
+
+    return {
+        "configured": bool(lots),
+        "known_quantity": known_quantity,
+        "unknown_cost_basis_quantity": unknown_cost_basis_quantity,
+        "lots": lots,
+    }
+
+
+def _exception_context_payload(exc: Exception) -> Dict[str, Any]:
+    context = getattr(exc, "context", None)
+    if not isinstance(context, dict):
+        return {}
+    return {
+        key: value
+        for key, value in context.items()
+        if key not in {"type", "message", "status"}
+    }
+
+
+def _build_spot_readiness_payload(
+    product_ids: Optional[list[str]] = None,
+) -> Dict[str, Any]:
+    from configuration import PRODUCT_METADATA, SPOT_PRODUCT_IDS
+
+    requested_products = product_ids or SPOT_PRODUCT_IDS
+    policy = get_action_condition_guard_policy()
+    wallet_policy = normalize_action_guard_wallet_policy(policy)
+    known_inventory_policy = normalize_action_guard_known_inventory_policy(policy)
+    planned_budget = _get_dashboard_spot_planned_budget_commitments()
+    wallet_snapshot = _build_wallet_readiness_snapshot()
+
+    products = []
+    for product_id in requested_products:
+        metadata = PRODUCT_METADATA.get(product_id, {})
+        capabilities = {
+            capability.value: evaluate_product_capability(
+                product_id=product_id,
+                capability=capability,
+                allow_conditional=True,
+            ).to_dict()
+            for capability in ProductCapability
+        }
+        products.append({
+            "product_id": product_id,
+            "product_type": metadata.get("product_type") or metadata.get("type"),
+            "base_currency": metadata.get("base_currency"),
+            "quote_currency": metadata.get("quote_currency"),
+            "capabilities": capabilities,
+            "inventory": {
+                "imported_baselines": (
+                    _build_spot_inventory_baseline_summary(product_id)
+                ),
+            },
+        })
+
+    return {
+        "type": "spot_readiness",
+        "status": "success",
+        "generated_at": datetime.utcnow().isoformat(),
+        "products": products,
+        "planned_budget": {
+            str(currency).upper(): amount
+            for currency, amount in (planned_budget or {}).items()
+        },
+        "wallet_snapshot": wallet_snapshot,
+        "action_guards": {
+            "wallet_available": wallet_policy,
+            "known_inventory_available": known_inventory_policy,
+        },
+        "action_guard_summary": _build_action_guard_readiness_summary(
+            wallet_policy=wallet_policy,
+            known_inventory_policy=known_inventory_policy,
+        ),
+    }
+
+
+def _build_spot_sweep_status_payload(
+    state_file: Optional[str] = None,
+) -> Dict[str, Any]:
+    from business.spot_portfolio_sweep import (
+        build_sweep_operator_status,
+        load_sweep_run_records,
+    )
+
+    ledger_path = Path(state_file) if state_file else (
+        Path("runtime_state") / "spot_portfolio_sweeps.jsonl"
+    )
+    try:
+        records = load_sweep_run_records(ledger_path)
+        operator_status = build_sweep_operator_status(records=records)
+        return {
+            "type": "spot_sweep_status",
+            "status": "success",
+            "state_file": str(ledger_path),
+            "operator_status": operator_status,
+        }
+    except Exception as exc:
+        return {
+            "type": "spot_sweep_status",
+            "status": "error",
+            "state_file": str(ledger_path),
+            "message": f"sweep status failed: {type(exc).__name__}: {exc}",
+        }
+
+
+def _build_spot_sweep_pnl_payload(
+    product_ids: Optional[list[str]] = None,
+) -> Dict[str, Any]:
+    try:
+        from coinbase.rest import RESTClient
+
+        from business.fill_ledger import FillLedgerRepository
+        from business.spot_portfolio_sweep import build_spot_portfolio_pnl_report
+        from database.database import PostgresDB
+        from external.coinbase_client import coinbase_sdk_response_to_dict
+
+        public_client = RESTClient(rate_limit_headers=True)
+        products_response = coinbase_sdk_response_to_dict(
+            public_client.get_public_products(
+                product_type="SPOT",
+                get_all_products=True,
+                get_tradability_status=True,
+            )
+        )
+        report = build_spot_portfolio_pnl_report(
+            fill_ledger_repo=FillLedgerRepository(PostgresDB()),
+            products=list(products_response.get("products") or []),
+            product_ids=product_ids,
+        )
+        return {
+            "type": "spot_sweep_pnl",
+            "status": "success",
+            "read_only_coinbase_requests": ["get_public_products"],
+            "pnl_report": report,
+        }
+    except Exception as exc:
+        return {
+            "type": "spot_sweep_pnl",
+            "status": "error",
+            "message": f"sweep P/L report failed: {type(exc).__name__}: {exc}",
+        }
 
 
 # In-memory Fibonacci-window market metrics tracker. Optional dependency
@@ -644,7 +1026,29 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 inner_key = next(iter(order_configuration), None)
                 inner = order_configuration.get(inner_key, {}) if inner_key else {}
                 raw_size = inner.get("base_size")
+                raw_quote_size = inner.get("quote_size")
                 raw_price = inner.get("limit_price")  # None for market orders
+
+                capability = evaluate_product_capability(
+                    product_id=product_id,
+                    capability=ProductCapability.DIRECT_PLACEMENT,
+                )
+                if not capability.allowed:
+                    response = {
+                        "type": "order_response",
+                        "status": "error",
+                        "message": (
+                            "Order rejected by product capability policy: "
+                            f"{capability.reason}"
+                        ),
+                        "capability": capability.to_dict(),
+                    }
+                    add_log_entry("WARNING", response["message"])
+                    logger.warning(response["message"])
+                    await websocket.send(json.dumps(response))
+                    return
+
+                approved_base_size = None
                 if raw_size is not None:
                     size_check = validate_and_quantize_size(
                         raw_size,
@@ -659,6 +1063,43 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     # Write quantized value back so the REST call sends
                     # exactly what the validator approved.
                     inner["base_size"] = str(size_check.size)
+                    approved_base_size = size_check.size
+
+                quote_size = safe_float(raw_quote_size, default=None)
+                if approved_base_size is not None or quote_size is not None:
+                    guard_ok, guard_failure = ActionConditionGuard(
+                        planned_budget_fetcher=(
+                            _get_dashboard_spot_planned_budget_commitments
+                        ),
+                        lot_authority_evaluator=(
+                            _get_dashboard_spot_lot_authority_evaluator()
+                        ),
+                    ).evaluate(
+                        phase=ActionGuardPhase.PLANNING,
+                        product_id=product_id,
+                        side=order_params.get("side"),
+                        size=approved_base_size,
+                        limit_price=safe_float(raw_price, default=0.0),
+                        quote_size=quote_size,
+                        client_order_id=client_order_id,
+                    )
+                    if not guard_ok:
+                        reason = (guard_failure or {}).get("reason", "blocked")
+                        response = {
+                            "type": "order_response",
+                            "status": "error",
+                            "message": (
+                                "Order rejected by action-condition guard: "
+                                f"{reason}"
+                            ),
+                            "guard": guard_failure,
+                        }
+                        add_log_entry(
+                            "WARNING",
+                            f"Order rejected by action-condition guard: {reason}",
+                        )
+                        await websocket.send(json.dumps(response))
+                        return
 
                 # Call REST API to create order. Tracked as in-flight so a
                 # concurrent drain waits for the placement to settle before
@@ -774,6 +1215,32 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         elif msg_type == "request_stealth_orders":
             # Send current stealth orders snapshot
             await send_stealth_orders_snapshot(websocket)
+
+        elif msg_type == "request_spot_readiness":
+            params = data.get("params") or {}
+            product_ids = params.get("product_ids")
+            if isinstance(product_ids, str):
+                product_ids = [product_ids]
+            elif product_ids is not None and not isinstance(product_ids, list):
+                product_ids = None
+            response = _build_spot_readiness_payload(product_ids=product_ids)
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
+        elif msg_type == "request_spot_sweep_status":
+            params = data.get("params") or {}
+            state_file = params.get("state_file")
+            response = _build_spot_sweep_status_payload(state_file=state_file)
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
+        elif msg_type == "request_spot_sweep_pnl":
+            params = data.get("params") or {}
+            product_ids = params.get("product_ids")
+            if isinstance(product_ids, str):
+                product_ids = [product_ids]
+            elif product_ids is not None and not isinstance(product_ids, list):
+                product_ids = None
+            response = _build_spot_sweep_pnl_payload(product_ids=product_ids)
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
 
         elif msg_type == "request_slide_calibration_summary":
             # Per-product fill / reprice / P&L snapshot used by the
@@ -1204,6 +1671,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "type": "error",
                     "message": f"Failed to create order: {str(e)}"
                 }
+                response.update(_exception_context_payload(e))
                 add_log_entry("ERROR", f"Stealth order creation failed: {str(e)}")
                 await websocket.send(json.dumps(response))
         
@@ -1353,6 +1821,20 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 policy = RepricingPolicy.from_anchor_repricing_policy_dict(
                     order.get("anchor_repricing_policy_json")
                 )
+                capability = evaluate_product_capability(
+                    product_id=order.get("product_id", ""),
+                    capability=ProductCapability.REPRICE_REVEALED,
+                )
+                if not capability.allowed:
+                    await websocket.send(json.dumps({
+                        "type": "reprice_now_result",
+                        "stealth_order_id": stealth_order_id,
+                        "processed": 0,
+                        "error": capability.reason,
+                        "capability": capability.to_dict(),
+                    }))
+                    return
+
                 if not policy.enabled:
                     await websocket.send(json.dumps({
                         "type": "reprice_now_result",

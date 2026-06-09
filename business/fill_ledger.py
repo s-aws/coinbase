@@ -286,6 +286,7 @@ class FillLedgerRepository:
         )
         return self.append_fill(fill)
 
+    def get_fills_by_instrument(self, instrument: str) -> List[FillLedger]:
         """Get all fills for an instrument in chronological order.
         
         Args:

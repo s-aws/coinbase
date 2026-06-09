@@ -112,6 +112,37 @@ class ProductType(str, Enum):
     FUTURE = "FUTURE"
 
 
+class ProductCapability(str, Enum):
+    """Feature/action capability controlled by product type policy."""
+
+    DIRECT_PLACEMENT = "direct_placement"
+    STEALTH_PLANNING = "stealth_planning"
+    STEALTH_REVEAL = "stealth_reveal"
+    SIZE_VALIDATION = "size_validation"
+    PROFITABILITY = "profitability"
+    FILLED_FOLLOW_UP = "filled_follow_up"
+    PARTIAL_FILL_FOLLOW_UP = "partial_fill_follow_up"
+    CANCELLED_FOLLOW_UP = "cancelled_follow_up"
+    SAME_SIDE_POST_FILL_RETREAT = "same_side_post_fill_retreat"
+    MOVE_REVEALED = "move_revealed"
+    REPRICE_REVEALED = "reprice_revealed"
+    CANCEL_REENTRY = "cancel_reentry"
+    HOTPOINT_AUTO_PLACEMENT = "hotpoint_auto_placement"
+    FUTURES_POSITION_FLIP = "futures_position_flip"
+    MARGIN_VALIDATION = "margin_validation"
+    LIQUIDATION_CHECK = "liquidation_check"
+    FUNDING_CHECK = "funding_check"
+
+
+class ProductCapabilityMode(str, Enum):
+    """Policy decision mode for a product capability."""
+
+    ENABLED = "enabled"
+    CONDITIONAL = "conditional"
+    DISABLED = "disabled"
+    NOT_APPLICABLE = "not_applicable"
+
+
 class ProductStatus(str, Enum):
     """Status of a trading product from Coinbase.
     
@@ -124,6 +155,183 @@ class ProductStatus(str, Enum):
     CLOSED = "CLOSED"
     POST_ONLY = "POST_ONLY"
     LIMIT_ONLY = "LIMIT_ONLY"
+
+
+class ActionGuardPhase(str, Enum):
+    """Action-condition guard evaluation phase."""
+    PLANNING = "planning"
+    REVEAL = "reveal"
+
+
+class ActionConditionType(str, Enum):
+    """Built-in action-condition guard types."""
+    WALLET_AVAILABLE = "wallet_available"
+    PLANNED_BUDGET_AVAILABLE = "planned_budget_available"
+    KNOWN_INVENTORY_AVAILABLE = "known_inventory_available"
+    MAX_BASE_SIZE = "max_base_size"
+    MAX_NOTIONAL = "max_notional"
+
+
+class InventoryCostBasisStatus(str, Enum):
+    """Cost-basis authority for inventory lots."""
+    KNOWN = "known"
+    UNKNOWN = "unknown"
+
+
+class InventoryLotSource(str, Enum):
+    """Source used to derive an inventory lot."""
+    FILL_LEDGER = "fill_ledger"
+    IMPORTED_BASELINE = "imported_baseline"
+
+
+class InventoryAuthorityStatus(str, Enum):
+    """Decision status for inventory authority checks."""
+    NOT_APPLICABLE = "not_applicable"
+    KNOWN_PROFITABLE = "known_profitable"
+    NO_LOTS = "no_lots"
+    UNKNOWN_COST_BASIS = "unknown_cost_basis"
+    INSUFFICIENT_KNOWN_PROFITABLE = "insufficient_known_profitable"
+    UNAVAILABLE = "unavailable"
+
+
+class SpotPortfolioSweepItemStatus(str, Enum):
+    """Per-product status for USDC spot portfolio sweep planning."""
+
+    PLANNED = "planned"
+    SKIPPED = "skipped"
+
+
+class SpotPortfolioSweepSkipReason(str, Enum):
+    """Why a USDC spot portfolio sweep item could not be planned."""
+
+    NONE = "none"
+    INELIGIBLE_PRODUCT = "ineligible_product"
+    INVALID_PRICE = "invalid_price"
+    BELOW_QUOTE_MIN = "below_quote_min"
+    BELOW_BASE_MIN = "below_base_min"
+    INSUFFICIENT_QUOTE_BALANCE = "insufficient_quote_balance"
+    INSUFFICIENT_BASE_BALANCE = "insufficient_base_balance"
+    UNSUPPORTED_SIDE = "unsupported_side"
+
+
+class SpotPortfolioSweepExecutionStatus(str, Enum):
+    """Per-product status for live USDC spot portfolio sweep execution."""
+
+    BLOCKED = "blocked"
+    SUBMITTED = "submitted"
+    ERROR = "error"
+    SKIPPED = "skipped"
+
+
+class SpotPortfolioSweepRunStatus(str, Enum):
+    """Durable run status for USDC spot portfolio sweep automation."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    DISABLED = "disabled"
+
+
+class SpotPortfolioSweepAutomationDecision(str, Enum):
+    """Scheduler decision for one run-if-due sweep invocation."""
+
+    DUE = "due"
+    NOT_DUE = "not_due"
+    MAX_RUNS_REACHED = "max_runs_reached"
+    DISABLED = "disabled"
+
+
+class SpotPortfolioSweepOrderType(str, Enum):
+    """Supported live order policies for USDC spot portfolio sweeps."""
+
+    MARKET_IOC = "market_ioc"
+    LIMIT_GTC = "limit_gtc"
+    LIMIT_GTC_POST_ONLY = "limit_gtc_post_only"
+
+
+class SpotPortfolioSweepSafetyDecision(str, Enum):
+    """Safety-policy admission decision for a spot portfolio sweep run."""
+
+    ALLOWED = "allowed"
+    BLOCKED = "blocked"
+
+
+class SpotPortfolioSweepReconciliationStatus(str, Enum):
+    """Reconciliation result for a durable sweep order record."""
+
+    MATCHED = "matched"
+    NOT_SUBMITTED = "not_submitted"
+    MISSING_EXCHANGE_ORDER = "missing_exchange_order"
+    CLIENT_ORDER_ID_MISMATCH = "client_order_id_mismatch"
+    FETCH_ERROR = "fetch_error"
+
+
+class SpotSweepFillLedgerMatchStatus(str, Enum):
+    """Comparison status between REST fills and local fill_ledger rows."""
+
+    UNCHECKED = "unchecked"
+    MATCHED = "matched"
+    MISMATCH = "mismatch"
+    UNAVAILABLE = "unavailable"
+
+
+class SpotFillBackfillStatus(str, Enum):
+    """Result status for REST-fill backfill into fill_ledger."""
+
+    APPENDED = "appended"
+    DUPLICATE_OR_ACCEPTED = "duplicate_or_accepted"
+    SKIPPED = "skipped"
+    ERROR = "error"
+
+
+class SpotInventoryCoverageStatus(str, Enum):
+    """Durable coverage status for wallet inventory versus local lot evidence."""
+
+    COVERED = "covered"
+    UNKNOWN_COST_BASIS = "unknown_cost_basis"
+    WALLET_ONLY = "wallet_only"
+    NO_WALLET_BALANCE = "no_wallet_balance"
+    UNAVAILABLE = "unavailable"
+
+
+class SpotLiveReconciliationGateStatus(str, Enum):
+    """Pass/fail status for approved live spot reconciliation gates."""
+
+    PASSED = "passed"
+    FAILED = "failed"
+
+
+class SpotReleaseGateStatus(str, Enum):
+    """Pass/fail status for read-only spot release gates."""
+
+    PASSED = "passed"
+    FAILED = "failed"
+
+
+class SpotSweepRecoveryGateStatus(str, Enum):
+    """Pass/fail status for read-only spot sweep recovery gates."""
+
+    PASSED = "passed"
+    FAILED = "failed"
+
+
+class FillLedgerReconciliationStatus(str, Enum):
+    """Persistence status for fill_ledger reconciliation evidence."""
+
+    WS_DERIVED = "WS_DERIVED"
+    RECONCILED = "RECONCILED"
+    MISMATCH = "MISMATCH"
+
+
+class SpotPortfolioPnlScope(str, Enum):
+    """Durable fill-ledger P/L aggregation scopes for spot portfolio reports."""
+
+    PRODUCT = "product"
+    PORTFOLIO = "portfolio"
+    SINCE_LAST_PURCHASE = "since_last_purchase"
+    REALIZED_LOT = "realized_lot"
 
 
 class ContractExpiryType(str, Enum):
@@ -178,6 +386,23 @@ class FollowUpKind(str, Enum):
     """
 
     FILLED = "filled"
+    CANCELLED = "cancelled"
+
+
+class SpotFollowUpIntent(str, Enum):
+    """Spot-specific intent classification for follow-up orders."""
+
+    EXIT = "exit"
+    REBUY = "rebuy"
+    SAME_SIDE_REPLACEMENT = "same_side_replacement"
+    UNSUPPORTED = "unsupported"
+
+
+class SpotFollowUpTrigger(str, Enum):
+    """Event that requested a spot follow-up order."""
+
+    FILLED = "filled"
+    PARTIAL_FILL = "partial_fill"
     CANCELLED = "cancelled"
 
 

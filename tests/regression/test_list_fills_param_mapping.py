@@ -164,3 +164,82 @@ def test_list_fills_body_does_not_pass_user_facing_names_to_sdk():
         f"start_sequence_timestamp, end_sequence_timestamp) instead. "
         f"This is the 2026-04-30 silent-filter-drop bug regressing."
     )
+
+
+class _PagedAccountsSDK:
+    def __init__(self):
+        self.calls = []
+        self.pages = {
+            None: {
+                "accounts": [
+                    {
+                        "currency": "USD",
+                        "available_balance": {"value": "100"},
+                        "deleted_at": None,
+                    },
+                ],
+                "has_next": True,
+                "cursor": "cursor-2",
+            },
+            "cursor-2": {
+                "accounts": [
+                    {
+                        "currency": "BTC",
+                        "available_balance": {"value": "0.5"},
+                        "deleted_at": None,
+                    },
+                    {
+                        "currency": "OLD",
+                        "available_balance": {"value": "99"},
+                        "deleted_at": "2026-01-01T00:00:00Z",
+                    },
+                ],
+                "has_next": False,
+                "cursor": "",
+            },
+        }
+
+    def get_accounts(self, *, limit=None, cursor=None):
+        self.calls.append({"limit": limit, "cursor": cursor})
+        return self.pages[cursor]
+
+
+@pytest.mark.regression
+def test_list_all_account_dicts_follows_account_pagination():
+    from external.coinbase_client import list_all_account_dicts
+
+    sdk = _PagedAccountsSDK()
+
+    accounts = list_all_account_dicts(sdk)
+
+    assert [account["currency"] for account in accounts] == ["USD", "BTC", "OLD"]
+    assert sdk.calls == [
+        {"limit": 250, "cursor": None},
+        {"limit": 250, "cursor": "cursor-2"},
+    ]
+
+
+@pytest.mark.regression
+def test_get_account_wallets_uses_every_account_page():
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = _PagedAccountsSDK()
+
+    wallets = client.get_account_wallets()
+
+    assert set(wallets) == {"USD", "BTC"}
+    assert wallets["BTC"].currency == "BTC"
+
+
+@pytest.mark.regression
+def test_configuration_rest_get_account_wallets_uses_every_account_page(monkeypatch):
+    import configuration
+
+    sdk = _PagedAccountsSDK()
+    monkeypatch.setattr(configuration, "get_rest_client", lambda: sdk)
+
+    wallets = configuration.rest_get_account_wallets()
+
+    assert set(wallets) == {"USD", "BTC"}
+    assert wallets["BTC"]["available_balance"]["value"] == "0.5"
