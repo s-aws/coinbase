@@ -29,9 +29,17 @@ Optional read-only additions:
 ```powershell
 python tools/run_spot_release_gate.py --include-browser
 python tools/run_spot_release_gate.py --include-coinbase-readonly
+python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy.json
 ```
 
-The release wrapper never submits live Coinbase orders.
+The Coinbase read-only option includes sweep status, sweep P/L, average-cost
+inventory coverage, and cost-basis drift audit checks. The release wrapper
+never submits live Coinbase orders.
+
+The optional campaign config gate runs
+`tools/run_spot_campaign.py --release-gate --summary-only`. It validates the
+campaign intake, dry-run plan, safety policy, operation lock, recovery
+readiness, and durable P/L/cost-basis surfaces without submitting live orders.
 
 ## Browser Smoke Gate
 

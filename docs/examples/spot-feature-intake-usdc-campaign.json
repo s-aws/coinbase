@@ -1,0 +1,80 @@
+{
+  "feature_name": "usdc_spot_portfolio_campaign",
+  "goal": "Buy or sell capped notional across every eligible Coinbase US-customer-available crypto-USDC spot product on an operator-configured cadence, with durable audit and P/L views.",
+  "product_scope": {
+    "quote_currency": "USDC",
+    "us_customer_available": true,
+    "selection_rule": "all_coinbase_usdc_spot_us_customer_available"
+  },
+  "order_sides": [
+    "BUY",
+    "SELL"
+  ],
+  "order_types": [
+    "market_ioc",
+    "limit_gtc",
+    "limit_gtc_post_only"
+  ],
+  "automation": {
+    "repeat_every_hours": "6",
+    "max_runs": 4
+  },
+  "operator_configurable_fields": [
+    "quote_notional",
+    "automation.repeat_every_hours",
+    "automation.max_runs",
+    "safety.max_notional_per_order",
+    "safety.max_total_notional_per_run",
+    "product_scope.allow_products",
+    "product_scope.deny_products",
+    "order_types"
+  ],
+  "live_approval": {
+    "required": true
+  },
+  "safety": {
+    "max_notional_per_order": "1",
+    "max_total_notional_per_run": "10"
+  },
+  "inventory_policy": {
+    "retention": "retain"
+  },
+  "cost_basis_authority": {
+    "allowed_sources": [
+      "fill_ledger",
+      "imported_baseline",
+      "coinbase_average_cost"
+    ],
+    "coinbase_average_cost_profit_buffer_pct": "0.5"
+  },
+  "pnl_tracking": {
+    "durable_sources": [
+      "fill_ledger",
+      "runtime_state/spot_portfolio_sweeps.jsonl",
+      "runtime_state/spot_campaigns.jsonl"
+    ],
+    "views": [
+      "per_product",
+      "all_usdc_products",
+      "since_last_purchase",
+      "fifo_realized_lot",
+      "coinbase_average_cost"
+    ],
+    "tax_accounting": false
+  },
+  "rejected_semantics": [
+    "spot_shorting",
+    "usd_pair_duplicate_scope",
+    "parallel_spot_placement_engine",
+    "sell_without_configured_inventory_authority"
+  ],
+  "audit": {
+    "required_evidence": [
+      "client_order_id",
+      "exchange_order_id",
+      "submitted_notional_usdc",
+      "executed_notional_usdc",
+      "fill_ledger_reconciliation"
+    ]
+  }
+}

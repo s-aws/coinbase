@@ -116,6 +116,65 @@ def test_known_baseline_inventory_can_satisfy_spot_sell_authority():
     assert decision.unknown_cost_basis_quantity == pytest.approx(0.0)
 
 
+def test_coinbase_average_cost_lot_source_is_preserved():
+    repo = _repo_with_fills([])
+    builder = PositionLotBuilder(
+        repo,
+        inventory_baselines=[
+            {
+                "product_id": "BTC-USD",
+                "quantity": 0.25,
+                "entry_price": 90000.0,
+                "lot_source": InventoryLotSource.COINBASE_AVERAGE_COST.value,
+            },
+        ],
+    )
+
+    position = builder.build_position_by_product("BTC-USD")
+
+    assert position.lots[0].lot_source == InventoryLotSource.COINBASE_AVERAGE_COST
+
+
+def test_coinbase_average_cost_authority_requires_explicit_enablement():
+    repo = _repo_with_fills([])
+    baseline = [
+        {
+            "product_id": "BTC-USD",
+            "quantity": 0.25,
+            "entry_price": 90000.0,
+            "lot_source": InventoryLotSource.COINBASE_AVERAGE_COST.value,
+        },
+    ]
+
+    blocked = evaluate_spot_sell_lot_authority(
+        product_id="BTC-USD",
+        side=OrderSide.SELL.value,
+        size=0.1,
+        limit_price=100000.0,
+        fill_ledger_repo=repo,
+        coinbase_average_cost_baselines=baseline,
+        profit_target_pct=0.5,
+    )
+    allowed = evaluate_spot_sell_lot_authority(
+        product_id="BTC-USD",
+        side=OrderSide.SELL.value,
+        size=0.1,
+        limit_price=100000.0,
+        fill_ledger_repo=repo,
+        coinbase_average_cost_baselines=baseline,
+        allow_coinbase_average_cost_basis=True,
+        coinbase_average_cost_profit_buffer_pct=0.5,
+        profit_target_pct=0.5,
+    )
+
+    assert blocked.allowed is False
+    assert blocked.status == InventoryAuthorityStatus.NO_LOTS.value
+    assert allowed.allowed is True
+    assert allowed.status == (
+        InventoryAuthorityStatus.COINBASE_AVERAGE_PROFITABLE.value
+    )
+
+
 def test_fill_ledger_lots_can_satisfy_spot_sell_authority():
     repo = _repo_with_fills([
         _fill_row(key="fill-known", quantity=0.15, price=90000.0),

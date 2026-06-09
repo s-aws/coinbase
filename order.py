@@ -1,20 +1,24 @@
-"""Order placement and management module.
+"""Order-span placement and management module.
 
-Entry point for order creation with automated reveal conditions.
+Entry point for order-span creation with automated reveal conditions.
 
-UNIFIED ARCHITECTURE:
-All orders are created through the unified system via StealthOrderManager:
+STEALTH / ORDER-SPAN ARCHITECTURE:
+Orders created through this module use StealthOrderManager:
 - Orders have a reveal_condition that controls when they appear on the exchange
 - Immediate reveals (delay_seconds=0) behave like traditional orders
 - Time-delayed reveals hide orders for N seconds
 - Price-triggered reveals hide orders until price conditions are met
 - The term "stealth" is internal; externally these are just orders with reveal conditions
 
+This module is not the only supported live placement surface. Raw dashboard
+`place_order` and USDC portfolio sweep live execution are documented in
+README.spot-trading.md and use their own guarded entry points.
+
 Key Functions:
 - create_limit_order_span(): Creates one or more limit orders with reveal conditions
 - get_immediate_reveal_condition(): Returns a reveal condition for immediate placement
 
-All orders use the unified mechanism:
+Order spans use the unified stealth mechanism:
 - Orders start HIDDEN with a reveal_condition
 - Condition is evaluated continuously
 - When triggered, order transitions to PENDING
@@ -155,9 +159,9 @@ def create_limit_order_span(
         camouflage_mode: str = "passive") -> list:
     """Create a series of limit orders spanning a price range.
     
-    ARCHITECTURE: ALL orders are created through the order system with automated
-    reveal conditions. This provides a unified mechanism for order lifecycle management,
-    from creation through reveal and execution.
+    ARCHITECTURE: order spans are created through the stealth order system with
+    automated reveal conditions. Raw dashboard orders and portfolio sweep live
+    orders use their documented guarded entry points instead.
     
     The reveal_condition controls when/how the order transitions to the exchange:
     - Time-based: Reveal after delay_seconds
@@ -165,7 +169,7 @@ def create_limit_order_span(
     - Immediate: Use get_immediate_reveal_condition() for instant reveal (0 second delay)
     
     Key Features:
-    - UNIFIED ORDER SYSTEM: All orders use the same reveal mechanism
+    - ORDER-SPAN SYSTEM: generated span orders use the same reveal mechanism
     - Automatic reveal condition: If reveal_condition not provided, defaults to 60-second delay (to prevent accidental instant reveals)
     - Automatic price stepping: each order placed at start_price + (order_index * price_difference)
     - Size variation: use order_base_size_range to randomize sizes

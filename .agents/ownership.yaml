@@ -16,6 +16,7 @@ owners:
       - docs/PUBLIC_ROADMAP.md
       - docs/SPOT_READINESS_ROADMAP.md
       - docs/SPOT_READINESS_TEST_GATE.md
+      - docs/SPOT_CONTEXTLESS_AGENT_TESTING.md
       - docs/REPO_CLEANUP_CLASSIFICATION.md
       - .agents/**
       - .github/workflows/public-agent-checks.yml
@@ -31,6 +32,10 @@ owners:
       - tools/run_spot_readiness_browser_smoke.py
       - tools/run_spot_fill_backfill_recovery.py
       - tools/run_spot_sweep_recovery_gate.py
+      - tools/run_spot_feature_intake_gate.py
+      - tools/run_spot_fill_ledger_health.py
+      - tools/run_spot_fill_ledger_repair.py
+      - tools/run_spot_campaign.py
       - tools/run_spot_readiness_regression.py
       - tools/run_spot_release_gate.py
       - ai-context.md
@@ -38,14 +43,17 @@ owners:
       - agent.md
       - README.md
       - README.action-condition-guards.md
+      - README.spot-campaign.md
       - README.spot-portfolio-sweep.md
       - README.spot-trading.md
       - docs/PUBLIC_RELEASE_READINESS.md
       - .gitignore
       - .vscode/settings.json
       - genai_data/AGENT_*.md
+      - genai_data/ARCHITECTURE.md
       - genai_data/API_REFERENCE.md
       - genai_data/CONFIGURATION.md
+      - genai_data/ORDER_ID_HANDLING.md
       - genai_data/agent_state.md
     test_owns:
       - tests/regression/test_codebase_intelligence.py
@@ -275,7 +283,10 @@ owners:
       - business/lot_builder.py
       - business/lot_config.py
       - business/spot_inventory_authority.py
+      - business/spot_campaign.py
+      - business/spot_cost_basis.py
       - business/spot_fill_backfill.py
+      - business/spot_fill_ledger_health.py
       - business/spot_portfolio_sweep.py
       - business/profit_threshold_engine.py
       - business/order_interception_layer.py
@@ -287,6 +298,7 @@ owners:
     test_owns:
       - tests/regression/test_hotpoint_*.py
       - tests/regression/test_spot_inventory_authority.py
+      - tests/regression/test_spot_campaign.py
       - tests/regression/test_spot_portfolio_sweep.py
       - tests/regression/test_tranche_iceberg_pacing.py
       - tests/unit/test_generate_order_ladder_random.py

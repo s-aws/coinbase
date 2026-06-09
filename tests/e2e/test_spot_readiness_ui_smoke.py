@@ -163,3 +163,97 @@ def test_spot_readiness_panel_renders_dashboard_payload(page):
     expect(panel).to_contain_text("known profitable inventory: enabled")
     expect(panel).to_contain_text("manual-baseline: known 0.25 @ 90000")
     expect(panel).to_contain_text("external-wallet: unknown 0.1")
+
+    page.wait_for_function(
+        "() => window.__sentMessages.some((msg) => msg.type === 'request_spot_campaign_status')"
+    )
+    page.evaluate(
+        """payload => window.__deliverDashboardMessage(payload)""",
+        {
+            "type": "spot_campaign_status",
+            "status": "success",
+            "state_file": "runtime_state/spot_campaigns.jsonl",
+            "operator_status": {
+                "campaign_count": 1,
+                "snapshot_count": 2,
+                "total_submitted_notional_usdc": "2",
+                "total_executed_notional_usdc": "1.98",
+                "operator_summary": {
+                    "readiness_status": "ready",
+                    "ready": True,
+                    "blocked": False,
+                    "gate_status": "passed",
+                    "automation_decision": "due",
+                    "next_run_at": "2026-01-01T06:00:00+00:00",
+                    "run_count": 1,
+                    "max_runs": 3,
+                    "operation_lock_status": "released",
+                    "operation_lock_exists": False,
+                    "operation_lock_stale": False,
+                    "recovery_status": "passed",
+                    "planned_reconciliation_run_count": 0,
+                    "planned_backfill_order_count": 0,
+                    "planned_order_count": 2,
+                    "planned_skip_count": 1,
+                    "safety_decision": "allowed",
+                    "latest_live_run_id": "spot-sweep-live-1",
+                    "latest_live_status": "completed",
+                    "latest_live_skipped_order_count": 1,
+                    "total_submitted_notional_usdc": "2",
+                    "total_executed_notional_usdc": "1.98",
+                    "portfolio_total_pnl": "0.25",
+                    "portfolio_mark_value": "10",
+                    "portfolio_fees": "0.01",
+                    "latest_readiness_generated_at": "2026-01-01T00:00:00+00:00",
+                },
+                "latest_snapshot": {
+                    "campaign_id": "spot-campaign-example",
+                    "mode": "live_canary",
+                    "status": "ready",
+                },
+                "latest_readiness_snapshot": {
+                    "campaign_id": "spot-campaign-example",
+                    "mode": "release_gate",
+                    "status": "ready",
+                    "generated_at": "2026-01-01T00:00:00+00:00",
+                    "config": {
+                        "side": "BUY",
+                        "quote_notional": "1",
+                        "order_type": "market_ioc",
+                    },
+                    "dry_run": {
+                        "plan": {"planned_count": 2, "skipped_count": 1},
+                        "safety_evaluation": {"decision": "allowed"},
+                        "pnl_snapshot": {
+                            "portfolio": {
+                                "total_pnl": "0.25",
+                                "mark_value": "10",
+                                "fees": "0.01",
+                            },
+                        },
+                    },
+                    "release_gate": {
+                        "gate_status": "passed",
+                        "failures": [],
+                        "warnings": [],
+                    },
+                },
+                "latest_live_snapshot": {
+                    "mode": "live_canary",
+                    "sweep_summary": {
+                        "run_id": "spot-sweep-live-1",
+                        "status": "completed",
+                        "skipped_order_count": 1,
+                    },
+                },
+            },
+        },
+    )
+
+    campaign_panel = page.locator("#spot-campaign-status-panel")
+    expect(campaign_panel).to_contain_text("Operator State")
+    expect(campaign_panel).to_contain_text("due")
+    expect(campaign_panel).to_contain_text("spot-sweep-live-1")
+    expect(campaign_panel).to_contain_text("reconcile 0")
+    expect(campaign_panel).to_contain_text("submitted 2 USDC")
+    expect(campaign_panel).to_contain_text("total 0.25 USDC")

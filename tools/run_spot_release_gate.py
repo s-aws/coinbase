@@ -66,14 +66,26 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("runtime_state") / "spot_portfolio_sweeps.jsonl",
         help="Sweep state ledger for read-only status checks.",
     )
+    parser.add_argument(
+        "--campaign-config-file",
+        type=Path,
+        default=None,
+        help="Optional spot campaign config to validate with the campaign release gate.",
+    )
+    parser.add_argument(
+        "--campaign-state-file",
+        type=Path,
+        default=Path("runtime_state") / "spot_campaigns.jsonl",
+        help="Campaign state ledger used by optional campaign release checks.",
+    )
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    python = sys.executable
+def build_release_gate_steps(
+    *,
+    args: argparse.Namespace,
+    python: str,
+) -> list[GateStep]:
     steps = [
         GateStep(
             name="focused_spot_readiness_regression",
@@ -110,7 +122,57 @@ def main(argv: list[str] | None = None) -> int:
                     str(args.state_file),
                 ),
             ),
+            GateStep(
+                name="spot_cost_basis_inventory_coverage",
+                command=(
+                    python,
+                    "tools/run_spot_portfolio_sweep_live.py",
+                    "--inventory-coverage",
+                    "--include-coinbase-average-cost",
+                    "--summary-only",
+                    "--state-file",
+                    str(args.state_file),
+                ),
+            ),
+            GateStep(
+                name="spot_cost_basis_drift_audit",
+                command=(
+                    python,
+                    "tools/run_spot_portfolio_sweep_live.py",
+                    "--cost-basis-drift-audit",
+                    "--summary-only",
+                    "--state-file",
+                    str(args.state_file),
+                ),
+            ),
         ])
+    if args.campaign_config_file is not None:
+        steps.append(
+            GateStep(
+                name="spot_campaign_release_gate",
+                command=(
+                    python,
+                    "tools/run_spot_campaign.py",
+                    "--config-file",
+                    str(args.campaign_config_file),
+                    "--release-gate",
+                    "--summary-only",
+                    "--state-file",
+                    str(args.campaign_state_file),
+                    "--sweep-state-file",
+                    str(args.state_file),
+                ),
+            )
+        )
+    return steps
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    python = sys.executable
+    steps = build_release_gate_steps(args=args, python=python)
 
     results = [_run_step(step) for step in steps]
     passed = all(result["passed"] or not result["required"] for result in results)

@@ -282,7 +282,13 @@ class StealthOrderBridge:
         self.stealth_manager.process_anchor_repricing_for_product(trading_product_id)
     
     def record_reveal_event(self, stealth_order_id: str, client_order_id: str, reason: str):
-        """Record a reveal event to the database."""
+        """Record bridge-level reveal notification context.
+
+        Authoritative reveal persistence is owned by
+        StealthOrderManager._record_reveal_event and the order-event stream
+        placement hooks. This bridge method is retained as a compatibility
+        notification hook for older call sites.
+        """
         order = self.stealth_manager._get_stealth_order(stealth_order_id)
         
         if not order:
@@ -296,7 +302,7 @@ class StealthOrderBridge:
             "timestamp": datetime.utcnow(),
         }
         
-        # Persist to database
+        # Compatibility hook only; manager/event-stream paths persist audit.
         self._save_reveal_event_to_db(reveal_data)
     
     def get_stealth_orders(self, status: str = None) -> Dict[str, Dict[str, Any]]:
@@ -349,6 +355,5 @@ class StealthOrderBridge:
         self.stealth_manager._market_cache[product_id] = market_data
     
     def _save_reveal_event_to_db(self, reveal_data: Dict[str, Any]):
-        """Save reveal event to stealth_order_reveal_history table."""
-        # SQL INSERT implementation would go here
+        """Compatibility no-op; authoritative reveal audit lives in manager."""
         pass

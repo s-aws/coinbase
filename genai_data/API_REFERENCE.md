@@ -84,6 +84,26 @@ Parent order views and CRUD:
 - `delete_parent_order`
 - `update_parent_target_movement`
 
+`create_parent_order` is local dashboard/database CRUD only. It creates an
+`order_parent` row and does not submit a Coinbase order. Live dashboard
+submission uses `place_order`.
+
+`place_order` submits a live Coinbase order when REST is available and the
+product capability, size validator, and action-condition guard admit the
+request. On success, `order_response` includes both the internal
+`client_order_id` and Coinbase `order_id` so dashboard submissions can be
+correlated with websocket, reconciliation, and fill-ledger evidence. The
+handler also writes an `order_submitted` event with source channel
+`rest_submit` to `order_event_stream` when the local event stream is available.
+The handler normalizes SDK objects, `to_dict()` responses, and nested
+`success_response.order_id` payloads before building that audit response.
+Base-sized orders are validated through `validate_and_quantize_size`.
+Quote-sized market BUYs validate `quote_size` directly against product
+`quote_increment` and `quote_min_size`. The direct dashboard handler does not
+pre-insert `order_parent` or opt the order into automated follow-up policy
+state before submission. It is an immediate manual order surface; websocket
+lifecycle and reconciliation own later local evidence rows.
+
 Stealth views/actions:
 - `request_stealth_orders`
 - `create_stealth_order`
@@ -103,6 +123,26 @@ Move and product utilities:
 - `request_products`
 - `update_products_list`
 - `request_spot_readiness`
+- `request_spot_sweep_status`
+- `request_spot_sweep_pnl`
+- `request_spot_cost_basis_status`
+- `request_spot_campaign_status`
+
+Hotpoint manager:
+- `request_hotpoint_state`
+- `set_hotpoint_kill_switch`
+- `place_hotpoint_test_order`
+
+`place_hotpoint_test_order` is a live Coinbase submission surface used by
+`ui_hotpoint_manager.html` to seed the hotpoint detector with a normal limit
+order whose `order_parent` row has `enable_hotpoint_replication=TRUE`. It is
+not a generic spot bypass. The handler is runtime-admission gated, requires
+`ProductCapability.HOTPOINT_AUTO_PLACEMENT`, validates size, runs the
+planning-phase `ActionConditionGuard`, pre-inserts the parent row, calls
+`REST_CLIENT.limit_order_gtc`, and writes `order_submitted` / `rest_submit`
+evidence when the local event stream is available. Spot products are blocked by
+default unless the hotpoint capability is explicitly enabled in product
+capability policy.
 
 Analytics/storyboard:
 - `request_slide_calibration_summary`
@@ -151,6 +191,13 @@ Move/product/analytics responses:
 - `products_list`
 - `products_list_updated`
 - `spot_readiness`
+- `spot_sweep_status`
+- `spot_sweep_pnl`
+- `spot_cost_basis_status`
+- `spot_campaign_status`
+- `hotpoint_state`
+- `hotpoint_kill_switch_response`
+- `place_hotpoint_test_order_response`
 - `slide_calibration_summary`
 - `market_chart_history`
 - `storyboard_products`
@@ -307,6 +354,247 @@ Operator contract:
 - Structured `error` payloads may include `guard` or `capability` dictionaries
   when a planning boundary rejects an action.
 
+### `request_spot_sweep_status`
+
+Request shape:
+
+```json
+{"type": "request_spot_sweep_status"}
+```
+
+Optional sweep ledger override:
+
+```json
+{
+  "type": "request_spot_sweep_status",
+  "params": {"state_file": "runtime_state/spot_portfolio_sweeps.jsonl"}
+}
+```
+
+Response shape:
+
+```json
+{
+  "type": "spot_sweep_status",
+  "status": "success",
+  "state_file": "runtime_state/spot_portfolio_sweeps.jsonl",
+  "operator_status": {
+    "config_count": 1,
+    "run_count": 1,
+    "submitted_order_count": 385,
+    "blocked_or_error_count": 0,
+    "total_submitted_notional_usdc": "385",
+    "total_executed_notional_usdc": "381.4362450472677185",
+    "configs": [
+      {
+        "config_id": "spot-sweep-example",
+        "latest_run": {
+          "status": "completed",
+          "recorded_status": "partial",
+          "execution": {
+            "submitted_order_count": 385,
+            "skipped_order_count": 2
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+Operator contract:
+- This request reads the local sweep ledger only. It does not call Coinbase and
+  does not submit orders.
+- Planned skips, such as below-minimum quote-notional rows, remain visible in
+  order details but are not counted as Coinbase submission failures.
+- Live sweep placement still requires
+  `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
+- Live sweep order reports include UUID `client_order_id` values and
+  `submission_event_recorded`. When the local event stream is available,
+  accepted placements publish `order_submitted` / `rest_submit` evidence to
+  `order_event_stream`; the JSONL sweep ledger remains the run-level audit
+  record.
+
+### `request_spot_sweep_pnl`
+
+Request shape:
+
+```json
+{"type": "request_spot_sweep_pnl"}
+```
+
+Optional filters:
+
+```json
+{
+  "type": "request_spot_sweep_pnl",
+  "params": {
+    "product_ids": ["BTC-USDC"],
+    "include_coinbase_average_cost": false
+  }
+}
+```
+
+Response shape:
+
+```json
+{
+  "type": "spot_sweep_pnl",
+  "status": "success",
+  "read_only_coinbase_requests": ["get_public_products"],
+  "pnl_report": {
+    "product_count": 1,
+    "portfolio": {"total_unrealized_pnl_usdc": "0"},
+    "since_last_purchase": {"total_unrealized_pnl_usdc": "0"}
+  }
+}
+```
+
+Operator contract:
+- This request reads public product marks and local fill-ledger evidence. If
+  `include_coinbase_average_cost` is true, it may also read Coinbase portfolio
+  average-cost data.
+- The response is operational P/L, not tax accounting.
+- It never submits Coinbase orders.
+
+### `request_spot_cost_basis_status`
+
+Request shape:
+
+```json
+{"type": "request_spot_cost_basis_status"}
+```
+
+Optional snapshot ledger override:
+
+```json
+{
+  "type": "request_spot_cost_basis_status",
+  "params": {"state_file": "runtime_state/spot_cost_basis_snapshots.jsonl"}
+}
+```
+
+Response shape:
+
+```json
+{
+  "type": "spot_cost_basis_status",
+  "status": "success",
+  "state_file": "runtime_state/spot_cost_basis_snapshots.jsonl",
+  "operator_status": {
+    "snapshot_count": 1,
+    "latest_snapshot": {
+      "record_type": "spot_cost_basis_snapshot",
+      "status": "available",
+      "baseline": {"record_count": 376, "baseline_count": 376},
+      "inventory_coverage": {"wallet_only_product_count": 8},
+      "drift_audit": {"status_counts": {"stale": 1}},
+      "gap_triage": {"product_count": 381}
+    }
+  }
+}
+```
+
+Operator contract:
+- This request reads the local cost-basis snapshot ledger only. It does not
+  call Coinbase and does not submit orders.
+- Generate or refresh snapshots with
+  `tools/run_spot_portfolio_sweep_live.py --cost-basis-triage --record-cost-basis-snapshot`.
+
+### `request_spot_campaign_status`
+
+Request shape:
+
+```json
+{"type": "request_spot_campaign_status"}
+```
+
+Optional campaign ledger override:
+
+```json
+{
+  "type": "request_spot_campaign_status",
+  "params": {"state_file": "runtime_state/spot_campaigns.jsonl"}
+}
+```
+
+Response shape:
+
+```json
+{
+  "type": "spot_campaign_status",
+  "status": "success",
+  "state_file": "runtime_state/spot_campaigns.jsonl",
+  "operator_status": {
+    "campaign_count": 1,
+    "snapshot_count": 2,
+    "total_submitted_notional_usdc": "0",
+    "total_executed_notional_usdc": "0",
+    "operator_summary": {
+      "readiness_status": "ready",
+      "ready": true,
+      "blocked": false,
+      "gate_status": "passed",
+      "automation_decision": "due",
+      "next_run_at": "2026-01-01T06:00:00+00:00",
+      "operation_lock_status": "released",
+      "operation_lock_exists": false,
+      "operation_lock_stale": false,
+      "recovery_status": "passed",
+      "planned_reconciliation_run_count": 0,
+      "planned_backfill_order_count": 0,
+      "planned_order_count": 10,
+      "planned_skip_count": 0,
+      "safety_decision": "allowed",
+      "latest_live_run_id": "spot-sweep-example",
+      "total_submitted_notional_usdc": "10",
+      "total_executed_notional_usdc": "9.95",
+      "portfolio_total_pnl": "0.12"
+    },
+    "latest_snapshot": {
+      "record_type": "spot_campaign_snapshot",
+      "campaign_id": "spot-campaign-example",
+      "mode": "release_gate",
+      "status": "ready",
+      "dry_run": {
+        "plan": {"planned_count": 10, "skipped_count": 0},
+        "safety_evaluation": {"decision": "allowed"}
+      },
+      "release_gate": {
+        "gate_status": "passed",
+        "failures": [],
+        "warnings": []
+      }
+    },
+    "latest_readiness_snapshot": {
+      "record_type": "spot_campaign_snapshot",
+      "mode": "release_gate",
+      "status": "ready"
+    },
+    "latest_live_snapshot": {
+      "record_type": "spot_campaign_snapshot",
+      "mode": "live_canary",
+      "sweep_summary": {"run_id": "spot-sweep-example"}
+    }
+  }
+}
+```
+
+Operator contract:
+- This request reads the local campaign snapshot ledger only. It does not call
+  Coinbase and does not submit orders.
+- `latest_snapshot` is the newest campaign ledger record. It can be a live
+  canary record with no dry-run/release-gate details.
+- `latest_readiness_snapshot` is the newest dry-run or release-gate record with
+  readiness data. `latest_live_snapshot` is the newest live-canary record.
+- `operator_summary` is the dashboard-ready read-only summary for readiness,
+  due state, lock state, recovery state, planned skips, notional, and P/L.
+- Generate or refresh snapshots with
+  `tools/run_spot_campaign.py --config-file <path> --dry-run-matrix --record-snapshot`
+  or `tools/run_spot_campaign.py --config-file <path> --release-gate --record-snapshot`.
+- Live campaign canaries use a rendered sweep config and
+  `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
+
 ## 4) Internal Runtime Control API
 
 `core/runtime_controller.py` exposes:
@@ -332,4 +620,4 @@ Inflight categories used by callers include:
 
 ---
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09

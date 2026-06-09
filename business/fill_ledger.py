@@ -112,9 +112,12 @@ class FillLedger:
         side = data.get('side', '').upper()
         order_side = OrderSide.BUY if side == 'BUY' else OrderSide.SELL if side == 'SELL' else None
 
+        instrument = data.get('instrument') or data.get('product_id')
+        product_id = data.get('product_id') or instrument
+
         return cls(
             derived_trade_key=data.get('derived_trade_key') or data.get('trade_id'),
-            instrument=data.get('instrument', data.get('product_id')),
+            instrument=instrument,
             side=side,
             quantity=safe_float(data.get('quantity'), 0.0),
             price=safe_float(data.get('price'), 0.0),
@@ -123,7 +126,7 @@ class FillLedger:
             commission_percentage=safe_float(data.get('commission_percentage'), 0.0),
             order_side=order_side,
             client_order_id=data.get('client_order_id'),
-            product_id=data.get('product_id'),
+            product_id=product_id,
             average_price=safe_float(data.get('average_price'), None) or safe_float(data.get('price'), 0.0),
             exchange_trade_id=data.get('exchange_trade_id'),
             exchange_entry_id=data.get('exchange_entry_id'),

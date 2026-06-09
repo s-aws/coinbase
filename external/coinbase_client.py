@@ -363,7 +363,11 @@ class CoinbaseRestClient:
             >>> portfolio = client.get_portfolio('default')
             >>> balance = portfolio.get('breakdown', {}).get('total_balance')
         """
-        response = self._client.get_portfolio(portfolio_id)
+        getter = getattr(self._client, "get_portfolio_breakdown", None)
+        if callable(getter):
+            response = getter(portfolio_id)
+        else:
+            response = self._client.get_portfolio(portfolio_id)
         return coinbase_sdk_response_to_dict(response)
     
     def list_portfolios(self) -> List[Dict[str, Any]]:
@@ -380,7 +384,11 @@ class CoinbaseRestClient:
             >>> for portfolio in portfolios:
             ...     print(f"Portfolio: {portfolio['name']}")
         """
-        response = self._client.list_portfolios()
+        lister = getattr(self._client, "get_portfolios", None)
+        if callable(lister):
+            response = lister()
+        else:
+            response = self._client.list_portfolios()
         return coinbase_sdk_response_to_dict(response).get("portfolios", [])
     
     # ========================================================================
@@ -409,8 +417,17 @@ class CoinbaseRestClient:
                 return None
             raise
     
-    def get_accounts(self) -> Dict[str, Any]:
+    def get_accounts(
+        self,
+        *,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Get raw accounts data from SDK.
+
+        Args:
+            limit: Optional Coinbase page size.
+            cursor: Optional Coinbase pagination cursor.
         
         Returns:
             Raw response dict with 'accounts' key
@@ -418,7 +435,12 @@ class CoinbaseRestClient:
         Raises:
             Exception: If API call fails
         """
-        response = self._client.get_accounts()
+        kwargs: Dict[str, Any] = {}
+        if limit is not None:
+            kwargs["limit"] = limit
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+        response = self._client.get_accounts(**kwargs)
         return coinbase_sdk_response_to_dict(response)
     
     def list_orders(self, order_status: Optional[List[str]] = None) -> Dict[str, Any]:

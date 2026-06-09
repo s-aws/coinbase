@@ -30,6 +30,7 @@ def _revealed_order():
         "revealed_size": 1.0,
         "executed_size": 0.0,
         "limit_price": 100.0,
+        "notes": "",
         "status": StealthOrderStatus.REVEALED.value,
         "reveal_condition_json": {"type": "time_delay", "delay_seconds": 0},
         "anchor_repricing_state_json": {
@@ -114,6 +115,55 @@ def test_policy_cancel_failure_leaves_revealed_order_intact(monkeypatch):
     assert order["status"] == StealthOrderStatus.REVEALED.value
     assert order["anchor_repricing_state_json"]["active_exchange_order_id"] == "exchange-1"
     assert order["cancel_reentry_state_json"]["state"] == CancelReentryState.RESTING.value
+    manager._update_stealth_order.assert_not_called()
+
+
+@pytest.mark.regression
+def test_manual_cancel_success_clears_active_exchange_pointer(monkeypatch):
+    manager = _manager()
+    order = _revealed_order()
+    manager.in_memory_orders[order["stealth_order_id"]] = order
+    rest_client = MagicMock()
+    monkeypatch.setattr("configuration.REST_CLIENT", rest_client, raising=True)
+
+    assert manager.cancel_stealth_order("stealth-1", "user_cancelled") is True
+
+    rest_client.cancel_orders.assert_called_once_with(order_ids=["exchange-1"])
+    assert order["status"] == StealthOrderStatus.CANCELLED.value
+    assert order["anchor_repricing_state_json"]["active_exchange_order_id"] is None
+    assert order["anchor_repricing_state_json"]["active_placement_client_order_id"] is None
+    manager._update_stealth_order.assert_called_once_with(order)
+
+
+@pytest.mark.regression
+def test_manual_cancel_failure_leaves_revealed_order_intact(monkeypatch):
+    manager = _manager()
+    order = _revealed_order()
+    manager.in_memory_orders[order["stealth_order_id"]] = order
+    rest_client = MagicMock()
+    rest_client.cancel_orders.side_effect = RuntimeError("cancel failed")
+    monkeypatch.setattr("configuration.REST_CLIENT", rest_client, raising=True)
+
+    assert manager.cancel_stealth_order("stealth-1", "user_cancelled") is False
+
+    rest_client.cancel_orders.assert_called_once_with(order_ids=["exchange-1"])
+    assert order["status"] == StealthOrderStatus.REVEALED.value
+    assert order["anchor_repricing_state_json"]["active_exchange_order_id"] == "exchange-1"
+    assert order["anchor_repricing_state_json"]["active_placement_client_order_id"] == "placement-1"
+    manager._update_stealth_order.assert_not_called()
+
+
+@pytest.mark.regression
+def test_manual_cancel_without_exchange_id_leaves_revealed_order_intact():
+    manager = _manager()
+    order = _revealed_order()
+    order["anchor_repricing_state_json"]["active_exchange_order_id"] = None
+    manager.in_memory_orders[order["stealth_order_id"]] = order
+
+    assert manager.cancel_stealth_order("stealth-1", "user_cancelled") is False
+
+    assert order["status"] == StealthOrderStatus.REVEALED.value
+    assert order["anchor_repricing_state_json"]["active_placement_client_order_id"] == "placement-1"
     manager._update_stealth_order.assert_not_called()
 
 

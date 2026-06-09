@@ -45,6 +45,10 @@ python tools/run_spot_portfolio_sweep_live.py --side BUY --quote-notional 1 --ma
 
 This can place real Coinbase market IOC orders. The output uses the
 `SPOT_PORTFOLIO_SWEEP_LIVE` prefix and reports submitted/executed notional.
+Submitted order rows include UUID `client_order_id` values and
+`submission_event_recorded`. Use the JSONL `run_id`/`config_id` and event
+payload fields to identify sweep orders; do not expect a `client_order_id`
+prefix.
 
 ## Run One Live Limit BUY Sweep
 
@@ -85,6 +89,17 @@ This optional safety policy requires every planned SELL item to be covered by
 known profitable fill-ledger or imported baseline lots before any Coinbase
 order is submitted. Wallet balance alone is not treated as profit authority.
 
+## Allow Coinbase Average Cost For SELL Authority
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --side SELL --quote-notional 1 --max-products 10 --require-known-profitable-inventory --allow-coinbase-average-cost-basis --coinbase-average-cost-profit-buffer-pct 0.5 --approved-live-orders
+```
+
+This is an explicit opt-in. The tool first checks local fill-ledger/imported
+known lots. If those do not cover a planned SELL, Coinbase average cost can
+authorize the SELL only when the planned price clears the normal profit target
+plus the extra configured buffer. The command can submit real Coinbase orders.
+
 ## Validate A Sweep Config File
 
 Example `runtime_state/spot_sweep_buy.json`:
@@ -100,7 +115,9 @@ Example `runtime_state/spot_sweep_buy.json`:
   "max_runs": 4,
   "safety_policy": {
     "max_total_notional_per_run": "10",
-    "max_notional_per_order": "1"
+    "max_notional_per_order": "1",
+    "allow_coinbase_average_cost_basis": false,
+    "coinbase_average_cost_profit_buffer_pct": "0.5"
   }
 }
 ```
@@ -113,6 +130,17 @@ python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_s
 
 This prints a wallet-aware plan, safety evaluation, and per-product explain
 rows. It does not require `--approved-live-orders`.
+
+For a SELL config that explicitly allows Coinbase average-cost authority during
+validation:
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_sweep_sell.json --validate-config --allow-coinbase-average-cost-basis
+```
+
+Validation is still read-only. It fetches fresh products, wallets, portfolios,
+and portfolio breakdown data, then reports the SELL authority source in the
+plan explain output.
 
 ## Run If Due
 
@@ -171,6 +199,34 @@ scopes. It does not submit orders and does not require
 `--approved-live-orders`. The realized-lot view is operational reporting, not
 tax accounting.
 
+To include a separate Coinbase average-cost P/L scope:
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --pnl-report --include-coinbase-average-cost
+```
+
+This adds authenticated read-only Coinbase portfolio calls. The output includes
+`average_cost_pnl` separately from the local fill-ledger P/L snapshot.
+
+## Show Coinbase Average-Cost Baseline
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --cost-basis-baseline --summary-only
+```
+
+This reads Coinbase portfolios and portfolio breakdown data, maps asset-level
+spot positions to eligible `BASE-USDC` products, and reports the average-cost
+baseline. It does not submit orders or write local data.
+
+To persist a local snapshot for later dashboard/status review:
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --cost-basis-baseline --summary-only --record-cost-basis-snapshot
+```
+
+The snapshot is appended to
+`runtime_state/spot_cost_basis_snapshots.jsonl` by default.
+
 ## Show Inventory Coverage
 
 ```powershell
@@ -180,6 +236,51 @@ python tools/run_spot_portfolio_sweep_live.py --inventory-coverage --summary-onl
 This compares eligible USDC spot wallet balances against local fill-ledger and
 imported baseline evidence. It requires Coinbase read credentials for wallets
 and writes no Coinbase orders.
+
+To include Coinbase average-cost authority in coverage:
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --inventory-coverage --include-coinbase-average-cost --summary-only
+```
+
+Coverage rows can then show `coverage_status: "coinbase_average_cost"` when a
+wallet balance is explained by Coinbase average cost but not by exact local
+lots.
+
+## Audit Cost-Basis Drift
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --cost-basis-drift-audit --summary-only
+```
+
+This compares local fill-ledger average basis with Coinbase average basis per
+eligible USDC product and reports drift status. It is read-only and submits no
+orders.
+
+## Triage Cost-Basis Gaps
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --cost-basis-triage --summary-only
+```
+
+This combines average-cost baseline, inventory coverage, and drift audit into
+one read-only summary for wallet-only, missing-position, stale, and local-lot
+unavailable gaps.
+
+To persist the triage snapshot:
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --cost-basis-triage --summary-only --record-cost-basis-snapshot
+```
+
+## Show Durable Cost-Basis Status
+
+```powershell
+python tools/run_spot_portfolio_sweep_live.py --cost-basis-status
+```
+
+This reads the local cost-basis snapshot ledger only. It does not call Coinbase
+and does not submit orders.
 
 ## Show The Sweep Config Registry
 
@@ -237,6 +338,39 @@ python tools/run_spot_sweep_recovery_gate.py --config-id spot-sweep-example
 The gate reports `SPOT_SWEEP_RECOVERY_GATE`, zero live order notional, and any
 remaining reconciliation or fill-backfill failures.
 
+## Audit Fill-Ledger Health
+
+```powershell
+python tools/run_spot_fill_ledger_health.py --summary-only
+```
+
+This scans local USDC `fill_ledger` rows for data hazards such as zero price,
+zero notional, missing `client_order_id`, and reconciled rows without exchange
+evidence. It does not call Coinbase and does not write local corrections.
+
+## Plan Or Apply Fill-Ledger Repair
+
+Local-only candidate scan:
+
+```powershell
+python tools/run_spot_fill_ledger_repair.py --plan-only --summary-only
+```
+
+Dry-run exact repair planning from Coinbase REST fill evidence:
+
+```powershell
+python tools/run_spot_fill_ledger_repair.py --summary-only
+```
+
+Apply exact local corrections and append a durable repair record:
+
+```powershell
+python tools/run_spot_fill_ledger_repair.py --apply --summary-only
+```
+
+The repair command never submits Coinbase orders. Non-plan dry-runs and apply
+runs call Coinbase `list_fills` for already-recorded exchange order ids only.
+
 ## Run The Read-Only Spot Release Gate
 
 ```powershell
@@ -245,7 +379,8 @@ python tools/run_spot_release_gate.py
 
 This runs the focused spot readiness regression gate and prints
 `SPOT_RELEASE_GATE_SUMMARY`. Add `--include-browser` for the Playwright smoke
-gate and `--include-coinbase-readonly` for read-only sweep status/P/L checks.
+gate and `--include-coinbase-readonly` for read-only sweep status, P/L,
+average-cost coverage, and drift checks.
 
 ## Run The Approved Live Validation Matrix
 

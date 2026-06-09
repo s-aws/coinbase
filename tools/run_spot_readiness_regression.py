@@ -21,6 +21,7 @@ SPOT_READINESS_TESTS = [
     "tests/regression/test_dashboard_action_condition_guard.py",
     "tests/regression/test_dashboard_spot_readiness.py",
     "tests/regression/test_dashboard_spot_sweep_status.py",
+    "tests/regression/test_spot_campaign.py",
     "tests/regression/test_live_spot_usdc_smoke_runner.py",
     "tests/regression/test_spot_readiness_gate.py",
 ]

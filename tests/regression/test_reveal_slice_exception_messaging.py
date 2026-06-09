@@ -17,13 +17,14 @@ inside the SDK wrapper. Operators reading the log saw "order was not
 placed" and didn't realize a real, fillable, live order was sitting on
 the exchange with no follow-up wiring.
 
-The fix adds a ``rest_call_succeeded`` flag that flips True the instant
-``REST_CLIENT.place_limit_order`` returns, and the exception handler
-branches on it:
+The fix adds an ``exchange_placement_succeeded`` flag that flips True only
+after ``REST_CLIENT.place_limit_order`` returns a successful placement, and the
+exception handler branches on it:
 
-* REST itself raised  -> ``stealth_order_slice_placement_exception`` +
+* REST itself raised or returned a rejected placement ->
+  ``stealth_order_slice_placement_exception`` +
   "Order was NOT placed on the exchange" (truthful "not placed").
-* REST returned, post-placement code raised
+* REST returned a successful placement, post-placement code raised
   -> ``stealth_order_slice_post_placement_exception`` +
   "Order IS LIVE on the exchange; operator action may be required"
   (truthful "placed but linkage lost").
@@ -46,18 +47,17 @@ _SRC = (
 
 
 @pytest.mark.regression
-def test_reveal_slice_tracks_rest_call_success_separately():
-    """The ``rest_call_succeeded`` flag must be initialized False inside
-    the try block and flipped True only after ``place_limit_order``
-    returns, so the exception handler can tell the two failure modes
-    apart."""
-    assert "rest_call_succeeded = False" in _SRC, (
-        "rest_call_succeeded flag missing — exception handler can no "
-        "longer distinguish REST failure from post-placement failure. "
+def test_reveal_slice_tracks_exchange_placement_success_separately():
+    """The ``exchange_placement_succeeded`` flag must be initialized False
+    before placement and flipped True only after a successful placement
+    response, so the exception handler can tell the failure modes apart."""
+    assert "exchange_placement_succeeded = False" in _SRC, (
+        "exchange_placement_succeeded flag missing — exception handler can no "
+        "longer distinguish failed placement from post-placement failure. "
         "See 2026-04-29 incident in this file's docstring."
     )
-    assert "rest_call_succeeded = True" in _SRC, (
-        "rest_call_succeeded is never flipped True; the post-placement "
+    assert "exchange_placement_succeeded = True" in _SRC, (
+        "exchange_placement_succeeded is never flipped True; the post-placement "
         "branch will never fire and operators will see the wrong "
         "'order was not placed' message again."
     )

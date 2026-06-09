@@ -10,9 +10,11 @@ Scheduler or another supervisor to invoke it periodically.
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -44,8 +46,18 @@ from business.spot_portfolio_sweep import (
     reconcile_sweep_run_record,
     summarize_sweep_execution,
 )
+from business.spot_cost_basis import (
+    append_cost_basis_snapshot_record,
+    build_cost_basis_drift_audit,
+    build_cost_basis_gap_triage,
+    build_cost_basis_operator_status,
+    build_cost_basis_snapshot_record,
+    fetch_coinbase_average_cost_records,
+    load_cost_basis_snapshot_records,
+)
 from core.enums import (
     OrderSide,
+    SpotOperationLockStatus,
     SpotPortfolioSweepAutomationDecision,
     SpotPortfolioSweepOrderType,
     SpotPortfolioSweepRunStatus,
@@ -59,6 +71,10 @@ from external.coinbase_client import (
 
 SUMMARY_PREFIX = "SPOT_PORTFOLIO_SWEEP_LIVE "
 DEFAULT_STATE_FILE = Path("runtime_state") / "spot_portfolio_sweeps.jsonl"
+DEFAULT_COST_BASIS_STATE_FILE = (
+    Path("runtime_state") / "spot_cost_basis_snapshots.jsonl"
+)
+DEFAULT_OPERATION_LOCK_FILE = Path("runtime_state") / "spot_portfolio_sweep.lock"
 
 
 def _load_public_products() -> list[dict[str, Any]]:
@@ -92,6 +108,116 @@ def _load_wallets(rest_client: Any) -> dict[str, dict[str, Any]]:
     return _wallets_from_sdk_client(rest_client)
 
 
+class _OperationLock:
+    def __init__(self, path: Path, *, stale_after_seconds: float):
+        self.path = Path(path)
+        self.stale_after_seconds = stale_after_seconds
+        self.fd: int | None = None
+        self.status = SpotOperationLockStatus.BUSY.value
+
+    def acquire(self) -> "_OperationLock":
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        now = time.time()
+        if self.path.exists():
+            age_seconds = now - self.path.stat().st_mtime
+            if age_seconds > self.stale_after_seconds:
+                self.path.unlink(missing_ok=True)
+                self.status = SpotOperationLockStatus.STALE_REMOVED.value
+        try:
+            self.fd = os.open(
+                str(self.path),
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            )
+        except FileExistsError as exc:
+            self.status = SpotOperationLockStatus.BUSY.value
+            raise RuntimeError(
+                f"operation lock is already held: {self.path}"
+            ) from exc
+        payload = {
+            "pid": os.getpid(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": SpotOperationLockStatus.ACQUIRED.value,
+        }
+        os.write(self.fd, json.dumps(payload, sort_keys=True).encode("utf-8"))
+        self.status = SpotOperationLockStatus.ACQUIRED.value
+        return self
+
+    def release(self) -> None:
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+        if self.path.exists():
+            self.path.unlink(missing_ok=True)
+        self.status = SpotOperationLockStatus.RELEASED.value
+
+
+def _requires_operation_lock(args: argparse.Namespace) -> bool:
+    if args.disable_run_lock:
+        return False
+    if args.status or args.config_registry or args.pnl_report:
+        return False
+    if args.inventory_coverage or args.cost_basis_baseline:
+        return bool(args.record_cost_basis_snapshot)
+    if args.cost_basis_drift_audit or args.cost_basis_triage:
+        return bool(args.record_cost_basis_snapshot)
+    if args.cost_basis_status or args.validate_config:
+        return False
+    return True
+
+
+def _install_operation_lock(args: argparse.Namespace) -> _OperationLock | None:
+    if not _requires_operation_lock(args):
+        return None
+    lock = _OperationLock(
+        args.operation_lock_file,
+        stale_after_seconds=float(args.lock_stale_after_seconds),
+    ).acquire()
+    atexit.register(lock.release)
+    return lock
+
+
+def _load_coinbase_average_costs(
+    *,
+    rest_client: Any,
+    products: list[dict[str, Any]],
+    portfolio_uuid: str | None = None,
+) -> dict[str, Any]:
+    return fetch_coinbase_average_cost_records(
+        rest_client=rest_client,
+        products=products,
+        portfolio_uuid=portfolio_uuid,
+    )
+
+
+def _record_cost_basis_snapshot_if_requested(
+    *,
+    args: argparse.Namespace,
+    cost_basis: Mapping[str, Any],
+    inventory_coverage: Mapping[str, Any] | None = None,
+    drift_audit: Mapping[str, Any] | None = None,
+    gap_triage: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    if not args.record_cost_basis_snapshot:
+        return None
+    record = build_cost_basis_snapshot_record(
+        cost_basis=cost_basis,
+        inventory_coverage=inventory_coverage,
+        drift_audit=drift_audit,
+        gap_triage=gap_triage,
+    )
+    append_cost_basis_snapshot_record(args.cost_basis_state_file, record)
+    return {
+        "state_file": str(args.cost_basis_state_file),
+        "record_type": record["record_type"],
+        "generated_at": record["generated_at"],
+        "status": record["status"],
+        "baseline": record["baseline"],
+        "inventory_coverage": record["inventory_coverage"],
+        "drift_audit": record["drift_audit"],
+        "gap_triage": record["gap_triage"],
+    }
+
+
 def _config_payload(args: argparse.Namespace) -> dict[str, Any]:
     safety_policy = _safety_policy_payload(args)
     return {
@@ -119,6 +245,14 @@ def _safety_policy_payload(args: argparse.Namespace) -> dict[str, Any]:
         "require_wallet_check": True,
         "require_known_profitable_inventory": (
             args.require_known_profitable_inventory
+        ),
+        "allow_coinbase_average_cost_basis": (
+            args.allow_coinbase_average_cost_basis
+        ),
+        "coinbase_average_cost_profit_buffer_pct": (
+            str(args.coinbase_average_cost_profit_buffer_pct)
+            if args.coinbase_average_cost_profit_buffer_pct is not None
+            else "0.5"
         ),
         "max_total_notional_per_run": (
             str(args.max_total_notional_per_run)
@@ -160,7 +294,7 @@ def _optional_int(value: Any, *, field_name: str) -> int | None:
 def _load_sweep_config_file(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
-    with path.open("r", encoding="utf-8") as handle:
+    with path.open("r", encoding="utf-8-sig") as handle:
         payload = json.load(handle)
     if not isinstance(payload, Mapping):
         raise ValueError("sweep config file must contain a JSON object")
@@ -237,6 +371,16 @@ def _apply_config_file(args: argparse.Namespace, config: Mapping[str, Any]) -> N
         and safety.get("require_known_profitable_inventory") is True
     ):
         args.require_known_profitable_inventory = True
+    if (
+        not args.allow_coinbase_average_cost_basis
+        and safety.get("allow_coinbase_average_cost_basis") is True
+    ):
+        args.allow_coinbase_average_cost_basis = True
+    if args.coinbase_average_cost_profit_buffer_pct is None:
+        args.coinbase_average_cost_profit_buffer_pct = _optional_decimal(
+            safety.get("coinbase_average_cost_profit_buffer_pct", "0.5"),
+            field_name="safety_policy.coinbase_average_cost_profit_buffer_pct",
+        )
     if args.profit_target_pct is None:
         args.profit_target_pct = _optional_decimal(
             safety.get("profit_target_pct"),
@@ -249,6 +393,18 @@ def _build_fill_ledger_repo() -> Any:
     from database.database import PostgresDB
 
     return FillLedgerRepository(PostgresDB())
+
+
+def _build_order_event_stream_publisher() -> Any | None:
+    """Build the shared submission-evidence publisher when local DB is ready."""
+    try:
+        import database.order as order_db
+        from business.order_event_stream import OrderEventStreamPublisher
+
+        publisher = OrderEventStreamPublisher(order_db)
+        return publisher if getattr(publisher, "enabled", False) else None
+    except Exception:
+        return None
 
 
 def _backfill_sweep_fills(
@@ -408,6 +564,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Build a read-only wallet-vs-fill-ledger inventory coverage report.",
     )
     parser.add_argument(
+        "--cost-basis-baseline",
+        action="store_true",
+        help="Build a read-only Coinbase average cost-basis baseline report.",
+    )
+    parser.add_argument(
+        "--cost-basis-drift-audit",
+        action="store_true",
+        help="Compare local fill-ledger average basis with Coinbase average basis.",
+    )
+    parser.add_argument(
+        "--cost-basis-triage",
+        action="store_true",
+        help="Triage wallet-only, missing-position, stale, and local-lot cost-basis gaps.",
+    )
+    parser.add_argument(
+        "--cost-basis-status",
+        action="store_true",
+        help="Print durable cost-basis snapshot status without Coinbase calls.",
+    )
+    parser.add_argument(
         "--config-registry",
         action="store_true",
         help="Print the durable sweep config registry and exit without Coinbase calls.",
@@ -486,6 +662,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Safety policy: require known profitable lots for planned SELL sweeps.",
     )
     parser.add_argument(
+        "--include-coinbase-average-cost",
+        action="store_true",
+        help="Read Coinbase portfolio average cost basis for read-only reports.",
+    )
+    parser.add_argument(
+        "--allow-coinbase-average-cost-basis",
+        action="store_true",
+        help="Allow Coinbase average cost basis to satisfy SELL safety authority.",
+    )
+    parser.add_argument(
+        "--coinbase-average-cost-profit-buffer-pct",
+        type=Decimal,
+        default=None,
+        help="Extra profit buffer percentage required for Coinbase average-cost SELL authority.",
+    )
+    parser.add_argument(
+        "--coinbase-average-cost-portfolio-uuid",
+        default=None,
+        help="Optional Coinbase portfolio UUID for average cost-basis reads.",
+    )
+    parser.add_argument(
         "--profit-target-pct",
         type=Decimal,
         default=None,
@@ -496,6 +693,34 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=DEFAULT_STATE_FILE,
         help="Durable JSONL run ledger path.",
+    )
+    parser.add_argument(
+        "--cost-basis-state-file",
+        type=Path,
+        default=DEFAULT_COST_BASIS_STATE_FILE,
+        help="Durable JSONL cost-basis snapshot ledger path.",
+    )
+    parser.add_argument(
+        "--record-cost-basis-snapshot",
+        action="store_true",
+        help="Append a local cost-basis snapshot record for cost-basis read modes.",
+    )
+    parser.add_argument(
+        "--operation-lock-file",
+        type=Path,
+        default=DEFAULT_OPERATION_LOCK_FILE,
+        help="Local lock file used to prevent overlapping scheduled jobs.",
+    )
+    parser.add_argument(
+        "--lock-stale-after-seconds",
+        type=Decimal,
+        default=Decimal("3600"),
+        help="Remove an operation lock older than this many seconds.",
+    )
+    parser.add_argument(
+        "--disable-run-lock",
+        action="store_true",
+        help="Disable local operation-lock acquisition for this invocation.",
     )
     parser.add_argument(
         "--poll-timeout-seconds",
@@ -535,6 +760,8 @@ def main(argv: list[str] | None = None) -> int:
         args.order_type = SpotPortfolioSweepOrderType.MARKET_IOC.value
     if args.limit_price_offset_bps is None:
         args.limit_price_offset_bps = Decimal("0")
+    if args.coinbase_average_cost_profit_buffer_pct is None:
+        args.coinbase_average_cost_profit_buffer_pct = Decimal("0.5")
 
     read_only_mode_count = sum(
         1
@@ -543,6 +770,10 @@ def main(argv: list[str] | None = None) -> int:
             args.reconcile,
             args.pnl_report,
             args.inventory_coverage,
+            args.cost_basis_baseline,
+            args.cost_basis_drift_audit,
+            args.cost_basis_triage,
+            args.cost_basis_status,
             args.config_registry,
             args.validate_config,
         )
@@ -551,6 +782,8 @@ def main(argv: list[str] | None = None) -> int:
     if read_only_mode_count > 1:
         parser.error(
             "--status, --reconcile, --pnl-report, --inventory-coverage, "
+            "--cost-basis-baseline, --cost-basis-drift-audit, "
+            "--cost-basis-triage, --cost-basis-status, "
             "--config-registry, and --validate-config are mutually exclusive"
         )
     if args.quote_notional is not None and args.quote_notional <= 0:
@@ -583,6 +816,29 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"--{option_name.replace('_', '-')} must be greater than 0")
     if args.profit_target_pct is not None and args.profit_target_pct < 0:
         parser.error("--profit-target-pct must be greater than or equal to 0")
+    if args.coinbase_average_cost_profit_buffer_pct < 0:
+        parser.error(
+            "--coinbase-average-cost-profit-buffer-pct must be greater than or equal to 0"
+        )
+    if args.lock_stale_after_seconds <= 0:
+        parser.error("--lock-stale-after-seconds must be greater than 0")
+    if args.allow_coinbase_average_cost_basis:
+        if args.side and args.side != OrderSide.SELL.value:
+            parser.error("--allow-coinbase-average-cost-basis is only valid for SELL")
+        if not args.require_known_profitable_inventory:
+            parser.error(
+                "--allow-coinbase-average-cost-basis requires "
+                "--require-known-profitable-inventory"
+            )
+    if (
+        args.record_cost_basis_snapshot
+        and args.inventory_coverage
+        and not args.include_coinbase_average_cost
+    ):
+        parser.error(
+            "--record-cost-basis-snapshot with --inventory-coverage requires "
+            "--include-coinbase-average-cost"
+        )
     recurring = args.repeat_every_hours is not None or args.max_runs is not None
     if recurring and (
         args.repeat_every_hours is None or args.max_runs is None
@@ -600,7 +856,14 @@ def main(argv: list[str] | None = None) -> int:
             max_products=args.max_products,
             order_type=args.order_type,
             limit_price_offset_bps=args.limit_price_offset_bps,
+            allow_products=config["safety_policy"].get("allow_products"),
+            deny_products=config["safety_policy"].get("deny_products"),
         )
+
+    try:
+        operation_lock = _install_operation_lock(args)
+    except RuntimeError as exc:
+        parser.error(str(exc))
 
     if args.status:
         operator_status = build_sweep_operator_status(
@@ -632,6 +895,165 @@ def main(argv: list[str] | None = None) -> int:
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
         return 0
 
+    if args.cost_basis_status:
+        operator_status = build_cost_basis_operator_status(
+            records=load_cost_basis_snapshot_records(args.cost_basis_state_file),
+        )
+        summary = _build_summary(
+            config_id=config_id or "",
+            run_id=None,
+            state_file=args.state_file,
+            status=SpotPortfolioSweepRunStatus.COMPLETED.value,
+            config=config,
+        )
+        summary["cost_basis_state_file"] = str(args.cost_basis_state_file)
+        summary["cost_basis_operator_status"] = operator_status
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.cost_basis_baseline:
+        if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
+            parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
+        import configuration
+
+        rest_client = configuration.get_rest_client()
+        products = _load_public_products()
+        cost_basis = _load_coinbase_average_costs(
+            rest_client=rest_client,
+            products=products,
+            portfolio_uuid=args.coinbase_average_cost_portfolio_uuid,
+        )
+        if args.summary_only:
+            cost_basis = dict(cost_basis)
+            cost_basis.pop("records", None)
+            cost_basis.pop("baselines", None)
+        summary = _build_summary(
+            config_id=config_id or "",
+            run_id=None,
+            state_file=args.state_file,
+            status=SpotPortfolioSweepRunStatus.COMPLETED.value,
+            config=config,
+        )
+        summary["read_only_coinbase_requests"] = [
+            "get_public_products",
+            *cost_basis.get("read_only_coinbase_requests", []),
+        ]
+        summary["cost_basis_baseline"] = cost_basis
+        snapshot_record = _record_cost_basis_snapshot_if_requested(
+            args=args,
+            cost_basis=cost_basis,
+        )
+        if snapshot_record:
+            summary["cost_basis_snapshot_record"] = snapshot_record
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.cost_basis_drift_audit:
+        if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
+            parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
+        import configuration
+
+        rest_client = configuration.get_rest_client()
+        products = _load_public_products()
+        cost_basis = _load_coinbase_average_costs(
+            rest_client=rest_client,
+            products=products,
+            portfolio_uuid=args.coinbase_average_cost_portfolio_uuid,
+        )
+        audit = build_cost_basis_drift_audit(
+            fill_ledger_repo=_build_fill_ledger_repo(),
+            products=products,
+            average_cost_records=cost_basis.get("records") or [],
+        )
+        if args.summary_only:
+            audit.pop("products", None)
+        summary = _build_summary(
+            config_id=config_id or "",
+            run_id=None,
+            state_file=args.state_file,
+            status=SpotPortfolioSweepRunStatus.COMPLETED.value,
+            config=config,
+        )
+        summary["read_only_coinbase_requests"] = [
+            "get_public_products",
+            *cost_basis.get("read_only_coinbase_requests", []),
+        ]
+        summary["cost_basis_drift_audit"] = audit
+        snapshot_record = _record_cost_basis_snapshot_if_requested(
+            args=args,
+            cost_basis=cost_basis,
+            drift_audit=audit,
+        )
+        if snapshot_record:
+            summary["cost_basis_snapshot_record"] = snapshot_record
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.cost_basis_triage:
+        if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
+            parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
+        import configuration
+
+        rest_client = configuration.get_rest_client()
+        products = _load_public_products()
+        wallets = _load_wallets(rest_client)
+        cost_basis = _load_coinbase_average_costs(
+            rest_client=rest_client,
+            products=products,
+            portfolio_uuid=args.coinbase_average_cost_portfolio_uuid,
+        )
+        coverage = build_spot_inventory_coverage_report(
+            fill_ledger_repo=_build_fill_ledger_repo(),
+            products=products,
+            wallets=wallets,
+            inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+            coinbase_average_costs=cost_basis.get("records") or [],
+        )
+        audit = build_cost_basis_drift_audit(
+            fill_ledger_repo=_build_fill_ledger_repo(),
+            products=products,
+            average_cost_records=cost_basis.get("records") or [],
+        )
+        triage = build_cost_basis_gap_triage(
+            inventory_coverage=coverage,
+            drift_audit=audit,
+        )
+        if args.summary_only:
+            coverage.pop("products", None)
+            audit.pop("products", None)
+            triage.pop("products", None)
+        summary = _build_summary(
+            config_id=config_id or "",
+            run_id=None,
+            state_file=args.state_file,
+            status=SpotPortfolioSweepRunStatus.COMPLETED.value,
+            config=config,
+        )
+        summary["read_only_coinbase_requests"] = [
+            "get_public_products",
+            "get_accounts",
+            *cost_basis.get("read_only_coinbase_requests", []),
+        ]
+        summary["cost_basis_baseline"] = {
+            key: value
+            for key, value in cost_basis.items()
+            if key not in {"records", "baselines"}
+        }
+        summary["inventory_coverage"] = coverage
+        summary["cost_basis_drift_audit"] = audit
+        summary["cost_basis_gap_triage"] = triage
+        snapshot_record = _record_cost_basis_snapshot_if_requested(
+            args=args,
+            cost_basis=cost_basis,
+            inventory_coverage=coverage,
+            drift_audit=audit,
+            gap_triage=triage,
+        )
+        if snapshot_record:
+            summary["cost_basis_snapshot_record"] = snapshot_record
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
     if args.inventory_coverage:
         if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
             parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
@@ -640,11 +1062,21 @@ def main(argv: list[str] | None = None) -> int:
         rest_client = configuration.get_rest_client()
         products = _load_public_products()
         wallets = _load_wallets(rest_client)
+        cost_basis = (
+            _load_coinbase_average_costs(
+                rest_client=rest_client,
+                products=products,
+                portfolio_uuid=args.coinbase_average_cost_portfolio_uuid,
+            )
+            if args.include_coinbase_average_cost
+            else {}
+        )
         report = build_spot_inventory_coverage_report(
             fill_ledger_repo=_build_fill_ledger_repo(),
             products=products,
             wallets=wallets,
             inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+            coinbase_average_costs=cost_basis.get("records") or [],
         )
         if args.summary_only:
             report.pop("products", None)
@@ -658,17 +1090,45 @@ def main(argv: list[str] | None = None) -> int:
         summary["read_only_coinbase_requests"] = [
             "get_public_products",
             "get_accounts",
+            *cost_basis.get("read_only_coinbase_requests", []),
         ]
         summary["inventory_coverage"] = report
+        if cost_basis:
+            summary["cost_basis_baseline"] = {
+                key: value
+                for key, value in cost_basis.items()
+                if key not in {"records", "baselines"}
+            }
+        snapshot_record = _record_cost_basis_snapshot_if_requested(
+            args=args,
+            cost_basis=cost_basis,
+            inventory_coverage=report,
+        )
+        if snapshot_record:
+            summary["cost_basis_snapshot_record"] = snapshot_record
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
         return 0
 
     if args.pnl_report:
         products = _load_public_products()
+        cost_basis = {}
+        if args.include_coinbase_average_cost:
+            if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
+                parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
+            import configuration
+
+            cost_basis = _load_coinbase_average_costs(
+                rest_client=configuration.get_rest_client(),
+                products=products,
+                portfolio_uuid=args.coinbase_average_cost_portfolio_uuid,
+            )
         report = build_spot_portfolio_pnl_report(
             fill_ledger_repo=_build_fill_ledger_repo(),
             products=products,
             product_ids=args.product_id,
+            coinbase_average_costs=(
+                cost_basis.get("records") if cost_basis else None
+            ),
         )
         summary = _build_summary(
             config_id=config_id or "",
@@ -677,7 +1137,10 @@ def main(argv: list[str] | None = None) -> int:
             status=SpotPortfolioSweepRunStatus.COMPLETED.value,
             config=config,
         )
-        summary["read_only_coinbase_requests"] = ["get_public_products"]
+        summary["read_only_coinbase_requests"] = [
+            "get_public_products",
+            *cost_basis.get("read_only_coinbase_requests", []),
+        ]
         summary["pnl_report"] = report
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
         return 0
@@ -692,12 +1155,23 @@ def main(argv: list[str] | None = None) -> int:
         rest_client = configuration.get_rest_client()
         products = _load_public_products()
         wallets = _load_wallets(rest_client)
+        cost_basis = (
+            _load_coinbase_average_costs(
+                rest_client=rest_client,
+                products=products,
+                portfolio_uuid=args.coinbase_average_cost_portfolio_uuid,
+            )
+            if args.allow_coinbase_average_cost_basis
+            else {}
+        )
         plan_obj = build_usdc_portfolio_sweep_plan(
             side=args.side,
             quote_notional=args.quote_notional,
             products=products,
             wallets=wallets,
             max_products=args.max_products,
+            allow_products=config["safety_policy"].get("allow_products"),
+            deny_products=config["safety_policy"].get("deny_products"),
         )
         fill_ledger_repo = None
         if args.side == OrderSide.SELL.value:
@@ -712,6 +1186,7 @@ def main(argv: list[str] | None = None) -> int:
             limit_price_offset_bps=args.limit_price_offset_bps,
             fill_ledger_repo=fill_ledger_repo,
             inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+            coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
             profit_target_pct=args.profit_target_pct,
         )
         plan = plan_obj.to_dict()
@@ -722,6 +1197,7 @@ def main(argv: list[str] | None = None) -> int:
             limit_price_offset_bps=args.limit_price_offset_bps,
             fill_ledger_repo=fill_ledger_repo,
             inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+            coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
             profit_target_pct=args.profit_target_pct,
         )
         if args.summary_only:
@@ -738,6 +1214,11 @@ def main(argv: list[str] | None = None) -> int:
         summary["live_coinbase_orders_ran"] = False
         summary["total_submitted_notional_usdc"] = "0"
         summary["total_executed_notional_usdc"] = "0"
+        summary["read_only_coinbase_requests"] = [
+            "get_public_products",
+            "get_accounts",
+            *cost_basis.get("read_only_coinbase_requests", []),
+        ]
         summary["safety_evaluation"] = safety_evaluation.to_dict()
         summary["plan_explain"] = explain
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
@@ -849,12 +1330,23 @@ def main(argv: list[str] | None = None) -> int:
     rest_client = configuration.get_rest_client()
     products = _load_public_products()
     wallets = _load_wallets(rest_client)
+    cost_basis = (
+        _load_coinbase_average_costs(
+            rest_client=rest_client,
+            products=products,
+            portfolio_uuid=args.coinbase_average_cost_portfolio_uuid,
+        )
+        if args.allow_coinbase_average_cost_basis
+        else {}
+    )
     plan_obj = build_usdc_portfolio_sweep_plan(
         side=args.side,
         quote_notional=args.quote_notional,
         products=products,
         wallets=wallets,
         max_products=args.max_products,
+        allow_products=config["safety_policy"].get("allow_products"),
+        deny_products=config["safety_policy"].get("deny_products"),
     )
     plan = plan_obj.to_dict()
     if args.summary_only:
@@ -873,6 +1365,7 @@ def main(argv: list[str] | None = None) -> int:
         limit_price_offset_bps=args.limit_price_offset_bps,
         fill_ledger_repo=fill_ledger_repo,
         inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+        coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
         profit_target_pct=args.profit_target_pct,
     ).to_dict()
     if safety_evaluation["decision"] != (
@@ -911,6 +1404,10 @@ def main(argv: list[str] | None = None) -> int:
             execution=execution,
             automation_decision=automation_decision,
         )
+        summary["read_only_coinbase_requests"] = [
+            *summary.get("read_only_coinbase_requests", []),
+            *cost_basis.get("read_only_coinbase_requests", []),
+        ]
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
         return 0
 
@@ -923,6 +1420,7 @@ def main(argv: list[str] | None = None) -> int:
         limit_price_offset_bps=args.limit_price_offset_bps,
         poll_timeout_seconds=args.poll_timeout_seconds,
         poll_interval_seconds=args.poll_interval_seconds,
+        order_event_publisher=_build_order_event_stream_publisher(),
     )
     completed_at = datetime.now(timezone.utc)
     execution = summarize_sweep_execution(reports=reports)
@@ -958,6 +1456,10 @@ def main(argv: list[str] | None = None) -> int:
         execution=execution,
         automation_decision=automation_decision,
     )
+    summary["read_only_coinbase_requests"] = [
+        *summary.get("read_only_coinbase_requests", []),
+        *cost_basis.get("read_only_coinbase_requests", []),
+    ]
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
     return 0
 

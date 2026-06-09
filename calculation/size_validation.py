@@ -32,9 +32,9 @@ Honest scope notes
   metadata strings are empty and validation degrades to *quantize-only*
   with a warning hook. This matches the existing price-quantize
   behavior \u2014 missing metadata means no enforcement, never a crash.
-* ``quote_min_size`` is only checked when a price is supplied. Pass
-  ``price`` for limit orders; for market orders where the eventual
-  notional isn't yet known, pass ``None`` and the check is skipped.
+* ``quote_min_size`` is checked by ``validate_and_quantize_size`` when a price
+  is supplied. Quote-sized market BUYs call ``validate_quote_size`` because
+  their quote notional is known even though base size is not.
 * This module never silently changes prices or sides. It is purely
   a size-side guard.
 """
@@ -180,3 +180,67 @@ def validate_and_quantize_size(
                 )
 
     return SizeValidationResult(True, size_f, "")
+
+
+def validate_quote_size(
+    quote_size: float,
+    *,
+    product_id: str,
+    direction: str = RoundingDirection.DOWN.value,
+) -> SizeValidationResult:
+    """Snap quote size to ``quote_increment`` and validate quote minimums.
+
+    Coinbase market BUYs may specify ``quote_size`` instead of ``base_size``.
+    In that shape there is no known base quantity to quantize, but the quote
+    notional is known and must still be positive, increment-aligned, and above
+    ``quote_min_size`` when product metadata supplies one.
+    """
+    if quote_size is None:
+        return SizeValidationResult(False, 0.0, "quote_size is None")
+    try:
+        quote_f = float(quote_size)
+    except (TypeError, ValueError):
+        return SizeValidationResult(False, 0.0, f"quote_size not numeric: {quote_size!r}")
+    if quote_f != quote_f:
+        return SizeValidationResult(False, 0.0, "quote_size is NaN")
+    if quote_f <= 0:
+        return SizeValidationResult(
+            False,
+            quote_f,
+            f"quote_size must be > 0, got {quote_f}",
+        )
+
+    metadata = _product_metadata(product_id)
+    quote_increment = metadata.get("quote_increment")
+    if quote_increment:
+        try:
+            quote_f = float(
+                quantize_to_increment(
+                    quote_f,
+                    str(quote_increment),
+                    direction=direction,
+                )
+            )
+        except (ValueError, ArithmeticError) as e:
+            return SizeValidationResult(
+                False,
+                quote_f,
+                f"quote_size quantize_to_increment failed: {e}",
+            )
+        if quote_f <= 0:
+            return SizeValidationResult(
+                False,
+                quote_f,
+                f"quote_size {quote_size!r} below quote_increment {quote_increment!r}",
+            )
+
+    quote_min = _to_decimal(metadata.get("quote_min_size"))
+    if quote_min is not None and quote_min > 0:
+        if Decimal(str(quote_f)) < quote_min:
+            return SizeValidationResult(
+                False,
+                quote_f,
+                f"quote_size {quote_f} below quote_min_size {quote_min} for {product_id}",
+            )
+
+    return SizeValidationResult(True, quote_f, "")

@@ -17,12 +17,15 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   runs
 - run one due recurring sweep attempt from Windows Task Scheduler or another
   supervisor
+- execute a rendered spot campaign config through the existing live sweep path
 - report P/L from durable fill-ledger rows by product, portfolio, and since
   last purchase
 - inspect FIFO realized P/L from known local lots without treating it as tax
   accounting
 - inspect wallet inventory coverage against fill-ledger and imported baseline
   evidence
+- optionally compare Coinbase portfolio average cost basis against local
+  evidence for operational coverage, P/L, and drift review
 
 ## Key Concepts
 
@@ -41,11 +44,25 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   from the plan.
 - Each live item is rechecked through `ActionConditionGuard` immediately before
   `create_order`.
+- Live sweep orders use UUID `client_order_id` values so websocket,
+  `order_parent`, fill-ledger, and reconciliation paths can share the same
+  internal identifier contract.
+- The live runner passes an `OrderEventStreamPublisher` into the sweep executor
+  so accepted placements can publish `order_submitted` / `rest_submit`
+  ownership evidence when the local event stream is available. Each order
+  report includes `submission_event_recorded` so an unavailable event stream is
+  visible as an audit gap without rewriting the Coinbase submission outcome.
 - A sweep safety policy can enforce artificial per-run, per-order, product
   allow/deny, planned-count, and skipped-count limits before execution starts.
+- Product allow/deny scope is applied before `max_products` selection. This
+  lets campaign retry configs target a specific not-submitted product without
+  planning the first alphabetic USDC product and failing later in safety.
 - Versioned JSON config files can define the same sweep fields used by the live
   CLI. `--validate-config` loads the config, rebuilds a fresh wallet-aware plan,
   evaluates safety, and prints per-product explain rows without live approval.
+- Spot campaign configs can render this sweep config schema. Campaigns own
+  intake, dry-run matrices, durable campaign snapshots, release gates, and
+  dashboard campaign status; live placement still runs here.
 - Durable sweep reconciliation reads live Coinbase order/fill evidence for
   recorded runs and appends reconciliation records to the same JSONL ledger.
   When local `fill_ledger` is available, reconciliation also compares REST fill
@@ -53,6 +70,11 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 - Live sweep execution backfills Coinbase REST fills into `fill_ledger` after
   submitted orders unless `--skip-fill-backfill` is supplied. The backfill is
   idempotent and is reported in the durable run ledger.
+- Products skipped during planning remain visible as audit rows in execution
+  summaries, but they are not counted as live execution failures. A sweep with
+  submitted orders plus only planned skips is treated as completed; blocked
+  guards, placement errors, or submitted orders with post-submit audit errors
+  still produce partial or failed status.
 - Fill-ledger schema preserves low-price spot fills with high-scale price
   precision so local notional reconciliation works for products priced below
   one USDC.
@@ -72,8 +94,33 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 - Inventory coverage reports compare eligible USDC spot wallet balances against
   local fill-ledger and imported baseline evidence. Wallet-only balances are
   sellable only if the action guard passes; they are not known-cost inventory.
+- Coinbase portfolio average cost basis is a separate operational authority
+  source. It comes from portfolio breakdown `spot_positions`, is mapped from
+  asset to eligible `BASE-USDC` products, and is not exact local FIFO lot
+  evidence.
+- Read-only coverage and P/L reports can include Coinbase average cost with
+  `--include-coinbase-average-cost`.
+- SELL safety can use Coinbase average cost only when
+  `--allow-coinbase-average-cost-basis` is set, and it applies the additional
+  `--coinbase-average-cost-profit-buffer-pct` before allowing a planned SELL.
+  This path is disabled by default.
 - The config registry summarizes durable sweep configs, latest runs, latest
   reconciliation, and latest fill-backfill state without Coinbase calls.
+- Fill-ledger health audits flag local evidence hazards such as zero-price
+  USDC fills, zero notional, missing `client_order_id`, and reconciled rows
+  without exchange evidence.
+- Fill-ledger repair planning uses durable smoke/sweep order records to map
+  `client_order_id` to Coinbase exchange order ids, fetches REST fills read
+  only, and applies local corrections only with `--apply`.
+- Sweep recovery gate runs append durable `sweep_recovery` records when they
+  attempt reconciliation or fill-backfill recovery.
+- Cost-basis snapshots can be recorded locally with
+  `--record-cost-basis-snapshot` and reviewed later with
+  `--cost-basis-status`. Dashboard cost-basis status reads this local snapshot
+  ledger only.
+- Scheduled live/ledger-writing sweep work and cost-basis snapshot recording
+  are protected by a local operation lock so overlapping task-scheduler
+  invocations fail before Coinbase work or local JSONL writes.
 
 ## Outputs And Artifacts
 
@@ -83,10 +130,20 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `tools/run_spot_portfolio_sweep_live.py`
 - Read-only release gate:
   `tools/run_spot_release_gate.py`
+- Read-only campaign CLI:
+  `tools/run_spot_campaign.py`
 - Fill-backfill recovery CLI:
   `tools/run_spot_fill_backfill_recovery.py`
 - Sweep recovery gate CLI:
   `tools/run_spot_sweep_recovery_gate.py`
+- Fill-ledger health CLI:
+  `tools/run_spot_fill_ledger_health.py`
+- Fill-ledger repair CLI:
+  `tools/run_spot_fill_ledger_repair.py`
+- Cost-basis helper module:
+  `business/spot_cost_basis.py`
+- Campaign helper module:
+  `business/spot_campaign.py`
 - Strategy planner/reporting module:
   `business/spot_portfolio_sweep.py`
 - Focused regression:
@@ -101,8 +158,20 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `SPOT_FILL_BACKFILL_RECOVERY`
 - Sweep recovery gate summary prefix:
   `SPOT_SWEEP_RECOVERY_GATE`
+- Fill-ledger health summary prefix:
+  `SPOT_FILL_LEDGER_HEALTH`
+- Fill-ledger repair summary prefix:
+  `SPOT_FILL_LEDGER_REPAIR`
 - Automation ledger:
   `runtime_state/spot_portfolio_sweeps.jsonl`
+- Fill-ledger repair ledger:
+  `runtime_state/spot_fill_ledger_repairs.jsonl`
+- Cost-basis snapshot ledger:
+  `runtime_state/spot_cost_basis_snapshots.jsonl`
+- Campaign snapshot ledger:
+  `runtime_state/spot_campaigns.jsonl`
+- Operation lock file:
+  `runtime_state/spot_portfolio_sweep.lock`
 
 ## Safety Constraints
 
@@ -117,16 +186,34 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 - `--require-known-profitable-inventory` can require planned SELL sweep items
   to be covered by known profitable fill-ledger or imported baseline lots before
   live execution starts.
+- `--allow-coinbase-average-cost-basis` is an explicit SELL authority opt-in,
+  not a default. Use it only with an additional profit buffer and only when
+  Coinbase average cost is acceptable for the operational decision being made.
 - `--validate-config` is read-only and does not bypass live approval.
-- `--reconcile` and `--pnl-report` are read-only but can still fail if local DB
-  or Coinbase read credentials are unavailable.
+- `tools/run_spot_campaign.py` is read-only with respect to Coinbase orders.
+  Rendered campaign sweep configs still require this live runner and
+  `--approved-live-orders` before any order can be submitted.
+- `--cost-basis-baseline`, `--cost-basis-drift-audit`, `--reconcile`, and
+  `--pnl-report --include-coinbase-average-cost` are read-only but can still
+  fail if local DB or Coinbase read credentials are unavailable.
+- `--record-cost-basis-snapshot` writes a local JSONL snapshot but still
+  submits no Coinbase orders.
+- `--allow-coinbase-average-cost-basis` requires
+  `--require-known-profitable-inventory` and is valid only for SELL.
 - Market SELL profitability is admission-time estimated from current metadata;
   the final fill price can differ.
 - Live runs must report submitted/executed notional for every submitted order.
+- Live sweep `client_order_id` values must remain UUID text. Do not add
+  human-readable prefixes to Coinbase-facing `client_order_id`; use the sweep
+  run id, config id, JSONL record type, and event payload fields for sweep
+  classification instead.
 - Live fill backfill failure must be treated as an audit gap, not as proof that
   the Coinbase order did not fill.
 - Recovery commands never submit live orders. They may read Coinbase order/fill
   evidence and write local reconciliation or fill-ledger records.
+- Fill-ledger repair defaults to non-writing dry-run behavior. Local DB
+  corrections require `--apply`; dry-run records are persisted only with
+  `--record-dry-run`.
 - Do not broaden this feature to USD pairs unless the roadmap explicitly
   reopens quote-currency scope.
 - Do not treat wallet inventory as known profitable inventory.
@@ -135,3 +222,5 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 ## Examples
 
 See [Spot Portfolio Sweep Examples](docs/examples/spot-portfolio-sweep.md).
+For reusable campaign setup and release gates, see
+[Spot Campaign Examples](docs/examples/spot-campaign.md).

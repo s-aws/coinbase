@@ -100,7 +100,7 @@ Inflight critical sections (`track_inflight`) allow graceful drain before stop h
 2. Bridge evaluator polls active stealth orders.
 3. Condition evaluators decide when to transition to `TRIGGERED`.
 4. Reveal plan resolves submitted price (`configured_limit`, `top_of_book`, or `midpoint`) and post-only policy.
-5. Placement happens via REST. For placement client order IDs that differ from the stealth root, `StealthOrderManager.reveal_order_slice` pre-inserts the `order_parent` row before the REST attempt so a racing WS user-channel event does not create an orphan root.
+5. Placement happens via REST. For placement client order IDs that differ from the stealth root, `StealthOrderManager.reveal_order_slice` pre-inserts the `order_parent` row before the REST attempt so a racing WS user-channel event does not create an orphan root. If REST raises or Coinbase returns a rejected placement, the reveal path records a failed reveal event but leaves revealed size, remaining size, and active placement pointers unchanged.
 6. Reveal events and lifecycle transitions persist to audit/history tables.
 7. Cancel/re-entry policy can cancel a no-fill revealed placement, return the stealth order to `HIDDEN`, and later re-enter through the existing reveal path when the market moves far enough away.
 8. Same-side post-fill retreat can move the nearest opted-in hidden order on the same product/side by configured price ticks after another order fills.

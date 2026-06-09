@@ -5,6 +5,11 @@
 - `business/position_lot.py`
 - `business/lot_builder.py`
 - `business/lot_config.py`
+- `business/spot_campaign.py`
+- `business/spot_cost_basis.py`
+- `business/spot_fill_ledger_health.py`
+- `business/spot_inventory_authority.py`
+- `business/spot_portfolio_sweep.py`
 - `business/profit_threshold_engine.py`
 - `business/order_interception_layer.py`
 - `business/conditional_execution.py`
@@ -18,6 +23,10 @@
 Strategy modules decide intent. Live order placement, cancellation, and lifecycle
 mutation still flow through the canonical order/stealth paths.
 
+Spot campaign and portfolio sweep modules may plan, gate, explain, and record
+USDC spot strategy intent. Live campaign placement still renders to the existing
+spot portfolio sweep live runner; do not create a second spot placement engine.
+
 ## Must Not Do
 
 - Do not edit files outside the owned files listed in the Owns section. If a change requires editing files owned by another agent, route the change to that owner or coordinate through the architect.
@@ -30,4 +39,3 @@ mutation still flow through the canonical order/stealth paths.
 ```powershell
 pytest tests/regression/test_hotpoint_detector.py tests/regression/test_hotpoint_rate_limiter.py tests/regression/test_hotpoint_placer.py -v --tb=short
 ```
-

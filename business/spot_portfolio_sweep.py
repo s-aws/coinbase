@@ -20,10 +20,17 @@ from typing import Any, Callable, Iterable, Mapping
 
 from core.enums import (
     ActionGuardPhase,
+    EventSourceChannel,
+    EventStreamType,
     InventoryAuthorityStatus,
     InventoryCostBasisStatus,
+    InventoryLotSource,
+    OrderStatus,
     OrderSide,
     ProductType,
+    SpotAuditRecordType,
+    SpotCostBasisSource,
+    SpotCostBasisStatus,
     SpotInventoryCoverageStatus,
     SpotPortfolioPnlScope,
     SpotPortfolioSweepAutomationDecision,
@@ -35,6 +42,7 @@ from core.enums import (
     SpotPortfolioSweepSafetyDecision,
     SpotPortfolioSweepSkipReason,
     SpotSweepFillLedgerMatchStatus,
+    SpotSweepRecoveryGateStatus,
 )
 
 
@@ -214,10 +222,35 @@ def is_usdc_spot_product_eligible(product: Any) -> bool:
     )
 
 
-def filter_usdc_spot_products(products: Iterable[Any]) -> list[Any]:
+def _product_filter_set(values: Iterable[Any] | None) -> set[str]:
+    if not values:
+        return set()
+    if isinstance(values, str):
+        values = [values]
+    return {
+        _text(value).upper()
+        for value in values
+        if _text(value)
+    }
+
+
+def filter_usdc_spot_products(
+    products: Iterable[Any],
+    *,
+    allow_products: Iterable[Any] | None = None,
+    deny_products: Iterable[Any] | None = None,
+) -> list[Any]:
     """Return eligible USDC-quoted spot products sorted deterministically."""
+    allowed = _product_filter_set(allow_products)
+    denied = _product_filter_set(deny_products)
     return sorted(
-        [product for product in products if is_usdc_spot_product_eligible(product)],
+        [
+            product
+            for product in products
+            if is_usdc_spot_product_eligible(product)
+            and (not allowed or _product_id(product).upper() in allowed)
+            and _product_id(product).upper() not in denied
+        ],
         key=lambda product: _product_id(product),
     )
 
@@ -404,6 +437,8 @@ def build_usdc_portfolio_sweep_plan(
     products: Iterable[Any],
     wallets: Mapping[str, Any] | None,
     max_products: int | None = None,
+    allow_products: Iterable[Any] | None = None,
+    deny_products: Iterable[Any] | None = None,
     generated_at: datetime | None = None,
 ) -> SpotPortfolioSweepPlan:
     """Build a wallet-aware dry-run plan for USDC spot BUY or SELL sweeps."""
@@ -418,7 +453,12 @@ def build_usdc_portfolio_sweep_plan(
     if max_products is not None and max_products <= 0:
         raise ValueError("max_products must be greater than 0 when provided")
 
-    eligible_products = filter_usdc_spot_products(products)
+    all_eligible_products = filter_usdc_spot_products(products)
+    eligible_products = filter_usdc_spot_products(
+        products,
+        allow_products=allow_products,
+        deny_products=deny_products,
+    )
     selected_products = (
         eligible_products[:max_products] if max_products else eligible_products
     )
@@ -596,7 +636,7 @@ def build_usdc_portfolio_sweep_plan(
         quote_currency=QUOTE_CURRENCY,
         requested_quote_notional=_format_decimal(requested_quote_notional) or "0",
         available_quote_balance=_format_decimal(available_quote_balance) or "0",
-        eligible_product_count=len(eligible_products),
+        eligible_product_count=len(all_eligible_products),
         selected_product_count=len(selected_products),
         max_products=max_products,
         wallet_check_enabled=wallets is not None,
@@ -645,7 +685,7 @@ def _coerce_sweep_order_type(order_type: str | SpotPortfolioSweepOrderType) -> s
 
 
 def _sweep_client_order_id() -> str:
-    return f"sswp-{uuid.uuid4().hex}"
+    return str(uuid.uuid4())
 
 
 def _limit_price_for_plan_item(
@@ -779,6 +819,56 @@ def _extract_order_payload(response: Any) -> dict[str, Any]:
     return dict(data) if isinstance(data, Mapping) else {}
 
 
+def _publish_sweep_order_submission_event(
+    *,
+    event_publisher: Any,
+    client_order_id: str,
+    order_id: str | None,
+    item: SpotPortfolioSweepPlanItem,
+    submission: SpotPortfolioSweepOrderSubmission,
+) -> bool:
+    """Publish durable owned-submission evidence for a live sweep placement."""
+    if event_publisher is None or not getattr(event_publisher, "enabled", False):
+        return False
+
+    inner_key = next(iter(submission.order_configuration), None)
+    inner = (
+        submission.order_configuration.get(inner_key, {})
+        if inner_key
+        else {}
+    )
+    payload = {
+        "client_order_id": client_order_id,
+        "order_id": order_id,
+        "product_id": item.product_id,
+        "side": item.side,
+        "order_type": submission.order_type,
+        "order_configuration_type": inner_key,
+        "order_configuration": submission.order_configuration,
+        "base_size": inner.get("base_size"),
+        "quote_size": inner.get("quote_size"),
+        "limit_price": inner.get("limit_price"),
+        "post_only": inner.get("post_only"),
+        "submitted_notional_usdc": submission.submitted_notional_usdc,
+        "planned_quote_size": item.planned_quote_size,
+        "planned_base_size": item.planned_base_size,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    key = f"spot_sweep_submit:{client_order_id}:{order_id or ''}"
+    try:
+        return bool(
+            event_publisher.publish_event(
+                event_type=EventStreamType.ORDER_SUBMITTED.value,
+                source_channel=EventSourceChannel.REST_SUBMIT.value,
+                payload=payload,
+                idempotency_key=key,
+                status_to=OrderStatus.PENDING.value,
+            )
+        )
+    except Exception:
+        return False
+
+
 def _get_order(rest_client: Any, order_id: str) -> dict[str, Any]:
     getter = getattr(rest_client, "get_order", None)
     if callable(getter):
@@ -884,6 +974,7 @@ class SpotPortfolioSweepLiveOrderReport:
     limit_price: str | None = None
     exchange_status: str | None = None
     response_success: bool | None = None
+    submission_event_recorded: bool | None = None
     guard_failure: dict[str, Any] | None = None
     error: str | None = None
 
@@ -902,9 +993,64 @@ class SpotPortfolioSweepLiveOrderReport:
             "limit_price": self.limit_price,
             "exchange_status": self.exchange_status,
             "response_success": self.response_success,
+            "submission_event_recorded": self.submission_event_recorded,
             "guard_failure": self.guard_failure,
             "error": self.error,
         }
+
+
+def _order_record_value(order: Any, key: str) -> Any:
+    if isinstance(order, Mapping):
+        return order.get(key)
+    return getattr(order, key, None)
+
+
+def _is_sweep_execution_failure(order: Any) -> bool:
+    status = _text(_order_record_value(order, "status"))
+    has_error = bool(_text(_order_record_value(order, "error")))
+    if status in {
+        SpotPortfolioSweepExecutionStatus.ERROR.value,
+        SpotPortfolioSweepExecutionStatus.BLOCKED.value,
+    }:
+        return True
+    if status == SpotPortfolioSweepExecutionStatus.SKIPPED.value:
+        return False
+    return has_error
+
+
+def summarize_sweep_order_statuses(
+    orders: Iterable[Any],
+) -> dict[str, Any]:
+    """Summarize execution outcome statuses without counting plan skips as errors."""
+    orders = list(orders)
+    submitted = [
+        order
+        for order in orders
+        if _text(_order_record_value(order, "status"))
+        == SpotPortfolioSweepExecutionStatus.SUBMITTED.value
+    ]
+    skipped = [
+        order
+        for order in orders
+        if _text(_order_record_value(order, "status"))
+        == SpotPortfolioSweepExecutionStatus.SKIPPED.value
+    ]
+    failures = [order for order in orders if _is_sweep_execution_failure(order)]
+    if submitted and failures:
+        run_status = SpotPortfolioSweepRunStatus.PARTIAL.value
+    elif submitted:
+        run_status = SpotPortfolioSweepRunStatus.COMPLETED.value
+    elif failures:
+        run_status = SpotPortfolioSweepRunStatus.FAILED.value
+    else:
+        run_status = SpotPortfolioSweepRunStatus.SKIPPED.value
+    return {
+        "run_status": run_status,
+        "live_coinbase_orders_ran": bool(submitted),
+        "submitted_order_count": len(submitted),
+        "blocked_or_error_count": len(failures),
+        "skipped_order_count": len(skipped),
+    }
 
 
 def execute_usdc_portfolio_sweep_plan(
@@ -920,6 +1066,7 @@ def execute_usdc_portfolio_sweep_plan(
     poll_timeout_seconds: float = 20.0,
     poll_interval_seconds: float = 0.5,
     client_order_id_factory: Callable[[], str] | None = None,
+    order_event_publisher: Any | None = None,
 ) -> list[SpotPortfolioSweepLiveOrderReport]:
     """Submit live orders for planned sweep items after guard checks."""
     from core.action_condition_guard import ActionConditionGuard
@@ -1008,6 +1155,7 @@ def execute_usdc_portfolio_sweep_plan(
 
         order_id: str | None = None
         exchange_status: str | None = None
+        submission_event_recorded = False
         try:
             response = _dict_response(
                 rest_client.create_order(
@@ -1020,6 +1168,13 @@ def execute_usdc_portfolio_sweep_plan(
             if not isinstance(response, Mapping):
                 response = {}
             order_id = _extract_order_id(response)
+            submission_event_recorded = _publish_sweep_order_submission_event(
+                event_publisher=order_event_publisher,
+                client_order_id=client_order_id,
+                order_id=order_id,
+                item=item,
+                submission=submission,
+            )
             order = (
                 poll_sweep_order(
                     rest_client,
@@ -1052,6 +1207,7 @@ def execute_usdc_portfolio_sweep_plan(
                     limit_price=submission.limit_price,
                     exchange_status=exchange_status,
                     response_success=_response_success(response),
+                    submission_event_recorded=submission_event_recorded,
                 )
             )
         except Exception as exc:
@@ -1075,6 +1231,7 @@ def execute_usdc_portfolio_sweep_plan(
                     planned_base_size=item.planned_base_size,
                     limit_price=submission.limit_price,
                     exchange_status=exchange_status,
+                    submission_event_recorded=submission_event_recorded,
                     error=f"{type(exc).__name__}: {exc}",
                 )
             )
@@ -1086,20 +1243,7 @@ def summarize_sweep_execution(
     reports: Iterable[SpotPortfolioSweepLiveOrderReport],
 ) -> dict[str, Any]:
     reports = list(reports)
-    submitted = [
-        report
-        for report in reports
-        if report.status == SpotPortfolioSweepExecutionStatus.SUBMITTED.value
-    ]
-    errors = [
-        report
-        for report in reports
-        if report.error
-        or report.status in {
-            SpotPortfolioSweepExecutionStatus.ERROR.value,
-            SpotPortfolioSweepExecutionStatus.BLOCKED.value,
-        }
-    ]
+    status_summary = summarize_sweep_order_statuses(reports)
     total_submitted = sum(
         (_decimal(report.submitted_notional_usdc) for report in reports),
         Decimal("0"),
@@ -1108,19 +1252,8 @@ def summarize_sweep_execution(
         (_decimal(report.executed_notional_usdc) for report in reports),
         Decimal("0"),
     )
-    if submitted and errors:
-        run_status = SpotPortfolioSweepRunStatus.PARTIAL.value
-    elif submitted:
-        run_status = SpotPortfolioSweepRunStatus.COMPLETED.value
-    elif errors:
-        run_status = SpotPortfolioSweepRunStatus.FAILED.value
-    else:
-        run_status = SpotPortfolioSweepRunStatus.SKIPPED.value
     return {
-        "run_status": run_status,
-        "live_coinbase_orders_ran": bool(submitted),
-        "submitted_order_count": len(submitted),
-        "blocked_or_error_count": len(errors),
+        **status_summary,
         "total_submitted_notional_usdc": _format_decimal(total_submitted) or "0",
         "total_executed_notional_usdc": _format_decimal(total_executed) or "0",
         "orders": [report.to_dict() for report in reports],
@@ -1134,6 +1267,8 @@ class SpotPortfolioSweepSafetyPolicy:
     enabled: bool = True
     require_wallet_check: bool = True
     require_known_profitable_inventory: bool = False
+    allow_coinbase_average_cost_basis: bool = False
+    coinbase_average_cost_profit_buffer_pct: str = "0.5"
     max_total_notional_per_run: str | None = None
     max_notional_per_order: str | None = None
     max_planned_orders: int | None = None
@@ -1174,6 +1309,20 @@ class SpotPortfolioSweepSafetyPolicy:
             require_known_profitable_inventory=bool(
                 config.get("require_known_profitable_inventory", False)
             ),
+            allow_coinbase_average_cost_basis=bool(
+                config.get("allow_coinbase_average_cost_basis", False)
+            ),
+            coinbase_average_cost_profit_buffer_pct=(
+                _format_decimal(
+                    _decimal(
+                        config.get(
+                            "coinbase_average_cost_profit_buffer_pct",
+                            "0.5",
+                        )
+                    )
+                )
+                or "0.5"
+            ),
             max_total_notional_per_run=(
                 _format_decimal(_decimal(config.get("max_total_notional_per_run")))
                 if config.get("max_total_notional_per_run") is not None
@@ -1204,6 +1353,12 @@ class SpotPortfolioSweepSafetyPolicy:
             "require_wallet_check": self.require_wallet_check,
             "require_known_profitable_inventory": (
                 self.require_known_profitable_inventory
+            ),
+            "allow_coinbase_average_cost_basis": (
+                self.allow_coinbase_average_cost_basis
+            ),
+            "coinbase_average_cost_profit_buffer_pct": (
+                self.coinbase_average_cost_profit_buffer_pct
             ),
             "max_total_notional_per_run": self.max_total_notional_per_run,
             "max_notional_per_order": self.max_notional_per_order,
@@ -1263,6 +1418,9 @@ def _evaluate_sweep_sell_lot_authority(
     item: SpotPortfolioSweepPlanItem,
     fill_ledger_repo: Any,
     inventory_baselines: Any = None,
+    coinbase_average_cost_baselines: Any = None,
+    allow_coinbase_average_cost_basis: bool = False,
+    coinbase_average_cost_profit_buffer_pct: Any = "0.5",
     profit_target_pct: Any = None,
     submitted_price: Decimal,
 ) -> dict[str, Any]:
@@ -1328,18 +1486,55 @@ def _evaluate_sweep_sell_lot_authority(
     if allowed:
         status = InventoryAuthorityStatus.KNOWN_PROFITABLE.value
         reason = "known profitable lots cover requested spot sweep sell size"
-    elif known_quantity <= 0 and unknown_quantity <= 0:
-        status = InventoryAuthorityStatus.NO_LOTS.value
-        reason = "no known or imported inventory lots cover this sweep sell"
-    elif unknown_quantity > 0:
-        status = InventoryAuthorityStatus.UNKNOWN_COST_BASIS.value
-        reason = (
-            "known profitable lots do not cover the sweep sell and remaining "
-            "inventory has unknown cost basis"
-        )
+        coinbase_average_quantity = Decimal("0")
+        coinbase_average_profitable_quantity = Decimal("0")
+        coinbase_average_profit_target_pct = None
     else:
-        status = InventoryAuthorityStatus.INSUFFICIENT_KNOWN_PROFITABLE.value
-        reason = "known lots exist but are insufficient or not profitable"
+        coinbase_average_quantity = Decimal("0")
+        coinbase_average_profitable_quantity = Decimal("0")
+        coinbase_average_profit_target_pct = (
+            target_pct + float(_decimal(coinbase_average_cost_profit_buffer_pct))
+        )
+        if allow_coinbase_average_cost_basis:
+            average_position = PositionLotBuilder(
+                fill_ledger_repo,
+                inventory_baselines=coinbase_average_cost_baselines or [],
+            ).build_position_by_product(
+                item.product_id,
+                side=OrderSide.BUY,
+                profit_target_pct=coinbase_average_profit_target_pct,
+            )
+            for lot in average_position.get_unexited_lots():
+                remaining = _decimal(_get_value(lot, "remaining_quantity"))
+                if remaining <= 0:
+                    continue
+                if (
+                    _enum_value(_get_value(lot, "lot_source"))
+                    != InventoryLotSource.COINBASE_AVERAGE_COST.value
+                ):
+                    continue
+                coinbase_average_quantity += remaining
+                if lot.can_exit_profitably_at(price_float):
+                    coinbase_average_profitable_quantity += remaining
+        if coinbase_average_profitable_quantity >= requested_size:
+            allowed = True
+            status = InventoryAuthorityStatus.COINBASE_AVERAGE_PROFITABLE.value
+            reason = (
+                "Coinbase average cost basis covers requested spot sweep sell "
+                "with the configured extra profit buffer"
+            )
+        elif known_quantity <= 0 and unknown_quantity <= 0 and coinbase_average_quantity <= 0:
+            status = InventoryAuthorityStatus.NO_LOTS.value
+            reason = "no known, imported, or Coinbase-average inventory covers this sweep sell"
+        elif unknown_quantity > 0:
+            status = InventoryAuthorityStatus.UNKNOWN_COST_BASIS.value
+            reason = (
+                "known profitable lots do not cover the sweep sell and remaining "
+                "inventory has unknown cost basis"
+            )
+        else:
+            status = InventoryAuthorityStatus.INSUFFICIENT_KNOWN_PROFITABLE.value
+            reason = "known lots exist but are insufficient or not profitable"
 
     return {
         "allowed": allowed,
@@ -1352,6 +1547,24 @@ def _evaluate_sweep_sell_lot_authority(
             _format_decimal(known_profitable_quantity) or "0"
         ),
         "unknown_cost_basis_quantity": _format_decimal(unknown_quantity) or "0",
+        "coinbase_average_cost_quantity": (
+            _format_decimal(coinbase_average_quantity) or "0"
+        ),
+        "coinbase_average_profitable_quantity": (
+            _format_decimal(coinbase_average_profitable_quantity) or "0"
+        ),
+        "coinbase_average_cost_profit_target_pct": (
+            _format_decimal(_decimal(coinbase_average_profit_target_pct))
+            if coinbase_average_profit_target_pct is not None
+            else None
+        ),
+        "cost_basis_authority": (
+            SpotCostBasisSource.COINBASE_AVERAGE_COST.value
+            if status == InventoryAuthorityStatus.COINBASE_AVERAGE_PROFITABLE.value
+            else SpotCostBasisSource.FILL_LEDGER.value
+            if status == InventoryAuthorityStatus.KNOWN_PROFITABLE.value
+            else SpotCostBasisSource.WALLET_ONLY.value
+        ),
         "reason": reason,
     }
 
@@ -1366,6 +1579,7 @@ def evaluate_sweep_safety_policy(
     limit_price_offset_bps: Any = 0,
     fill_ledger_repo: Any = None,
     inventory_baselines: Any = None,
+    coinbase_average_cost_baselines: Any = None,
     profit_target_pct: Any = None,
 ) -> SpotPortfolioSweepSafetyEvaluation:
     """Evaluate artificial run limits before live sweep execution."""
@@ -1476,6 +1690,15 @@ def evaluate_sweep_safety_policy(
                         item=item,
                         fill_ledger_repo=fill_ledger_repo,
                         inventory_baselines=inventory_baselines,
+                        coinbase_average_cost_baselines=(
+                            coinbase_average_cost_baselines
+                        ),
+                        allow_coinbase_average_cost_basis=(
+                            safety_policy.allow_coinbase_average_cost_basis
+                        ),
+                        coinbase_average_cost_profit_buffer_pct=(
+                            safety_policy.coinbase_average_cost_profit_buffer_pct
+                        ),
                         profit_target_pct=profit_target_pct,
                         submitted_price=authority_price,
                     )
@@ -1524,6 +1747,7 @@ def build_sweep_plan_explain(
     limit_price_offset_bps: Any = 0,
     fill_ledger_repo: Any = None,
     inventory_baselines: Any = None,
+    coinbase_average_cost_baselines: Any = None,
     profit_target_pct: Any = None,
 ) -> dict[str, Any]:
     """Explain per-product planning, safety, and SELL lot authority details."""
@@ -1571,6 +1795,21 @@ def build_sweep_plan_explain(
                     item=item,
                     fill_ledger_repo=fill_ledger_repo,
                     inventory_baselines=inventory_baselines,
+                    coinbase_average_cost_baselines=(
+                        coinbase_average_cost_baselines
+                    ),
+                    allow_coinbase_average_cost_basis=bool(
+                        (safety.get("policy") or {}).get(
+                            "allow_coinbase_average_cost_basis",
+                            False,
+                        )
+                    ),
+                    coinbase_average_cost_profit_buffer_pct=(
+                        (safety.get("policy") or {}).get(
+                            "coinbase_average_cost_profit_buffer_pct",
+                            "0.5",
+                        )
+                    ),
                     profit_target_pct=profit_target_pct,
                     submitted_price=authority_price,
                 )
@@ -1612,6 +1851,8 @@ def build_sweep_config_id(
         SpotPortfolioSweepOrderType.MARKET_IOC
     ),
     limit_price_offset_bps: Any = 0,
+    allow_products: Iterable[Any] | None = None,
+    deny_products: Iterable[Any] | None = None,
 ) -> str:
     payload = {
         "side": _text(side).upper(),
@@ -1619,6 +1860,12 @@ def build_sweep_config_id(
         "max_products": max_products,
         "quote_currency": QUOTE_CURRENCY,
     }
+    allowed = sorted(_product_filter_set(allow_products))
+    denied = sorted(_product_filter_set(deny_products))
+    if allowed:
+        payload["allow_products"] = allowed
+    if denied:
+        payload["deny_products"] = denied
     order_type_value = _coerce_sweep_order_type(order_type)
     offset_text = _format_decimal(_decimal(limit_price_offset_bps)) or "0"
     if (
@@ -2079,6 +2326,58 @@ def reconcile_sweep_run_record(
     }
 
 
+def build_sweep_recovery_record(
+    *,
+    plan: Mapping[str, Any],
+    status: str | SpotSweepRecoveryGateStatus,
+    failures: Iterable[Any] | None = None,
+    summary: Mapping[str, Any] | None = None,
+    config_id: str | None = None,
+    run_id: str | None = None,
+    created_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a durable summary of a sweep recovery gate run."""
+    created_at = created_at or datetime.now(timezone.utc)
+    failures = [_text(failure) for failure in (failures or [])]
+    status_value = _enum_value(status)
+    return {
+        "record_type": SpotAuditRecordType.SWEEP_RECOVERY.value,
+        "config_id": config_id or plan.get("config_id"),
+        "run_id": run_id or plan.get("run_id"),
+        "status": status_value,
+        "created_at": created_at.isoformat(),
+        "summary": {
+            "failure_count": len(failures),
+            "planned_reconciliation_run_count": int(
+                plan.get("planned_reconciliation_run_count") or 0
+            ),
+            "planned_backfill_order_count": int(
+                plan.get("planned_backfill_order_count") or 0
+            ),
+            **dict(summary or {}),
+        },
+        "failures": failures,
+        "plan": {
+            key: plan.get(key)
+            for key in (
+                "state_file",
+                "run_id",
+                "config_id",
+                "sweep_run_count",
+                "runs_needing_reconciliation",
+                "runs_needing_backfill",
+                "planned_reconciliation_run_count",
+                "candidate_backfill_order_count",
+                "planned_backfill_order_count",
+            )
+        },
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
 def build_sweep_operator_status(
     *,
     records: Iterable[Mapping[str, Any]],
@@ -2105,6 +2404,7 @@ def build_sweep_operator_status(
                 "disabled": False,
                 "latest_run": None,
                 "latest_reconciliation": None,
+                "latest_recovery": None,
                 "recent_runs": [],
             },
         )
@@ -2130,17 +2430,48 @@ def build_sweep_operator_status(
                     "summary": record.get("summary") or {},
                 }
             continue
+        if record.get("record_type") == SpotAuditRecordType.SWEEP_RECOVERY.value:
+            latest = entry.get("latest_recovery")
+            if latest is None or _timestamp_key(record.get("created_at")) >= (
+                _timestamp_key(latest.get("created_at"))
+            ):
+                entry["latest_recovery"] = {
+                    "created_at": record.get("created_at"),
+                    "status": record.get("status"),
+                    "summary": record.get("summary") or {},
+                }
+            continue
         if record.get("record_type") != "sweep_run":
             continue
 
         entry["run_count"] += 1
         execution = record.get("execution") or {}
-        entry["submitted_order_count"] += int(
-            execution.get("submitted_order_count") or 0
+        execution_orders = list(execution.get("orders") or [])
+        effective_outcome = (
+            summarize_sweep_order_statuses(execution_orders)
+            if execution_orders
+            else {}
         )
-        entry["blocked_or_error_count"] += int(
-            execution.get("blocked_or_error_count") or 0
+        effective_status = (
+            effective_outcome.get("run_status") or record.get("status")
         )
+        effective_submitted_count = int(
+            effective_outcome.get("submitted_order_count")
+            if effective_outcome
+            else execution.get("submitted_order_count") or 0
+        )
+        effective_blocked_or_error_count = int(
+            effective_outcome.get("blocked_or_error_count")
+            if effective_outcome
+            else execution.get("blocked_or_error_count") or 0
+        )
+        effective_skipped_count = int(
+            effective_outcome.get("skipped_order_count")
+            if effective_outcome
+            else execution.get("skipped_order_count") or 0
+        )
+        entry["submitted_order_count"] += effective_submitted_count
+        entry["blocked_or_error_count"] += effective_blocked_or_error_count
         entry["total_submitted_notional_usdc"] += _decimal(
             execution.get("total_submitted_notional_usdc")
         )
@@ -2149,11 +2480,13 @@ def build_sweep_operator_status(
         )
         entry["recent_runs"].append({
             "run_id": record.get("run_id"),
-            "status": record.get("status"),
+            "status": effective_status,
+            "recorded_status": record.get("status"),
             "started_at": record.get("started_at"),
             "completed_at": record.get("completed_at"),
-            "submitted_order_count": execution.get("submitted_order_count"),
-            "blocked_or_error_count": execution.get("blocked_or_error_count"),
+            "submitted_order_count": effective_submitted_count,
+            "blocked_or_error_count": effective_blocked_or_error_count,
+            "skipped_order_count": effective_skipped_count,
             "total_submitted_notional_usdc": (
                 execution.get("total_submitted_notional_usdc")
             ),
@@ -2169,7 +2502,8 @@ def build_sweep_operator_status(
         ):
             entry["latest_run"] = {
                 "run_id": record.get("run_id"),
-                "status": record.get("status"),
+                "status": effective_status,
+                "recorded_status": record.get("status"),
                 "started_at": record.get("started_at"),
                 "completed_at": record.get("completed_at"),
                 "automation_decision": record.get("automation_decision") or {},
@@ -2182,13 +2516,15 @@ def build_sweep_operator_status(
                     )
                 },
                 "execution": {
-                    key: execution.get(key)
-                    for key in (
-                        "submitted_order_count",
-                        "blocked_or_error_count",
-                        "total_submitted_notional_usdc",
-                        "total_executed_notional_usdc",
-                    )
+                    "submitted_order_count": effective_submitted_count,
+                    "blocked_or_error_count": effective_blocked_or_error_count,
+                    "skipped_order_count": effective_skipped_count,
+                    "total_submitted_notional_usdc": (
+                        execution.get("total_submitted_notional_usdc")
+                    ),
+                    "total_executed_notional_usdc": (
+                        execution.get("total_executed_notional_usdc")
+                    ),
                 },
                 "fill_backfill": execution.get("fill_backfill") or {},
                 "orders": list(execution.get("orders") or [])[:10],
@@ -2240,6 +2576,7 @@ def build_sweep_config_registry(
     for config in status.get("configs") or []:
         latest_run = config.get("latest_run") or {}
         latest_reconciliation = config.get("latest_reconciliation") or {}
+        latest_recovery = config.get("latest_recovery") or {}
         configs.append({
             "config_id": config.get("config_id"),
             "disabled": bool(config.get("disabled")),
@@ -2259,6 +2596,8 @@ def build_sweep_config_registry(
             "latest_started_at": latest_run.get("started_at"),
             "latest_reconciliation_status": latest_reconciliation.get("status"),
             "latest_reconciliation_at": latest_reconciliation.get("created_at"),
+            "latest_recovery_status": latest_recovery.get("status"),
+            "latest_recovery_at": latest_recovery.get("created_at"),
             "latest_fill_backfill": latest_run.get("fill_backfill") or {},
             "config": config.get("config") or {},
         })
@@ -2330,17 +2669,22 @@ def build_spot_inventory_coverage_report(
     products: Iterable[Any],
     wallets: Mapping[str, Any] | None,
     inventory_baselines: Any = None,
+    coinbase_average_costs: Iterable[Mapping[str, Any]] | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Compare USDC spot wallet balances to local fill-ledger/baseline evidence."""
+    from business.spot_cost_basis import average_cost_records_by_product
+
     timestamp = generated_at or datetime.now(timezone.utc)
     eligible_products = filter_usdc_spot_products(products)
+    average_cost_by_product = average_cost_records_by_product(coinbase_average_costs)
     status_counts = {status.value: 0 for status in SpotInventoryCoverageStatus}
     rows: list[dict[str, Any]] = []
     wallet_balance_count = 0
     wallet_only_count = 0
     unknown_count = 0
     covered_count = 0
+    coinbase_average_count = 0
     tolerance = Decimal("0.00000001")
 
     for product in eligible_products:
@@ -2358,6 +2702,11 @@ def build_spot_inventory_coverage_report(
         known_quantity = lot_quantities["known_quantity"]
         unknown_quantity = lot_quantities["unknown_cost_basis_quantity"]
         local_quantity = known_quantity + unknown_quantity
+        average_cost_record = average_cost_by_product.get(product_id) or {}
+        average_cost_quantity = _decimal(average_cost_record.get("quantity"))
+        average_entry_price = _decimal(
+            average_cost_record.get("average_entry_price")
+        )
         uncovered_wallet_quantity = max(
             Decimal("0"),
             wallet_available - local_quantity,
@@ -2370,23 +2719,45 @@ def build_spot_inventory_coverage_report(
         if wallet_available <= 0:
             status = SpotInventoryCoverageStatus.NO_WALLET_BALANCE
             reason = "no wallet balance is available for this base currency"
+            cost_basis_authority = SpotCostBasisSource.WALLET_ONLY.value
         elif not lot_quantities["available"]:
             status = SpotInventoryCoverageStatus.UNAVAILABLE
             reason = lot_quantities["error"]
+            cost_basis_authority = SpotCostBasisSource.WALLET_ONLY.value
+        elif known_quantity >= wallet_available - tolerance:
+            status = SpotInventoryCoverageStatus.COVERED
+            reason = "wallet balance is covered by known local inventory evidence"
+            cost_basis_authority = SpotCostBasisSource.FILL_LEDGER.value
+            covered_count += 1
+        elif unknown_quantity > tolerance and local_quantity >= wallet_available - tolerance:
+            status = SpotInventoryCoverageStatus.UNKNOWN_COST_BASIS
+            reason = "wallet balance is covered only with unknown cost basis lots"
+            cost_basis_authority = SpotCostBasisSource.IMPORTED_BASELINE.value
+            unknown_count += 1
+        elif (
+            average_cost_record.get("status") == SpotCostBasisStatus.AVAILABLE.value
+            and average_cost_quantity >= wallet_available - tolerance
+            and average_entry_price > 0
+        ):
+            status = SpotInventoryCoverageStatus.COINBASE_AVERAGE_COST
+            reason = (
+                "wallet balance is covered by Coinbase average cost basis, "
+                "not local lot evidence"
+            )
+            cost_basis_authority = SpotCostBasisSource.COINBASE_AVERAGE_COST.value
+            coinbase_average_count += 1
         elif uncovered_wallet_quantity > tolerance:
             status = SpotInventoryCoverageStatus.WALLET_ONLY
             reason = (
                 "wallet balance exceeds local fill-ledger and imported baseline "
                 "inventory evidence"
             )
+            cost_basis_authority = SpotCostBasisSource.WALLET_ONLY.value
             wallet_only_count += 1
-        elif unknown_quantity > tolerance:
-            status = SpotInventoryCoverageStatus.UNKNOWN_COST_BASIS
-            reason = "wallet balance is covered only with unknown cost basis lots"
-            unknown_count += 1
         else:
             status = SpotInventoryCoverageStatus.COVERED
             reason = "wallet balance is covered by known local inventory evidence"
+            cost_basis_authority = SpotCostBasisSource.FILL_LEDGER.value
             covered_count += 1
 
         status_counts[status.value] += 1
@@ -2400,11 +2771,18 @@ def build_spot_inventory_coverage_report(
             "unknown_cost_basis_quantity": (
                 _format_decimal(unknown_quantity) or "0"
             ),
+            "coinbase_average_cost_quantity": (
+                _format_decimal(average_cost_quantity) or "0"
+            ),
+            "coinbase_average_entry_price": (
+                _format_decimal(average_entry_price) or "0"
+            ),
             "local_evidence_quantity": _format_decimal(local_quantity) or "0",
             "uncovered_wallet_quantity": (
                 _format_decimal(uncovered_wallet_quantity) or "0"
             ),
             "local_excess_quantity": _format_decimal(local_excess_quantity) or "0",
+            "cost_basis_authority": cost_basis_authority,
             "reason": reason,
         })
 
@@ -2414,6 +2792,7 @@ def build_spot_inventory_coverage_report(
         "eligible_product_count": len(eligible_products),
         "wallet_balance_product_count": wallet_balance_count,
         "covered_product_count": covered_count,
+        "coinbase_average_cost_product_count": coinbase_average_count,
         "unknown_cost_basis_product_count": unknown_count,
         "wallet_only_product_count": wallet_only_count,
         "status_counts": status_counts,
@@ -2536,7 +2915,9 @@ class SpotPortfolioPnlSnapshot:
 
 
 def _fill_product_id(fill: Any) -> str:
-    return _text(_get_value(fill, "product_id", "instrument"))
+    return _text(_get_value(fill, "product_id")) or _text(
+        _get_value(fill, "instrument")
+    )
 
 
 def _fill_side(fill: Any) -> str:
@@ -2798,9 +3179,12 @@ def build_spot_portfolio_pnl_report(
     fill_ledger_repo: Any,
     products: Iterable[Any],
     product_ids: Iterable[str] | None = None,
+    coinbase_average_costs: Iterable[Mapping[str, Any]] | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Build a durable USDC spot P/L report from fill ledger and marks."""
+    from business.spot_cost_basis import build_average_cost_pnl_report
+
     mark_prices = build_usdc_spot_mark_prices(products)
     selected_product_ids = sorted(mark_prices)
     if product_ids is not None:
@@ -2816,7 +3200,7 @@ def build_spot_portfolio_pnl_report(
         mark_prices=mark_prices,
         generated_at=generated_at,
     ).to_dict()
-    return {
+    report = {
         "generated_at": snapshot["generated_at"],
         "quote_currency": QUOTE_CURRENCY,
         "eligible_mark_product_count": len(mark_prices),
@@ -2831,3 +3215,14 @@ def build_spot_portfolio_pnl_report(
         ),
         "snapshot": snapshot,
     }
+    if coinbase_average_costs is not None:
+        selected_average_records = [
+            record for record in coinbase_average_costs
+            if record.get("product_id") in set(selected_product_ids)
+        ]
+        report["average_cost_pnl"] = build_average_cost_pnl_report(
+            average_cost_records=selected_average_records,
+            mark_prices=mark_prices,
+            generated_at=generated_at,
+        )
+    return report

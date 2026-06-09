@@ -13,7 +13,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from business.fill_ledger import FillLedgerRepository
+from business.fill_ledger import FillLedger, FillLedgerRepository
 from business.order_progress import OrderSnapshotDelta
 
 
@@ -129,6 +129,20 @@ class TestAppendDerivedFill(unittest.TestCase):
         delta = _make_delta()
 
         self.assertFalse(self.repo.append_derived_fill(delta))
+
+    def test_from_dict_uses_instrument_as_product_id_when_schema_has_no_column(self):
+        fill = FillLedger.from_dict({
+            "derived_trade_key": "11111111-2222-3333-4444-555555555555",
+            "instrument": "ACX-USDC",
+            "side": "BUY",
+            "quantity": "2",
+            "price": "0.05",
+            "timestamp": datetime(2026, 6, 9, 12, 0, 0),
+            "fees": "0.01",
+        })
+
+        self.assertEqual(fill.instrument, "ACX-USDC")
+        self.assertEqual(fill.product_id, "ACX-USDC")
 
 
 if __name__ == "__main__":

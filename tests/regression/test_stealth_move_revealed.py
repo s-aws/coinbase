@@ -770,10 +770,11 @@ _SANCTIONED_CANCEL_CALLERS = (
     "_apply_revealed_anchor_reprice",
     "execute_stealth_move",
     # User-/dashboard-initiated cancel of a stealth order whose live
-    # exchange placement must also be pulled. Best-effort, no
-    # cancel-and-replace, no claim ledger interaction. Single source for
-    # both single-order Cancel and bulk Clear All in dashboard_server.
-    "_best_effort_cancel_active_exchange_order",
+    # exchange placement must also be pulled. Local CANCELLED is only
+    # written after Coinbase cancel succeeds; no cancel-and-replace, no claim
+    # ledger interaction. Single source for both single-order Cancel and bulk
+    # Clear All in dashboard_server.
+    "_cancel_active_exchange_order_for_manual_cancel",
     # Ticker-driven cancel/re-entry policy intentionally cancels a revealed
     # unfilled exchange placement, then waits for hysteresis before re-entry.
     "_apply_cancel_reentry_cancel",

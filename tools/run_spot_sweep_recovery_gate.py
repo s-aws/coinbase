@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from business.spot_fill_backfill import backfill_fill_ledger_from_order_reports
 from business.spot_portfolio_sweep import (
     append_sweep_run_record,
+    build_sweep_recovery_record,
     load_sweep_run_records,
     reconcile_sweep_run_record,
 )
@@ -298,6 +299,36 @@ def main(argv: list[str] | None = None) -> int:
 
     if summary["failures"]:
         summary["gate_status"] = SpotSweepRecoveryGateStatus.FAILED.value
+    if (
+        not args.dry_run
+        and (
+            plan["planned_reconciliation_run_count"]
+            or plan["planned_backfill_order_count"]
+            or summary["failures"]
+        )
+    ):
+        recovery_record = build_sweep_recovery_record(
+            plan=plan,
+            status=summary["gate_status"],
+            failures=summary["failures"],
+            summary={
+                "reconciliation_count": len(summary.get("reconciliations") or []),
+                "fill_backfill_order_count": len(
+                    (summary.get("fill_backfill") or {}).get("orders") or []
+                ),
+            },
+            config_id=args.config_id,
+            run_id=args.run_id,
+        )
+        append_sweep_run_record(args.state_file, recovery_record)
+        summary["recovery_record"] = {
+            "record_type": recovery_record["record_type"],
+            "config_id": recovery_record.get("config_id"),
+            "run_id": recovery_record.get("run_id"),
+            "status": recovery_record["status"],
+            "created_at": recovery_record["created_at"],
+            "summary": recovery_record["summary"],
+        }
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
     return 1 if summary["failures"] else 0
 

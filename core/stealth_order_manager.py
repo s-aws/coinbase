@@ -3110,8 +3110,10 @@ class StealthOrderManager:
         """
         Create an order with automated reveal condition.
         
-        ARCHITECTURE: This is the ONLY way orders are created. All orders start
-        in HIDDEN state pending their reveal condition being met.
+        ARCHITECTURE: This is the canonical stealth-order creation path. Direct
+        dashboard orders and portfolio sweep orders use their own guarded live
+        placement entry points; stealth orders start in HIDDEN state pending
+        their reveal condition being met.
         
         Args:
             product_id: Product to trade (e.g., 'BTC-USDC')
@@ -3677,6 +3679,8 @@ class StealthOrderManager:
         placement_success = False
         placement_error = None
         exchange_order_id = None
+        client_order_id = None
+        exchange_placement_succeeded = False
         
         # Get full market data (includes price, volume, source) - separate from plan's pricing decision
         market_data = self._get_current_market_data(order["product_id"]) or {}
@@ -3863,11 +3867,13 @@ class StealthOrderManager:
             # Tracked as in-flight so a concurrent drain waits for the placement
             # to settle before transitioning to STOPPED.
             #
-            # rest_call_succeeded is the truthful indicator of whether the order
-            # actually reached the exchange. It is flipped to True the moment
-            # place_limit_order returns without raising; any exception AFTER this
-            # point (audit-row insert, hook, lifecycle dispatch) is post-placement
-            # bookkeeping that must NOT be reported as "order was not placed".
+            # exchange_placement_succeeded is the truthful indicator of
+            # whether the order actually reached the exchange. It flips True
+            # only after place_limit_order returns a successful placement; a
+            # raised REST exception or rejected response must not drive live
+            # placement bookkeeping. Any exception AFTER this point (audit-row
+            # insert, hook, lifecycle dispatch) is post-placement bookkeeping
+            # that must NOT be reported as "order was not placed".
             # See 2026-04-29 incident: a stale Order.from_dict shim was raising
             # post-REST and the exception handler logged the misleading
             # "Order was NOT placed" while the order was actually live and filling.
@@ -3884,7 +3890,6 @@ class StealthOrderManager:
             #
             # When post_only=False (CONFIGURED_LIMIT) we make exactly
             # one attempt and the existing error handling applies.
-            rest_call_succeeded = False
             retry_post_only = bool(order_for_submission.get("post_only"))
             max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
             attempt_price = float(order_for_submission["limit_price"])
@@ -3907,14 +3912,19 @@ class StealthOrderManager:
                         client_order_id=attempt_coid,
                         post_only=retry_post_only,
                     )
-                    rest_call_succeeded = True
 
-                if not isinstance(order_result, dict) or order_result.get("success"):
+                order_result_succeeded = (
+                    not isinstance(order_result, dict)
+                    or bool(order_result.get("success"))
+                    or bool(order_result.get("success_response"))
+                )
+                if order_result_succeeded:
                     # Success (or non-dict legacy shape) — keep the COID
                     # and price actually used for downstream bookkeeping.
                     order_for_submission["limit_price"] = attempt_price
                     order_for_submission["client_order_id"] = attempt_coid
                     client_order_id = attempt_coid
+                    exchange_placement_succeeded = True
                     break
 
                 if not retry_post_only or not self._is_post_only_rejection(order_result):
@@ -4016,7 +4026,7 @@ class StealthOrderManager:
             if (
                 retry_post_only
                 and isinstance(order_result, dict)
-                and not order_result.get("success")
+                and not (order_result.get("success") or order_result.get("success_response"))
                 and self._is_post_only_rejection(order_result)
                 and len(post_only_attempts) >= max_attempts
             ):
@@ -4057,6 +4067,18 @@ class StealthOrderManager:
                     f"attempts (final price {attempt_price}); refusing "
                     f"silent demotion to taker."
                 )
+
+            if (
+                isinstance(order_result, dict)
+                and not (order_result.get("success") or order_result.get("success_response"))
+            ):
+                failure_reason = (
+                    order_result.get("failure_reason")
+                    or (order_result.get("error_response") or {}).get("error")
+                    or (order_result.get("error_response") or {}).get("message")
+                    or "exchange rejected placement"
+                )
+                raise RuntimeError(f"Exchange rejected placement: {failure_reason}")
 
             if isinstance(order_result, dict):
                 success_response = order_result.get("success_response") or {}
@@ -4128,19 +4150,20 @@ class StealthOrderManager:
             )
         except Exception as e:
             # ✗ EXCEPTION DURING PLACEMENT OR POST-PLACEMENT BOOKKEEPING
-            # rest_call_succeeded distinguishes:
-            #   - REST call itself raised => order is NOT on the exchange
-            #   - REST call returned, exception came from post-placement code
-            #     (audit insert, hook, lifecycle dispatch) => order IS LIVE on
-            #     the exchange and we just lost the bookkeeping link
+            # exchange_placement_succeeded distinguishes:
+            #   - REST call raised or returned a rejected placement => order is
+            #     NOT on the exchange
+            #   - REST placement succeeded, exception came from post-placement
+            #     code (audit insert, hook, lifecycle dispatch) => order IS
+            #     LIVE on the exchange and we just lost the bookkeeping link
             # The second case is operationally critical: emitting "order was not
             # placed" caused the 2026-04-29 incident where the exchange filled
             # the order and we never created the follow-up.
-            placed_order_id = client_order_id if rest_call_succeeded else str(uuid.uuid4())
+            placed_order_id = client_order_id or str(uuid.uuid4())
             placement_error = str(e)
-            placement_success = rest_call_succeeded
+            placement_success = exchange_placement_succeeded
 
-            if rest_call_succeeded:
+            if exchange_placement_succeeded:
                 self.log_callback("error", {
                     "event": "stealth_order_slice_post_placement_exception",
                     "stealth_order_id": order['stealth_order_id'],
@@ -4193,7 +4216,7 @@ class StealthOrderManager:
         # Record reveal event with placement status tracking and plan audit trail
         reveal_event = {
             "reveal_number": len(order["revealed_orders"]) + 1,
-            "revealed_size": slice_size,
+            "revealed_size": slice_size if placement_success else 0,
             "placement_price": reveal_plan.submitted_limit_price,
             "placed_order_id": placed_order_id,
             "placement_client_order_id": placed_order_id,
@@ -4217,6 +4240,12 @@ class StealthOrderManager:
         }
         
         order["revealed_orders"].append(reveal_event)
+        if not placement_success:
+            order["updated_at"] = datetime.utcnow()
+            self._update_stealth_order(order)
+            self._record_reveal_event(order, reveal_event)
+            return None
+
         order["revealed_size"] += slice_size
         order["remaining_size"] = order["total_size"] - order["revealed_size"]
         order["visibility_score"] = order["revealed_size"] / order["total_size"]
@@ -4327,25 +4356,22 @@ class StealthOrderManager:
         """
         Cancel a stealth order.
 
-        When ``cancel_exchange`` is True (default) and the order has a live
-        exchange placement tracked in ``anchor_repricing_state_json
-        .active_exchange_order_id``, that exchange order is best-effort
-        cancelled via REST before the stealth order is marked CANCELLED.
-        Failures to cancel on the exchange are logged but do not block the
-        local status flip — the local lifecycle must always reach a
-        terminal state so the reveal evaluator stops touching this order.
+        When ``cancel_exchange`` is True (default) and the order is REVEALED,
+        the tracked exchange placement must be cancelled through REST before
+        the stealth order is marked CANCELLED. If the live cancel cannot be
+        proven, local state remains unchanged so it does not hide a live
+        Coinbase placement.
 
         Args:
             stealth_order_id: Internal stealth order id (client_order_id).
             reason: Free-text reason recorded in notes / lifecycle event.
-            cancel_exchange: Best-effort REST cancel of the active exchange
-                order before flipping local status. Set False only when the
-                caller has already cancelled (or never placed) the exchange
-                order.
+            cancel_exchange: REST cancel of the active exchange order before
+                flipping local status. Set False only when the caller has
+                already cancelled (or never placed) the exchange order.
 
         Returns:
-            True if the local status flipped to CANCELLED. The exchange
-            cancel result does not affect the return value.
+            True if the local status flipped to CANCELLED. False if the order
+            was missing/already cancelled or a required exchange cancel failed.
         """
         order = self._get_stealth_order(stealth_order_id)
 
@@ -4355,8 +4381,12 @@ class StealthOrderManager:
         if order["status"] == StealthOrderStatus.CANCELLED.value:
             return False
 
-        if cancel_exchange:
-            self._best_effort_cancel_active_exchange_order(order, reason)
+        if (
+            cancel_exchange
+            and order.get("status") == StealthOrderStatus.REVEALED.value
+            and not self._cancel_active_exchange_order_for_manual_cancel(order, reason)
+        ):
+            return False
 
         order["status"] = StealthOrderStatus.CANCELLED.value
         order["updated_at"] = datetime.utcnow()
@@ -4365,25 +4395,36 @@ class StealthOrderManager:
         self._update_stealth_order(order)
         return True
 
-    def _best_effort_cancel_active_exchange_order(
+    def _cancel_active_exchange_order_for_manual_cancel(
         self, order: Dict[str, Any], reason: str
-    ) -> None:
+    ) -> bool:
         """Cancel the live exchange order tracked by anchor repricing state.
 
-        Best-effort: any exception (REST failure, order already gone, etc.)
-        is logged and swallowed so the local CANCELLED transition is never
-        blocked. Also clears the in-memory ``active_exchange_order_id`` so
-        subsequent reprice checks do not retry the stale id.
+        Manual cancellation may only flip a REVEALED stealth order to local
+        CANCELLED after Coinbase cancellation succeeds. Failures leave both
+        local status and active placement pointers intact for reconciliation.
         """
-        state = order.get("anchor_repricing_state_json") or {}
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        placement_client_order_id = state.get("active_placement_client_order_id")
         exchange_order_id = state.get("active_exchange_order_id")
         if not exchange_order_id:
-            return
+            self.log_callback(
+                "warning",
+                {
+                    "event": "stealth_cancel_exchange_missing_order_id",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "placement_client_order_id": placement_client_order_id,
+                    "reason": reason,
+                },
+            )
+            return False
 
         from configuration import REST_CLIENT
 
         try:
-            with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+            with get_runtime_controller().track_inflight(INFLIGHT_REST_CANCEL):
                 REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
             self.log_callback(
                 "info",
@@ -4396,7 +4437,7 @@ class StealthOrderManager:
             )
         except Exception as cancel_exc:
             self.log_callback(
-                "warning",
+                "error",
                 {
                     "event": "stealth_cancel_exchange_failed",
                     "stealth_order_id": order.get("stealth_order_id"),
@@ -4405,13 +4446,12 @@ class StealthOrderManager:
                     "error": str(cancel_exc),
                 },
             )
+            return False
 
-        # Clear the pointer either way: on success the order is gone; on
-        # failure we still don't want subsequent reprice loops to try to
-        # cancel/replace it again under a now-CANCELLED stealth order.
         state["active_exchange_order_id"] = None
         state["active_placement_client_order_id"] = None
         order["anchor_repricing_state_json"] = state
+        return True
     
     # ===================== PRIVATE METHODS =====================
     

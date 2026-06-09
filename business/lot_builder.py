@@ -153,6 +153,16 @@ class PositionLotBuilder:
                 timestamp = datetime.utcnow()
 
             source_id = entry.get("source_id") or entry.get("lot_id") or index
+            try:
+                lot_source = InventoryLotSource(
+                    str(
+                        entry.get("lot_source")
+                        or entry.get("source")
+                        or InventoryLotSource.IMPORTED_BASELINE.value
+                    ).lower()
+                )
+            except ValueError:
+                lot_source = InventoryLotSource.IMPORTED_BASELINE
             known_entry_price = (
                 entry_price
                 if cost_basis_status == InventoryCostBasisStatus.KNOWN
@@ -170,7 +180,7 @@ class PositionLotBuilder:
                 remaining_quantity=remaining_quantity,
                 source_fills=[],
                 cost_basis_status=cost_basis_status,
-                lot_source=InventoryLotSource.IMPORTED_BASELINE,
+                lot_source=lot_source,
             )
             lots.append(lot)
         return lots

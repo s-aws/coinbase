@@ -257,10 +257,14 @@ def get_rest_client() -> "CoinbaseRestClient":
 def get_trading_product_id(ticker_product_id: str) -> str:
     """
     Convert a ticker product ID to its trading equivalent.
+
+    This function only applies the configured ``ticker_to_trading`` mapping.
+    It does not implicitly convert USD products to USDC products.
     
     Example:
+        TICKER_TO_TRADING = {"BTC-USD": "BTC-USDC"}
         get_trading_product_id("BTC-USD") -> "BTC-USDC"
-        get_trading_product_id("BTC-USDC") -> "BTC-USDC"  # Already a trading product
+        get_trading_product_id("ETH-USDC") -> "ETH-USDC"  # Unmapped product
     
     Args:
         ticker_product_id: Product ID from ticker feed

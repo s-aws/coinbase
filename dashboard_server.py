@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Thread, Lock
 from queue import Queue
-from typing import Set, Dict, Any, Optional
+from typing import Set, Dict, Any, Optional, Mapping
 import websockets
 from websockets.server import WebSocketServerProtocol
 
@@ -40,9 +40,13 @@ from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
     EngineState,
+    EventSourceChannel,
+    EventStreamType,
     FollowUpRevealDirection,
     InventoryCostBasisStatus,
     InventoryLotSource,
+    OrderStatus,
+    OrderSide,
     ProductCapability,
     ProductCapabilityMode,
     RepricingReferenceSource,
@@ -73,6 +77,7 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "move_order",
     "premark_move",
     "import_stealth_orders",
+    "place_hotpoint_test_order",
 })
 
 # Stealth-order statuses considered "active" for export. Derived from the
@@ -121,6 +126,8 @@ logger = get_logger("DashboardServer")
 # Global state
 connected_clients: Set[WebSocketServerProtocol] = set()
 state_lock = Lock()
+_order_event_stream_lock = Lock()
+_order_event_stream_publisher = None
 engine_state = {
     "orders": {},  # order_id -> order_data
     "positions": {},  # product_id -> position_data
@@ -142,6 +149,144 @@ engine_state = {
     "market_metrics": {},  # product_id -> {price, as_of, windows: [{minutes, avg, delta_pct}]}
 }
 max_logs = 100
+
+
+def _get_dashboard_order_event_stream_publisher():
+    """Return the shared order-event publisher for dashboard REST placement."""
+    global _order_event_stream_publisher
+    if _order_event_stream_publisher is not None:
+        return _order_event_stream_publisher
+
+    with _order_event_stream_lock:
+        if _order_event_stream_publisher is not None:
+            return _order_event_stream_publisher
+        try:
+            import database.order as order_db
+            from business.order_event_stream import OrderEventStreamPublisher
+
+            _order_event_stream_publisher = OrderEventStreamPublisher(order_db)
+        except Exception as exc:
+            logger.warning(
+                "dashboard order_event_stream publisher unavailable: %s",
+                exc,
+            )
+            _order_event_stream_publisher = None
+        return _order_event_stream_publisher
+
+
+def _publish_direct_order_submission_event(
+    *,
+    client_order_id: str,
+    order_id: Optional[str],
+    order_params: Dict[str, Any],
+    order_configuration: Dict[str, Any],
+) -> bool:
+    """Publish durable submission evidence for direct dashboard placement."""
+    publisher = _get_dashboard_order_event_stream_publisher()
+    if publisher is None or not getattr(publisher, "enabled", False):
+        return False
+
+    inner_key = next(iter(order_configuration), None)
+    inner = order_configuration.get(inner_key, {}) if inner_key else {}
+    payload = {
+        "client_order_id": client_order_id,
+        "order_id": order_id,
+        "product_id": order_params.get("product_id"),
+        "side": order_params.get("side"),
+        "order_configuration_type": inner_key,
+        "order_configuration": order_configuration,
+        "base_size": inner.get("base_size"),
+        "quote_size": inner.get("quote_size"),
+        "limit_price": inner.get("limit_price"),
+        "post_only": inner.get("post_only"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    key = f"dashboard_submit:{client_order_id}:{order_id or ''}"
+    return bool(
+        publisher.publish_event(
+            event_type=EventStreamType.ORDER_SUBMITTED.value,
+            source_channel=EventSourceChannel.REST_SUBMIT.value,
+            payload=payload,
+            idempotency_key=key,
+            status_to=OrderStatus.PENDING.value,
+        )
+    )
+
+
+def _coinbase_order_response_to_dict(result: Any) -> Dict[str, Any]:
+    """Normalize Coinbase order response objects without losing nested fields."""
+    converter = getattr(result, "to_dict", None)
+    if callable(converter):
+        data = converter()
+    elif isinstance(result, Mapping):
+        data = dict(result)
+    elif hasattr(result, "__dict__"):
+        data = dict(result.__dict__)
+    else:
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def _coinbase_order_response_success(
+    result: Any,
+    data: Mapping[str, Any],
+) -> Optional[bool]:
+    success_attr = getattr(result, "success", None)
+    if isinstance(success_attr, bool):
+        return success_attr
+    success = data.get("success")
+    if isinstance(success, bool):
+        return success
+    if data.get("success_response"):
+        return True
+    if data.get("error_response") or data.get("failure_reason"):
+        return False
+    return None
+
+
+def _coinbase_order_response_error_message(
+    result: Any,
+    data: Mapping[str, Any],
+) -> str:
+    error_response = (
+        data.get("error_response")
+        or getattr(result, "error_response", None)
+    )
+    if isinstance(error_response, Mapping):
+        return str(
+            error_response.get("message")
+            or error_response.get("error")
+            or "Unknown error"
+        )
+    message = getattr(error_response, "message", None)
+    if message:
+        return str(message)
+    error = getattr(error_response, "error", None)
+    if error:
+        return str(error)
+    failure_reason = data.get("failure_reason")
+    if failure_reason:
+        return str(failure_reason)
+    return "Unknown error"
+
+
+def _coinbase_order_response_order_id(
+    result: Any,
+    data: Mapping[str, Any],
+) -> Optional[str]:
+    order_id = getattr(result, "order_id", None)
+    if order_id:
+        return str(order_id)
+    success_response = data.get("success_response")
+    if isinstance(success_response, Mapping) and success_response.get("order_id"):
+        return str(success_response["order_id"])
+    if data.get("order_id"):
+        return str(data["order_id"])
+    order = data.get("order")
+    if isinstance(order, Mapping) and order.get("order_id"):
+        return str(order["order_id"])
+    return None
+
 
 # Custom JSON encoder for handling Decimal and other non-standard types
 from decimal import Decimal
@@ -488,11 +633,13 @@ def _build_spot_sweep_status_payload(
 
 def _build_spot_sweep_pnl_payload(
     product_ids: Optional[list[str]] = None,
+    include_coinbase_average_cost: bool = False,
 ) -> Dict[str, Any]:
     try:
         from coinbase.rest import RESTClient
 
         from business.fill_ledger import FillLedgerRepository
+        from business.spot_cost_basis import fetch_coinbase_average_cost_records
         from business.spot_portfolio_sweep import build_spot_portfolio_pnl_report
         from database.database import PostgresDB
         from external.coinbase_client import coinbase_sdk_response_to_dict
@@ -505,15 +652,30 @@ def _build_spot_sweep_pnl_payload(
                 get_tradability_status=True,
             )
         )
+        products = list(products_response.get("products") or [])
+        cost_basis = {}
+        if include_coinbase_average_cost:
+            import configuration
+
+            cost_basis = fetch_coinbase_average_cost_records(
+                rest_client=configuration.get_rest_client(),
+                products=products,
+            )
         report = build_spot_portfolio_pnl_report(
             fill_ledger_repo=FillLedgerRepository(PostgresDB()),
-            products=list(products_response.get("products") or []),
+            products=products,
             product_ids=product_ids,
+            coinbase_average_costs=(
+                cost_basis.get("records") if cost_basis else None
+            ),
         )
         return {
             "type": "spot_sweep_pnl",
             "status": "success",
-            "read_only_coinbase_requests": ["get_public_products"],
+            "read_only_coinbase_requests": [
+                "get_public_products",
+                *cost_basis.get("read_only_coinbase_requests", []),
+            ],
             "pnl_report": report,
         }
     except Exception as exc:
@@ -521,6 +683,64 @@ def _build_spot_sweep_pnl_payload(
             "type": "spot_sweep_pnl",
             "status": "error",
             "message": f"sweep P/L report failed: {type(exc).__name__}: {exc}",
+        }
+
+
+def _build_spot_cost_basis_payload(
+    state_file: Optional[str] = None,
+) -> Dict[str, Any]:
+    from business.spot_cost_basis import (
+        build_cost_basis_operator_status,
+        load_cost_basis_snapshot_records,
+    )
+
+    ledger_path = Path(state_file) if state_file else (
+        Path("runtime_state") / "spot_cost_basis_snapshots.jsonl"
+    )
+    try:
+        records = load_cost_basis_snapshot_records(ledger_path)
+        operator_status = build_cost_basis_operator_status(records=records)
+        return {
+            "type": "spot_cost_basis_status",
+            "status": "success",
+            "state_file": str(ledger_path),
+            "operator_status": operator_status,
+        }
+    except Exception as exc:
+        return {
+            "type": "spot_cost_basis_status",
+            "status": "error",
+            "state_file": str(ledger_path),
+            "message": f"cost-basis status failed: {type(exc).__name__}: {exc}",
+        }
+
+
+def _build_spot_campaign_payload(
+    state_file: Optional[str] = None,
+) -> Dict[str, Any]:
+    from business.spot_campaign import (
+        build_spot_campaign_operator_status,
+        load_spot_campaign_snapshot_records,
+    )
+
+    ledger_path = Path(state_file) if state_file else (
+        Path("runtime_state") / "spot_campaigns.jsonl"
+    )
+    try:
+        records = load_spot_campaign_snapshot_records(ledger_path)
+        operator_status = build_spot_campaign_operator_status(records=records)
+        return {
+            "type": "spot_campaign_status",
+            "status": "success",
+            "state_file": str(ledger_path),
+            "operator_status": operator_status,
+        }
+    except Exception as exc:
+        return {
+            "type": "spot_campaign_status",
+            "status": "error",
+            "state_file": str(ledger_path),
+            "message": f"campaign status failed: {type(exc).__name__}: {exc}",
         }
 
 
@@ -1015,7 +1235,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 # in core/stealth_order_manager.create_stealth_order so
                 # both order-creation paths get the same guard. See
                 # calculation/size_validation.py for the contract.
-                from calculation.size_validation import validate_and_quantize_size
+                from calculation.size_validation import (
+                    validate_and_quantize_size,
+                    validate_quote_size,
+                )
 
                 product_id = order_params.get("product_id")
                 order_configuration = order_params.get("order_configuration") or {}
@@ -1066,6 +1289,19 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     approved_base_size = size_check.size
 
                 quote_size = safe_float(raw_quote_size, default=None)
+                if raw_quote_size is not None:
+                    quote_check = validate_quote_size(
+                        raw_quote_size,
+                        product_id=product_id,
+                    )
+                    if not quote_check:
+                        raise OrderCreationError(
+                            f"Order rejected at boundary: {quote_check.reason}",
+                            client_order_id=client_order_id,
+                        )
+                    inner["quote_size"] = str(quote_check.size)
+                    quote_size = quote_check.size
+
                 if approved_base_size is not None or quote_size is not None:
                     guard_ok, guard_failure = ActionConditionGuard(
                         planned_budget_fetcher=(
@@ -1112,43 +1348,42 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                         order_configuration=order_configuration,
                     )
                 
-                # Convert response object to dict if needed
-                if hasattr(result, '__dict__'):
-                    result_dict = result.__dict__
-                else:
-                    result_dict = result
+                result_dict = _coinbase_order_response_to_dict(result)
                 
                 logger.info(f"Order response: {result_dict}")
                 
                 # Check if order was successful
-                if hasattr(result, 'success') and not result.success:
-                    error_msg = "Unknown error"
-                    if hasattr(result, 'error_response'):
-                        error_response = result.error_response
-                        if isinstance(error_response, dict):
-                            error_msg = error_response.get('message') or error_response.get('error', 'Unknown error')
-                        elif hasattr(error_response, 'message'):
-                            error_msg = error_response.message
-                        elif hasattr(error_response, 'error'):
-                            error_msg = error_response.error
-                    
+                response_success = _coinbase_order_response_success(
+                    result,
+                    result_dict,
+                )
+                if response_success is False:
+                    error_msg = _coinbase_order_response_error_message(
+                        result,
+                        result_dict,
+                    )
                     raise CoinbaseAPIError(
                         f"Order creation failed: {error_msg}",
                         api_error_code="order_creation_failed"
                     )
                 
                 # Order successful
-                order_id = None
-                if hasattr(result, 'order_id'):
-                    order_id = result.order_id
-                elif isinstance(result_dict, dict):
-                    order_id = result_dict.get('order_id')
+                order_id = _coinbase_order_response_order_id(result, result_dict)
+
+                submission_event_recorded = _publish_direct_order_submission_event(
+                    client_order_id=client_order_id,
+                    order_id=order_id,
+                    order_params=order_params,
+                    order_configuration=order_configuration,
+                )
                 
                 response = {
                     "type": "order_response",
                     "status": "success",
                     "message": "Order created",
+                    "client_order_id": client_order_id,
                     "order_id": order_id,
+                    "submission_event_recorded": submission_event_recorded,
                 }
                 add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
                 
@@ -1239,7 +1474,25 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 product_ids = [product_ids]
             elif product_ids is not None and not isinstance(product_ids, list):
                 product_ids = None
-            response = _build_spot_sweep_pnl_payload(product_ids=product_ids)
+            include_coinbase_average_cost = bool(
+                params.get("include_coinbase_average_cost")
+            )
+            response = _build_spot_sweep_pnl_payload(
+                product_ids=product_ids,
+                include_coinbase_average_cost=include_coinbase_average_cost,
+            )
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
+        elif msg_type == "request_spot_cost_basis_status":
+            params = data.get("params") or {}
+            state_file = params.get("state_file")
+            response = _build_spot_cost_basis_payload(state_file=state_file)
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
+        elif msg_type == "request_spot_campaign_status":
+            params = data.get("params") or {}
+            state_file = params.get("state_file")
+            response = _build_spot_campaign_payload(state_file=state_file)
             await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
 
         elif msg_type == "request_slide_calibration_summary":
@@ -2323,15 +2576,18 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             # Used to seed the detector for live testing. Payload:
             #   {product_id, side, price, size}
             payload = data.get("order") or {}
-            product_id = payload.get("product_id")
-            side = payload.get("side")
+            product_id = str(payload.get("product_id") or "").strip()
+            try:
+                side = OrderSide(str(payload.get("side") or "").upper()).value
+            except ValueError:
+                side = ""
             try:
                 price = float(payload.get("price"))
                 size = float(payload.get("size"))
             except (TypeError, ValueError):
                 price = size = 0.0
 
-            if not (product_id and side in ("BUY", "SELL") and price > 0 and size > 0):
+            if not (product_id and side and price > 0 and size > 0):
                 await websocket.send(json.dumps({
                     "type": "place_hotpoint_test_order_response",
                     "success": False,
@@ -2339,21 +2595,103 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }))
                 return
 
+            if not REST_CLIENT_AVAILABLE:
+                await websocket.send(json.dumps({
+                    "type": "place_hotpoint_test_order_response",
+                    "success": False,
+                    "error": "rest_client_unavailable",
+                }))
+                return
+
+            client_order_id = None
+            parent_row_inserted = False
+            update_parent_status = None
             try:
-                from configuration import REST_CLIENT
-                from database.order import insert_order_parent
+                from calculation.size_validation import validate_and_quantize_size
+                from database.order import insert_order_parent, update_order_parent_status
                 from core.enums import OrderStatus
                 import uuid as _uuid
 
+                update_parent_status = update_order_parent_status
                 client_order_id = str(_uuid.uuid4())
+                capability = evaluate_product_capability(
+                    product_id=product_id,
+                    capability=ProductCapability.HOTPOINT_AUTO_PLACEMENT,
+                )
+                if not capability.allowed:
+                    message = (
+                        "Hotpoint test order rejected by product capability policy: "
+                        f"{capability.reason}"
+                    )
+                    add_log_entry("WARNING", message)
+                    await websocket.send(json.dumps({
+                        "type": "place_hotpoint_test_order_response",
+                        "success": False,
+                        "error": "product_capability_blocked",
+                        "message": message,
+                        "capability": capability.to_dict(),
+                    }))
+                    return
+
+                size_check = validate_and_quantize_size(
+                    size,
+                    product_id=product_id,
+                    price=price,
+                )
+                if not size_check:
+                    message = (
+                        "Hotpoint test order rejected at boundary: "
+                        f"{size_check.reason}"
+                    )
+                    add_log_entry("WARNING", message)
+                    await websocket.send(json.dumps({
+                        "type": "place_hotpoint_test_order_response",
+                        "success": False,
+                        "error": "size_validation_failed",
+                        "message": message,
+                    }))
+                    return
+                approved_size = size_check.size
+
+                guard_ok, guard_failure = ActionConditionGuard(
+                    planned_budget_fetcher=(
+                        _get_dashboard_spot_planned_budget_commitments
+                    ),
+                    lot_authority_evaluator=(
+                        _get_dashboard_spot_lot_authority_evaluator()
+                    ),
+                ).evaluate(
+                    phase=ActionGuardPhase.PLANNING,
+                    product_id=product_id,
+                    side=side,
+                    size=approved_size,
+                    limit_price=price,
+                    client_order_id=client_order_id,
+                )
+                if not guard_ok:
+                    reason = (guard_failure or {}).get("reason", "blocked")
+                    message = (
+                        "Hotpoint test order rejected by action-condition guard: "
+                        f"{reason}"
+                    )
+                    add_log_entry("WARNING", message)
+                    await websocket.send(json.dumps({
+                        "type": "place_hotpoint_test_order_response",
+                        "success": False,
+                        "error": "action_condition_guard_blocked",
+                        "message": message,
+                        "guard": guard_failure,
+                    }))
+                    return
+
                 # Pre-insert order_parent row with the opt-in flag set.
                 # Auto-placed children of this order will spawn from the
                 # engine's hotpoint dispatcher when fills accumulate.
-                insert_order_parent(
+                parent_id = insert_order_parent(
                     client_order_id=client_order_id,
                     product_id=product_id,
                     side=side,
-                    size=size,
+                    size=approved_size,
                     price=price,
                     target_movement=0.0,
                     target_movement_type="P",
@@ -2365,26 +2703,76 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     enable_hotpoint_replication=True,
                     auto_placed_by_hotpoint=False,
                 )
+                if parent_id is None:
+                    raise OrderCreationError(
+                        "failed to pre-insert hotpoint test parent order",
+                        client_order_id=client_order_id,
+                    )
+                parent_row_inserted = True
+
+                order_configuration = {
+                    "limit_limit_gtc": {
+                        "base_size": str(approved_size),
+                        "limit_price": str(price),
+                        "post_only": False,
+                    },
+                }
                 # Submit GTC limit on the exchange.
-                REST_CLIENT.limit_order_gtc(
-                    product_id=product_id,
-                    side=side,
-                    base_size=str(size),
-                    limit_price=str(price),
+                with controller.track_inflight(INFLIGHT_REST_PLACE):
+                    result = REST_CLIENT.limit_order_gtc(
+                        product_id=product_id,
+                        side=side,
+                        base_size=str(approved_size),
+                        limit_price=str(price),
+                        client_order_id=client_order_id,
+                        post_only=False,
+                    )
+
+                result_dict = _coinbase_order_response_to_dict(result)
+                response_success = _coinbase_order_response_success(
+                    result,
+                    result_dict,
+                )
+                if response_success is False:
+                    error_msg = _coinbase_order_response_error_message(
+                        result,
+                        result_dict,
+                    )
+                    raise CoinbaseAPIError(
+                        f"Hotpoint test order creation failed: {error_msg}",
+                        api_error_code="hotpoint_test_order_creation_failed",
+                    )
+                order_id = _coinbase_order_response_order_id(result, result_dict)
+                submission_event_recorded = _publish_direct_order_submission_event(
                     client_order_id=client_order_id,
-                    post_only=False,
+                    order_id=order_id,
+                    order_params={"product_id": product_id, "side": side},
+                    order_configuration=order_configuration,
                 )
                 add_log_entry(
                     "INFO",
                     f"Hotpoint test order placed: {client_order_id} {product_id} "
-                    f"{side} {size}@{price}",
+                    f"{side} {approved_size}@{price}",
                 )
                 await websocket.send(json.dumps({
                     "type": "place_hotpoint_test_order_response",
                     "success": True,
                     "client_order_id": client_order_id,
+                    "order_id": order_id,
+                    "submission_event_recorded": submission_event_recorded,
                 }))
             except Exception as e:
+                if parent_row_inserted and update_parent_status and client_order_id:
+                    try:
+                        update_parent_status(
+                            client_order_id,
+                            OrderStatus.FAILED.value,
+                        )
+                    except Exception as update_exc:
+                        logger.error(
+                            "failed to mark hotpoint test order parent FAILED: "
+                            f"{update_exc}"
+                        )
                 logger.error(f"place_hotpoint_test_order failed: {e}")
                 await websocket.send(json.dumps({
                     "type": "place_hotpoint_test_order_response",

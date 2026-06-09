@@ -182,12 +182,14 @@ class InventoryLotSource(str, Enum):
     """Source used to derive an inventory lot."""
     FILL_LEDGER = "fill_ledger"
     IMPORTED_BASELINE = "imported_baseline"
+    COINBASE_AVERAGE_COST = "coinbase_average_cost"
 
 
 class InventoryAuthorityStatus(str, Enum):
     """Decision status for inventory authority checks."""
     NOT_APPLICABLE = "not_applicable"
     KNOWN_PROFITABLE = "known_profitable"
+    COINBASE_AVERAGE_PROFITABLE = "coinbase_average_profitable"
     NO_LOTS = "no_lots"
     UNKNOWN_COST_BASIS = "unknown_cost_basis"
     INSUFFICIENT_KNOWN_PROFITABLE = "insufficient_known_profitable"
@@ -290,6 +292,7 @@ class SpotInventoryCoverageStatus(str, Enum):
     """Durable coverage status for wallet inventory versus local lot evidence."""
 
     COVERED = "covered"
+    COINBASE_AVERAGE_COST = "coinbase_average_cost"
     UNKNOWN_COST_BASIS = "unknown_cost_basis"
     WALLET_ONLY = "wallet_only"
     NO_WALLET_BALANCE = "no_wallet_balance"
@@ -317,6 +320,61 @@ class SpotSweepRecoveryGateStatus(str, Enum):
     FAILED = "failed"
 
 
+class SpotAuditRecordType(str, Enum):
+    """Durable audit record types for spot operational gates."""
+
+    FEATURE_INTAKE_GATE = "spot_feature_intake_gate"
+    FILL_LEDGER_HEALTH = "spot_fill_ledger_health"
+    FILL_LEDGER_REPAIR = "spot_fill_ledger_repair"
+    COST_BASIS_SNAPSHOT = "spot_cost_basis_snapshot"
+    CAMPAIGN_SNAPSHOT = "spot_campaign_snapshot"
+    SWEEP_RECOVERY = "sweep_recovery"
+
+
+class SpotFeatureIntakeGateStatus(str, Enum):
+    """Validation status for a requested spot-specific feature."""
+
+    PASSED = "passed"
+    INCOMPLETE = "incomplete"
+    FAILED = "failed"
+
+
+class SpotFeatureInventoryRetentionPolicy(str, Enum):
+    """How a spot feature expects post-test inventory to be handled."""
+
+    RETAIN = "retain"
+    ZERO_OUT = "zero_out"
+    EXPLICIT_OPERATOR_DECISION = "explicit_operator_decision"
+
+
+class SpotFillLedgerHealthStatus(str, Enum):
+    """Data-health status for local spot fill-ledger evidence."""
+
+    PASSED = "passed"
+    WARNING = "warning"
+    FAILED = "failed"
+
+
+class SpotFillLedgerFindingType(str, Enum):
+    """Finding categories for spot fill-ledger health audits."""
+
+    MISSING_CLIENT_ORDER_ID = "missing_client_order_id"
+    NON_POSITIVE_QUANTITY = "non_positive_quantity"
+    NON_POSITIVE_PRICE = "non_positive_price"
+    ZERO_NOTIONAL = "zero_notional"
+    MISSING_RECONCILED_EXCHANGE_EVIDENCE = "missing_reconciled_exchange_evidence"
+
+
+class SpotFillLedgerRepairStatus(str, Enum):
+    """Repair status for a suspicious spot fill-ledger row."""
+
+    PLANNED = "planned"
+    DRY_RUN = "dry_run"
+    APPLIED = "applied"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+
+
 class FillLedgerReconciliationStatus(str, Enum):
     """Persistence status for fill_ledger reconciliation evidence."""
 
@@ -332,6 +390,87 @@ class SpotPortfolioPnlScope(str, Enum):
     PORTFOLIO = "portfolio"
     SINCE_LAST_PURCHASE = "since_last_purchase"
     REALIZED_LOT = "realized_lot"
+    AVERAGE_COST = "average_cost"
+
+
+class SpotCostBasisSource(str, Enum):
+    """Sources of spot cost-basis authority."""
+
+    FILL_LEDGER = "fill_ledger"
+    IMPORTED_BASELINE = "imported_baseline"
+    COINBASE_AVERAGE_COST = "coinbase_average_cost"
+    WALLET_ONLY = "wallet_only"
+
+
+class SpotCostBasisStatus(str, Enum):
+    """Status for Coinbase average cost-basis import and comparison."""
+
+    AVAILABLE = "available"
+    MISSING_POSITION = "missing_position"
+    MISSING_AVERAGE_ENTRY_PRICE = "missing_average_entry_price"
+    MISSING_BALANCE = "missing_balance"
+    STALE = "stale"
+    UNAVAILABLE = "unavailable"
+
+
+class SpotCostBasisGapStatus(str, Enum):
+    """Triage status for spot cost-basis authority gaps."""
+
+    WALLET_ONLY = "wallet_only"
+    MISSING_AVERAGE_COST_POSITION = "missing_average_cost_position"
+    STALE_AVERAGE_COST = "stale_average_cost"
+    LOCAL_LOT_UNAVAILABLE = "local_lot_unavailable"
+
+
+class SpotOperationLockStatus(str, Enum):
+    """Status for local operation lock acquisition."""
+
+    ACQUIRED = "acquired"
+    BUSY = "busy"
+    RELEASED = "released"
+    STALE_REMOVED = "stale_removed"
+
+
+class SpotCampaignProductSelection(str, Enum):
+    """Product-universe selectors supported by spot campaign configs."""
+
+    ALL_COINBASE_USDC_SPOT_US_CUSTOMER_AVAILABLE = (
+        "all_coinbase_usdc_spot_us_customer_available"
+    )
+
+
+class SpotCampaignRunMode(str, Enum):
+    """Operator mode used for durable spot campaign snapshots."""
+
+    DRY_RUN = "dry_run"
+    RELEASE_GATE = "release_gate"
+    LIVE_CANARY = "live_canary"
+    RETRY_PLAN = "retry_plan"
+    STATUS = "status"
+
+
+class SpotCampaignStatus(str, Enum):
+    """Durable status for spot campaign snapshots and release gates."""
+
+    READY = "ready"
+    BLOCKED = "blocked"
+    INCOMPLETE = "incomplete"
+    RECORDED = "recorded"
+
+
+class SpotCampaignGateStatus(str, Enum):
+    """Pass/fail status for read-only spot campaign release gates."""
+
+    PASSED = "passed"
+    FAILED = "failed"
+
+
+class SpotCampaignRetryOrderClass(str, Enum):
+    """Classification for orders from a partial campaign sweep run."""
+
+    RETRYABLE_NOT_SUBMITTED = "retryable_not_submitted"
+    SUBMITTED_OR_LIVE = "submitted_or_live"
+    NOT_RETRYABLE = "not_retryable"
 
 
 class ContractExpiryType(str, Enum):

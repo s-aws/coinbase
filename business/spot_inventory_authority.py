@@ -13,6 +13,7 @@ from calculation.formatter import safe_float
 from core.enums import (
     InventoryAuthorityStatus,
     InventoryCostBasisStatus,
+    InventoryLotSource,
     OrderSide,
     ProductType,
 )
@@ -68,6 +69,9 @@ def evaluate_spot_sell_lot_authority(
     limit_price: Any,
     fill_ledger_repo: Any,
     inventory_baselines: Optional[Any] = None,
+    coinbase_average_cost_baselines: Optional[Any] = None,
+    allow_coinbase_average_cost_basis: bool = False,
+    coinbase_average_cost_profit_buffer_pct: Optional[float] = 0.5,
     profit_target_pct: Optional[float] = None,
 ) -> SpotSellInventoryAuthorityDecision:
     """Evaluate whether known profitable lots cover a spot sell.
@@ -172,9 +176,50 @@ def evaluate_spot_sell_lot_authority(
             reason="known profitable lots cover requested spot sell size",
         )
 
-    if known_quantity <= 0 and unknown_quantity <= 0:
+    coinbase_average_quantity = 0.0
+    coinbase_average_profitable_quantity = 0.0
+    if allow_coinbase_average_cost_basis:
+        average_profit_target = profit_target + (
+            safe_float(coinbase_average_cost_profit_buffer_pct, default=0.5)
+            or 0.0
+        )
+        average_position = PositionLotBuilder(
+            fill_ledger_repo,
+            inventory_baselines=coinbase_average_cost_baselines or [],
+        ).build_position_by_product(
+            product_id,
+            side=OrderSide.BUY,
+            profit_target_pct=average_profit_target,
+        )
+        for lot in average_position.get_unexited_lots():
+            remaining = safe_float(lot.remaining_quantity, default=0.0) or 0.0
+            if remaining <= 0:
+                continue
+            if lot.lot_source != InventoryLotSource.COINBASE_AVERAGE_COST:
+                continue
+            coinbase_average_quantity += remaining
+            if lot.can_exit_profitably_at(submitted_price):
+                coinbase_average_profitable_quantity += remaining
+        if coinbase_average_profitable_quantity + epsilon >= requested_size:
+            return SpotSellInventoryAuthorityDecision(
+                allowed=True,
+                status=InventoryAuthorityStatus.COINBASE_AVERAGE_PROFITABLE.value,
+                product_id=product_id,
+                side=side_value,
+                requested_size=requested_size,
+                limit_price=submitted_price,
+                known_quantity=known_quantity,
+                known_profitable_quantity=known_profitable_quantity,
+                unknown_cost_basis_quantity=unknown_quantity,
+                reason=(
+                    "Coinbase average cost basis covers requested spot sell "
+                    "with the configured extra profit buffer"
+                ),
+            )
+
+    if known_quantity <= 0 and unknown_quantity <= 0 and coinbase_average_quantity <= 0:
         status = InventoryAuthorityStatus.NO_LOTS
-        reason = "no known or imported inventory lots cover this spot sell"
+        reason = "no known, imported, or Coinbase-average inventory lots cover this spot sell"
     elif unknown_quantity > 0:
         status = InventoryAuthorityStatus.UNKNOWN_COST_BASIS
         reason = (

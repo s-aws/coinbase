@@ -25,6 +25,7 @@ import pytest
 from calculation.size_validation import (
     SizeValidationResult,
     validate_and_quantize_size,
+    validate_quote_size,
 )
 
 
@@ -133,6 +134,21 @@ def test_quote_min_size_skipped_when_price_none(metadata_btc):
     with _patched(metadata_btc):
         r = validate_and_quantize_size(0.001, product_id="BTC-USDC", price=None)
     assert r.ok
+
+
+def test_quote_sized_market_buy_enforces_quote_min_size(metadata_btc):
+    with _patched(metadata_btc):
+        r = validate_quote_size(5, product_id="BTC-USDC")
+    assert not r.ok
+    assert "quote_min_size" in r.reason
+
+
+def test_quote_sized_market_buy_quantizes_quote_increment(metadata_btc):
+    metadata_btc["BTC-USDC"]["quote_increment"] = "0.01"
+    with _patched(metadata_btc):
+        r = validate_quote_size("10.019", product_id="BTC-USDC")
+    assert r.ok
+    assert r.size == 10.01
 
 
 def test_futures_whole_contracts(metadata_future):

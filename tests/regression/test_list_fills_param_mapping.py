@@ -233,6 +233,23 @@ def test_get_account_wallets_uses_every_account_page():
 
 
 @pytest.mark.regression
+def test_rest_client_get_accounts_accepts_pagination_args():
+    from external.coinbase_client import CoinbaseRestClient
+
+    sdk = _PagedAccountsSDK()
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = sdk
+
+    response = client.get_accounts(limit=100, cursor="cursor-2")
+
+    assert [account["currency"] for account in response["accounts"]] == [
+        "BTC",
+        "OLD",
+    ]
+    assert sdk.calls == [{"limit": 100, "cursor": "cursor-2"}]
+
+
+@pytest.mark.regression
 def test_configuration_rest_get_account_wallets_uses_every_account_page(monkeypatch):
     import configuration
 

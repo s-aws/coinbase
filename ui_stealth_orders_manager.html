@@ -910,6 +910,28 @@
                     <button type="button" onclick="requestSpotSweepPnl()" style="margin-top: 10px;">Refresh</button>
                 </div>
 
+                <div class="section">
+                    <h2>Spot Cost Basis</h2>
+                    <div class="readiness-grid" id="spot-cost-basis-panel">
+                        <div class="readiness-item">
+                            <div class="readiness-label">Status</div>
+                            <div class="readiness-value">Waiting for cost-basis snapshot</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="requestSpotCostBasisStatus()" style="margin-top: 10px;">Refresh</button>
+                </div>
+
+                <div class="section">
+                    <h2>Spot Campaigns</h2>
+                    <div class="readiness-grid" id="spot-campaign-status-panel">
+                        <div class="readiness-item">
+                            <div class="readiness-label">Status</div>
+                            <div class="readiness-value">Waiting for campaign ledger</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="requestSpotCampaignStatus()" style="margin-top: 10px;">Refresh</button>
+                </div>
+
                 <!-- Create Order Section -->
                 <div class="section">
                     <h2>➕ Create New Order</h2>
@@ -2087,6 +2109,8 @@
         let spotReadinessData = null;
         let spotSweepStatusData = null;
         let spotSweepPnlData = null;
+        let spotCostBasisData = null;
+        let spotCampaignData = null;
 
         function initWebSocket() {
             try {
@@ -2102,6 +2126,8 @@
                     requestSpotReadiness();
                     requestSpotSweepStatus();
                     requestSpotSweepPnl();
+                    requestSpotCostBasisStatus();
+                    requestSpotCampaignStatus();
                 };
 
                 ws.onmessage = (event) => {
@@ -2124,6 +2150,12 @@
                     } else if (data.type === "spot_sweep_pnl") {
                         spotSweepPnlData = data;
                         updateSpotSweepPnlPanel();
+                    } else if (data.type === "spot_cost_basis_status") {
+                        spotCostBasisData = data;
+                        updateSpotCostBasisPanel();
+                    } else if (data.type === "spot_campaign_status") {
+                        spotCampaignData = data;
+                        updateSpotCampaignPanel();
                     } else if (data.type === "order_response") {
                         const messageType = data.status === 'error' ? 'error' : 'success';
                         showMessage(formatDashboardResponseMessage(data), messageType);
@@ -2471,6 +2503,18 @@
             }
         }
 
+        function requestSpotCostBasisStatus() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "request_spot_cost_basis_status" }));
+            }
+        }
+
+        function requestSpotCampaignStatus() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "request_spot_campaign_status" }));
+            }
+        }
+
         function latestSweepConfig(status) {
             const configs = (status && status.configs) || [];
             if (!configs.length) return null;
@@ -2620,6 +2664,192 @@
                 <div class="readiness-item">
                     <div class="readiness-label">Product Details</div>
                     <div class="readiness-value">${topProducts}</div>
+                </div>`;
+        }
+
+        function updateSpotCostBasisPanel() {
+            const panel = document.getElementById('spot-cost-basis-panel');
+            if (!panel) return;
+            if (!spotCostBasisData || spotCostBasisData.status !== 'success') {
+                panel.innerHTML = `
+                    <div class="readiness-item">
+                        <div class="readiness-label">Status</div>
+                        <div class="readiness-value">${escapeHtml((spotCostBasisData && spotCostBasisData.message) || 'Unavailable')}</div>
+                    </div>`;
+                return;
+            }
+
+            const status = spotCostBasisData.operator_status || {};
+            const latest = status.latest_snapshot || {};
+            const baseline = latest.baseline || {};
+            const coverage = latest.inventory_coverage || {};
+            const drift = latest.drift_audit || {};
+            const triage = latest.gap_triage || {};
+            const coverageCounts = coverage.status_counts || {};
+            const driftCounts = drift.status_counts || {};
+            const triageCounts = triage.status_counts || {};
+
+            panel.innerHTML = `
+                <div class="readiness-item">
+                    <div class="readiness-label">Ledger</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(spotCostBasisData.state_file || '--')}<br>
+                        snapshots ${formatReadinessAmount(status.snapshot_count || 0)}<br>
+                        <span class="readiness-muted">${escapeHtml(latest.generated_at || '--')}</span>
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Baseline</div>
+                    <div class="readiness-value">
+                        status ${escapeHtml(latest.status || '--')}<br>
+                        records ${formatReadinessAmount(baseline.record_count || 0)}<br>
+                        baselines ${formatReadinessAmount(baseline.baseline_count || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Coverage</div>
+                    <div class="readiness-value">
+                        eligible ${formatReadinessAmount(coverage.eligible_product_count || 0)}<br>
+                        avg cost ${formatReadinessAmount(coverage.coinbase_average_cost_product_count || 0)}<br>
+                        wallet only ${formatReadinessAmount(coverage.wallet_only_product_count || coverageCounts.wallet_only || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Drift</div>
+                    <div class="readiness-value">
+                        products ${formatReadinessAmount(drift.product_count || 0)}<br>
+                        stale ${formatReadinessAmount(driftCounts.stale || 0)}<br>
+                        unavailable ${formatReadinessAmount(driftCounts.unavailable || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Triage</div>
+                    <div class="readiness-value">
+                        gaps ${formatReadinessAmount(triage.product_count || 0)}<br>
+                        wallet only ${formatReadinessAmount(triageCounts.wallet_only || 0)}<br>
+                        missing avg ${formatReadinessAmount(triageCounts.missing_average_cost_position || 0)}
+                    </div>
+                </div>`;
+        }
+
+        function updateSpotCampaignPanel() {
+            const panel = document.getElementById('spot-campaign-status-panel');
+            if (!panel) return;
+            if (!spotCampaignData || spotCampaignData.status !== 'success') {
+                panel.innerHTML = `
+                    <div class="readiness-item">
+                        <div class="readiness-label">Status</div>
+                        <div class="readiness-value">${escapeHtml((spotCampaignData && spotCampaignData.message) || 'Unavailable')}</div>
+                    </div>`;
+                return;
+            }
+
+            const status = spotCampaignData.operator_status || {};
+            const summary = status.operator_summary || {};
+            const latest = status.latest_snapshot || {};
+            const readiness = status.latest_readiness_snapshot || latest;
+            const live = status.latest_live_snapshot || {};
+            const config = readiness.config || latest.config || {};
+            const plan = ((readiness.dry_run || {}).plan) || {};
+            const safety = ((readiness.dry_run || {}).safety_evaluation) || {};
+            const gate = readiness.release_gate || {};
+            const pnl = ((readiness.dry_run || {}).pnl_snapshot) || {};
+            const portfolio = pnl.portfolio || {};
+            const pendingRecovery = Number(summary.planned_reconciliation_run_count || 0) +
+                Number(summary.planned_backfill_order_count || 0);
+            const operatorState = pendingRecovery
+                ? 'recovering'
+                : (summary.blocked
+                    ? 'blocked'
+                    : (summary.automation_decision === 'due'
+                        ? 'due'
+                        : (summary.ready ? 'ready' : (summary.readiness_status || '--'))));
+            const campaignGenerated = summary.latest_readiness_generated_at ||
+                readiness.generated_at ||
+                latest.generated_at ||
+                '--';
+            const liveSummary = live.sweep_summary || {};
+
+            panel.innerHTML = `
+                <div class="readiness-item">
+                    <div class="readiness-label">Ledger</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(spotCampaignData.state_file || '--')}<br>
+                        campaigns ${formatReadinessAmount(status.campaign_count || 0)}<br>
+                        snapshots ${formatReadinessAmount(status.snapshot_count || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Operator State</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(operatorState)}<br>
+                        readiness ${escapeHtml(summary.readiness_status || '--')}<br>
+                        gate ${escapeHtml(summary.gate_status || gate.gate_status || '--')}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Campaign</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(readiness.campaign_id || latest.campaign_id || '--')}<br>
+                        ${escapeHtml(config.side || '--')} ${escapeHtml(config.quote_notional || '--')} USDC<br>
+                        ${escapeHtml(config.order_type || '--')}<br>
+                        <span class="readiness-muted">${escapeHtml(campaignGenerated)}</span>
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Plan</div>
+                    <div class="readiness-value">
+                        planned ${formatReadinessAmount(summary.planned_order_count || plan.planned_count || 0)}<br>
+                        skipped ${formatReadinessAmount(summary.planned_skip_count || plan.skipped_count || 0)}<br>
+                        safety ${escapeHtml(summary.safety_decision || safety.decision || '--')}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Automation</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(summary.automation_decision || '--')}<br>
+                        next ${escapeHtml(summary.next_run_at || '--')}<br>
+                        runs ${formatReadinessAmount(summary.run_count || 0)} / ${formatReadinessAmount(summary.max_runs || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Lock</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(summary.operation_lock_status || '--')}<br>
+                        exists ${summary.operation_lock_exists ? 'yes' : 'no'}<br>
+                        stale ${summary.operation_lock_stale ? 'yes' : 'no'}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Recovery</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(summary.recovery_status || '--')}<br>
+                        reconcile ${formatReadinessAmount(summary.planned_reconciliation_run_count || 0)}<br>
+                        backfill ${formatReadinessAmount(summary.planned_backfill_order_count || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Latest Live</div>
+                    <div class="readiness-value">
+                        ${escapeHtml(summary.latest_live_run_id || liveSummary.run_id || '--')}<br>
+                        ${escapeHtml(summary.latest_live_status || liveSummary.status || '--')}<br>
+                        skipped ${formatReadinessAmount(summary.latest_live_skipped_order_count || liveSummary.skipped_order_count || 0)}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">Notional</div>
+                    <div class="readiness-value">
+                        submitted ${formatReadinessAmount(summary.total_submitted_notional_usdc || status.total_submitted_notional_usdc || 0)} USDC<br>
+                        executed ${formatReadinessAmount(summary.total_executed_notional_usdc || status.total_executed_notional_usdc || 0)} USDC
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">P/L</div>
+                    <div class="readiness-value">
+                        total ${formatReadinessAmount(summary.portfolio_total_pnl || portfolio.total_pnl || 0)} USDC<br>
+                        mark ${formatReadinessAmount(summary.portfolio_mark_value || portfolio.mark_value || 0)} USDC<br>
+                        fees ${formatReadinessAmount(summary.portfolio_fees || portfolio.fees || 0)} USDC
+                    </div>
                 </div>`;
         }
 
