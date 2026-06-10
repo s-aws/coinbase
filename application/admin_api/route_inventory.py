@@ -36,6 +36,18 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         compatibility_mode=AdminApiCompatibilityMode.COMPATIBILITY_ONLY.value,
     ),
     AdminApiRouteInventoryItem(
+        surface="place_hotpoint_test_order WebSocket",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission="compatibility policy",
+        idempotency="enterprise-gated or compatibility-only",
+        approval="enterprise-gated or compatibility-only",
+        caps="required",
+        audit="required",
+        shared_method="place_hotpoint_test_order",
+        parity_test="WebSocket vs shared-service hotpoint guard/result parity",
+        compatibility_mode=AdminApiCompatibilityMode.COMPATIBILITY_ONLY.value,
+    ),
+    AdminApiRouteInventoryItem(
         surface="POST /api/v1/orders/{client_order_id}/cancel",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,

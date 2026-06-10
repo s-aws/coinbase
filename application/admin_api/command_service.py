@@ -26,6 +26,7 @@ from core.enums import (
     OrderType,
     ProductCapability,
     ProductType,
+    TargetMovementType,
 )
 from core.exceptions import CoinbaseAPIError, OrderCreationError
 from core.product_capability import evaluate_product_capability
@@ -35,6 +36,7 @@ from core.runtime_controller import (
     get_runtime_controller,
 )
 
+from .approval import evaluate_live_execution_gate
 from .models import AdminApiCommandResponse, CancelOrderCommand, ManualOrderCommand
 
 
@@ -44,6 +46,18 @@ def _noop_log(_level: str, _message: str) -> None:
 
 def _empty_budget() -> dict[str, float]:
     return {}
+
+
+def _insert_order_parent(**kwargs: Any) -> Any:
+    from database.order import insert_order_parent
+
+    return insert_order_parent(**kwargs)
+
+
+def _update_order_parent_status(client_order_id: str, status: str) -> Any:
+    from database.order import update_order_parent_status
+
+    return update_order_parent_status(client_order_id, status)
 
 
 @dataclass(slots=True)
@@ -58,6 +72,8 @@ class AdminApiCommandDependencies:
     planned_budget_fetcher: Callable[[], dict[str, float]] = _empty_budget
     lot_authority_evaluator_getter: Callable[[], Any | None] = lambda: None
     uuid_factory: Callable[[], str] = field(default_factory=lambda: lambda: str(uuid.uuid4()))
+    insert_order_parent: Callable[..., Any] = _insert_order_parent
+    update_order_parent_status: Callable[[str, str], Any] = _update_order_parent_status
 
 
 def direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
@@ -235,6 +251,32 @@ def cancel_response_to_dashboard_payload(
     return payload
 
 
+def hotpoint_test_order_response_to_dashboard_payload(
+    response: AdminApiCommandResponse,
+) -> dict[str, Any]:
+    """Translate shared hotpoint test placement responses to dashboard JSON."""
+
+    success = response.status == AdminApiCommandStatus.ACCEPTED
+    payload: dict[str, Any] = {
+        "type": "place_hotpoint_test_order_response",
+        "success": success,
+    }
+    if response.client_order_id:
+        payload["client_order_id"] = response.client_order_id
+    if response.coinbase_order_id:
+        payload["order_id"] = response.coinbase_order_id
+    if response.submission_event_recorded is not None:
+        payload["submission_event_recorded"] = response.submission_event_recorded
+    if response.guard:
+        payload["guard"] = response.guard
+    if isinstance(response.data, Mapping):
+        payload.update(response.data)
+    if not success:
+        payload.setdefault("error", response.failure_stage or "rejected")
+        payload.setdefault("message", response.message)
+    return payload
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -245,6 +287,7 @@ class AdminApiCommandService:
         """Place a manual order through the existing guarded REST path."""
 
         if not command.allow_live_execution:
+            gate = evaluate_live_execution_gate(allow_live_execution=False)
             return AdminApiCommandResponse(
                 status=AdminApiCommandStatus.NOT_IMPLEMENTED,
                 action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
@@ -256,6 +299,7 @@ class AdminApiCommandService:
                 ),
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
+                guard=gate.model_dump(),
                 failure_stage="approval",
             )
 
@@ -359,10 +403,91 @@ class AdminApiCommandService:
                 quote_size = quote_check.size
 
             if approved_base_size is not None or quote_size is not None:
-                guard_ok, guard_failure = ActionConditionGuard(
+                action_guard = ActionConditionGuard(
                     planned_budget_fetcher=deps.planned_budget_fetcher,
                     lot_authority_evaluator=deps.lot_authority_evaluator_getter(),
-                ).evaluate(
+                )
+                if capability.product_type == ProductType.SPOT.value:
+                    if not action_guard.has_applicable_notional_cap(
+                        phase=ActionGuardPhase.PLANNING,
+                        product_id=product_id,
+                        side=order_params.get("side"),
+                    ):
+                        reason = (
+                            "Direct spot place_order requires an explicit "
+                            "planning-phase max_notional action-condition cap "
+                            "before REST submission."
+                        )
+                        guard_failure = {
+                            "condition": (
+                                ActionConditionType.DIRECT_SPOT_CAP_REQUIRED.value
+                            ),
+                            "block_category": (
+                                ActionConditionType.DIRECT_SPOT_CAP_REQUIRED.value
+                            ),
+                            "reason": reason,
+                            "product_id": product_id,
+                            "product_type": capability.product_type,
+                            "side": order_params.get("side"),
+                            "client_order_id": client_order_id,
+                            "phase": ActionGuardPhase.PLANNING.value,
+                            "max_notional_cap_required": True,
+                        }
+                        message = (
+                            "Order rejected by direct spot cap policy: "
+                            f"{reason}"
+                        )
+                        deps.add_log_entry("WARNING", message)
+                        return self._place_rejected(
+                            command=command,
+                            client_order_id=client_order_id,
+                            message=message,
+                            guard=guard_failure,
+                            failure_stage="direct_spot_cap_required",
+                        )
+                    if (
+                        str(order_params.get("side") or "").upper()
+                        == OrderSide.SELL.value
+                        and not action_guard.requires_known_inventory_for_sell(
+                            phase=ActionGuardPhase.PLANNING,
+                            product_id=product_id,
+                            side=order_params.get("side"),
+                        )
+                    ):
+                        reason = (
+                            "Direct spot SELL requires the "
+                            "known_inventory_available action-condition guard "
+                            "before REST submission."
+                        )
+                        guard_failure = {
+                            "condition": (
+                                ActionConditionType.KNOWN_INVENTORY_AVAILABLE.value
+                            ),
+                            "block_category": (
+                                ActionConditionType.KNOWN_INVENTORY_AVAILABLE.value
+                            ),
+                            "reason": reason,
+                            "product_id": product_id,
+                            "product_type": capability.product_type,
+                            "side": order_params.get("side"),
+                            "client_order_id": client_order_id,
+                            "phase": ActionGuardPhase.PLANNING.value,
+                            "known_inventory_available_required": True,
+                        }
+                        message = (
+                            "Order rejected by direct spot SELL authority policy: "
+                            f"{reason}"
+                        )
+                        deps.add_log_entry("WARNING", message)
+                        return self._place_rejected(
+                            command=command,
+                            client_order_id=client_order_id,
+                            message=message,
+                            guard=guard_failure,
+                            failure_stage="known_inventory_required",
+                        )
+
+                guard_ok, guard_failure = action_guard.evaluate(
                     phase=ActionGuardPhase.PLANNING,
                     product_id=product_id,
                     side=order_params.get("side"),
@@ -381,6 +506,44 @@ class AdminApiCommandService:
                         message=message,
                         guard=guard_failure,
                         failure_stage="action_condition_guard",
+                    )
+
+            submission_event_publisher = None
+            if capability.product_type == ProductType.SPOT.value:
+                submission_event_publisher = deps.order_event_publisher_getter()
+                if submission_event_publisher is None or not getattr(
+                    submission_event_publisher,
+                    "enabled",
+                    False,
+                ):
+                    reason = (
+                        "Direct spot place_order requires local durable "
+                        "order_event_stream audit before REST submission."
+                    )
+                    guard_failure = {
+                        "condition": ActionConditionType.DURABLE_AUDIT_AVAILABLE.value,
+                        "block_category": (
+                            ActionConditionType.DURABLE_AUDIT_AVAILABLE.value
+                        ),
+                        "reason": reason,
+                        "product_id": product_id,
+                        "product_type": capability.product_type,
+                        "side": order_params.get("side"),
+                        "client_order_id": client_order_id,
+                        "phase": ActionGuardPhase.PLANNING.value,
+                        "durable_audit_required": True,
+                    }
+                    message = (
+                        "Order rejected by direct spot durable audit policy: "
+                        f"{reason}"
+                    )
+                    deps.add_log_entry("WARNING", message)
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=message,
+                        guard=guard_failure,
+                        failure_stage="durable_audit_required",
                     )
 
             controller = deps.runtime_controller_factory()
@@ -403,7 +566,10 @@ class AdminApiCommandService:
 
             order_id = coinbase_order_response_order_id(result, result_dict)
             submission_event_recorded = publish_direct_order_submission_event(
-                publisher_getter=deps.order_event_publisher_getter,
+                publisher_getter=lambda: (
+                    submission_event_publisher
+                    or deps.order_event_publisher_getter()
+                ),
                 client_order_id=client_order_id,
                 order_id=order_id,
                 order_params=order_params,
@@ -451,6 +617,7 @@ class AdminApiCommandService:
         """Cancel a live order through the project ``cancel_order(client_order_id)`` wrapper."""
 
         if not command.allow_live_execution:
+            gate = evaluate_live_execution_gate(allow_live_execution=False)
             return AdminApiCommandResponse(
                 status=AdminApiCommandStatus.NOT_IMPLEMENTED,
                 action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
@@ -463,6 +630,7 @@ class AdminApiCommandService:
                 client_order_id=command.client_order_id,
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
+                guard=gate.model_dump(),
                 failure_stage="approval",
             )
 
@@ -477,7 +645,10 @@ class AdminApiCommandService:
         if not client_order_id:
             return self._cancel_rejected(
                 command=command,
-                message="Missing client_order_id",
+                message=(
+                    "Missing client_order_id; pass client_order_id, not "
+                    "order_id, to dashboard cancel_order."
+                ),
                 failure_stage="validation",
             )
 
@@ -528,17 +699,220 @@ class AdminApiCommandService:
             )
 
     def place_hotpoint_test_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:
-        """Future hotpoint test placement entrypoint, if exposed over HTTP."""
+        """Place a hotpoint seed order through the shared guarded path."""
 
-        return AdminApiCommandResponse(
-            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
-            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
-            required_permission=AdminApiPermission.ORDER_CREATE,
-            service_method="place_hotpoint_test_order",
-            message="Hotpoint test placement awaits shared-service extraction; no Coinbase call was made.",
-            correlation_id=command.envelope.correlation_id,
-            idempotency_key=command.envelope.idempotency_key,
-        )
+        if not command.allow_live_execution:
+            gate = evaluate_live_execution_gate(allow_live_execution=False)
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                service_method="place_hotpoint_test_order",
+                message=(
+                    "Hotpoint test placement requires enterprise auth, "
+                    "idempotency, approval, and cap gates before live execution."
+                ),
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                guard=gate.model_dump(),
+                failure_stage="approval",
+            )
+
+        deps = self.dependencies
+        client_order_id = deps.uuid_factory()
+        request = command.request
+        product_id = request.product_id
+        side = request.side.value if isinstance(request.side, OrderSide) else str(request.side)
+        raw_price = safe_float(request.limit_price, default=0.0)
+        raw_size = request.base_size
+
+        if not (product_id and side and raw_price and raw_price > 0 and raw_size is not None):
+            return self._place_rejected(
+                command=command,
+                client_order_id=client_order_id,
+                message="Invalid hotpoint test order payload",
+                failure_stage="invalid_payload",
+                service_method="place_hotpoint_test_order",
+            )
+
+        if not deps.rest_client_available:
+            return self._place_rejected(
+                command=command,
+                client_order_id=client_order_id,
+                message="REST client not available",
+                failure_stage="rest_client_unavailable",
+                service_method="place_hotpoint_test_order",
+            )
+
+        parent_row_inserted = False
+        try:
+            capability = evaluate_product_capability(
+                product_id=product_id,
+                capability=ProductCapability.HOTPOINT_AUTO_PLACEMENT,
+            )
+            if not capability.allowed:
+                message = (
+                    "Hotpoint test order rejected by product capability policy: "
+                    f"{capability.reason}"
+                )
+                deps.add_log_entry("WARNING", message)
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=message,
+                    data={
+                        "error": "product_capability_blocked",
+                        "capability": capability.to_dict(),
+                    },
+                    failure_stage="product_capability_blocked",
+                    service_method="place_hotpoint_test_order",
+                )
+
+            from calculation.size_validation import validate_and_quantize_size
+
+            size_check = validate_and_quantize_size(
+                raw_size,
+                product_id=product_id,
+                price=raw_price,
+            )
+            if not size_check:
+                message = (
+                    "Hotpoint test order rejected at boundary: "
+                    f"{size_check.reason}"
+                )
+                deps.add_log_entry("WARNING", message)
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=message,
+                    data={"error": "size_validation_failed"},
+                    failure_stage="size_validation_failed",
+                    service_method="place_hotpoint_test_order",
+                )
+            approved_size = size_check.size
+
+            guard_ok, guard_failure = ActionConditionGuard(
+                planned_budget_fetcher=deps.planned_budget_fetcher,
+                lot_authority_evaluator=deps.lot_authority_evaluator_getter(),
+            ).evaluate(
+                phase=ActionGuardPhase.PLANNING,
+                product_id=product_id,
+                side=side,
+                size=approved_size,
+                limit_price=raw_price,
+                client_order_id=client_order_id,
+            )
+            if not guard_ok:
+                reason = (guard_failure or {}).get("reason", "blocked")
+                message = (
+                    "Hotpoint test order rejected by action-condition guard: "
+                    f"{reason}"
+                )
+                deps.add_log_entry("WARNING", message)
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=message,
+                    guard=guard_failure,
+                    data={"error": "action_condition_guard_blocked"},
+                    failure_stage="action_condition_guard_blocked",
+                    service_method="place_hotpoint_test_order",
+                )
+
+            parent_id = deps.insert_order_parent(
+                client_order_id=client_order_id,
+                product_id=product_id,
+                side=side,
+                size=approved_size,
+                price=raw_price,
+                target_movement=0.0,
+                target_movement_type=TargetMovementType.PERCENTAGE.value,
+                max_order_replacement=0,
+                current_order_replacement=0,
+                status=OrderStatus.PENDING.value,
+                parent_order_id=None,
+                allow_partial_fills=False,
+                enable_hotpoint_replication=True,
+                auto_placed_by_hotpoint=False,
+            )
+            if parent_id is None:
+                raise OrderCreationError(
+                    "failed to pre-insert hotpoint test parent order",
+                    client_order_id=client_order_id,
+                )
+            parent_row_inserted = True
+
+            order_configuration = {
+                "limit_limit_gtc": {
+                    "base_size": str(approved_size),
+                    "limit_price": str(raw_price),
+                    "post_only": False,
+                },
+            }
+            controller = deps.runtime_controller_factory()
+            with controller.track_inflight(INFLIGHT_REST_PLACE):
+                result = deps.rest_client.limit_order_gtc(
+                    product_id=product_id,
+                    side=side,
+                    base_size=str(approved_size),
+                    limit_price=str(raw_price),
+                    client_order_id=client_order_id,
+                    post_only=False,
+                )
+
+            result_dict = coinbase_order_response_to_dict(result)
+            response_success = coinbase_order_response_success(result, result_dict)
+            if response_success is False:
+                error_msg = coinbase_order_response_error_message(result, result_dict)
+                raise CoinbaseAPIError(
+                    f"Hotpoint test order creation failed: {error_msg}",
+                    api_error_code="hotpoint_test_order_creation_failed",
+                )
+
+            order_id = coinbase_order_response_order_id(result, result_dict)
+            submission_event_recorded = publish_direct_order_submission_event(
+                publisher_getter=deps.order_event_publisher_getter,
+                client_order_id=client_order_id,
+                order_id=order_id,
+                order_params={"product_id": product_id, "side": side},
+                order_configuration=order_configuration,
+            )
+            deps.add_log_entry(
+                "INFO",
+                (
+                    "Hotpoint test order placed: "
+                    f"{client_order_id} {product_id} {side} {approved_size}@{raw_price}"
+                ),
+            )
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.ACCEPTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                service_method="place_hotpoint_test_order",
+                message="Hotpoint test order placed",
+                client_order_id=client_order_id,
+                coinbase_order_id=order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=True,
+                submission_event_recorded=submission_event_recorded,
+            )
+        except CoinbaseAPIError as exc:
+            deps.add_log_entry("ERROR", f"Hotpoint test order API error: {exc}")
+            if parent_row_inserted:
+                self._mark_hotpoint_parent_failed(deps, client_order_id)
+            return self._place_rejected(
+                command=command,
+                client_order_id=client_order_id,
+                message=str(exc),
+                data={"error": str(exc)},
+                failure_stage="coinbase_rest",
+                service_method="place_hotpoint_test_order",
+            )
+        except Exception:
+            if parent_row_inserted:
+                self._mark_hotpoint_parent_failed(deps, client_order_id)
+            raise
 
     def _manual_order_payload(
         self,
@@ -579,12 +953,13 @@ class AdminApiCommandService:
         failure_stage: str,
         guard: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        service_method: str = "place_manual_order",
     ) -> AdminApiCommandResponse:
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.REJECTED,
             action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
             required_permission=AdminApiPermission.ORDER_CREATE,
-            service_method="place_manual_order",
+            service_method=service_method,
             message=message,
             client_order_id=client_order_id,
             correlation_id=command.envelope.correlation_id,
@@ -593,6 +968,19 @@ class AdminApiCommandService:
             data=data,
             failure_stage=failure_stage,
         )
+
+    def _mark_hotpoint_parent_failed(
+        self,
+        deps: AdminApiCommandDependencies,
+        client_order_id: str,
+    ) -> None:
+        try:
+            deps.update_order_parent_status(client_order_id, OrderStatus.FAILED.value)
+        except Exception as update_exc:
+            deps.add_log_entry(
+                "ERROR",
+                f"failed to mark hotpoint test order parent FAILED: {update_exc}",
+            )
 
     def _cancel_rejected(
         self,

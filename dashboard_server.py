@@ -29,7 +29,6 @@ except ImportError:
 # Use custom logging service
 from logging_service import get_logger
 from core.action_condition_guard import (
-    ActionConditionGuard,
     fetch_account_wallets,
     get_action_condition_guard_policy,
     normalize_action_guard_known_inventory_policy,
@@ -40,13 +39,10 @@ from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
     EngineState,
-    EventSourceChannel,
-    EventStreamType,
     FollowUpRevealDirection,
     AdminApiRole,
     InventoryCostBasisStatus,
     InventoryLotSource,
-    OrderStatus,
     OrderSide,
     OrderType,
     ProductCapability,
@@ -57,10 +53,9 @@ from core.enums import (
 )
 from core.models import RepricingPolicy
 from core.product_capability import evaluate_product_capability
-from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
+from core.exceptions import WebSocketMessageError, OrderCreationError
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
-    INFLIGHT_REST_PLACE,
     EngineNotAdmittingError,
     get_runtime_controller,
 )
@@ -70,6 +65,7 @@ from application.admin_api.command_service import (
     AdminApiCommandDependencies,
     AdminApiCommandService,
     cancel_response_to_dashboard_payload,
+    hotpoint_test_order_response_to_dashboard_payload,
     manual_order_response_to_dashboard_payload,
 )
 from application.admin_api.models import (
@@ -191,45 +187,6 @@ def _get_dashboard_order_event_stream_publisher():
         return _order_event_stream_publisher
 
 
-def _publish_direct_order_submission_event(
-    *,
-    client_order_id: str,
-    order_id: Optional[str],
-    order_params: Dict[str, Any],
-    order_configuration: Dict[str, Any],
-) -> bool:
-    """Publish durable submission evidence for direct dashboard placement."""
-    publisher = _get_dashboard_order_event_stream_publisher()
-    if publisher is None or not getattr(publisher, "enabled", False):
-        return False
-
-    inner_key = next(iter(order_configuration), None)
-    inner = order_configuration.get(inner_key, {}) if inner_key else {}
-    payload = {
-        "client_order_id": client_order_id,
-        "order_id": order_id,
-        "product_id": order_params.get("product_id"),
-        "side": order_params.get("side"),
-        "order_configuration_type": inner_key,
-        "order_configuration": order_configuration,
-        "base_size": inner.get("base_size"),
-        "quote_size": inner.get("quote_size"),
-        "limit_price": inner.get("limit_price"),
-        "post_only": inner.get("post_only"),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    key = f"dashboard_submit:{client_order_id}:{order_id or ''}"
-    return bool(
-        publisher.publish_event(
-            event_type=EventStreamType.ORDER_SUBMITTED.value,
-            source_channel=EventSourceChannel.REST_SUBMIT.value,
-            payload=payload,
-            idempotency_key=key,
-            status_to=OrderStatus.PENDING.value,
-        )
-    )
-
-
 def _direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
     """Return True when a raw direct spot order includes manual live consent."""
     direct_ack = order_params.get("manual_live_acknowledgement")
@@ -238,81 +195,6 @@ def _direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
     if isinstance(direct_ack, str):
         return direct_ack.strip().lower() in {"true", "yes", "1"}
     return bool(direct_ack)
-
-
-def _coinbase_order_response_to_dict(result: Any) -> Dict[str, Any]:
-    """Normalize Coinbase order response objects without losing nested fields."""
-    converter = getattr(result, "to_dict", None)
-    if callable(converter):
-        data = converter()
-    elif isinstance(result, Mapping):
-        data = dict(result)
-    elif hasattr(result, "__dict__"):
-        data = dict(result.__dict__)
-    else:
-        data = {}
-    return data if isinstance(data, dict) else {}
-
-
-def _coinbase_order_response_success(
-    result: Any,
-    data: Mapping[str, Any],
-) -> Optional[bool]:
-    success_attr = getattr(result, "success", None)
-    if isinstance(success_attr, bool):
-        return success_attr
-    success = data.get("success")
-    if isinstance(success, bool):
-        return success
-    if data.get("success_response"):
-        return True
-    if data.get("error_response") or data.get("failure_reason"):
-        return False
-    return None
-
-
-def _coinbase_order_response_error_message(
-    result: Any,
-    data: Mapping[str, Any],
-) -> str:
-    error_response = (
-        data.get("error_response")
-        or getattr(result, "error_response", None)
-    )
-    if isinstance(error_response, Mapping):
-        return str(
-            error_response.get("message")
-            or error_response.get("error")
-            or "Unknown error"
-        )
-    message = getattr(error_response, "message", None)
-    if message:
-        return str(message)
-    error = getattr(error_response, "error", None)
-    if error:
-        return str(error)
-    failure_reason = data.get("failure_reason")
-    if failure_reason:
-        return str(failure_reason)
-    return "Unknown error"
-
-
-def _coinbase_order_response_order_id(
-    result: Any,
-    data: Mapping[str, Any],
-) -> Optional[str]:
-    order_id = getattr(result, "order_id", None)
-    if order_id:
-        return str(order_id)
-    success_response = data.get("success_response")
-    if isinstance(success_response, Mapping) and success_response.get("order_id"):
-        return str(success_response["order_id"])
-    if data.get("order_id"):
-        return str(data["order_id"])
-    order = data.get("order")
-    if isinstance(order, Mapping) and order.get("order_id"):
-        return str(order["order_id"])
-    return None
 
 
 def _dashboard_admin_api_envelope(operator_intent: str) -> AdminApiCommandEnvelope:
@@ -856,8 +738,8 @@ def _build_spot_direct_order_audit_payload(
         db_client = PostgresDB()
         event_rows = (
             fetch_direct_order_event_rows(
-                db_client,
-                client_id,
+                db_client=db_client,
+                client_order_id=client_id,
                 limit=event_limit,
             )
             if include_events
@@ -865,8 +747,8 @@ def _build_spot_direct_order_audit_payload(
         )
         fill_rows = (
             fetch_direct_order_fill_rows(
-                db_client,
-                client_id,
+                db_client=db_client,
+                client_order_id=client_id,
                 limit=fill_limit,
             )
             if include_fills
@@ -1398,7 +1280,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 await websocket.send(json.dumps({
                     "type": "cancel_response",
                     "status": "error",
-                    "message": "Missing client_order_id",
+                    "message": (
+                        "Missing client_order_id; pass client_order_id, not "
+                        "order_id, to dashboard cancel_order."
+                    ),
                 }))
                 return
 
@@ -2556,15 +2441,13 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }))
 
         elif msg_type == "place_hotpoint_test_order":
-            # Place a normal limit order with enable_hotpoint_replication=True.
-            # Used to seed the detector for live testing. Payload:
-            #   {product_id, side, price, size}
+            # Compatibility adapter for the shared hotpoint seed-order service.
             payload = data.get("order") or {}
             product_id = str(payload.get("product_id") or "").strip()
             try:
-                side = OrderSide(str(payload.get("side") or "").upper()).value
+                side = OrderSide(str(payload.get("side") or "").upper())
             except ValueError:
-                side = ""
+                side = None
             try:
                 price = float(payload.get("price"))
                 size = float(payload.get("size"))
@@ -2579,184 +2462,26 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 }))
                 return
 
-            if not REST_CLIENT_AVAILABLE:
-                await websocket.send(json.dumps({
-                    "type": "place_hotpoint_test_order_response",
-                    "success": False,
-                    "error": "rest_client_unavailable",
-                }))
-                return
-
-            client_order_id = None
-            parent_row_inserted = False
-            update_parent_status = None
             try:
-                from calculation.size_validation import validate_and_quantize_size
-                from database.order import insert_order_parent, update_order_parent_status
-                from core.enums import OrderStatus
-                import uuid as _uuid
-
-                update_parent_status = update_order_parent_status
-                client_order_id = str(_uuid.uuid4())
-                capability = evaluate_product_capability(
-                    product_id=product_id,
-                    capability=ProductCapability.HOTPOINT_AUTO_PLACEMENT,
-                )
-                if not capability.allowed:
-                    message = (
-                        "Hotpoint test order rejected by product capability policy: "
-                        f"{capability.reason}"
-                    )
-                    add_log_entry("WARNING", message)
-                    await websocket.send(json.dumps({
-                        "type": "place_hotpoint_test_order_response",
-                        "success": False,
-                        "error": "product_capability_blocked",
-                        "message": message,
-                        "capability": capability.to_dict(),
-                    }))
-                    return
-
-                size_check = validate_and_quantize_size(
-                    size,
-                    product_id=product_id,
-                    price=price,
-                )
-                if not size_check:
-                    message = (
-                        "Hotpoint test order rejected at boundary: "
-                        f"{size_check.reason}"
-                    )
-                    add_log_entry("WARNING", message)
-                    await websocket.send(json.dumps({
-                        "type": "place_hotpoint_test_order_response",
-                        "success": False,
-                        "error": "size_validation_failed",
-                        "message": message,
-                    }))
-                    return
-                approved_size = size_check.size
-
-                guard_ok, guard_failure = ActionConditionGuard(
-                    planned_budget_fetcher=(
-                        _get_dashboard_spot_planned_budget_commitments
-                    ),
-                    lot_authority_evaluator=(
-                        _get_dashboard_spot_lot_authority_evaluator()
-                    ),
-                ).evaluate(
-                    phase=ActionGuardPhase.PLANNING,
-                    product_id=product_id,
-                    side=side,
-                    size=approved_size,
-                    limit_price=price,
-                    client_order_id=client_order_id,
-                )
-                if not guard_ok:
-                    reason = (guard_failure or {}).get("reason", "blocked")
-                    message = (
-                        "Hotpoint test order rejected by action-condition guard: "
-                        f"{reason}"
-                    )
-                    add_log_entry("WARNING", message)
-                    await websocket.send(json.dumps({
-                        "type": "place_hotpoint_test_order_response",
-                        "success": False,
-                        "error": "action_condition_guard_blocked",
-                        "message": message,
-                        "guard": guard_failure,
-                    }))
-                    return
-
-                # Pre-insert order_parent row with the opt-in flag set.
-                # Auto-placed children of this order will spawn from the
-                # engine's hotpoint dispatcher when fills accumulate.
-                parent_id = insert_order_parent(
-                    client_order_id=client_order_id,
-                    product_id=product_id,
-                    side=side,
-                    size=approved_size,
-                    price=price,
-                    target_movement=0.0,
-                    target_movement_type="P",
-                    max_order_replacement=0,
-                    current_order_replacement=0,
-                    status=OrderStatus.PENDING.value,
-                    parent_order_id=None,
-                    allow_partial_fills=False,
-                    enable_hotpoint_replication=True,
-                    auto_placed_by_hotpoint=False,
-                )
-                if parent_id is None:
-                    raise OrderCreationError(
-                        "failed to pre-insert hotpoint test parent order",
-                        client_order_id=client_order_id,
-                    )
-                parent_row_inserted = True
-
-                order_configuration = {
-                    "limit_limit_gtc": {
-                        "base_size": str(approved_size),
-                        "limit_price": str(price),
-                        "post_only": False,
-                    },
-                }
-                # Submit GTC limit on the exchange.
-                with controller.track_inflight(INFLIGHT_REST_PLACE):
-                    result = REST_CLIENT.limit_order_gtc(
+                command = ManualOrderCommand(
+                    envelope=_dashboard_admin_api_envelope("dashboard_hotpoint_test_order"),
+                    request=ManualOrderRequest(
                         product_id=product_id,
                         side=side,
-                        base_size=str(approved_size),
+                        order_type=OrderType.LIMIT,
+                        base_size=str(size),
                         limit_price=str(price),
-                        client_order_id=client_order_id,
                         post_only=False,
-                    )
-
-                result_dict = _coinbase_order_response_to_dict(result)
-                response_success = _coinbase_order_response_success(
-                    result,
-                    result_dict,
+                    ),
+                    allow_live_execution=True,
                 )
-                if response_success is False:
-                    error_msg = _coinbase_order_response_error_message(
-                        result,
-                        result_dict,
-                    )
-                    raise CoinbaseAPIError(
-                        f"Hotpoint test order creation failed: {error_msg}",
-                        api_error_code="hotpoint_test_order_creation_failed",
-                    )
-                order_id = _coinbase_order_response_order_id(result, result_dict)
-                submission_event_recorded = _publish_direct_order_submission_event(
-                    client_order_id=client_order_id,
-                    order_id=order_id,
-                    order_params={"product_id": product_id, "side": side},
-                    order_configuration=order_configuration,
+                service_response = (
+                    _dashboard_command_service().place_hotpoint_test_order(command)
                 )
-                add_log_entry(
-                    "INFO",
-                    f"Hotpoint test order placed: {client_order_id} {product_id} "
-                    f"{side} {approved_size}@{price}",
-                )
-                await websocket.send(json.dumps({
-                    "type": "place_hotpoint_test_order_response",
-                    "success": True,
-                    "client_order_id": client_order_id,
-                    "order_id": order_id,
-                    "submission_event_recorded": submission_event_recorded,
-                }))
+                await websocket.send(json.dumps(
+                    hotpoint_test_order_response_to_dashboard_payload(service_response)
+                ))
             except Exception as e:
-                if parent_row_inserted and update_parent_status and client_order_id:
-                    try:
-                        update_parent_status(
-                            client_order_id,
-                            OrderStatus.FAILED.value,
-                        )
-                    except Exception as update_exc:
-                        logger.error(
-                            "failed to mark hotpoint test order parent FAILED: "
-                            f"{update_exc}"
-                        )
                 logger.error(f"place_hotpoint_test_order failed: {e}")
                 await websocket.send(json.dumps({
                     "type": "place_hotpoint_test_order_response",

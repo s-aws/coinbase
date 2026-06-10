@@ -167,6 +167,20 @@ def _submission_summary(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+def _estimated_submission_notional(row: Mapping[str, Any] | None) -> Decimal:
+    if row is None:
+        return Decimal("0")
+    payload = _event_payload(row)
+    quote_size = _text(payload.get("quote_size"))
+    if quote_size:
+        return _decimal(quote_size)
+    base_size = _text(payload.get("base_size"))
+    limit_price = _text(payload.get("limit_price"))
+    if base_size and limit_price:
+        return _decimal(base_size) * _decimal(limit_price)
+    return Decimal("0")
+
+
 def _event_summary(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "event_id": _text(row.get("event_id")),
@@ -230,6 +244,7 @@ def build_spot_direct_order_audit(
         (_decimal(row.get("fees")) for row in fills),
         Decimal("0"),
     )
+    estimated_submission_notional = _estimated_submission_notional(submission)
 
     if not client_order_id:
         status = SpotDirectOrderAuditStatus.MISSING_CLIENT_ORDER_ID.value
@@ -251,6 +266,14 @@ def build_spot_direct_order_audit(
         "fill_count": len(fills),
         "fill_notional": _format_decimal(fill_notional),
         "fill_fees": _format_decimal(fill_fees),
+        "audit_is_read_only": True,
+        "audit_command_live_coinbase_orders_ran": False,
+        "audited_order_live_submission_evidence": submission is not None,
+        "audited_order_live_coinbase_orders_ran": submission is not None,
+        "audited_order_estimated_submitted_notional_usdc": _format_decimal(
+            estimated_submission_notional
+        ),
+        "audited_order_fill_notional_usdc": _format_decimal(fill_notional),
         "live_coinbase_orders_ran": False,
         "live_order_notional_usdc": "0",
         "total_submitted_notional_usdc": "0",

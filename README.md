@@ -10,6 +10,12 @@ This repository contains the Coinbase Advanced Trading engine, which provides fu
 - Browser and terminal dashboard surfaces.
 - A self-contained portfolio site: [Netflix AI Engineer Workbench](README.netflix-ai-engineer-site.md).
 
+The checked-in `products.json` is a minimal local catalog, not the full
+Coinbase spot universe. Direct dashboard and stealth order entry use configured
+products from that catalog. USDC portfolio sweep and campaign workflows fetch
+eligible Coinbase `BASE-USDC` spot products dynamically and have their own
+dry-run, cap, approval, retry, audit, and P/L surfaces.
+
 For the ordered documentation index, start at [docs/README.md](docs/README.md).
 For spot setup notes, see [README.spot-trading.md](README.spot-trading.md).
 For USDC-only spot portfolio sweep planning, see

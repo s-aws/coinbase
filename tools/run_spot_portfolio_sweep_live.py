@@ -774,7 +774,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--require-known-profitable-inventory",
         action="store_true",
-        help="Safety policy: require known profitable lots for planned SELL sweeps.",
+        help=(
+            "Safety policy: require known profitable lots for planned SELL "
+            "sweeps. Required for live SELL execution."
+        ),
     )
     parser.add_argument(
         "--include-coinbase-average-cost",
@@ -959,6 +962,10 @@ def main(argv: list[str] | None = None) -> int:
         args.repeat_every_hours is None or args.max_runs is None
     ):
         parser.error("--repeat-every-hours and --max-runs must be supplied together")
+    if args.approved_live_orders and args.disable_safety_policy:
+        parser.error(
+            "--disable-safety-policy cannot be used with --approved-live-orders"
+        )
 
     config = _config_payload(args)
     if file_config:
@@ -1447,6 +1454,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.approved_live_orders:
         parser.error("--approved-live-orders is required because this can place live orders")
+    if (
+        args.side == OrderSide.SELL.value
+        and not config["safety_policy"].get("require_known_profitable_inventory")
+    ):
+        parser.error(
+            "live SELL sweeps require --require-known-profitable-inventory"
+        )
     if _sell_authority_allowlist_blocks(allowlist_freshness):
         parser.error(_allowlist_freshness_violation(allowlist_freshness)["reason"])
     if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):

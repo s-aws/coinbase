@@ -191,8 +191,14 @@ Keep it short. Keep it factual.
 - Result: Passed after fixing OpenAPI response metadata and Coinbase cancel
   success parsing.
 - Last regression run: 2026-06-10 `pytest tests\regression\ -v --tb=short`
-- Result: Passed, 735 tests.
-- Spot readiness regression: passed, 212 tests.
+- Result: Passed, 745 tests.
+- Spot readiness regression: passed, 223 tests.
+- Spot release gate: passed; no live Coinbase orders run, submitted/executed
+  notional `0` USDC.
+- Last contextless spot order review: 2026-06-10
+- Result: Passed after live SELL sweep was hardened to require
+  `--require-known-profitable-inventory`, direct audit fields were clarified,
+  and the contextless checklist was updated.
 - Browser smoke: passed,
   `tests\e2e\test_direct_order_ui_smoke.py` and
   `tests\e2e\test_spot_readiness_ui_smoke.py`.
@@ -202,17 +208,16 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Present or continue the next approved enterprise API/frontend phase:
-   extract direct manual placement/cancel dashboard branches into shared
-   command-service tests without enabling live HTTP execution.
-2. Present the next spot-roadmap approval batch, Phases 185-196, from
-   `docs/SPOT_READINESS_ROADMAP.md`. Live execution is not included there;
-   Phase 195 prepares a packet only.
-3. Keep broad SELL blocked. Current fresh strict authority narrowed to one
-   proposal product, `PERP-USDC`, with a proposed cap of `1` USDC if live
-   execution is separately approved later.
-4. If Phases 185-196 are approved, start with the dashboard direct audit UI
-   panel and browser smoke coverage.
+1. Continue the approved enterprise API/frontend phase work without enabling
+   live HTTP execution.
+2. Keep broad SELL blocked. The current Phase 184/195 `PERP-USDC` canary packet
+   is documentation only; its allowlist is expired and must be regenerated
+   immediately before any later live approval.
+3. For any later live USDC sweep SELL, require
+   `--require-known-profitable-inventory`; the runner now rejects approved live
+   SELL without that policy.
+4. Keep contextless blind-review in the release loop for new spot order,
+   campaign, or live-action UI behavior.
 
 ## Handoff Notes
 
@@ -233,13 +238,17 @@ Keep it short. Keep it factual.
   `AAVE-USDC` / `ACH-USDC` with `3.0216716` USDC submitted and
   `3.022123640498578` USDC executed, post-canary reconciliation/P&L, and
   Phase 172 blind-agent/full validation, and Phase 173-184 read-only campaign
-  operator reports/dashboard audit/contextless harness/strict SELL proposal.
-- Phase 173-184 live execution: none. Submitted notional `0` USDC. Executed
+  operator reports/dashboard audit/contextless harness/strict SELL proposal,
+  and Phase 185-196 dashboard direct-audit UI, campaign cleanup apply gate,
+  retry fixture, direct spot gate hardening, mandatory live SELL sweep
+  known-profit policy, contextless blind-review pass, and release gates.
+- Phase 173-196 live execution: none. Submitted notional `0` USDC. Executed
   notional `0` USDC.
-- Phase 184 current proposal: fresh strict allowlist generated
+- Phase 184/195 current proposal: strict allowlist generated
   `2026-06-10T14:32:37Z`, one eligible product `PERP-USDC`, validator passed
   with `max_products=1`, `max_total_notional_per_run=1`,
-  `max_notional_per_order=1`, and `max_planned_orders=1`.
+  `max_notional_per_order=1`, and `max_planned_orders=1`; the allowlist is now
+  expired and must be regenerated immediately before any later live approval.
 - Admin API/frontend status: backend Admin API mutating routes are
   auth/RBAC-gated, idempotent, audited, and still HTTP-live-disabled with
   OpenAPI documenting `501` rather than `200`; read-only spot operator routes

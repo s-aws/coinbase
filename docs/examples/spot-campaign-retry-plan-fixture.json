@@ -1,0 +1,146 @@
+{
+  "description": "Public fixture for campaign retry-plan classification. The source sweep has one submitted order, one blocked/no-submission order that is retryable, and one planned skip that is not retryable.",
+  "config": {
+    "version": 1,
+    "campaign_id": "spot-campaign-retry-fixture",
+    "campaign_name": "retry_fixture_campaign",
+    "side": "BUY",
+    "quote_notional": "1",
+    "max_products": 3,
+    "order_type": "market_ioc",
+    "automation": {
+      "enabled": true,
+      "repeat_every_hours": "6",
+      "max_runs": 3
+    },
+    "product_scope": {
+      "quote_currency": "USDC",
+      "us_customer_available": true,
+      "selection_rule": "all_coinbase_usdc_spot_us_customer_available",
+      "allow_products": [
+        "AAA-USDC",
+        "BBB-USDC",
+        "CCC-USDC"
+      ]
+    },
+    "safety_policy": {
+      "max_total_notional_per_run": "3",
+      "max_notional_per_order": "1",
+      "max_planned_orders": 3,
+      "allow_products": [
+        "AAA-USDC",
+        "BBB-USDC",
+        "CCC-USDC"
+      ]
+    },
+    "inventory_policy": {
+      "retention": "retain"
+    },
+    "cost_basis_authority": {
+      "allowed_sources": [
+        "fill_ledger",
+        "imported_baseline"
+      ]
+    },
+    "live_approval": {
+      "required": true
+    }
+  },
+  "sweep_records": [
+    {
+      "record_type": "sweep_run",
+      "config_id": "spot-sweep-4effa03e989efdfb",
+      "run_id": "spot-sweep-retry-fixture-partial",
+      "status": "partial",
+      "started_at": "2026-01-01T00:00:00+00:00",
+      "completed_at": "2026-01-01T00:00:00+00:00",
+      "config": {
+        "version": 1,
+        "campaign_id": "spot-campaign-retry-fixture",
+        "config_id": "spot-sweep-4effa03e989efdfb",
+        "side": "BUY",
+        "quote_notional": "1",
+        "max_products": 3,
+        "order_type": "market_ioc",
+        "limit_price_offset_bps": "0",
+        "repeat_every_hours": "6",
+        "max_runs": 3,
+        "safety_policy": {
+          "enabled": true,
+          "max_total_notional_per_run": "3",
+          "max_notional_per_order": "1",
+          "max_planned_orders": 3,
+          "require_wallet_check": true,
+          "require_known_profitable_inventory": false,
+          "allow_coinbase_average_cost_basis": false,
+          "coinbase_average_cost_profit_buffer_pct": "0.5",
+          "allow_products": [
+            "AAA-USDC",
+            "BBB-USDC",
+            "CCC-USDC"
+          ],
+          "deny_products": [],
+          "max_skipped_orders": null
+        }
+      },
+      "execution": {
+        "live_coinbase_orders_ran": true,
+        "submitted_order_count": 1,
+        "blocked_or_error_count": 1,
+        "skipped_order_count": 1,
+        "total_submitted_notional_usdc": "1",
+        "total_executed_notional_usdc": "0.99",
+        "orders": [
+          {
+            "product_id": "AAA-USDC",
+            "status": "submitted",
+            "exchange_order_id": "exchange-aaa",
+            "client_order_id": "client-aaa",
+            "submitted_notional_usdc": "1",
+            "executed_notional_usdc": "0.99",
+            "response_success": true
+          },
+          {
+            "product_id": "BBB-USDC",
+            "status": "blocked",
+            "exchange_order_id": null,
+            "client_order_id": null,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "response_success": null,
+            "guard_failure": {
+              "reason": "wallet read failed before Coinbase submission"
+            }
+          },
+          {
+            "product_id": "CCC-USDC",
+            "status": "skipped",
+            "exchange_order_id": null,
+            "client_order_id": null,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "response_success": null,
+            "error": "requested quote notional is below product quote minimum"
+          }
+        ]
+      }
+    }
+  ],
+  "expected": {
+    "retry_status": "ready",
+    "retryable_product_ids": [
+      "BBB-USDC"
+    ],
+    "submitted_or_live_product_ids": [
+      "AAA-USDC"
+    ],
+    "not_retryable_product_ids": [
+      "CCC-USDC"
+    ],
+    "order_classes": {
+      "AAA-USDC": "submitted_or_live",
+      "BBB-USDC": "retryable_not_submitted",
+      "CCC-USDC": "not_retryable"
+    }
+  }
+}

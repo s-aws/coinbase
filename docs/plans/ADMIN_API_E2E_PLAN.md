@@ -88,6 +88,7 @@ Initial target inventory:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `POST /api/v1/orders` | `live_exchange_place` | `order:create` | Required | Required | Required | Required | `place_manual_order` | HTTP vs `place_order` guard/result parity |
 | `place_order` WebSocket | `live_exchange_place` | compatibility policy | Required for enterprise mode or explicitly compatibility-only | Required for enterprise mode or explicitly compatibility-only | Required | Required | `place_manual_order` | WebSocket vs HTTP guard/result parity |
+| `place_hotpoint_test_order` WebSocket | `live_exchange_place` | compatibility policy | Required for enterprise mode or explicitly compatibility-only | Required for enterprise mode or explicitly compatibility-only | Required | Required | `place_hotpoint_test_order` | WebSocket vs shared-service hotpoint guard/result parity |
 | `POST /api/v1/orders/{client_order_id}/cancel` | `live_exchange_cancel` | `order:cancel` | Required | Not required unless policy adds approval | Required for rate/session controls | Required | `cancel_order_by_client_order_id` | HTTP vs `cancel_order` parity |
 | `cancel_order` WebSocket | `live_exchange_cancel` | compatibility policy | Required for enterprise mode or explicitly compatibility-only | Not required unless policy adds approval | Required for rate/session controls | Required | `cancel_order_by_client_order_id` | WebSocket vs HTTP parity |
 | read-only status routes | `read_only` | route-specific read permission | Not required | Not required | Not applicable | Optional read audit | read service method | no Coinbase REST placement |
@@ -122,10 +123,10 @@ Exit criteria:
 
 ## Phase 2 - Shared Command Services
 
-Status: partially implemented. Legacy dashboard `place_order` and
-`cancel_order` now delegate to `AdminApiCommandService`; HTTP mutating routes
-call the same service with live execution disabled. Hotpoint test placement is
-not yet extracted.
+Status: implemented for legacy dashboard `place_order`, `cancel_order`, and
+`place_hotpoint_test_order`. These messages now delegate to
+`AdminApiCommandService`; HTTP mutating routes call the same service with live
+execution disabled.
 
 - Extract live command handling out of `dashboard_server.py` into shared
   application services.
@@ -211,9 +212,9 @@ Exit criteria:
 
 ## Phase 6 - Approval Gates And Live Caps
 
-Status: approval snapshot hashing exists, but live HTTP execution remains
-disabled until approval matching and cap enforcement are wired into the route
-admission path.
+Status: approval snapshot hashing and structured live-execution gate responses
+exist, but live HTTP execution remains disabled until approval matching and cap
+enforcement are wired into the route admission path.
 
 - Live placement requires server-side approval, not only a frontend checkbox.
 - Approval binds to product, side, size, price, order config, cap result, actor,

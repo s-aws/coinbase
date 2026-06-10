@@ -307,6 +307,22 @@
             font-size: 13px;
         }
 
+        .audit-result {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .audit-result strong {
+            display: inline-block;
+            min-width: 140px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
         /* Scrollbar styling */
         ::-webkit-scrollbar {
             width: 8px;
@@ -409,6 +425,22 @@
                     <span>I acknowledge this direct order submits live immediately and is not a dry run or capped campaign.</span>
                 </label>
                 <button onclick="placeOrder()">📤 Submit Order</button>
+            </div>
+
+            <!-- Direct Order Audit -->
+            <div class="card full-width">
+                <h2>Direct Order Audit</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="directAuditClientOrderId">Client Order ID</label>
+                        <input type="text" id="directAuditClientOrderId" placeholder="client_order_id">
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button onclick="requestDirectOrderAudit()">🔎 Load Audit</button>
+                    </div>
+                </div>
+                <div id="directAuditResult" class="audit-result empty-state">No audit loaded</div>
             </div>
 
             <!-- Active Orders -->
@@ -559,6 +591,8 @@
                     console.error('Order cancellation failed:', message.message);
                     alert(`❌ Cancellation failed: ${message.message}`);
                 }
+            } else if (message.type === 'spot_direct_order_audit') {
+                renderDirectOrderAudit(message);
             }
         }
 
@@ -642,6 +676,39 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function renderDirectOrderAudit(message) {
+            const result = document.getElementById('directAuditResult');
+            result.classList.remove('empty-state');
+
+            if (message.status !== 'success') {
+                result.innerHTML = `<div><strong>Status</strong>${escapeHtml(message.message || message.error || 'audit failed')}</div>`;
+                return;
+            }
+
+            const audit = message.audit || {};
+            const events = audit.events || [];
+            const fills = audit.fills || [];
+            const clientOrderId = message.client_order_id || audit.client_order_id || '--';
+            const orderId = audit.order_id || audit.exchange_order_id || '--';
+            const submittedAt = audit.submitted_at || audit.created_at || '--';
+            result.innerHTML = `
+                <div><strong>Client Order ID</strong><code>${escapeHtml(clientOrderId)}</code></div>
+                <div><strong>Exchange Order ID</strong><code>${escapeHtml(orderId)}</code></div>
+                <div><strong>Submitted</strong>${escapeHtml(submittedAt)}</div>
+                <div><strong>Events</strong>${events.length}</div>
+                <div><strong>Fills</strong>${fills.length}</div>
+            `;
+        }
+
         function placeOrder() {
             const productId = document.getElementById('productId').value;
             const side = document.getElementById('side').value;
@@ -696,6 +763,32 @@
             document.getElementById('size').value = '';
             document.getElementById('limitPrice').value = '';
             document.getElementById('postOnly').value = 'false';
+        }
+
+        function requestDirectOrderAudit() {
+            const clientOrderId = document.getElementById('directAuditClientOrderId').value.trim();
+
+            if (!clientOrderId) {
+                alert('Enter a client_order_id to audit');
+                return;
+            }
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to dashboard server');
+                return;
+            }
+
+            document.getElementById('directAuditResult').textContent = 'Loading audit...';
+            ws.send(JSON.stringify({
+                type: 'request_spot_direct_order_audit',
+                params: {
+                    client_order_id: clientOrderId,
+                    include_events: true,
+                    include_fills: true,
+                    event_limit: 100,
+                    fill_limit: 1000,
+                },
+            }));
         }
 
         // Connect on page load

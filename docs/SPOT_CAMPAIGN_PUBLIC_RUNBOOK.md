@@ -167,7 +167,7 @@ recovery evidence.
    runner:
 
    ```powershell
-   python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell_canary.strict.allowlist.sweep.json --approved-live-orders --max-products 1 --max-total-notional-per-run 1 --max-notional-per-order 1 --max-planned-orders 1 --max-skipped-orders 500
+   python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell_canary.strict.allowlist.sweep.json --require-known-profitable-inventory --approved-live-orders --max-products 1 --max-total-notional-per-run 1 --max-notional-per-order 1 --max-planned-orders 1 --max-skipped-orders 500
    ```
 
 10. Record and check the live result:
@@ -207,7 +207,7 @@ python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_c
 Only the existing sweep live runner can place the approved SELL orders:
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.allowlist.sweep.json --approved-live-orders --summary-only
+python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.allowlist.sweep.json --require-known-profitable-inventory --approved-live-orders --summary-only
 ```
 
 Strict fill-ledger authority subtracts prior local SELL fills from known BUY

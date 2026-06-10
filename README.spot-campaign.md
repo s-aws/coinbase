@@ -154,6 +154,8 @@ named buffered profile and should not be used for strict fill-ledger canaries.
   `tools/run_spot_campaign.py --record-latest-sweep-run`
 - Partial-run retry planner:
   `tools/run_spot_campaign.py --retry-plan`
+- Public retry-plan fixture:
+  `docs/examples/spot-campaign-retry-plan-fixture.json`
 - Canonical template writer:
   `tools/run_spot_campaign.py --template-profile <profile>`
 - Config validation report:
@@ -245,6 +247,10 @@ named buffered profile and should not be used for strict fill-ledger canaries.
 ## Examples
 
 See [Spot Campaign Examples](docs/examples/spot-campaign.md).
+
+The retry-plan public fixture at
+[docs/examples/spot-campaign-retry-plan-fixture.json](docs/examples/spot-campaign-retry-plan-fixture.json)
+shows submitted, retryable no-submission, and planned-skip rows.
 
 ## Public Runbook
 

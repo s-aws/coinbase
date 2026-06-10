@@ -42,16 +42,18 @@ def _customize_openapi(app: FastAPI) -> dict:
 def create_app() -> FastAPI:
     """Create the Admin API app.
 
-    The app currently exposes contract skeleton routes only. Live behavior must
-    be added through shared command services after parity tests exist.
+    The app exposes read-only operator routes plus fail-closed mutating command
+    routes. Mutating HTTP routes already use shared command services for parity,
+    but live Coinbase execution remains disabled by the approval gate.
     """
 
     app = FastAPI(
         title="Coinbase Admin API",
         version="0.1.0",
         description=(
-            "Enterprise API skeleton for the Coinbase trading engine. "
-            "Routes do not submit Coinbase orders until shared-service extraction ships."
+            "Enterprise API for the Coinbase trading engine. Read-only operator "
+            "routes are active; mutating HTTP routes use shared command "
+            "services but remain live-disabled by the approval gate."
         ),
     )
     cors_origins = [

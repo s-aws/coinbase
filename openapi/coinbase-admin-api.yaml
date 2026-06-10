@@ -1,8 +1,9 @@
 openapi: 3.1.0
 info:
   title: Coinbase Admin API
-  description: Enterprise API skeleton for the Coinbase trading engine. Routes do
-    not submit Coinbase orders until shared-service extraction ships.
+  description: Enterprise API for the Coinbase trading engine. Read-only operator
+    routes are active; mutating HTTP routes use shared command services but remain
+    live-disabled by the approval gate.
   version: 0.1.0
 paths:
   /api/v1/orders:

@@ -282,6 +282,11 @@ Planned skips, such as products below `quote_min_size`, are kept as audit rows
 but are not retry targets. A live run with submitted orders plus only planned
 skips records as completed when `--record-latest-sweep-run` is used.
 
+The public fixture
+[spot-campaign-retry-plan-fixture.json](spot-campaign-retry-plan-fixture.json)
+shows all three classes in one source sweep: submitted/live, retryable
+not-submitted, and not-retryable planned skip.
+
 Render the retry campaign to a sweep config:
 
 ```powershell
@@ -382,7 +387,7 @@ visible. The summary includes `sell_authority_allowlist_freshness`,
 Only after explicit live approval, execute through the sweep runner:
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --approved-live-orders --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
+python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --require-known-profitable-inventory --approved-live-orders --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
 ```
 
 The live summary must report `live_coinbase_orders_ran`, submitted notional,

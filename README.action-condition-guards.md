@@ -27,7 +27,10 @@ Current invocation points:
 - Direct dashboard `place_order` runs the planning-phase guard after size
   validation and before `REST_CLIENT.create_order`. For spot products, the
   dashboard handler also requires `manual_live_acknowledgement=true` before the
-  planning guard and REST submission.
+  planning guard and REST submission. Direct spot placement also requires a
+  matching planning-phase `max_notional` limit rule. Direct spot `SELL` requires
+  `known_inventory_available` to be enabled. Direct spot placement also blocks
+  when the local durable audit publisher is unavailable.
 - `wallet_available` checks spot account balances when Coinbase REST
   credentials are configured. It applies only to catalog-configured spot
   products, not unknown fallback product IDs.

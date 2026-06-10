@@ -9,11 +9,13 @@ import pytest
 
 from core.enums import (
     ActionConditionType,
+    ActionGuardPhase,
     EventSourceChannel,
     EventStreamType,
     OrderStatus,
     ProductCapability,
     ProductCapabilityMode,
+    ProductType,
 )
 from core.exceptions import OrderCreationError
 
@@ -70,6 +72,27 @@ def _place_order_message(
     })
 
 
+def _direct_spot_cap_policy(
+    *,
+    max_notional=1000.0,
+    known_inventory=False,
+) -> dict:
+    policy = {
+        "limits": [{
+            "name": "direct_spot_cap",
+            "product_type": ProductType.SPOT.value,
+            ActionConditionType.MAX_NOTIONAL.value: max_notional,
+            "phases": [ActionGuardPhase.PLANNING.value],
+        }],
+    }
+    if known_inventory:
+        policy[ActionConditionType.KNOWN_INVENTORY_AVAILABLE.value] = {
+            "enabled": True,
+            "phases": [ActionGuardPhase.PLANNING.value],
+        }
+    return policy
+
+
 @pytest.mark.regression
 def test_direct_spot_place_order_requires_manual_live_ack_before_rest(monkeypatch):
     import dashboard_server
@@ -96,6 +119,77 @@ def test_direct_spot_place_order_requires_manual_live_ack_before_rest(monkeypatc
         ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value
     )
     assert payload["guard"]["manual_live_acknowledgement_required"] is True
+    rest_client.create_order.assert_not_called()
+
+
+@pytest.mark.regression
+def test_direct_spot_place_order_requires_configured_notional_cap(monkeypatch):
+    import configuration
+    import core.action_condition_guard as guard_module
+    import dashboard_server
+
+    monkeypatch.setattr(configuration, "ACTION_CONDITION_GUARDS", {})
+    monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    message = _place_order_message({
+        "market_market_ioc": {
+            "quote_size": "5",
+        },
+    })
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "order_response"
+    assert payload["status"] == "error"
+    assert payload["guard"]["block_category"] == (
+        ActionConditionType.DIRECT_SPOT_CAP_REQUIRED.value
+    )
+    assert payload["guard"]["max_notional_cap_required"] is True
+    rest_client.create_order.assert_not_called()
+
+
+@pytest.mark.regression
+def test_direct_spot_sell_requires_known_inventory_policy_before_rest(monkeypatch):
+    import configuration
+    import core.action_condition_guard as guard_module
+    import dashboard_server
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        _direct_spot_cap_policy(),
+    )
+    monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    message = _place_order_message({
+        "limit_limit_gtc": {
+            "base_size": "0.001",
+            "limit_price": "100000",
+        },
+    }, side="SELL")
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "order_response"
+    assert payload["status"] == "error"
+    assert payload["guard"]["block_category"] == (
+        ActionConditionType.KNOWN_INVENTORY_AVAILABLE.value
+    )
+    assert payload["guard"]["known_inventory_available_required"] is True
     rest_client.create_order.assert_not_called()
 
 
@@ -130,15 +224,23 @@ def test_direct_place_order_blocks_max_notional_before_rest(monkeypatch):
     payload = _sent_payload(ws)
     assert payload["type"] == "order_response"
     assert payload["status"] == "error"
-    assert payload["guard"]["block_category"] == "max_notional"
+    assert payload["guard"]["block_category"] == (
+        ActionConditionType.MAX_NOTIONAL.value
+    )
     rest_client.create_order.assert_not_called()
 
 
 @pytest.mark.regression
 def test_direct_place_order_blocks_spot_sell_wallet_before_rest(monkeypatch):
+    import configuration
     import core.action_condition_guard as guard_module
     import dashboard_server
 
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        _direct_spot_cap_policy(max_notional=200000.0, known_inventory=True),
+    )
     monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: True)
     monkeypatch.setattr(
         guard_module,
@@ -173,12 +275,9 @@ def test_direct_place_order_reports_known_inventory_guard_before_rest(monkeypatc
     import configuration
     import dashboard_server
 
-    monkeypatch.setattr(configuration, "ACTION_CONDITION_GUARDS", {
-        ActionConditionType.WALLET_AVAILABLE.value: {"enabled": False},
-        ActionConditionType.KNOWN_INVENTORY_AVAILABLE.value: {
-            "enabled": True,
-        },
-    })
+    policy = _direct_spot_cap_policy(max_notional=20000.0, known_inventory=True)
+    policy[ActionConditionType.WALLET_AVAILABLE.value] = {"enabled": False}
+    monkeypatch.setattr(configuration, "ACTION_CONDITION_GUARDS", policy)
     ws = _make_websocket()
     rest_client = MagicMock()
     message = _place_order_message({
@@ -235,7 +334,9 @@ def test_direct_market_buy_quote_size_blocks_max_notional(monkeypatch):
 
     payload = _sent_payload(ws)
     assert payload["status"] == "error"
-    assert payload["guard"]["block_category"] == "max_notional"
+    assert payload["guard"]["block_category"] == (
+        ActionConditionType.MAX_NOTIONAL.value
+    )
     assert payload["guard"]["quote_size"] == 250.0
     rest_client.create_order.assert_not_called()
 
@@ -274,9 +375,15 @@ def test_direct_market_buy_quote_size_blocks_below_quote_min_before_rest(monkeyp
 
 @pytest.mark.regression
 def test_direct_place_order_success_returns_client_order_id(monkeypatch):
+    import configuration
     import core.action_condition_guard as guard_module
     import dashboard_server
 
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        _direct_spot_cap_policy(),
+    )
     monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
     ws = _make_websocket()
     rest_client = MagicMock()
@@ -324,7 +431,47 @@ def test_direct_place_order_success_returns_client_order_id(monkeypatch):
 
 
 @pytest.mark.regression
+def test_direct_spot_place_order_requires_durable_audit_before_rest(monkeypatch):
+    import configuration
+    import core.action_condition_guard as guard_module
+    import dashboard_server
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        _direct_spot_cap_policy(),
+    )
+    monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    message = _place_order_message({
+        "market_market_ioc": {
+            "quote_size": "5",
+        },
+    })
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "_get_dashboard_order_event_stream_publisher",
+                      return_value=None), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "order_response"
+    assert payload["status"] == "error"
+    assert payload["guard"]["block_category"] == (
+        ActionConditionType.DURABLE_AUDIT_AVAILABLE.value
+    )
+    assert payload["guard"]["durable_audit_required"] is True
+    rest_client.create_order.assert_not_called()
+
+
+@pytest.mark.regression
 def test_direct_place_order_normalizes_nested_success_response(monkeypatch):
+    import configuration
     import core.action_condition_guard as guard_module
     import dashboard_server
 
@@ -335,6 +482,11 @@ def test_direct_place_order_normalizes_nested_success_response(monkeypatch):
                 "success_response": {"order_id": "exchange-nested-1"},
             }
 
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        _direct_spot_cap_policy(),
+    )
     monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
     ws = _make_websocket()
     rest_client = MagicMock()
@@ -364,6 +516,7 @@ def test_direct_place_order_normalizes_nested_success_response(monkeypatch):
 
 @pytest.mark.regression
 def test_direct_place_order_size_validation_runs_before_action_guard():
+    import application.admin_api.command_service as command_service
     import dashboard_server
 
     ws = _make_websocket()
@@ -381,7 +534,7 @@ def test_direct_place_order_size_validation_runs_before_action_guard():
 
     with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
          patch.object(dashboard_server, "REST_CLIENT", rest_client), \
-         patch.object(dashboard_server, "ActionConditionGuard", guard_cls), \
+         patch.object(command_service, "ActionConditionGuard", guard_cls), \
          patch.object(dashboard_server, "get_runtime_controller",
                       return_value=_admitting_controller()), \
          patch.object(dashboard_server, "add_log_entry"), \
@@ -492,7 +645,10 @@ def test_cancel_order_requires_client_order_id_before_rest():
     payload = _sent_payload(ws)
     assert payload["type"] == "cancel_response"
     assert payload["status"] == "error"
-    assert payload["message"] == "Missing client_order_id"
+    assert payload["message"] == (
+        "Missing client_order_id; pass client_order_id, not order_id, "
+        "to dashboard cancel_order."
+    )
     rest_client.cancel_order.assert_not_called()
 
 
@@ -517,7 +673,10 @@ def test_cancel_order_rejects_order_id_without_client_order_id():
     payload = _sent_payload(ws)
     assert payload["type"] == "cancel_response"
     assert payload["status"] == "error"
-    assert payload["message"] == "Missing client_order_id"
+    assert payload["message"] == (
+        "Missing client_order_id; pass client_order_id, not order_id, "
+        "to dashboard cancel_order."
+    )
     rest_client.cancel_order.assert_not_called()
     rest_client.cancel_orders.assert_not_called()
 

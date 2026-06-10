@@ -45,6 +45,10 @@ The response passes only if it identifies:
   placement engine.
 - Direct/dashboard spot order admission through the shared
   `ActionConditionGuard`.
+- Direct dashboard spot placement hard gates:
+  `manual_live_acknowledgement=true`, explicit planning-phase `max_notional`
+  cap, enabled local `order_event_stream` publisher before REST, and
+  `known_inventory_available` for direct spot `SELL`.
 - Stealth planning and reveal wallet checks, including the reveal-time wallet
   recheck.
 - USDC portfolio sweep and campaign paths:
@@ -52,6 +56,8 @@ The response passes only if it identifies:
   `business/spot_campaign.py`, and `tools/run_spot_campaign.py`.
 - The live approval boundary: campaign tools do not submit Coinbase orders;
   live sweep execution requires `--approved-live-orders`.
+- Live USDC sweep `SELL` requires `--require-known-profitable-inventory`;
+  wallet balance alone cannot authorize live SELL sweep execution.
 - The distinction between wallet sellability and known profitable inventory.
 - `client_order_id` as the internal tracking id and exchange `order_id` as
   exchange evidence only.
@@ -67,6 +73,9 @@ The response passes only if it identifies:
 - That direct dashboard and live sweep placement publish
   `order_submitted` / `rest_submit` event-stream evidence when the local event
   stream is available.
+- That direct-order audit output separates the read-only audit command fields
+  from audited-order evidence fields such as
+  `audited_order_live_submission_evidence`.
 - That dashboard `create_parent_order` is local DB CRUD and does not submit a
   Coinbase order.
 - That direct dashboard `place_order` is an immediate manual placement surface:
@@ -121,3 +130,30 @@ this gate passed and which docs/code were changed if it did not.
   automation path, strict versus Coinbase average-cost SELL authority,
   `client_order_id` tracking, direct-order audit command, and the Coinbase
   cancellation exception.
+- 2026-06-10, explorer agent, Phase 193 prompt variant: first run failed on
+  broken direct-order audit helper calls and stale/confusing Admin API wording.
+  Fixed dashboard audit keyword calls, test coverage, and Admin API/OpenAPI
+  wording.
+- 2026-06-10, explorer agent, same Phase 193 prompt after audit/docs fix:
+  passed discoverability but flagged raw direct spot as operationally risky
+  because cap, known-profit SELL authority, and pre-REST audit were not hard
+  defaults. Fixed code to require a planning-phase `max_notional` cap for
+  direct spot, require `known_inventory_available` for direct spot `SELL`, and
+  require an enabled local `order_event_stream` publisher before direct spot
+  REST submission.
+- 2026-06-10, explorer agent, same Phase 193 prompt after code hardening:
+  failed on stale `docs/examples/spot-trading.md` wording that still described
+  direct spot `SELL` known-profit guarding as optional. Fixed the example to
+  show complete direct BUY/SELL guard setup and the durable audit requirement.
+- 2026-06-10, explorer agent, same Phase 193 prompt after sweep/direct-audit
+  hardening: failed because live USDC sweep `SELL` could still run without the
+  known-profit policy, the API reference omitted audited-order evidence fields,
+  and the checklist did not include the current direct spot hard gates. Fixed
+  live sweep `SELL` to require `--require-known-profitable-inventory`, updated
+  direct-audit API samples, and expanded the checklist criteria.
+- 2026-06-10, explorer agent, same Phase 193 prompt after the above fixes:
+  passed. The agent identified direct dashboard spot gates, cancellation by
+  `client_order_id`, live sweep BUY/SELL boundaries, mandatory live SELL
+  known-profit policy, Admin HTTP live-disabled status, direct-audit
+  `audited_order_*` evidence fields, and no remaining
+  `--disable-safety-policy --approved-live-orders` path.

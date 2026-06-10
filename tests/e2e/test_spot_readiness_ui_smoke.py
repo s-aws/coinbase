@@ -196,6 +196,12 @@ def test_spot_readiness_panel_renders_dashboard_payload(page):
                     "planned_order_count": 2,
                     "planned_skip_count": 1,
                     "safety_decision": "allowed",
+                    "sell_authority_blocked_count": 1,
+                    "sell_authority_source_counts": {
+                        "fill_ledger": 2,
+                        "coinbase_average_cost": 3,
+                    },
+                    "sell_authority_stale_or_drift_blocked_count": 1,
                     "latest_live_run_id": "spot-sweep-live-1",
                     "latest_live_status": "completed",
                     "latest_live_skipped_order_count": 1,
@@ -255,6 +261,9 @@ def test_spot_readiness_panel_renders_dashboard_payload(page):
     expect(campaign_panel).to_contain_text("due")
     expect(campaign_panel).to_contain_text("spot-sweep-live-1")
     expect(campaign_panel).to_contain_text("reconcile 0")
+    expect(campaign_panel).to_contain_text("strict 2")
+    expect(campaign_panel).to_contain_text("avg cost 3")
+    expect(campaign_panel).to_contain_text("stale/drift 1")
     expect(campaign_panel).to_contain_text("submitted 2 USDC")
     expect(campaign_panel).to_contain_text("total 0.25 USDC")
 

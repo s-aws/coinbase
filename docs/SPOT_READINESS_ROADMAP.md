@@ -3914,46 +3914,10 @@ Status: prepared, not executed.
   browser smoke for direct-order and spot-readiness UI, ownership check, and
   `git diff --check` with CRLF warnings only.
 
-Next approval batch:
-
-- Phase 185 - Dashboard Direct Audit UI Panel:
-  add a small dashboard UI input for `client_order_id` direct spot audit and
-  browser smoke coverage. No live execution.
-- Phase 186 - Campaign Cleanup Apply Gate Design:
-  design a controlled local-only path for recording approved cleanup-plan
-  items, with dry-run default and no exchange mutation.
-- Phase 187 - Strict SELL Authority Shrinkage Triage:
-  explain why current strict authority narrowed to `PERP-USDC` and whether the
-  result is expected lot consumption, config scope, price drift, or missing
-  local fills. No live execution.
-- Phase 188 - Exact SELL Canary Proposal Artifact:
-  generate an explicit proposal artifact from candidate output and validator
-  output so live approval can refer to a single product/cap set.
-- Phase 189 - Product-Level P/L Snapshot Persistence Review:
-  verify whether campaign snapshots should persist product-level P/L rows by
-  default or only on operator request, then implement the safer option.
-- Phase 190 - Authority Report Dashboard Status:
-  expose strict vs average-cost authority counts and stale/drift counts in the
-  dashboard status surface without Coinbase order placement.
-- Phase 191 - Broad BUY Scheduler Rehearsal Gate:
-  rehearse the broad BUY scheduler due/not-due transitions using durable state,
-  with no live order approval.
-- Phase 192 - Retry Plan Public Fixture Expansion:
-  add a public fixture with submitted, retryable, and planned-skip rows so
-  smaller agents can understand retry behavior without private runtime data.
-- Phase 193 - Contextless Blind-Agent Rerun:
-  run the blind-agent spot-order task against the updated docs/code and record
-  pass/fail evidence. Fix repo context if it fails.
-- Phase 194 - Direct Manual Order Audit Backfill Review:
-  check whether older direct dashboard orders without explicit audit command
-  visibility need documentation or local-only audit examples.
-- Phase 195 - Phase 184 Live Approval Packet:
-  prepare the exact command packet for the `PERP-USDC` one-product strict SELL
-  canary, but do not execute unless live Coinbase execution is explicitly
-  approved.
-- Phase 196 - Full Release Gate:
-  run full regression, browser smoke, ownership, diff checks, and read-only
-  spot release gates after Phases 185-195.
+Phase 185-196 work is tracked in
+[`docs/plans/SPOT_PHASE_185_196_REPORT.md`](plans/SPOT_PHASE_185_196_REPORT.md).
+No live Coinbase execution is approved in that phase group. Phase 195 prepares
+the exact `PERP-USDC` one-product strict SELL packet only.
 
 ## Deferred Until After Readiness
 

@@ -625,28 +625,80 @@ class ActionConditionGuard:
         )
         return size * limit_price * multiplier
 
-    def _evaluate_limit_rules(
+    def has_applicable_notional_cap(
+        self,
+        *,
+        phase: ActionGuardPhase,
+        product_id: str,
+        side: str,
+    ) -> bool:
+        """Return True when a matching limit rule defines ``max_notional``."""
+        phase_value = coerce_action_guard_phase(phase)
+        try:
+            side_value = OrderSide(str(side or "").upper()).value
+        except ValueError:
+            side_value = str(side or "").upper()
+        context = _resolve_product_context(
+            product_id,
+            product_metadata=self._product_metadata,
+            spot_product_ids=self._spot_product_ids,
+        )
+        context.update({
+            "side": side_value,
+            "phase": phase_value,
+        })
+        for _index, rule in self._matching_limit_rules(
+            phase=phase_value,
+            context=context,
+        ):
+            if safe_float(
+                rule.get(ActionConditionType.MAX_NOTIONAL.value),
+                default=None,
+            ) is not None:
+                return True
+        return False
+
+    def requires_known_inventory_for_sell(
+        self,
+        *,
+        phase: ActionGuardPhase,
+        product_id: str,
+        side: str,
+    ) -> bool:
+        """Return True when policy requires known inventory for this SELL."""
+        phase_value = coerce_action_guard_phase(phase)
+        try:
+            side_value = OrderSide(str(side or "").upper()).value
+        except ValueError:
+            side_value = str(side or "").upper()
+        context = _resolve_product_context(
+            product_id,
+            product_metadata=self._product_metadata,
+            spot_product_ids=self._spot_product_ids,
+        )
+        inventory_policy = normalize_action_guard_known_inventory_policy(
+            self.policy
+        )
+        return (
+            inventory_policy.get("enabled", False) is not False
+            and _phase_enabled(inventory_policy, phase_value)
+            and context["product_type"] == ProductType.SPOT.value
+            and side_value == OrderSide.SELL.value
+        )
+
+    def _matching_limit_rules(
         self,
         *,
         phase: str,
         context: Dict[str, Any],
-        size: float,
-        limit_price: float,
-        quote_size: float,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> list[tuple[int, Dict[str, Any]]]:
         limits = self.policy.get("limits") or []
         if isinstance(limits, dict):
             limits = list(limits.values())
         if not isinstance(limits, list):
-            return None
+            return []
 
-        notional = self._estimate_notional(
-            product_type=context["product_type"],
-            metadata=context["metadata"],
-            size=size,
-            limit_price=limit_price,
-            quote_size=quote_size,
-        )
+        matches: list[tuple[int, Dict[str, Any]]] = []
         for index, rule in enumerate(limits):
             if not isinstance(rule, dict):
                 continue
@@ -660,7 +712,29 @@ class ActionConditionGuard:
                 continue
             if not _value_matches(rule.get("side"), context["side"]):
                 continue
+            matches.append((index, rule))
+        return matches
 
+    def _evaluate_limit_rules(
+        self,
+        *,
+        phase: str,
+        context: Dict[str, Any],
+        size: float,
+        limit_price: float,
+        quote_size: float,
+    ) -> Optional[Dict[str, Any]]:
+        notional = self._estimate_notional(
+            product_type=context["product_type"],
+            metadata=context["metadata"],
+            size=size,
+            limit_price=limit_price,
+            quote_size=quote_size,
+        )
+        for index, rule in self._matching_limit_rules(
+            phase=phase,
+            context=context,
+        ):
             max_base_size = safe_float(
                 rule.get(ActionConditionType.MAX_BASE_SIZE.value),
                 default=None,

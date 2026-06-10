@@ -17,6 +17,7 @@ from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
     OrderSide,
+    ProductType,
     StealthOrderStatus,
 )
 from core.exceptions import OrderCreationError
@@ -322,9 +323,22 @@ def _admitting_controller():
 
 
 def test_dashboard_direct_spot_order_subtracts_hidden_stealth_budget(monkeypatch):
+    import configuration
     import core.action_condition_guard as guard_module
     import dashboard_server
 
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {
+            "limits": [{
+                "name": "direct_spot_cap",
+                "product_type": ProductType.SPOT.value,
+                "max_notional": 1000,
+                "phases": [ActionGuardPhase.PLANNING.value],
+            }]
+        },
+    )
     monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: True)
     monkeypatch.setattr(
         guard_module,

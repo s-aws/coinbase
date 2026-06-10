@@ -2755,6 +2755,7 @@
             const gate = readiness.release_gate || {};
             const pnl = ((readiness.dry_run || {}).pnl_snapshot) || {};
             const portfolio = pnl.portfolio || {};
+            const authoritySources = summary.sell_authority_source_counts || {};
             const pendingRecovery = Number(summary.planned_reconciliation_run_count || 0) +
                 Number(summary.planned_backfill_order_count || 0);
             const operatorState = pendingRecovery
@@ -2802,6 +2803,15 @@
                         planned ${formatReadinessAmount(summary.planned_order_count || plan.planned_count || 0)}<br>
                         skipped ${formatReadinessAmount(summary.planned_skip_count || plan.skipped_count || 0)}<br>
                         safety ${escapeHtml(summary.safety_decision || safety.decision || '--')}
+                    </div>
+                </div>
+                <div class="readiness-item">
+                    <div class="readiness-label">SELL Authority</div>
+                    <div class="readiness-value">
+                        strict ${formatReadinessAmount(authoritySources.fill_ledger || 0)}<br>
+                        avg cost ${formatReadinessAmount(authoritySources.coinbase_average_cost || 0)}<br>
+                        blocked ${formatReadinessAmount(summary.sell_authority_blocked_count || 0)}<br>
+                        stale/drift ${formatReadinessAmount(summary.sell_authority_stale_or_drift_blocked_count || 0)}
                     </div>
                 </div>
                 <div class="readiness-item">

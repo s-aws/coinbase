@@ -183,9 +183,12 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   the current mark plus `--limit-price-offset-bps`; limit SELL uses a price at
   or below the mark minus the offset.
 - Safety-policy blocks are recorded with live Coinbase order notional of `0`.
-- `--require-known-profitable-inventory` can require planned SELL sweep items
-  to be covered by known profitable fill-ledger or imported baseline lots before
-  live execution starts.
+- `--require-known-profitable-inventory` is required for live SELL sweeps. It
+  requires planned SELL items to be covered by known profitable fill-ledger or
+  imported baseline lots before live execution starts.
+- `--disable-safety-policy` is incompatible with `--approved-live-orders`.
+  It is reserved for read-only diagnostics and validation paths where no
+  Coinbase order can be submitted.
 - `--allow-coinbase-average-cost-basis` is an explicit SELL authority opt-in,
   not a default. Use it only with an additional profit buffer and only when
   Coinbase average cost is acceptable for the operational decision being made.

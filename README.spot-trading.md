@@ -87,6 +87,9 @@ increments and quote-notional minimums from `products.json`.
   cancellation exception: callers must pass `client_order_id`, and the server
   calls this repo's `REST_CLIENT.cancel_order(client_order_id)` wrapper because
   Coinbase accepts the client id for that operation.
+- The current boundary between legacy live WebSocket commands, read-only HTTP
+  routes, and sweep/campaign execution is maintained in
+  [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
 ## Supported Submission Surfaces
 
@@ -97,6 +100,9 @@ another REST placement path.
 Scope note: direct dashboard and stealth placement use products configured in
 `products.json`; the portfolio sweep and campaign features are intentionally
 USDC-only even if `products.json` also contains USD-quoted spot products.
+The checked-in `products.json` is intentionally a minimal local catalog and
+does not represent all Coinbase spot products. Do not infer USDC sweep or
+campaign coverage from that file.
 
 Automation note: do not build scheduled or portfolio-wide spot automation on
 raw dashboard `place_order`. Use USDC sweep/campaign when the workflow needs
@@ -142,6 +148,12 @@ local order that reveals later under the shared guard path.
   The dashboard can return the same local audit with
   `request_spot_direct_order_audit` and `params.client_order_id`.
   These are read-only local evidence audits, not retry or automation wrappers.
+  In direct-audit output, `live_coinbase_orders_ran` and
+  `audit_command_live_coinbase_orders_ran` mean the audit command itself did
+  not submit orders. Use `audited_order_live_submission_evidence`,
+  `audited_order_estimated_submitted_notional_usdc`, and
+  `audited_order_fill_notional_usdc` for evidence about the already-submitted
+  order being audited.
   Direct orders still rely on the normal dashboard response,
   `order_event_stream` submission evidence, websocket/order lifecycle handling,
   fill-ledger rows, and the shared reconciliation/fill-audit paths keyed by
@@ -152,15 +164,26 @@ local order that reveals later under the shared guard path.
   confirm the product is intentionally configured/tradable, confirm the order
   side and base or quote notional, confirm the planning guard policy is the one
   intended for this account, set `manual_live_acknowledgement=true`, and for
-  spot `SELL` decide whether wallet sellability is sufficient. Default direct
-  `SELL` admission is wallet guarded, but it is not known-profit guarded unless
-  `known_inventory_available` is enabled and supported by fill-ledger/imported
-  known-cost authority. Configure direct-order notional caps through the shared
-  action-condition guard, for example a `limits` rule with
-  `product_type=SPOT`, `max_notional`, and `phases=["planning"]`. Use a
-  regenerated strict SELL allowlist through sweep/campaign instead of raw
-  `place_order` when the operator needs profit-authority evidence, per-run caps,
-  skipped-order accounting, or repeatable portfolio execution.
+  spot `SELL` confirm the known-profit authority policy. Direct spot live
+  placement requires an explicit planning-phase `max_notional` action-condition
+  cap before REST submission. Direct spot `SELL` also requires
+  `known_inventory_available` to be enabled and supported by
+  fill-ledger/imported known-cost authority. Direct spot placement also
+  requires an enabled local `order_event_stream` publisher before REST
+  submission so the `client_order_id` can be audited after the exchange call.
+  Use a regenerated strict SELL allowlist through sweep/campaign instead of raw
+  `place_order` when the operator needs portfolio-wide profit-authority
+  evidence, per-run caps, skipped-order accounting, or repeatable execution.
+  Raw direct spot `SELL` should be limit-priced. A direct market SELL does not
+  supply a positive operator-selected sale price for the known-inventory
+  authority check, so it should be treated as fail-closed under the direct spot
+  guard. Use sweep/campaign for market-style portfolio SELLs because those
+  runners build mark-aware plan and explain rows before submission.
+  The repository does not ship a default account cap in `products.json` because
+  that would silently choose risk limits for every local account. Operators must
+  set `ACTION_CONDITION_GUARDS_JSON` or
+  `products.json::action_condition_guards` before using raw direct spot orders;
+  see [Action Condition Guard Examples](docs/examples/action-condition-guards.md).
 - Dashboard `cancel_order` is a manual cancellation surface. It accepts
   top-level `client_order_id` or `params.client_order_id`, rejects requests that
   provide only `order_id`, and calls `REST_CLIENT.cancel_order(client_order_id)`.
@@ -186,7 +209,9 @@ local order that reveals later under the shared guard path.
 - USDC portfolio sweep live execution runs through
   `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`. The sweep
   planner rechecks the action guard immediately before each
-  `rest_client.create_order` call. Live sweep placements use UUID
+  `rest_client.create_order` call. Live SELL sweeps require
+  `--require-known-profitable-inventory`, so wallet balance alone cannot
+  authorize a live SELL sweep. Live sweep placements use UUID
   `client_order_id` values, publish `order_submitted`/`rest_submit` evidence to
   `order_event_stream` when the local event stream is available, and write
   submitted orders, submitted notional, fill-backfill status, and

@@ -16,6 +16,7 @@ from business.spot_campaign import (
     build_spot_campaign_dry_run_matrix,
     build_spot_campaign_dry_run_diff,
     build_spot_campaign_intake_request,
+    build_spot_campaign_ledger_cleanup_apply,
     build_spot_campaign_ledger_cleanup_plan,
     build_spot_campaign_no_order_recovery_drill,
     build_spot_campaign_operator_status,
@@ -93,6 +94,22 @@ WALLETS = {
     "AAA": {"available_balance": {"value": "1", "currency": "AAA"}},
     "BBB": {"available_balance": {"value": "1", "currency": "BBB"}},
 }
+
+
+class _FakeFillLedgerRepo:
+    def __init__(self, fills):
+        self.fills = fills
+
+    def get_fills_by_product(self, product_id, side=None):
+        rows = [
+            fill
+            for fill in self.fills
+            if fill.get("product_id") == product_id
+            or fill.get("instrument") == product_id
+        ]
+        if side:
+            rows = [fill for fill in rows if fill.get("side") == side.upper()]
+        return rows
 
 
 def _campaign_config(**overrides):
@@ -708,6 +725,111 @@ def test_spot_campaign_ledger_cleanup_plan_classifies_unrecorded_runs():
     assert cleanup["live_coinbase_orders_ran"] is False
 
 
+def test_spot_campaign_ledger_cleanup_apply_builds_local_records():
+    config = _campaign_config()
+    normalized = normalize_spot_campaign_config(config)
+    campaign_record = build_spot_campaign_snapshot_record(
+        config=config,
+        mode=SpotCampaignRunMode.DRY_RUN,
+        status=SpotCampaignStatus.READY,
+        dry_run_matrix={
+            "plan": {"planned_count": 1},
+            "safety_evaluation": {
+                "decision": SpotPortfolioSweepSafetyDecision.ALLOWED.value,
+            },
+        },
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    live_run = build_sweep_run_record(
+        config_id=normalized["sweep_config_id"],
+        run_id="spot-sweep-unrecorded-live",
+        status=SpotPortfolioSweepRunStatus.COMPLETED.value,
+        started_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        completed_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        config=spot_campaign_config_to_sweep_config(config),
+        execution={
+            "live_coinbase_orders_ran": True,
+            "total_submitted_notional_usdc": "1",
+            "total_executed_notional_usdc": "0.99",
+        },
+    )
+
+    apply_plan = build_spot_campaign_ledger_cleanup_apply(
+        campaign_records=[campaign_record],
+        sweep_records=[live_run],
+        approved_run_ids=["spot-sweep-unrecorded-live"],
+        dry_run=True,
+        actor_id="operator-001",
+        generated_at=datetime(2026, 1, 4, tzinfo=timezone.utc),
+    )
+
+    assert apply_plan["mode"] == SpotCampaignRunMode.LEDGER_CLEANUP_APPLY.value
+    assert apply_plan["status"] == SpotCampaignStatus.READY.value
+    assert apply_plan["dry_run"] is True
+    assert apply_plan["append_record_count"] == 1
+    assert apply_plan["records_to_append"][0]["mode"] == (
+        SpotCampaignRunMode.LEDGER_CLEANUP_APPLY.value
+    )
+    assert apply_plan["records_to_append"][0]["sweep_summary"]["run_id"] == (
+        "spot-sweep-unrecorded-live"
+    )
+    assert apply_plan["records_to_append"][0]["cleanup_approval"]["local_only"] is True
+    assert apply_plan["live_coinbase_orders_ran"] is False
+
+
+def test_spot_campaign_ledger_cleanup_apply_cli_appends_approved_local_record():
+    scratch_id = uuid4().hex
+    config = _campaign_config()
+    normalized = normalize_spot_campaign_config(config)
+    scratch_dir = Path("runtime_state") / "test_spot_campaign"
+    campaign_state_file = scratch_dir / f"cleanup_campaign_{scratch_id}.jsonl"
+    sweep_state_file = scratch_dir / f"cleanup_sweep_{scratch_id}.jsonl"
+    campaign_record = build_spot_campaign_snapshot_record(
+        config=config,
+        mode=SpotCampaignRunMode.DRY_RUN,
+        status=SpotCampaignStatus.READY,
+        dry_run_matrix={
+            "plan": {"planned_count": 1},
+            "safety_evaluation": {
+                "decision": SpotPortfolioSweepSafetyDecision.ALLOWED.value,
+            },
+        },
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    sweep_run = build_sweep_run_record(
+        config_id=normalized["sweep_config_id"],
+        run_id="spot-sweep-unrecorded-live",
+        status=SpotPortfolioSweepRunStatus.COMPLETED.value,
+        started_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        completed_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        config=spot_campaign_config_to_sweep_config(config),
+        execution={
+            "live_coinbase_orders_ran": True,
+            "total_submitted_notional_usdc": "1",
+            "total_executed_notional_usdc": "0.99",
+        },
+    )
+    append_spot_campaign_snapshot_record(campaign_state_file, campaign_record)
+    append_sweep_run_record(sweep_state_file, sweep_run)
+
+    rc = run_spot_campaign_main([
+        "--apply-ledger-cleanup-plan",
+        "--approved-cleanup-run-id",
+        "spot-sweep-unrecorded-live",
+        "--execute-local-cleanup-apply",
+        "--state-file",
+        str(campaign_state_file),
+        "--sweep-state-file",
+        str(sweep_state_file),
+    ])
+
+    assert rc == 0
+    records = load_spot_campaign_snapshot_records(campaign_state_file)
+    assert records[-1]["mode"] == SpotCampaignRunMode.LEDGER_CLEANUP_APPLY.value
+    assert records[-1]["sweep_summary"]["run_id"] == "spot-sweep-unrecorded-live"
+    assert records[-1]["cleanup_approval"]["local_only"] is True
+
+
 def test_spot_campaign_authority_drift_report_blocks_removed_products():
     previous = {
         "generated_at": "2026-06-10T12:00:00+00:00",
@@ -919,6 +1041,57 @@ def test_spot_campaign_pnl_delta_report_compares_durable_scopes():
     assert deltas[("realized_lot", "portfolio_realized_pnl")] == "0.02"
     assert deltas[("average_cost", "average_cost_total_pnl")] == "0.22"
     assert deltas[("product", "AAA-USDC")] == "0.17"
+
+
+def test_spot_campaign_pnl_product_rows_are_explicit_opt_in():
+    fills = [
+        {
+            "product_id": "AAA-USDC",
+            "side": "BUY",
+            "quantity": "1",
+            "price": "8",
+            "fees": "0",
+            "timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        },
+    ]
+    default_matrix = build_spot_campaign_dry_run_matrix(
+        config=_campaign_config(max_products=1),
+        products=PRODUCTS,
+        wallets=WALLETS,
+        fill_ledger_repo=_FakeFillLedgerRepo(fills),
+        include_items=False,
+        generated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+    opt_in_matrix = build_spot_campaign_dry_run_matrix(
+        config=_campaign_config(max_products=1),
+        products=PRODUCTS,
+        wallets=WALLETS,
+        fill_ledger_repo=_FakeFillLedgerRepo(fills),
+        include_items=False,
+        include_pnl_products=True,
+        generated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+
+    assert "products" not in default_matrix["pnl_snapshot"]
+    assert opt_in_matrix["pnl_snapshot"]["products"][0]["product_id"] == "AAA-USDC"
+
+    default_record = build_spot_campaign_snapshot_record(
+        config=_campaign_config(max_products=1),
+        mode=SpotCampaignRunMode.DRY_RUN,
+        status=SpotCampaignStatus.READY,
+        dry_run_matrix=default_matrix,
+    )
+    opt_in_record = build_spot_campaign_snapshot_record(
+        config=_campaign_config(max_products=1),
+        mode=SpotCampaignRunMode.DRY_RUN,
+        status=SpotCampaignStatus.READY,
+        dry_run_matrix=opt_in_matrix,
+    )
+
+    assert "products" not in default_record["dry_run"]["pnl_snapshot"]
+    assert opt_in_record["dry_run"]["pnl_snapshot"]["products"][0]["product_id"] == (
+        "AAA-USDC"
+    )
 
 
 def test_spot_campaign_operator_status_preserves_readiness_after_live_canary():
@@ -1210,6 +1383,33 @@ def test_spot_campaign_retry_plan_targets_only_not_submitted_partial_orders():
     }
 
 
+def test_spot_campaign_retry_plan_public_fixture_classifies_rows():
+    fixture = json.loads(
+        Path("docs/examples/spot-campaign-retry-plan-fixture.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    retry_plan = build_spot_campaign_retry_plan(
+        config=fixture["config"],
+        sweep_records=fixture["sweep_records"],
+        run_id=fixture["sweep_records"][0]["run_id"],
+        generated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+
+    assert retry_plan["retry_status"] == SpotCampaignStatus.READY.value
+    assert retry_plan["retryable_product_ids"] == ["BBB-USDC"]
+    assert retry_plan["submitted_or_live_product_ids"] == ["AAA-USDC"]
+    assert retry_plan["not_retryable_product_ids"] == ["CCC-USDC"]
+    assert retry_plan["retry_config"]["product_scope"]["allow_products"] == [
+        "BBB-USDC"
+    ]
+    assert {
+        row["product_id"]: row["class"]
+        for row in retry_plan["order_classes"]
+    } == fixture["expected"]["order_classes"]
+
+
 def test_spot_campaign_retry_plan_cli_writes_retry_config():
     scratch_dir = Path("genai_tools")
     scratch_dir.mkdir(exist_ok=True)
@@ -1271,6 +1471,74 @@ def test_spot_campaign_retry_plan_cli_writes_retry_config():
         campaign_config_file.unlink(missing_ok=True)
         sweep_state_file.unlink(missing_ok=True)
         retry_config_file.unlink(missing_ok=True)
+
+
+def test_spot_campaign_scheduler_status_cli_rehearses_due_and_not_due(capsys):
+    scratch_dir = Path("genai_tools")
+    scratch_dir.mkdir(exist_ok=True)
+    scratch_id = uuid4().hex
+    campaign_config = _campaign_config(
+        campaign_id=f"spot-campaign-scheduler-{scratch_id}",
+        sweep_config_id=f"spot-sweep-scheduler-{scratch_id}",
+        max_products=2,
+    )
+    campaign_config_file = scratch_dir / f"spot_campaign_scheduler_{scratch_id}.json"
+    sweep_state_file = scratch_dir / f"spot_sweep_scheduler_{scratch_id}.jsonl"
+    campaign_config_file.write_text(json.dumps(campaign_config), encoding="utf-8")
+    config = normalize_spot_campaign_config(campaign_config)
+    try:
+        due_rc = run_spot_campaign_main([
+            "--config-file",
+            str(campaign_config_file),
+            "--sweep-state-file",
+            str(sweep_state_file),
+            "--scheduler-status",
+        ])
+        due_payload = json.loads(
+            capsys.readouterr().out.strip().splitlines()[-1].removeprefix(
+                "SPOT_CAMPAIGN "
+            )
+        )
+        assert due_rc == 0
+        assert due_payload["scheduler_status"]["scheduler_decision"]["decision"] == (
+            SpotPortfolioSweepAutomationDecision.DUE.value
+        )
+
+        append_sweep_run_record(
+            sweep_state_file,
+            build_sweep_run_record(
+                config_id=config["sweep_config_id"],
+                run_id="spot-sweep-scheduler-not-due",
+                status=SpotPortfolioSweepRunStatus.COMPLETED.value,
+                started_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(timezone.utc),
+                config=spot_campaign_config_to_sweep_config(config),
+                execution={
+                    "live_coinbase_orders_ran": True,
+                    "total_submitted_notional_usdc": "1",
+                    "total_executed_notional_usdc": "1",
+                },
+            ),
+        )
+        not_due_rc = run_spot_campaign_main([
+            "--config-file",
+            str(campaign_config_file),
+            "--sweep-state-file",
+            str(sweep_state_file),
+            "--scheduler-status",
+        ])
+        not_due_payload = json.loads(
+            capsys.readouterr().out.strip().splitlines()[-1].removeprefix(
+                "SPOT_CAMPAIGN "
+            )
+        )
+        assert not_due_rc == 1
+        assert not_due_payload["scheduler_status"]["scheduler_decision"]["decision"] == (
+            SpotPortfolioSweepAutomationDecision.NOT_DUE.value
+        )
+    finally:
+        campaign_config_file.unlink(missing_ok=True)
+        sweep_state_file.unlink(missing_ok=True)
 
 
 def test_spot_campaign_read_only_report_cli_modes():

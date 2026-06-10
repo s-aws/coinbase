@@ -54,6 +54,49 @@ product type and planning phase:
 $env:ACTION_CONDITION_GUARDS_JSON = '{"limits":[{"name":"direct_spot_cap","product_type":"SPOT","max_notional":100,"phases":["planning"]}]}'
 ```
 
+The checked-in `products.json` intentionally does not include an account-wide
+direct-order cap. Raw dashboard spot placement blocks until operators set a
+matching planning-phase `max_notional` guard policy explicitly.
+
+## Production Direct Spot Guard Baseline
+
+Use this shape when direct dashboard spot orders need a cap and spot `SELL`
+orders should be allowed through known profitable inventory. It applies to
+configured spot products in `products.json`; USDC sweep/campaign has separate
+run-level caps and authority allowlists.
+Direct spot placement also requires the local `order_event_stream` publisher to
+be enabled before REST submission.
+
+```powershell
+$env:ACTION_CONDITION_GUARDS_JSON = '{"wallet_available":{"enabled":true,"block_without_credentials":true},"known_inventory_available":{"enabled":true,"phases":["planning"]},"limits":[{"name":"direct_spot_order_cap","product_type":"SPOT","max_notional":25,"phases":["planning"]}]}'
+```
+
+The same object can be stored in `products.json` under
+`action_condition_guards`:
+
+```json
+{
+  "action_condition_guards": {
+    "wallet_available": {
+      "enabled": true,
+      "block_without_credentials": true
+    },
+    "known_inventory_available": {
+      "enabled": true,
+      "phases": ["planning"]
+    },
+    "limits": [
+      {
+        "name": "direct_spot_order_cap",
+        "product_type": "SPOT",
+        "max_notional": 25,
+        "phases": ["planning"]
+      }
+    ]
+  }
+}
+```
+
 ## Add A Futures Contract Cap
 
 ```powershell

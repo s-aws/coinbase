@@ -28,6 +28,7 @@ from business.spot_campaign import (
     build_spot_campaign_dry_run_matrix,
     build_spot_campaign_dry_run_diff,
     build_spot_campaign_intake_request,
+    build_spot_campaign_ledger_cleanup_apply,
     build_spot_campaign_ledger_cleanup_plan,
     build_spot_campaign_no_order_recovery_drill,
     build_spot_campaign_operation_lock_status,
@@ -296,6 +297,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Plan local recording or intentional ignore handling for unrecorded sweep runs.",
     )
     parser.add_argument(
+        "--apply-ledger-cleanup-plan",
+        action="store_true",
+        help="Build local-only campaign ledger cleanup records for approved sweep run ids.",
+    )
+    parser.add_argument(
+        "--approved-cleanup-run-id",
+        action="append",
+        default=[],
+        help="Approved sweep run_id for --apply-ledger-cleanup-plan. Repeat for multiple runs.",
+    )
+    parser.add_argument(
+        "--execute-local-cleanup-apply",
+        action="store_true",
+        help="Append approved cleanup records locally. Without this flag the apply mode is dry-run only.",
+    )
+    parser.add_argument(
         "--sell-authority-drift-report",
         action="store_true",
         help="Compare two SELL authority allowlists for product-removal drift.",
@@ -498,6 +515,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Omit per-product rows from printed read-only reports.",
     )
+    parser.add_argument(
+        "--include-pnl-products",
+        action="store_true",
+        help="Persist product-level P/L rows in campaign dry-run snapshots.",
+    )
     return parser
 
 
@@ -515,6 +537,7 @@ def main(argv: list[str] | None = None) -> int:
             args.pnl_checkpoints,
             args.pnl_delta_report,
             args.ledger_cleanup_plan,
+            args.apply_ledger_cleanup_plan,
             args.sell_authority_drift_report,
             args.authority_operator_report,
             args.strict_sell_canary_candidates,
@@ -561,6 +584,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.write_retry_config_file and not args.retry_plan:
         parser.error("--write-retry-config-file is valid only with --retry-plan")
+    if args.approved_cleanup_run_id and not args.apply_ledger_cleanup_plan:
+        parser.error("--approved-cleanup-run-id is valid only with --apply-ledger-cleanup-plan")
+    if args.execute_local_cleanup_apply and not args.apply_ledger_cleanup_plan:
+        parser.error("--execute-local-cleanup-apply is valid only with --apply-ledger-cleanup-plan")
+    if args.apply_ledger_cleanup_plan and not args.approved_cleanup_run_id:
+        parser.error("--apply-ledger-cleanup-plan requires --approved-cleanup-run-id")
     if args.baseline_allowlist_file and not args.sell_authority_drift_report:
         parser.error("--baseline-allowlist-file is valid only with --sell-authority-drift-report")
     if args.current_allowlist_file and not args.sell_authority_drift_report:
@@ -644,6 +673,35 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
         return 0
+
+    if args.apply_ledger_cleanup_plan:
+        cleanup_apply = build_spot_campaign_ledger_cleanup_apply(
+            campaign_records=load_spot_campaign_snapshot_records(args.state_file),
+            sweep_records=load_sweep_run_records(args.sweep_state_file),
+            approved_run_ids=args.approved_cleanup_run_id,
+            dry_run=not args.execute_local_cleanup_apply,
+            actor_id="cli",
+        )
+        appended_count = 0
+        if (
+            args.execute_local_cleanup_apply
+            and cleanup_apply["status"] != SpotCampaignStatus.BLOCKED.value
+        ):
+            for record in cleanup_apply["records_to_append"]:
+                append_spot_campaign_snapshot_record(args.state_file, record)
+                appended_count += 1
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = cleanup_apply["status"]
+        summary["mode"] = SpotCampaignRunMode.LEDGER_CLEANUP_APPLY.value
+        summary["ledger_cleanup_apply"] = _report_summary_for_print(
+            {
+                **cleanup_apply,
+                "appended_record_count": appended_count,
+            },
+            summary_only=args.summary_only,
+        )
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0 if cleanup_apply["status"] != SpotCampaignStatus.BLOCKED.value else 1
 
     if args.pnl_checkpoints:
         checkpoints = build_spot_campaign_pnl_checkpoints(
@@ -805,7 +863,7 @@ def main(argv: list[str] | None = None) -> int:
         summary["mode"] = SpotCampaignRunMode.SCHEDULER_STATUS.value
         summary["scheduler_status"] = scheduler_status
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
-        return 0
+        return 0 if scheduler_status["status"] == SpotCampaignStatus.READY.value else 1
 
     if args.write_sweep_config_file:
         sweep_config = spot_campaign_config_to_sweep_config(config)
@@ -986,6 +1044,7 @@ def main(argv: list[str] | None = None) -> int:
             or args.no_order_recovery_drill
             or args.sell_authority_allowlist
         ),
+        include_pnl_products=args.include_pnl_products,
     )
     read_requests = [
         "get_public_products",
@@ -1096,6 +1155,7 @@ def main(argv: list[str] | None = None) -> int:
             coinbase_average_costs=cost_basis,
             sweep_records=sweep_records,
             include_items=True,
+            include_pnl_products=args.include_pnl_products,
         )
         diff = build_spot_campaign_dry_run_diff(
             baseline_matrix=baseline_matrix,

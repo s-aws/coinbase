@@ -163,6 +163,10 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert payload["required_permission"] == AdminApiPermission.ORDER_CREATE.value
     assert payload["service_method"] == "place_manual_order"
     assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["guard"]["approval_snapshot_required"] is True
+    assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["guard"]["live_execution_enabled"] is False
     assert payload["audit_id"]
     assert response.headers["x-correlation-id"] == "corr-001"
 
@@ -185,6 +189,9 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
     assert payload["service_method"] == "cancel_order_by_client_order_id"
     assert payload["client_order_id"] == "client-abc"
     assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["guard"]["approval_snapshot_required"] is True
+    assert payload["guard"]["cap_evaluation_required"] is True
 
 
 @pytest.mark.regression
@@ -311,6 +318,9 @@ def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates()
     assert "cancel_orders(" not in service_source
     assert "_dashboard_command_service().place_manual_order" in dashboard_source
     assert "_dashboard_command_service().cancel_order_by_client_order_id" in dashboard_source
+    assert "_dashboard_command_service().place_hotpoint_test_order" in dashboard_source
+    assert "REST_CLIENT.limit_order_gtc" not in dashboard_source
+    assert "_coinbase_order_response_to_dict" not in dashboard_source
 
 
 @pytest.mark.regression
@@ -358,6 +368,13 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["POST /api/v1/orders/{client_order_id}/cancel"].action_class == (
         AdminApiActionClass.LIVE_EXCHANGE_CANCEL
     )
+    assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
+        "place_hotpoint_test_order"
+    )
+    assert rows["place_hotpoint_test_order WebSocket"].action_class == (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE
+    )
     assert "compatibility_only" in doc
     assert "cancel_order_by_client_order_id" in doc
     assert "place_manual_order" in doc
+    assert "place_hotpoint_test_order" in doc

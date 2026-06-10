@@ -2064,6 +2064,7 @@ def test_live_sweep_rejects_stale_sell_authority_allowlist_before_credentials(ca
                 "quote_notional": "1",
                 "max_products": 1,
                 "safety_policy": {
+                    "require_known_profitable_inventory": True,
                     "max_total_notional_per_run": "1",
                     "max_notional_per_order": "1",
                     "allow_products": ["AAA-USDC"],
@@ -2115,6 +2116,43 @@ def test_average_cost_sell_authority_requires_known_inventory_policy():
         ])
 
     assert exc.value.code == 2
+
+
+def test_live_sweep_rejects_disabled_safety_policy(capsys):
+    from tools.run_spot_portfolio_sweep_live import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "--side",
+                "BUY",
+                "--quote-notional",
+                "1",
+                "--disable-safety-policy",
+                "--approved-live-orders",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert "--disable-safety-policy cannot be used" in capsys.readouterr().err
+
+
+def test_live_sell_sweep_requires_known_profitable_inventory_policy(capsys):
+    from tools.run_spot_portfolio_sweep_live import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "--side",
+                "SELL",
+                "--quote-notional",
+                "1",
+                "--approved-live-orders",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert "live SELL sweeps require" in capsys.readouterr().err
 
 
 def test_operation_lock_blocks_overlapping_scheduled_jobs():

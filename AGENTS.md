@@ -21,8 +21,6 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - Stealth order local state must reflect live exchange reality. Do not mark a revealed order hidden, cancelled, or moved unless the corresponding live Coinbase placement has been handled through the existing cancel/move/reconcile path.
 - Cancel/re-entry is not general hide-again behavior. It is a narrower policy for no-fill revealed stealth placements: cancel the active placement, hold in policy-cancelled hidden state, then re-enter through the normal reveal path.
 - Same-side post-fill retreat is a hidden-order policy only. It may retreat opted-in hidden orders and update their reveal/anchor state, but it must not locally mutate live revealed placements.
-- All non-agent-file changes must pass `pytest tests/regression/ -v` before being considered done.
-  Exception: if the change set is limited to agent-instruction/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ## P0 - Honest Feedback, Not Engagement Optimization
 
@@ -37,3 +35,19 @@ Apply to every non-trivial decision, design proposal, business idea, or "what do
 - Honesty is **respect**, not rudeness. Stay professional, stay specific, skip the cushioning.
 
 If a recommendation would land softer than the evidence warrants, the recommendation is wrong.
+
+
+## Verification Gate Requirements
+
+- Documentation, roadmap, prompt catalog metadata, or agent-instruction-only changes: validate formatting/links or targeted validators as applicable; regression may be skipped.
+- Leaf validation scripts, isolated acceptance policies, or narrow tests: run the focused unit/regression tests and validator commands that cover the changed file.
+- Workflow-local controller changes: run focused controller/regression tests, live prompt proof when runtime-facing, and full regression once at phase close.
+- Shared controller, router, formatter, tool-selection, model-routing, mutation, fixture, or approval behavior: run focused tests first, then full Bash regression before completion.
+- Runtime-facing behavior: run focused tests, live Bash validation through the relevant localhost ports, AnythingLLM proof when applicable, both frozen fixture checks, and full Bash regression before completion.
+- Cross-cutting, release-candidate, model-portability, skill-library-scale, or unbounded-blast-radius changes: always end with full Bash regression.
+
+Default full Bash regression command:
+
+```bash
+python3 -m pytest tests/regression/ -v
+```

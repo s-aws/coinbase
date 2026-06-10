@@ -1099,6 +1099,114 @@ def build_spot_campaign_ledger_cleanup_plan(
     }
 
 
+def build_spot_campaign_ledger_cleanup_apply(
+    *,
+    campaign_records: Iterable[Mapping[str, Any]],
+    sweep_records: Iterable[Mapping[str, Any]],
+    approved_run_ids: Iterable[str],
+    dry_run: bool = True,
+    actor_id: str | None = None,
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build local-only campaign ledger cleanup records for approved runs."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    approved_ids = sorted({_text(run_id) for run_id in approved_run_ids if _text(run_id)})
+    records = [
+        dict(record)
+        for record in campaign_records
+        if record.get("record_type") == SpotAuditRecordType.CAMPAIGN_SNAPSHOT.value
+    ]
+    records.sort(key=_timestamp_key)
+    latest_campaign_records = {
+        _text(record.get("campaign_id")): record
+        for record in records
+        if _text(record.get("campaign_id"))
+    }
+    cleanup_plan = build_spot_campaign_ledger_cleanup_plan(
+        campaign_records=records,
+        sweep_records=sweep_records,
+        generated_at=timestamp,
+    )
+    recordable_by_run_id = {
+        _text(row.get("run_id")): row
+        for row in cleanup_plan.get("recordable_runs") or []
+        if _text(row.get("run_id"))
+    }
+
+    failures: list[dict[str, Any]] = []
+    records_to_append: list[dict[str, Any]] = []
+    for run_id in approved_ids:
+        row = recordable_by_run_id.get(run_id)
+        if row is None:
+            failures.append({
+                "run_id": run_id,
+                "reason": (
+                    "approved run id is not currently recordable by the "
+                    "ledger cleanup plan"
+                ),
+            })
+            continue
+        campaign_record = latest_campaign_records.get(_text(row.get("campaign_id")))
+        if campaign_record is None:
+            failures.append({
+                "run_id": run_id,
+                "reason": "no campaign snapshot exists for cleanup record",
+            })
+            continue
+        record = build_spot_campaign_snapshot_record(
+            config=campaign_record.get("config") or {},
+            mode=SpotCampaignRunMode.LEDGER_CLEANUP_APPLY,
+            status=SpotCampaignStatus.RECORDED,
+            sweep_summary={
+                "run_id": run_id,
+                "status": row.get("status"),
+                "cleanup_source": SpotCampaignRunMode.LEDGER_CLEANUP_PLAN.value,
+                "live_coinbase_orders_ran": bool(row.get("live_coinbase_orders_ran")),
+                "total_submitted_notional_usdc": (
+                    row.get("total_submitted_notional_usdc") or "0"
+                ),
+                "total_executed_notional_usdc": (
+                    row.get("total_executed_notional_usdc") or "0"
+                ),
+            },
+            generated_at=timestamp,
+        )
+        record["cleanup_approval"] = {
+            "approved_run_id": run_id,
+            "actor_id": _text(actor_id) or None,
+            "dry_run": dry_run,
+            "local_only": True,
+        }
+        records_to_append.append(record)
+
+    status = (
+        SpotCampaignStatus.BLOCKED.value
+        if failures
+        else (
+            SpotCampaignStatus.READY.value
+            if dry_run
+            else SpotCampaignStatus.RECORDED.value
+        )
+    )
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.LEDGER_CLEANUP_APPLY.value,
+        "status": status,
+        "dry_run": dry_run,
+        "actor_id": _text(actor_id) or None,
+        "approved_run_ids": approved_ids,
+        "approved_run_count": len(approved_ids),
+        "append_record_count": len(records_to_append),
+        "records_to_append": records_to_append,
+        "failures": failures,
+        "cleanup_plan": cleanup_plan,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
 def _allowlist_products(allowlist: Mapping[str, Any]) -> list[str]:
     products = allowlist.get("allow_products") or []
     if not products and isinstance(allowlist.get("allowlist_rows"), list):
@@ -1804,7 +1912,11 @@ def _average_cost_baselines(cost_basis: Any) -> list[Mapping[str, Any]]:
     return []
 
 
-def _summarize_pnl_report(report: Mapping[str, Any] | None) -> dict[str, Any] | None:
+def _summarize_pnl_report(
+    report: Mapping[str, Any] | None,
+    *,
+    include_products: bool = False,
+) -> dict[str, Any] | None:
     if not report:
         return None
     snapshot = report.get("snapshot") if isinstance(report, Mapping) else {}
@@ -1815,13 +1927,20 @@ def _summarize_pnl_report(report: Mapping[str, Any] | None) -> dict[str, Any] | 
         if isinstance(average_cost, Mapping)
         else None
     )
-    return {
+    summary = {
         "generated_at": report.get("generated_at") or snapshot.get("generated_at"),
         "selected_product_count": report.get("selected_product_count"),
         "mark_price_count": report.get("mark_price_count"),
         "portfolio": dict(portfolio or {}),
         "average_cost_portfolio": dict(average_portfolio or {}),
     }
+    if include_products:
+        summary["products"] = list(snapshot.get("products") or [])
+        if isinstance(average_cost, Mapping):
+            summary["average_cost_products"] = list(
+                average_cost.get("products") or []
+            )
+    return summary
 
 
 def _summarize_cost_basis(cost_basis: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -1865,6 +1984,7 @@ def build_spot_campaign_dry_run_matrix(
     coinbase_average_costs: Any = None,
     sweep_records: Iterable[Mapping[str, Any]] | None = None,
     include_items: bool = True,
+    include_pnl_products: bool = False,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Build a read-only plan/safety/P&L matrix for one campaign config."""
@@ -1987,7 +2107,10 @@ def build_spot_campaign_dry_run_matrix(
         "plan_explain": explain,
         "inventory_coverage": inventory_coverage,
         "pnl_report": pnl_report,
-        "pnl_snapshot": _summarize_pnl_report(pnl_report),
+        "pnl_snapshot": _summarize_pnl_report(
+            pnl_report,
+            include_products=include_pnl_products,
+        ),
         "cost_basis": _summarize_cost_basis(
             coinbase_average_costs if isinstance(coinbase_average_costs, Mapping) else None
         ),
@@ -2897,6 +3020,9 @@ def _build_campaign_operator_summary(
         ),
         "sell_authority_status_counts": dict(
             sell_allowlist.get("authority_status_counts") or {}
+        ),
+        "sell_authority_stale_or_drift_blocked_count": _int_value(
+            sell_allowlist.get("stale_or_drift_blocked_count")
         ),
         "sell_authority_estimated_allowlisted_quote_notional": (
             sell_allowlist.get("estimated_allowlisted_quote_notional") or "0"

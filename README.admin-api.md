@@ -2,6 +2,8 @@
 
 This repository will expose the professional backend API for the separate
 enterprise admin frontend at `C:\coinbase-frontend`.
+The repository association is documented in
+[Frontend Association](docs/FRONTEND_ASSOCIATION.md).
 
 ## Current Status
 
@@ -15,13 +17,21 @@ The generated OpenAPI contract intentionally documents `501` as the current
 default mutating-route response, not `200`. Read-only spot routes document
 `401` and `403` because they use the same fail-closed auth/RBAC dependency.
 
-The legacy dashboard `place_order` and `cancel_order` WebSocket messages now
-delegate to `application.admin_api.command_service.AdminApiCommandService` as
-compatibility adapters. New product UI must use the HTTP API contract, not the
-dashboard WebSocket.
+The legacy dashboard `place_order`, `cancel_order`, and
+`place_hotpoint_test_order` WebSocket messages now delegate to
+`application.admin_api.command_service.AdminApiCommandService` as compatibility
+adapters. New product UI must use the HTTP API contract, not the dashboard
+WebSocket.
+
+Mutating HTTP command responses include the current fail-closed live execution
+gate decision. The gate reports that approval snapshots, cap evaluation, and
+durable audit are required before HTTP live execution can be enabled.
 
 The current operational dashboard is still the proof-of-concept WebSocket and
 HTML surface documented in `agent.md` and `genai_data/API_REFERENCE.md`.
+For the current boundary between legacy live WebSocket commands, read-only
+HTTP routes, and sweep/campaign execution, see
+[Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
 ## Direction
 
@@ -52,6 +62,8 @@ HTML surface documented in `agent.md` and `genai_data/API_REFERENCE.md`.
 - [Admin API E2E Plan](docs/plans/ADMIN_API_E2E_PLAN.md)
 - [Admin API Route Inventory](docs/plans/ADMIN_API_ROUTE_INVENTORY.md)
 - [Admin API Examples](docs/examples/admin-api.md)
+- [Frontend Association](docs/FRONTEND_ASSOCIATION.md)
+- [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md)
 - [API Reference](genai_data/API_REFERENCE.md)
 - [Order ID Handling](genai_data/ORDER_ID_HANDLING.md)
 - [Documentation Index](docs/README.md)

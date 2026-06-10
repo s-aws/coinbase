@@ -1,5 +1,9 @@
 # Spot Trading Examples
 
+For the current boundary between legacy live WebSocket commands, read-only HTTP
+routes, and sweep/campaign execution, see
+[Live Order Surfaces](../LIVE_ORDER_SURFACES.md).
+
 ## Verify The Configured BTC Spot Product
 
 ```powershell
@@ -138,20 +142,34 @@ mode; use `tools/run_spot_portfolio_sweep_dry_run.py` or campaign dry-run
 matrices when the operator needs a dry-runable spot workflow.
 
 Before sending a raw direct order, confirm the product, side, base or quote
-notional, and active action-condition guard policy. For spot `SELL`, decide
-whether wallet sellability is enough for the specific manual action. By
-default, direct `SELL` admission is wallet guarded but not known-profit
-guarded; enable `known_inventory_available` or use a regenerated strict SELL
-sweep/campaign allowlist when the operator needs fill-ledger/imported
-known-cost authority and repeatable caps.
+notional, active action-condition guard policy, and local audit availability.
+Spot direct placement requires the explicit `manual_live_acknowledgement=true`
+field before the server will submit to Coinbase. It also requires a matching
+planning-phase `max_notional` cap and an enabled local `order_event_stream`
+publisher before REST submission.
 
-Spot direct placement requires the explicit
-`manual_live_acknowledgement=true` field before the server will submit to
-Coinbase. To add a direct spot notional cap through the existing guard path:
+Configure a direct spot notional cap through the existing guard path:
 
 ```powershell
 $env:ACTION_CONDITION_GUARDS_JSON = '{"limits":[{"name":"direct_spot_cap","product_type":"SPOT","max_notional":100,"phases":["planning"]}]}'
 ```
+
+Direct spot `SELL` additionally requires `known_inventory_available` before
+REST. A complete direct SELL guard baseline looks like this:
+
+```powershell
+$env:ACTION_CONDITION_GUARDS_JSON = '{"wallet_available":{"enabled":true,"block_without_credentials":true},"known_inventory_available":{"enabled":true,"phases":["planning"]},"limits":[{"name":"direct_spot_order_cap","product_type":"SPOT","max_notional":25,"phases":["planning"]}]}'
+```
+
+Use a regenerated strict SELL sweep/campaign allowlist instead of raw
+`place_order` when the operator needs portfolio-wide profit-authority evidence,
+per-run caps, skipped-order accounting, or repeatable execution.
+
+Raw direct spot `SELL` should be limit-priced. A direct market SELL does not
+provide a positive operator-selected sale price to the known-inventory
+authority check, so it should be treated as fail-closed under the direct spot
+guard. Use sweep/campaign for market-style portfolio SELLs because the runner
+builds mark-aware plan and explain rows before submission.
 
 Direct dashboard orders do not produce a sweep JSONL run record. After
 placement, audit them through the `order_response`, `order_event_stream`
@@ -168,8 +186,14 @@ The audit command reads local event-stream and fill-ledger evidence only. It
 does not submit orders, cancel orders, retry orders, or call Coinbase REST. Use
 the sweep or campaign runner when a workflow needs a self-contained
 command-line run ledger, retry plan, reconciliation wrapper, scheduled
-execution, or portfolio-wide automation. Use stealth instead when a planned
-local order should reveal later under the shared guard path.
+execution, or portfolio-wide automation. In audit output,
+`live_coinbase_orders_ran` and `audit_command_live_coinbase_orders_ran` refer
+to the audit command itself. Use
+`audited_order_live_submission_evidence`,
+`audited_order_estimated_submitted_notional_usdc`, and
+`audited_order_fill_notional_usdc` to inspect evidence for the order being
+audited. Use stealth instead when a planned local order should reveal later
+under the shared guard path.
 
 ## Cancel A Dashboard Order By Client ID
 

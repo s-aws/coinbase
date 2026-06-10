@@ -168,6 +168,7 @@ def test_dashboard_spot_campaign_payload_reads_durable_snapshot():
                     "estimated_allowlisted_quote_notional": "2.01",
                     "authority_source_counts": {"fill_ledger": 2},
                     "authority_status_counts": {"known_profitable": 2},
+                    "stale_or_drift_blocked_count": 1,
                     "allow_products": ["AAA-USDC", "BBB-USDC"],
                 },
                 generated_at=datetime(2026, 1, 2),
@@ -187,6 +188,7 @@ def test_dashboard_spot_campaign_payload_reads_durable_snapshot():
         assert summary["sell_authority_allowlist_count"] == 2
         assert summary["sell_authority_blocked_count"] == 1
         assert summary["sell_authority_source_counts"] == {"fill_ledger": 2}
+        assert summary["sell_authority_stale_or_drift_blocked_count"] == 1
         assert payload["operator_status"]["campaign_count"] == 1
     finally:
         state_file.unlink(missing_ok=True)
@@ -197,22 +199,30 @@ def test_dashboard_spot_direct_order_audit_payload_reads_local_audit(monkeypatch
     import dashboard_server
 
     monkeypatch.setattr(dashboard_server, "PostgresDB", lambda: object())
-    monkeypatch.setattr(
-        audit_module,
-        "fetch_direct_order_event_rows",
-        lambda _db, client_order_id, limit: [
+    seen_fetch_args = {}
+
+    def fake_event_rows(*, db_client, client_order_id, limit):
+        seen_fetch_args["event"] = {
+            "db_client": db_client,
+            "client_order_id": client_order_id,
+            "limit": limit,
+        }
+        return [
             {
                 "client_order_id": client_order_id,
                 "event_type": "order_submitted",
                 "payload": {"order_id": "exchange-1"},
                 "created_at": datetime(2026, 1, 1),
             }
-        ],
-    )
-    monkeypatch.setattr(
-        audit_module,
-        "fetch_direct_order_fill_rows",
-        lambda _db, client_order_id, limit: [
+        ]
+
+    def fake_fill_rows(*, db_client, client_order_id, limit):
+        seen_fetch_args["fill"] = {
+            "db_client": db_client,
+            "client_order_id": client_order_id,
+            "limit": limit,
+        }
+        return [
             {
                 "client_order_id": client_order_id,
                 "product_id": "AAA-USDC",
@@ -221,7 +231,17 @@ def test_dashboard_spot_direct_order_audit_payload_reads_local_audit(monkeypatch
                 "price": "1.01",
                 "fees": "0",
             }
-        ],
+        ]
+
+    monkeypatch.setattr(
+        audit_module,
+        "fetch_direct_order_event_rows",
+        fake_event_rows,
+    )
+    monkeypatch.setattr(
+        audit_module,
+        "fetch_direct_order_fill_rows",
+        fake_fill_rows,
     )
 
     payload = dashboard_server._build_spot_direct_order_audit_payload(
@@ -234,6 +254,8 @@ def test_dashboard_spot_direct_order_audit_payload_reads_local_audit(monkeypatch
     assert payload["audit"]["record_type"] == "spot_direct_order_audit"
     assert payload["audit"]["client_order_id"] == "client-order-audit-1"
     assert payload["audit"]["live_coinbase_orders_ran"] is False
+    assert seen_fetch_args["event"]["client_order_id"] == "client-order-audit-1"
+    assert seen_fetch_args["fill"]["client_order_id"] == "client-order-audit-1"
 
 
 def test_dashboard_spot_sweep_pnl_payload_uses_public_marks_and_fill_repo(monkeypatch):

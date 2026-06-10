@@ -8,8 +8,10 @@ This file covers active API surfaces in the codebase:
 
 ## Enterprise Admin API (`api/v1/app.py`)
 
-The backend owns the OpenAPI contract for the enterprise admin frontend. HTTP
-mutating routes are intentionally not a live trading path yet.
+The backend owns the OpenAPI contract for the enterprise admin frontend.
+Read-only operator routes are active. Mutating HTTP routes are intentionally
+not a live trading path yet: they run auth/RBAC, idempotency, audit, and shared
+command-service parity logic, then stop at the fail-closed live execution gate.
 
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
@@ -189,6 +191,10 @@ submission uses `place_order`.
 product capability, size validator, manual spot live acknowledgement, and
 action-condition guard admit the request. For spot products,
 `params.manual_live_acknowledgement=true` is required before the handler reaches
+REST submission. Direct spot placement also requires a matching planning-phase
+`max_notional` action-condition guard, and direct spot `SELL` requires
+`known_inventory_available` to be enabled before REST submission. Direct spot
+placement also requires an enabled local `order_event_stream` publisher before
 REST submission. On success, `order_response` includes both the internal
 `client_order_id` and Coinbase `order_id` so dashboard submissions can be
 correlated with websocket, reconciliation, and fill-ledger evidence. The
@@ -245,11 +251,12 @@ Hotpoint manager:
 order whose `order_parent` row has `enable_hotpoint_replication=TRUE`. It is
 not a generic spot bypass. The handler is runtime-admission gated, requires
 `ProductCapability.HOTPOINT_AUTO_PLACEMENT`, validates size, runs the
-planning-phase `ActionConditionGuard`, pre-inserts the parent row, calls
-`REST_CLIENT.limit_order_gtc`, and writes `order_submitted` / `rest_submit`
-evidence when the local event stream is available. Spot products are blocked by
-default unless the hotpoint capability is explicitly enabled in product
-capability policy.
+planning-phase `ActionConditionGuard`, pre-inserts the parent row, and submits
+through `AdminApiCommandService.place_hotpoint_test_order`. That shared service
+calls `REST_CLIENT.limit_order_gtc` and writes `order_submitted` /
+`rest_submit` evidence when the local event stream is available. Spot products
+are blocked by default unless the hotpoint capability is explicitly enabled in
+product capability policy.
 
 Analytics/storyboard:
 - `request_slide_calibration_summary`
@@ -517,6 +524,9 @@ Operator contract:
   order details but are not counted as Coinbase submission failures.
 - Live sweep placement still requires
   `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
+- Live SELL sweep placement also requires
+  `--require-known-profitable-inventory`; wallet balance alone cannot
+  authorize live SELL sweep execution.
 - Live sweep order reports include UUID `client_order_id` values and
   `submission_event_recorded`. When the local event stream is available,
   accepted placements publish `order_submitted` / `rest_submit` evidence to
@@ -719,6 +729,8 @@ Operator contract:
   `tools/run_spot_campaign.py --config-file <path> --sell-authority-allowlist --write-allowlist-sweep-config-file <path>`.
 - Live campaign canaries use a rendered sweep config and
   `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
+- SELL canaries also require the rendered config or CLI to set
+  `--require-known-profitable-inventory`.
 
 ### `request_spot_direct_order_audit`
 
@@ -746,7 +758,15 @@ Response shape:
     "record_type": "spot_direct_order_audit",
     "client_order_id": "client-order-id",
     "status": "found",
+    "audit_is_read_only": true,
+    "audit_command_live_coinbase_orders_ran": false,
+    "audited_order_live_submission_evidence": true,
+    "audited_order_live_coinbase_orders_ran": true,
+    "audited_order_estimated_submitted_notional_usdc": "5",
+    "audited_order_fill_notional_usdc": "5",
     "live_coinbase_orders_ran": false,
+    "total_submitted_notional_usdc": "0",
+    "total_executed_notional_usdc": "0",
     "read_only_coinbase_requests": []
   }
 }
@@ -757,6 +777,12 @@ Operator contract:
   `client_order_id`.
 - It does not call Coinbase, place orders, cancel orders, retry orders, or run
   reconciliation.
+- `live_coinbase_orders_ran` and
+  `audit_command_live_coinbase_orders_ran` describe the audit request itself.
+  Use `audited_order_live_submission_evidence`,
+  `audited_order_estimated_submitted_notional_usdc`, and
+  `audited_order_fill_notional_usdc` for evidence about the order being
+  audited.
 - The equivalent CLI is
   `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`.
 - Missing `client_order_id` returns an error payload before local DB reads.

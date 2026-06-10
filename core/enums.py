@@ -231,6 +231,8 @@ class ActionConditionType(str, Enum):
     PLANNED_BUDGET_AVAILABLE = "planned_budget_available"
     KNOWN_INVENTORY_AVAILABLE = "known_inventory_available"
     MANUAL_LIVE_ACKNOWLEDGEMENT = "manual_live_acknowledgement"
+    DIRECT_SPOT_CAP_REQUIRED = "direct_spot_cap_required"
+    DURABLE_AUDIT_AVAILABLE = "durable_audit_available"
     MAX_BASE_SIZE = "max_base_size"
     MAX_NOTIONAL = "max_notional"
 
@@ -539,6 +541,7 @@ class SpotCampaignRunMode(str, Enum):
     SCHEDULER_STATUS = "scheduler_status"
     SELL_AUTHORITY_ALLOWLIST = "sell_authority_allowlist"
     LEDGER_CLEANUP_PLAN = "ledger_cleanup_plan"
+    LEDGER_CLEANUP_APPLY = "ledger_cleanup_apply"
     SELL_AUTHORITY_DRIFT = "sell_authority_drift"
     SELL_AUTHORITY_OPERATOR_REPORT = "sell_authority_operator_report"
     STRICT_SELL_CANARY_CANDIDATES = "strict_sell_canary_candidates"

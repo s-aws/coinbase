@@ -82,6 +82,12 @@ def test_build_spot_direct_order_audit_reports_submission_and_fills():
     assert report["fill_count"] == 1
     assert report["fill_notional"] == "5"
     assert report["fill_fees"] == "0.01"
+    assert report["audit_is_read_only"] is True
+    assert report["audit_command_live_coinbase_orders_ran"] is False
+    assert report["audited_order_live_submission_evidence"] is True
+    assert report["audited_order_live_coinbase_orders_ran"] is True
+    assert report["audited_order_estimated_submitted_notional_usdc"] == "5"
+    assert report["audited_order_fill_notional_usdc"] == "5"
     assert report["live_coinbase_orders_ran"] is False
     assert report["live_coinbase_requests"] == []
 
@@ -103,6 +109,8 @@ def test_build_spot_direct_order_audit_marks_missing_submission():
 
     assert report["status"] == SpotDirectOrderAuditStatus.MISSING_SUBMISSION.value
     assert report["submission"] is None
+    assert report["audited_order_live_submission_evidence"] is False
+    assert report["audited_order_live_coinbase_orders_ran"] is False
     assert "events" not in report
     assert "fills" not in report
 

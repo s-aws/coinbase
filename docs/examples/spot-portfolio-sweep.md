@@ -62,12 +62,13 @@ current product mark by the configured basis-point offset.
 ## Run One Live SELL Sweep
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --side SELL --quote-notional 1 --max-products 10 --approved-live-orders
+python tools/run_spot_portfolio_sweep_live.py --side SELL --quote-notional 1 --max-products 10 --require-known-profitable-inventory --approved-live-orders
 ```
 
 SELL execution submits base-size market IOC orders derived from the dry-run
 planner. Each item is checked by `ActionConditionGuard` immediately before
-`create_order`.
+`create_order`. Live SELL examples require explicit profit-authority policy;
+wallet balance alone proves sellability, not profitability.
 
 ## Apply Artificial Safety Caps
 
@@ -79,15 +80,20 @@ Safety caps are evaluated after wallet-aware planning and before the first live
 Coinbase `create_order` call. If the safety policy blocks the run, the JSON
 summary reports `live_coinbase_orders_ran: false` and zero submitted notional.
 
-## Require Known Profitable Inventory For SELL
+## Required Known Profitable Inventory For Live SELL
 
 ```powershell
 python tools/run_spot_portfolio_sweep_live.py --side SELL --quote-notional 1 --max-products 10 --require-known-profitable-inventory --approved-live-orders
 ```
 
-This optional safety policy requires every planned SELL item to be covered by
-known profitable fill-ledger or imported baseline lots before any Coinbase
-order is submitted. Wallet balance alone is not treated as profit authority.
+This live SELL safety policy is mandatory. It requires every planned SELL item
+to be covered by known profitable fill-ledger or imported baseline lots before
+any Coinbase order is submitted. Wallet balance alone is not treated as profit
+authority.
+
+`--disable-safety-policy` is for read-only diagnostics and local validation
+only. The live runner rejects `--disable-safety-policy` when
+`--approved-live-orders` is also supplied.
 
 ## Allow Coinbase Average Cost For SELL Authority
 
