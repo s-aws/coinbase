@@ -46,11 +46,14 @@ increments and quote-notional minimums from `products.json`.
   inventory. `SPOT_INVENTORY_BASELINES_JSON` or
   `products.json::spot_inventory_baselines` can import pre-existing inventory;
   baseline lots without positive known entry price are marked unknown cost
-  basis and cannot satisfy known-profit checks.
+  basis and cannot satisfy known-profit checks. Imported baselines are also
+  audited for source freshness metadata such as `source_updated_at`.
 - Coinbase portfolio average cost basis can be read as a separate operational
   authority source for USDC spot coverage, P/L, drift review, and optional SELL
   admission. It is asset-level portfolio data mapped to eligible `BASE-USDC`
-  products, not exact local FIFO lot evidence.
+  products, not exact local FIFO lot evidence. When it is the actual SELL
+  authority source, stale average-cost records or stale local-vs-Coinbase drift
+  block that product.
 - `known_inventory_available` is an optional action-condition guard. When
   enabled, spot `SELL` admission can require known profitable lots in addition
   to wallet availability. It is disabled by default.
@@ -66,7 +69,9 @@ increments and quote-notional minimums from `products.json`.
 - Reusable campaign intake, dry-run matrices, release gates, durable campaign
   P/L snapshots, and dashboard campaign status live in
   [Spot Campaigns](README.spot-campaign.md). Campaigns render configs for the
-  existing sweep live runner; they do not place live orders directly.
+  existing sweep live runner; they do not place live orders directly. SELL
+  allowlist sweep configs expire quickly and must be regenerated immediately
+  before live approval.
 - Partial campaign runs can generate targeted retry configs for products that
   were not submitted. Retry configs still render to the existing sweep runner
   and still require explicit live approval before order placement.
@@ -78,7 +83,10 @@ increments and quote-notional minimums from `products.json`.
   sides, order policies, automation cadence, live approval rule, notional caps,
   inventory retention policy, and required audit evidence.
 - Internal order tracking still uses `client_order_id`; Coinbase `order_id`
-  remains exchange-facing only.
+  remains exchange-facing only. Dashboard `cancel_order` is the explicit
+  cancellation exception: callers must pass `client_order_id`, and the server
+  calls this repo's `REST_CLIENT.cancel_order(client_order_id)` wrapper because
+  Coinbase accepts the client id for that operation.
 
 ## Supported Submission Surfaces
 
@@ -90,21 +98,74 @@ Scope note: direct dashboard and stealth placement use products configured in
 `products.json`; the portfolio sweep and campaign features are intentionally
 USDC-only even if `products.json` also contains USD-quoted spot products.
 
+Automation note: do not build scheduled or portfolio-wide spot automation on
+raw dashboard `place_order`. Use USDC sweep/campaign when the workflow needs
+dry-run validation, durable JSONL run evidence, retry planning, and
+command-line reconciliation. Use stealth when the workflow needs a planned
+local order that reveals later under the shared guard path.
+
+### Spot Order Lifecycle Audit Matrix
+
+| Surface | Planning/admission | Live exchange call | Durable evidence |
+| --- | --- | --- | --- |
+| Direct dashboard `place_order` | Product capability, size validation, planning-phase action guard | `REST_CLIENT.create_order` | `order_response`, `order_submitted` / `rest_submit`, later websocket/reconciliation/fill-ledger rows keyed by `client_order_id` |
+| Dashboard `cancel_order` | Requires `client_order_id` before REST | `REST_CLIENT.cancel_order(client_order_id)` | `cancel_response`; later exchange/order evidence remains tied to local `client_order_id` |
+| Stealth reveal | Stored stealth plan, profitability, product capability, reveal-time action guard | `REST_CLIENT.place_limit_order` | `order_parent`, stealth reveal audit, placement pointers, event-stream evidence keyed by `client_order_id` |
+| Hotpoint seed order | Runtime admission, hotpoint capability, size validation, planning-phase action guard, pre-inserted parent row | `REST_CLIENT.limit_order_gtc` | `order_parent`, `order_submitted` / `rest_submit`, hotpoint parent policy flags |
+| USDC sweep live | USDC product selector, wallet-aware plan, safety policy, per-order action guard | `rest_client.create_order` | sweep JSONL run record, order reports, optional fill backfill, reconciliation by `client_order_id` |
+| Campaign-rendered sweep | Campaign intake, config validation, dry-run matrix, release/readiness gates | none directly; renders to sweep live runner | campaign JSONL snapshots, equivalent sweep config, run index, P/L checkpoints |
+
 - Direct dashboard `place_order` validates product capability, size, and the
   planning-phase action guard before calling `REST_CLIENT.create_order`.
+  For spot products, it also requires
+  `params.manual_live_acknowledgement=true`; missing acknowledgement blocks
+  before REST submission.
   Quote-sized market BUYs validate `quote_size` directly against
   `quote_increment` and `quote_min_size`; base-sized orders validate and
   quantize `base_size`.
   The success response includes the generated `client_order_id` and Coinbase
   `order_id`, and the server writes an `order_submitted`/`rest_submit` row to
-  `order_event_stream`; follow-on evidence comes from the dashboard log plus
-  normal websocket, order lifecycle, reconciliation, and fill-ledger records
-  keyed by `client_order_id`.
+  `order_event_stream`. The success response also includes an `audit_command`
+  that runs the read-only direct-order audit by `client_order_id`; follow-on
+  evidence comes from the dashboard log plus normal websocket, order lifecycle,
+  reconciliation, and fill-ledger records keyed by `client_order_id`.
   Direct dashboard placement is an immediate manual order surface. It does not
   pre-insert `order_parent` or opt the order into automated follow-up policy
   state before submission; use stealth or sweep paths when a feature needs
   pre-submit parent policy state, managed reveal behavior, campaign accounting,
-  or portfolio-wide automation.
+  portfolio-wide automation, or scheduled execution.
+  There is no direct-order dry-run equivalent for raw `place_order`; use the
+  sweep/campaign dry-run tools when a dry-runable spot order workflow is
+  required.
+  Direct orders can be inspected with:
+  `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`.
+  The dashboard can return the same local audit with
+  `request_spot_direct_order_audit` and `params.client_order_id`.
+  These are read-only local evidence audits, not retry or automation wrappers.
+  Direct orders still rely on the normal dashboard response,
+  `order_event_stream` submission evidence, websocket/order lifecycle handling,
+  fill-ledger rows, and the shared reconciliation/fill-audit paths keyed by
+  `client_order_id`.
+  Use sweep or campaign execution when the workflow needs a self-contained
+  JSONL run ledger, retry plan, and command-line reconciliation wrapper.
+  Manual direct-order checklist before sending `place_order`:
+  confirm the product is intentionally configured/tradable, confirm the order
+  side and base or quote notional, confirm the planning guard policy is the one
+  intended for this account, set `manual_live_acknowledgement=true`, and for
+  spot `SELL` decide whether wallet sellability is sufficient. Default direct
+  `SELL` admission is wallet guarded, but it is not known-profit guarded unless
+  `known_inventory_available` is enabled and supported by fill-ledger/imported
+  known-cost authority. Configure direct-order notional caps through the shared
+  action-condition guard, for example a `limits` rule with
+  `product_type=SPOT`, `max_notional`, and `phases=["planning"]`. Use a
+  regenerated strict SELL allowlist through sweep/campaign instead of raw
+  `place_order` when the operator needs profit-authority evidence, per-run caps,
+  skipped-order accounting, or repeatable portfolio execution.
+- Dashboard `cancel_order` is a manual cancellation surface. It accepts
+  top-level `client_order_id` or `params.client_order_id`, rejects requests that
+  provide only `order_id`, and calls `REST_CLIENT.cancel_order(client_order_id)`.
+  Do not resolve this dashboard action to exchange `order_id`; raw batch
+  `cancel_orders(order_ids=[...])` remains the exchange-id-oriented API.
 - Hotpoint Manager `place_hotpoint_test_order` is also a live dashboard
   submission surface. It exists only to seed hotpoint detection with a normal
   limit order whose parent row has `enable_hotpoint_replication=TRUE`.
@@ -134,12 +195,55 @@ USDC-only even if `products.json` also contains USD-quoted spot products.
 `create_parent_order` is not live exchange placement. It is dashboard/local DB
 CRUD that creates an `order_parent` row for operator-managed local state.
 
+## Disabled And Conditional Spot Features
+
+Spot is not a blanket futures/perpetual equivalent. The current supported spot
+surfaces are direct dashboard placement, stealth planning/reveal, USDC sweep
+execution, and campaign-rendered sweep execution through the existing sweep
+runner.
+
+Disabled by default for spot:
+
+- Move/reprice replacement. It can be explicitly enabled by product capability,
+  but then it must use the replace-aware action guard, credit the active
+  Coinbase hold, reject partial-fill replacement, and leave local state
+  conservative if exchange cancel fails.
+- Cancel/re-entry. The shared policy is only a no-fill revealed-placement
+  policy, not general hide-again behavior. Treat spot use as disabled unless
+  product capability and policy are explicitly configured and the existing
+  cancel/re-entry path is used end to end.
+- Hotpoint auto-placement. The hotpoint seed order path is runtime-admission,
+  capability, size, and action-guard gated. Spot remains blocked by default
+  unless `HOTPOINT_AUTO_PLACEMENT` is explicitly enabled for spot.
+
+Conditional for spot:
+
+- BUY-fill to SELL follow-up is an exit and may use the existing follow-up path
+  when profitability and action guards pass.
+- SELL-fill to BUY follow-up is a rebuy and is blocked unless
+  `SPOT_FOLLOW_UP_POLICY_JSON` or `products.json::spot_follow_up_policy`
+  explicitly enables rebuy intent.
+- Same-side replacement or retreat is blocked unless the relevant capability or
+  policy is explicitly enabled and the action-condition guard admits the
+  replacement.
+
+Not disabled:
+
+- Dashboard `cancel_order` by `client_order_id` is a supported manual
+  cancellation surface.
+- USDC sweep and campaign automation are the supported automatable spot
+  surfaces; campaigns still render to the sweep live runner and do not create a
+  second placement engine.
+
 ## Outputs And Artifacts
 
 - Orders are still persisted in `order_parent`.
 - Stealth plans are still persisted in `stealth_orders`.
 - Product precision and minimums come from `products.json::metadata`.
 - Dashboard product refresh updates `products.json`.
+- Direct manual order audit is available through
+  `request_spot_direct_order_audit` and
+  `tools/run_spot_direct_order_audit.py`.
 
 ## Safety Constraints
 
@@ -165,6 +269,9 @@ CRUD that creates an `order_parent` row for operator-managed local state.
   sellability; only fill-ledger or imported known-cost lots can prove known
   profitable inventory by default. Coinbase average cost can satisfy SELL
   authority only through an explicit opt-in path with an extra profit buffer.
+- Do not resolve dashboard `cancel_order` to exchange `order_id`. The dashboard
+  contract is `client_order_id` in, `REST_CLIENT.cancel_order(client_order_id)`
+  out.
 - Run `pytest tests/regression/ -v --tb=short` after non-agent-file changes.
 
 ## Examples
@@ -234,6 +341,10 @@ python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-mat
 This command places real Coinbase spot orders and prints submitted/executed
 notional in `LIVE_COINBASE_SPOT_SMOKE_SUMMARY`. Add `--retain-inventory` when
 the bought base should remain in the account for future sell-path tests.
+The smoke runner uses short prefixed `client_order_id` values to keep its
+standalone smoke records recognizable and under Coinbase length limits. Do not
+copy that pattern into sweep/campaign live execution, which uses UUID
+`client_order_id` values and records sweep identity in ledger/event fields.
 
 ## Roadmap
 

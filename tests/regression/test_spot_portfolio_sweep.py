@@ -1,6 +1,7 @@
 """Regression tests for USDC spot portfolio sweep planning."""
 
-from datetime import datetime
+import json
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -8,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from business.spot_portfolio_sweep import (
+    apply_coinbase_average_cost_authority_gate,
     append_sweep_run_record,
     build_sweep_config_id,
     build_sweep_operator_status,
@@ -18,6 +20,7 @@ from business.spot_portfolio_sweep import (
     build_sweep_run_record,
     build_spot_portfolio_pnl_report,
     build_spot_portfolio_pnl_snapshot,
+    build_spot_inventory_baseline_freshness_audit,
     build_spot_inventory_coverage_report,
     build_sweep_config_registry,
     build_usdc_portfolio_sweep_plan,
@@ -53,6 +56,7 @@ from core.enums import (
     SpotFillLedgerFindingType,
     SpotFillLedgerHealthStatus,
     SpotFillLedgerRepairStatus,
+    SpotInventoryBaselineFreshness,
     SpotInventoryCoverageStatus,
     SpotPortfolioPnlScope,
     SpotPortfolioSweepAutomationDecision,
@@ -63,6 +67,7 @@ from core.enums import (
     SpotPortfolioSweepSafetyDecision,
     SpotPortfolioSweepSkipReason,
     SpotPortfolioSweepItemStatus,
+    SpotSellAuthorityAllowlistFreshness,
     SpotSweepFillLedgerMatchStatus,
     SpotSweepRecoveryGateStatus,
 )
@@ -437,6 +442,7 @@ def test_coinbase_average_cost_records_map_asset_positions_to_usdc_products():
             "remaining_quantity": "2",
             "entry_price": "10",
             "entry_timestamp": datetime(2026, 1, 2).isoformat(),
+            "source_updated_at": datetime(2026, 1, 2).isoformat(),
             "fees": "0",
             "cost_basis_status": "known",
             "source_id": "account-aaa",
@@ -523,6 +529,9 @@ def test_inventory_coverage_report_distinguishes_known_unknown_and_wallet_only()
     )
     assert report["wallet_balance_product_count"] == 3
     assert report["wallet_only_product_count"] == 1
+    assert report["baseline_freshness_audit"]["freshness_status"] == (
+        SpotInventoryBaselineFreshness.MISSING_TIMESTAMP.value
+    )
 
 
 def test_inventory_coverage_report_marks_coinbase_average_cost_authority():
@@ -548,6 +557,62 @@ def test_inventory_coverage_report_marks_coinbase_average_cost_authority():
     assert row["coinbase_average_cost_quantity"] == "1"
     assert report["coinbase_average_cost_product_count"] == 1
     assert report["wallet_only_product_count"] == 0
+
+
+def test_inventory_baseline_freshness_audit_reports_stale_and_missing_rows():
+    generated_at = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    audit = build_spot_inventory_baseline_freshness_audit(
+        inventory_baselines=[
+            {
+                "product_id": "AAA-USDC",
+                "quantity": "1",
+                "remaining_quantity": "1",
+                "entry_price": "10",
+                "source_id": "fresh-manual",
+                "source_updated_at": (
+                    generated_at - timedelta(hours=1)
+                ).isoformat(),
+                "cost_basis_status": "known",
+            },
+            {
+                "product_id": "BBB-USDC",
+                "quantity": "1",
+                "remaining_quantity": "1",
+                "entry_price": "10",
+                "source_id": "stale-manual",
+                "source_updated_at": (
+                    generated_at - timedelta(days=2)
+                ).isoformat(),
+                "cost_basis_status": "known",
+            },
+            {
+                "product_id": "CCC-USDC",
+                "quantity": "1",
+                "remaining_quantity": "1",
+                "source_id": "missing-refresh",
+            },
+        ],
+        generated_at=generated_at,
+        max_age_seconds=24 * 60 * 60,
+    )
+
+    rows = {row["source_id"]: row for row in audit["baselines"]}
+    assert audit["baseline_count"] == 3
+    assert audit["fresh_count"] == 1
+    assert audit["stale_count"] == 1
+    assert audit["missing_timestamp_count"] == 1
+    assert audit["freshness_status"] == (
+        SpotInventoryBaselineFreshness.MISSING_TIMESTAMP.value
+    )
+    assert rows["fresh-manual"]["freshness_status"] == (
+        SpotInventoryBaselineFreshness.FRESH.value
+    )
+    assert rows["stale-manual"]["freshness_status"] == (
+        SpotInventoryBaselineFreshness.STALE.value
+    )
+    assert rows["missing-refresh"]["freshness_status"] == (
+        SpotInventoryBaselineFreshness.MISSING_TIMESTAMP.value
+    )
 
 
 class _FakeSweepRestClient:
@@ -888,6 +953,56 @@ def test_sweep_safety_policy_allows_sell_when_known_profitable_lot_covers_size()
     assert evaluation["decision"] == SpotPortfolioSweepSafetyDecision.ALLOWED.value
 
 
+def test_sweep_safety_policy_subtracts_prior_sells_from_known_inventory():
+    products = [
+        _product(
+            "AAA-USDC",
+            price="0.01253",
+            quote_min_size="1",
+            base_increment="0.1",
+        )
+    ]
+    plan = build_usdc_portfolio_sweep_plan(
+        side=OrderSide.SELL,
+        quote_notional="1.01",
+        products=products,
+        wallets={"AAA": {"available_balance": {"value": "236.2"}}},
+    )
+    repo = _FakeFillLedgerRepo([
+        _fill(
+            "buy-known",
+            "AAA-USDC",
+            "BUY",
+            "81",
+            "0.01245",
+            "0",
+            datetime(2026, 1, 1, 12, 0, 0),
+        ),
+        _fill(
+            "sell-prior",
+            "AAA-USDC",
+            "SELL",
+            "80.5",
+            "0.01254",
+            "0",
+            datetime(2026, 1, 1, 13, 0, 0),
+        ),
+    ])
+
+    evaluation = evaluate_sweep_safety_policy(
+        plan=plan,
+        policy={"require_known_profitable_inventory": True},
+        fill_ledger_repo=repo,
+        profit_target_pct="0.5",
+    ).to_dict()
+
+    assert evaluation["decision"] == SpotPortfolioSweepSafetyDecision.BLOCKED.value
+    assert evaluation["violations"][0]["code"] == "known_profitable_inventory"
+    authority = evaluation["violations"][0]["inventory_authority"]
+    assert authority["requested_size"] == "80.6"
+    assert authority["known_profitable_quantity"] == "0.5"
+
+
 def test_sweep_plan_explain_includes_sell_lot_authority_details():
     products = [_product("AAA-USDC", price="12", quote_min_size="1")]
     plan = build_usdc_portfolio_sweep_plan(
@@ -1004,6 +1119,76 @@ def test_sweep_safety_policy_requires_opt_in_for_coinbase_average_cost_sell_auth
         SpotCostBasisSource.COINBASE_AVERAGE_COST.value
     )
     assert authority["coinbase_average_profitable_quantity"] == "2"
+
+
+def test_coinbase_average_cost_authority_gate_blocks_stale_authority_rows():
+    plan_explain = {
+        "items": [
+            {
+                "product_id": "AAA-USDC",
+                "status": SpotPortfolioSweepItemStatus.PLANNED.value,
+                "sell_authority": {
+                    "allowed": True,
+                    "cost_basis_authority": (
+                        SpotCostBasisSource.COINBASE_AVERAGE_COST.value
+                    ),
+                },
+            },
+            {
+                "product_id": "BBB-USDC",
+                "status": SpotPortfolioSweepItemStatus.PLANNED.value,
+                "sell_authority": {
+                    "allowed": True,
+                    "cost_basis_authority": SpotCostBasisSource.FILL_LEDGER.value,
+                },
+            },
+        ]
+    }
+
+    gated = apply_coinbase_average_cost_authority_gate(
+        safety={
+            "decision": SpotPortfolioSweepSafetyDecision.ALLOWED.value,
+            "violations": [],
+            "policy": {"allow_coinbase_average_cost_basis": True},
+        },
+        plan_explain=plan_explain,
+        coinbase_average_cost_records=[
+            {
+                "product_id": "AAA-USDC",
+                "status": SpotCostBasisStatus.AVAILABLE.value,
+                "generated_at": "2026-01-01T00:00:00+00:00",
+            }
+        ],
+        cost_basis_drift_audit={
+            "products": [
+                {
+                    "product_id": "AAA-USDC",
+                    "status": SpotCostBasisStatus.STALE.value,
+                    "drift_pct": "12",
+                    "warning_threshold_pct": "5",
+                },
+                {
+                    "product_id": "BBB-USDC",
+                    "status": SpotCostBasisStatus.STALE.value,
+                    "drift_pct": "99",
+                    "warning_threshold_pct": "5",
+                },
+            ]
+        },
+        generated_at=datetime(2026, 1, 1, 0, 10, tzinfo=timezone.utc),
+    )
+
+    assert gated["decision"] == SpotPortfolioSweepSafetyDecision.BLOCKED.value
+    assert gated["coinbase_average_cost_authority_gate"]["authority_products"] == [
+        "AAA-USDC"
+    ]
+    assert [violation["code"] for violation in gated["violations"]] == [
+        "coinbase_average_cost_freshness",
+        "coinbase_average_cost_drift",
+    ]
+    assert {violation["product_id"] for violation in gated["violations"]} == {
+        "AAA-USDC"
+    }
 
 
 def test_cost_basis_drift_audit_compares_fill_ledger_to_coinbase_average_cost():
@@ -1628,7 +1813,9 @@ def test_sweep_automation_due_interval_max_runs_and_disable():
 def test_live_sweep_config_file_populates_runner_args():
     from tools.run_spot_portfolio_sweep_live import (
         _apply_config_file,
+        _copy_sweep_config_metadata,
         _load_sweep_config_file,
+        _sell_authority_allowlist_freshness,
         build_parser,
     )
 
@@ -1675,8 +1862,243 @@ def test_live_sweep_config_file_populates_runner_args():
         assert args.coinbase_average_cost_profit_buffer_pct == Decimal("0.75")
         assert args.max_total_notional_per_run == Decimal("20")
         assert args.allow_product == ["AAA-USDC"]
+
+        config = {}
+        _copy_sweep_config_metadata(
+            config=config,
+            file_config={
+                "sell_authority_allowlist": {
+                    "freshness_status": (
+                        SpotSellAuthorityAllowlistFreshness.FRESH.value
+                    ),
+                    "generated_at": "2026-01-01T00:00:00+00:00",
+                    "max_age_seconds": 300,
+                    "allowlist_count": 1,
+                }
+            },
+        )
+        assert _sell_authority_allowlist_freshness(
+            config,
+            now=datetime(2026, 1, 1, 0, 4, tzinfo=timezone.utc),
+        )["freshness_status"] == SpotSellAuthorityAllowlistFreshness.FRESH.value
     finally:
         config_file.unlink(missing_ok=True)
+
+
+def test_live_sweep_validate_config_reports_freshness_audits(
+    monkeypatch,
+    capsys,
+):
+    import configuration
+    from tools import run_spot_portfolio_sweep_live as runner
+
+    scratch_dir = Path("genai_tools")
+    scratch_dir.mkdir(exist_ok=True)
+    scratch_id = uuid4().hex
+    config_file = scratch_dir / f"spot_sweep_validate_{scratch_id}.json"
+    state_file = scratch_dir / f"spot_sweep_validate_{scratch_id}.jsonl"
+    generated_at = datetime.now(timezone.utc)
+    config_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "side": "SELL",
+                "quote_notional": "1",
+                "max_products": 1,
+                "safety_policy": {
+                    "require_known_profitable_inventory": True,
+                    "max_total_notional_per_run": "2",
+                    "max_notional_per_order": "2",
+                    "max_planned_orders": 1,
+                    "max_skipped_orders": 10,
+                    "allow_products": ["AAA-USDC"],
+                },
+                "sell_authority_allowlist": {
+                    "freshness_status": (
+                        SpotSellAuthorityAllowlistFreshness.FRESH.value
+                    ),
+                    "generated_at": generated_at.isoformat(),
+                    "max_age_seconds": 300,
+                    "allowlist_count": 1,
+                    "blocked_count": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    repo = _FakeFillLedgerRepo([
+        _fill(
+            "buy-aaa",
+            "AAA-USDC",
+            "BUY",
+            "1",
+            "5",
+            "0",
+            datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+    ])
+    monkeypatch.setenv("COINBASE_API_KEY", "test-key")
+    monkeypatch.setenv("COINBASE_API_SECRET", "test-secret")
+    monkeypatch.setattr(configuration, "get_rest_client", lambda: object())
+    monkeypatch.setattr(
+        configuration,
+        "SPOT_INVENTORY_BASELINES",
+        [
+            {
+                "product_id": "AAA-USDC",
+                "quantity": "1",
+                "remaining_quantity": "1",
+                "entry_price": "5",
+                "source_id": "regression-baseline",
+                "source_updated_at": generated_at.isoformat(),
+                "cost_basis_status": "known",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        runner,
+        "_load_public_products",
+        lambda: [_product("AAA-USDC", price="10")],
+    )
+    monkeypatch.setattr(
+        runner,
+        "_load_wallets",
+        lambda rest_client: {"AAA": {"available_balance": {"value": "1"}}},
+    )
+    monkeypatch.setattr(runner, "_build_fill_ledger_repo", lambda: repo)
+    try:
+        assert runner.main([
+            "--config-file",
+            str(config_file),
+            "--validate-config",
+            "--state-file",
+            str(state_file),
+        ]) == 0
+
+        output = capsys.readouterr().out
+        payload = json.loads(output.split(runner.SUMMARY_PREFIX, 1)[1])
+        assert payload["safety_evaluation"]["decision"] == (
+            SpotPortfolioSweepSafetyDecision.ALLOWED.value
+        )
+        assert payload["sell_authority_allowlist_freshness"]["freshness_status"] == (
+            SpotSellAuthorityAllowlistFreshness.FRESH.value
+        )
+        assert payload["inventory_baseline_freshness_audit"]["freshness_status"] == (
+            SpotInventoryBaselineFreshness.FRESH.value
+        )
+        assert payload["plan_explain"]["items"][0]["sell_authority"]["allowed"] is True
+    finally:
+        config_file.unlink(missing_ok=True)
+        state_file.unlink(missing_ok=True)
+
+
+def test_sell_authority_allowlist_freshness_blocks_stale_safety():
+    from tools.run_spot_portfolio_sweep_live import (
+        _apply_allowlist_freshness_to_safety,
+        _sell_authority_allowlist_freshness,
+    )
+
+    generated_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    freshness = _sell_authority_allowlist_freshness(
+        {
+            "sell_authority_allowlist": {
+                "freshness_status": SpotSellAuthorityAllowlistFreshness.FRESH.value,
+                "generated_at": generated_at.isoformat(),
+                "max_age_seconds": 300,
+                "allowlist_count": 2,
+            }
+        },
+        now=generated_at + timedelta(seconds=301),
+    )
+    blocked = _apply_allowlist_freshness_to_safety(
+        safety={
+            "decision": SpotPortfolioSweepSafetyDecision.ALLOWED.value,
+            "violations": [],
+        },
+        freshness=freshness,
+    )
+
+    assert freshness["freshness_status"] == SpotSellAuthorityAllowlistFreshness.STALE.value
+    assert blocked["decision"] == SpotPortfolioSweepSafetyDecision.BLOCKED.value
+    assert blocked["violations"][-1]["code"] == (
+        "sell_authority_allowlist_freshness"
+    )
+
+
+def test_sell_authority_allowlist_freshness_blocks_invalid_metadata():
+    from tools.run_spot_portfolio_sweep_live import (
+        _apply_allowlist_freshness_to_safety,
+        _sell_authority_allowlist_freshness,
+    )
+
+    freshness = _sell_authority_allowlist_freshness(
+        {"sell_authority_allowlist": {"max_age_seconds": 300}},
+        now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    blocked = _apply_allowlist_freshness_to_safety(
+        safety={
+            "decision": SpotPortfolioSweepSafetyDecision.ALLOWED.value,
+            "violations": [],
+        },
+        freshness=freshness,
+    )
+
+    assert freshness["freshness_status"] == SpotSellAuthorityAllowlistFreshness.INVALID.value
+    assert blocked["decision"] == SpotPortfolioSweepSafetyDecision.BLOCKED.value
+
+
+def test_live_sweep_rejects_stale_sell_authority_allowlist_before_credentials(capsys):
+    from tools.run_spot_portfolio_sweep_live import main
+
+    scratch_dir = Path("genai_tools")
+    scratch_dir.mkdir(exist_ok=True)
+    scratch_id = uuid4().hex
+    config_file = scratch_dir / f"spot_sweep_stale_allowlist_{scratch_id}.json"
+    state_file = scratch_dir / f"spot_sweep_stale_allowlist_{scratch_id}.jsonl"
+    lock_file = scratch_dir / f"spot_sweep_stale_allowlist_{scratch_id}.lock"
+    config_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "side": "SELL",
+                "quote_notional": "1",
+                "max_products": 1,
+                "safety_policy": {
+                    "max_total_notional_per_run": "1",
+                    "max_notional_per_order": "1",
+                    "allow_products": ["AAA-USDC"],
+                },
+                "sell_authority_allowlist": {
+                    "freshness_status": SpotSellAuthorityAllowlistFreshness.FRESH.value,
+                    "generated_at": "2000-01-01T00:00:00+00:00",
+                    "max_age_seconds": 300,
+                    "allowlist_count": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    try:
+        with pytest.raises(SystemExit) as exc:
+            main(
+                [
+                    "--config-file",
+                    str(config_file),
+                    "--approved-live-orders",
+                    "--state-file",
+                    str(state_file),
+                    "--operation-lock-file",
+                    str(lock_file),
+                    "--disable-run-lock",
+                ]
+            )
+
+        assert exc.value.code == 2
+        assert "SELL authority allowlist is stale" in capsys.readouterr().err
+    finally:
+        config_file.unlink(missing_ok=True)
+        state_file.unlink(missing_ok=True)
+        lock_file.unlink(missing_ok=True)
 
 
 def test_average_cost_sell_authority_requires_known_inventory_policy():

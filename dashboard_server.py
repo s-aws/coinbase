@@ -49,6 +49,7 @@ from core.enums import (
     OrderSide,
     ProductCapability,
     ProductCapabilityMode,
+    ProductType,
     RepricingReferenceSource,
     StealthOrderStatus,
 )
@@ -211,6 +212,16 @@ def _publish_direct_order_submission_event(
             status_to=OrderStatus.PENDING.value,
         )
     )
+
+
+def _direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
+    """Return True when a raw direct spot order includes manual live consent."""
+    direct_ack = order_params.get("manual_live_acknowledgement")
+    if direct_ack is None:
+        direct_ack = order_params.get("manual_live_acknowledged")
+    if isinstance(direct_ack, str):
+        return direct_ack.strip().lower() in {"true", "yes", "1"}
+    return bool(direct_ack)
 
 
 def _coinbase_order_response_to_dict(result: Any) -> Dict[str, Any]:
@@ -744,6 +755,79 @@ def _build_spot_campaign_payload(
         }
 
 
+def _build_spot_direct_order_audit_payload(
+    *,
+    client_order_id: Optional[str],
+    include_events: bool = True,
+    include_fills: bool = True,
+    event_limit: int = 100,
+    fill_limit: int = 1000,
+) -> Dict[str, Any]:
+    from business.spot_direct_order_audit import (
+        build_spot_direct_order_audit,
+        fetch_direct_order_event_rows,
+        fetch_direct_order_fill_rows,
+    )
+
+    client_id = str(client_order_id or "").strip()
+    if not client_id:
+        audit = build_spot_direct_order_audit(
+            client_order_id=client_id,
+            event_rows=[],
+            fill_rows=[],
+            include_events=include_events,
+            include_fills=include_fills,
+        )
+        return {
+            "type": "spot_direct_order_audit",
+            "status": "error",
+            "client_order_id": client_id,
+            "audit": audit,
+            "message": "Missing client_order_id",
+        }
+
+    try:
+        db_client = PostgresDB()
+        event_rows = (
+            fetch_direct_order_event_rows(
+                db_client,
+                client_id,
+                limit=event_limit,
+            )
+            if include_events
+            else []
+        )
+        fill_rows = (
+            fetch_direct_order_fill_rows(
+                db_client,
+                client_id,
+                limit=fill_limit,
+            )
+            if include_fills
+            else []
+        )
+        audit = build_spot_direct_order_audit(
+            client_order_id=client_id,
+            event_rows=event_rows,
+            fill_rows=fill_rows,
+            include_events=include_events,
+            include_fills=include_fills,
+        )
+        return {
+            "type": "spot_direct_order_audit",
+            "status": "success",
+            "client_order_id": client_id,
+            "audit": audit,
+        }
+    except Exception as exc:
+        return {
+            "type": "spot_direct_order_audit",
+            "status": "error",
+            "client_order_id": client_id,
+            "message": f"direct order audit failed: {type(exc).__name__}: {exc}",
+        }
+
+
 # In-memory Fibonacci-window market metrics tracker. Optional dependency
 # so the dashboard still imports cleanly in DB-less smoke tests where the
 # business package may be partially mocked.
@@ -1271,6 +1355,41 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     await websocket.send(json.dumps(response))
                     return
 
+                if (
+                    capability.product_type == ProductType.SPOT.value
+                    and not _direct_spot_live_acknowledged(order_params)
+                ):
+                    reason = (
+                        "Direct spot place_order is a live manual order surface; "
+                        "set params.manual_live_acknowledgement=true before REST submission."
+                    )
+                    guard_failure = {
+                        "condition": ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value,
+                        "block_category": (
+                            ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value
+                        ),
+                        "reason": reason,
+                        "product_id": product_id,
+                        "product_type": capability.product_type,
+                        "side": order_params.get("side"),
+                        "client_order_id": client_order_id,
+                        "phase": ActionGuardPhase.PLANNING.value,
+                        "manual_live_acknowledgement_required": True,
+                    }
+                    response = {
+                        "type": "order_response",
+                        "status": "error",
+                        "message": (
+                            "Order rejected by manual live acknowledgement: "
+                            f"{reason}"
+                        ),
+                        "guard": guard_failure,
+                    }
+                    add_log_entry("WARNING", response["message"])
+                    logger.warning(response["message"])
+                    await websocket.send(json.dumps(response))
+                    return
+
                 approved_base_size = None
                 if raw_size is not None:
                     size_check = validate_and_quantize_size(
@@ -1384,6 +1503,10 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "client_order_id": client_order_id,
                     "order_id": order_id,
                     "submission_event_recorded": submission_event_recorded,
+                    "audit_command": (
+                        "python tools\\run_spot_direct_order_audit.py "
+                        f"--client-order-id {client_order_id}"
+                    ),
                 }
                 add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
                 
@@ -1405,11 +1528,12 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             await websocket.send(json.dumps(response))
             
         elif msg_type == "cancel_order":
-            # Cancel order via REST API
-            # Use client_order_id (which we always have) rather than order_id
-            # This works for both revealed and unrevealed orders
-            client_order_id = data.get("client_order_id")
-            logger.info(f"Cancel requested for order: {client_order_id}")
+            # Cancel order via the local REST wrapper using our internal
+            # client_order_id. The Coinbase Advanced Trade cancel path accepts
+            # this id, and the wrapper owns that exchange-specific detail.
+            params = data.get("params") or {}
+            client_order_id = data.get("client_order_id") or params.get("client_order_id")
+            logger.info("Cancel requested for client_order_id=%s", client_order_id)
             
             if not REST_CLIENT_AVAILABLE:
                 response = {
@@ -1421,11 +1545,19 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 return
             
             try:
-                # Call REST API to cancel order using client_order_id.
+                if not client_order_id:
+                    response = {
+                        "type": "cancel_response",
+                        "status": "error",
+                        "message": "Missing client_order_id",
+                    }
+                    await websocket.send(json.dumps(response))
+                    return
+
                 # Cancellations are always-allowed (even while paused/draining)
                 # but still tracked so the drain waits for them.
                 with controller.track_inflight(INFLIGHT_REST_CANCEL):
-                    result = REST_CLIENT.cancel_orders(order_ids=[client_order_id])
+                    result = REST_CLIENT.cancel_order(client_order_id)
                 
                 logger.info(f"Order cancelled successfully: {result}")
                 response = {
@@ -1433,8 +1565,12 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                     "status": "success",
                     "message": "Order cancelled",
                     "data": result,
+                    "client_order_id": client_order_id,
                 }
-                add_log_entry("INFO", f"Order cancelled: {client_order_id}")
+                add_log_entry(
+                    "INFO",
+                    f"Order cancelled: client_order_id={client_order_id}",
+                )
                 
             except Exception as e:
                 logger.error(f"Order cancellation failed: {str(e)}")
@@ -1493,6 +1629,21 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             params = data.get("params") or {}
             state_file = params.get("state_file")
             response = _build_spot_campaign_payload(state_file=state_file)
+            await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
+
+        elif msg_type == "request_spot_direct_order_audit":
+            params = data.get("params") or {}
+            client_order_id = (
+                data.get("client_order_id")
+                or params.get("client_order_id")
+            )
+            response = _build_spot_direct_order_audit_payload(
+                client_order_id=client_order_id,
+                include_events=bool(params.get("include_events", True)),
+                include_fills=bool(params.get("include_fills", True)),
+                event_limit=int(params.get("event_limit", 100)),
+                fill_limit=int(params.get("fill_limit", 1000)),
+            )
             await websocket.send(json.dumps(response, cls=CustomJSONEncoder))
 
         elif msg_type == "request_slide_calibration_summary":

@@ -28,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from business.spot_portfolio_sweep import (
+    apply_coinbase_average_cost_authority_gate,
     append_sweep_run_record,
     build_sweep_config_id,
     build_sweep_disabled_record,
@@ -35,6 +36,7 @@ from business.spot_portfolio_sweep import (
     build_sweep_plan_explain,
     build_sweep_product_metadata,
     build_sweep_run_record,
+    build_spot_inventory_baseline_freshness_audit,
     build_spot_portfolio_pnl_report,
     build_spot_inventory_coverage_report,
     build_sweep_config_registry,
@@ -62,6 +64,7 @@ from core.enums import (
     SpotPortfolioSweepOrderType,
     SpotPortfolioSweepRunStatus,
     SpotPortfolioSweepSafetyDecision,
+    SpotSellAuthorityAllowlistFreshness,
 )
 from external.coinbase_client import (
     coinbase_sdk_response_to_dict,
@@ -302,6 +305,118 @@ def _load_sweep_config_file(path: Path | None) -> dict[str, Any]:
     if version != 1:
         raise ValueError("sweep config version must be 1")
     return dict(payload)
+
+
+def _copy_sweep_config_metadata(
+    *,
+    config: dict[str, Any],
+    file_config: Mapping[str, Any],
+) -> None:
+    metadata = file_config.get("sell_authority_allowlist")
+    if isinstance(metadata, Mapping):
+        config["sell_authority_allowlist"] = dict(metadata)
+
+
+def _parse_config_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _sell_authority_allowlist_freshness(
+    config: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    metadata = config.get("sell_authority_allowlist")
+    if not isinstance(metadata, Mapping) or not metadata:
+        return {
+            "freshness_status": (
+                SpotSellAuthorityAllowlistFreshness.NOT_APPLICABLE.value
+            ),
+            "required": False,
+        }
+
+    timestamp = now or datetime.now(timezone.utc)
+    generated_at = _parse_config_timestamp(metadata.get("generated_at"))
+    try:
+        max_age_seconds = float(metadata.get("max_age_seconds"))
+    except (TypeError, ValueError):
+        max_age_seconds = 0.0
+    if generated_at is None or max_age_seconds <= 0:
+        status = SpotSellAuthorityAllowlistFreshness.INVALID.value
+        age_seconds = None
+    else:
+        age_seconds = max(0.0, (timestamp - generated_at).total_seconds())
+        status = (
+            SpotSellAuthorityAllowlistFreshness.STALE.value
+            if age_seconds > max_age_seconds
+            else SpotSellAuthorityAllowlistFreshness.FRESH.value
+        )
+
+    return {
+        "freshness_status": status,
+        "required": True,
+        "generated_at": metadata.get("generated_at"),
+        "max_age_seconds": metadata.get("max_age_seconds"),
+        "age_seconds": age_seconds,
+        "expires_at": metadata.get("expires_at"),
+        "sell_authority_profile": metadata.get("sell_authority_profile"),
+        "allowlist_count": metadata.get("allowlist_count"),
+        "blocked_count": metadata.get("blocked_count"),
+        "estimated_allowlisted_quote_notional": (
+            metadata.get("estimated_allowlisted_quote_notional")
+        ),
+    }
+
+
+def _sell_authority_allowlist_blocks(
+    freshness: Mapping[str, Any],
+) -> bool:
+    return freshness.get("freshness_status") in {
+        SpotSellAuthorityAllowlistFreshness.STALE.value,
+        SpotSellAuthorityAllowlistFreshness.INVALID.value,
+    }
+
+
+def _allowlist_freshness_violation(
+    freshness: Mapping[str, Any],
+) -> dict[str, Any]:
+    status = str(freshness.get("freshness_status") or "")
+    reason = (
+        "SELL authority allowlist is stale; regenerate it immediately before "
+        "live execution"
+        if status == SpotSellAuthorityAllowlistFreshness.STALE.value
+        else "SELL authority allowlist freshness metadata is invalid"
+    )
+    return {
+        "code": "sell_authority_allowlist_freshness",
+        "reason": reason,
+        "freshness": dict(freshness),
+    }
+
+
+def _apply_allowlist_freshness_to_safety(
+    *,
+    safety: Mapping[str, Any],
+    freshness: Mapping[str, Any],
+) -> dict[str, Any]:
+    updated = dict(safety)
+    updated["violations"] = [dict(item) for item in updated.get("violations") or []]
+    if _sell_authority_allowlist_blocks(freshness):
+        updated["decision"] = SpotPortfolioSweepSafetyDecision.BLOCKED.value
+        updated["violations"].append(_allowlist_freshness_violation(freshness))
+    return updated
 
 
 def _apply_config_file(args: argparse.Namespace, config: Mapping[str, Any]) -> None:
@@ -848,6 +963,8 @@ def main(argv: list[str] | None = None) -> int:
     config = _config_payload(args)
     if file_config:
         config["source_config_file"] = str(args.config_file)
+        _copy_sweep_config_metadata(config=config, file_config=file_config)
+    allowlist_freshness = _sell_authority_allowlist_freshness(config)
     config_id = args.config_id
     if config_id is None and args.side and args.quote_notional is not None:
         config_id = build_sweep_config_id(
@@ -1062,6 +1179,10 @@ def main(argv: list[str] | None = None) -> int:
         rest_client = configuration.get_rest_client()
         products = _load_public_products()
         wallets = _load_wallets(rest_client)
+        inventory_baselines = getattr(configuration, "SPOT_INVENTORY_BASELINES", [])
+        baseline_freshness_audit = build_spot_inventory_baseline_freshness_audit(
+            inventory_baselines=inventory_baselines,
+        )
         cost_basis = (
             _load_coinbase_average_costs(
                 rest_client=rest_client,
@@ -1155,6 +1276,10 @@ def main(argv: list[str] | None = None) -> int:
         rest_client = configuration.get_rest_client()
         products = _load_public_products()
         wallets = _load_wallets(rest_client)
+        inventory_baselines = getattr(configuration, "SPOT_INVENTORY_BASELINES", [])
+        baseline_freshness_audit = build_spot_inventory_baseline_freshness_audit(
+            inventory_baselines=inventory_baselines,
+        )
         cost_basis = (
             _load_coinbase_average_costs(
                 rest_client=rest_client,
@@ -1185,18 +1310,50 @@ def main(argv: list[str] | None = None) -> int:
             order_type=args.order_type,
             limit_price_offset_bps=args.limit_price_offset_bps,
             fill_ledger_repo=fill_ledger_repo,
-            inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+            inventory_baselines=inventory_baselines,
             coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
             profit_target_pct=args.profit_target_pct,
         )
         plan = plan_obj.to_dict()
+        safety_evaluation_dict = safety_evaluation.to_dict()
         explain = build_sweep_plan_explain(
             plan=plan_obj,
-            safety_evaluation=safety_evaluation,
+            safety_evaluation=safety_evaluation_dict,
             order_type=args.order_type,
             limit_price_offset_bps=args.limit_price_offset_bps,
             fill_ledger_repo=fill_ledger_repo,
-            inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+            inventory_baselines=inventory_baselines,
+            coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
+            profit_target_pct=args.profit_target_pct,
+        )
+        cost_basis_drift_audit = (
+            build_cost_basis_drift_audit(
+                fill_ledger_repo=fill_ledger_repo,
+                products=products,
+                average_cost_records=cost_basis.get("records") or [],
+            )
+            if args.allow_coinbase_average_cost_basis
+            and fill_ledger_repo is not None
+            and cost_basis.get("records")
+            else None
+        )
+        safety_evaluation_dict = apply_coinbase_average_cost_authority_gate(
+            safety=safety_evaluation_dict,
+            plan_explain=explain,
+            coinbase_average_cost_records=cost_basis.get("records") or [],
+            cost_basis_drift_audit=cost_basis_drift_audit,
+        )
+        safety_evaluation_dict = _apply_allowlist_freshness_to_safety(
+            safety=safety_evaluation_dict,
+            freshness=allowlist_freshness,
+        )
+        explain = build_sweep_plan_explain(
+            plan=plan_obj,
+            safety_evaluation=safety_evaluation_dict,
+            order_type=args.order_type,
+            limit_price_offset_bps=args.limit_price_offset_bps,
+            fill_ledger_repo=fill_ledger_repo,
+            inventory_baselines=inventory_baselines,
             coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
             profit_target_pct=args.profit_target_pct,
         )
@@ -1219,7 +1376,10 @@ def main(argv: list[str] | None = None) -> int:
             "get_accounts",
             *cost_basis.get("read_only_coinbase_requests", []),
         ]
-        summary["safety_evaluation"] = safety_evaluation.to_dict()
+        summary["sell_authority_allowlist_freshness"] = allowlist_freshness
+        summary["inventory_baseline_freshness_audit"] = baseline_freshness_audit
+        summary["cost_basis_drift_audit"] = cost_basis_drift_audit
+        summary["safety_evaluation"] = safety_evaluation_dict
         summary["plan_explain"] = explain
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
         return 0
@@ -1287,6 +1447,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.approved_live_orders:
         parser.error("--approved-live-orders is required because this can place live orders")
+    if _sell_authority_allowlist_blocks(allowlist_freshness):
+        parser.error(_allowlist_freshness_violation(allowlist_freshness)["reason"])
     if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
         parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
 
@@ -1330,6 +1492,10 @@ def main(argv: list[str] | None = None) -> int:
     rest_client = configuration.get_rest_client()
     products = _load_public_products()
     wallets = _load_wallets(rest_client)
+    inventory_baselines = getattr(configuration, "SPOT_INVENTORY_BASELINES", [])
+    baseline_freshness_audit = build_spot_inventory_baseline_freshness_audit(
+        inventory_baselines=inventory_baselines,
+    )
     cost_basis = (
         _load_coinbase_average_costs(
             rest_client=rest_client,
@@ -1364,10 +1530,41 @@ def main(argv: list[str] | None = None) -> int:
         order_type=args.order_type,
         limit_price_offset_bps=args.limit_price_offset_bps,
         fill_ledger_repo=fill_ledger_repo,
-        inventory_baselines=getattr(configuration, "SPOT_INVENTORY_BASELINES", []),
+        inventory_baselines=inventory_baselines,
         coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
         profit_target_pct=args.profit_target_pct,
     ).to_dict()
+    explain = build_sweep_plan_explain(
+        plan=plan_obj,
+        safety_evaluation=safety_evaluation,
+        order_type=args.order_type,
+        limit_price_offset_bps=args.limit_price_offset_bps,
+        fill_ledger_repo=fill_ledger_repo,
+        inventory_baselines=inventory_baselines,
+        coinbase_average_cost_baselines=cost_basis.get("baselines") or [],
+        profit_target_pct=args.profit_target_pct,
+    )
+    cost_basis_drift_audit = (
+        build_cost_basis_drift_audit(
+            fill_ledger_repo=fill_ledger_repo,
+            products=products,
+            average_cost_records=cost_basis.get("records") or [],
+        )
+        if args.allow_coinbase_average_cost_basis
+        and fill_ledger_repo is not None
+        and cost_basis.get("records")
+        else None
+    )
+    safety_evaluation = apply_coinbase_average_cost_authority_gate(
+        safety=safety_evaluation,
+        plan_explain=explain,
+        coinbase_average_cost_records=cost_basis.get("records") or [],
+        cost_basis_drift_audit=cost_basis_drift_audit,
+    )
+    safety_evaluation = _apply_allowlist_freshness_to_safety(
+        safety=safety_evaluation,
+        freshness=allowlist_freshness,
+    )
     if safety_evaluation["decision"] != (
         SpotPortfolioSweepSafetyDecision.ALLOWED.value
     ):
@@ -1381,6 +1578,9 @@ def main(argv: list[str] | None = None) -> int:
             "total_executed_notional_usdc": "0",
             "orders": [],
             "safety_evaluation": safety_evaluation,
+            "sell_authority_allowlist_freshness": allowlist_freshness,
+            "inventory_baseline_freshness_audit": baseline_freshness_audit,
+            "cost_basis_drift_audit": cost_basis_drift_audit,
         }
         record = build_sweep_run_record(
             config_id=config_id,
@@ -1424,6 +1624,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     completed_at = datetime.now(timezone.utc)
     execution = summarize_sweep_execution(reports=reports)
+    execution["sell_authority_allowlist_freshness"] = allowlist_freshness
+    execution["inventory_baseline_freshness_audit"] = baseline_freshness_audit
+    execution["cost_basis_drift_audit"] = cost_basis_drift_audit
     execution["fill_backfill"] = (
         {
             "skipped": True,

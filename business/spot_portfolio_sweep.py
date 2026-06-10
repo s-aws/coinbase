@@ -31,6 +31,7 @@ from core.enums import (
     SpotAuditRecordType,
     SpotCostBasisSource,
     SpotCostBasisStatus,
+    SpotInventoryBaselineFreshness,
     SpotInventoryCoverageStatus,
     SpotPortfolioPnlScope,
     SpotPortfolioSweepAutomationDecision,
@@ -47,6 +48,17 @@ from core.enums import (
 
 
 QUOTE_CURRENCY = "USDC"
+DEFAULT_INVENTORY_BASELINE_MAX_AGE_SECONDS = 24 * 60 * 60
+DEFAULT_COINBASE_AVERAGE_COST_AUTHORITY_MAX_AGE_SECONDS = 5 * 60
+BASELINE_FRESHNESS_TIMESTAMP_FIELDS = (
+    "source_updated_at",
+    "updated_at",
+    "generated_at",
+    "observed_at",
+    "as_of",
+    "snapshot_at",
+    "refreshed_at",
+)
 DISQUALIFYING_PRODUCT_FLAGS = (
     "trading_disabled",
     "is_disabled",
@@ -1842,6 +1854,135 @@ def build_sweep_plan_explain(
     }
 
 
+def _coinbase_average_cost_authority_products(
+    plan_explain: Mapping[str, Any] | None,
+) -> list[str]:
+    product_ids: list[str] = []
+    for item in (plan_explain or {}).get("items") or []:
+        if not isinstance(item, Mapping):
+            continue
+        if _text(item.get("status")) != SpotPortfolioSweepItemStatus.PLANNED.value:
+            continue
+        authority = item.get("sell_authority")
+        if not isinstance(authority, Mapping):
+            continue
+        if authority.get("allowed") is not True:
+            continue
+        if (
+            _text(authority.get("cost_basis_authority"))
+            != SpotCostBasisSource.COINBASE_AVERAGE_COST.value
+        ):
+            continue
+        product_id = _text(item.get("product_id")).upper()
+        if product_id and product_id not in product_ids:
+            product_ids.append(product_id)
+    return product_ids
+
+
+def apply_coinbase_average_cost_authority_gate(
+    *,
+    safety: Mapping[str, Any],
+    plan_explain: Mapping[str, Any] | None = None,
+    coinbase_average_cost_records: Iterable[Mapping[str, Any]] | None = None,
+    cost_basis_drift_audit: Mapping[str, Any] | None = None,
+    generated_at: datetime | None = None,
+    max_age_seconds: int = DEFAULT_COINBASE_AVERAGE_COST_AUTHORITY_MAX_AGE_SECONDS,
+) -> dict[str, Any]:
+    """Block stale Coinbase average-cost rows when they provide SELL authority."""
+    updated = dict(safety)
+    updated["violations"] = [dict(item) for item in updated.get("violations") or []]
+    policy = updated.get("policy") or {}
+    if not bool(policy.get("allow_coinbase_average_cost_basis")):
+        return updated
+
+    timestamp = generated_at or datetime.now(timezone.utc)
+    authority_products = _coinbase_average_cost_authority_products(plan_explain)
+    records_by_product = {
+        _text(record.get("product_id")).upper(): dict(record)
+        for record in coinbase_average_cost_records or []
+        if isinstance(record, Mapping) and _text(record.get("product_id"))
+    }
+    drift_by_product = {
+        _text(row.get("product_id")).upper(): dict(row)
+        for row in (cost_basis_drift_audit or {}).get("products") or []
+        if isinstance(row, Mapping) and _text(row.get("product_id"))
+    }
+
+    gate_violations: list[dict[str, Any]] = []
+    for product_id in authority_products:
+        record = records_by_product.get(product_id)
+        parsed_generated_at = (
+            _parse_baseline_timestamp(record.get("generated_at"))
+            if record
+            else None
+        )
+        if not record:
+            gate_violations.append({
+                "code": "coinbase_average_cost_freshness",
+                "product_id": product_id,
+                "status": SpotCostBasisStatus.MISSING_POSITION.value,
+                "reason": (
+                    "Coinbase average cost authority is selected but no "
+                    "average-cost record exists for this product"
+                ),
+            })
+        elif parsed_generated_at is None:
+            gate_violations.append({
+                "code": "coinbase_average_cost_freshness",
+                "product_id": product_id,
+                "status": SpotCostBasisStatus.UNAVAILABLE.value,
+                "generated_at": record.get("generated_at"),
+                "reason": "Coinbase average cost record has invalid freshness metadata",
+            })
+        else:
+            age_seconds = max(0, int((timestamp - parsed_generated_at).total_seconds()))
+            if age_seconds > max_age_seconds:
+                gate_violations.append({
+                    "code": "coinbase_average_cost_freshness",
+                    "product_id": product_id,
+                    "status": SpotCostBasisStatus.STALE.value,
+                    "generated_at": record.get("generated_at"),
+                    "age_seconds": age_seconds,
+                    "max_age_seconds": max_age_seconds,
+                    "reason": (
+                        "Coinbase average cost authority record is stale for "
+                        "live SELL authorization"
+                    ),
+                })
+
+        drift = drift_by_product.get(product_id)
+        if drift and drift.get("status") == SpotCostBasisStatus.STALE.value:
+            gate_violations.append({
+                "code": "coinbase_average_cost_drift",
+                "product_id": product_id,
+                "status": SpotCostBasisStatus.STALE.value,
+                "drift_pct": drift.get("drift_pct"),
+                "warning_threshold_pct": drift.get("warning_threshold_pct"),
+                "reason": (
+                    "Coinbase average cost authority has stale drift against "
+                    "local fill-ledger lots"
+                ),
+            })
+
+    gate = {
+        "required": True,
+        "decision": (
+            SpotPortfolioSweepSafetyDecision.BLOCKED.value
+            if gate_violations
+            else SpotPortfolioSweepSafetyDecision.ALLOWED.value
+        ),
+        "authority_product_count": len(authority_products),
+        "authority_products": authority_products,
+        "max_age_seconds": max_age_seconds,
+        "violations": gate_violations,
+    }
+    updated["coinbase_average_cost_authority_gate"] = gate
+    if gate_violations:
+        updated["decision"] = SpotPortfolioSweepSafetyDecision.BLOCKED.value
+        updated["violations"].extend(gate_violations)
+    return updated
+
+
 def build_sweep_config_id(
     *,
     side: str,
@@ -2663,6 +2804,145 @@ def _inventory_lot_quantities(
     }
 
 
+def _inventory_baseline_entries(inventory_baselines: Any) -> list[dict[str, Any]]:
+    raw = inventory_baselines or []
+    if isinstance(raw, Mapping):
+        nested = raw.get("lots") or raw.get("baselines")
+        if isinstance(nested, list):
+            raw = nested
+        else:
+            flattened: list[Any] = []
+            for value in raw.values():
+                if isinstance(value, list):
+                    flattened.extend(value)
+                elif isinstance(value, Mapping):
+                    flattened.append(value)
+            raw = flattened
+    if isinstance(raw, (str, bytes)) or not isinstance(raw, Iterable):
+        return []
+
+    entries: list[dict[str, Any]] = []
+    for entry in raw:
+        if isinstance(entry, Mapping):
+            entries.append(dict(entry))
+    return entries
+
+
+def _baseline_freshness_timestamp(
+    entry: Mapping[str, Any],
+) -> tuple[str | None, Any]:
+    for field_name in BASELINE_FRESHNESS_TIMESTAMP_FIELDS:
+        value = entry.get(field_name)
+        if _text(value):
+            return field_name, value
+    return None, None
+
+
+def _parse_baseline_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = _text(value)
+        if not text:
+            return None
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def build_spot_inventory_baseline_freshness_audit(
+    *,
+    inventory_baselines: Any = None,
+    generated_at: datetime | None = None,
+    max_age_seconds: int = DEFAULT_INVENTORY_BASELINE_MAX_AGE_SECONDS,
+) -> dict[str, Any]:
+    """Report whether imported baseline inventory carries fresh source metadata."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    entries = _inventory_baseline_entries(inventory_baselines)
+    status_counts = {
+        status.value: 0 for status in SpotInventoryBaselineFreshness
+    }
+    rows: list[dict[str, Any]] = []
+
+    for index, entry in enumerate(entries):
+        timestamp_field, raw_timestamp = _baseline_freshness_timestamp(entry)
+        parsed_timestamp = _parse_baseline_timestamp(raw_timestamp)
+        if timestamp_field is None:
+            status = SpotInventoryBaselineFreshness.MISSING_TIMESTAMP
+            age_seconds = None
+        elif parsed_timestamp is None:
+            status = SpotInventoryBaselineFreshness.INVALID_TIMESTAMP
+            age_seconds = None
+        else:
+            age_seconds = max(0, int((timestamp - parsed_timestamp).total_seconds()))
+            status = (
+                SpotInventoryBaselineFreshness.STALE
+                if age_seconds > max_age_seconds
+                else SpotInventoryBaselineFreshness.FRESH
+            )
+
+        status_counts[status.value] += 1
+        source_id = entry.get("source_id") or entry.get("lot_id") or index
+        product_id = _text(
+            entry.get("product_id")
+            or entry.get("instrument")
+            or entry.get("symbol")
+        ).upper()
+        rows.append({
+            "product_id": product_id,
+            "source_id": _text(source_id),
+            "lot_source": _text(
+                entry.get("lot_source")
+                or entry.get("source")
+                or InventoryLotSource.IMPORTED_BASELINE.value
+            ).lower(),
+            "freshness_status": status.value,
+            "timestamp_field": timestamp_field,
+            "timestamp": _iso_timestamp(raw_timestamp),
+            "age_seconds": age_seconds,
+            "max_age_seconds": max_age_seconds,
+            "remaining_quantity": _format_decimal(
+                _decimal(entry.get("remaining_quantity", entry.get("quantity")))
+            ) or "0",
+            "cost_basis_status": _text(
+                entry.get("cost_basis_status") or InventoryCostBasisStatus.UNKNOWN.value
+            ).lower(),
+        })
+
+    if not rows:
+        status = SpotInventoryBaselineFreshness.NOT_CONFIGURED
+        status_counts[status.value] = 1
+    elif status_counts[SpotInventoryBaselineFreshness.INVALID_TIMESTAMP.value]:
+        status = SpotInventoryBaselineFreshness.INVALID_TIMESTAMP
+    elif status_counts[SpotInventoryBaselineFreshness.MISSING_TIMESTAMP.value]:
+        status = SpotInventoryBaselineFreshness.MISSING_TIMESTAMP
+    elif status_counts[SpotInventoryBaselineFreshness.STALE.value]:
+        status = SpotInventoryBaselineFreshness.STALE
+    else:
+        status = SpotInventoryBaselineFreshness.FRESH
+
+    return {
+        "generated_at": timestamp.isoformat(),
+        "freshness_status": status.value,
+        "max_age_seconds": max_age_seconds,
+        "baseline_count": len(rows),
+        "fresh_count": status_counts[SpotInventoryBaselineFreshness.FRESH.value],
+        "stale_count": status_counts[SpotInventoryBaselineFreshness.STALE.value],
+        "missing_timestamp_count": status_counts[
+            SpotInventoryBaselineFreshness.MISSING_TIMESTAMP.value
+        ],
+        "invalid_timestamp_count": status_counts[
+            SpotInventoryBaselineFreshness.INVALID_TIMESTAMP.value
+        ],
+        "status_counts": status_counts,
+        "baselines": rows,
+    }
+
+
 def build_spot_inventory_coverage_report(
     *,
     fill_ledger_repo: Any,
@@ -2678,6 +2958,10 @@ def build_spot_inventory_coverage_report(
     timestamp = generated_at or datetime.now(timezone.utc)
     eligible_products = filter_usdc_spot_products(products)
     average_cost_by_product = average_cost_records_by_product(coinbase_average_costs)
+    baseline_freshness_audit = build_spot_inventory_baseline_freshness_audit(
+        inventory_baselines=inventory_baselines,
+        generated_at=timestamp,
+    )
     status_counts = {status.value: 0 for status in SpotInventoryCoverageStatus}
     rows: list[dict[str, Any]] = []
     wallet_balance_count = 0
@@ -2796,6 +3080,7 @@ def build_spot_inventory_coverage_report(
         "unknown_cost_basis_product_count": unknown_count,
         "wallet_only_product_count": wallet_only_count,
         "status_counts": status_counts,
+        "baseline_freshness_audit": baseline_freshness_audit,
         "products": rows,
     }
 

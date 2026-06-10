@@ -37,8 +37,9 @@ def _fill_row(
     quantity=0.1,
     price=90000.0,
     fees=0.0,
+    timestamp=None,
 ):
-    timestamp = datetime(2026, 1, 1, 12, 0, 0)
+    timestamp = timestamp or datetime(2026, 1, 1, 12, 0, 0)
     return {
         "derived_trade_key": key,
         "instrument": product_id,
@@ -193,6 +194,40 @@ def test_fill_ledger_lots_can_satisfy_spot_sell_authority():
     assert decision.status == InventoryAuthorityStatus.KNOWN_PROFITABLE.value
     assert decision.known_profitable_quantity == pytest.approx(0.15)
     assert decision.unknown_cost_basis_quantity == pytest.approx(0.0)
+
+
+def test_prior_fill_ledger_sells_reduce_known_spot_sell_authority():
+    repo = _repo_with_fills([
+        _fill_row(
+            key="buy-known",
+            quantity=81.0,
+            price=0.01245,
+            timestamp=datetime(2026, 1, 1, 12, 0, 0),
+        ),
+        _fill_row(
+            key="sell-prior",
+            side=OrderSide.SELL.value,
+            quantity=80.5,
+            price=0.01254,
+            timestamp=datetime(2026, 1, 1, 13, 0, 0),
+        ),
+    ])
+
+    decision = evaluate_spot_sell_lot_authority(
+        product_id="BTC-USD",
+        side=OrderSide.SELL.value,
+        size=80.6,
+        limit_price=0.01253,
+        fill_ledger_repo=repo,
+        profit_target_pct=0.5,
+    )
+
+    assert decision.allowed is False
+    assert decision.status == (
+        InventoryAuthorityStatus.INSUFFICIENT_KNOWN_PROFITABLE.value
+    )
+    assert decision.known_quantity == pytest.approx(0.5)
+    assert decision.known_profitable_quantity == pytest.approx(0.5)
 
 
 def test_unknown_baseline_inventory_blocks_known_profit_authority():

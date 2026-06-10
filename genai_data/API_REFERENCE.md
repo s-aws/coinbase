@@ -44,6 +44,33 @@ building the currency-to-wallet map. Do not replace it with a single
 - `place_limit_order` returns raw SDK response dict (do not coerce to `Order`).
 - `list_fills` maps user-facing params to SDK keys (`order_ids`, `product_ids`, `start_sequence_timestamp`, `end_sequence_timestamp`).
 
+## Spot Sweep And Campaign CLI Outputs
+
+`tools/run_spot_campaign.py --sell-authority-allowlist` writes three optional
+artifacts:
+- allowlist audit JSON from `--write-allowlist-file`
+- narrowed campaign config from `--write-allowlist-config-file`
+- rendered sweep config from `--write-allowlist-sweep-config-file`
+
+Rendered SELL allowlist sweep configs include a
+`sell_authority_allowlist` metadata block with `generated_at`,
+`max_age_seconds`, `expires_at`, `freshness_status`, allow/block counts, and
+estimated allowlisted quote notional. `tools/run_spot_portfolio_sweep_live.py`
+copies that block from config files, reports
+`sell_authority_allowlist_freshness` during `--validate-config`, and rejects
+stale or invalid allowlist metadata before live mode can submit Coinbase
+orders.
+
+Spot inventory coverage and sweep validation include
+`inventory_baseline_freshness_audit`. Imported baseline lots should carry
+source freshness metadata such as `source_updated_at`, `updated_at`,
+`generated_at`, `observed_at`, `as_of`, `snapshot_at`, or `refreshed_at`.
+
+When Coinbase average cost is explicitly enabled for SELL authority,
+`coinbase_average_cost_authority_gate` blocks only planned SELL rows whose
+authority comes from Coinbase average cost and whose record is stale, missing,
+invalid, or stale versus the local drift audit.
+
 ## 2) Coinbase WebSocket Wrapper (`CoinbaseWebSocketClient`)
 
 Connection lifecycle:
@@ -89,8 +116,10 @@ Parent order views and CRUD:
 submission uses `place_order`.
 
 `place_order` submits a live Coinbase order when REST is available and the
-product capability, size validator, and action-condition guard admit the
-request. On success, `order_response` includes both the internal
+product capability, size validator, manual spot live acknowledgement, and
+action-condition guard admit the request. For spot products,
+`params.manual_live_acknowledgement=true` is required before the handler reaches
+REST submission. On success, `order_response` includes both the internal
 `client_order_id` and Coinbase `order_id` so dashboard submissions can be
 correlated with websocket, reconciliation, and fill-ledger evidence. The
 handler also writes an `order_submitted` event with source channel
@@ -103,6 +132,13 @@ Quote-sized market BUYs validate `quote_size` directly against product
 pre-insert `order_parent` or opt the order into automated follow-up policy
 state before submission. It is an immediate manual order surface; websocket
 lifecycle and reconciliation own later local evidence rows.
+
+`cancel_order` is a manual dashboard cancellation request keyed by
+`client_order_id`. The handler accepts top-level `client_order_id` or
+`params.client_order_id`, rejects requests that provide only `order_id`, and
+calls `REST_CLIENT.cancel_order(client_order_id)`. Do not add an exchange-id
+resolver to this dashboard path. Raw batch `cancel_orders(order_ids=[...])`
+remains exchange-id oriented for paths that explicitly use the batch API.
 
 Stealth views/actions:
 - `request_stealth_orders`
@@ -127,6 +163,7 @@ Move and product utilities:
 - `request_spot_sweep_pnl`
 - `request_spot_cost_basis_status`
 - `request_spot_campaign_status`
+- `request_spot_direct_order_audit`
 
 Hotpoint manager:
 - `request_hotpoint_state`
@@ -195,6 +232,7 @@ Move/product/analytics responses:
 - `spot_sweep_pnl`
 - `spot_cost_basis_status`
 - `spot_campaign_status`
+- `spot_direct_order_audit`
 - `hotpoint_state`
 - `hotpoint_kill_switch_response`
 - `place_hotpoint_test_order_response`
@@ -549,7 +587,18 @@ Response shape:
       "latest_live_run_id": "spot-sweep-example",
       "total_submitted_notional_usdc": "10",
       "total_executed_notional_usdc": "9.95",
-      "portfolio_total_pnl": "0.12"
+      "portfolio_total_pnl": "0.12",
+      "sell_authority_profile": "fill_ledger_strict",
+      "sell_authority_allowlist_count": 33,
+      "sell_authority_blocked_count": 319,
+      "sell_authority_source_counts": {"fill_ledger": 33, "wallet_only": 319},
+      "sell_authority_status_counts": {
+        "known_profitable": 33,
+        "insufficient_known_profitable": 317,
+        "no_lots": 2
+      },
+      "sell_authority_estimated_allowlisted_quote_notional": "33.26606405",
+      "sell_authority_allow_products_preview": ["ALT-USDC", "B3-USDC"]
     },
     "latest_snapshot": {
       "record_type": "spot_campaign_snapshot",
@@ -589,11 +638,58 @@ Operator contract:
   readiness data. `latest_live_snapshot` is the newest live-canary record.
 - `operator_summary` is the dashboard-ready read-only summary for readiness,
   due state, lock state, recovery state, planned skips, notional, and P/L.
+- When the latest readiness record contains a SELL authority allowlist,
+  `operator_summary` also includes the authority profile, allowlist and
+  blocked counts, authority source/status counts, estimated allowlisted USDC
+  notional, and a product preview.
 - Generate or refresh snapshots with
   `tools/run_spot_campaign.py --config-file <path> --dry-run-matrix --record-snapshot`
   or `tools/run_spot_campaign.py --config-file <path> --release-gate --record-snapshot`.
+- Generate a narrowed SELL authority allowlist with
+  `tools/run_spot_campaign.py --config-file <path> --sell-authority-allowlist --write-allowlist-sweep-config-file <path>`.
 - Live campaign canaries use a rendered sweep config and
   `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
+
+### `request_spot_direct_order_audit`
+
+Request shape:
+
+```json
+{
+  "type": "request_spot_direct_order_audit",
+  "params": {
+    "client_order_id": "client-order-id",
+    "include_events": true,
+    "include_fills": true
+  }
+}
+```
+
+Response shape:
+
+```json
+{
+  "type": "spot_direct_order_audit",
+  "status": "success",
+  "client_order_id": "client-order-id",
+  "audit": {
+    "record_type": "spot_direct_order_audit",
+    "client_order_id": "client-order-id",
+    "status": "found",
+    "live_coinbase_orders_ran": false,
+    "read_only_coinbase_requests": []
+  }
+}
+```
+
+Operator contract:
+- This request reads local direct-order event and fill evidence by
+  `client_order_id`.
+- It does not call Coinbase, place orders, cancel orders, retry orders, or run
+  reconciliation.
+- The equivalent CLI is
+  `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`.
+- Missing `client_order_id` returns an error payload before local DB reads.
 
 ## 4) Internal Runtime Control API
 

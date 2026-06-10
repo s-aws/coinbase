@@ -32,6 +32,7 @@ def test_spot_readiness_runner_covers_required_focus_files():
         "tests/regression/test_dashboard_action_condition_guard.py",
         "tests/regression/test_dashboard_spot_readiness.py",
         "tests/regression/test_dashboard_spot_sweep_status.py",
+        "tests/regression/test_spot_direct_order_audit.py",
         "tests/regression/test_spot_campaign.py",
         "tests/regression/test_live_spot_usdc_smoke_runner.py",
         "tests/regression/test_spot_readiness_gate.py",
@@ -73,14 +74,22 @@ def test_spot_release_gate_can_include_campaign_config():
     args = parser.parse_args([
         "--campaign-config-file",
         "runtime_state/spot_campaign_buy.json",
+        "--campaign-all-usdc-readiness",
     ])
 
     steps = build_release_gate_steps(args=args, python="python")
     campaign = next(step for step in steps if step.name == "spot_campaign_release_gate")
+    broad = next(
+        step
+        for step in steps
+        if step.name == "spot_campaign_all_usdc_readiness_gate"
+    )
 
     assert "tools/run_spot_campaign.py" in campaign.command
     assert "--release-gate" in campaign.command
     assert "--summary-only" in campaign.command
+    assert "--all-usdc-readiness-gate" in broad.command
+    assert "--summary-only" in broad.command
 
 
 def test_spot_feature_intake_gate_blocks_missing_request_details():

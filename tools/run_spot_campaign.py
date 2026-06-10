@@ -20,14 +20,29 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from business.spot_campaign import (
     DEFAULT_CAMPAIGN_STATE_FILE,
+    apply_spot_campaign_sell_authority_profile,
     append_spot_campaign_snapshot_record,
+    build_spot_campaign_all_usdc_readiness_gate,
+    build_spot_campaign_config_template,
+    build_spot_campaign_config_validation_report,
     build_spot_campaign_dry_run_matrix,
+    build_spot_campaign_dry_run_diff,
     build_spot_campaign_intake_request,
+    build_spot_campaign_ledger_cleanup_plan,
+    build_spot_campaign_no_order_recovery_drill,
     build_spot_campaign_operation_lock_status,
     build_spot_campaign_operator_status,
+    build_spot_campaign_pnl_checkpoints,
+    build_spot_campaign_pnl_delta_report,
     build_spot_campaign_release_gate,
     build_spot_campaign_retry_plan,
+    build_spot_campaign_run_index,
+    build_spot_campaign_scheduler_status,
+    build_spot_campaign_sell_authority_drift_report,
+    build_spot_campaign_sell_authority_allowlist,
+    build_spot_campaign_sell_authority_operator_report,
     build_spot_campaign_snapshot_record,
+    build_spot_campaign_strict_sell_canary_candidates,
     load_spot_campaign_snapshot_records,
     normalize_spot_campaign_config,
     spot_campaign_config_to_sweep_config,
@@ -39,7 +54,9 @@ from business.spot_portfolio_sweep import (
 from core.enums import (
     SpotCampaignGateStatus,
     SpotCampaignRunMode,
+    SpotCampaignSellAuthorityProfile,
     SpotCampaignStatus,
+    SpotCampaignTemplateProfile,
     SpotCostBasisSource,
     SpotPortfolioSweepRunStatus,
     SpotPortfolioSweepSafetyDecision,
@@ -70,8 +87,25 @@ def _load_config(path: Path | None) -> dict[str, Any]:
     return dict(payload)
 
 
+def _load_mapping_file(path: Path | None, *, field_name: str) -> dict[str, Any]:
+    if path is None:
+        raise ValueError(f"{field_name} is required for this mode")
+    with path.open("r", encoding="utf-8-sig") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{field_name} must contain a JSON object")
+    return dict(payload)
+
+
 def _requires_coinbase_read(args: argparse.Namespace) -> bool:
-    return bool(args.dry_run_matrix or args.release_gate)
+    return bool(
+        args.dry_run_matrix
+        or args.release_gate
+        or args.dry_run_diff
+        or args.no_order_recovery_drill
+        or args.all_usdc_readiness_gate
+        or args.sell_authority_allowlist
+    )
 
 
 def _build_summary_base(
@@ -161,6 +195,45 @@ def _record_snapshot_if_requested(
     }
 
 
+def _allowlist_summary_for_print(
+    allowlist: Mapping[str, Any],
+    *,
+    summary_only: bool,
+) -> dict[str, Any]:
+    output = dict(allowlist)
+    if summary_only:
+        output.pop("allowlist_rows", None)
+        output.pop("blocked_rows", None)
+        output.pop("skipped_rows", None)
+    return output
+
+
+def _report_summary_for_print(
+    report: Mapping[str, Any],
+    *,
+    summary_only: bool,
+) -> dict[str, Any]:
+    output = dict(report)
+    if not summary_only:
+        return output
+    output.pop("run_index", None)
+    for key in (
+        "common_products",
+        "strict_only_products",
+        "average_cost_only_products",
+    ):
+        if isinstance(output.get(key), list):
+            output[f"{key}_count"] = len(output[key])
+            output.pop(key, None)
+    for summary_key in ("strict_fill_ledger", "coinbase_average_cost"):
+        summary = output.get(summary_key)
+        if isinstance(summary, Mapping):
+            summary = dict(summary)
+            summary.pop("allow_products", None)
+            output[summary_key] = summary
+    return output
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -173,6 +246,161 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Versioned JSON spot campaign config file.",
+    )
+    parser.add_argument(
+        "--baseline-config-file",
+        type=Path,
+        default=None,
+        help="Baseline campaign config used by --dry-run-diff.",
+    )
+    parser.add_argument(
+        "--template-profile",
+        choices=[profile.value for profile in SpotCampaignTemplateProfile],
+        default=None,
+        help="Print a canonical campaign config template.",
+    )
+    parser.add_argument(
+        "--write-template-file",
+        type=Path,
+        default=None,
+        help="Optional output path for --template-profile.",
+    )
+    parser.add_argument(
+        "--validate-config-report",
+        action="store_true",
+        help="Validate config shape and operator safety caps without Coinbase calls.",
+    )
+    parser.add_argument(
+        "--dry-run-diff",
+        action="store_true",
+        help="Compare current and baseline dry-run matrices.",
+    )
+    parser.add_argument(
+        "--run-index",
+        action="store_true",
+        help="Build a local campaign/sweep run index from durable ledgers.",
+    )
+    parser.add_argument(
+        "--pnl-checkpoints",
+        action="store_true",
+        help="Build campaign P/L checkpoints from the durable campaign ledger.",
+    )
+    parser.add_argument(
+        "--pnl-delta-report",
+        action="store_true",
+        help="Compare the latest durable campaign P/L checkpoints by scope.",
+    )
+    parser.add_argument(
+        "--ledger-cleanup-plan",
+        action="store_true",
+        help="Plan local recording or intentional ignore handling for unrecorded sweep runs.",
+    )
+    parser.add_argument(
+        "--sell-authority-drift-report",
+        action="store_true",
+        help="Compare two SELL authority allowlists for product-removal drift.",
+    )
+    parser.add_argument(
+        "--baseline-allowlist-file",
+        type=Path,
+        default=None,
+        help="Older SELL allowlist JSON used by --sell-authority-drift-report.",
+    )
+    parser.add_argument(
+        "--current-allowlist-file",
+        type=Path,
+        default=None,
+        help="Current SELL allowlist JSON used by --sell-authority-drift-report.",
+    )
+    parser.add_argument(
+        "--authority-operator-report",
+        action="store_true",
+        help="Compare strict fill-ledger and Coinbase average-cost SELL authority reports.",
+    )
+    parser.add_argument(
+        "--strict-allowlist-file",
+        type=Path,
+        default=None,
+        help="Strict fill-ledger SELL allowlist JSON used by authority reports.",
+    )
+    parser.add_argument(
+        "--average-cost-allowlist-file",
+        type=Path,
+        default=None,
+        help="Coinbase average-cost SELL allowlist JSON used by authority reports.",
+    )
+    parser.add_argument(
+        "--strict-sell-canary-candidates",
+        action="store_true",
+        help="Select strict SELL canary candidates while avoiding recent live SELL products.",
+    )
+    parser.add_argument(
+        "--input-allowlist-file",
+        type=Path,
+        default=None,
+        help="SELL allowlist JSON input for --strict-sell-canary-candidates.",
+    )
+    parser.add_argument(
+        "--max-candidates",
+        type=int,
+        default=3,
+        help="Maximum candidate products for --strict-sell-canary-candidates.",
+    )
+    parser.add_argument(
+        "--recent-run-limit",
+        type=int,
+        default=5,
+        help="Recent live SELL sweep runs to exclude from candidate rotation.",
+    )
+    parser.add_argument(
+        "--no-order-recovery-drill",
+        action="store_true",
+        help="Exercise retry classification with synthetic no-submission orders.",
+    )
+    parser.add_argument(
+        "--all-usdc-readiness-gate",
+        action="store_true",
+        help="Validate that a broad all-USDC campaign is intentionally broad.",
+    )
+    parser.add_argument(
+        "--scheduler-status",
+        action="store_true",
+        help="Report recurring campaign due state from the sweep ledger.",
+    )
+    parser.add_argument(
+        "--sell-authority-allowlist",
+        action="store_true",
+        help="Build a read-only SELL authority allowlist from dry-run rows.",
+    )
+    parser.add_argument(
+        "--sell-authority-profile",
+        choices=[profile.value for profile in SpotCampaignSellAuthorityProfile],
+        default=None,
+        help="Apply a named SELL authority profile when writing a profiled config or allowlist.",
+    )
+    parser.add_argument(
+        "--write-profiled-config-file",
+        type=Path,
+        default=None,
+        help="Write config with --sell-authority-profile applied.",
+    )
+    parser.add_argument(
+        "--write-allowlist-file",
+        type=Path,
+        default=None,
+        help="Optional JSON output path for --sell-authority-allowlist.",
+    )
+    parser.add_argument(
+        "--write-allowlist-config-file",
+        type=Path,
+        default=None,
+        help="Optional campaign config output path from --sell-authority-allowlist.",
+    )
+    parser.add_argument(
+        "--write-allowlist-sweep-config-file",
+        type=Path,
+        default=None,
+        help="Optional sweep config output path from --sell-authority-allowlist.",
     )
     parser.add_argument(
         "--intake",
@@ -280,6 +508,21 @@ def main(argv: list[str] | None = None) -> int:
     mode_count = sum(
         1
         for enabled in (
+            args.template_profile is not None,
+            args.validate_config_report,
+            args.dry_run_diff,
+            args.run_index,
+            args.pnl_checkpoints,
+            args.pnl_delta_report,
+            args.ledger_cleanup_plan,
+            args.sell_authority_drift_report,
+            args.authority_operator_report,
+            args.strict_sell_canary_candidates,
+            args.no_order_recovery_drill,
+            args.all_usdc_readiness_gate,
+            args.scheduler_status,
+            args.sell_authority_allowlist,
+            args.write_profiled_config_file is not None,
             args.intake,
             args.dry_run_matrix,
             args.release_gate,
@@ -292,19 +535,77 @@ def main(argv: list[str] | None = None) -> int:
     )
     if mode_count != 1:
         parser.error(
-            "choose exactly one of --intake, --dry-run-matrix, --release-gate, "
-            "--status, --write-sweep-config-file, --record-latest-sweep-run, "
-            "or --retry-plan"
+            "choose exactly one campaign mode"
         )
-    if args.record_snapshot and not (args.dry_run_matrix or args.release_gate):
-        parser.error("--record-snapshot is valid only with dry-run or release gate")
+    if args.write_template_file and args.template_profile is None:
+        parser.error("--write-template-file is valid only with --template-profile")
+    if args.baseline_config_file and not args.dry_run_diff:
+        parser.error("--baseline-config-file is valid only with --dry-run-diff")
+    if args.dry_run_diff and args.baseline_config_file is None:
+        parser.error("--dry-run-diff requires --baseline-config-file")
+    if (
+        args.sell_authority_profile
+        and args.write_profiled_config_file is None
+        and not args.sell_authority_allowlist
+    ):
+        parser.error(
+            "--sell-authority-profile requires --write-profiled-config-file or --sell-authority-allowlist"
+        )
+    if args.write_profiled_config_file and args.sell_authority_profile is None:
+        parser.error("--write-profiled-config-file requires --sell-authority-profile")
+    if args.record_snapshot and not (
+        args.dry_run_matrix or args.release_gate or args.sell_authority_allowlist
+    ):
+        parser.error(
+            "--record-snapshot is valid only with dry-run, release gate, or sell authority allowlist"
+        )
     if args.write_retry_config_file and not args.retry_plan:
         parser.error("--write-retry-config-file is valid only with --retry-plan")
+    if args.baseline_allowlist_file and not args.sell_authority_drift_report:
+        parser.error("--baseline-allowlist-file is valid only with --sell-authority-drift-report")
+    if args.current_allowlist_file and not args.sell_authority_drift_report:
+        parser.error("--current-allowlist-file is valid only with --sell-authority-drift-report")
+    if args.strict_allowlist_file and not args.authority_operator_report:
+        parser.error("--strict-allowlist-file is valid only with --authority-operator-report")
+    if args.average_cost_allowlist_file and not args.authority_operator_report:
+        parser.error("--average-cost-allowlist-file is valid only with --authority-operator-report")
+    if args.input_allowlist_file and not args.strict_sell_canary_candidates:
+        parser.error("--input-allowlist-file is valid only with --strict-sell-canary-candidates")
+    for writer_name in (
+        "write_allowlist_file",
+        "write_allowlist_config_file",
+        "write_allowlist_sweep_config_file",
+    ):
+        if getattr(args, writer_name) is not None and not args.sell_authority_allowlist:
+            parser.error(
+                f"--{writer_name.replace('_', '-')} is valid only with --sell-authority-allowlist"
+            )
     if _requires_coinbase_read(args) and (
         not os.environ.get("COINBASE_API_KEY")
         or not os.environ.get("COINBASE_API_SECRET")
     ):
         parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
+
+    if args.template_profile is not None:
+        template = build_spot_campaign_config_template(profile=args.template_profile)
+        if args.write_template_file:
+            args.write_template_file.parent.mkdir(parents=True, exist_ok=True)
+            with args.write_template_file.open(
+                "w",
+                encoding="utf-8",
+                newline="\n",
+            ) as handle:
+                json.dump(template, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+        summary = _build_summary_base(config=template, state_file=args.state_file)
+        summary["status"] = SpotCampaignStatus.RECORDED.value
+        summary["mode"] = SpotCampaignRunMode.TEMPLATE.value
+        summary["template_profile"] = args.template_profile
+        summary["template_config"] = template
+        if args.write_template_file:
+            summary["template_file"] = str(args.write_template_file)
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
 
     if args.status:
         operator_status = build_spot_campaign_operator_status(
@@ -317,11 +618,194 @@ def main(argv: list[str] | None = None) -> int:
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
         return 0
 
+    if args.run_index:
+        run_index = build_spot_campaign_run_index(
+            campaign_records=load_spot_campaign_snapshot_records(args.state_file),
+            sweep_records=load_sweep_run_records(args.sweep_state_file),
+        )
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = SpotCampaignStatus.RECORDED.value
+        summary["mode"] = SpotCampaignRunMode.RUN_INDEX.value
+        summary["run_index"] = run_index
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.ledger_cleanup_plan:
+        cleanup_plan = build_spot_campaign_ledger_cleanup_plan(
+            campaign_records=load_spot_campaign_snapshot_records(args.state_file),
+            sweep_records=load_sweep_run_records(args.sweep_state_file),
+        )
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = cleanup_plan["status"]
+        summary["mode"] = SpotCampaignRunMode.LEDGER_CLEANUP_PLAN.value
+        summary["ledger_cleanup_plan"] = _report_summary_for_print(
+            cleanup_plan,
+            summary_only=args.summary_only,
+        )
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.pnl_checkpoints:
+        checkpoints = build_spot_campaign_pnl_checkpoints(
+            records=load_spot_campaign_snapshot_records(args.state_file),
+        )
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = SpotCampaignStatus.RECORDED.value
+        summary["mode"] = SpotCampaignRunMode.PNL_CHECKPOINT.value
+        summary["pnl_checkpoints"] = checkpoints
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.pnl_delta_report:
+        pnl_delta = build_spot_campaign_pnl_delta_report(
+            records=load_spot_campaign_snapshot_records(args.state_file),
+        )
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = pnl_delta["status"]
+        summary["mode"] = SpotCampaignRunMode.PNL_DELTA_REPORT.value
+        summary["pnl_delta_report"] = _report_summary_for_print(
+            pnl_delta,
+            summary_only=args.summary_only,
+        )
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.sell_authority_drift_report:
+        try:
+            previous_allowlist = _load_mapping_file(
+                args.baseline_allowlist_file,
+                field_name="--baseline-allowlist-file",
+            )
+            current_allowlist = _load_mapping_file(
+                args.current_allowlist_file,
+                field_name="--current-allowlist-file",
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        drift_report = build_spot_campaign_sell_authority_drift_report(
+            previous_allowlist=previous_allowlist,
+            current_allowlist=current_allowlist,
+        )
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = drift_report["status"]
+        summary["mode"] = SpotCampaignRunMode.SELL_AUTHORITY_DRIFT.value
+        summary["sell_authority_drift_report"] = _report_summary_for_print(
+            drift_report,
+            summary_only=args.summary_only,
+        )
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0 if drift_report["gate_status"] == SpotCampaignGateStatus.PASSED.value else 1
+
+    if args.authority_operator_report:
+        try:
+            strict_allowlist = _load_mapping_file(
+                args.strict_allowlist_file,
+                field_name="--strict-allowlist-file",
+            )
+            average_cost_allowlist = _load_mapping_file(
+                args.average_cost_allowlist_file,
+                field_name="--average-cost-allowlist-file",
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        authority_report = build_spot_campaign_sell_authority_operator_report(
+            strict_allowlist=strict_allowlist,
+            average_cost_allowlist=average_cost_allowlist,
+        )
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = authority_report["status"]
+        summary["mode"] = SpotCampaignRunMode.SELL_AUTHORITY_OPERATOR_REPORT.value
+        summary["authority_operator_report"] = _report_summary_for_print(
+            authority_report,
+            summary_only=args.summary_only,
+        )
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.strict_sell_canary_candidates:
+        try:
+            allowlist = _load_mapping_file(
+                args.input_allowlist_file,
+                field_name="--input-allowlist-file",
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        candidates = build_spot_campaign_strict_sell_canary_candidates(
+            allowlist=allowlist,
+            sweep_records=load_sweep_run_records(args.sweep_state_file),
+            max_candidates=args.max_candidates,
+            recent_run_limit=args.recent_run_limit,
+        )
+        summary = _build_summary_base(config=None, state_file=args.state_file)
+        summary["status"] = candidates["status"]
+        summary["mode"] = SpotCampaignRunMode.STRICT_SELL_CANARY_CANDIDATES.value
+        summary["strict_sell_canary_candidates"] = _report_summary_for_print(
+            candidates,
+            summary_only=args.summary_only,
+        )
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0 if candidates["status"] == SpotCampaignStatus.READY.value else 1
+
+    if args.validate_config_report:
+        try:
+            raw_config = _load_config(args.config_file)
+        except ValueError as exc:
+            parser.error(str(exc))
+        report = build_spot_campaign_config_validation_report(config=raw_config)
+        summary = _build_summary_base(
+            config=report.get("config") or None,
+            state_file=args.state_file,
+        )
+        summary["status"] = report["status"]
+        summary["mode"] = SpotCampaignRunMode.VALIDATION.value
+        summary["validation_report"] = report
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0 if report["phase_90_ready"] else 1
+
     try:
         raw_config = _load_config(args.config_file)
-        config = normalize_spot_campaign_config(raw_config)
+        if args.sell_authority_profile and args.sell_authority_allowlist:
+            config = apply_spot_campaign_sell_authority_profile(
+                config=raw_config,
+                profile=args.sell_authority_profile,
+            )
+        else:
+            config = normalize_spot_campaign_config(raw_config)
     except ValueError as exc:
         parser.error(str(exc))
+
+    if args.write_profiled_config_file:
+        profiled = apply_spot_campaign_sell_authority_profile(
+            config=config,
+            profile=args.sell_authority_profile,
+        )
+        args.write_profiled_config_file.parent.mkdir(parents=True, exist_ok=True)
+        with args.write_profiled_config_file.open(
+            "w",
+            encoding="utf-8",
+            newline="\n",
+        ) as handle:
+            json.dump(profiled, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        summary = _build_summary_base(config=profiled, state_file=args.state_file)
+        summary["status"] = SpotCampaignStatus.RECORDED.value
+        summary["mode"] = SpotCampaignRunMode.VALIDATION.value
+        summary["profiled_config_file"] = str(args.write_profiled_config_file)
+        summary["profiled_config"] = profiled
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.scheduler_status:
+        scheduler_status = build_spot_campaign_scheduler_status(
+            config=config,
+            sweep_records=load_sweep_run_records(args.sweep_state_file),
+        )
+        summary = _build_summary_base(config=config, state_file=args.state_file)
+        summary["status"] = scheduler_status["status"]
+        summary["mode"] = SpotCampaignRunMode.SCHEDULER_STATUS.value
+        summary["scheduler_status"] = scheduler_status
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
 
     if args.write_sweep_config_file:
         sweep_config = spot_campaign_config_to_sweep_config(config)
@@ -496,13 +980,150 @@ def main(argv: list[str] | None = None) -> int:
         inventory_baselines=inventory_baselines,
         coinbase_average_costs=cost_basis,
         sweep_records=sweep_records,
-        include_items=not args.summary_only,
+        include_items=(
+            not args.summary_only
+            or args.dry_run_diff
+            or args.no_order_recovery_drill
+            or args.sell_authority_allowlist
+        ),
     )
     read_requests = [
         "get_public_products",
         "get_accounts",
         *cost_basis.get("read_only_coinbase_requests", []),
     ]
+
+    if args.sell_authority_allowlist:
+        allowlist = build_spot_campaign_sell_authority_allowlist(
+            config=config,
+            dry_run_matrix=dry_run_matrix,
+        )
+        if args.write_allowlist_file:
+            args.write_allowlist_file.parent.mkdir(parents=True, exist_ok=True)
+            with args.write_allowlist_file.open(
+                "w",
+                encoding="utf-8",
+                newline="\n",
+            ) as handle:
+                json.dump(allowlist, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+        if args.write_allowlist_config_file and allowlist.get("allowlist_config"):
+            args.write_allowlist_config_file.parent.mkdir(parents=True, exist_ok=True)
+            with args.write_allowlist_config_file.open(
+                "w",
+                encoding="utf-8",
+                newline="\n",
+            ) as handle:
+                json.dump(
+                    allowlist["allowlist_config"],
+                    handle,
+                    indent=2,
+                    sort_keys=True,
+                )
+                handle.write("\n")
+        if (
+            args.write_allowlist_sweep_config_file
+            and allowlist.get("allowlist_sweep_config")
+        ):
+            args.write_allowlist_sweep_config_file.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            with args.write_allowlist_sweep_config_file.open(
+                "w",
+                encoding="utf-8",
+                newline="\n",
+            ) as handle:
+                json.dump(
+                    allowlist["allowlist_sweep_config"],
+                    handle,
+                    indent=2,
+                    sort_keys=True,
+                )
+                handle.write("\n")
+        snapshot_record = None
+        if args.record_snapshot:
+            record = build_spot_campaign_snapshot_record(
+                config=config,
+                mode=SpotCampaignRunMode.SELL_AUTHORITY_ALLOWLIST,
+                status=allowlist["status"],
+                dry_run_matrix=dry_run_matrix,
+                sell_authority_allowlist=allowlist,
+            )
+            append_spot_campaign_snapshot_record(args.state_file, record)
+            snapshot_record = {
+                "record_type": record["record_type"],
+                "generated_at": record["generated_at"],
+                "campaign_id": record["campaign_id"],
+                "status": record["status"],
+                "mode": record["mode"],
+                "state_file": str(args.state_file),
+            }
+        summary = _build_summary_base(config=config, state_file=args.state_file)
+        summary["status"] = allowlist["status"]
+        summary["mode"] = SpotCampaignRunMode.SELL_AUTHORITY_ALLOWLIST.value
+        summary["read_only_coinbase_requests"] = sorted(set(read_requests))
+        summary["sell_authority_allowlist"] = _allowlist_summary_for_print(
+            allowlist,
+            summary_only=args.summary_only,
+        )
+        if args.write_allowlist_file:
+            summary["allowlist_file"] = str(args.write_allowlist_file)
+        if args.write_allowlist_config_file:
+            summary["allowlist_config_file"] = str(args.write_allowlist_config_file)
+        if args.write_allowlist_sweep_config_file:
+            summary["allowlist_sweep_config_file"] = str(
+                args.write_allowlist_sweep_config_file
+            )
+        if snapshot_record:
+            summary["campaign_snapshot_record"] = snapshot_record
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0 if allowlist["status"] == SpotCampaignStatus.READY.value else 1
+
+    if args.dry_run_diff:
+        try:
+            baseline_config = normalize_spot_campaign_config(
+                _load_config(args.baseline_config_file)
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        baseline_matrix = build_spot_campaign_dry_run_matrix(
+            config=baseline_config,
+            products=products,
+            wallets=wallets,
+            fill_ledger_repo=fill_ledger_repo,
+            inventory_baselines=inventory_baselines,
+            coinbase_average_costs=cost_basis,
+            sweep_records=sweep_records,
+            include_items=True,
+        )
+        diff = build_spot_campaign_dry_run_diff(
+            baseline_matrix=baseline_matrix,
+            current_matrix=dry_run_matrix,
+        )
+        summary = _build_summary_base(config=config, state_file=args.state_file)
+        summary["status"] = SpotCampaignStatus.RECORDED.value
+        summary["mode"] = SpotCampaignRunMode.DRY_RUN_DIFF.value
+        summary["read_only_coinbase_requests"] = sorted(set(read_requests))
+        summary["dry_run_diff"] = diff
+        if not args.summary_only:
+            summary["baseline_dry_run_matrix"] = baseline_matrix
+            summary["current_dry_run_matrix"] = dry_run_matrix
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0
+
+    if args.no_order_recovery_drill:
+        drill = build_spot_campaign_no_order_recovery_drill(
+            config=config,
+            dry_run_matrix=dry_run_matrix,
+        )
+        summary = _build_summary_base(config=config, state_file=args.state_file)
+        summary["status"] = drill["status"]
+        summary["mode"] = SpotCampaignRunMode.RECOVERY_DRILL.value
+        summary["read_only_coinbase_requests"] = sorted(set(read_requests))
+        summary["no_order_recovery_drill"] = drill
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0 if drill["passed"] else 1
 
     if args.dry_run_matrix:
         record = _record_snapshot_if_requested(
@@ -544,6 +1165,22 @@ def main(argv: list[str] | None = None) -> int:
         operation_lock_status=operation_lock_status,
         recovery_plan=recovery_plan,
     )
+    if args.all_usdc_readiness_gate:
+        all_usdc_gate = build_spot_campaign_all_usdc_readiness_gate(
+            config=config,
+            dry_run_matrix=dry_run_matrix,
+            release_gate=release_gate,
+        )
+        summary = _build_summary_base(config=config, state_file=args.state_file)
+        summary["status"] = all_usdc_gate["status"]
+        summary["mode"] = SpotCampaignRunMode.ALL_USDC_READINESS.value
+        summary["read_only_coinbase_requests"] = sorted(set(read_requests))
+        summary["dry_run_matrix"] = dry_run_matrix
+        summary["release_gate"] = release_gate
+        summary["all_usdc_readiness_gate"] = all_usdc_gate
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 0 if all_usdc_gate["gate_status"] == SpotCampaignGateStatus.PASSED.value else 1
+
     record = _record_snapshot_if_requested(
         args=args,
         config=config,

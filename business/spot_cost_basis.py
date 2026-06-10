@@ -235,6 +235,7 @@ def coinbase_average_cost_records_to_baselines(
             "remaining_quantity": _format_decimal(quantity),
             "entry_price": _format_decimal(entry_price),
             "entry_timestamp": record.get("generated_at"),
+            "source_updated_at": record.get("generated_at"),
             "fees": "0",
             "cost_basis_status": InventoryCostBasisStatus.KNOWN.value,
             "source_id": source_id,

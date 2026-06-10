@@ -194,7 +194,10 @@ Current scope is intentionally narrow and fail-soft:
 ## Key Architectural Invariants
 
 - `client_order_id` is the internal primary key across memory, DB, hooks, and logs.
-- `order_id` is exchange-assigned and only used for exchange-side lookup/cancel/reporting.
+- `order_id` is exchange-assigned and used for exchange-side lookup/reporting
+  and raw endpoints that require it. The project Coinbase wrapper
+  `cancel_order(client_order_id)` is the single-order cancellation exception
+  because Coinbase accepts our client id there.
 - Parent-child hierarchy is flat.
 - Stealth state must not lie about live exchange placement.
 - Cancel/re-entry, move, and repricing must share the same active-placement truth (`anchor_repricing_state_json`) instead of inventing a second exchange pointer.

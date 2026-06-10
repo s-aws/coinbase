@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
 
+from core.enums import EventSourceChannel, EventStreamType
 from logging_service import get_logger
 
 
@@ -622,8 +623,9 @@ def _fetch_client_order_ids_for_exchange_order_ids(
 ) -> Dict[str, str]:
     """Resolve exchange ``order_id`` -> internal ``client_order_id``.
 
-    Source of truth is ``order_event_stream``, which records both fields
-    for every observed exchange event.
+    Source of truth is owned submission evidence in ``order_event_stream``.
+    Observed exchange events can include shared-account orders, so ownership
+    requires the local REST submission record.
     """
     if not exchange_order_ids:
         return {}
@@ -634,8 +636,19 @@ def _fetch_client_order_ids_for_exchange_order_ids(
         placeholders = ",".join("%s" for _ in exchange_order_ids)
         try:
             rows = db.execute_query(
-                f"SELECT order_id, client_order_id FROM order_event_stream WHERE order_id IN ({placeholders}) AND client_order_id IS NOT NULL GROUP BY order_id, client_order_id",
-                tuple(exchange_order_ids),
+                (
+                    "SELECT order_id, client_order_id FROM order_event_stream "
+                    f"WHERE order_id IN ({placeholders}) "
+                    "AND client_order_id IS NOT NULL "
+                    "AND event_type = %s "
+                    "AND source_channel = %s "
+                    "GROUP BY order_id, client_order_id"
+                ),
+                (
+                    *tuple(exchange_order_ids),
+                    EventStreamType.ORDER_SUBMITTED.value,
+                    EventSourceChannel.REST_SUBMIT.value,
+                ),
             )
         except Exception:
             logger.exception(

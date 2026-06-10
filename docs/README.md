@@ -15,6 +15,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Trading](../README.spot-trading.md)
 - [Spot Portfolio Sweep](../README.spot-portfolio-sweep.md)
 - [Spot Campaigns](../README.spot-campaign.md)
+- [Spot Campaign Public Runbook](SPOT_CAMPAIGN_PUBLIC_RUNBOOK.md)
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
 - [Netflix AI Engineer Workbench](../README.netflix-ai-engineer-site.md)
 - [API Reference](../genai_data/API_REFERENCE.md)
@@ -31,6 +32,15 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Testing Strategy](../genai_data/TESTING_STRATEGY.md)
 - [Spot Readiness Test Gate](SPOT_READINESS_TEST_GATE.md)
 - [Spot Contextless Agent Testing](SPOT_CONTEXTLESS_AGENT_TESTING.md)
+- Contextless checklist harness:
+  `python tools\run_spot_contextless_agent_checklist.py --summary-only`
+- Direct spot order audit:
+  `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`
+- Dashboard direct spot order audit:
+  `request_spot_direct_order_audit` with `params.client_order_id`
+- Spot campaign operator reports:
+  `python tools\run_spot_campaign.py --ledger-cleanup-plan --summary-only`
+  and `python tools\run_spot_campaign.py --pnl-delta-report --summary-only`
 
 ## Examples
 

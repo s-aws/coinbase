@@ -18,6 +18,10 @@ authoritative enough for fresh public clones.
   local rows.
 - Use `order_id` only for exchange-facing operations and exchange-native
   evidence.
+- Coinbase cancellation is an explicit exception when using this repo's
+  `cancel_order(client_order_id)` wrapper; Coinbase accepts our
+  `client_order_id` there, while raw batch `cancel_orders(order_ids=[...])`
+  remains an exchange-id-oriented API.
 - Do not use exchange `order_id` as proof of local ownership. Resolve ownership
   through local submission evidence.
 

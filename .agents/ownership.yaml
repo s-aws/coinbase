@@ -16,6 +16,7 @@ owners:
       - docs/PUBLIC_ROADMAP.md
       - docs/SPOT_READINESS_ROADMAP.md
       - docs/SPOT_READINESS_TEST_GATE.md
+      - docs/SPOT_CAMPAIGN_PUBLIC_RUNBOOK.md
       - docs/SPOT_CONTEXTLESS_AGENT_TESTING.md
       - docs/REPO_CLEANUP_CLASSIFICATION.md
       - .agents/**
@@ -36,6 +37,8 @@ owners:
       - tools/run_spot_fill_ledger_health.py
       - tools/run_spot_fill_ledger_repair.py
       - tools/run_spot_campaign.py
+      - tools/run_spot_contextless_agent_checklist.py
+      - tools/run_spot_direct_order_audit.py
       - tools/run_spot_readiness_regression.py
       - tools/run_spot_release_gate.py
       - ai-context.md
@@ -58,6 +61,7 @@ owners:
     test_owns:
       - tests/regression/test_codebase_intelligence.py
       - tests/regression/test_live_spot_usdc_smoke_runner.py
+      - tests/regression/test_spot_contextless_agent_checklist.py
       - tests/regression/test_spot_readiness_gate.py
     tests:
       - python tools/check_ownership.py --owner architect
@@ -285,6 +289,7 @@ owners:
       - business/spot_inventory_authority.py
       - business/spot_campaign.py
       - business/spot_cost_basis.py
+      - business/spot_direct_order_audit.py
       - business/spot_fill_backfill.py
       - business/spot_fill_ledger_health.py
       - business/spot_portfolio_sweep.py
@@ -299,6 +304,7 @@ owners:
       - tests/regression/test_hotpoint_*.py
       - tests/regression/test_spot_inventory_authority.py
       - tests/regression/test_spot_campaign.py
+      - tests/regression/test_spot_direct_order_audit.py
       - tests/regression/test_spot_portfolio_sweep.py
       - tests/regression/test_tranche_iceberg_pacing.py
       - tests/unit/test_generate_order_ladder_random.py

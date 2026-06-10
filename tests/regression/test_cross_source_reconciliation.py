@@ -15,14 +15,17 @@ from __future__ import annotations
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from core.periodic_reconciler import PeriodicReconciler
+from core.enums import EventSourceChannel, EventStreamType
 from core.startup_reconciler import (
     MissedFillsReport,
+    _fetch_client_order_ids_for_exchange_order_ids,
     audit_missed_fills,
 )
 
@@ -63,6 +66,20 @@ class _FakeRestClient:
         return self.pages.pop(0)
 
 
+class _FakeDB:
+    def __init__(self, rows):
+        self.rows = rows
+        self.calls = []
+        self.disconnected = False
+
+    def execute_query(self, query, params):
+        self.calls.append((query, params))
+        return self.rows
+
+    def disconnect(self):
+        self.disconnected = True
+
+
 @pytest.fixture
 def patch_rest_and_ledger():
     """Helper context: patch REST_CLIENT + local ledger snapshot.
@@ -100,6 +117,62 @@ def patch_rest_and_ledger():
         return rest_patch, ledger_patch, oid_patch, ws_patch
 
     return _apply
+
+
+def test_exchange_order_mapping_requires_rest_submission_evidence():
+    fake_db = _FakeDB([
+        {
+            "order_id": "exchange-owned",
+            "client_order_id": "client-owned",
+        }
+    ])
+
+    with patch("database.database.PostgresDB", return_value=fake_db):
+        mapping = _fetch_client_order_ids_for_exchange_order_ids({
+            "exchange-owned",
+            "exchange-observed-only",
+        })
+
+    assert mapping == {"exchange-owned": "client-owned"}
+    assert fake_db.disconnected is True
+    query, params = fake_db.calls[0]
+    assert "event_type = %s" in query
+    assert "source_channel = %s" in query
+    assert EventStreamType.ORDER_SUBMITTED.value in params
+    assert EventSourceChannel.REST_SUBMIT.value in params
+
+
+def test_order_event_stream_exchange_order_mapping_queries_require_submission_evidence():
+    repo_root = Path(__file__).resolve().parents[2]
+    scanned_roots = [
+        repo_root / "core",
+        repo_root / "business",
+        repo_root / "tools",
+    ]
+    offenders = []
+    for root in scanned_roots:
+        for path in root.rglob("*.py"):
+            if "diagnostics" in path.parts:
+                continue
+            text = path.read_text(encoding="utf-8")
+            if "FROM order_event_stream" not in text:
+                continue
+            maps_exchange_order = (
+                "client_order_id" in text
+                and ("WHERE order_id" in text or "order_id IN" in text)
+            )
+            if not maps_exchange_order:
+                continue
+            has_submission_event_filter = (
+                "event_type = %s" in text
+                and "source_channel = %s" in text
+                and "EventStreamType.ORDER_SUBMITTED.value" in text
+                and "EventSourceChannel.REST_SUBMIT.value" in text
+            )
+            if not has_submission_event_filter:
+                offenders.append(str(path.relative_to(repo_root)))
+
+    assert offenders == []
 
 
 class TestAuditMissedFills:

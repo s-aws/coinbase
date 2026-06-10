@@ -47,6 +47,13 @@ A `BTC-USD` stealth action with `size * limit_price > 5000` is blocked before
 planning persistence or reveal placement. A raw dashboard `place_order` with
 the same notional is blocked before `REST_CLIENT.create_order`.
 
+For a direct spot-only cap across configured spot products, scope the rule by
+product type and planning phase:
+
+```powershell
+$env:ACTION_CONDITION_GUARDS_JSON = '{"limits":[{"name":"direct_spot_cap","product_type":"SPOT","max_notional":100,"phases":["planning"]}]}'
+```
+
 ## Add A Futures Contract Cap
 
 ```powershell
@@ -91,6 +98,7 @@ quote-wallet checks can still run:
   "params": {
     "product_id": "BTC-USD",
     "side": "BUY",
+    "manual_live_acknowledgement": true,
     "order_configuration": {
       "market_market_ioc": {
         "quote_size": "250"
@@ -102,6 +110,10 @@ quote-wallet checks can still run:
 
 With `max_notional` below `250`, the dashboard returns an `order_response`
 error and does not submit the REST order.
+
+Without `manual_live_acknowledgement: true`, direct spot `place_order` blocks
+before the guard and before REST because the raw dashboard surface submits live
+immediately.
 
 If hidden spot stealth orders already reserve most of the quote wallet, the same
 dashboard path returns `block_category: "planned_budget_available"` before REST

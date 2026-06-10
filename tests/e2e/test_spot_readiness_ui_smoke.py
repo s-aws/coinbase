@@ -257,3 +257,13 @@ def test_spot_readiness_panel_renders_dashboard_payload(page):
     expect(campaign_panel).to_contain_text("reconcile 0")
     expect(campaign_panel).to_contain_text("submitted 2 USDC")
     expect(campaign_panel).to_contain_text("total 0.25 USDC")
+
+    page.evaluate(
+        """payload => window.__deliverDashboardMessage(payload)""",
+        {
+            "type": "spot_campaign_status",
+            "status": "error",
+            "message": "campaign status failed: synthetic failure",
+        },
+    )
+    expect(campaign_panel).to_contain_text("synthetic failure")

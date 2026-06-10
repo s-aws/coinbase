@@ -78,6 +78,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("runtime_state") / "spot_campaigns.jsonl",
         help="Campaign state ledger used by optional campaign release checks.",
     )
+    parser.add_argument(
+        "--campaign-all-usdc-readiness",
+        action="store_true",
+        help="Also run the campaign all-USDC readiness gate.",
+    )
     return parser
 
 
@@ -164,12 +169,32 @@ def build_release_gate_steps(
                 ),
             )
         )
+        if args.campaign_all_usdc_readiness:
+            steps.append(
+                GateStep(
+                    name="spot_campaign_all_usdc_readiness_gate",
+                    command=(
+                        python,
+                        "tools/run_spot_campaign.py",
+                        "--config-file",
+                        str(args.campaign_config_file),
+                        "--all-usdc-readiness-gate",
+                        "--summary-only",
+                        "--state-file",
+                        str(args.campaign_state_file),
+                        "--sweep-state-file",
+                        str(args.state_file),
+                    ),
+                )
+            )
     return steps
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.campaign_all_usdc_readiness and args.campaign_config_file is None:
+        parser.error("--campaign-all-usdc-readiness requires --campaign-config-file")
 
     python = sys.executable
     steps = build_release_gate_steps(args=args, python=python)

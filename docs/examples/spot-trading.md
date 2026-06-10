@@ -123,6 +123,7 @@ after size validation and before REST placement:
   "params": {
     "product_id": "BTC-USD",
     "side": "BUY",
+    "manual_live_acknowledgement": true,
     "order_configuration": {
       "market_market_ioc": {
         "quote_size": "250"
@@ -131,6 +132,71 @@ after size validation and before REST placement:
   }
 }
 ```
+
+This is a live manual order surface. There is no raw `place_order` dry-run
+mode; use `tools/run_spot_portfolio_sweep_dry_run.py` or campaign dry-run
+matrices when the operator needs a dry-runable spot workflow.
+
+Before sending a raw direct order, confirm the product, side, base or quote
+notional, and active action-condition guard policy. For spot `SELL`, decide
+whether wallet sellability is enough for the specific manual action. By
+default, direct `SELL` admission is wallet guarded but not known-profit
+guarded; enable `known_inventory_available` or use a regenerated strict SELL
+sweep/campaign allowlist when the operator needs fill-ledger/imported
+known-cost authority and repeatable caps.
+
+Spot direct placement requires the explicit
+`manual_live_acknowledgement=true` field before the server will submit to
+Coinbase. To add a direct spot notional cap through the existing guard path:
+
+```powershell
+$env:ACTION_CONDITION_GUARDS_JSON = '{"limits":[{"name":"direct_spot_cap","product_type":"SPOT","max_notional":100,"phases":["planning"]}]}'
+```
+
+Direct dashboard orders do not produce a sweep JSONL run record. After
+placement, audit them through the `order_response`, `order_event_stream`
+submission evidence, websocket/order lifecycle records, fill-ledger rows, and
+shared reconciliation/fill-audit paths keyed by `client_order_id`. The success
+response includes an `audit_command`, and the same read-only audit can be run
+directly:
+
+```powershell
+python tools\run_spot_direct_order_audit.py --client-order-id 4af4f6a1-0ef6-4a58-8e02-f0db9c6106e8
+```
+
+The audit command reads local event-stream and fill-ledger evidence only. It
+does not submit orders, cancel orders, retry orders, or call Coinbase REST. Use
+the sweep or campaign runner when a workflow needs a self-contained
+command-line run ledger, retry plan, reconciliation wrapper, scheduled
+execution, or portfolio-wide automation. Use stealth instead when a planned
+local order should reveal later under the shared guard path.
+
+## Cancel A Dashboard Order By Client ID
+
+Dashboard `cancel_order` uses `client_order_id`, not exchange `order_id`:
+
+```json
+{
+  "type": "cancel_order",
+  "client_order_id": "4af4f6a1-0ef6-4a58-8e02-f0db9c6106e8"
+}
+```
+
+The nested form is also accepted:
+
+```json
+{
+  "type": "cancel_order",
+  "params": {
+    "client_order_id": "4af4f6a1-0ef6-4a58-8e02-f0db9c6106e8"
+  }
+}
+```
+
+Requests that provide only `order_id` are rejected before REST. The handler
+calls `REST_CLIENT.cancel_order(client_order_id)`; batch
+`cancel_orders(order_ids=[...])` remains exchange-id oriented and is not the
+dashboard cancellation contract.
 
 ## Request Spot Readiness Feedback
 

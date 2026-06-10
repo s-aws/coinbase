@@ -10,6 +10,14 @@ measure model quality. The goal is to find repo-context gaps: unclear entry
 docs, ambiguous code ownership, hidden order paths, or safety rules that only
 make sense to someone who participated in prior sessions.
 
+The repeatable local harness prints this prompt and rubric without editing
+files or calling Coinbase:
+
+```powershell
+python tools/run_spot_contextless_agent_checklist.py --summary-only
+python tools/run_spot_contextless_agent_checklist.py
+```
+
 ## Blind Prompt
 
 Use a fresh agent with no forked conversation context and no extra guidance
@@ -100,3 +108,16 @@ the test easier unless the spot architecture itself changes.
 Record the date, agent type, prompt version, pass/fail result, and the missing
 items found. Roadmap phases that add spot order behavior should mention whether
 this gate passed and which docs/code were changed if it did not.
+
+## Recent Evidence
+
+- 2026-06-10, explorer agent, Phase 157 prompt variant: first run passed the
+  core workflow but flagged raw dashboard `place_order` as an insufficiently
+  visible uncapped live surface. Fixed `README.spot-trading.md` and
+  `docs/examples/spot-trading.md` with a manual direct-order checklist and the
+  wallet-sellability versus known-profit SELL distinction.
+- 2026-06-10, explorer agent, same prompt after docs fix: passed. The agent
+  identified direct dashboard placement as manual-only, sweep/campaign as the
+  automation path, strict versus Coinbase average-cost SELL authority,
+  `client_order_id` tracking, direct-order audit command, and the Coinbase
+  cancellation exception.

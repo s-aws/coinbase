@@ -120,8 +120,12 @@ Dashboard transport is WebSocket at `ws://localhost:8765` via `dashboard_server.
 - `request_move_history`, `move_order`, `premark_move`
 - `request_storyboard_products`, `request_investor_storyboard`
 - `request_hotpoint_state`, `set_hotpoint_kill_switch`, `place_hotpoint_test_order`
+- `request_spot_readiness`
+- `request_spot_sweep_status`
+- `request_spot_sweep_pnl`
 - `request_spot_cost_basis_status`
 - `request_spot_campaign_status`
+- `request_spot_direct_order_audit`
 - `ping`
 
 When extending UI behavior, update both dashboard handler logic and the corresponding docs in `genai_data/API_REFERENCE.md`.

@@ -30,6 +30,7 @@ Optional read-only additions:
 python tools/run_spot_release_gate.py --include-browser
 python tools/run_spot_release_gate.py --include-coinbase-readonly
 python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy.json
+python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
 ```
 
 The Coinbase read-only option includes sweep status, sweep P/L, average-cost
@@ -40,6 +41,8 @@ The optional campaign config gate runs
 `tools/run_spot_campaign.py --release-gate --summary-only`. It validates the
 campaign intake, dry-run plan, safety policy, operation lock, recovery
 readiness, and durable P/L/cost-basis surfaces without submitting live orders.
+The all-USDC campaign gate additionally fails configs that are not explicitly
+broad or that omit total/order/count safety caps.
 
 ## Browser Smoke Gate
 
@@ -111,6 +114,12 @@ prints a `LIVE_COINBASE_SPOT_SMOKE_SUMMARY` JSON line with:
 
 When a live run is reported in project discussion, call it out explicitly as a
 live Coinbase run and include the notional totals from the summary.
+
+The live smoke runner uses short prefixed `client_order_id` values for its
+standalone smoke artifacts. That is a smoke-tool exception. Campaign and
+portfolio sweep live orders must keep UUID `client_order_id` values and record
+workflow identity through sweep/campaign ledger fields instead of Coinbase-
+facing prefixes.
 
 The smoke does not have to zero out the account. Use `--retain-inventory` when
 the bought base should remain in the account for future sell-path tests instead

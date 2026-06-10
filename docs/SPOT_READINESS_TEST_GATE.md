@@ -42,6 +42,21 @@ requirements because they depend on credentials, network state, or account
 fixtures. Browser smoke can become a public-release/CI gate once Playwright and
 Chromium installation are documented for contributors.
 
+Campaign release readiness can be included in the public release wrapper:
+
+```powershell
+python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy.json
+```
+
+For broad all-USDC campaign stages, include the all-USDC gate:
+
+```powershell
+python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
+```
+
+This remains read-only. It validates campaign release readiness and the broad
+all-USDC intent before any rendered sweep config is handed to the live runner.
+
 For an explicitly approved live Coinbase spot smoke, run:
 
 ```powershell

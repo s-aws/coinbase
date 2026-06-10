@@ -25,7 +25,9 @@ Current invocation points:
 - `ActionGuardPhase.REVEAL` runs after reveal-price planning and before
   pre-submission hooks, `order_parent` pre-insert, and REST placement.
 - Direct dashboard `place_order` runs the planning-phase guard after size
-  validation and before `REST_CLIENT.create_order`.
+  validation and before `REST_CLIENT.create_order`. For spot products, the
+  dashboard handler also requires `manual_live_acknowledgement=true` before the
+  planning guard and REST submission.
 - `wallet_available` checks spot account balances when Coinbase REST
   credentials are configured. It applies only to catalog-configured spot
   products, not unknown fallback product IDs.
@@ -43,6 +45,9 @@ Current invocation points:
   is reported but cannot satisfy the condition.
 - `max_base_size` and `max_notional` are configured artificial limits and can
   apply to spot or futures products.
+- Direct spot notional caps should use `limits` with `product_type=SPOT`,
+  `max_notional`, and `phases=["planning"]` so the existing guard blocks before
+  raw dashboard REST placement.
 - Planning is a stale preflight. Reveal is rechecked because external Coinbase
   or dashboard orders can consume wallet availability after planning.
 - Market BUY orders with `quote_size` can be checked against quote balance and

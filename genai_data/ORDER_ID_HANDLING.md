@@ -4,6 +4,9 @@
 
 Use `client_order_id` for internal tracking.
 Use `order_id` only when interacting with exchange APIs or exchange-origin identifiers.
+Exception: use the project Coinbase wrapper `cancel_order(client_order_id)` for
+cancellation. Coinbase accepts our `client_order_id` for that operation; raw
+batch `cancel_orders(order_ids=[...])` remains exchange-id oriented.
 
 If you mix them, you get phantom parents, failed lookups, missed-fill noise, and bad reconciliation.
 
@@ -57,7 +60,12 @@ Reason:
 - Exchange `order_id` for revealed placement is supplemental and may arrive later.
 - Move-revealed keeps the same stealth root but replaces placement identifiers.
 - Cancel/re-entry keeps the same stealth root, cancels the active placement, stores the cancelled placement identifiers in `cancel_reentry_state_json`, and later re-enters with a new placement identifier through the normal reveal path.
-- Exchange cancellation uses the exchange-facing order identifier required by Coinbase, usually the tracked `active_exchange_order_id`. Local linkage, parent rows, dashboard references, and follow-up ownership still use `client_order_id`.
+- Stealth move/reprice/cancel-reentry paths that call raw batch
+  `cancel_orders(order_ids=[...])` use the tracked exchange identifier, usually
+  `active_exchange_order_id`. Dashboard/manual single-order cancellation uses
+  `CoinbaseClient.cancel_order(client_order_id)` because Coinbase accepts the
+  project-generated client id there. Local linkage, parent rows, dashboard
+  references, and follow-up ownership still use `client_order_id`.
 
 Related code:
 - `core/stealth_order_manager.py`
@@ -114,10 +122,15 @@ That would break idempotency and reprocessing safety.
   - Use `client_order_id`.
 
 - Need to call exchange endpoint, cancel, or inspect exchange-native payload?
-  - Use `order_id` (or whichever exchange field is explicitly required).
+  - Use `order_id` (or whichever exchange field is explicitly required). For
+    dashboard/manual single-order cancel, call the project wrapper
+    `cancel_order(client_order_id)`.
 
 - Need to mutate a revealed stealth placement locally after an exchange cancel/move?
-  - Use `client_order_id` for local lookup and parent linkage, and the tracked exchange order id only for the Coinbase cancel call.
+  - Use `client_order_id` for local lookup and parent linkage. For raw batch
+    cancel/move code paths use the tracked exchange order id when that is the
+    API field being called; for the project single-order cancel wrapper, pass
+    `client_order_id`.
 
 - Need to partition owned vs unowned exchange fills/orders?
   - Use `order_event_stream` submission evidence to resolve `order_id -> client_order_id` first.

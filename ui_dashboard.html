@@ -153,6 +153,22 @@
             gap: 12px;
         }
 
+        .checkbox-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.4;
+        }
+
+        .checkbox-row input {
+            width: auto;
+            margin-top: 2px;
+            flex: 0 0 auto;
+        }
+
         button {
             padding: 10px 16px;
             background: #3b82f6;
@@ -388,6 +404,10 @@
                         </select>
                     </div>
                 </div>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="manualLiveAcknowledgement">
+                    <span>I acknowledge this direct order submits live immediately and is not a dry run or capped campaign.</span>
+                </label>
                 <button onclick="placeOrder()">📤 Submit Order</button>
             </div>
 
@@ -628,6 +648,7 @@
             const size = parseFloat(document.getElementById('size').value);
             const limitPrice = parseFloat(document.getElementById('limitPrice').value);
             const postOnly = document.getElementById('postOnly').value === 'true';
+            const manualLiveAcknowledgement = document.getElementById('manualLiveAcknowledgement').checked;
 
             if (!productId || !size || !limitPrice) {
                 alert('Please fill in all fields');
@@ -636,6 +657,11 @@
 
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 alert('Not connected to dashboard server');
+                return;
+            }
+
+            if (!manualLiveAcknowledgement) {
+                alert('Direct orders submit live immediately. Confirm the manual live acknowledgement before submitting.');
                 return;
             }
 
@@ -648,6 +674,7 @@
                 params: {
                     product_id: productId,
                     side: side,
+                    manual_live_acknowledgement: manualLiveAcknowledgement,
                     order_configuration: {
                         limit_limit_gtc: {
                             base_size: size.toString(),

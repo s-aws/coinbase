@@ -168,6 +168,7 @@ class ActionConditionType(str, Enum):
     WALLET_AVAILABLE = "wallet_available"
     PLANNED_BUDGET_AVAILABLE = "planned_budget_available"
     KNOWN_INVENTORY_AVAILABLE = "known_inventory_available"
+    MANUAL_LIVE_ACKNOWLEDGEMENT = "manual_live_acknowledgement"
     MAX_BASE_SIZE = "max_base_size"
     MAX_NOTIONAL = "max_notional"
 
@@ -299,6 +300,16 @@ class SpotInventoryCoverageStatus(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+class SpotInventoryBaselineFreshness(str, Enum):
+    """Freshness status for imported spot inventory baseline evidence."""
+
+    NOT_CONFIGURED = "not_configured"
+    FRESH = "fresh"
+    STALE = "stale"
+    MISSING_TIMESTAMP = "missing_timestamp"
+    INVALID_TIMESTAMP = "invalid_timestamp"
+
+
 class SpotLiveReconciliationGateStatus(str, Enum):
     """Pass/fail status for approved live spot reconciliation gates."""
 
@@ -329,6 +340,15 @@ class SpotAuditRecordType(str, Enum):
     COST_BASIS_SNAPSHOT = "spot_cost_basis_snapshot"
     CAMPAIGN_SNAPSHOT = "spot_campaign_snapshot"
     SWEEP_RECOVERY = "sweep_recovery"
+    DIRECT_ORDER_AUDIT = "spot_direct_order_audit"
+
+
+class SpotDirectOrderAuditStatus(str, Enum):
+    """Read-only audit status for a manual direct dashboard order."""
+
+    FOUND = "found"
+    MISSING_CLIENT_ORDER_ID = "missing_client_order_id"
+    MISSING_SUBMISSION = "missing_submission"
 
 
 class SpotFeatureIntakeGateStatus(str, Enum):
@@ -447,6 +467,21 @@ class SpotCampaignRunMode(str, Enum):
     LIVE_CANARY = "live_canary"
     RETRY_PLAN = "retry_plan"
     STATUS = "status"
+    TEMPLATE = "template"
+    VALIDATION = "validation"
+    DRY_RUN_DIFF = "dry_run_diff"
+    RUN_INDEX = "run_index"
+    PNL_CHECKPOINT = "pnl_checkpoint"
+    RECOVERY_DRILL = "recovery_drill"
+    ALL_USDC_READINESS = "all_usdc_readiness"
+    SCHEDULER_STATUS = "scheduler_status"
+    SELL_AUTHORITY_ALLOWLIST = "sell_authority_allowlist"
+    LEDGER_CLEANUP_PLAN = "ledger_cleanup_plan"
+    SELL_AUTHORITY_DRIFT = "sell_authority_drift"
+    SELL_AUTHORITY_OPERATOR_REPORT = "sell_authority_operator_report"
+    STRICT_SELL_CANARY_CANDIDATES = "strict_sell_canary_candidates"
+    PNL_DELTA_REPORT = "pnl_delta_report"
+    CONTEXTLESS_AGENT_CHECKLIST = "contextless_agent_checklist"
 
 
 class SpotCampaignStatus(str, Enum):
@@ -471,6 +506,31 @@ class SpotCampaignRetryOrderClass(str, Enum):
     RETRYABLE_NOT_SUBMITTED = "retryable_not_submitted"
     SUBMITTED_OR_LIVE = "submitted_or_live"
     NOT_RETRYABLE = "not_retryable"
+
+
+class SpotCampaignTemplateProfile(str, Enum):
+    """Canonical spot campaign config templates for operator workflows."""
+
+    BUY_CANARY = "buy_canary"
+    BUY_ALL_USDC = "buy_all_usdc"
+    SELL_CANARY = "sell_canary"
+    SELL_ALL_USDC = "sell_all_usdc"
+
+
+class SpotCampaignSellAuthorityProfile(str, Enum):
+    """SELL cost-basis authority presets for campaign configs."""
+
+    FILL_LEDGER_STRICT = "fill_ledger_strict"
+    COINBASE_AVERAGE_COST_BUFFERED = "coinbase_average_cost_buffered"
+
+
+class SpotSellAuthorityAllowlistFreshness(str, Enum):
+    """Freshness status for rendered SELL authority allowlist configs."""
+
+    NOT_APPLICABLE = "not_applicable"
+    FRESH = "fresh"
+    STALE = "stale"
+    INVALID = "invalid"
 
 
 class ContractExpiryType(str, Enum):

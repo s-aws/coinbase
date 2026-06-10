@@ -121,7 +121,7 @@ def test_dashboard_spot_campaign_payload_reads_durable_snapshot():
     state_file = scratch_dir / f"spot_campaign_dashboard_{uuid4().hex}.jsonl"
     config = {
         "version": 1,
-        "side": "BUY",
+        "side": "SELL",
         "quote_notional": "1",
         "max_products": 1,
         "automation": {
@@ -132,6 +132,7 @@ def test_dashboard_spot_campaign_payload_reads_durable_snapshot():
         "safety_policy": {
             "max_total_notional_per_run": "1",
             "max_notional_per_order": "1",
+            "require_known_profitable_inventory": True,
         },
     }
     try:
@@ -154,17 +155,85 @@ def test_dashboard_spot_campaign_payload_reads_durable_snapshot():
                 generated_at=datetime(2026, 1, 1),
             ),
         )
+        append_spot_campaign_snapshot_record(
+            state_file,
+            build_spot_campaign_snapshot_record(
+                config=config,
+                mode="sell_authority_allowlist",
+                status="ready",
+                sell_authority_allowlist={
+                    "sell_authority_profile": "fill_ledger_strict",
+                    "allowlist_count": 2,
+                    "blocked_count": 1,
+                    "estimated_allowlisted_quote_notional": "2.01",
+                    "authority_source_counts": {"fill_ledger": 2},
+                    "authority_status_counts": {"known_profitable": 2},
+                    "allow_products": ["AAA-USDC", "BBB-USDC"],
+                },
+                generated_at=datetime(2026, 1, 2),
+            ),
+        )
 
         payload = dashboard_server._build_spot_campaign_payload(str(state_file))
 
         assert payload["type"] == "spot_campaign_status"
         assert payload["status"] == "success"
         latest = payload["operator_status"]["latest_snapshot"]
-        assert latest["dry_run"]["plan"]["planned_count"] == 1
-        assert latest["release_gate"]["gate_status"] == "passed"
+        summary = payload["operator_status"]["operator_summary"]
+        assert payload["operator_status"]["latest_readiness_snapshot"]["mode"] == (
+            "sell_authority_allowlist"
+        )
+        assert latest["sell_authority_allowlist"]["allowlist_count"] == 2
+        assert summary["sell_authority_allowlist_count"] == 2
+        assert summary["sell_authority_blocked_count"] == 1
+        assert summary["sell_authority_source_counts"] == {"fill_ledger": 2}
         assert payload["operator_status"]["campaign_count"] == 1
     finally:
         state_file.unlink(missing_ok=True)
+
+
+def test_dashboard_spot_direct_order_audit_payload_reads_local_audit(monkeypatch):
+    import business.spot_direct_order_audit as audit_module
+    import dashboard_server
+
+    monkeypatch.setattr(dashboard_server, "PostgresDB", lambda: object())
+    monkeypatch.setattr(
+        audit_module,
+        "fetch_direct_order_event_rows",
+        lambda _db, client_order_id, limit: [
+            {
+                "client_order_id": client_order_id,
+                "event_type": "order_submitted",
+                "payload": {"order_id": "exchange-1"},
+                "created_at": datetime(2026, 1, 1),
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        audit_module,
+        "fetch_direct_order_fill_rows",
+        lambda _db, client_order_id, limit: [
+            {
+                "client_order_id": client_order_id,
+                "product_id": "AAA-USDC",
+                "side": "BUY",
+                "quantity": "1",
+                "price": "1.01",
+                "fees": "0",
+            }
+        ],
+    )
+
+    payload = dashboard_server._build_spot_direct_order_audit_payload(
+        client_order_id="client-order-audit-1"
+    )
+
+    assert payload["type"] == "spot_direct_order_audit"
+    assert payload["status"] == "success"
+    assert payload["client_order_id"] == "client-order-audit-1"
+    assert payload["audit"]["record_type"] == "spot_direct_order_audit"
+    assert payload["audit"]["client_order_id"] == "client-order-audit-1"
+    assert payload["audit"]["live_coinbase_orders_ran"] is False
 
 
 def test_dashboard_spot_sweep_pnl_payload_uses_public_marks_and_fill_repo(monkeypatch):

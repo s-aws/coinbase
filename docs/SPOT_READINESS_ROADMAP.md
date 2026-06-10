@@ -125,10 +125,31 @@ Implemented:
   submission evidence recorded, fill backfill appended, and recovery
   reconciliation matched. The two BUY runs submitted `10` USDC total notional
   and executed `9.9160518` USDC.
+- A later approved scheduled BUY automation canary ran with `max_runs: 1`,
+  submitted `1.01` USDC, executed `1.009295` USDC, appended one fill,
+  reconciled by `client_order_id`, and proved the follow-up invocation blocks
+  with `max_runs_reached`.
 - A small approved live SELL canary has run for `ACX-USDC` using exact
   fill-ledger known-profitable authority, not Coinbase average-cost authority.
   It submitted `1.04975` USDC notional, executed `1.04732262479` USDC, appended
   one fill, and passed recovery reconciliation.
+- A second approved strict local-fill-ledger SELL canary has run for
+  `ACH-USDC`, `ALEO-USDC`, and `ALEPH-USDC`. It submitted `3.0290864` USDC
+  notional, executed `3.02170905615` USDC, appended three fills, reconciled all
+  three orders by `client_order_id`, and passed fill-ledger health.
+- SELL campaign authority allowlists can now be generated from read-only
+  campaign matrices. Strict local-fill-ledger authority and Coinbase
+  average-cost-buffered authority can each write a narrowed campaign config and
+  rendered sweep config.
+- Strict local-fill-ledger SELL authority now subtracts prior local SELL fills
+  from known BUY lots before authorizing another SELL. This was fixed after a
+  live canary exposed that prior SELL fills could otherwise overstate remaining
+  known profitable inventory.
+- A third approved strict local-fill-ledger SELL canary has run for
+  `AERGO-USDC`, `ALEPH-USDC`, and `AVNT-USDC`. It submitted `3.027288` USDC
+  notional, executed `3.0243072278` USDC, appended three fills, reconciled all
+  three orders by `client_order_id`, and passed fill-ledger health after the
+  lot-consumption fix.
 - Post-canary P/L review for `ACX-USDC` now shows local fill-ledger P/L,
   FIFO realized-lot P/L, since-last-purchase P/L, and Coinbase average-cost
   P/L in the same read-only report. These remain operational reports, not tax
@@ -143,6 +164,22 @@ Implemented:
   order path, including dashboard direct placement, stealth reveal, USDC sweep
   live execution, campaign orchestration, `client_order_id` invariants, and
   reconciliation.
+- A fourth approved strict local-fill-ledger SELL canary has run for
+  `ALT-USDC`, `B3-USDC`, and `BLEND-USDC`. It submitted `3.027367` USDC
+  notional, executed `3.024086` USDC, appended three fills, reconciled all
+  three orders by `client_order_id`, and passed fill-ledger health.
+- Post-live strict allowlist regeneration removed the just-sold products from
+  the executable strict SELL set, proving consumed local lots are no longer
+  reused as strict SELL authority.
+- Average-cost-buffered SELL allowlists now exclude rows blocked by the
+  Coinbase average-cost freshness/drift gate before rendering a live-capable
+  allowlist config. Live sweep validation still rechecks the same gate.
+- Missed-fill ownership mapping now requires `order_submitted` /
+  `rest_submit` event-stream evidence before resolving an exchange `order_id`
+  back to a `client_order_id`.
+- The contextless blind-agent gate passed again after the docs clarified that
+  raw dashboard `place_order` is a manual one-off path, not the scheduled or
+  portfolio automation path.
 
 Not yet solid enough for broad spot-specific features:
 
@@ -1945,6 +1982,1978 @@ Result on 2026-06-09:
   all-USDC campaign mapping without coaching.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
+
+### Phase 89 - Canonical Campaign Config Templates
+
+Define reusable BUY/SELL canary and broad all-USDC campaign templates so
+operators do not hand-build campaign JSON from memory.
+
+Result:
+
+- `tools/run_spot_campaign.py --template-profile <profile>` now writes
+  normalized templates for `buy_canary`, `buy_all_usdc`, `sell_canary`, and
+  `sell_all_usdc`.
+- Templates include explicit total-notional, per-order, and planned-order caps.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 90 - Campaign Config Validator UX
+
+Add a structured config validation report before Coinbase-backed dry-run checks.
+
+Result:
+
+- `tools/run_spot_campaign.py --validate-config-report` reports missing caps,
+  invalid config shape, SELL authority gaps, and automation warnings.
+- Validation is local-only and does not read Coinbase.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 91 - Campaign Dry-Run Diff Reports
+
+Compare current and baseline campaign dry-run matrices before expanding scope.
+
+Result:
+
+- `tools/run_spot_campaign.py --dry-run-diff --baseline-config-file <path>`
+  compares planned/skipped count deltas, estimated notional deltas, product
+  status changes, safety decision changes, and P/L summary deltas.
+- The diff can read Coinbase products and wallets but submits no orders.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 92 - Durable Campaign Run Index
+
+Build a local index joining campaign snapshots to matching sweep runs.
+
+Result:
+
+- `tools/run_spot_campaign.py --run-index` summarizes campaign snapshots,
+  matching sweep runs, unrecorded sweep runs, and notional totals from durable
+  JSONL ledgers.
+- The run index is local-only.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 93 - Campaign P/L Checkpoints
+
+Expose durable P/L checkpoints and deltas from recorded campaign snapshots.
+
+Result:
+
+- `tools/run_spot_campaign.py --pnl-checkpoints` groups checkpoint rows per
+  campaign and reports total P/L, mark value, fees, and delta from the previous
+  checkpoint when present.
+- The checkpoint command is local-only.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 94 - SELL Authority Profiles
+
+Make SELL authority policy explicit and reusable.
+
+Result:
+
+- Campaign configs can use `sell_authority_profile`.
+- `fill_ledger_strict` requires local/imported known profitable lots and
+  excludes Coinbase average-cost authority.
+- `coinbase_average_cost_buffered` explicitly enables Coinbase average-cost
+  authority and preserves the extra buffer.
+- `tools/run_spot_campaign.py --sell-authority-profile <profile> --write-profiled-config-file <path>`
+  writes a normalized profiled config.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 95 - No-Order Campaign Recovery Drill
+
+Exercise retry classification without placing orders.
+
+Result:
+
+- `tools/run_spot_campaign.py --no-order-recovery-drill` builds a synthetic
+  no-submission sweep run from the dry-run plan and verifies that retry
+  classification targets only rows with no exchange evidence.
+- The drill reads products and wallets for the dry-run plan but submits no
+  orders.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 96 - Limited Bidirectional Live Campaign Canary
+
+Run tightly scoped BUY and SELL campaign canaries through the rendered sweep
+config path.
+
+Approval:
+
+- Live Coinbase execution is approved for this phase only within the approved
+  phase batch.
+- Submitted and executed notional must be reported after the run.
+
+Status:
+
+- Implemented with two approved live Coinbase canaries.
+
+Implemented live result:
+
+- BUY canary selected `00-USDC`, `1INCH-USDC`, and `2Z-USDC`.
+- BUY submitted notional: `3` USDC.
+- BUY executed notional: `2.9972734` USDC.
+- BUY run id: `spot-sweep-d84627cb-0446-4e1a-a072-6d51a0b1fbb0`.
+- SELL canary used `coinbase_average_cost_buffered` authority after the strict
+  local fill-ledger profile correctly blocked on missing local lot authority.
+- SELL selected `ACX-USDC`.
+- SELL submitted notional: `1.04728` USDC.
+- SELL executed notional: `1.04740517713` USDC.
+- SELL run id: `spot-sweep-cadd2765-b32d-445f-bfd5-cdc14d3e71a5`.
+- Total live Coinbase notional for this phase: `4.04728` USDC submitted and
+  `4.04467857713` USDC executed.
+
+### Phase 97 - All-USDC Campaign Readiness Gate
+
+Add a broad-stage gate before any all-USDC campaign reaches live execution.
+
+Result:
+
+- `tools/run_spot_campaign.py --all-usdc-readiness-gate` validates canonical
+  all-USDC selection, no allow/deny scope, no `max_products` restriction, and
+  explicit safety caps.
+- `tools/run_spot_release_gate.py --campaign-all-usdc-readiness` includes the
+  gate in the read-only public release wrapper.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 98 - Campaign Scheduler Hardening
+
+Expose scheduler due state from the campaign CLI before live scheduling.
+
+Result:
+
+- `tools/run_spot_campaign.py --scheduler-status` reports the same recurring
+  due-state decision used by the live sweep runner.
+- The live sweep runner remains the enforcement point before order placement.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 99 - Dashboard Campaign Controls Review
+
+Review dashboard campaign visibility before broad live execution.
+
+Status:
+
+- The dashboard campaign panel remains read-only and already renders operator
+  state, readiness, automation due state, recovery counts, latest live run,
+  notional, and P/L from durable campaign snapshots.
+- Browser smoke coverage remains the dashboard regression gate.
+- `python tools/run_spot_readiness_browser_smoke.py` passed against Chromium
+  with `tests/e2e/test_spot_readiness_ui_smoke.py`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 100 - Broad SELL Simulation
+
+Run read-only SELL simulation against the broad all-USDC campaign shape before
+any broad live BUY/SELL stage.
+
+Status:
+
+- Implemented as a read-only broad SELL simulation.
+
+Result:
+
+- The broad SELL simulation selected 387 USDC products, planned 5 orders, and
+  skipped 382 below the requested `1` USDC quote minimum.
+- The safety gate blocked execution before live approval because
+  `MOG-USDC`, `PRCL-USDC`, and `SWELL-USDC` did not satisfy profitable
+  inventory authority under the configured Coinbase average-cost profile.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 101 - Broad BUY Simulation
+
+Run read-only BUY simulation against the broad all-USDC campaign shape before
+any broad live stage.
+
+Status:
+
+- Implemented as a read-only broad BUY simulation.
+
+Result:
+
+- The broad BUY simulation used the canonical all-USDC selector, found 387
+  eligible USDC products, planned 385 market IOC BUY orders at `1.01` USDC
+  each, and skipped `API3-USDC` and `CTX-USDC` because their quote minimum is
+  `5` USDC.
+- Estimated planned submitted notional was `388.85` USDC.
+- The campaign release gate and all-USDC readiness gate passed before any live
+  execution handoff.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 102 - Public-Release Spot Runbook
+
+Document the ordered public/operator workflow for spot campaigns.
+
+Result:
+
+- `docs/SPOT_CAMPAIGN_PUBLIC_RUNBOOK.md` now documents pre-live checks, live
+  execution, post-live checks, and SELL authority profile usage.
+- `docs/README.md`, `README.spot-campaign.md`, `docs/examples/spot-campaign.md`,
+  `docs/SPOT_READINESS_TEST_GATE.md`, and `docs/PUBLIC_RELEASE_READINESS.md`
+  link or describe the new runbook/gates.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 103 - Approved All-USDC Live Campaign Stage
+
+Run the broad all-USDC campaign stage only after the all-USDC readiness gate
+passes.
+
+Approval:
+
+- Live Coinbase execution is approved for this phase only within the approved
+  phase batch.
+- Submitted and executed notional must be reported after the run.
+
+Status:
+
+- Implemented after broad read-only simulations and all-USDC readiness gates.
+
+Implemented live result:
+
+- LIVE COINBASE EXECUTION ran only for the approved phase 103 BUY stage.
+- The release wrapper, campaign release gate, and all-USDC readiness gate passed
+  before live execution.
+- Live run id: `spot-sweep-a41049cc-5a3f-4399-a1f3-a66134d2e38b`.
+- Planned scope: 387 eligible USDC products.
+- Submitted orders: 385 market IOC BUY orders.
+- Planned skips: `API3-USDC` and `CTX-USDC`, both below the requested `1.01`
+  USDC quote notional because their quote minimum is `5` USDC.
+- Submitted notional: `388.85` USDC.
+- Executed notional: `385.452053529035085393` USDC.
+- Fill backfill appended the live fills, and fill-ledger health passed with
+  427 rows and zero findings.
+- Scheduler status now blocks a repeat run with `max_runs_reached` because the
+  approved config had `max_runs: 1`.
+
+### Phase 104 - Post-Live Audit And Blind-Agent Gate
+
+After live campaign execution, run post-live reconciliation and contextless
+blind-agent review.
+
+Status:
+
+- Implemented after phase 96 and phase 103 live outcomes.
+
+Result:
+
+- Post-live run index recorded the phase 103 all-USDC BUY run as a completed
+  campaign run with zero unrecorded sweep runs.
+- Fill-ledger health passed after live execution with 427 rows and zero
+  findings.
+- The no-order recovery drill stayed read-only, classified 385 retryable
+  not-submitted rows, and kept `API3-USDC` and `CTX-USDC` non-retryable because
+  they are planned below quote minimum at `1.01` USDC.
+- Scheduler status correctly blocked a repeat phase 103 run with
+  `max_runs_reached`.
+- Contextless blind-agent review passed: a fresh agent with no session history
+  identified the documentation entry points, direct dashboard placement, stealth
+  reveal placement, hotpoint seed placement, sweep live execution, campaign
+  read-only orchestration, action/wallet guards, `client_order_id` identity,
+  durable fill/P/L tracking, and live approval boundary.
+- Documentation was tightened after the blind review: `agent.md` now lists the
+  current spot websocket messages, `README.spot-trading.md` and
+  `docs/examples/spot-trading.md` state that raw dashboard `place_order` has no
+  dry-run mode, and `docs/PUBLIC_RELEASE_READINESS.md` documents the
+  live-smoke prefixed-client-id exception.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 105 - Roadmap Sync And Cancel Contract
+
+Record the corrected dashboard cancel contract in the roadmap, feature docs,
+examples, and API reference.
+
+Status:
+
+- Dashboard `cancel_order` remains keyed by `client_order_id`.
+- The dashboard handler calls `REST_CLIENT.cancel_order(client_order_id)`.
+- Requests that provide only exchange `order_id` are rejected before REST.
+- Raw batch `cancel_orders(order_ids=[...])` remains exchange-id oriented.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- `README.spot-trading.md`, `docs/examples/spot-trading.md`,
+  `genai_data/API_REFERENCE.md`, and this roadmap now document the corrected
+  cancellation contract.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 106 - Spot Order Lifecycle Audit Matrix
+
+Maintain a contextless-reader matrix for every spot order surface.
+
+Status:
+
+- Direct dashboard placement.
+- Dashboard cancel by `client_order_id`.
+- Stealth reveal.
+- Hotpoint seed order.
+- USDC sweep live execution.
+- Campaign-rendered sweep execution.
+- Evidence expected from each surface.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- `README.spot-trading.md` now includes a Spot Order Lifecycle Audit Matrix
+  that maps each supported spot surface to planning/admission checks, live
+  exchange calls, and durable evidence.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 107 - Cancel By Client ID Regression Gate
+
+Keep regression coverage around the dashboard cancel boundary.
+
+Status:
+
+- Prove `client_order_id` is passed to `REST_CLIENT.cancel_order`.
+- Prove nested `params.client_order_id` is accepted.
+- Prove missing `client_order_id` rejects before REST.
+- Prove exchange `order_id` alone is not accepted by dashboard cancel.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- `tests/regression/test_dashboard_action_condition_guard.py` now covers
+  top-level `client_order_id`, nested `params.client_order_id`, missing
+  `client_order_id`, and exchange `order_id`-only rejection.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 108 - Spot Event Evidence Completeness
+
+Audit the order-event and durable-ledger evidence expected from every spot
+order surface before advancing to SELL authority work.
+
+Status:
+
+- Submission evidence.
+- Cancellation response evidence.
+- Fill-backfill evidence.
+- Reconciliation evidence.
+- Failure-path evidence.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- The lifecycle matrix identifies evidence for direct dashboard placement,
+  dashboard cancellation, stealth reveal, hotpoint seed placement, sweep live
+  execution, and campaign-rendered sweep execution.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 109 - USDC SELL Inventory Authority Audit
+
+Add or run a read-only report across eligible `BASE-USDC` products that shows
+wallet balance, sellable quantity, local lots, imported baselines, Coinbase
+average cost, and pass/fail reason for SELL authority.
+
+Status:
+
+- USDC-only products.
+- Read-only Coinbase product/account/cost-basis reads when credentials are
+  configured.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Read-only inventory coverage found `387` eligible USDC products, `387` with
+  wallet balance, `1` covered by local fill-ledger evidence, `378` covered by
+  Coinbase average-cost authority, and `8` wallet-only rows.
+- Cost-basis triage found `51` products requiring attention:
+  `40` stale average-cost rows, `8` wallet-only rows, and `3` local-lot
+  unavailable rows.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 110 - SELL Profitability Preflight Matrix
+
+Render exact executable, skipped, and blocked rows for selling a requested
+USDC notional per eligible product.
+
+Status:
+
+- Reuse the existing sweep planning and safety policy path.
+- Include authority source, pass/fail reason, planned quantity, and planned
+  notional.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Broad SELL preflight at `1.01` USDC planned `348` orders and skipped `39`
+  rows, but remained blocked by safety caps and `261` known-profit authority
+  violations.
+- A strict local-fill-ledger canary preflight for `ACH-USDC`, `ALEO-USDC`, and
+  `ALEPH-USDC` planned `3` orders, estimated `3.0290864` USDC submitted
+  notional, and had zero safety violations.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 111 - Limited SELL Live Canary
+
+Run a small SELL canary only for products that pass the Phase 110 preflight.
+
+Status:
+
+- Live Coinbase execution is approved for this phase only.
+- Keep the product set and notional small.
+- Report submitted and executed notional after the run.
+
+Implemented live result:
+
+- LIVE COINBASE EXECUTION ran only for the approved Phase 111 SELL canary.
+- Products: `ACH-USDC`, `ALEO-USDC`, `ALEPH-USDC`.
+- Authority source: strict local fill-ledger known-profitable lots.
+- Orders: `3` market IOC SELL orders.
+- Run id: `spot-sweep-983dafb1-15b8-4afc-8a3c-a888e073d02c`.
+- Submitted notional: `3.0290864` USDC.
+- Executed notional: `3.02170905615` USDC.
+- All three orders returned `FILLED` and appended one fill each.
+
+### Phase 112 - Post-SELL Canary Reconciliation
+
+Backfill fills, reconcile by `client_order_id`, update durable P/L, and compare
+local FIFO, local average, and Coinbase average-cost P/L views.
+
+Status:
+
+- Read-only reconciliation/fill-backfill after the Phase 111 live canary.
+- No new live Coinbase orders are approved for this phase.
+
+Result:
+
+- Reconciliation matched all three Phase 111 orders by `client_order_id`.
+- Fill-ledger comparison matched all three orders with `3.02170905615` USDC
+  reconciled executed notional.
+- Fill-ledger health passed with `430` rows and zero findings.
+- P/L report for `ACH-USDC`, `ALEO-USDC`, and `ALEPH-USDC` showed portfolio
+  local fill-ledger total P/L of `0.01528925185` USDC, FIFO realized-lot P/L
+  of `0.0151857370073358360103886075` USDC, and Coinbase average-cost
+  unrealized P/L of `-0.015838294486063203` USDC for remaining inventory.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 113 - Recurring Campaign Scheduler Hardening
+
+Tighten X-hours and max-runs behavior, missed-run reporting, lock handling, and
+due-state evidence.
+
+Status:
+
+- Scheduler status and durable due-state evidence.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Scheduled campaign templates render `repeat_every_hours: 6` and `max_runs: 2`.
+- `tools/run_spot_campaign.py --scheduler-status` reported the BUY canary due
+  state with `attempt_count: 1`, `max_runs: 2`, and reason
+  `repeat interval elapsed`.
+- The later Phase 115 repeat check proved the live runner blocks after
+  `max_runs: 1` with `max_runs_reached`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 114 - Scheduled BUY/SELL Config Renderer
+
+Generate reusable scheduled campaign configs for BUY and SELL with explicit
+caps and read-only validation.
+
+Status:
+
+- USDC-only campaign configs.
+- Explicit safety caps and max-run limits.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Rendered scheduled BUY and SELL canary campaign configs to
+  `runtime_state/phase114_buy_canary.json` and
+  `runtime_state/phase114_sell_canary.json`.
+- Both validation reports returned `status: ready` and warned that live
+  scheduling still uses the sweep runner approval gate.
+- Rendered equivalent sweep configs to
+  `runtime_state/phase114_buy_canary.sweep.json` and
+  `runtime_state/phase114_sell_canary.sweep.json`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 115 - Limited Scheduled Live Automation Canary
+
+Run a small scheduled automation canary after the renderer and scheduler checks
+pass.
+
+Status:
+
+- Live Coinbase execution is approved for this phase only.
+- Use strict `max_runs`, low notional, and post-run reconciliation.
+- Report submitted and executed notional after the run.
+
+Implemented live result:
+
+- LIVE COINBASE EXECUTION ran only for the approved Phase 115 scheduled BUY
+  canary.
+- Config id: `phase115-scheduled-buy-canary`.
+- Automation policy: `repeat_every_hours: 6`, `max_runs: 1`.
+- Product: `00-USDC`.
+- Orders: `1` market IOC BUY order.
+- Run id: `spot-sweep-83e5c13a-104f-470d-a1f6-b6c4468db972`.
+- Submitted notional: `1.01` USDC.
+- Executed notional: `1.009295` USDC.
+- The immediate repeat invocation placed no orders and returned
+  `max_runs_reached`.
+
+### Phase 116 - Durable P/L Rebuild Check
+
+Verify that P/L can be rebuilt from durable ledgers by product, all USDC
+products, and since last purchase.
+
+Status:
+
+- Read-only ledger reconstruction.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Phase 115 reconciliation matched the single BUY order by `client_order_id`
+  and matched the fill-ledger row against REST fills.
+- All-USDC P/L rebuilt for `387` selected USDC products from durable fill
+  evidence and public marks.
+- `00-USDC` product-level P/L rebuilt with product, portfolio,
+  since-last-purchase, realized-lot, and Coinbase average-cost scopes.
+- Fill-ledger health passed with `431` rows and zero findings.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 117 - Dashboard Campaign Browser Gate Expansion
+
+Extend browser smoke coverage for campaign status, scheduler state, P/L panels,
+skipped rows, and failure states.
+
+Status:
+
+- Local/browser testing only.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- `tests/e2e/test_spot_readiness_ui_smoke.py` covers the campaign status panel,
+  scheduler due state, planned skips, recovery counts, latest live run state,
+  submitted notional, and P/L.
+- The browser smoke now also asserts that campaign status errors render in the
+  campaign panel instead of silently disappearing.
+- `python tools/run_spot_readiness_browser_smoke.py` passed with Chromium.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 118 - Contextless Blind-Agent Spot Order Test
+
+Run the persistent blind-agent readability gate after the new spot order and
+campaign changes.
+
+Status:
+
+- If a fresh agent cannot explain the path without coaching, fix docs or code
+  organization before proceeding.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Contextless blind-agent review passed.
+- The blind reviewer identified the documentation entry points, direct
+  dashboard placement, stealth reveal, USDC sweep live execution, campaign
+  render-to-sweep flow, safety gates, live approval boundary,
+  `client_order_id` invariant including dashboard cancel, SELL wallet versus
+  profitability authority, durable P/L, reconciliation, and disabled spot
+  features.
+- The reviewer flagged two clarity gaps, both addressed before advancing:
+  direct dashboard orders now document their post-placement audit expectations,
+  and campaign docs/examples now state that rendered live sweep execution
+  requires Coinbase REST credentials.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 119 - Public Release Config Hygiene
+
+Make sample configs, runbooks, and no-credential behavior clear enough for
+public users.
+
+Status:
+
+- Documentation and read-only defaults.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- No-credential `python tools/run_spot_release_gate.py` passed its read-only
+  focused spot readiness gate.
+- No-credential campaign validation and scheduler-status modes completed
+  without Coinbase order access.
+- `README.spot-campaign.md`, `README.spot-trading.md`,
+  `docs/examples/spot-campaign.md`, and `docs/examples/spot-trading.md` now
+  spell out the direct-order audit boundary and live campaign credential
+  boundary.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 120 - Recovery Drill Matrix
+
+Exercise read-only drills for partial fills, no submission, REST rejection,
+missing fill evidence, duplicate run prevention, and cancel-by-client-id
+behavior.
+
+Status:
+
+- Local/replay drills only.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- `--no-order-recovery-drill` passed for the scheduled BUY canary config and
+  classified five synthetic no-submission products as retryable.
+- `tools/run_spot_sweep_recovery_gate.py --summary-only` passed without live
+  orders and reconciled outstanding durable sweep evidence.
+- Duplicate scheduled execution prevention was exercised in Phase 115 with
+  `max_runs_reached`.
+- Cancel-by-client-id behavior is covered by the expanded dashboard regression
+  from Phase 107.
+- Existing regression coverage covers REST/fill-backfill failure handling and
+  missing fill evidence in the sweep/fill-backfill path.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 121 - Spot Disabled-Feature Review
+
+Reconfirm which futures/perpetual features remain disabled or conditional for
+spot.
+
+Approved scope:
+
+- Move/reprice replacement.
+- Cancel/re-entry.
+- Hotpoint auto-placement.
+- Follow-ups.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- `README.spot-trading.md` now has an explicit disabled/conditional spot
+  feature section for contextless readers.
+- Spot move/reprice replacement remains disabled by default. Explicit
+  enablement still requires the replace-aware action guard, no partial-fill
+  replacement, active-hold crediting, and conservative local state if exchange
+  cancel fails.
+- Spot cancel/re-entry remains disabled by default and must not be described as
+  general hide-again behavior. If explicitly enabled later, it remains limited
+  to the existing no-fill revealed-placement cancel/re-entry path.
+- Spot hotpoint auto-placement remains disabled by default through product
+  capability policy. The hotpoint seed order path exists, but spot products
+  still block unless `HOTPOINT_AUTO_PLACEMENT` is explicitly enabled.
+- Spot follow-ups remain intent-classified: BUY-fill to SELL is an exit,
+  SELL-fill to BUY is rebuy and blocked unless explicitly enabled, and
+  same-side replacement/retreat requires explicit policy plus action-guard
+  admission.
+- Dashboard cancel by `client_order_id` is supported and is not part of the
+  disabled-feature set.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 122 - Broad SELL Readiness Decision Gate
+
+Produce the exact broad SELL execution proposal before any broad SELL live
+execution.
+
+Approved scope:
+
+- Product set.
+- Requested and expected submitted notional.
+- Authority source per product.
+- Skipped and blocked rows.
+- Risk notes.
+- This is a decision gate, not live execution.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Read-only Coinbase/account requests only:
+  `get_public_products`, `get_accounts`, `get_portfolios`, and
+  `get_portfolio_breakdown`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+- Current broad proposal shape: `SELL`, `market_ioc`, `1.01` USDC requested
+  notional per eligible `BASE-USDC` spot product.
+- Product set: `387` eligible and selected USDC spot products.
+- Current plan: `351` planned rows, `36` skipped rows, and
+  `354.00167340662062` USDC estimated planned submitted notional.
+- Skips: `35` below quote minimum and `1` insufficient base balance.
+- With known-inventory authority required, Coinbase average-cost authority
+  enabled, a `0.5%` extra average-cost profit buffer, and high artificial caps
+  (`500` USDC run cap, `2` USDC order cap, `400` planned-order cap, `500`
+  skipped-order cap), the safety gate still blocked broad execution:
+  `113` rows had authority and `238` planned rows were blocked.
+- Authority mix under that buffered average-cost policy: `46` fill-ledger
+  known-profitable rows, `67` Coinbase-average-profitable rows, and `238`
+  wallet-only insufficient-profitable rows.
+- Strict local-fill-ledger-only authority is safer but narrower: `46` rows had
+  fill-ledger known-profitable authority and `305` planned rows were blocked.
+- Decision: do not execute the full broad SELL set as-is. The next live SELL
+  stage should use an allowlist generated from rows with authority and rerun
+  the same read-only gate immediately before live approval. Full broad SELL
+  execution needs the `238` blocked wallet-only rows resolved through durable
+  known-profit authority or deliberately excluded.
+
+### Phase 123 - Strict SELL Authority Allowlist
+
+Generate a narrowed SELL allowlist from rows that pass strict local
+fill-ledger known-profitable authority.
+
+Status:
+
+- Implemented through `tools/run_spot_campaign.py --sell-authority-allowlist`
+  with `--sell-authority-profile fill_ledger_strict`.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Read-only Coinbase/account requests only: `get_public_products` and
+  `get_accounts`.
+- After the Phase 126 lot-consumption fix, the strict allowlist contains `33`
+  products, blocks `319` planned rows, and estimates `33.26606405` USDC
+  allowlisted submitted notional.
+- Authority source mix: `33` fill-ledger rows and `319` wallet-only blocked
+  rows.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 124 - Coinbase Average-Cost SELL Authority Allowlist
+
+Generate a separate narrowed SELL allowlist that allows Coinbase average cost
+with the configured extra profit buffer.
+
+Status:
+
+- Implemented through `tools/run_spot_campaign.py --sell-authority-allowlist`
+  with `--sell-authority-profile coinbase_average_cost_buffered`.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Read-only Coinbase/account requests only: `get_public_products`,
+  `get_accounts`, `get_portfolios`, and `get_portfolio_breakdown`.
+- After the Phase 126 lot-consumption fix, the average-cost-buffered allowlist
+  contains `77` products, blocks `274` planned rows, and estimates
+  `77.6271321697` USDC allowlisted submitted notional.
+- Authority source mix: `33` fill-ledger rows, `44` Coinbase-average-cost
+  rows, and `274` wallet-only blocked rows.
+- Coinbase average cost remains portfolio-level operational authority, not
+  exact FIFO lot evidence.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 125 - Limited Allowlisted SELL Live Canary
+
+Run a small live SELL canary from the strict allowlist after read-only
+validation passes.
+
+Status:
+
+- Live Coinbase execution was approved for this phase only.
+- The live run used `market_ioc`, strict local-fill-ledger authority, three
+  products, `1.01` USDC requested notional per product, a `4` USDC per-run cap,
+  and a `2` USDC per-order cap.
+
+Implemented live result:
+
+- LIVE COINBASE EXECUTION ran only for the approved Phase 125 SELL canary.
+- Products: `AERGO-USDC`, `ALEPH-USDC`, and `AVNT-USDC`.
+- Run id: `spot-sweep-2eb2ef81-2494-4b83-907f-dfac01a9e31f`.
+- Orders: `3` market IOC SELL orders.
+- Submitted notional: `3.027288` USDC.
+- Executed notional: `3.0243072278` USDC.
+- All three orders returned `FILLED`, recorded UUID `client_order_id` values,
+  and appended one fill each.
+
+### Phase 126 - Post-Canary Reconciliation And Lot Authority Fix
+
+Reconcile the Phase 125 live run and resolve any blocker before advancing.
+
+Status:
+
+- No new live Coinbase orders are approved for this phase.
+
+Result:
+
+- Reconciliation matched all three Phase 125 orders by `client_order_id`.
+- Fill-ledger comparison matched all three REST fill totals with
+  `3.0243072278` USDC reconciled executed notional.
+- Fill-ledger health passed with `434` rows and zero findings.
+- P/L review exposed an ALEPH-USDC overstatement: a previous local SELL had
+  consumed most of the known BUY lot, but strict SELL authority had counted the
+  original BUY quantity without subtracting prior SELL fills.
+- Fixed the shared lot-builder path so position reconstruction reads all fills
+  for a product and applies opposing-side fills as FIFO exits before reporting
+  remaining known inventory.
+- Added regression coverage proving prior SELL fills reduce known profitable
+  SELL authority in both the inventory-authority path and the sweep safety
+  path.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 127 - Post-Fix SELL Allowlist Drift Check
+
+Regenerate strict and average-cost allowlists after the lot-authority fix.
+
+Status:
+
+- Read-only Coinbase/account checks only.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- The refreshed strict allowlist contains `33` products and no longer includes
+  the three Phase 125 products as strict-authorized rows after their local lots
+  were consumed.
+- The refreshed average-cost-buffered allowlist contains `77` products:
+  `33` fill-ledger-authorized and `44` Coinbase-average-cost-authorized.
+- The refreshed allowlist artifacts are the only current SELL authority
+  evidence from this batch; stale pre-fix allowlists must not be used for live
+  SELL execution.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 128 - Dashboard SELL Authority Visibility
+
+Expose SELL authority allowlist status in durable campaign operator summaries.
+
+Status:
+
+- Implemented in the campaign status helper and dashboard-facing payload.
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- `operator_summary` now includes `sell_authority_profile`,
+  `sell_authority_allowlist_count`, `sell_authority_blocked_count`,
+  `sell_authority_source_counts`, `sell_authority_status_counts`,
+  `sell_authority_estimated_allowlisted_quote_notional`, and an allow-products
+  preview.
+- Durable status reported the latest strict allowlist as `32` allowed,
+  `324` blocked, and `32.2753057` USDC estimated allowlisted notional after a
+  final current rerun.
+- Durable status reported the current average-cost-buffered allowlist as `77`
+  allowed, `274` blocked, and `77.6271321697` USDC estimated allowlisted
+  notional.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 129 - Contextless Blind-Agent SELL Campaign Review
+
+Run the persistent blind-agent readability gate after the SELL allowlist and
+lot-authority changes.
+
+Status:
+
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Contextless blind-agent review passed.
+- The reviewer identified the safe path as campaign, SELL authority allowlist,
+  rendered sweep config, read-only validation, then explicitly approved sweep
+  live execution.
+- The reviewer confirmed the code now accounts for prior SELL fills when
+  deciding remaining known profitable inventory.
+- The reviewer flagged three doc clarity gaps: the runbook needed the full
+  allowlist artifact flow, examples needed exact allowlist commands, and
+  baseline `remaining_quantity` needed a stale-data warning. Those gaps were
+  addressed before advancing.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 130 - Current Broad SELL Decision Gate
+
+Record the next decision boundary after the allowlist and lot-authority fix.
+
+Status:
+
+- No live Coinbase orders are approved for this phase.
+
+Result:
+
+- Full broad SELL execution remains blocked as a default recommendation. The
+  wallet-only rows still do not have sufficient known profitable authority.
+- A revalidation of the Phase 127 strict allowlist blocked after market price
+  drift invalidated `ALT-USDC`, proving stale allowlists are not live-safe.
+- Rerunning the strict allowlist immediately produced a current `32` product
+  strict allowlist with `32.2753057` USDC estimated allowlisted notional.
+- The current strict allowlist then passed a read-only three-product
+  `--validate-config` gate with `3.027126` USDC estimated planned notional and
+  zero safety violations.
+- The next live SELL stage, if approved later, should use a regenerated
+  allowlist sweep config and rerun `--validate-config` immediately before live
+  execution.
+- Strict local-fill-ledger authority is the safer default. Coinbase
+  average-cost-buffered authority is available only when the operator
+  explicitly accepts portfolio-average operational authority.
+- Imported baseline lots must be maintained carefully. Stale
+  `remaining_quantity` values can overstate authority and should be refreshed
+  or marked unknown before live SELL use.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 131 - SELL Allowlist Freshness Enforcement
+
+Make generated SELL authority allowlists enforceably short-lived.
+
+Status:
+
+- Implemented in campaign artifacts and the live sweep runner.
+
+Result:
+
+- `build_spot_campaign_sell_authority_allowlist` now writes
+  `allowlist_metadata` and embeds the same `sell_authority_allowlist` metadata
+  into rendered sweep configs.
+- `tools/run_spot_portfolio_sweep_live.py --validate-config` reports
+  `sell_authority_allowlist_freshness`.
+- Live sweep mode rejects stale or invalid generated SELL allowlist metadata
+  before Coinbase credentials or order submission can proceed.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 132 - Imported Baseline Freshness Audit
+
+Expose stale or ambiguous imported baseline inventory before it is used as
+SELL authority.
+
+Status:
+
+- Implemented as read-only reporting.
+
+Result:
+
+- `build_spot_inventory_baseline_freshness_audit` reports fresh, stale,
+  missing timestamp, invalid timestamp, and not-configured baseline states.
+- Inventory coverage and sweep validation summaries now include
+  `inventory_baseline_freshness_audit`.
+- Coinbase average-cost baseline conversion now preserves
+  `source_updated_at` separately from `entry_timestamp`.
+- This phase reports risk but does not block imported baseline authority by
+  itself.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 133 - Coinbase Average-Cost Authority Gate
+
+Tighten the opt-in Coinbase average-cost SELL authority path.
+
+Status:
+
+- Implemented in the shared sweep/campaign path.
+
+Result:
+
+- `apply_coinbase_average_cost_authority_gate` blocks only planned SELL rows
+  whose authority actually comes from Coinbase average cost.
+- The gate blocks stale, missing, or invalid average-cost records and stale
+  local-vs-Coinbase drift for the affected authority product.
+- Campaign dry-run matrices, sweep `--validate-config`, and live sweep mode
+  all apply the same gate.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 134 - Strict SELL Canary Preflight
+
+Prepare the next strict local-fill-ledger SELL canary without live execution.
+
+Status:
+
+- Completed as a read-only Coinbase preflight.
+
+Result:
+
+- A fresh strict SELL allowlist was generated at
+  `runtime_state/phase134_sell_strict_preflight_allowlist.sweep.json`.
+- The fresh strict allowlist contained `34` products, `325` blocked rows, and
+  `34.2662653` USDC estimated allowlisted notional.
+- A read-only three-product `--validate-config` preflight passed with zero
+  safety violations.
+- Exact preflight products and planned notionals:
+  `ALT-USDC` `1.0048` USDC, `B3-USDC` `1.009983` USDC, and
+  `BLEND-USDC` `1.00717` USDC.
+- Total planned preflight notional: `3.021953` USDC.
+- Coinbase requests were read-only: `get_public_products` and `get_accounts`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 135 - Post-Canary Reconciliation Boundary
+
+Reconcile the Phase 134 canary only if live orders were executed.
+
+Status:
+
+- Not applicable for this batch because Phase 134 was preflight-only.
+
+Result:
+
+- No Phase 134 live Coinbase orders were submitted, so there were no new
+  exchange orders or fills to reconcile.
+- The next approved live SELL execution must still be followed by the normal
+  sweep reconciliation and fill-backfill checks.
+- Submitted notional: `0` USDC. Executed notional: `0` USDC.
+
+### Phase 136 - Contextless Blind-Agent Review
+
+Run the persistent blind-agent readability gate against the current spot SELL
+workflow.
+
+Status:
+
+- Completed.
+
+Result:
+
+- The contextless reviewer identified the correct campaign-to-sweep SELL
+  canary path, including strict SELL authority allowlist generation,
+  `--validate-config`, `--approved-live-orders`, `record-latest-sweep-run`,
+  recovery gate, and fill-ledger health checks.
+- The reviewer also identified the important distinction that direct dashboard
+  `place_order` is not the normal SELL canary path because it lacks campaign
+  dry-run, allowlist, sweep ledger, retry, and recovery workflow evidence.
+- Two documentation gaps were found and fixed:
+  - The public runbook now contains a single ordered SELL canary path starting
+    from `--template-profile sell_canary`.
+  - The public runbook no longer uses `--summary-only` for the final SELL
+    pre-live validation, so exact products, base sizes, estimated notionals,
+    and `sell_authority` rows remain visible.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 137 - Fresh Strict SELL Allowlist And Capped Validation
+
+Generate a current strict local-fill-ledger SELL allowlist and validate the
+small live-canary cap before any Coinbase submission.
+
+Status:
+
+- Completed as a read-only Coinbase preflight.
+
+Result:
+
+- Fresh strict allowlist generation used read-only Coinbase requests only:
+  `get_accounts` and `get_public_products`.
+- The allowlist contained `41` products, `314` blocked rows, and
+  `41.3332917` USDC estimated allowlisted notional.
+- The capped three-product validation passed with zero safety violations for
+  `ALT-USDC`, `B3-USDC`, and `BLEND-USDC`.
+- Planned validation notional was `3.025867` USDC.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 138 - Limited Strict SELL Live Canary
+
+Run the approved strict local-fill-ledger SELL canary under the user-approved
+cap: at most three products, about `1.01` USDC each, strict authority only.
+
+Status:
+
+- Completed with live Coinbase execution.
+
+Result:
+
+- **LIVE COINBASE EXECUTION RAN.**
+- Coinbase live requests included `create_order`, `get_order`, and
+  `list_fills`.
+- Submitted order count: `3`.
+- Submitted notional: `3.027367` USDC.
+- Executed notional: `3.024086` USDC.
+- `ALT-USDC`: `client_order_id`
+  `d1d584c7-5f68-46e9-b946-5904c4409a5b`, exchange `order_id`
+  `424a1b70-6c7a-42a2-bda9-397df1927ce7`, submitted `1.00804` USDC,
+  executed `1.00804` USDC.
+- `B3-USDC`: `client_order_id`
+  `01c9f722-7774-479b-9347-440815f57ec4`, exchange `order_id`
+  `28f0af1b-6891-4fb5-a364-43515a7996de`, submitted `1.009827` USDC,
+  executed `1.008046` USDC.
+- `BLEND-USDC`: `client_order_id`
+  `70b6a88a-2b2a-40e5-80d8-280509deb098`, exchange `order_id`
+  `6d076e6d-00cc-4c51-a0bf-a76486ba3571`, submitted `1.0095` USDC,
+  executed `1.008` USDC.
+- Fill backfill fetched `3` fills, appended `3`, and skipped `0`.
+
+### Phase 139 - Post-Live Reconciliation And Campaign Recording
+
+Reconcile the live canary and record it into the durable campaign/operator
+state.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Reconciled run `spot-sweep-c7231d0d-8b0b-49ed-be08-03cc8af08418`.
+- All three live orders matched by `client_order_id`.
+- Fill-ledger evidence matched all three orders.
+- Campaign recording stored `live_canary` state with submitted notional
+  `3.027367` USDC and executed notional `3.024086` USDC.
+- Recovery gate passed with no planned reconciliation or backfill work.
+- Fill-ledger health passed with `437` rows and `0` findings.
+- No new live Coinbase orders were submitted for this reconciliation phase.
+  Submitted notional: `0` USDC. Executed notional: `0` USDC.
+
+### Phase 140 - Post-Live Strict Allowlist Consumption Check
+
+Regenerate the strict SELL allowlist after the live canary to prove the sold
+strict lots were consumed.
+
+Status:
+
+- Completed as a read-only Coinbase check.
+
+Result:
+
+- Fresh post-live allowlist generation used read-only Coinbase requests only:
+  `get_accounts` and `get_public_products`.
+- The post-live strict allowlist contained `37` products, `319` blocked rows,
+  and `37.3018217` USDC estimated allowlisted notional.
+- `ALT-USDC`, `B3-USDC`, and `BLEND-USDC` were no longer in the allowed
+  products list.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 141 - Operator Status Audit
+
+Confirm the live-canary state is visible through the operator status commands.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Campaign and sweep status output showed the Phase 138 live snapshot, the
+  submitted notional `3.027367` USDC, the executed notional `3.024086` USDC,
+  three submitted orders, and three appended fills.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 142 - Expanded Strict SELL Preflight
+
+Validate a larger strict local-fill-ledger SELL set without live execution.
+
+Status:
+
+- Completed as a read-only Coinbase preflight.
+
+Result:
+
+- Validation used the post-live strict allowlist sweep config.
+- The ten-product preflight passed with zero safety violations.
+- Total planned validation notional was `10.0771604` USDC.
+- Planned products were `COSMOSDYDX-USDC`, `DBR-USDC`, `DEGEN-USDC`,
+  `EDGE-USDC`, `ELSA-USDC`, `FLUID-USDC`, `GST-USDC`, `HONEY-USDC`,
+  `HYPER-USDC`, and `KAITO-USDC`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 143 - BUY-To-SELL Lifecycle Ledger Audit
+
+Audit the live SELL canary against local lot consumption and operational P/L.
+
+Status:
+
+- Completed as read-only reporting and focused regression.
+
+Result:
+
+- P/L reporting for `ALT-USDC`, `B3-USDC`, and `BLEND-USDC` matched all live
+  sells to FIFO local lots.
+- `unmatched_sell_base_size` was `0`.
+- Realized-lot P/L for the three products was `0.2780421352` USDC.
+- Portfolio total P/L for the three products was `0.31578271125` USDC.
+- Focused inventory-authority and sweep tests passed: `7` passed.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 144 - Average-Cost Allowlist Gate Consistency
+
+Verify average-cost-buffered allowlists cannot render rows that the live sweep
+gate will later reject.
+
+Status:
+
+- Completed with a code fix and regression coverage.
+
+Result:
+
+- The initial average-cost-buffered allowlist exposed an inconsistency:
+  allowlist generation did not apply `coinbase_average_cost_authority_gate`
+  violations before rendering a live-capable config.
+- `business/spot_campaign.py` now blocks average-cost authority rows with
+  average-cost freshness or drift gate violations during allowlist generation.
+- Regression coverage was added in
+  `tests/regression/test_spot_campaign.py`.
+- The regenerated average-cost-buffered allowlist contained `66` products,
+  `284` blocked rows, and `66.5360264797` USDC estimated allowlisted
+  notional.
+- A capped five-product validation then passed with zero safety violations and
+  `5.033267` USDC planned notional.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 145 - Imported Baseline Blocking Decision
+
+Document the current imported-baseline freshness behavior so operators do not
+mistake report-only freshness for an executable block.
+
+Status:
+
+- Completed as documentation.
+
+Result:
+
+- `README.spot-campaign.md`, `docs/SPOT_CAMPAIGN_PUBLIC_RUNBOOK.md`, and
+  `docs/examples/spot-campaign.md` now state that imported baseline freshness
+  is report-only today.
+- The docs also state that generated allowlists should be regenerated and
+  validated immediately before live use, and that future blocking requires an
+  explicit policy decision.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 146 - Contextless Blind-Agent Spot Order Review
+
+Run the persistent blind-agent gate after the live canary, average-cost gate
+fix, and documentation updates.
+
+Status:
+
+- Completed.
+
+Result:
+
+- The first blind review found the core paths but flagged two clarity issues:
+  raw dashboard `place_order` could be misread as the automation path, and
+  missed-fill ownership docs said exchange `order_id` mapping should come from
+  submission evidence.
+- `README.spot-trading.md` and `docs/examples/spot-trading.md` now clarify
+  that raw dashboard `place_order` is an immediate manual one-off path, not
+  scheduled or portfolio automation.
+- `core/startup_reconciler.py` now resolves exchange `order_id` to
+  `client_order_id` only through `order_submitted` / `rest_submit`
+  event-stream evidence.
+- Regression coverage was added in
+  `tests/regression/test_cross_source_reconciliation.py`.
+- The second blind review passed and correctly identified campaign/sweep as
+  the automation path.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 147 - Validation Gate
+
+Run the required validation after the batch changes.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Full regression passed: `pytest tests\regression\ -v --tb=short` reported
+  `698` passed and `1` warning.
+- Browser smoke passed:
+  `python tools\run_spot_readiness_browser_smoke.py` reported `1` passed and
+  `1` warning.
+- Ownership check passed: `python tools\check_ownership.py`.
+- `git diff --check` exited `0`; output contained CRLF warnings only.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 148 - Roadmap, State, And Next Batch
+
+Update durable roadmap/state material and prepare the next aligned approval
+batch.
+
+Status:
+
+- Completed as documentation and state tracking.
+
+Result:
+
+- This roadmap and `genai_data/agent_state.md` now record the Phase 137-148
+  outcomes, including the Phase 138 live Coinbase SELL execution notional.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 149 - Direct-Order Post-Submit Audit Visibility
+
+Add or tighten read-only operator visibility for direct dashboard
+`place_order` submissions by `client_order_id`, without making direct orders
+the automation path.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Added `business/spot_direct_order_audit.py` and
+  `tools/run_spot_direct_order_audit.py`.
+- Dashboard direct `place_order` success responses now include an
+  `audit_command` for read-only local evidence inspection.
+- The focused spot readiness gate now includes the direct-order audit
+  regression.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 150 - Reconciliation Ownership Hardening
+
+Audit remaining exchange `order_id` to `client_order_id` resolvers and add
+regression where any resolver must use submission evidence rather than loose
+event rows.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Added static regression coverage requiring `order_submitted` /
+  `rest_submit` evidence before event-stream exchange-order mappings can
+  establish local ownership.
+- Focused reconciliation regression passed.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 151 - Average-Cost Authority Preflight Audit
+
+Regenerate an average-cost-buffered allowlist, validate five to ten products
+read-only, and record freshness/drift blocked rows.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Read-only average-cost-buffered allowlist generation found `49`
+  allowlisted products, `308` blocked wallet-only products, and estimated
+  allowlisted notional of `49.3861468849` USDC.
+- Read-only validation planned `10` products for `10.078553` USDC total with
+  Coinbase average-cost authority and no safety violations.
+- Read-only Coinbase requests included account, portfolio, portfolio
+  breakdown, and public product fetches.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 152 - Strict SELL Canary Preflight
+
+Regenerate the strict local-fill-ledger allowlist after market drift and run an
+immediate three-product `--validate-config` gate.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Initial strict preflight correctly blocked with `0` allowlisted products
+  because the local USDC fill-ledger read path had no USDC rows.
+- `tools/run_spot_fill_backfill_recovery.py --source sweep --summary-only`
+  made read-only Coinbase `list_fills` calls and appended `915` local
+  fill-ledger rows. No live orders were submitted.
+- Regenerated strict local-fill-ledger allowlist found `52` allowlisted
+  products, `304` blocked products, and estimated allowlisted notional of
+  `52.40530311` USDC.
+- Read-only three-product validation planned `3.025694` USDC total with no
+  safety violations.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 153 - Optional Limited Strict SELL Live Canary
+
+Only if explicitly approved for live execution, run at most three products,
+about `1.01` USDC each, maximum `4` USDC total, strict fill-ledger authority
+only, no average-cost authority.
+
+Status:
+
+- Completed with approved live Coinbase execution.
+
+Result:
+
+- Live Coinbase SELL execution ran through
+  `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
+- Products: `AERGO-USDC`, `AI-USDC`, and `ALLO-USDC`.
+- Submitted order count: `3`.
+- Submitted notional: `3.026224` USDC.
+- Executed notional: `3.021097` USDC.
+- All three fills were backfilled and associated by `client_order_id`.
+
+### Phase 154 - Post-Canary Reconciliation And Lot Consumption
+
+Reconcile Phase 153, backfill fills, run recovery gate, health checks, and
+regenerate the strict allowlist to prove consumed lots disappear.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Reconciliation matched all three Phase 153 live orders by `client_order_id`.
+- Fill-ledger health passed with `918` rows after the live fills were
+  appended.
+- Recovery gate found `0` planned reconciliation runs and `0` planned
+  backfill orders.
+- Post-live strict allowlist contained `51` products and blocked `304`;
+  `AI-USDC` dropped out after its strict profitable lot was consumed.
+- Post-canary P/L review for the three products reported local, FIFO realized
+  lot, portfolio, and since-last-purchase views.
+- No separate new live Coinbase orders were submitted for this phase.
+  Submitted notional: `0` USDC. Executed notional: `0` USDC.
+
+### Phase 155 - Direct-Order Audit Playbook
+
+Document the one-command read-only audit recipe for a manually placed direct
+spot order by `client_order_id`.
+
+Status:
+
+- Completed.
+
+Result:
+
+- `README.spot-trading.md`, `docs/examples/spot-trading.md`, and
+  `docs/README.md` document the direct-order audit command and clarify that
+  raw direct placement is manual-only, not portfolio automation.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 156 - Stealth Reveal Readability Hardening
+
+Reduce contextless-agent confusion in the long stealth reveal path by
+extracting or documenting the smallest safe helper boundary, with regression.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Extracted the side-effect-free
+  `StealthOrderManager._build_reveal_order_submission_payload` helper.
+- Added `tests/regression/test_reveal_submission_payload.py` to preserve the
+  reveal payload's submitted price, `client_order_id`, `post_only`, reveal
+  number, condition timestamp, and policy/source metadata.
+- Focused reveal/action-guard regression passed: `18` tests.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 157 - Contextless Blind-Agent Rerun
+
+Rerun the blind-agent spot-order test after Phases 149-156 and fix any code or
+documentation gaps before advancing.
+
+Status:
+
+- Completed.
+
+Result:
+
+- First blind-agent run understood the canonical spot order workflow but
+  flagged raw dashboard `place_order` as an uncapped live surface that needed a
+  more visible operator checklist.
+- Updated `README.spot-trading.md` and `docs/examples/spot-trading.md` to
+  state the manual direct-order checklist and the distinction between wallet
+  sellability and known-profit SELL authority.
+- Second blind-agent run passed the workflow/identifier/authority checks and
+  repeated the correct warning: direct dashboard placement must not be used for
+  repeatable or capped portfolio work.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 158 - Public Release Readiness Gate
+
+Run and tighten the no-credential, browser, and read-only release gates that a
+public user can execute without Coinbase live approval.
+
+Status:
+
+- Completed.
+
+Result:
+
+- The stale Phase 154 strict SELL allowlist was correctly blocked by the
+  campaign release gate because current authority no longer supported two
+  planned rows.
+- A fresh strict allowlist generated at `2026-06-10T11:16:30Z` found `51`
+  allowlisted products and `301` blocked products with estimated allowlisted
+  notional of `51.40305062` USDC.
+- `python tools\run_spot_release_gate.py --include-browser
+  --include-coinbase-readonly --campaign-config-file
+  runtime_state\phase158_sell_strict_release_gate_allowlist.config.json`
+  passed.
+- The broad all-USDC readiness gate correctly blocked the narrowed strict
+  allowlist because broad stages must not use allow/deny scoping or
+  `max_products`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 159 - Spot Feature Intake Gate
+
+Capture the user's next spot-specific feature request in the feature-intake
+format and validate that it does not bypass campaign/sweep/authority
+invariants.
+
+Status:
+
+- Completed.
+
+Result:
+
+- `python tools\run_spot_feature_intake_gate.py --request-file
+  docs\examples\spot-feature-intake-usdc-campaign.json --summary-only`
+  passed.
+- Warning retained: `selection_rule must be resolved to concrete eligible
+  products at run time`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 160 - Next Live/Broad Decision Gate
+
+Compare current strict and average-cost-buffered authority, recommend the next
+safe path, and keep broad SELL blocked unless the data supports a narrower
+allowlist-backed execution.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Broad all-USDC strict SELL remains blocked. The strict allowlist is narrowed
+  to authority-backed products and therefore must not be treated as broad
+  all-USDC readiness.
+- The only safe SELL execution path remains a freshly regenerated strict
+  local-fill-ledger allowlist with explicit live approval and small caps.
+- Read-only three-product validation against the fresh strict allowlist planned
+  `3.024682` USDC total, used only `fill_ledger` authority, passed safety
+  evaluation, and made read-only Coinbase account/product calls.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 161 - Direct Spot Manual Live Acknowledgement
+
+Add an explicit direct spot `place_order` acknowledgement boundary so raw
+dashboard spot orders cannot be mistaken for dry-runable or capped automation.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Direct dashboard spot `place_order` now requires
+  `params.manual_live_acknowledgement=true` before size checks, action guards,
+  or REST submission.
+- Missing acknowledgement returns a structured action-condition guard result
+  with `manual_live_acknowledgement`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 162 - Direct Spot Notional Cap Guard
+
+Use the existing action-condition guard for raw direct spot placement caps
+instead of creating a second placement path.
+
+Status:
+
+- Completed.
+
+Result:
+
+- The direct-order maximum-notional path remains the shared
+  `ActionConditionGuard` limits policy.
+- Documentation now points direct spot caps to the existing `limits` guard with
+  `product_type=SPOT`, `max_notional`, and `phases=["planning"]`.
+- Focused regression confirms direct order caps block before REST.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 163 - Direct-Order UI And Browser Smoke
+
+Expose the direct spot manual acknowledgement in the dashboard UI and smoke
+test the browser contract.
+
+Status:
+
+- Completed.
+
+Result:
+
+- `ui_dashboard.html` now has a direct-order manual live acknowledgement
+  checkbox and blocks local submission until checked.
+- `tests/e2e/test_direct_order_ui_smoke.py` verifies unchecked orders do not
+  send a WebSocket message and checked orders include
+  `manual_live_acknowledgement: true`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 164 - Strict SELL Authority Freshness Regression
+
+Pin the regressions around stale/scoped SELL allowlists and broad all-USDC
+readiness.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Added regression proving a narrowed strict SELL authority allowlist fails the
+  broad all-USDC readiness gate via allow/deny scope and selected-count
+  mismatch.
+- Existing stale allowlist live-mode regressions remain green.
+- Focused campaign/sweep regression passed: `66` tests.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 165 - Broad USDC BUY Readiness Snapshot
+
+Run a read-only all-eligible USDC BUY readiness snapshot with current caps and
+skipped-product accounting.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Wrote `runtime_state\phase165_buy_all_usdc_readiness.config.json` and
+  rendered `runtime_state\phase165_buy_all_usdc_readiness.sweep.json`.
+- Broad BUY validation, release gate, and all-USDC readiness passed.
+- Current read-only BUY plan saw `387` eligible USDC spot products, planned
+  `385` one-USDC BUYs, and skipped `2` below-minimum products.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 166 - Broad USDC SELL Readiness Snapshot
+
+Run strict and average-cost-buffered SELL readiness snapshots and keep broad
+SELL separated from narrowed executable authority.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Strict fill-ledger allowlist:
+  `runtime_state\phase166_sell_strict_readiness_allowlist.*`.
+- Strict authority allowed `106` products, blocked `244`, and estimated
+  `106.83852591746` USDC allowlisted notional.
+- Coinbase average-cost-buffered authority allowed `128` products, blocked
+  `222`, and estimated `129.03877695686` USDC allowlisted notional.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 167 - Durable P/L Baseline Snapshot
+
+Record a current all-USDC P/L and Coinbase average-cost baseline.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Recorded campaign P/L checkpoints from the durable campaign ledger.
+- Recorded a fresh Coinbase average-cost baseline snapshot with `389` records
+  at `2026-06-10T13:38:25Z`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 168 - USDC Campaign Feature Design Lock
+
+Map the user's USDC campaign request to the existing campaign/sweep path and
+reject a parallel spot placement engine.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Added the USDC campaign design lock to `README.spot-campaign.md`.
+- Added config-field and durable-tracking examples to
+  `docs/examples/spot-campaign.md`.
+- The locked design keeps `tools/run_spot_campaign.py` read-only and routes
+  all approved live execution through `tools/run_spot_portfolio_sweep_live.py`.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 169 - Campaign Automation Rehearsal
+
+Rehearse due-state, max-run, and repeat-cadence behavior without live orders.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Scheduler status for the broad BUY config reported `due` because the repeat
+  interval had elapsed.
+- Read-only sweep validation passed for broad BUY and capped strict SELL.
+- Focused automation regressions passed.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 170 - Capped Strict SELL Live Canary
+
+Run the approved strict fill-ledger SELL canary: at most three products, about
+`1.01` USDC each, maximum `4` USDC total, no average-cost authority.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Fresh strict allowlist generated at `2026-06-10T13:39:47Z` allowed `110`
+  products and blocked `243`.
+- Read-only validator planned `1INCH-USDC`, `AAVE-USDC`, and `ACH-USDC` with
+  zero safety violations.
+- Live Coinbase execution ran:
+  - Products: `1INCH-USDC`, `AAVE-USDC`, `ACH-USDC`
+  - Run id: `spot-sweep-72919753-51cc-4f7b-bc36-21609107f1a9`
+  - Submitted notional: `3.0216716` USDC
+  - Executed notional: `3.022123640498578` USDC
+  - Status: all three orders filled and fill-backfilled.
+
+### Phase 171 - Post-Canary Recovery And P/L
+
+Reconcile, backfill, run recovery/fill-health, regenerate strict authority,
+and report P/L for the Phase 170 live orders.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Reconciliation matched all three orders by `client_order_id`, Coinbase
+  exchange order id, and fill ledger.
+- Fill-ledger health passed with `921` rows and zero findings.
+- Recovery gate passed after reconciliation.
+- Product P/L was reported for `1INCH-USDC`, `AAVE-USDC`, and `ACH-USDC`.
+- Post-live strict allowlist contained `111` products and blocked `242`; the
+  sold products remained eligible because enough known profitable quantity
+  remained.
+- No separate live Coinbase execution was submitted for this phase.
+  Submitted notional: `0` USDC. Executed notional: `0` USDC.
+
+### Phase 172 - Blind-Agent And Full Validation Gate
+
+Rerun contextless blind-agent spot-order testing and the full validation gate.
+
+Status:
+
+- Completed.
+
+Result:
+
+- Contextless blind-agent test passed. The agent correctly identified the
+  campaign/sweep path, direct dashboard manual live acknowledgement, SELL
+  authority behavior, `client_order_id` rules, and durable proof artifacts.
+- Full regression passed: `706` tests.
+- Browser/UI smoke passed:
+  `tests\e2e\test_direct_order_ui_smoke.py` and
+  `tests\e2e\test_spot_readiness_ui_smoke.py`.
+- Ownership check passed.
+- `git diff --check` exited `0` with CRLF warnings only.
+- The first read-only release gate against the older post-live allowlist failed
+  because `POWR-USDC` no longer had current known profitable authority. This
+  was expected stale/market-drift protection.
+- A fresh strict allowlist generated at `2026-06-10T13:45:45Z` allowed `127`
+  products, blocked `230`, and passed the full read-only release gate.
+- No live Coinbase orders were submitted for this phase. Submitted notional:
+  `0` USDC. Executed notional: `0` USDC.
+
+### Phase 173 - Direct Spot Audit Surface In Dashboard
+
+Status: implemented.
+
+- `dashboard_server.py` now handles `request_spot_direct_order_audit` by
+  `client_order_id`.
+- The dashboard surface reuses `business.spot_direct_order_audit` and reads
+  local event/fill evidence only. It does not call Coinbase.
+- Regression covers the websocket contract and payload helper.
+
+### Phase 174 - Campaign Ledger Cleanup And Backfill Plan
+
+Status: implemented and run.
+
+- `tools/run_spot_campaign.py --ledger-cleanup-plan --summary-only` reports
+  unrecorded sweep runs from local ledgers only.
+- Current result: `4` unrecorded sweep runs, with `3` recordable runs and `1`
+  no-order ignore/document candidate.
+
+### Phase 175 - SELL Authority Drift Stress Gate
+
+Status: implemented and run.
+
+- `--sell-authority-drift-report` compares prior and current SELL allowlists.
+- The regression fixture covers a `POWR-USDC` style removal.
+- Current comparison of Phase 171 to Phase 172 strict allowlists exited
+  blocked: `7` products were removed, including `POWR-USDC`.
+
+### Phase 176 - Average-Cost Authority Operator Report
+
+Status: implemented and run.
+
+- `--authority-operator-report` separates strict fill-ledger authority from
+  Coinbase average-cost authority.
+- Current report: strict count `127`, average-cost count `128`, and `4`
+  stale/drift-blocked products.
+
+### Phase 177 - Broad BUY Campaign Public Runbook Pass
+
+Status: passed read-only.
+
+- Config validation was ready.
+- Scheduler status was due.
+- All-USDC readiness passed with `385` planned BUY orders and `2`
+  below-minimum planned skips.
+- Rendered sweep validation passed with `385` planned orders, safety allowed,
+  and no live order approval flag.
+
+### Phase 178 - Strict SELL Canary Candidate Rotation
+
+Status: implemented and run.
+
+- `--strict-sell-canary-candidates` excludes products from recent live SELL
+  sweep runs.
+- Against the Phase 172 strict allowlist, candidates were `AIOZ-USDC`,
+  `ANKR-USDC`, and `ASM-USDC`, with `9` recent products excluded.
+
+### Phase 179 - Campaign Retry/Partial Run Public Smoke
+
+Status: passed read-only.
+
+- Broad BUY retry check correctly stayed blocked because the source run was
+  completed: `385` submitted-or-live products, `2` not-retryable planned
+  skips, and no retryable products.
+- The older buy-10 partial run still produced a ready one-product retry plan.
+
+### Phase 180 - Durable P/L Delta Report
+
+Status: implemented and run.
+
+- `--pnl-delta-report` compares latest durable P/L checkpoints across
+  available portfolio, since-last-purchase, realized-lot, product, and
+  average-cost scopes.
+- Current local ledger result: `15` campaigns and `12` reported deltas.
+
+### Phase 181 - Contextless Agent Regression Harness
+
+Status: implemented.
+
+- `tools/run_spot_contextless_agent_checklist.py` prints the blind prompt,
+  pass criteria, and evidence template from the public runbook.
+- Current checklist has `19` pass criteria and remains read-only.
+
+### Phase 182 - Release Gate Market-Drift Fixture
+
+Status: implemented.
+
+- Regression covers product-removal drift and requires regeneration instead of
+  reusing an older strict allowlist.
+
+### Phase 183 - Public Safety Copy Pass
+
+Status: implemented.
+
+- `README.spot-trading.md`, `README.spot-campaign.md`,
+  `docs/examples/spot-campaign.md`, `docs/SPOT_CAMPAIGN_PUBLIC_RUNBOOK.md`,
+  `docs/SPOT_CONTEXTLESS_AGENT_TESTING.md`, and `docs/README.md` now document
+  direct manual order audit, campaign reports, broad BUY readiness, narrowed
+  SELL authority, and strict SELL candidate rotation.
+
+### Phase 184 - Next Capped Strict SELL Canary Proposal
+
+Status: prepared, not executed.
+
+- Fresh strict allowlist generated at `2026-06-10T14:32:37Z`.
+- Current strict authority narrowed to `PERP-USDC` only. It allowed `1`
+  product, blocked `2`, and skipped `384` selected products.
+- Read-only sweep validation passed with `PERP-USDC`, `max_products=1`,
+  `max_total_notional_per_run=1`, `max_notional_per_order=1`, and
+  `max_planned_orders=1`.
+- Proposed live cap if separately approved later: one strict SELL order,
+  `PERP-USDC`, maximum submitted notional `1` USDC.
+- No live Coinbase orders were submitted in Phases 173-184. Submitted
+  notional: `0` USDC. Executed notional: `0` USDC.
+- Validation passed after this batch:
+  `pytest tests\regression\ -v --tb=short` (`716` tests),
+  `python tools\run_spot_readiness_regression.py` (`212` tests),
+  browser smoke for direct-order and spot-readiness UI, ownership check, and
+  `git diff --check` with CRLF warnings only.
+
+Next approval batch:
+
+- Phase 185 - Dashboard Direct Audit UI Panel:
+  add a small dashboard UI input for `client_order_id` direct spot audit and
+  browser smoke coverage. No live execution.
+- Phase 186 - Campaign Cleanup Apply Gate Design:
+  design a controlled local-only path for recording approved cleanup-plan
+  items, with dry-run default and no exchange mutation.
+- Phase 187 - Strict SELL Authority Shrinkage Triage:
+  explain why current strict authority narrowed to `PERP-USDC` and whether the
+  result is expected lot consumption, config scope, price drift, or missing
+  local fills. No live execution.
+- Phase 188 - Exact SELL Canary Proposal Artifact:
+  generate an explicit proposal artifact from candidate output and validator
+  output so live approval can refer to a single product/cap set.
+- Phase 189 - Product-Level P/L Snapshot Persistence Review:
+  verify whether campaign snapshots should persist product-level P/L rows by
+  default or only on operator request, then implement the safer option.
+- Phase 190 - Authority Report Dashboard Status:
+  expose strict vs average-cost authority counts and stale/drift counts in the
+  dashboard status surface without Coinbase order placement.
+- Phase 191 - Broad BUY Scheduler Rehearsal Gate:
+  rehearse the broad BUY scheduler due/not-due transitions using durable state,
+  with no live order approval.
+- Phase 192 - Retry Plan Public Fixture Expansion:
+  add a public fixture with submitted, retryable, and planned-skip rows so
+  smaller agents can understand retry behavior without private runtime data.
+- Phase 193 - Contextless Blind-Agent Rerun:
+  run the blind-agent spot-order task against the updated docs/code and record
+  pass/fail evidence. Fix repo context if it fails.
+- Phase 194 - Direct Manual Order Audit Backfill Review:
+  check whether older direct dashboard orders without explicit audit command
+  visibility need documentation or local-only audit examples.
+- Phase 195 - Phase 184 Live Approval Packet:
+  prepare the exact command packet for the `PERP-USDC` one-product strict SELL
+  canary, but do not execute unless live Coinbase execution is explicitly
+  approved.
+- Phase 196 - Full Release Gate:
+  run full regression, browser smoke, ownership, diff checks, and read-only
+  spot release gates after Phases 185-195.
 
 ## Deferred Until After Readiness
 

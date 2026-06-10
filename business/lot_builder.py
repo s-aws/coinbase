@@ -185,6 +185,140 @@ class PositionLotBuilder:
             lots.append(lot)
         return lots
     
+    def _coerce_fill_side(self, fill: FillLedger) -> Optional[OrderSide]:
+        try:
+            return OrderSide[str(fill.side or "").upper()]
+        except KeyError:
+            return None
+
+    def _opposite_side(self, side: OrderSide) -> OrderSide:
+        return OrderSide.SELL if side == OrderSide.BUY else OrderSide.BUY
+
+    def _consume_exit_quantity(
+        self,
+        *,
+        position: LotPosition,
+        entry_side: OrderSide,
+        quantity: float,
+        exit_price: float,
+    ) -> float:
+        remaining_exit = quantity
+        for lot in position.lots:
+            if lot.side != entry_side or lot.remaining_quantity <= 0:
+                continue
+            matched_quantity = min(remaining_exit, lot.remaining_quantity)
+            if matched_quantity <= 0:
+                continue
+            lot.mark_partially_exited(matched_quantity, exit_price)
+            remaining_exit -= matched_quantity
+            if remaining_exit <= 1e-12:
+                return 0.0
+        return max(0.0, remaining_exit)
+
+    def _add_entry_fill_lot(
+        self,
+        *,
+        position: LotPosition,
+        lots_dict: Dict[str, PositionLot],
+        fill: FillLedger,
+        quantity: float,
+        fees: float,
+        profit_target_pct: float,
+    ) -> None:
+        if quantity <= 0:
+            return
+
+        lot_key = self._get_lot_key(fill)
+        existing_lot = lots_dict.get(lot_key)
+        if (
+            existing_lot is not None
+            and existing_lot.remaining_quantity > 0
+            and existing_lot.partially_exited_quantity <= 0
+        ):
+            existing_lot.quantity += quantity
+            existing_lot.entry_value = existing_lot.quantity * existing_lot.entry_price
+            existing_lot.fees += fees
+            existing_lot.remaining_quantity += quantity
+            existing_lot.source_fills.append(fill.derived_trade_key)
+            existing_lot._compute_exit_threshold()
+            logger.debug(
+                f"Extended lot {existing_lot.lot_id}: "
+                f"now {existing_lot.quantity} total"
+            )
+            return
+
+        lot = self._create_lot_from_fill(
+            fill,
+            lots_dict,
+            profit_target_pct,
+            quantity=quantity,
+            fees=fees,
+        )
+        lots_dict[lot_key] = lot
+        position.add_lot(lot)
+        logger.debug(
+            f"Created lot {lot.lot_id}: {fill.side} {quantity} @ {fill.price}"
+        )
+
+    def _apply_ordered_fills_to_position(
+        self,
+        *,
+        position: LotPosition,
+        fills: List[FillLedger],
+        side: Optional[OrderSide],
+        profit_target_pct: float,
+    ) -> None:
+        lots_dict: Dict[str, PositionLot] = {}
+        for fill in fills:
+            fill_side = self._coerce_fill_side(fill)
+            if fill_side is None:
+                continue
+
+            fill_quantity = float(fill.quantity or 0.0)
+            fill_price = float(fill.price or 0.0)
+            fill_fees = float(fill.fees or 0.0)
+            if fill_quantity <= 0:
+                continue
+
+            if side is not None:
+                if fill_side == side:
+                    self._add_entry_fill_lot(
+                        position=position,
+                        lots_dict=lots_dict,
+                        fill=fill,
+                        quantity=fill_quantity,
+                        fees=fill_fees,
+                        profit_target_pct=profit_target_pct,
+                    )
+                    continue
+                self._consume_exit_quantity(
+                    position=position,
+                    entry_side=side,
+                    quantity=fill_quantity,
+                    exit_price=fill_price,
+                )
+                continue
+
+            opposite_side = self._opposite_side(fill_side)
+            residual_quantity = self._consume_exit_quantity(
+                position=position,
+                entry_side=opposite_side,
+                quantity=fill_quantity,
+                exit_price=fill_price,
+            )
+            if residual_quantity <= 0:
+                continue
+
+            residual_fee = fill_fees * (residual_quantity / fill_quantity)
+            self._add_entry_fill_lot(
+                position=position,
+                lots_dict=lots_dict,
+                fill=fill,
+                quantity=residual_quantity,
+                fees=residual_fee,
+                profit_target_pct=profit_target_pct,
+            )
+
     def build_position_lots(self, 
                            instrument: str, 
                            side: Optional[OrderSide] = None,
@@ -202,11 +336,9 @@ class PositionLotBuilder:
         Returns:
             Position object with derived lots
         """
-        # Get fills for the instrument
+        # Get all fills for the instrument. Opposing-side fills must remain
+        # visible so FIFO exits can reduce remaining lot quantity.
         fills = self.fill_ledger_repo.get_fills_by_instrument(instrument)
-        
-        if side:
-            fills = [f for f in fills if OrderSide[f.side.upper()] == side]
 
         position = LotPosition(instrument=instrument)
         for baseline_lot in self._build_baseline_lots(
@@ -219,33 +351,13 @@ class PositionLotBuilder:
         if not fills:
             logger.info(f"No fills found for {instrument}")
             return position
-        
-        # Group fills by side and entry price to create lots (FIFO)
-        lots_dict: Dict[str, PositionLot] = {}  # key: (side, price) -> lot
-        
-        for fill in fills:
-            lot_key = self._get_lot_key(fill)
-            
-            if lot_key not in lots_dict:
-                # Create new lot
-                lot = self._create_lot_from_fill(
-                    fill, 
-                    lots_dict, 
-                    profit_target_pct
-                )
-                lots_dict[lot_key] = lot
-                position.add_lot(lot)
-                
-                logger.debug(f"Created lot {lot.lot_id}: {fill.side} {fill.quantity} @ {fill.price}")
-            else:
-                # Add fill to existing lot (same side, same price)
-                lot = lots_dict[lot_key]
-                lot.quantity += fill.quantity
-                lot.entry_value = lot.quantity * lot.entry_price
-                lot.fees += fill.fees
-                lot.source_fills.append(fill.derived_trade_key)
-                
-                logger.debug(f"Extended lot {lot.lot_id}: now {lot.quantity} total")
+
+        self._apply_ordered_fills_to_position(
+            position=position,
+            fills=fills,
+            side=side,
+            profit_target_pct=profit_target_pct,
+        )
         
         logger.info(f"Built position for {instrument}: {len(position.lots)} lots, "
                    f"total {position.total_quantity}")
@@ -268,7 +380,9 @@ class PositionLotBuilder:
     def _create_lot_from_fill(self, 
                              fill: FillLedger, 
                              existing_lots: Dict,
-                             profit_target_pct: float) -> PositionLot:
+                             profit_target_pct: float,
+                             quantity: Optional[float] = None,
+                             fees: Optional[float] = None) -> PositionLot:
         """Create a new PositionLot from initial fill.
         
         Args:
@@ -281,14 +395,17 @@ class PositionLotBuilder:
         """
         lot_id = str(uuid.uuid4())
         
+        lot_quantity = fill.quantity if quantity is None else quantity
+        lot_fees = fill.fees if fees is None else fees
+
         lot = PositionLot(
             lot_id=lot_id,
             instrument=fill.instrument,
             side=OrderSide[fill.side.upper()],
-            quantity=fill.quantity,
+            quantity=lot_quantity,
             entry_price=fill.price,
             entry_timestamp=fill.timestamp,
-            fees=fill.fees,
+            fees=lot_fees,
             target_profit_percentage=profit_target_pct,
             source_fills=[fill.derived_trade_key]
         )
@@ -314,8 +431,9 @@ class PositionLotBuilder:
         Returns:
             Position object with derived lots
         """
-        fills = self.fill_ledger_repo.get_fills_by_product(product_id, 
-                                                           side.name if side else None)
+        # Read all fills for this product. A side-filtered query would hide
+        # prior exits and overstate remaining spot inventory.
+        fills = self.fill_ledger_repo.get_fills_by_product(product_id)
 
         position = LotPosition(instrument=product_id)
         for baseline_lot in self._build_baseline_lots(
@@ -332,21 +450,12 @@ class PositionLotBuilder:
         
         # Build position using the fill list
         position.instrument = fills[0].instrument if fills else product_id
-        lots_dict: Dict[str, PositionLot] = {}
-        
-        for fill in fills:
-            lot_key = self._get_lot_key(fill)
-            
-            if lot_key not in lots_dict:
-                lot = self._create_lot_from_fill(fill, lots_dict, profit_target_pct)
-                lots_dict[lot_key] = lot
-                position.add_lot(lot)
-            else:
-                lot = lots_dict[lot_key]
-                lot.quantity += fill.quantity
-                lot.entry_value = lot.quantity * lot.entry_price
-                lot.fees += fill.fees
-                lot.source_fills.append(fill.derived_trade_key)
+        self._apply_ordered_fills_to_position(
+            position=position,
+            fills=fills,
+            side=side,
+            profit_target_pct=profit_target_pct,
+        )
         
         return position
     

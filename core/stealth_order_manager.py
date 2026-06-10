@@ -3495,7 +3495,44 @@ class StealthOrderManager:
         
         condition_met, reason = self.evaluate_conditions(stealth_order_id)
         return condition_met, reason
-    
+
+    def _build_reveal_order_submission_payload(
+        self,
+        *,
+        order: Dict[str, Any],
+        stealth_order_id: str,
+        reveal_plan: Any,
+        slice_size: float,
+        client_order_id: str,
+    ) -> Dict[str, Any]:
+        """Build the canonical payload handed to reveal placement hooks.
+
+        This is deliberately side-effect-free. The reveal path owns all state
+        mutation and exchange submission; this helper only names the boundary
+        between reveal planning and the placement attempt.
+        """
+        condition_confirmed_at = order.get("condition_confirmed_at")
+        if hasattr(condition_confirmed_at, "isoformat"):
+            condition_confirmed_at = condition_confirmed_at.isoformat()
+
+        return {
+            "product_id": order["product_id"],
+            "side": order["side"],
+            "limit_price": reveal_plan.submitted_limit_price,
+            "base_size": slice_size,
+            "client_order_id": client_order_id,
+            "post_only": bool(getattr(reveal_plan, "post_only", False)),
+            "stealth_order_id": stealth_order_id,
+            "parent_order_id": order.get("parent_order_id"),
+            "reason": order.get("reason"),
+            "reveal_number": len(order.get("revealed_orders", [])) + 1,
+            "reveal_condition_type": order.get("reveal_condition_type"),
+            "reveal_condition_json": order.get("reveal_condition_json"),
+            "condition_confirmed_at": condition_confirmed_at,
+            "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
+            "reveal_price_source": reveal_plan.reveal_price_source,
+        }
+
     def reveal_order_slice(self, stealth_order_id: str) -> Optional[str]:
         """Reveal next slice of hidden order based on adaptive sizing.
         
@@ -3698,25 +3735,13 @@ class StealthOrderManager:
             
             client_order_id = self._placement_client_order_id_for_order(order)
             
-            # Build order dict for hooks (before REST submission)
-            # Use the plan's submitted price, not the configured price
-            order_for_submission = {
-                "product_id": order["product_id"],
-                "side": order["side"],
-                "limit_price": reveal_plan.submitted_limit_price,  # ← Use plan's price
-                "base_size": slice_size,
-                "client_order_id": client_order_id,
-                "post_only": bool(getattr(reveal_plan, "post_only", False)),
-                "stealth_order_id": stealth_order_id,
-                "parent_order_id": order.get("parent_order_id"),
-                "reason": order.get("reason"),
-                "reveal_number": len(order.get("revealed_orders", [])) + 1,
-                "reveal_condition_type": order.get("reveal_condition_type"),
-                "reveal_condition_json": order.get("reveal_condition_json"),
-                "condition_confirmed_at": order.get("condition_confirmed_at").isoformat() if hasattr(order.get("condition_confirmed_at"), "isoformat") else order.get("condition_confirmed_at"),
-                "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,  # Include policy info
-                "reveal_price_source": reveal_plan.reveal_price_source,  # Include source info
-            }
+            order_for_submission = self._build_reveal_order_submission_payload(
+                order=order,
+                stealth_order_id=stealth_order_id,
+                reveal_plan=reveal_plan,
+                slice_size=slice_size,
+                client_order_id=client_order_id,
+            )
             
             # 🪝 PRE-SUBMISSION HOOKS: Validate/modify order before REST submission
             # Extensions can raise exceptions to block placement or modify order fields

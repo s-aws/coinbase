@@ -130,6 +130,11 @@ python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_s
 
 This prints a wallet-aware plan, safety evaluation, and per-product explain
 rows. It does not require `--approved-live-orders`.
+For generated SELL allowlist configs, validation reports
+`sell_authority_allowlist_freshness`; stale or invalid allowlist metadata is a
+live-mode blocker. Omit `--summary-only` for the final pre-live check when you
+need exact product ids, base sizes, estimated notional, and `sell_authority`
+rows.
 
 For a SELL config that explicitly allows Coinbase average-cost authority during
 validation:
@@ -236,6 +241,8 @@ python tools/run_spot_portfolio_sweep_live.py --inventory-coverage --summary-onl
 This compares eligible USDC spot wallet balances against local fill-ledger and
 imported baseline evidence. It requires Coinbase read credentials for wallets
 and writes no Coinbase orders.
+The report includes `baseline_freshness_audit`, which flags imported baseline
+rows with stale, missing, or invalid source freshness metadata.
 
 To include Coinbase average-cost authority in coverage:
 
@@ -256,6 +263,9 @@ python tools/run_spot_portfolio_sweep_live.py --cost-basis-drift-audit --summary
 This compares local fill-ledger average basis with Coinbase average basis per
 eligible USDC product and reports drift status. It is read-only and submits no
 orders.
+When Coinbase average cost is explicitly enabled as SELL authority, stale
+drift blocks only planned rows whose `sell_authority.cost_basis_authority` is
+`coinbase_average_cost`.
 
 ## Triage Cost-Basis Gaps
 

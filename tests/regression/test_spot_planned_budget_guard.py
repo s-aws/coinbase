@@ -344,6 +344,7 @@ def test_dashboard_direct_spot_order_subtracts_hidden_stealth_budget(monkeypatch
         "params": {
             "product_id": "BTC-USD",
             "side": OrderSide.BUY.value,
+            "manual_live_acknowledgement": True,
             "order_configuration": {
                 "limit_limit_gtc": {
                     "base_size": "0.2",

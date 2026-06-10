@@ -53,15 +53,50 @@ def _sent_payload(ws: MagicMock) -> dict:
     return json.loads(ws.send.await_args_list[-1].args[0])
 
 
-def _place_order_message(order_configuration, side="BUY") -> str:
+def _place_order_message(
+    order_configuration,
+    side="BUY",
+    *,
+    manual_live_acknowledgement=True,
+) -> str:
     return json.dumps({
         "type": "place_order",
         "params": {
             "product_id": "BTC-USD",
             "side": side,
             "order_configuration": order_configuration,
+            "manual_live_acknowledgement": manual_live_acknowledgement,
         },
     })
+
+
+@pytest.mark.regression
+def test_direct_spot_place_order_requires_manual_live_ack_before_rest(monkeypatch):
+    import dashboard_server
+
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    message = _place_order_message({
+        "market_market_ioc": {
+            "quote_size": "5",
+        },
+    }, manual_live_acknowledgement=False)
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "order_response"
+    assert payload["status"] == "error"
+    assert payload["guard"]["block_category"] == (
+        ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value
+    )
+    assert payload["guard"]["manual_live_acknowledgement_required"] is True
+    rest_client.create_order.assert_not_called()
 
 
 @pytest.mark.regression
@@ -271,6 +306,10 @@ def test_direct_place_order_success_returns_client_order_id(monkeypatch):
     assert payload["client_order_id"]
     assert payload["order_id"] == "exchange-1"
     assert payload["submission_event_recorded"] is True
+    assert payload["audit_command"] == (
+        "python tools\\run_spot_direct_order_audit.py "
+        f"--client-order-id {payload['client_order_id']}"
+    )
     rest_client.create_order.assert_called_once()
     assert rest_client.create_order.call_args.kwargs["client_order_id"] == (
         payload["client_order_id"]
@@ -351,6 +390,143 @@ def test_direct_place_order_size_validation_runs_before_action_guard():
 
     guard_cls.assert_not_called()
     rest_client.create_order.assert_not_called()
+
+
+@pytest.mark.regression
+def test_cancel_order_calls_cancel_order_with_client_order_id():
+    import dashboard_server
+
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    rest_client.cancel_order.return_value = True
+    message = json.dumps({
+        "type": "cancel_order",
+        "client_order_id": "client-order-1",
+    })
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "cancel_response"
+    assert payload["status"] == "success"
+    assert payload["client_order_id"] == "client-order-1"
+    assert payload["data"] is True
+    rest_client.cancel_order.assert_called_once_with("client-order-1")
+    rest_client.cancel_orders.assert_not_called()
+
+
+@pytest.mark.regression
+def test_cancel_order_accepts_nested_params_client_order_id():
+    import dashboard_server
+
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    rest_client.cancel_order.return_value = True
+    message = json.dumps({
+        "type": "cancel_order",
+        "params": {"client_order_id": "client-order-params"},
+    })
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["status"] == "success"
+    assert payload["client_order_id"] == "client-order-params"
+    rest_client.cancel_order.assert_called_once_with("client-order-params")
+
+
+@pytest.mark.regression
+def test_cancel_order_requires_client_order_id_before_rest():
+    import dashboard_server
+
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    message = json.dumps({"type": "cancel_order"})
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "cancel_response"
+    assert payload["status"] == "error"
+    assert payload["message"] == "Missing client_order_id"
+    rest_client.cancel_order.assert_not_called()
+
+
+@pytest.mark.regression
+def test_cancel_order_rejects_order_id_without_client_order_id():
+    import dashboard_server
+
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    message = json.dumps({
+        "type": "cancel_order",
+        "order_id": "exchange-order-id",
+    })
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "cancel_response"
+    assert payload["status"] == "error"
+    assert payload["message"] == "Missing client_order_id"
+    rest_client.cancel_order.assert_not_called()
+    rest_client.cancel_orders.assert_not_called()
+
+
+@pytest.mark.regression
+def test_request_spot_direct_order_audit_uses_client_order_id():
+    import dashboard_server
+
+    ws = _make_websocket()
+    message = json.dumps({
+        "type": "request_spot_direct_order_audit",
+        "params": {"client_order_id": "client-order-audit-1"},
+    })
+    helper = MagicMock(return_value={
+        "type": "spot_direct_order_audit",
+        "status": "success",
+        "client_order_id": "client-order-audit-1",
+        "audit": {"client_order_id": "client-order-audit-1"},
+    })
+
+    with patch.object(
+        dashboard_server,
+        "_build_spot_direct_order_audit_payload",
+        helper,
+    ):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "spot_direct_order_audit"
+    assert payload["status"] == "success"
+    assert payload["client_order_id"] == "client-order-audit-1"
+    helper.assert_called_once_with(
+        client_order_id="client-order-audit-1",
+        include_events=True,
+        include_fills=True,
+        event_limit=100,
+        fill_limit=1000,
+    )
 
 
 @pytest.mark.regression

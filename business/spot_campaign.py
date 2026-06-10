@@ -9,15 +9,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from business.spot_portfolio_sweep import (
+    apply_coinbase_average_cost_authority_gate,
     build_spot_inventory_coverage_report,
     build_spot_portfolio_pnl_report,
+    build_sweep_run_record,
     build_sweep_config_id,
     build_sweep_plan_explain,
     build_usdc_portfolio_sweep_plan,
@@ -26,6 +28,7 @@ from business.spot_portfolio_sweep import (
     summarize_sweep_order_statuses,
 )
 from core.enums import (
+    InventoryAuthorityStatus,
     InventoryLotSource,
     OrderSide,
     SpotAuditRecordType,
@@ -33,12 +36,17 @@ from core.enums import (
     SpotCampaignProductSelection,
     SpotCampaignRetryOrderClass,
     SpotCampaignRunMode,
+    SpotCampaignSellAuthorityProfile,
     SpotCampaignStatus,
+    SpotCampaignTemplateProfile,
+    SpotSellAuthorityAllowlistFreshness,
     SpotCostBasisGapStatus,
     SpotCostBasisSource,
     SpotFeatureInventoryRetentionPolicy,
     SpotOperationLockStatus,
+    SpotPortfolioSweepAutomationDecision,
     SpotPortfolioSweepExecutionStatus,
+    SpotPortfolioSweepItemStatus,
     SpotPortfolioSweepOrderType,
     SpotPortfolioSweepRunStatus,
     SpotPortfolioSweepSafetyDecision,
@@ -55,6 +63,7 @@ DEFAULT_REQUIRED_AUDIT_EVIDENCE = (
     "executed_notional_usdc",
     "fill_ledger_reconciliation",
 )
+DEFAULT_SELL_AUTHORITY_ALLOWLIST_MAX_AGE_SECONDS = 300
 
 
 def _enum_value(value: Any) -> Any:
@@ -185,6 +194,7 @@ def _generated_campaign_id(config: Mapping[str, Any]) -> str:
         "automation": config.get("automation"),
         "product_scope": config.get("product_scope"),
         "safety_policy": config.get("safety_policy"),
+        "sell_authority_profile": config.get("sell_authority_profile"),
         "cost_basis_authority": config.get("cost_basis_authority"),
     }
     digest = hashlib.sha256(
@@ -298,6 +308,54 @@ def normalize_spot_campaign_config(config: Mapping[str, Any]) -> dict[str, Any]:
     deny_products = sorted(set(scope_deny + safety_deny))
 
     cost_basis_authority = dict(raw.get("cost_basis_authority") or {})
+    raw_sell_authority_profile = _text(
+        raw.get("sell_authority_profile")
+        or safety.get("sell_authority_profile")
+        or cost_basis_authority.get("sell_authority_profile")
+    )
+    sell_authority_profile = None
+    if raw_sell_authority_profile:
+        try:
+            sell_authority_profile = SpotCampaignSellAuthorityProfile(
+                raw_sell_authority_profile
+            ).value
+        except ValueError as exc:
+            raise ValueError("unsupported sell_authority_profile") from exc
+        if side != OrderSide.SELL.value:
+            raise ValueError("sell_authority_profile is only valid for SELL campaigns")
+        safety["require_known_profitable_inventory"] = True
+        if (
+            sell_authority_profile
+            == SpotCampaignSellAuthorityProfile.FILL_LEDGER_STRICT.value
+        ):
+            safety["allow_coinbase_average_cost_basis"] = False
+            cost_basis_authority["allowed_sources"] = [
+                SpotCostBasisSource.FILL_LEDGER.value,
+                SpotCostBasisSource.IMPORTED_BASELINE.value,
+            ]
+        elif (
+            sell_authority_profile
+            == SpotCampaignSellAuthorityProfile.COINBASE_AVERAGE_COST_BUFFERED.value
+        ):
+            safety["allow_coinbase_average_cost_basis"] = True
+            existing_sources = _string_list(
+                cost_basis_authority.get(
+                    "allowed_sources",
+                    [
+                        SpotCostBasisSource.FILL_LEDGER.value,
+                        SpotCostBasisSource.IMPORTED_BASELINE.value,
+                    ],
+                ),
+                field_name="cost_basis_authority.allowed_sources",
+            )
+            cost_basis_authority["allowed_sources"] = _dedupe_strings([
+                *existing_sources,
+                SpotCostBasisSource.COINBASE_AVERAGE_COST.value,
+            ])
+            cost_basis_authority.setdefault(
+                "coinbase_average_cost_profit_buffer_pct",
+                "0.5",
+            )
     allowed_sources = _string_list(
         cost_basis_authority.get(
             "allowed_sources",
@@ -410,6 +468,7 @@ def normalize_spot_campaign_config(config: Mapping[str, Any]) -> dict[str, Any]:
         "inventory_policy": {
             "retention": retention,
         },
+        "sell_authority_profile": sell_authority_profile,
         "cost_basis_authority": {
             "allowed_sources": normalized_sources,
             "coinbase_average_cost_profit_buffer_pct": average_buffer,
@@ -487,6 +546,1249 @@ def build_spot_campaign_intake_request(config: Mapping[str, Any]) -> dict[str, A
         "inventory_policy": dict(normalized["inventory_policy"]),
         "cost_basis_authority": dict(normalized["cost_basis_authority"]),
         "audit": dict(normalized["audit"]),
+    }
+
+
+def build_spot_campaign_config_template(
+    *,
+    profile: str | SpotCampaignTemplateProfile,
+    campaign_name: str | None = None,
+) -> dict[str, Any]:
+    """Build a canonical versioned campaign config template."""
+    try:
+        profile_value = SpotCampaignTemplateProfile(_text(profile)).value
+    except ValueError as exc:
+        raise ValueError("unsupported spot campaign template profile") from exc
+
+    is_sell = profile_value in {
+        SpotCampaignTemplateProfile.SELL_CANARY.value,
+        SpotCampaignTemplateProfile.SELL_ALL_USDC.value,
+    }
+    is_canary = profile_value in {
+        SpotCampaignTemplateProfile.BUY_CANARY.value,
+        SpotCampaignTemplateProfile.SELL_CANARY.value,
+    }
+    max_products = 5 if is_canary else None
+    max_planned_orders = 5 if is_canary else 500
+    max_total_notional = "5" if is_canary else "500"
+    side = OrderSide.SELL.value if is_sell else OrderSide.BUY.value
+    template: dict[str, Any] = {
+        "version": 1,
+        "campaign_name": campaign_name or f"spot_{profile_value}_campaign",
+        "side": side,
+        "quote_notional": "1",
+        "max_products": max_products,
+        "order_type": SpotPortfolioSweepOrderType.MARKET_IOC.value,
+        "automation": {
+            "enabled": True,
+            "repeat_every_hours": "6",
+            "max_runs": 2 if is_canary else 4,
+        },
+        "product_scope": {
+            "quote_currency": QUOTE_CURRENCY,
+            "us_customer_available": True,
+            "selection_rule": (
+                SpotCampaignProductSelection
+                .ALL_COINBASE_USDC_SPOT_US_CUSTOMER_AVAILABLE
+                .value
+            ),
+        },
+        "safety_policy": {
+            "max_total_notional_per_run": max_total_notional,
+            "max_notional_per_order": "1",
+            "max_planned_orders": max_planned_orders,
+        },
+        "inventory_policy": {
+            "retention": SpotFeatureInventoryRetentionPolicy.RETAIN.value,
+        },
+        "cost_basis_authority": {
+            "allowed_sources": [
+                SpotCostBasisSource.FILL_LEDGER.value,
+                SpotCostBasisSource.IMPORTED_BASELINE.value,
+            ],
+        },
+    }
+    if is_sell:
+        template["sell_authority_profile"] = (
+            SpotCampaignSellAuthorityProfile.FILL_LEDGER_STRICT.value
+            if is_canary
+            else SpotCampaignSellAuthorityProfile.COINBASE_AVERAGE_COST_BUFFERED.value
+        )
+    return normalize_spot_campaign_config(template)
+
+
+def apply_spot_campaign_sell_authority_profile(
+    *,
+    config: Mapping[str, Any],
+    profile: str | SpotCampaignSellAuthorityProfile,
+) -> dict[str, Any]:
+    """Return a normalized SELL campaign config with an authority profile applied."""
+    profile_value = SpotCampaignSellAuthorityProfile(_text(profile)).value
+    updated = dict(config)
+    updated["sell_authority_profile"] = profile_value
+    return normalize_spot_campaign_config(updated)
+
+
+def build_spot_campaign_config_validation_report(
+    *,
+    config: Mapping[str, Any],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Validate config shape and operator-critical safety settings without Coinbase calls."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    normalized: dict[str, Any] | None = None
+    try:
+        normalized = normalize_spot_campaign_config(config)
+    except ValueError as exc:
+        errors.append({
+            "code": "invalid_config",
+            "reason": str(exc),
+        })
+
+    if normalized is not None:
+        safety = normalized["safety_policy"]
+        required_safety_fields = (
+            "max_total_notional_per_run",
+            "max_notional_per_order",
+            "max_planned_orders",
+        )
+        for field_name in required_safety_fields:
+            if safety.get(field_name) in (None, ""):
+                errors.append({
+                    "code": "missing_safety_cap",
+                    "field": f"safety_policy.{field_name}",
+                    "reason": "campaign configs must declare explicit run/order caps",
+                })
+        if (
+            safety.get("max_notional_per_order") is not None
+            and _decimal(safety.get("max_notional_per_order"))
+            < _decimal(normalized["quote_notional"])
+        ):
+            errors.append({
+                "code": "max_notional_per_order_below_quote_notional",
+                "reason": "per-order cap is lower than requested quote_notional",
+            })
+        max_total = _decimal(safety.get("max_total_notional_per_run"))
+        max_planned = safety.get("max_planned_orders")
+        if max_total > 0 and max_planned:
+            theoretical_notional = _decimal(normalized["quote_notional"]) * Decimal(
+                int(max_planned)
+            )
+            if max_total < theoretical_notional:
+                warnings.append({
+                    "code": "max_total_below_theoretical_full_run",
+                    "configured": _format_decimal(max_total),
+                    "theoretical": _format_decimal(theoretical_notional),
+                    "reason": (
+                        "total cap may intentionally stop a full planned-order "
+                        "run; dry-run matrix will show the actual result"
+                    ),
+                })
+        if normalized["side"] == OrderSide.SELL.value:
+            if not safety.get("require_known_profitable_inventory"):
+                errors.append({
+                    "code": "sell_authority_required",
+                    "reason": "SELL campaigns must require profitable inventory authority",
+                })
+            if (
+                safety.get("allow_coinbase_average_cost_basis")
+                and normalized.get("sell_authority_profile")
+                != SpotCampaignSellAuthorityProfile.COINBASE_AVERAGE_COST_BUFFERED.value
+            ):
+                warnings.append({
+                    "code": "average_cost_without_named_profile",
+                    "reason": (
+                        "Coinbase average cost is enabled; using the named "
+                        "buffered profile makes the authority policy explicit"
+                    ),
+                })
+        if normalized["automation"]["enabled"]:
+            warnings.append({
+                "code": "automation_live_runner_required",
+                "reason": (
+                    "campaign automation is descriptive here; live scheduling "
+                    "still uses the sweep runner approval gate"
+                ),
+            })
+
+    status = (
+        SpotCampaignStatus.READY.value
+        if not errors
+        else SpotCampaignStatus.INCOMPLETE.value
+    )
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.VALIDATION.value,
+        "status": status,
+        "phase_90_ready": not errors,
+        "error_count": len(errors),
+        "warning_count": len(warnings),
+        "errors": errors,
+        "warnings": warnings,
+        "config": normalized,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def _matrix_product_statuses(matrix: Mapping[str, Any]) -> dict[str, str]:
+    plan = matrix.get("plan") or {}
+    items = plan.get("items") or []
+    statuses: dict[str, str] = {}
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        product_id = _text(item.get("product_id")).upper()
+        if product_id:
+            statuses[product_id] = _text(item.get("status"))
+    return statuses
+
+
+def build_spot_campaign_dry_run_diff(
+    *,
+    baseline_matrix: Mapping[str, Any],
+    current_matrix: Mapping[str, Any],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Compare two campaign dry-run matrices without calling Coinbase."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    baseline_plan = baseline_matrix.get("plan") or {}
+    current_plan = current_matrix.get("plan") or {}
+    baseline_statuses = _matrix_product_statuses(baseline_matrix)
+    current_statuses = _matrix_product_statuses(current_matrix)
+    baseline_products = set(baseline_statuses)
+    current_products = set(current_statuses)
+    changed_products = []
+    for product_id in sorted(baseline_products & current_products):
+        if baseline_statuses[product_id] != current_statuses[product_id]:
+            changed_products.append({
+                "product_id": product_id,
+                "baseline_status": baseline_statuses[product_id],
+                "current_status": current_statuses[product_id],
+            })
+    baseline_pnl = (baseline_matrix.get("pnl_snapshot") or {}).get("portfolio") or {}
+    current_pnl = (current_matrix.get("pnl_snapshot") or {}).get("portfolio") or {}
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.DRY_RUN_DIFF.value,
+        "status": SpotCampaignStatus.RECORDED.value,
+        "baseline_campaign_id": baseline_matrix.get("campaign_id"),
+        "current_campaign_id": current_matrix.get("campaign_id"),
+        "baseline_sweep_config_id": baseline_matrix.get("sweep_config_id"),
+        "current_sweep_config_id": current_matrix.get("sweep_config_id"),
+        "planned_count_delta": (
+            _int_value(current_plan.get("planned_count"))
+            - _int_value(baseline_plan.get("planned_count"))
+        ),
+        "skipped_count_delta": (
+            _int_value(current_plan.get("skipped_count"))
+            - _int_value(baseline_plan.get("skipped_count"))
+        ),
+        "estimated_notional_delta_usdc": _format_decimal(
+            _decimal(current_plan.get("estimated_planned_quote_notional"))
+            - _decimal(baseline_plan.get("estimated_planned_quote_notional"))
+        ),
+        "safety_decision_changed": (
+            (baseline_matrix.get("safety_evaluation") or {}).get("decision")
+            != (current_matrix.get("safety_evaluation") or {}).get("decision")
+        ),
+        "added_products": sorted(current_products - baseline_products),
+        "removed_products": sorted(baseline_products - current_products),
+        "changed_products": changed_products,
+        "baseline_pnl_total": baseline_pnl.get("total_pnl"),
+        "current_pnl_total": current_pnl.get("total_pnl"),
+        "pnl_total_delta": _format_decimal(
+            _decimal(current_pnl.get("total_pnl"))
+            - _decimal(baseline_pnl.get("total_pnl"))
+        ),
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def build_spot_campaign_scheduler_status(
+    *,
+    config: Mapping[str, Any],
+    sweep_records: Iterable[Mapping[str, Any]],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Report recurring campaign due state without placing orders."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    normalized = normalize_spot_campaign_config(config)
+    automation = normalized["automation"]
+    if not automation["enabled"]:
+        decision = {
+            "decision": SpotPortfolioSweepAutomationDecision.DISABLED.value,
+            "reason": "campaign automation is disabled",
+            "attempt_count": 0,
+            "max_runs": automation.get("max_runs"),
+            "next_run_at": None,
+        }
+    else:
+        decision = evaluate_sweep_automation_due(
+            config_id=normalized["sweep_config_id"],
+            repeat_every_hours=automation["repeat_every_hours"],
+            max_runs=int(automation["max_runs"]),
+            records=sweep_records,
+            now=timestamp,
+        )
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.SCHEDULER_STATUS.value,
+        "status": (
+            SpotCampaignStatus.READY.value
+            if decision.get("decision") == SpotPortfolioSweepAutomationDecision.DUE.value
+            else SpotCampaignStatus.BLOCKED.value
+        ),
+        "campaign_id": normalized["campaign_id"],
+        "sweep_config_id": normalized["sweep_config_id"],
+        "automation": dict(automation),
+        "scheduler_decision": decision,
+        "live_execution_due": (
+            decision.get("decision") == SpotPortfolioSweepAutomationDecision.DUE.value
+        ),
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def build_spot_campaign_run_index(
+    *,
+    campaign_records: Iterable[Mapping[str, Any]],
+    sweep_records: Iterable[Mapping[str, Any]],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a durable local index of campaign snapshots and matching sweep runs."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    records = [
+        dict(record)
+        for record in campaign_records
+        if record.get("record_type") == SpotAuditRecordType.CAMPAIGN_SNAPSHOT.value
+    ]
+    records.sort(key=_timestamp_key)
+    operator_status = build_spot_campaign_operator_status(records=records)
+    by_sweep_config: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        sweep_config_id = _text(record.get("sweep_config_id"))
+        if sweep_config_id:
+            by_sweep_config.setdefault(sweep_config_id, [])
+    for record in sweep_records:
+        if record.get("record_type") != "sweep_run":
+            continue
+        sweep_config_id = _text(record.get("config_id"))
+        if sweep_config_id in by_sweep_config:
+            by_sweep_config[sweep_config_id].append(dict(record))
+    campaigns: list[dict[str, Any]] = []
+    for campaign in operator_status.get("campaigns") or []:
+        sweep_config_id = _text(campaign.get("sweep_config_id"))
+        runs = sorted(by_sweep_config.get(sweep_config_id, []), key=_timestamp_key)
+        recorded_run_ids = {
+            _text((record.get("sweep_summary") or {}).get("run_id"))
+            for record in records
+            if _text(record.get("campaign_id")) == campaign.get("campaign_id")
+        }
+        run_rows = []
+        for run in runs:
+            execution = run.get("execution") or {}
+            run_id = _text(run.get("run_id"))
+            run_rows.append({
+                "run_id": run_id,
+                "status": run.get("status"),
+                "started_at": run.get("started_at"),
+                "completed_at": run.get("completed_at"),
+                "recorded_in_campaign_ledger": run_id in recorded_run_ids,
+                "live_coinbase_orders_ran": bool(
+                    execution.get("live_coinbase_orders_ran", False)
+                ),
+                "total_submitted_notional_usdc": (
+                    execution.get("total_submitted_notional_usdc") or "0"
+                ),
+                "total_executed_notional_usdc": (
+                    execution.get("total_executed_notional_usdc") or "0"
+                ),
+            })
+        campaigns.append({
+            "campaign_id": campaign.get("campaign_id"),
+            "sweep_config_id": sweep_config_id,
+            "snapshot_count": campaign.get("snapshot_count"),
+            "sweep_run_count": len(run_rows),
+            "unrecorded_sweep_run_count": len([
+                row for row in run_rows if not row["recorded_in_campaign_ledger"]
+            ]),
+            "latest_status": campaign.get("latest_status"),
+            "latest_mode": campaign.get("latest_mode"),
+            "total_submitted_notional_usdc": (
+                campaign.get("total_submitted_notional_usdc") or "0"
+            ),
+            "total_executed_notional_usdc": (
+                campaign.get("total_executed_notional_usdc") or "0"
+            ),
+            "runs": run_rows,
+        })
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.RUN_INDEX.value,
+        "status": SpotCampaignStatus.RECORDED.value,
+        "campaign_count": len(campaigns),
+        "snapshot_count": len(records),
+        "total_submitted_notional_usdc": (
+            operator_status.get("total_submitted_notional_usdc") or "0"
+        ),
+        "total_executed_notional_usdc": (
+            operator_status.get("total_executed_notional_usdc") or "0"
+        ),
+        "campaigns": campaigns,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+    }
+
+
+def build_spot_campaign_pnl_checkpoints(
+    *,
+    records: Iterable[Mapping[str, Any]],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build P/L checkpoint deltas from durable campaign snapshots."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    snapshots = [
+        dict(record)
+        for record in records
+        if record.get("record_type") == SpotAuditRecordType.CAMPAIGN_SNAPSHOT.value
+    ]
+    snapshots.sort(key=_timestamp_key)
+    checkpoints_by_campaign: dict[str, list[dict[str, Any]]] = {}
+    previous_totals: dict[str, Decimal] = {}
+    for snapshot in snapshots:
+        campaign_id = _text(snapshot.get("campaign_id")) or "unknown"
+        pnl_snapshot = (snapshot.get("dry_run") or {}).get("pnl_snapshot") or {}
+        portfolio = pnl_snapshot.get("portfolio") or {}
+        if not portfolio:
+            continue
+        total_pnl = _decimal(portfolio.get("total_pnl"))
+        previous = previous_totals.get(campaign_id)
+        previous_totals[campaign_id] = total_pnl
+        checkpoints_by_campaign.setdefault(campaign_id, []).append({
+            "generated_at": snapshot.get("generated_at"),
+            "mode": snapshot.get("mode"),
+            "status": snapshot.get("status"),
+            "total_pnl": portfolio.get("total_pnl"),
+            "mark_value": portfolio.get("mark_value"),
+            "fees": portfolio.get("fees"),
+            "delta_total_pnl": (
+                None
+                if previous is None
+                else _format_decimal(total_pnl - previous)
+            ),
+            "since_last_purchase_pnl": portfolio.get("since_last_purchase_pnl"),
+            "average_cost_total_pnl": (
+                (pnl_snapshot.get("average_cost_portfolio") or {}).get("total_pnl")
+            ),
+        })
+    campaigns = [
+        {
+            "campaign_id": campaign_id,
+            "checkpoint_count": len(checkpoints),
+            "latest_checkpoint": checkpoints[-1] if checkpoints else None,
+            "checkpoints": checkpoints,
+        }
+        for campaign_id, checkpoints in sorted(checkpoints_by_campaign.items())
+    ]
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.PNL_CHECKPOINT.value,
+        "status": SpotCampaignStatus.RECORDED.value,
+        "campaign_count": len(campaigns),
+        "checkpoint_count": sum(
+            int(campaign["checkpoint_count"]) for campaign in campaigns
+        ),
+        "campaigns": campaigns,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def build_spot_campaign_ledger_cleanup_plan(
+    *,
+    campaign_records: Iterable[Mapping[str, Any]],
+    sweep_records: Iterable[Mapping[str, Any]],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Plan local campaign-ledger recording for unrecorded sweep runs."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    run_index = build_spot_campaign_run_index(
+        campaign_records=campaign_records,
+        sweep_records=sweep_records,
+        generated_at=timestamp,
+    )
+    recordable_runs: list[dict[str, Any]] = []
+    ignore_candidates: list[dict[str, Any]] = []
+    for campaign in run_index.get("campaigns") or []:
+        campaign_id = _text(campaign.get("campaign_id"))
+        sweep_config_id = _text(campaign.get("sweep_config_id"))
+        for run in campaign.get("runs") or []:
+            if run.get("recorded_in_campaign_ledger"):
+                continue
+            row = {
+                "campaign_id": campaign_id,
+                "sweep_config_id": sweep_config_id,
+                "run_id": run.get("run_id"),
+                "status": run.get("status"),
+                "live_coinbase_orders_ran": bool(
+                    run.get("live_coinbase_orders_ran", False)
+                ),
+                "total_submitted_notional_usdc": (
+                    run.get("total_submitted_notional_usdc") or "0"
+                ),
+                "total_executed_notional_usdc": (
+                    run.get("total_executed_notional_usdc") or "0"
+                ),
+            }
+            has_notional = (
+                _decimal(row["total_submitted_notional_usdc"]) > 0
+                or _decimal(row["total_executed_notional_usdc"]) > 0
+            )
+            if row["live_coinbase_orders_ran"] or has_notional:
+                recordable_runs.append({
+                    **row,
+                    "planned_action": "record_latest_matching_sweep_run",
+                    "reason": (
+                        "unrecorded sweep run has live/order notional evidence"
+                    ),
+                })
+            else:
+                ignore_candidates.append({
+                    **row,
+                    "planned_action": "ignore_or_document_legacy_no_order_run",
+                    "reason": (
+                        "unrecorded sweep run has no live order or notional evidence"
+                    ),
+                })
+
+    status = (
+        SpotCampaignStatus.READY.value
+        if recordable_runs or ignore_candidates
+        else SpotCampaignStatus.RECORDED.value
+    )
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.LEDGER_CLEANUP_PLAN.value,
+        "status": status,
+        "campaign_count": run_index.get("campaign_count", 0),
+        "unrecorded_sweep_run_count": (
+            len(recordable_runs) + len(ignore_candidates)
+        ),
+        "planned_record_count": len(recordable_runs),
+        "planned_ignore_count": len(ignore_candidates),
+        "recordable_runs": recordable_runs,
+        "ignore_candidates": ignore_candidates,
+        "run_index": run_index,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def _allowlist_products(allowlist: Mapping[str, Any]) -> list[str]:
+    products = allowlist.get("allow_products") or []
+    if not products and isinstance(allowlist.get("allowlist_rows"), list):
+        products = [
+            row.get("product_id")
+            for row in allowlist.get("allowlist_rows") or []
+            if isinstance(row, Mapping)
+        ]
+    return sorted({
+        _text(product).upper()
+        for product in products
+        if _text(product)
+    })
+
+
+def build_spot_campaign_sell_authority_drift_report(
+    *,
+    previous_allowlist: Mapping[str, Any],
+    current_allowlist: Mapping[str, Any],
+    release_gate: Mapping[str, Any] | None = None,
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Compare two SELL authority allowlists for market/account drift."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    previous_products = set(_allowlist_products(previous_allowlist))
+    current_products = set(_allowlist_products(current_allowlist))
+    removed_products = sorted(previous_products - current_products)
+    added_products = sorted(current_products - previous_products)
+    common_products = sorted(previous_products & current_products)
+
+    failures: list[dict[str, Any]] = []
+    if removed_products:
+        failures.append({
+            "code": "allowlist_products_removed",
+            "reason": (
+                "one or more products left the SELL authority allowlist; "
+                "regenerate the allowlist and rerun release validation"
+            ),
+            "product_count": len(removed_products),
+            "products": removed_products,
+        })
+    if (
+        release_gate
+        and release_gate.get("gate_status") == SpotCampaignGateStatus.FAILED.value
+    ):
+        failures.append({
+            "code": "release_gate_failed",
+            "reason": "current release gate failed for the compared allowlist",
+            "release_failures": list(release_gate.get("failures") or []),
+        })
+
+    gate_status = (
+        SpotCampaignGateStatus.FAILED.value
+        if failures
+        else SpotCampaignGateStatus.PASSED.value
+    )
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.SELL_AUTHORITY_DRIFT.value,
+        "status": (
+            SpotCampaignStatus.BLOCKED.value
+            if failures
+            else SpotCampaignStatus.READY.value
+        ),
+        "gate_status": gate_status,
+        "previous_generated_at": (
+            previous_allowlist.get("generated_at")
+            or (previous_allowlist.get("allowlist_metadata") or {}).get("generated_at")
+        ),
+        "current_generated_at": (
+            current_allowlist.get("generated_at")
+            or (current_allowlist.get("allowlist_metadata") or {}).get("generated_at")
+        ),
+        "previous_allowlist_count": len(previous_products),
+        "current_allowlist_count": len(current_products),
+        "removed_count": len(removed_products),
+        "added_count": len(added_products),
+        "common_count": len(common_products),
+        "removed_products": removed_products,
+        "added_products": added_products,
+        "common_products": common_products,
+        "failures": failures,
+        "operator_action": (
+            "regenerate SELL authority allowlist immediately before live approval"
+            if failures
+            else "current allowlist comparison has no product-removal drift"
+        ),
+        "release_gate": dict(release_gate or {}),
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def _authority_reason_text(row: Mapping[str, Any]) -> str:
+    fragments = [
+        _text(row.get("authority_reason")),
+        _text(row.get("reason")),
+        _text(row.get("authority_status")),
+    ]
+    for violation in row.get("authority_gate_violations") or []:
+        if isinstance(violation, Mapping):
+            fragments.append(_text(violation.get("reason")))
+            fragments.append(_text(violation.get("code")))
+    return " ".join(fragment for fragment in fragments if fragment).lower()
+
+
+def _authority_report_summary(
+    *,
+    allowlist: Mapping[str, Any],
+    profile_name: str,
+) -> dict[str, Any]:
+    allow_products = _allowlist_products(allowlist)
+    blocked_rows = [
+        dict(row)
+        for row in allowlist.get("blocked_rows") or []
+        if isinstance(row, Mapping)
+    ]
+    skipped_rows = [
+        dict(row)
+        for row in allowlist.get("skipped_rows") or []
+        if isinstance(row, Mapping)
+    ]
+    stale_or_drift = [
+        _text(row.get("product_id")).upper()
+        for row in blocked_rows
+        if "stale" in _authority_reason_text(row)
+        or "drift" in _authority_reason_text(row)
+    ]
+    reason_counts: dict[str, int] = {}
+    for row in blocked_rows:
+        reason = (
+            _text(row.get("authority_reason"))
+            or _text(row.get("reason"))
+            or _text(row.get("authority_status"))
+            or "missing"
+        )
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+    return {
+        "profile": profile_name,
+        "sell_authority_profile": allowlist.get("sell_authority_profile"),
+        "generated_at": allowlist.get("generated_at"),
+        "status": allowlist.get("status"),
+        "allowlist_count": len(allow_products),
+        "blocked_count": len(blocked_rows),
+        "skipped_count": len(skipped_rows),
+        "allow_products": allow_products,
+        "authority_source_counts": dict(
+            allowlist.get("authority_source_counts") or {}
+        ),
+        "authority_status_counts": dict(
+            allowlist.get("authority_status_counts") or {}
+        ),
+        "blocked_reason_counts": reason_counts,
+        "stale_or_drift_blocked_count": len(set(stale_or_drift)),
+        "stale_or_drift_blocked_products": sorted(set(stale_or_drift)),
+    }
+
+
+def build_spot_campaign_sell_authority_operator_report(
+    *,
+    strict_allowlist: Mapping[str, Any],
+    average_cost_allowlist: Mapping[str, Any],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Separate strict fill-ledger and Coinbase average-cost SELL authority."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    strict = _authority_report_summary(
+        allowlist=strict_allowlist,
+        profile_name=SpotCampaignSellAuthorityProfile.FILL_LEDGER_STRICT.value,
+    )
+    average_cost = _authority_report_summary(
+        allowlist=average_cost_allowlist,
+        profile_name=(
+            SpotCampaignSellAuthorityProfile.COINBASE_AVERAGE_COST_BUFFERED.value
+        ),
+    )
+    strict_products = set(strict["allow_products"])
+    average_cost_products = set(average_cost["allow_products"])
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.SELL_AUTHORITY_OPERATOR_REPORT.value,
+        "status": SpotCampaignStatus.RECORDED.value,
+        "strict_fill_ledger": strict,
+        "coinbase_average_cost": average_cost,
+        "strict_only_products": sorted(strict_products - average_cost_products),
+        "average_cost_only_products": sorted(average_cost_products - strict_products),
+        "common_products": sorted(strict_products & average_cost_products),
+        "strict_count": len(strict_products),
+        "average_cost_count": len(average_cost_products),
+        "stale_or_drift_blocked_count": (
+            strict["stale_or_drift_blocked_count"]
+            + average_cost["stale_or_drift_blocked_count"]
+        ),
+        "risk_notes": [
+            "strict fill-ledger authority is preferred for capped SELL canaries",
+            (
+                "Coinbase average cost is portfolio-level operational authority "
+                "and must pass freshness/drift gates before live approval"
+            ),
+        ],
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def _sweep_run_order_rows(record: Mapping[str, Any]) -> list[dict[str, Any]]:
+    execution = record.get("execution") or {}
+    return [
+        dict(order)
+        for order in execution.get("orders") or []
+        if isinstance(order, Mapping)
+    ]
+
+
+def _is_live_sell_sweep_run(record: Mapping[str, Any]) -> bool:
+    if record.get("record_type") != "sweep_run":
+        return False
+    execution = record.get("execution") or {}
+    config = record.get("config") or {}
+    if not bool(execution.get("live_coinbase_orders_ran", False)):
+        return False
+    return _text(config.get("side")).upper() == OrderSide.SELL.value
+
+
+def _submitted_products_from_sweep_run(record: Mapping[str, Any]) -> list[str]:
+    submitted: list[str] = []
+    for order in _sweep_run_order_rows(record):
+        if _has_submission_evidence(order):
+            product_id = _text(order.get("product_id")).upper()
+            if product_id:
+                submitted.append(product_id)
+    return sorted(set(submitted))
+
+
+def build_spot_campaign_strict_sell_canary_candidates(
+    *,
+    allowlist: Mapping[str, Any],
+    sweep_records: Iterable[Mapping[str, Any]],
+    max_candidates: int = 3,
+    recent_run_limit: int = 5,
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Pick strict SELL canary candidates excluding recently sold products."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    if max_candidates <= 0:
+        raise ValueError("max_candidates must be greater than 0")
+    if recent_run_limit <= 0:
+        raise ValueError("recent_run_limit must be greater than 0")
+
+    rows = [
+        dict(row)
+        for row in allowlist.get("allowlist_rows") or []
+        if isinstance(row, Mapping) and _text(row.get("product_id"))
+    ]
+    if not rows:
+        rows = [
+            {"product_id": product_id}
+            for product_id in _allowlist_products(allowlist)
+        ]
+    rows.sort(key=lambda row: _text(row.get("product_id")).upper())
+    live_sell_runs = [
+        dict(record)
+        for record in sweep_records
+        if _is_live_sell_sweep_run(record)
+    ]
+    live_sell_runs.sort(key=_timestamp_key, reverse=True)
+    recent_runs = live_sell_runs[:recent_run_limit]
+    recent_products = sorted({
+        product_id
+        for record in recent_runs
+        for product_id in _submitted_products_from_sweep_run(record)
+    })
+    recent_product_set = set(recent_products)
+    candidates: list[dict[str, Any]] = []
+    excluded_recent: list[dict[str, Any]] = []
+    for row in rows:
+        product_id = _text(row.get("product_id")).upper()
+        candidate = {
+            "product_id": product_id,
+            "authority_source": row.get("authority_source"),
+            "authority_status": row.get("authority_status"),
+            "estimated_quote_notional": (
+                row.get("estimated_quote_notional") or "0"
+            ),
+            "requested_quote_notional": (
+                row.get("requested_quote_notional") or "0"
+            ),
+        }
+        if product_id in recent_product_set:
+            excluded_recent.append({
+                **candidate,
+                "reason": "product appeared in a recent live SELL sweep",
+            })
+            continue
+        if len(candidates) < max_candidates:
+            candidates.append(candidate)
+
+    failures: list[dict[str, Any]] = []
+    if (
+        allowlist.get("sell_authority_profile")
+        != SpotCampaignSellAuthorityProfile.FILL_LEDGER_STRICT.value
+    ):
+        failures.append({
+            "code": "not_strict_fill_ledger_allowlist",
+            "reason": "candidate rotation expects a strict fill-ledger allowlist",
+            "sell_authority_profile": allowlist.get("sell_authority_profile"),
+        })
+    if not candidates:
+        failures.append({
+            "code": "no_candidate_products",
+            "reason": "no strict allowlist products remain after recent-sell exclusion",
+        })
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.STRICT_SELL_CANARY_CANDIDATES.value,
+        "status": (
+            SpotCampaignStatus.BLOCKED.value
+            if failures
+            else SpotCampaignStatus.READY.value
+        ),
+        "sell_authority_profile": allowlist.get("sell_authority_profile"),
+        "allowlist_generated_at": allowlist.get("generated_at"),
+        "allowlist_count": len(rows),
+        "max_candidates": max_candidates,
+        "recent_run_limit": recent_run_limit,
+        "recent_sell_run_ids": [
+            _text(record.get("run_id"))
+            for record in recent_runs
+            if _text(record.get("run_id"))
+        ],
+        "recent_sell_products": recent_products,
+        "excluded_recent_count": len(excluded_recent),
+        "excluded_recent_products": excluded_recent,
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+        "failures": failures,
+        "proposal_note": (
+            "candidate list is read-only; live SELL execution still requires "
+            "fresh allowlist validation and explicit approval"
+        ),
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def _scope_delta_row(
+    *,
+    scope: str,
+    name: str,
+    previous_value: Any,
+    current_value: Any,
+) -> dict[str, Any]:
+    previous = _decimal(previous_value)
+    current = _decimal(current_value)
+    return {
+        "scope": scope,
+        "name": name,
+        "previous": _format_decimal(previous),
+        "current": _format_decimal(current),
+        "delta": _format_decimal(current - previous),
+    }
+
+
+def _snapshot_pnl_scopes(snapshot: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    pnl_snapshot = (snapshot.get("dry_run") or {}).get("pnl_snapshot") or {}
+    scopes: dict[str, dict[str, Any]] = {}
+    portfolio = pnl_snapshot.get("portfolio") or {}
+    if portfolio:
+        scopes["portfolio"] = dict(portfolio)
+    average_cost = pnl_snapshot.get("average_cost_portfolio") or {}
+    if average_cost:
+        scopes["average_cost"] = dict(average_cost)
+    product_rows = {}
+    for row in pnl_snapshot.get("products") or []:
+        if isinstance(row, Mapping):
+            product_id = _text(row.get("product_id")).upper()
+            if product_id:
+                product_rows[product_id] = dict(row)
+    if product_rows:
+        scopes["product"] = product_rows
+    return scopes
+
+
+def build_spot_campaign_pnl_delta_report(
+    *,
+    records: Iterable[Mapping[str, Any]],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Compare latest campaign P/L snapshots by durable reporting scope."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    snapshots = [
+        dict(record)
+        for record in records
+        if record.get("record_type") == SpotAuditRecordType.CAMPAIGN_SNAPSHOT.value
+    ]
+    snapshots.sort(key=_timestamp_key)
+    by_campaign: dict[str, list[dict[str, Any]]] = {}
+    for snapshot in snapshots:
+        pnl_snapshot = (snapshot.get("dry_run") or {}).get("pnl_snapshot") or {}
+        if not pnl_snapshot:
+            continue
+        campaign_id = _text(snapshot.get("campaign_id")) or "unknown"
+        by_campaign.setdefault(campaign_id, []).append(snapshot)
+
+    campaigns: list[dict[str, Any]] = []
+    for campaign_id, campaign_snapshots in sorted(by_campaign.items()):
+        latest = campaign_snapshots[-1]
+        previous = campaign_snapshots[-2] if len(campaign_snapshots) > 1 else None
+        latest_scopes = _snapshot_pnl_scopes(latest)
+        previous_scopes = _snapshot_pnl_scopes(previous or {})
+        deltas: list[dict[str, Any]] = []
+        if previous is not None:
+            latest_portfolio = latest_scopes.get("portfolio") or {}
+            previous_portfolio = previous_scopes.get("portfolio") or {}
+            for field, scope_name in (
+                ("total_pnl", "portfolio_total_pnl"),
+                ("since_last_purchase_pnl", "since_last_purchase_pnl"),
+            ):
+                if field in latest_portfolio or field in previous_portfolio:
+                    deltas.append(_scope_delta_row(
+                        scope="portfolio",
+                        name=scope_name,
+                        previous_value=previous_portfolio.get(field),
+                        current_value=latest_portfolio.get(field),
+                    ))
+            latest_realized = latest_portfolio.get("realized_lot") or {}
+            previous_realized = previous_portfolio.get("realized_lot") or {}
+            if latest_realized or previous_realized:
+                deltas.append(_scope_delta_row(
+                    scope="realized_lot",
+                    name="portfolio_realized_pnl",
+                    previous_value=previous_realized.get("realized_pnl"),
+                    current_value=latest_realized.get("realized_pnl"),
+                ))
+            latest_average = latest_scopes.get("average_cost") or {}
+            previous_average = previous_scopes.get("average_cost") or {}
+            if latest_average or previous_average:
+                deltas.append(_scope_delta_row(
+                    scope="average_cost",
+                    name="average_cost_total_pnl",
+                    previous_value=previous_average.get("total_pnl"),
+                    current_value=latest_average.get("total_pnl"),
+                ))
+            latest_products = latest_scopes.get("product") or {}
+            previous_products = previous_scopes.get("product") or {}
+            for product_id in sorted(set(latest_products) | set(previous_products)):
+                latest_product = latest_products.get(product_id) or {}
+                previous_product = previous_products.get(product_id) or {}
+                if (
+                    "total_pnl" in latest_product
+                    or "total_pnl" in previous_product
+                ):
+                    deltas.append(_scope_delta_row(
+                        scope="product",
+                        name=product_id,
+                        previous_value=previous_product.get("total_pnl"),
+                        current_value=latest_product.get("total_pnl"),
+                    ))
+        campaigns.append({
+            "campaign_id": campaign_id,
+            "checkpoint_count": len(campaign_snapshots),
+            "previous_generated_at": (
+                previous.get("generated_at") if previous is not None else None
+            ),
+            "latest_generated_at": latest.get("generated_at"),
+            "delta_count": len(deltas),
+            "deltas": deltas,
+        })
+
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.PNL_DELTA_REPORT.value,
+        "status": SpotCampaignStatus.RECORDED.value,
+        "campaign_count": len(campaigns),
+        "delta_count": sum(campaign["delta_count"] for campaign in campaigns),
+        "campaigns": campaigns,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def build_spot_campaign_no_order_recovery_drill(
+    *,
+    config: Mapping[str, Any],
+    dry_run_matrix: Mapping[str, Any],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Exercise retry classification with a synthetic no-submission sweep run."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    normalized = normalize_spot_campaign_config(config)
+    plan = dry_run_matrix.get("plan") or {}
+    synthetic_orders: list[dict[str, Any]] = []
+    for item in plan.get("items") or []:
+        if not isinstance(item, Mapping):
+            continue
+        product_id = _text(item.get("product_id")).upper()
+        if not product_id:
+            continue
+        planned = item.get("status") == SpotPortfolioSweepItemStatus.PLANNED.value
+        synthetic_orders.append({
+            "product_id": product_id,
+            "status": (
+                SpotPortfolioSweepExecutionStatus.BLOCKED.value
+                if planned
+                else SpotPortfolioSweepExecutionStatus.SKIPPED.value
+            ),
+            "exchange_order_id": None,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "response_success": None,
+            "error": (
+                "synthetic no-order recovery drill"
+                if planned
+                else item.get("reason")
+            ),
+        })
+    source_run_id = f"{normalized['sweep_config_id']}-no-order-drill"
+    synthetic_run = build_sweep_run_record(
+        config_id=normalized["sweep_config_id"],
+        run_id=source_run_id,
+        status=SpotPortfolioSweepRunStatus.FAILED.value,
+        started_at=timestamp,
+        completed_at=timestamp,
+        config=spot_campaign_config_to_sweep_config(normalized),
+        plan=plan,
+        execution={
+            "live_coinbase_orders_ran": False,
+            "submitted_order_count": 0,
+            "blocked_or_error_count": len([
+                order
+                for order in synthetic_orders
+                if order["status"] == SpotPortfolioSweepExecutionStatus.BLOCKED.value
+            ]),
+            "skipped_order_count": len([
+                order
+                for order in synthetic_orders
+                if order["status"] == SpotPortfolioSweepExecutionStatus.SKIPPED.value
+            ]),
+            "total_submitted_notional_usdc": "0",
+            "total_executed_notional_usdc": "0",
+            "orders": synthetic_orders,
+        },
+    )
+    retry_plan = build_spot_campaign_retry_plan(
+        config=normalized,
+        sweep_records=[synthetic_run],
+        run_id=source_run_id,
+        generated_at=timestamp,
+    )
+    planned_count = _int_value(plan.get("planned_count"))
+    passed = (
+        planned_count > 0
+        and retry_plan.get("retry_status") == SpotCampaignStatus.READY.value
+        and int(retry_plan.get("retryable_product_count") or 0) == planned_count
+    )
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.RECOVERY_DRILL.value,
+        "status": (
+            SpotCampaignStatus.READY.value
+            if passed
+            else SpotCampaignStatus.BLOCKED.value
+        ),
+        "campaign_id": normalized["campaign_id"],
+        "sweep_config_id": normalized["sweep_config_id"],
+        "synthetic_source_run_id": source_run_id,
+        "planned_order_count": planned_count,
+        "synthetic_order_count": len(synthetic_orders),
+        "retry_plan": retry_plan,
+        "passed": passed,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
+
+
+def build_spot_campaign_all_usdc_readiness_gate(
+    *,
+    config: Mapping[str, Any],
+    dry_run_matrix: Mapping[str, Any],
+    release_gate: Mapping[str, Any],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Validate that a broad all-USDC campaign is intentionally and safely broad."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    normalized = normalize_spot_campaign_config(config)
+    failures: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    scope = normalized["product_scope"]
+    safety = normalized["safety_policy"]
+    plan = dry_run_matrix.get("plan") or {}
+
+    if scope.get("selection_rule") != (
+        SpotCampaignProductSelection.ALL_COINBASE_USDC_SPOT_US_CUSTOMER_AVAILABLE.value
+    ):
+        failures.append({
+            "code": "not_all_usdc_selection_rule",
+            "reason": "campaign is not configured for the canonical all-USDC selector",
+        })
+    if scope.get("allow_products") or scope.get("deny_products"):
+        failures.append({
+            "code": "allow_or_deny_products_present",
+            "reason": "broad all-USDC stage must not be scoped by allow/deny lists",
+        })
+    if normalized.get("max_products") is not None:
+        failures.append({
+            "code": "max_products_restricts_all_usdc",
+            "reason": "broad all-USDC stage must not set max_products",
+        })
+    if _int_value(plan.get("selected_product_count")) != _int_value(
+        plan.get("eligible_product_count")
+    ):
+        failures.append({
+            "code": "selected_product_count_mismatch",
+            "eligible_product_count": plan.get("eligible_product_count"),
+            "selected_product_count": plan.get("selected_product_count"),
+            "reason": "dry-run did not select the full eligible USDC product universe",
+        })
+    if _int_value(plan.get("planned_count")) <= 0:
+        failures.append({
+            "code": "no_planned_orders",
+            "reason": "all-USDC readiness requires at least one planned order",
+        })
+    if _int_value(plan.get("skipped_count")) > 0:
+        warnings.append({
+            "code": "planned_skips_present",
+            "skipped_count": plan.get("skipped_count"),
+            "skip_counts": dict(plan.get("skip_counts") or {}),
+            "reason": "some selected products will not receive orders at this notional",
+        })
+    for field_name in (
+        "max_total_notional_per_run",
+        "max_notional_per_order",
+        "max_planned_orders",
+    ):
+        if safety.get(field_name) in (None, ""):
+            failures.append({
+                "code": "missing_safety_cap",
+                "field": f"safety_policy.{field_name}",
+                "reason": "broad all-USDC stage requires explicit safety caps",
+            })
+    if release_gate.get("gate_status") != SpotCampaignGateStatus.PASSED.value:
+        failures.append({
+            "code": "release_gate_not_passed",
+            "reason": "campaign release gate must pass before a broad live stage",
+            "release_gate_status": release_gate.get("gate_status"),
+        })
+
+    gate_status = (
+        SpotCampaignGateStatus.FAILED.value
+        if failures
+        else SpotCampaignGateStatus.PASSED.value
+    )
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.ALL_USDC_READINESS.value,
+        "campaign_id": normalized["campaign_id"],
+        "sweep_config_id": normalized["sweep_config_id"],
+        "gate_status": gate_status,
+        "status": (
+            SpotCampaignStatus.BLOCKED.value
+            if failures
+            else SpotCampaignStatus.READY.value
+        ),
+        "failures": failures,
+        "warnings": warnings,
+        "plan_summary": {
+            "eligible_product_count": plan.get("eligible_product_count"),
+            "selected_product_count": plan.get("selected_product_count"),
+            "planned_count": plan.get("planned_count"),
+            "skipped_count": plan.get("skipped_count"),
+            "estimated_planned_quote_notional": (
+                plan.get("estimated_planned_quote_notional") or "0"
+            ),
+            "skip_counts": dict(plan.get("skip_counts") or {}),
+        },
+        "release_gate": dict(release_gate),
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
     }
 
 
@@ -595,9 +1897,10 @@ def build_spot_campaign_dry_run_matrix(
         coinbase_average_cost_baselines=cost_baselines,
         profit_target_pct=safety.get("profit_target_pct"),
     )
+    safety_evaluation_dict = safety_evaluation.to_dict()
     explain = build_sweep_plan_explain(
         plan=plan_obj,
-        safety_evaluation=safety_evaluation,
+        safety_evaluation=safety_evaluation_dict,
         order_type=normalized["order_type"],
         limit_price_offset_bps=normalized["limit_price_offset_bps"],
         fill_ledger_repo=fill_ledger_repo,
@@ -642,6 +1945,23 @@ def build_spot_campaign_dry_run_matrix(
             drift_audit=cost_basis_drift_audit,
             generated_at=timestamp,
         )
+    safety_evaluation_dict = apply_coinbase_average_cost_authority_gate(
+        safety=safety_evaluation_dict,
+        plan_explain=explain,
+        coinbase_average_cost_records=cost_records,
+        cost_basis_drift_audit=cost_basis_drift_audit,
+        generated_at=timestamp,
+    )
+    explain = build_sweep_plan_explain(
+        plan=plan_obj,
+        safety_evaluation=safety_evaluation_dict,
+        order_type=normalized["order_type"],
+        limit_price_offset_bps=normalized["limit_price_offset_bps"],
+        fill_ledger_repo=fill_ledger_repo,
+        inventory_baselines=inventory_baselines,
+        coinbase_average_cost_baselines=cost_baselines,
+        profit_target_pct=safety.get("profit_target_pct"),
+    )
 
     automation_due = None
     if normalized["automation"]["enabled"] and sweep_records is not None:
@@ -663,7 +1983,7 @@ def build_spot_campaign_dry_run_matrix(
         "sweep_config": spot_campaign_config_to_sweep_config(normalized),
         "automation_due": automation_due,
         "plan": plan,
-        "safety_evaluation": safety_evaluation.to_dict(),
+        "safety_evaluation": safety_evaluation_dict,
         "plan_explain": explain,
         "inventory_coverage": inventory_coverage,
         "pnl_report": pnl_report,
@@ -689,6 +2009,255 @@ def build_spot_campaign_dry_run_matrix(
         ):
             output[key] = _strip_product_rows(output.get(key))
     return output
+
+
+def _sell_authority_from_item(item: Mapping[str, Any]) -> Mapping[str, Any]:
+    authority = item.get("sell_authority")
+    return authority if isinstance(authority, Mapping) else {}
+
+
+def _sell_authority_row(item: Mapping[str, Any]) -> dict[str, Any]:
+    authority = _sell_authority_from_item(item)
+    source = _text(authority.get("cost_basis_authority")) or (
+        SpotCostBasisSource.WALLET_ONLY.value
+    )
+    return {
+        "product_id": _text(item.get("product_id")).upper(),
+        "side": _text(item.get("side")).upper(),
+        "status": _text(item.get("status")),
+        "requested_quote_notional": item.get("requested_quote_notional") or "0",
+        "estimated_quote_notional": item.get("estimated_quote_notional") or "0",
+        "estimated_price": item.get("estimated_price") or "0",
+        "planned_base_size": item.get("planned_base_size") or "0",
+        "authority_source": source,
+        "authority_status": _text(authority.get("status")),
+        "authority_allowed": bool(authority.get("allowed", False)),
+        "authority_reason": authority.get("reason"),
+        "limit_price": authority.get("limit_price") or "0",
+        "known_quantity": authority.get("known_quantity") or "0",
+        "known_profitable_quantity": (
+            authority.get("known_profitable_quantity") or "0"
+        ),
+        "coinbase_average_cost_quantity": (
+            authority.get("coinbase_average_cost_quantity") or "0"
+        ),
+        "coinbase_average_profitable_quantity": (
+            authority.get("coinbase_average_profitable_quantity") or "0"
+        ),
+        "coinbase_average_cost_profit_target_pct": (
+            authority.get("coinbase_average_cost_profit_target_pct")
+        ),
+    }
+
+
+def _average_cost_gate_violations_by_product(
+    dry_run_matrix: Mapping[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    safety = dry_run_matrix.get("safety_evaluation") or {}
+    gate = safety.get("coinbase_average_cost_authority_gate") or {}
+    violations_by_product: dict[str, list[dict[str, Any]]] = {}
+    for violation in gate.get("violations") or []:
+        if not isinstance(violation, Mapping):
+            continue
+        product_id = _text(violation.get("product_id")).upper()
+        if not product_id:
+            continue
+        violations_by_product.setdefault(product_id, []).append(dict(violation))
+    return violations_by_product
+
+
+def _allowlist_config_from_rows(
+    *,
+    normalized: Mapping[str, Any],
+    rows: list[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    product_ids = sorted({
+        _text(row.get("product_id")).upper()
+        for row in rows
+        if _text(row.get("product_id"))
+    })
+    if not product_ids:
+        return None
+
+    updated = json.loads(json.dumps(normalized))
+    updated["campaign_id"] = None
+    base_name = _text(updated.get("campaign_name")) or "spot_sell_campaign"
+    updated["campaign_name"] = f"{base_name}_authority_allowlist"
+    updated["max_products"] = len(product_ids)
+    updated.setdefault("product_scope", {})["allow_products"] = product_ids
+    updated.setdefault("safety_policy", {})["allow_products"] = product_ids
+    max_planned = updated["safety_policy"].get("max_planned_orders")
+    if max_planned is None or int(max_planned) > len(product_ids):
+        updated["safety_policy"]["max_planned_orders"] = len(product_ids)
+    return normalize_spot_campaign_config(updated)
+
+
+def build_spot_campaign_sell_authority_allowlist(
+    *,
+    config: Mapping[str, Any],
+    dry_run_matrix: Mapping[str, Any],
+    generated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a durable read-only allowlist from SELL authority rows."""
+    timestamp = generated_at or datetime.now(timezone.utc)
+    normalized = normalize_spot_campaign_config(config)
+    if normalized["side"] != OrderSide.SELL.value:
+        raise ValueError("sell authority allowlists are valid only for SELL campaigns")
+
+    plan = dry_run_matrix.get("plan") or {}
+    explain = dry_run_matrix.get("plan_explain") or {}
+    items = [
+        dict(item)
+        for item in explain.get("items") or []
+        if isinstance(item, Mapping)
+    ]
+    planned_items = [
+        item
+        for item in items
+        if _text(item.get("status")) == SpotPortfolioSweepItemStatus.PLANNED.value
+    ]
+    skipped_items = [
+        item
+        for item in items
+        if _text(item.get("status")) == SpotPortfolioSweepItemStatus.SKIPPED.value
+    ]
+
+    allowlist_rows: list[dict[str, Any]] = []
+    blocked_rows: list[dict[str, Any]] = []
+    authority_source_counts: dict[str, int] = {}
+    authority_status_counts: dict[str, int] = {}
+    average_cost_gate_violations = _average_cost_gate_violations_by_product(
+        dry_run_matrix
+    )
+    for item in planned_items:
+        row = _sell_authority_row(item)
+        gate_violations = average_cost_gate_violations.get(row["product_id"], [])
+        if (
+            row["authority_allowed"]
+            and row["authority_source"] == SpotCostBasisSource.COINBASE_AVERAGE_COST.value
+            and gate_violations
+        ):
+            row["authority_allowed"] = False
+            row["authority_pre_gate_status"] = row["authority_status"]
+            row["authority_status"] = InventoryAuthorityStatus.UNAVAILABLE.value
+            row["authority_gate_violations"] = gate_violations
+            row["authority_reason"] = "; ".join(
+                _text(violation.get("reason"))
+                for violation in gate_violations
+                if _text(violation.get("reason"))
+            ) or "Coinbase average cost authority gate blocked this product"
+        source = row["authority_source"]
+        status = row["authority_status"] or "missing"
+        authority_source_counts[source] = authority_source_counts.get(source, 0) + 1
+        authority_status_counts[status] = authority_status_counts.get(status, 0) + 1
+        if row["authority_allowed"]:
+            allowlist_rows.append(row)
+        else:
+            blocked_rows.append(row)
+
+    skipped_rows = [
+        {
+            "product_id": _text(item.get("product_id")).upper(),
+            "side": _text(item.get("side")).upper(),
+            "status": _text(item.get("status")),
+            "skip_reason": _text(item.get("skip_reason")),
+            "requested_quote_notional": item.get("requested_quote_notional") or "0",
+            "estimated_quote_notional": item.get("estimated_quote_notional") or "0",
+            "planned_base_size": item.get("planned_base_size") or "0",
+            "reason": item.get("reason"),
+        }
+        for item in skipped_items
+    ]
+    allowlist_rows.sort(key=lambda row: row["product_id"])
+    blocked_rows.sort(key=lambda row: row["product_id"])
+    skipped_rows.sort(key=lambda row: row["product_id"])
+
+    allowlisted_notional = sum(
+        (_decimal(row.get("estimated_quote_notional")) for row in allowlist_rows),
+        Decimal("0"),
+    )
+    max_age_seconds = DEFAULT_SELL_AUTHORITY_ALLOWLIST_MAX_AGE_SECONDS
+    allowlist_metadata = {
+        "mode": SpotCampaignRunMode.SELL_AUTHORITY_ALLOWLIST.value,
+        "freshness_status": SpotSellAuthorityAllowlistFreshness.FRESH.value,
+        "generated_at": timestamp.isoformat(),
+        "max_age_seconds": max_age_seconds,
+        "expires_at": (timestamp + timedelta(seconds=max_age_seconds)).isoformat(),
+        "sell_authority_profile": normalized.get("sell_authority_profile"),
+        "allowlist_count": len(allowlist_rows),
+        "blocked_count": len(blocked_rows),
+        "estimated_allowlisted_quote_notional": _format_decimal(
+            allowlisted_notional
+        ),
+        "authority_source_counts": dict(authority_source_counts),
+        "authority_status_counts": dict(authority_status_counts),
+    }
+    allowlist_config = _allowlist_config_from_rows(
+        normalized=normalized,
+        rows=allowlist_rows,
+    )
+    allowlist_sweep_config = (
+        spot_campaign_config_to_sweep_config(allowlist_config)
+        if allowlist_config
+        else None
+    )
+    if allowlist_sweep_config is not None:
+        allowlist_sweep_config["sell_authority_allowlist"] = dict(
+            allowlist_metadata
+        )
+    risk_notes = [
+        "rerun this allowlist gate immediately before any live SELL approval",
+    ]
+    if blocked_rows:
+        risk_notes.append(
+            "blocked planned rows are excluded and must not be sold by a broad run"
+        )
+    if any(
+        row["authority_source"] == SpotCostBasisSource.COINBASE_AVERAGE_COST.value
+        for row in allowlist_rows
+    ):
+        risk_notes.append(
+            "Coinbase average cost is portfolio-level operational authority, not exact FIFO lot evidence"
+        )
+
+    return {
+        "generated_at": timestamp.isoformat(),
+        "mode": SpotCampaignRunMode.SELL_AUTHORITY_ALLOWLIST.value,
+        "status": (
+            SpotCampaignStatus.READY.value
+            if allowlist_rows
+            else SpotCampaignStatus.BLOCKED.value
+        ),
+        "campaign_id": normalized["campaign_id"],
+        "sweep_config_id": normalized["sweep_config_id"],
+        "sell_authority_profile": normalized.get("sell_authority_profile"),
+        "quote_notional": normalized["quote_notional"],
+        "order_type": normalized["order_type"],
+        "planned_count": int(plan.get("planned_count") or len(planned_items)),
+        "skipped_count": int(plan.get("skipped_count") or len(skipped_items)),
+        "allowlist_count": len(allowlist_rows),
+        "blocked_count": len(blocked_rows),
+        "authority_source_counts": authority_source_counts,
+        "authority_status_counts": authority_status_counts,
+        "estimated_planned_quote_notional": (
+            plan.get("estimated_planned_quote_notional") or "0"
+        ),
+        "estimated_allowlisted_quote_notional": _format_decimal(
+            allowlisted_notional
+        ),
+        "allow_products": [row["product_id"] for row in allowlist_rows],
+        "allowlist_rows": allowlist_rows,
+        "blocked_rows": blocked_rows,
+        "skipped_rows": skipped_rows,
+        "allowlist_config": allowlist_config,
+        "allowlist_sweep_config": allowlist_sweep_config,
+        "allowlist_metadata": allowlist_metadata,
+        "risk_notes": risk_notes,
+        "live_coinbase_orders_ran": False,
+        "live_order_notional_usdc": "0",
+        "total_submitted_notional_usdc": "0",
+        "total_executed_notional_usdc": "0",
+    }
 
 
 def build_spot_campaign_operation_lock_status(
@@ -1052,6 +2621,7 @@ def build_spot_campaign_snapshot_record(
     dry_run_matrix: Mapping[str, Any] | None = None,
     release_gate: Mapping[str, Any] | None = None,
     sweep_summary: Mapping[str, Any] | None = None,
+    sell_authority_allowlist: Mapping[str, Any] | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Build a durable local campaign snapshot record."""
@@ -1080,6 +2650,7 @@ def build_spot_campaign_snapshot_record(
             "cost_basis": (dry_run_matrix or {}).get("cost_basis"),
         },
         "release_gate": dict(release_gate or {}),
+        "sell_authority_allowlist": dict(sell_authority_allowlist or {}),
         "sweep_summary": sweep_summary,
         "live_coinbase_orders_ran": bool(
             sweep_summary.get("live_coinbase_orders_ran", False)
@@ -1165,12 +2736,15 @@ def _is_campaign_readiness_snapshot(snapshot: Mapping[str, Any]) -> bool:
     if mode in {
         SpotCampaignRunMode.DRY_RUN.value,
         SpotCampaignRunMode.RELEASE_GATE.value,
+        SpotCampaignRunMode.SELL_AUTHORITY_ALLOWLIST.value,
     }:
         return True
     dry_run = snapshot.get("dry_run") or {}
     release_gate = snapshot.get("release_gate") or {}
+    allowlist = snapshot.get("sell_authority_allowlist") or {}
     return bool(
         release_gate
+        or allowlist
         or dry_run.get("plan")
         or dry_run.get("safety_evaluation")
         or dry_run.get("automation_due")
@@ -1257,6 +2831,11 @@ def _build_campaign_operator_summary(
     )
     pnl_snapshot = dry_run.get("pnl_snapshot") or {}
     portfolio = pnl_snapshot.get("portfolio") or {}
+    sell_allowlist = (
+        readiness_snapshot.get("sell_authority_allowlist")
+        or latest_snapshot.get("sell_authority_allowlist")
+        or {}
+    )
     sweep_summary = live_snapshot.get("sweep_summary") or latest_snapshot.get(
         "sweep_summary"
     ) or {}
@@ -1306,6 +2885,25 @@ def _build_campaign_operator_summary(
         "estimated_planned_quote_notional": (
             plan.get("estimated_planned_quote_notional") or "0"
         ),
+        "sell_authority_profile": sell_allowlist.get("sell_authority_profile"),
+        "sell_authority_allowlist_count": _int_value(
+            sell_allowlist.get("allowlist_count")
+        ),
+        "sell_authority_blocked_count": _int_value(
+            sell_allowlist.get("blocked_count")
+        ),
+        "sell_authority_source_counts": dict(
+            sell_allowlist.get("authority_source_counts") or {}
+        ),
+        "sell_authority_status_counts": dict(
+            sell_allowlist.get("authority_status_counts") or {}
+        ),
+        "sell_authority_estimated_allowlisted_quote_notional": (
+            sell_allowlist.get("estimated_allowlisted_quote_notional") or "0"
+        ),
+        "sell_authority_allow_products_preview": list(
+            sell_allowlist.get("allow_products") or []
+        )[:10],
         "latest_live_run_id": sweep_summary.get("run_id"),
         "latest_live_status": sweep_summary.get("status"),
         "latest_live_recorded_status": sweep_summary.get("recorded_status"),
