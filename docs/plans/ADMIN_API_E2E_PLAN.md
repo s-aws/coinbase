@@ -1384,7 +1384,7 @@ Exit criteria:
 - Both repos are committed with clean working trees and live Coinbase notional
   reported.
 
-### Progress Update - 2026-06-10, Phases 331-348
+### Progress Update - 2026-06-10, Phases 331-350
 
 - Phases 331-334 advanced on the frontend side: the app shell now mounts a
   runtime provider, loads integrated Admin API snapshots, uses backend session
@@ -1408,8 +1408,11 @@ Exit criteria:
   order path, no-Coinbase-browser boundary, session-header source, runtime read
   flow, dry-submit evidence, `client_order_id` cancel rule, and smoke script
   discoverability. Remediation made the frontend low-level request method
-  private and expanded the command-fetch guard.
+  private, expanded the command-fetch guard, removed a stale frontend spot
+  auth-header helper, aligned browser-visible runtime config keys, added the
+  backend-supported `auditor` role to frontend UI hints, and deduplicated
+  OpenAPI enum values during backend schema generation.
 - Verification: backend regression passed with `754 passed`; frontend
   `npm run quality` passed with typecheck, lint, API freshness,
-  command-fetch guard, `88` unit tests, and `3` Playwright tests.
+  command-fetch guard, `89` unit tests, and `3` Playwright tests.
 - Live Coinbase execution: not run; test notional `$0`.

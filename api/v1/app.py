@@ -91,7 +91,27 @@ def _customize_openapi(app: FastAPI) -> dict:
                     and parameter.get("name") in _ADMIN_AUTH_HEADERS
                 ):
                     parameter["required"] = True
+    _deduplicate_schema_enums(schema)
     return schema
+
+
+def _deduplicate_schema_enums(value: object) -> None:
+    """Remove duplicate enum values from generated OpenAPI fragments."""
+
+    if isinstance(value, dict):
+        enum_values = value.get("enum")
+        if isinstance(enum_values, list):
+            deduplicated: list[object] = []
+            for enum_value in enum_values:
+                if enum_value not in deduplicated:
+                    deduplicated.append(enum_value)
+            value["enum"] = deduplicated
+        for child in value.values():
+            _deduplicate_schema_enums(child)
+        return
+    if isinstance(value, list):
+        for child in value:
+            _deduplicate_schema_enums(child)
 
 
 def create_app() -> FastAPI:

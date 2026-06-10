@@ -135,6 +135,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "client_order_id" in order_item_schema["properties"]
     assert "order_id" not in order_item_schema["properties"]
     assert "exchange_order_id" in order_item_schema["properties"]
+    for schema_name, component_schema in written["components"]["schemas"].items():
+        enum_values = component_schema.get("enum")
+        if enum_values is not None:
+            assert len(enum_values) == len(set(enum_values)), schema_name
 
 
 @pytest.mark.regression
