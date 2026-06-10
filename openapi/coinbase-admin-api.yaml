@@ -6,7 +6,536 @@ info:
     live-disabled by the approval gate.
   version: 0.1.0
 paths:
+  /api/v1/admin/bootstrap:
+    get:
+      tags:
+      - admin
+      summary: Read backend association and live-action posture
+      operationId: admin_bootstrap_api_v1_admin_bootstrap_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBootstrapResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/health:
+    get:
+      tags:
+      - admin
+      summary: Read backend health and route diagnostics
+      operationId: admin_health_api_v1_admin_health_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminHealthResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/session:
+    get:
+      tags:
+      - admin
+      summary: Read authenticated actor and RBAC evidence
+      operationId: admin_session_api_v1_admin_session_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSessionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/capabilities:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned Admin API capability registry
+      operationId: admin_capabilities_api_v1_admin_capabilities_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCapabilityRegistryResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/release-gate:
+    get:
+      tags:
+      - admin
+      summary: Read release-gate posture without running tests from the browser
+      operationId: admin_release_gate_api_v1_admin_release_gate_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminGateReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/recovery-gate:
+    get:
+      tags:
+      - admin
+      summary: Read recovery readiness posture
+      operationId: admin_recovery_gate_api_v1_admin_recovery_gate_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminGateReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/fill-ledger-health:
+    get:
+      tags:
+      - admin
+      summary: Read fill-ledger health posture
+      operationId: admin_fill_ledger_health_api_v1_admin_fill_ledger_health_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminGateReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/frontend-fixtures:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned fixtures for frontend mock synchronization
+      operationId: admin_frontend_fixtures_api_v1_admin_frontend_fixtures_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFrontendFixturesResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders:
+    get:
+      tags:
+      - orders
+      summary: Read local orders keyed by client_order_id
+      description: Read local order_parent evidence without contacting Coinbase.
+      operationId: list_orders_api_v1_orders_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: order_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
       - orders
@@ -71,8 +600,8 @@ paths:
             schema:
               $ref: '#/components/schemas/ManualOrderRequest'
       responses:
-        '501':
-          description: Live HTTP execution is not implemented for this command.
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
           content:
             application/json:
               schema:
@@ -85,14 +614,92 @@ paths:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '409':
           description: Idempotency key conflict.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{client_order_id}:
+    get:
+      tags:
+      - orders
+      summary: Read one local order by client_order_id
+      description: Read one local order row by client_order_id.
+      operationId: get_order_by_client_order_id_api_v1_orders__client_order_id__get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -166,8 +773,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CancelOrderRequest'
       responses:
-        '501':
-          description: Live HTTP execution is not implemented for this command.
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
           content:
             application/json:
               schema:
@@ -180,10 +787,131 @@ paths:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '409':
           description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/campaign/executions:
+    post:
+      tags:
+      - orders
+      summary: Execute a spot campaign through the shared command service
+      description: 'Route adapter for future campaign execution.
+
+
+        The route has the command envelope, idempotency, audit, RBAC, and fail-closed
+
+        live gate, but it does not submit Coinbase orders.'
+      operationId: execute_spot_campaign_api_v1_spot_campaign_executions_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignExecutionRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
           content:
             application/json:
               schema:
@@ -240,11 +968,20 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SpotReadinessResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -295,11 +1032,20 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SpotSweepStatusResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -359,11 +1105,20 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SpotSweepPnlResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -414,11 +1169,20 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SpotCostBasisStatusResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -469,11 +1233,20 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SpotCampaignStatusResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -550,11 +1323,20 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SpotDirectOrderAuditResponse'
         '401':
           description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
           description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
         '422':
           description: Validation Error
           content:
@@ -574,6 +1356,23 @@ components:
       - audit
       title: AdminApiActionClass
       description: Enterprise Admin API route risk/action classification.
+    AdminApiActor:
+      properties:
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        roles:
+          items:
+            $ref: '#/components/schemas/AdminApiRole'
+          type: array
+          title: Roles
+      additionalProperties: false
+      type: object
+      required:
+      - actor_id
+      title: AdminApiActor
+      description: Authenticated actor evidence supplied by future auth middleware.
     AdminApiCommandResponse:
       properties:
         status:
@@ -662,6 +1461,87 @@ components:
       - conflict
       title: AdminApiCommandStatus
       description: Admin API command status values returned to operators.
+    AdminApiErrorCode:
+      type: string
+      enum:
+      - auth_required
+      - permission_denied
+      - validation_error
+      - idempotency_conflict
+      - guard_blocked
+      - not_implemented
+      - backend_unavailable
+      - request_error
+      title: AdminApiErrorCode
+      description: Structured Admin API error codes exposed to the frontend.
+    AdminApiErrorResponse:
+      properties:
+        code:
+          $ref: '#/components/schemas/AdminApiErrorCode'
+        message:
+          type: string
+          title: Message
+        severity:
+          $ref: '#/components/schemas/AdminApiErrorSeverity'
+        guard_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Guard Name
+        field_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Field Path
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      - severity
+      title: AdminApiErrorResponse
+      description: Structured error body shared by Admin API routes.
+    AdminApiErrorSeverity:
+      type: string
+      enum:
+      - info
+      - warning
+      - error
+      - critical
+      title: AdminApiErrorSeverity
+      description: Operator-facing severity for structured Admin API errors.
+    AdminApiGateStatus:
+      type: string
+      enum:
+      - passed
+      - warning
+      - blocked
+      - not_applicable
+      title: AdminApiGateStatus
+      description: Release and recovery gate status exposed by read-only Admin API
+        routes.
+    AdminApiHealthStatus:
+      type: string
+      enum:
+      - healthy
+      - degraded
+      - blocked
+      title: AdminApiHealthStatus
+      description: Admin API health/readiness state.
     AdminApiPermission:
       type: string
       enum:
@@ -677,6 +1557,489 @@ components:
       - runtime:shutdown
       title: AdminApiPermission
       description: Backend-enforced Admin API permission names.
+    AdminApiRole:
+      type: string
+      enum:
+      - viewer
+      - operator
+      - trader
+      - admin
+      - auditor
+      - emergency
+      title: AdminApiRole
+      description: Backend-recognized Admin API role names.
+    AdminApiRouteAvailability:
+      type: string
+      enum:
+      - available
+      - live_disabled
+      - contract_pending
+      - backend_blocked
+      title: AdminApiRouteAvailability
+      description: Backend availability posture for frontend-visible routes.
+    AdminApiRouteDiagnostic:
+      properties:
+        path:
+          type: string
+          title: Path
+        method:
+          type: string
+          title: Method
+        status:
+          $ref: '#/components/schemas/AdminApiRouteAvailability'
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - path
+      - method
+      - status
+      - message
+      title: AdminApiRouteDiagnostic
+      description: Health diagnostic for one route surface.
+    AdminApiSessionStatus:
+      type: string
+      enum:
+      - signed_in
+      - signed_out
+      - expired
+      - forbidden
+      title: AdminApiSessionStatus
+      description: Authenticated Admin API session status.
+    AdminBootstrapResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_bootstrap
+        backend_repository:
+          type: string
+          title: Backend Repository
+        api_version:
+          type: string
+          title: Api Version
+        schema_version:
+          type: string
+          title: Schema Version
+        environment:
+          type: string
+          title: Environment
+        mutating_routes_live_disabled:
+          type: boolean
+          title: Mutating Routes Live Disabled
+        live_execution_enabled:
+          type: boolean
+          title: Live Execution Enabled
+        auth_required:
+          type: boolean
+          title: Auth Required
+        cors_configured:
+          type: boolean
+          title: Cors Configured
+        csrf_required:
+          type: boolean
+          title: Csrf Required
+        capabilities_route:
+          type: string
+          title: Capabilities Route
+        session_route:
+          type: string
+          title: Session Route
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - backend_repository
+      - api_version
+      - schema_version
+      - environment
+      - mutating_routes_live_disabled
+      - live_execution_enabled
+      - auth_required
+      - cors_configured
+      - csrf_required
+      - capabilities_route
+      - session_route
+      title: AdminBootstrapResponse
+      description: Frontend bootstrap payload for backend association and safety posture.
+    AdminCapabilityItem:
+      properties:
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Permission
+        availability:
+          $ref: '#/components/schemas/AdminApiRouteAvailability'
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+        frontend_safe:
+          type: boolean
+          title: Frontend Safe
+        shared_method:
+          type: string
+          title: Shared Method
+        notes:
+          type: string
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - route
+      - method
+      - action_class
+      - permission
+      - availability
+      - live_enabled
+      - frontend_safe
+      - shared_method
+      - notes
+      title: AdminCapabilityItem
+      description: One backend-owned capability advertised to the frontend.
+    AdminCapabilityRegistryResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_capabilities
+        capabilities:
+          items:
+            $ref: '#/components/schemas/AdminCapabilityItem'
+          type: array
+          title: Capabilities
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      title: AdminCapabilityRegistryResponse
+      description: Route/capability registry for frontend navigation and diagnostics.
+    AdminFrontendFixturesResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_frontend_fixtures
+        schema_version:
+          type: string
+          title: Schema Version
+        fixtures:
+          type: object
+          title: Fixtures
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      required:
+      - schema_version
+      title: AdminFrontendFixturesResponse
+      description: Backend-owned fixture examples for frontend mock synchronization.
+    AdminGateCheck:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - status
+      - detail
+      title: AdminGateCheck
+      description: One release/recovery check exposed to the frontend.
+    AdminGateReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        checks:
+          items:
+            $ref: '#/components/schemas/AdminGateCheck'
+          type: array
+          title: Checks
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - status
+      title: AdminGateReadResponse
+      description: Read-only gate response for release and recovery views.
+    AdminHealthResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_health
+        status:
+          $ref: '#/components/schemas/AdminApiHealthStatus'
+        api_version:
+          type: string
+          title: Api Version
+        diagnostics:
+          items:
+            $ref: '#/components/schemas/AdminApiRouteDiagnostic'
+          type: array
+          title: Diagnostics
+        failed_route_count:
+          type: integer
+          title: Failed Route Count
+          default: 0
+        live_execution_enabled:
+          type: boolean
+          title: Live Execution Enabled
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - api_version
+      title: AdminHealthResponse
+      description: Read-only backend health and diagnostics payload.
+    AdminOrderDetailResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_detail
+        client_order_id:
+          type: string
+          title: Client Order Id
+        found:
+          type: boolean
+          title: Found
+        order:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderReadItem'
+          - type: 'null'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - found
+      title: AdminOrderDetailResponse
+      description: Read-only order detail response keyed by ``client_order_id``.
+    AdminOrderListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_list
+        filters:
+          type: object
+          title: Filters
+        count:
+          type: integer
+          title: Count
+        items:
+          items:
+            $ref: '#/components/schemas/AdminOrderReadItem'
+          type: array
+          title: Items
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - count
+      title: AdminOrderListResponse
+      description: Read-only order list/filter response.
+    AdminOrderReadItem:
+      properties:
+        client_order_id:
+          type: string
+          title: Client Order Id
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        side:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Side
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        order_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Type
+        size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Size
+        price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price
+        parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Client Order Id
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange Order Id
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        source:
+          type: string
+          title: Source
+          default: order_parent
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      title: AdminOrderReadItem
+      description: Read-only order row keyed by ``client_order_id``.
+    AdminSessionResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_session
+        status:
+          $ref: '#/components/schemas/AdminApiSessionStatus'
+        actor:
+          $ref: '#/components/schemas/AdminApiActor'
+        permissions:
+          items:
+            $ref: '#/components/schemas/AdminApiPermission'
+          type: array
+          title: Permissions
+        bearer_token_visible_to_browser:
+          type: boolean
+          title: Bearer Token Visible To Browser
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - actor
+      title: AdminSessionResponse
+      description: Authenticated session/RBAC evidence for the frontend.
+    CampaignExecutionRequest:
+      properties:
+        campaign_id:
+          type: string
+          minLength: 1
+          title: Campaign Id
+          examples:
+          - usdc-sweep-001
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        quote_notional_per_product:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Quote Notional Per Product
+        product_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Product Ids
+        max_products:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Max Products
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - campaign_id
+      - side
+      title: CampaignExecutionRequest
+      description: Campaign execution request shape for future gated spot campaigns.
     CancelOrderRequest:
       properties:
         reason:
@@ -777,6 +2140,131 @@ components:
 
 
         From Coinbase API: LIMIT, MARKET, STOP_LIMIT'
+    SpotCampaignStatusResponse:
+      properties:
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      title: SpotCampaignStatusResponse
+      description: Spot campaign status response.
+    SpotCostBasisStatusResponse:
+      properties:
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      title: SpotCostBasisStatusResponse
+      description: Spot cost-basis status response.
+    SpotDirectOrderAuditResponse:
+      properties:
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+      additionalProperties: true
+      type: object
+      title: SpotDirectOrderAuditResponse
+      description: Direct spot order audit response keyed by ``client_order_id``.
+    SpotReadinessResponse:
+      properties:
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      title: SpotReadinessResponse
+      description: Spot readiness response.
+    SpotSweepPnlResponse:
+      properties:
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      title: SpotSweepPnlResponse
+      description: Spot sweep P/L response.
+    SpotSweepStatusResponse:
+      properties:
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      title: SpotSweepStatusResponse
+      description: Spot sweep status response.
     TimeInForce:
       type: string
       enum:

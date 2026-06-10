@@ -18,7 +18,18 @@ Current generated schema artifact:
 
 Current route adapters:
 - `POST /api/v1/orders`
+- `GET /api/v1/orders`
+- `GET /api/v1/orders/{client_order_id}`
 - `POST /api/v1/orders/{client_order_id}/cancel`
+- `POST /api/v1/spot/campaign/executions`
+- `GET /api/v1/admin/bootstrap`
+- `GET /api/v1/admin/health`
+- `GET /api/v1/admin/session`
+- `GET /api/v1/admin/capabilities`
+- `GET /api/v1/admin/release-gate`
+- `GET /api/v1/admin/recovery-gate`
+- `GET /api/v1/admin/fill-ledger-health`
+- `GET /api/v1/admin/frontend-fixtures`
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`
@@ -32,6 +43,20 @@ Current behavior:
   "not_implemented"`
 - mutating HTTP routes do not submit orders, cancel orders, call Coinbase, or
   mutate live exchange state
+- the generated OpenAPI contract includes eventual `200` accepted/replayed
+  command response schemas, but the current runtime still returns `501` for
+  create, cancel, and campaign execution commands because HTTP live execution
+  is not approved
+- `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose
+  read-only local order evidence keyed by `client_order_id`; exchange-native
+  ids can appear only as `exchange_order_id` evidence and are not cancel keys
+- admin bootstrap, health, session, capabilities, release gate, recovery gate,
+  fill-ledger health, and frontend fixture routes are read-only and
+  auth/RBAC-gated
+- auth, RBAC, and validation errors return structured error payloads with
+  `code`, `message`, `severity`, optional `field_path`, and correlation id
+- responses include `X-Correlation-Id`, `X-Request-Id`,
+  `X-Admin-Api-Version`, and `X-Live-Execution-Enabled`
 - legacy dashboard `place_order` and `cancel_order` messages now delegate to
   `application.admin_api.command_service.AdminApiCommandService` as
   compatibility adapters

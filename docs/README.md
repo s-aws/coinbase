@@ -22,6 +22,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Frontend Association](FRONTEND_ASSOCIATION.md)
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)
 - [Admin API Route Inventory](plans/ADMIN_API_ROUTE_INVENTORY.md)
+- [Admin API Contextless Review Log](plans/ADMIN_API_CONTEXTLESS_REVIEW_LOG.md)
 - [Spot Phases 185-196 Report](plans/SPOT_PHASE_185_196_REPORT.md)
 - [Netflix AI Engineer Workbench](../README.netflix-ai-engineer-site.md)
 - [API Reference](../genai_data/API_REFERENCE.md)

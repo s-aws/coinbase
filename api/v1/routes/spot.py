@@ -9,7 +9,16 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from application.admin_api.auth import get_authenticated_actor, require_permission
-from application.admin_api.models import AdminApiActor
+from application.admin_api.models import (
+    AdminApiActor,
+    AdminApiErrorResponse,
+    SpotCampaignStatusResponse,
+    SpotCostBasisStatusResponse,
+    SpotDirectOrderAuditResponse,
+    SpotReadinessResponse,
+    SpotSweepPnlResponse,
+    SpotSweepStatusResponse,
+)
 from application.admin_api.read_service import AdminApiReadService
 from core.enums import AdminApiPermission
 
@@ -17,8 +26,14 @@ from core.enums import AdminApiPermission
 router = APIRouter()
 
 READ_ONLY_ROUTE_RESPONSES = {
-    401: {"description": "Missing or invalid Admin API authentication."},
-    403: {"description": "Actor lacks the required Admin API permission."},
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
+    },
 }
 
 
@@ -34,6 +49,7 @@ def _read_response(payload: dict) -> JSONResponse:
 
 @router.get(
     "/spot/readiness",
+    response_model=SpotReadinessResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Read spot trading readiness",
 )
@@ -48,6 +64,7 @@ def spot_readiness(
 
 @router.get(
     "/spot/sweep/status",
+    response_model=SpotSweepStatusResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Read spot sweep status",
 )
@@ -62,6 +79,7 @@ def spot_sweep_status(
 
 @router.get(
     "/spot/sweep/pnl",
+    response_model=SpotSweepPnlResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Read spot sweep P/L",
 )
@@ -82,6 +100,7 @@ def spot_sweep_pnl(
 
 @router.get(
     "/spot/cost-basis/status",
+    response_model=SpotCostBasisStatusResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Read spot cost-basis status",
 )
@@ -96,6 +115,7 @@ def spot_cost_basis_status(
 
 @router.get(
     "/spot/campaign/status",
+    response_model=SpotCampaignStatusResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Read spot campaign status",
 )
@@ -110,6 +130,7 @@ def spot_campaign_status(
 
 @router.get(
     "/spot/direct-orders/{client_order_id}/audit",
+    response_model=SpotDirectOrderAuditResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Read direct spot order audit by client_order_id",
 )

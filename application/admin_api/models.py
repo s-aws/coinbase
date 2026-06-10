@@ -13,8 +13,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiErrorCode,
+    AdminApiErrorSeverity,
+    AdminApiGateStatus,
+    AdminApiHealthStatus,
     AdminApiPermission,
+    AdminApiRouteAvailability,
     AdminApiRole,
+    AdminApiSessionStatus,
     OrderSide,
     OrderType,
     TimeInForce,
@@ -75,6 +81,20 @@ class CancelOrderRequest(BaseModel):
     reason: str | None = None
 
 
+class CampaignExecutionRequest(BaseModel):
+    """Campaign execution request shape for future gated spot campaigns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str = Field(min_length=1, examples=["usdc-sweep-001"])
+    side: OrderSide
+    quote_notional_per_product: DecimalString | None = None
+    product_ids: list[str] | None = None
+    max_products: int | None = Field(default=None, ge=1)
+    dry_run: bool = True
+    manual_live_acknowledgement: bool = False
+
+
 class ManualOrderCommand(BaseModel):
     """Shared service command for manual placement."""
 
@@ -94,6 +114,16 @@ class CancelOrderCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     client_order_id: str = Field(min_length=1)
     request: CancelOrderRequest
+    allow_live_execution: bool = False
+
+
+class CampaignExecutionCommand(BaseModel):
+    """Shared service command for campaign execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: CampaignExecutionRequest
     allow_live_execution: bool = False
 
 
@@ -118,6 +148,220 @@ class AdminApiCommandResponse(BaseModel):
     guard: dict[str, Any] | None = None
     data: Any | None = None
     failure_stage: str | None = None
+
+
+class AdminApiErrorResponse(BaseModel):
+    """Structured error body shared by Admin API routes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: AdminApiErrorCode
+    message: str
+    severity: AdminApiErrorSeverity
+    guard_name: str | None = None
+    field_path: str | None = None
+    correlation_id: str | None = None
+    audit_id: str | None = None
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminApiRouteDiagnostic(BaseModel):
+    """Health diagnostic for one route surface."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str
+    method: str
+    status: AdminApiRouteAvailability
+    message: str
+
+
+class AdminBootstrapResponse(BaseModel):
+    """Frontend bootstrap payload for backend association and safety posture."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_bootstrap"
+    backend_repository: str
+    api_version: str
+    schema_version: str
+    environment: str
+    mutating_routes_live_disabled: bool
+    live_execution_enabled: bool
+    auth_required: bool
+    cors_configured: bool
+    csrf_required: bool
+    capabilities_route: str
+    session_route: str
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminHealthResponse(BaseModel):
+    """Read-only backend health and diagnostics payload."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_health"
+    status: AdminApiHealthStatus
+    api_version: str
+    diagnostics: list[AdminApiRouteDiagnostic] = Field(default_factory=list)
+    failed_route_count: int = 0
+    live_execution_enabled: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminSessionResponse(BaseModel):
+    """Authenticated session/RBAC evidence for the frontend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_session"
+    status: AdminApiSessionStatus
+    actor: AdminApiActor
+    permissions: list[AdminApiPermission] = Field(default_factory=list)
+    bearer_token_visible_to_browser: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminCapabilityItem(BaseModel):
+    """One backend-owned capability advertised to the frontend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    permission: AdminApiPermission | str
+    availability: AdminApiRouteAvailability
+    live_enabled: bool
+    frontend_safe: bool
+    shared_method: str
+    notes: str
+
+
+class AdminCapabilityRegistryResponse(BaseModel):
+    """Route/capability registry for frontend navigation and diagnostics."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_capabilities"
+    capabilities: list[AdminCapabilityItem] = Field(default_factory=list)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminOrderReadItem(BaseModel):
+    """Read-only order row keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str
+    product_id: str | None = None
+    side: str | None = None
+    status: str | None = None
+    order_type: str | None = None
+    size: str | None = None
+    price: str | None = None
+    parent_client_order_id: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    exchange_order_id: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    source: str = "order_parent"
+
+
+class AdminOrderListResponse(BaseModel):
+    """Read-only order list/filter response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_list"
+    filters: dict[str, Any] = Field(default_factory=dict)
+    count: int
+    items: list[AdminOrderReadItem] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminOrderDetailResponse(BaseModel):
+    """Read-only order detail response keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_detail"
+    client_order_id: str
+    found: bool
+    order: AdminOrderReadItem | None = None
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminGateCheck(BaseModel):
+    """One release/recovery check exposed to the frontend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    status: AdminApiGateStatus
+    detail: str
+
+
+class AdminGateReadResponse(BaseModel):
+    """Read-only gate response for release and recovery views."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str
+    status: AdminApiGateStatus
+    checks: list[AdminGateCheck] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminFrontendFixturesResponse(BaseModel):
+    """Backend-owned fixture examples for frontend mock synchronization."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str = "admin_frontend_fixtures"
+    schema_version: str
+    fixtures: dict[str, Any] = Field(default_factory=dict)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminApiReadPayload(BaseModel):
+    """Loose typed shell for existing dashboard-shaped read-only payloads."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str | None = None
+    status: str | None = None
+    live_coinbase_orders_ran: bool = False
+
+
+class SpotReadinessResponse(AdminApiReadPayload):
+    """Spot readiness response."""
+
+
+class SpotSweepStatusResponse(AdminApiReadPayload):
+    """Spot sweep status response."""
+
+
+class SpotSweepPnlResponse(AdminApiReadPayload):
+    """Spot sweep P/L response."""
+
+
+class SpotCostBasisStatusResponse(AdminApiReadPayload):
+    """Spot cost-basis status response."""
+
+
+class SpotCampaignStatusResponse(AdminApiReadPayload):
+    """Spot campaign status response."""
+
+
+class SpotDirectOrderAuditResponse(AdminApiReadPayload):
+    """Direct spot order audit response keyed by ``client_order_id``."""
+
+    client_order_id: str | None = None
 
 
 class AdminApiRouteInventoryItem(BaseModel):

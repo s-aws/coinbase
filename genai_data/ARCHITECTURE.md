@@ -194,8 +194,12 @@ until approval and cap gates are complete.
 
 Current modules:
 - `api/v1/app.py`: FastAPI app factory.
-- `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`
-  and `POST /api/v1/orders/{client_order_id}/cancel`.
+- `api/v1/routes/admin.py`: read-only backend association, health,
+  session/RBAC, capability, gate, and frontend-fixture routes.
+- `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`,
+  `GET /api/v1/orders`, `GET /api/v1/orders/{client_order_id}`,
+  `POST /api/v1/orders/{client_order_id}/cancel`, and
+  `POST /api/v1/spot/campaign/executions`.
 - `api/v1/routes/spot.py`: read-only spot operator routes.
 - `application/admin_api/command_service.py`: shared command service used by
   HTTP routes and legacy dashboard compatibility adapters.
@@ -211,10 +215,21 @@ Current modules:
 Current behavior:
 - Admin API mutating routes authenticate, authorize, evaluate idempotency, write
   audit records, then return HTTP `501` with `status: "not_implemented"`.
+- Admin API OpenAPI includes typed `200` accepted/replayed command response
+  schemas for the future live-enabled state, but runtime HTTP create/cancel and
+  campaign execution still return `501` until live execution is explicitly
+  approved.
 - HTTP mutating routes do not submit Coinbase orders, cancel Coinbase orders,
   or mutate live exchange state.
 - Legacy dashboard `place_order` and `cancel_order` WebSocket messages delegate
   to `AdminApiCommandService` as compatibility adapters.
+- Order read routes are local-evidence reads keyed by `client_order_id`.
+  Exchange-native ids are exposed only as `exchange_order_id` evidence.
+- Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
+  fill-ledger health, and frontend fixture routes are read-only backend
+  association surfaces for `C:\coinbase-frontend`.
+- Admin API responses include observability headers and structured error
+  payloads for auth, RBAC, and validation failures.
 - Read-only spot routes expose readiness, sweep status, sweep P/L, cost-basis
   status, campaign status, and direct-order audit; they are auth/RBAC-gated and
   document `401`/`403` in the generated OpenAPI contract.

@@ -2,9 +2,9 @@
 
 ## Owns
 
-- Future `api/**` FastAPI route modules
-- Future `application/admin_api/**` shared command service adapters
-- Future `openapi/**` generated schema artifacts
+- `api/**` FastAPI route modules
+- `application/admin_api/**` shared command service adapters
+- `openapi/**` generated schema artifacts
 - Admin API contract tests
 - Admin API docs in coordination with the Architect Agent
 
@@ -21,6 +21,12 @@ frontend request
 -> typed response
 ```
 
+Current HTTP command routes are authenticated, authorized, idempotent, audited,
+and live-disabled. They return typed `501` `not_implemented` responses until
+live HTTP approval, guard, cap, and audit gates are complete. The generated
+OpenAPI schema also includes typed `200` accepted/replayed response contracts
+for the future live-enabled state.
+
 Legacy dashboard compatibility path:
 
 ```text
@@ -32,9 +38,9 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Planned Shared Service Boundary
+## Shared Service Boundary
 
-Initial implementation should introduce:
+Implemented modules:
 
 - `application/admin_api/command_service.py`
 - `application/admin_api/models.py`
@@ -45,9 +51,14 @@ Initial implementation should introduce:
 - `openapi/coinbase-admin-api.yaml`
 - `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`
 
-Initial shared command service methods should cover manual placement,
-cancel-by-`client_order_id`, and hotpoint test placement before HTTP live routes
-are exposed.
+Shared command service methods currently cover manual placement,
+cancel-by-`client_order_id`, hotpoint test placement for legacy dashboard
+compatibility, and a live-disabled spot campaign execution contract.
+
+Read-only Admin API routes currently cover backend bootstrap, health,
+session/RBAC evidence, capabilities, release/recovery gates, fill-ledger
+health, frontend fixtures, order list/detail, spot readiness, sweep status,
+sweep P/L, cost-basis status, campaign status, and direct order audit.
 
 ## Must Not Do
 
@@ -58,13 +69,20 @@ are exposed.
 - Do not hand-maintain OpenAPI schemas that drift from backend models.
 - Do not make frontend acknowledgement the only live-order approval gate.
 
-## Required Tests Once Implementation Starts
+## Required Tests
 
 ```powershell
 pytest tests/regression/ -v --tb=short
 ```
 
+Focused Admin API tests live in:
+
+```powershell
+pytest tests/regression/test_admin_api_contract.py -v --tb=short
+```
+
 Focused tests must cover auth denial, RBAC denial, idempotent retry,
-idempotency conflict, approval mismatch, cap rejection, no REST call on guard
-failure, cancel by `client_order_id`, audit creation, and WebSocket/HTTP
-parity.
+idempotency conflict, approval/live-disabled gate evidence, no live REST call
+from HTTP command routes, cancel by `client_order_id`, audit creation,
+WebSocket/HTTP shared-service parity, typed OpenAPI routes, and read-only route
+contracts.

@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import os
+import uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 
+from application.admin_api.models import AdminApiErrorResponse
+from core.enums import AdminApiErrorCode, AdminApiErrorSeverity
+
+from .routes.admin import router as admin_router
 from .routes.orders import router as orders_router
 from .routes.spot import router as spot_router
 
@@ -17,6 +24,54 @@ _ADMIN_AUTH_HEADERS = {
     "X-Admin-Actor",
     "X-Admin-Roles",
 }
+
+
+def _request_ids(request: Request) -> tuple[str, str]:
+    correlation_id = (
+        getattr(request.state, "correlation_id", None)
+        or request.headers.get("X-Correlation-Id")
+        or str(uuid.uuid4())
+    )
+    request_id = (
+        getattr(request.state, "request_id", None)
+        or request.headers.get("X-Request-Id")
+        or correlation_id
+    )
+    return correlation_id, request_id
+
+
+def _error_code_for_status(status_code: int) -> AdminApiErrorCode:
+    if status_code == status.HTTP_401_UNAUTHORIZED:
+        return AdminApiErrorCode.AUTH_REQUIRED
+    if status_code == status.HTTP_403_FORBIDDEN:
+        return AdminApiErrorCode.PERMISSION_DENIED
+    if status_code == status.HTTP_409_CONFLICT:
+        return AdminApiErrorCode.IDEMPOTENCY_CONFLICT
+    if status_code == status.HTTP_501_NOT_IMPLEMENTED:
+        return AdminApiErrorCode.NOT_IMPLEMENTED
+    if status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+        return AdminApiErrorCode.BACKEND_UNAVAILABLE
+    return AdminApiErrorCode.REQUEST_ERROR
+
+
+def _severity_for_status(status_code: int) -> AdminApiErrorSeverity:
+    if status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+        return AdminApiErrorSeverity.ERROR
+    if status_code in {
+        status.HTTP_401_UNAUTHORIZED,
+        status.HTTP_403_FORBIDDEN,
+        status.HTTP_409_CONFLICT,
+    }:
+        return AdminApiErrorSeverity.WARNING
+    return AdminApiErrorSeverity.ERROR
+
+
+def _error_headers(correlation_id: str, request_id: str) -> dict[str, str]:
+    return {
+        "X-Correlation-Id": correlation_id,
+        "X-Request-Id": request_id,
+        "X-Live-Execution-Enabled": "false",
+    }
 
 
 def _customize_openapi(app: FastAPI) -> dict:
@@ -74,9 +129,71 @@ def create_app() -> FastAPI:
                 "X-Admin-Actor",
                 "X-Admin-Roles",
                 "X-Correlation-Id",
+                "X-Request-Id",
                 "X-Operator-Intent",
             ],
-    )
+        )
+
+    @app.middleware("http")
+    async def add_observability_headers(request: Request, call_next):
+        correlation_id = request.headers.get("X-Correlation-Id") or str(uuid.uuid4())
+        request_id = request.headers.get("X-Request-Id") or correlation_id
+        request.state.correlation_id = correlation_id
+        request.state.request_id = request_id
+        response = await call_next(request)
+        if "X-Correlation-Id" not in response.headers:
+            response.headers["X-Correlation-Id"] = correlation_id
+        if "X-Request-Id" not in response.headers:
+            response.headers["X-Request-Id"] = request_id
+        if "X-Admin-Api-Version" not in response.headers:
+            response.headers["X-Admin-Api-Version"] = app.version
+        if "X-Live-Execution-Enabled" not in response.headers:
+            response.headers["X-Live-Execution-Enabled"] = "false"
+        return response
+
+    @app.exception_handler(HTTPException)
+    async def admin_http_exception_handler(
+        request: Request,
+        exc: HTTPException,
+    ) -> JSONResponse:
+        correlation_id, request_id = _request_ids(request)
+        message = str(exc.detail) if exc.detail else "Admin API request failed"
+        body = AdminApiErrorResponse(
+            code=_error_code_for_status(exc.status_code),
+            message=message,
+            severity=_severity_for_status(exc.status_code),
+            correlation_id=correlation_id,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=body.model_dump(mode="json"),
+            headers=_error_headers(correlation_id, request_id),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def admin_validation_exception_handler(
+        request: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        correlation_id, request_id = _request_ids(request)
+        first_error = exc.errors()[0] if exc.errors() else {}
+        loc = first_error.get("loc") or []
+        field_path = ".".join(str(part) for part in loc if part != "body") or None
+        message = str(first_error.get("msg") or "Request validation failed")
+        body = AdminApiErrorResponse(
+            code=AdminApiErrorCode.VALIDATION_ERROR,
+            message=message,
+            severity=AdminApiErrorSeverity.ERROR,
+            field_path=field_path,
+            correlation_id=correlation_id,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content=body.model_dump(mode="json"),
+            headers=_error_headers(correlation_id, request_id),
+        )
+
+    app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
     app.include_router(orders_router, prefix="/api/v1", tags=["orders"])
     app.include_router(spot_router, prefix="/api/v1", tags=["spot"])
 

@@ -15,11 +15,15 @@ from .models import AdminApiActor
 ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
     AdminApiRole.VIEWER: frozenset({
         AdminApiPermission.ANALYTICS_READ,
+        AdminApiPermission.AUDIT_READ,
+        AdminApiPermission.CAMPAIGN_READ,
     }),
     AdminApiRole.OPERATOR: frozenset({
         AdminApiPermission.ANALYTICS_READ,
         AdminApiPermission.AUDIT_READ,
-        AdminApiPermission.ORDER_CANCEL,
+        AdminApiPermission.CAMPAIGN_READ,
+        AdminApiPermission.RUNTIME_PAUSE,
+        AdminApiPermission.RUNTIME_RESUME,
     }),
     AdminApiRole.TRADER: frozenset({
         AdminApiPermission.ANALYTICS_READ,
@@ -28,6 +32,8 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.ORDER_CANCEL,
         AdminApiPermission.CAMPAIGN_READ,
         AdminApiPermission.CAMPAIGN_EXECUTE,
+        AdminApiPermission.RUNTIME_PAUSE,
+        AdminApiPermission.RUNTIME_RESUME,
     }),
     AdminApiRole.ADMIN: frozenset(AdminApiPermission),
     AdminApiRole.AUDITOR: frozenset({
@@ -38,7 +44,6 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
     AdminApiRole.EMERGENCY: frozenset({
         AdminApiPermission.ANALYTICS_READ,
         AdminApiPermission.AUDIT_READ,
-        AdminApiPermission.ORDER_CANCEL,
         AdminApiPermission.RUNTIME_PAUSE,
         AdminApiPermission.RUNTIME_SHUTDOWN,
     }),

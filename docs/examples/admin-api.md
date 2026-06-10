@@ -5,6 +5,41 @@ HTTP endpoints are authenticated, permission-checked, idempotent, and audited,
 then return `not_implemented`; they do not call Coinbase. Read-only spot
 operator endpoints are available behind the same fail-closed auth dependency.
 
+## Bootstrap And Session
+
+Use bootstrap and session reads to render environment, backend association,
+live-action posture, and backend RBAC evidence. These routes do not require
+idempotency headers and do not run Coinbase orders.
+
+```http
+GET /api/v1/admin/bootstrap
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Expected posture fields:
+
+```json
+{
+  "type": "admin_bootstrap",
+  "backend_repository": "s-aws/coinbase",
+  "mutating_routes_live_disabled": true,
+  "live_execution_enabled": false,
+  "live_coinbase_orders_ran": false
+}
+```
+
+```http
+GET /api/v1/admin/session
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: trader-001
+X-Admin-Roles: trader
+```
+
+The session response includes `actor`, `roles`, `permissions`, and
+`bearer_token_visible_to_browser=false`.
+
 ## Cancel By Client Order ID
 
 Current skeleton shape:
@@ -33,6 +68,30 @@ Future live execution must call the project Coinbase wrapper
 `cancel_order(client_order_id)` after rate/cap policy is complete. The wrapper
 must parse Coinbase cancel payloads and accept only explicit `success: true`
 evidence as a successful exchange cancellation.
+
+## Order Reads
+
+Order reads are local/backend evidence routes. They are keyed by
+`client_order_id`; exchange-native ids are exposed only as `exchange_order_id`
+evidence.
+
+```http
+GET /api/v1/orders?product_id=BTC-USDC&order_status=OPEN&limit=50
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```http
+GET /api/v1/orders/{client_order_id}
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+The response model does not contain an `order_id` identity field. If exchange
+evidence is known, it appears as `exchange_order_id` with
+`exchange_order_id_evidence_only=true`.
 
 ## Live Placement Approval
 
@@ -79,6 +138,42 @@ Future backend behavior:
 - persist idempotency and audit state
 - submit to Coinbase only after all gates pass
 
+## Campaign Execution Command
+
+Campaign execution is now a backend-owned command route, but live execution is
+still disabled.
+
+```http
+POST /api/v1/spot/campaign/executions
+Authorization: Bearer <backend-verifiable-token>
+Idempotency-Key: 018f1a2b-4b9c-7e20-9d39-7d6c4a5f1084
+X-Correlation-Id: corr-20260610-003
+X-Operator-Intent: campaign_execute
+X-Admin-Actor: trader-001
+X-Admin-Roles: trader
+Content-Type: application/json
+```
+
+```json
+{
+  "campaign_id": "usdc-sweep-001",
+  "side": "BUY",
+  "quote_notional_per_product": "1.00",
+  "product_ids": ["BTC-USDC", "ETH-USDC"],
+  "dry_run": false,
+  "manual_live_acknowledgement": true
+}
+```
+
+Current response behavior:
+
+- authorize `campaign:execute`
+- evaluate idempotency
+- write command audit evidence
+- return `501` with `service_method: "execute_spot_campaign"`
+- include approval/cap guard evidence
+- never call Coinbase
+
 ## Idempotent Retry
 
 If the same `Idempotency-Key` and same payload are sent again, the API should
@@ -104,9 +199,37 @@ X-Admin-Roles: viewer
 
 Current read-only routes:
 
+- `GET /api/v1/admin/bootstrap`
+- `GET /api/v1/admin/health`
+- `GET /api/v1/admin/session`
+- `GET /api/v1/admin/capabilities`
+- `GET /api/v1/admin/release-gate`
+- `GET /api/v1/admin/recovery-gate`
+- `GET /api/v1/admin/fill-ledger-health`
+- `GET /api/v1/admin/frontend-fixtures`
+- `GET /api/v1/orders`
+- `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`
 - `GET /api/v1/spot/cost-basis/status`
 - `GET /api/v1/spot/campaign/status`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
+
+## Structured Errors
+
+Auth, RBAC, and validation errors return JSON bodies shaped for frontend
+display:
+
+```json
+{
+  "code": "auth_required",
+  "message": "Invalid Admin API bearer token",
+  "severity": "warning",
+  "correlation_id": "corr-20260610-004",
+  "live_coinbase_orders_ran": false
+}
+```
+
+Every response includes `X-Correlation-Id`, `X-Request-Id`,
+`X-Admin-Api-Version`, and `X-Live-Execution-Enabled`.

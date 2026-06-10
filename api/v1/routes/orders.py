@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Annotated, Callable
 
-from fastapi import APIRouter, Depends, Header, Path, Request, status
+from fastapi import APIRouter, Depends, Header, Path, Query, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
@@ -19,11 +20,17 @@ from application.admin_api.models import (
     AdminApiActor,
     AdminApiCommandEnvelope,
     AdminApiCommandResponse,
+    AdminApiErrorResponse,
+    AdminOrderDetailResponse,
+    AdminOrderListResponse,
+    CampaignExecutionCommand,
+    CampaignExecutionRequest,
     CancelOrderCommand,
     CancelOrderRequest,
     ManualOrderCommand,
     ManualOrderRequest,
 )
+from application.admin_api.read_service import AdminApiReadService
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
@@ -35,12 +42,22 @@ from core.enums import (
 router = APIRouter()
 
 COMMAND_ROUTE_RESPONSES = {
+    200: {
+        "model": AdminApiCommandResponse,
+        "description": "Command accepted or replayed after all backend gates pass.",
+    },
     400: {
         "model": AdminApiCommandResponse,
         "description": "Command rejected before live exchange execution.",
     },
-    401: {"description": "Missing or invalid Admin API authentication."},
-    403: {"description": "Actor lacks the required Admin API permission."},
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
+    },
     409: {
         "model": AdminApiCommandResponse,
         "description": "Idempotency key conflict.",
@@ -48,6 +65,17 @@ COMMAND_ROUTE_RESPONSES = {
     501: {
         "model": AdminApiCommandResponse,
         "description": "Live HTTP execution is not implemented for this command.",
+    },
+}
+
+READ_ROUTE_RESPONSES = {
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
     },
 }
 
@@ -68,6 +96,16 @@ def get_audit_store() -> FileAdminApiAuditStore:
     """Return durable command audit storage."""
 
     return FileAdminApiAuditStore()
+
+
+def get_read_service() -> AdminApiReadService:
+    """Return the read-only Admin API status service."""
+
+    return AdminApiReadService()
+
+
+def _read_response(payload: object) -> JSONResponse:
+    return JSONResponse(content=jsonable_encoder(payload))
 
 
 def _build_envelope(
@@ -216,10 +254,52 @@ def _execute_idempotent_command(
     return _command_response(response)
 
 
+@router.get(
+    "/orders",
+    response_model=AdminOrderListResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read local orders keyed by client_order_id",
+)
+def list_orders(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    product_id: str | None = None,
+    order_status: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    """Read local order_parent evidence without contacting Coinbase."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(
+        service.build_order_list(
+            product_id=product_id,
+            status=order_status,
+            limit=limit,
+        )
+    )
+
+
+@router.get(
+    "/orders/{client_order_id}",
+    response_model=AdminOrderDetailResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read one local order by client_order_id",
+)
+def get_order_by_client_order_id(
+    client_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read one local order row by client_order_id."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(service.build_order_detail(client_order_id=client_order_id))
+
+
 @router.post(
     "/orders",
     response_model=AdminApiCommandResponse,
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    status_code=status.HTTP_200_OK,
     responses=COMMAND_ROUTE_RESPONSES,
     summary="Create a manual order through the shared command service",
 )
@@ -272,7 +352,7 @@ def create_manual_order(
 @router.post(
     "/orders/{client_order_id}/cancel",
     response_model=AdminApiCommandResponse,
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    status_code=status.HTTP_200_OK,
     responses=COMMAND_ROUTE_RESPONSES,
     summary="Cancel an order by client_order_id through the shared command service",
 )
@@ -320,5 +400,58 @@ def cancel_order_by_client_order_id(
                 client_order_id=client_order_id,
                 request=body,
             )
+        ),
+    )
+
+
+@router.post(
+    "/spot/campaign/executions",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Execute a spot campaign through the shared command service",
+)
+def execute_spot_campaign(
+    request: Request,
+    body: CampaignExecutionRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Route adapter for future campaign execution.
+
+    The route has the command envelope, idempotency, audit, RBAC, and fail-closed
+    live gate, but it does not submit Coinbase orders.
+    """
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        body=body.model_dump(mode="json"),
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        service_method="execute_spot_campaign",
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        command_runner=lambda: service.execute_spot_campaign(
+            CampaignExecutionCommand(envelope=envelope, request=body)
         ),
     )

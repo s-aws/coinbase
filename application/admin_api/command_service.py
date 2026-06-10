@@ -37,7 +37,12 @@ from core.runtime_controller import (
 )
 
 from .approval import evaluate_live_execution_gate
-from .models import AdminApiCommandResponse, CancelOrderCommand, ManualOrderCommand
+from .models import (
+    AdminApiCommandResponse,
+    CampaignExecutionCommand,
+    CancelOrderCommand,
+    ManualOrderCommand,
+)
 
 
 def _noop_log(_level: str, _message: str) -> None:
@@ -697,6 +702,39 @@ class AdminApiCommandService:
                 message=str(exc),
                 failure_stage="coinbase_rest",
             )
+
+    def execute_spot_campaign(
+        self,
+        command: CampaignExecutionCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a future spot campaign execution command through the live gate."""
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="execute_spot_campaign",
+            message=(
+                "Spot campaign execution requires enterprise auth, "
+                "idempotency, approval, caps, and campaign safety gates before "
+                "live execution."
+            ),
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "campaign_id": command.request.campaign_id,
+                "side": command.request.side.value,
+                "dry_run": command.request.dry_run,
+                "product_count": len(command.request.product_ids or []),
+                "manual_live_acknowledgement": (
+                    command.request.manual_live_acknowledgement
+                ),
+            },
+            failure_stage="approval",
+        )
 
     def place_hotpoint_test_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:
         """Place a hotpoint seed order through the shared guarded path."""

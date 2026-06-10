@@ -159,6 +159,63 @@ class AdminApiCommandStatus(str, Enum):
     CONFLICT = "conflict"
 
 
+class AdminApiErrorCode(str, Enum):
+    """Structured Admin API error codes exposed to the frontend."""
+
+    AUTH_REQUIRED = "auth_required"
+    PERMISSION_DENIED = "permission_denied"
+    VALIDATION_ERROR = "validation_error"
+    IDEMPOTENCY_CONFLICT = "idempotency_conflict"
+    GUARD_BLOCKED = "guard_blocked"
+    NOT_IMPLEMENTED = "not_implemented"
+    BACKEND_UNAVAILABLE = "backend_unavailable"
+    REQUEST_ERROR = "request_error"
+
+
+class AdminApiErrorSeverity(str, Enum):
+    """Operator-facing severity for structured Admin API errors."""
+
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+
+class AdminApiRouteAvailability(str, Enum):
+    """Backend availability posture for frontend-visible routes."""
+
+    AVAILABLE = "available"
+    LIVE_DISABLED = "live_disabled"
+    CONTRACT_PENDING = "contract_pending"
+    BACKEND_BLOCKED = "backend_blocked"
+
+
+class AdminApiSessionStatus(str, Enum):
+    """Authenticated Admin API session status."""
+
+    SIGNED_IN = "signed_in"
+    SIGNED_OUT = "signed_out"
+    EXPIRED = "expired"
+    FORBIDDEN = "forbidden"
+
+
+class AdminApiHealthStatus(str, Enum):
+    """Admin API health/readiness state."""
+
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    BLOCKED = "blocked"
+
+
+class AdminApiGateStatus(str, Enum):
+    """Release and recovery gate status exposed by read-only Admin API routes."""
+
+    PASSED = "passed"
+    WARNING = "warning"
+    BLOCKED = "blocked"
+    NOT_APPLICABLE = "not_applicable"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 

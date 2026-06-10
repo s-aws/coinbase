@@ -330,3 +330,289 @@ The full backend gate remains:
 ```powershell
 pytest tests/regression/ -v --tb=short
 ```
+
+## Approved Backend Sync Roadmap
+
+Phases 241-270 are approved to sync the backend Admin API with the current
+enterprise frontend state. These phases do not authorize live Coinbase
+execution. Live order execution remains a separate explicit approval.
+
+### Phase 241 - Backend/Frontend Contract Gap Audit
+
+- Compare current frontend wrappers, docs, and tests against backend OpenAPI,
+  route inventory, command service, and Admin API docs.
+- Produce an explicit backend gap list.
+
+Exit criteria:
+
+- Backend docs name which frontend expectations are implemented,
+  contract-pending, or intentionally blocked.
+
+### Phase 242 - Command Response Contract Normalization
+
+- Make backend command responses consistently expose status, action class,
+  permission, message, `client_order_id`, correlation id, idempotency key,
+  audit id, guard evidence, and live-submission evidence.
+
+Exit criteria:
+
+- Regression covers representative accepted, rejected, not-implemented,
+  replayed, and conflict command responses.
+
+### Phase 243 - Manual Order Accepted Response Contract
+
+- Add explicit accepted/replayed 2xx OpenAPI responses for
+  `POST /api/v1/orders`.
+- Keep live execution gated/disabled unless separately approved.
+
+Exit criteria:
+
+- OpenAPI includes the accepted response contract without enabling live
+  Coinbase execution.
+
+### Phase 244 - Cancel Accepted Response Contract
+
+- Add explicit accepted/replayed 2xx OpenAPI responses for
+  `POST /api/v1/orders/{client_order_id}/cancel`.
+- Keep cancellation keyed by `client_order_id`.
+
+Exit criteria:
+
+- OpenAPI includes the accepted response contract and no `order_id`
+  cancellation path exists.
+
+### Phase 245 - Command Idempotency Contract Tightening
+
+- Document and test replay success, payload drift conflict, and required
+  idempotency headers for all command routes.
+
+Exit criteria:
+
+- Regression covers replay/conflict behavior and required headers.
+
+### Phase 246 - Backend Order Read Routes
+
+- Add order list, filter, and detail read routes keyed by `client_order_id`.
+- Expose exchange `order_id` only as exchange evidence.
+
+Exit criteria:
+
+- Read routes are authenticated, read-only, and tested.
+
+### Phase 247 - Campaign Execution Command Contract
+
+- Define a backend-owned campaign execution review/approval route.
+- Keep live execution gated and disabled by default.
+
+Exit criteria:
+
+- Route exists in OpenAPI as a command contract and cannot submit live orders.
+
+### Phase 248 - Recovery And Readiness Read Routes
+
+- Expose release gate, recovery gate, and fill-ledger health read routes for
+  frontend recovery/readiness panels.
+
+Exit criteria:
+
+- Routes are authenticated, read-only, and tested.
+
+### Phase 249 - Observability Headers And Error Shape
+
+- Standardize request id, correlation id, audit id, structured error code,
+  severity, guard name, and field path across Admin API routes.
+
+Exit criteria:
+
+- Representative success and error responses include observable metadata.
+
+### Phase 250 - Auth/RBAC Contract Sync
+
+- Make backend route permissions match frontend role-hint docs while
+  preserving backend enforcement as authority.
+
+Exit criteria:
+
+- Permission matrix is documented and tested.
+
+### Phase 251 - OpenAPI Regeneration And Drift Tests
+
+- Regenerate `openapi/coinbase-admin-api.yaml`.
+- Add or adjust regression tests proving schema matches implemented routes.
+
+Exit criteria:
+
+- Generated schema matches checked-in schema.
+
+### Phase 252 - Frontend Contract Verification Pass
+
+- From the backend side, verify frontend expected paths, methods, response
+  states, and identity rules are represented in OpenAPI.
+
+Exit criteria:
+
+- Backend regression asserts the frontend contract surface is present.
+
+### Phase 253 - Backend Docs Sync
+
+- Update `README.admin-api.md`, route inventory, examples, and docs index for
+  the synced contract.
+
+Exit criteria:
+
+- Contextless readers can find current Admin API contracts and examples.
+
+### Phase 254 - Contextless Blind-Agent Backend Review
+
+- Run a fresh contextless review asking how to create, cancel, and audit a
+  spot order through Admin API.
+- Fix docs/code if it fails.
+
+Exit criteria:
+
+- Review findings are recorded and resolved or explicitly deferred.
+
+### Phase 255 - Full Backend Regression Gate
+
+- Run the full backend regression suite.
+
+Exit criteria:
+
+- `pytest tests/regression/ -v --tb=short` passes.
+
+### Phase 256 - Admin Bootstrap Endpoint
+
+- Expose environment, backend source, live-action posture, schema version, and
+  feature flags for the frontend shell.
+
+Exit criteria:
+
+- Frontend can render shell posture from backend evidence.
+
+### Phase 257 - Backend Health/Diagnostics Endpoint
+
+- Expose backend health, API latency evidence, failed-route diagnostics,
+  request id, and correlation id support.
+
+Exit criteria:
+
+- Diagnostics route is authenticated, read-only, and tested.
+
+### Phase 258 - Admin Session/RBAC Evidence Contract
+
+- Define how frontend receives actor, roles, permissions, and
+  forbidden/expired session states without browser-visible bearer tokens.
+
+Exit criteria:
+
+- Session evidence route is authenticated and tested.
+
+### Phase 259 - Spot Read-Only Payload Schemas
+
+- Make readiness, sweep status, P/L, cost-basis, campaign status, and
+  direct-order audit payloads explicit instead of loose `unknown` schemas.
+
+Exit criteria:
+
+- OpenAPI exposes typed spot read-only payload schemas.
+
+### Phase 260 - Structured Error Contract Everywhere
+
+- Standardize `code`, `message`, `severity`, `guard_name`, `field_path`,
+  `correlation_id`, and `audit_id` across Admin API.
+
+Exit criteria:
+
+- Representative auth, RBAC, validation, command, and read errors use the
+  structured error contract.
+
+### Phase 261 - Release/Recovery/Health Read Models
+
+- Backend endpoints for release gate, recovery gate, fill-ledger health, and
+  repairable-state summaries.
+
+Exit criteria:
+
+- Frontend recovery/readiness panels have backend-owned read models.
+
+### Phase 262 - Admin Capability Registry Endpoint
+
+- Expose which routes/actions are available, disabled, live-disabled,
+  contract-pending, or backend-blocked.
+
+Exit criteria:
+
+- Frontend can render disabled/available posture from backend registry
+  evidence.
+
+### Phase 263 - Security/CORS/CSRF Contract
+
+- Document and implement deployment-safe CORS/session/CSRF expectations for
+  the frontend origin model.
+
+Exit criteria:
+
+- CORS/session/CSRF posture is documented and represented in backend config.
+
+### Phase 264 - Observability Headers Middleware
+
+- Ensure every Admin API response carries request/correlation metadata
+  consistently.
+
+Exit criteria:
+
+- Tests cover metadata headers on read, command, and error responses.
+
+### Phase 265 - Backend Fixtures For Frontend Mocks
+
+- Provide backend-owned example payloads so frontend mocks do not drift from
+  real backend response shapes.
+
+Exit criteria:
+
+- Example fixtures exist and are referenced by docs/tests.
+
+### Phase 266 - OpenAPI Examples Coverage
+
+- Add examples for every read and command route, including rejected, replayed,
+  conflict, guard failure, auth failure, and not implemented.
+
+Exit criteria:
+
+- OpenAPI and docs expose representative examples for frontend implementers.
+
+### Phase 267 - Backend Contract CI Artifact
+
+- Make schema generation/checking a first-class backend CI artifact so
+  frontend can consume it reliably.
+
+Exit criteria:
+
+- Backend docs/CI contract explain how schema freshness is enforced.
+
+### Phase 268 - Frontend Contract Re-Sync Pass
+
+- Regenerate frontend types from the updated backend schema and remove fixture
+  assumptions that are now covered by real schemas.
+
+Exit criteria:
+
+- Frontend API freshness check passes against the updated backend schema.
+
+### Phase 269 - Cross-Repo Quality Gate
+
+- Run backend regression plus frontend typecheck, lint, API check, unit tests,
+  and browser tests as one documented release gate.
+
+Exit criteria:
+
+- Cross-repo gate command sequence is documented and passes locally.
+
+### Phase 270 - Final Blind-Agent Review
+
+- Run contextless backend and frontend reviews after both repos are synced.
+- Fix any unclear order, cancel, or audit path.
+
+Exit criteria:
+
+- Final review is recorded with no unresolved contract clarity blockers.

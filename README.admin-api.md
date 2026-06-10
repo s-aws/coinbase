@@ -8,14 +8,17 @@ The repository association is documented in
 ## Current Status
 
 The repository now contains an Admin API contract, generated OpenAPI artifact,
-fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores, and
-read-only spot operator routes. Mutating HTTP routes still return
-`not_implemented` after auth, permission, idempotency, and audit handling; they
-do not submit orders, cancel orders, or call Coinbase.
+fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
+structured error payloads, observability headers, read-only admin diagnostics,
+order read routes, and read-only spot operator routes. Mutating HTTP routes
+still return `not_implemented` after auth, permission, idempotency, and audit
+handling; they do not submit orders, cancel orders, or call Coinbase.
 
-The generated OpenAPI contract intentionally documents `501` as the current
-default mutating-route response, not `200`. Read-only spot routes document
-`401` and `403` because they use the same fail-closed auth/RBAC dependency.
+The generated OpenAPI contract documents the eventual `200` accepted/replayed
+command response shape and the current `501` live-disabled response shape.
+The current runtime still returns `501` for create, cancel, and campaign
+execution commands because HTTP live execution is not approved. Read routes
+document typed `200` payloads plus structured `401` and `403` errors.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -26,6 +29,31 @@ WebSocket.
 Mutating HTTP command responses include the current fail-closed live execution
 gate decision. The gate reports that approval snapshots, cap evaluation, and
 durable audit are required before HTTP live execution can be enabled.
+
+Current read-only HTTP surfaces include:
+
+- `GET /api/v1/admin/bootstrap`
+- `GET /api/v1/admin/health`
+- `GET /api/v1/admin/session`
+- `GET /api/v1/admin/capabilities`
+- `GET /api/v1/admin/release-gate`
+- `GET /api/v1/admin/recovery-gate`
+- `GET /api/v1/admin/fill-ledger-health`
+- `GET /api/v1/admin/frontend-fixtures`
+- `GET /api/v1/orders`
+- `GET /api/v1/orders/{client_order_id}`
+- `GET /api/v1/spot/readiness`
+- `GET /api/v1/spot/sweep/status`
+- `GET /api/v1/spot/sweep/pnl`
+- `GET /api/v1/spot/cost-basis/status`
+- `GET /api/v1/spot/campaign/status`
+- `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
+
+Current mutating HTTP command surfaces are:
+
+- `POST /api/v1/orders`
+- `POST /api/v1/orders/{client_order_id}/cancel`
+- `POST /api/v1/spot/campaign/executions`
 
 The current operational dashboard is still the proof-of-concept WebSocket and
 HTML surface documented in `agent.md` and `genai_data/API_REFERENCE.md`.
@@ -46,6 +74,8 @@ HTTP routes, and sweep/campaign execution, see
 - Preserve Coinbase cancellation through the project wrapper
   `cancel_order(client_order_id)`, which accepts only explicit Coinbase
   `success: true` cancel evidence as success.
+- Treat exchange-native `order_id` as exchange evidence only. The order read
+  model exposes it as `exchange_order_id`; it is not an identity or cancel key.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 

@@ -11,6 +11,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from api.v1.app import create_app
+from application.admin_api.auth import actor_has_permission
 from application.admin_api import command_service
 from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.idempotency import (
@@ -19,10 +20,12 @@ from application.admin_api.idempotency import (
     evaluate_idempotency,
     make_payload_hash,
 )
+from application.admin_api.models import AdminApiActor
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiErrorCode,
     AdminApiIdempotencyDecision,
     AdminApiPermission,
     AdminApiRole,
@@ -91,7 +94,17 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
 
     assert written == generated
     assert "/api/v1/orders" in written["paths"]
+    assert "/api/v1/orders/{client_order_id}" in written["paths"]
     assert "/api/v1/orders/{client_order_id}/cancel" in written["paths"]
+    assert "/api/v1/spot/campaign/executions" in written["paths"]
+    assert "/api/v1/admin/bootstrap" in written["paths"]
+    assert "/api/v1/admin/health" in written["paths"]
+    assert "/api/v1/admin/session" in written["paths"]
+    assert "/api/v1/admin/capabilities" in written["paths"]
+    assert "/api/v1/admin/release-gate" in written["paths"]
+    assert "/api/v1/admin/recovery-gate" in written["paths"]
+    assert "/api/v1/admin/fill-ledger-health" in written["paths"]
+    assert "/api/v1/admin/frontend-fixtures" in written["paths"]
     assert "/api/v1/spot/readiness" in written["paths"]
     assert "/api/v1/spot/direct-orders/{client_order_id}/audit" in written["paths"]
     assert written["info"]["title"] == "Coinbase Admin API"
@@ -103,17 +116,25 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     }
     for header_name in ("Authorization", "X-Admin-Actor", "X-Admin-Roles"):
         assert header_params[header_name]["required"] is True
-    for status_code in ("400", "401", "403", "409", "501"):
+    for status_code in ("200", "400", "401", "403", "409", "501"):
         assert status_code in order_operation["responses"]
-    assert "200" not in order_operation["responses"]
     cancel_operation = written["paths"]["/api/v1/orders/{client_order_id}/cancel"][
         "post"
     ]
+    assert "200" in cancel_operation["responses"]
     assert "501" in cancel_operation["responses"]
-    assert "200" not in cancel_operation["responses"]
+    campaign_operation = written["paths"]["/api/v1/spot/campaign/executions"]["post"]
+    assert "200" in campaign_operation["responses"]
+    assert "501" in campaign_operation["responses"]
     spot_readiness_operation = written["paths"]["/api/v1/spot/readiness"]["get"]
+    assert "200" in spot_readiness_operation["responses"]
+    assert "content" in spot_readiness_operation["responses"]["200"]
     assert "401" in spot_readiness_operation["responses"]
     assert "403" in spot_readiness_operation["responses"]
+    order_item_schema = written["components"]["schemas"]["AdminOrderReadItem"]
+    assert "client_order_id" in order_item_schema["properties"]
+    assert "order_id" not in order_item_schema["properties"]
+    assert "exchange_order_id" in order_item_schema["properties"]
 
 
 @pytest.mark.regression
@@ -129,6 +150,9 @@ def test_admin_api_mutating_routes_fail_closed_without_auth(monkeypatch):
     )
 
     assert response.status_code == 401
+    assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
+    assert response.headers["x-live-execution-enabled"] == "false"
+    assert response.headers["x-correlation-id"]
 
 
 @pytest.mark.regression
@@ -192,6 +216,37 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
     assert payload["failure_stage"] == "approval"
     assert payload["guard"]["approval_snapshot_required"] is True
     assert payload["guard"]["cap_evaluation_required"] is True
+
+
+@pytest.mark.regression
+def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/spot/campaign/executions",
+        headers=_headers(idempotency_key="idem-campaign"),
+        json={
+            "campaign_id": "usdc-sweep-001",
+            "side": "BUY",
+            "quote_notional_per_product": "1.00",
+            "product_ids": ["BTC-USDC", "ETH-USDC"],
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["required_permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
+    assert payload["service_method"] == "execute_spot_campaign"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["data"]["campaign_id"] == "usdc-sweep-001"
+    assert payload["data"]["product_count"] == 2
+    assert payload["audit_id"]
 
 
 @pytest.mark.regression
@@ -356,6 +411,112 @@ def test_admin_api_read_only_spot_readiness_uses_read_service(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_backend_rbac_matches_frontend_role_hints():
+    viewer = AdminApiActor(actor_id="viewer-001", roles=[AdminApiRole.VIEWER])
+    operator = AdminApiActor(actor_id="operator-001", roles=[AdminApiRole.OPERATOR])
+    trader = AdminApiActor(actor_id="trader-001", roles=[AdminApiRole.TRADER])
+    emergency = AdminApiActor(actor_id="emergency-001", roles=[AdminApiRole.EMERGENCY])
+
+    assert actor_has_permission(viewer, AdminApiPermission.ANALYTICS_READ)
+    assert actor_has_permission(viewer, AdminApiPermission.AUDIT_READ)
+    assert actor_has_permission(viewer, AdminApiPermission.CAMPAIGN_READ)
+    assert not actor_has_permission(viewer, AdminApiPermission.ORDER_CREATE)
+    assert actor_has_permission(operator, AdminApiPermission.RUNTIME_PAUSE)
+    assert actor_has_permission(operator, AdminApiPermission.RUNTIME_RESUME)
+    assert not actor_has_permission(operator, AdminApiPermission.ORDER_CANCEL)
+    assert actor_has_permission(trader, AdminApiPermission.CAMPAIGN_EXECUTE)
+    assert not actor_has_permission(emergency, AdminApiPermission.ORDER_CANCEL)
+    assert actor_has_permission(emergency, AdminApiPermission.RUNTIME_SHUTDOWN)
+
+
+@pytest.mark.regression
+def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
+    client = _client(monkeypatch)
+    headers = _headers(roles=AdminApiRole.VIEWER.value)
+
+    bootstrap = client.get("/api/v1/admin/bootstrap", headers=headers)
+    health = client.get("/api/v1/admin/health", headers=headers)
+    session = client.get("/api/v1/admin/session", headers=headers)
+    capabilities = client.get("/api/v1/admin/capabilities", headers=headers)
+    release_gate = client.get("/api/v1/admin/release-gate", headers=headers)
+
+    assert bootstrap.status_code == 200
+    assert bootstrap.json()["backend_repository"] == "s-aws/coinbase"
+    assert bootstrap.json()["mutating_routes_live_disabled"] is True
+    assert bootstrap.json()["live_coinbase_orders_ran"] is False
+    assert health.status_code == 200
+    assert health.json()["failed_route_count"] == 0
+    assert health.json()["live_coinbase_orders_ran"] is False
+    assert session.status_code == 200
+    assert AdminApiPermission.AUDIT_READ.value in session.json()["permissions"]
+    assert session.json()["bearer_token_visible_to_browser"] is False
+    assert capabilities.status_code == 200
+    routes = {item["route"] for item in capabilities.json()["capabilities"]}
+    assert "/api/v1/spot/campaign/executions" in routes
+    assert "/api/v1/admin/bootstrap" in routes
+    assert release_gate.status_code == 200
+    assert release_gate.json()["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_order_read_routes_use_read_service_and_client_order_id(monkeypatch):
+    from api.v1.routes import orders as order_routes
+
+    client = _client(monkeypatch)
+    service = SimpleNamespace(
+        build_order_list=lambda product_id=None, status=None, limit=100: {
+            "type": "admin_order_list",
+            "filters": {
+                "product_id": product_id,
+                "status": status,
+                "limit": limit,
+            },
+            "count": 1,
+            "items": [
+                {
+                    "client_order_id": "client-abc",
+                    "product_id": "BTC-USDC",
+                    "exchange_order_id": "coinbase-evidence-001",
+                    "exchange_order_id_evidence_only": True,
+                }
+            ],
+            "read_only": True,
+            "live_coinbase_orders_ran": False,
+        },
+        build_order_detail=lambda client_order_id: {
+            "type": "admin_order_detail",
+            "client_order_id": client_order_id,
+            "found": True,
+            "order": {
+                "client_order_id": client_order_id,
+                "exchange_order_id": "coinbase-evidence-001",
+                "exchange_order_id_evidence_only": True,
+            },
+            "read_only": True,
+            "live_coinbase_orders_ran": False,
+        },
+    )
+    client.app.dependency_overrides[order_routes.get_read_service] = lambda: service
+
+    list_response = client.get(
+        "/api/v1/orders?product_id=BTC-USDC&order_status=OPEN&limit=10",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    detail_response = client.get(
+        "/api/v1/orders/client-abc",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["client_order_id"] == "client-abc"
+    assert list_response.json()["items"][0]["exchange_order_id_evidence_only"] is True
+    assert "order_id" not in list_response.json()["items"][0]
+    assert detail_response.status_code == 200
+    assert detail_response.json()["client_order_id"] == "client-abc"
+    assert "order_id" not in detail_response.json()["order"]
+
+
+@pytest.mark.regression
 def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     rows = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
     doc = ROUTE_INVENTORY_DOC.read_text(encoding="utf-8")
@@ -368,6 +529,17 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["POST /api/v1/orders/{client_order_id}/cancel"].action_class == (
         AdminApiActionClass.LIVE_EXCHANGE_CANCEL
     )
+    assert rows["GET /api/v1/orders"].shared_method == "build_order_list"
+    assert rows["GET /api/v1/orders/{client_order_id}"].shared_method == (
+        "build_order_detail"
+    )
+    assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
+        "execute_spot_campaign"
+    )
+    assert rows["GET /api/v1/admin/bootstrap"].shared_method == "build_admin_bootstrap"
+    assert rows["GET /api/v1/admin/capabilities"].shared_method == (
+        "build_admin_capabilities"
+    )
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -378,3 +550,6 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "cancel_order_by_client_order_id" in doc
     assert "place_manual_order" in doc
     assert "place_hotpoint_test_order" in doc
+    assert "execute_spot_campaign" in doc
+    assert "build_admin_bootstrap" in doc
+    assert "build_order_list" in doc
