@@ -1198,3 +1198,212 @@ Exit criteria:
 Exit criteria:
 
 - Both repositories have clean working trees after commit.
+
+## Approved Runtime Integration Batch - Phases 331-350
+
+These phases are approved as the next aligned completion batch. They do not
+authorize live Coinbase execution. HTTP commands remain live-disabled and any
+future live execution still requires explicit approval naming the phase and
+notional cap.
+
+### Phase 331 - Backend-Mode Session Header Bridge
+
+- Define the session/BFF bridge that supplies Admin API headers without
+  exposing backend bearer tokens to browser code.
+
+Exit criteria:
+
+- Frontend docs/tests show browser config cannot provide Admin API bearer
+  authorization.
+
+### Phase 332 - Runtime Provider Mounted In App Shell
+
+- Mount the frontend runtime provider in the shell and load backend/mock
+  snapshots from one path.
+
+Exit criteria:
+
+- The shell consumes runtime state instead of static backend posture where
+  backend evidence exists.
+
+### Phase 333 - Backend Session Evidence Shell Posture
+
+- Use backend session evidence for actor, roles, permissions, and session
+  status when available.
+
+Exit criteria:
+
+- Shell posture distinguishes mock session hints, backend session evidence,
+  and missing-auth blocked state.
+
+### Phase 334 - Capability-Driven Route Availability
+
+- Use backend capability registry evidence to label route/action availability.
+
+Exit criteria:
+
+- UI availability hints come from backend capability evidence when present and
+  fail closed otherwise.
+
+### Phase 335 - Runtime Order List Read UI
+
+- Feed order list read models from runtime order reads.
+
+Exit criteria:
+
+- Orders remain read-only and keyed by `client_order_id`.
+
+### Phase 336 - Runtime Order Detail Read UI
+
+- Feed order detail/deep-link state from runtime order detail reads.
+
+Exit criteria:
+
+- Detail reads display exchange ids only as evidence.
+
+### Phase 337 - Async Spot Read Loading States
+
+- Show loading, blocked, empty, and ready states around spot runtime reads.
+
+Exit criteria:
+
+- Spot views use backend-shaped data without frontend trading calculations.
+
+### Phase 338 - Live-Disabled Command Dry-Submit UI
+
+- Wire command UI to the dry-submit helper while keeping controls
+  live-disabled.
+
+Exit criteria:
+
+- Dry-submit results show backend `501`/blocked evidence and run `$0`
+  Coinbase notional.
+
+### Phase 339 - Reusable Command/Audit Evidence Panel
+
+- Reuse a shared evidence panel for command status, audit ids, guard stage,
+  idempotency, and live-execution evidence.
+
+Exit criteria:
+
+- Command and read flows render backend evidence consistently.
+
+### Phase 340 - Idempotency Replay/Conflict Result UI
+
+- Render new, replayed, rejected, validation, and conflict command outcomes.
+
+Exit criteria:
+
+- Operators can distinguish retry-safe replay from payload drift conflict.
+
+### Phase 341 - Cross-Repo Read Smoke Script
+
+- Add a repeatable script or documented command for local backend/frontend
+  read smoke.
+
+Exit criteria:
+
+- Smoke verifies read routes without live Coinbase execution.
+
+### Phase 342 - Cross-Repo Command Dry Smoke Script
+
+- Add a repeatable script or documented command for live-disabled command dry
+  smoke.
+
+Exit criteria:
+
+- Smoke verifies dry command evidence and `$0` live notional.
+
+### Phase 343 - Backend CORS/Session/CSRF Hardening
+
+- Tighten backend docs/tests around CORS origins, session header source, and
+  CSRF expectations for the frontend deployment model.
+
+Exit criteria:
+
+- Backend contract documents secure frontend association and fail-closed auth.
+
+### Phase 344 - Integrated Accessibility Pass
+
+- Cover runtime loading, blocked, and integrated data states with
+  accessibility tests.
+
+Exit criteria:
+
+- Accessibility checks pass for the integrated shell.
+
+### Phase 345 - Integrated Visual Smoke Refresh
+
+- Refresh browser smoke coverage for runtime-integrated shell/read/command
+  states.
+
+Exit criteria:
+
+- Screenshots are non-empty and no critical text overlaps.
+
+### Phase 346 - Integrated Performance Budget
+
+- Add budget checks for order tables, spot evidence lists, and command
+  evidence panels.
+
+Exit criteria:
+
+- Table/evidence rendering limits are visible before production release.
+
+### Phase 347 - Ad Hoc Command Fetch Prevention
+
+- Add a guard that detects frontend feature-local command fetch patterns.
+
+Exit criteria:
+
+- Tests fail if product UI bypasses canonical command wrappers.
+
+### Phase 348 - Operator Runbook Refresh
+
+- Update runbooks for runtime modes, smoke scripts, dry-submit, and evidence
+  collection.
+
+Exit criteria:
+
+- A contextless operator can run the current integrated stack safely.
+
+### Phase 349 - Contextless Blind-Agent Review
+
+- Run a fresh blind review against the integrated frontend/backend state.
+
+Exit criteria:
+
+- Findings are fixed or explicitly deferred before committing.
+
+### Phase 350 - Full Gates And Commits
+
+- Run backend regression and frontend quality, then commit both repositories.
+
+Exit criteria:
+
+- Both repos are committed with clean working trees and live Coinbase notional
+  reported.
+
+### Progress Update - 2026-06-10, Phases 331-348
+
+- Phases 331-334 advanced on the frontend side: the app shell now mounts a
+  runtime provider, loads integrated Admin API snapshots, uses backend session
+  evidence, and labels route availability from capability payloads when
+  present.
+- Phases 335-337 advanced: order list/detail and spot operator views now render
+  backend-shaped runtime data with loading/blocked/ready state evidence.
+- Phases 338-340 advanced: command dry-submit UI now renders reusable evidence
+  from the canonical dry-submit helper and remains blocked before request
+  without mutation headers.
+- Phases 341-342 advanced: frontend cross-repo smoke scripts exist for read
+  routes and live-disabled command dry-submit. Dry-run smoke reports live
+  Coinbase execution not run with notional `$0`.
+- Phase 343 advanced: backend CORS is allowlisted by
+  `COINBASE_ADMIN_API_CORS_ORIGINS`, allows the session/CSRF bridge headers,
+  and is covered by regression.
+- Phases 344-348 advanced: accessibility, visual-smoke expectations,
+  performance evidence-row budget, command-fetch guard, and runbook docs were
+  updated.
+- Verification so far: focused Admin API regression passed; focused frontend
+  runtime/UI tests passed; command-fetch guard and smoke dry-runs passed.
+- Live Coinbase execution: not run; test notional `$0`.

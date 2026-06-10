@@ -16,6 +16,16 @@ python tools\run_admin_api.py --dev-token local-admin-token
 The runner binds `http://127.0.0.1:8787` by default and keeps mutating HTTP
 routes live-disabled.
 
+For frontend integration, set CORS to the exact local frontend origin:
+
+```powershell
+$env:COINBASE_ADMIN_API_CORS_ORIGINS = "http://127.0.0.1:3000"
+```
+
+The CORS contract is origin-allowlisted and permits `X-CSRF-Token` for future
+cookie/session bridge deployments. Current bearer-token bootstrap still fails
+closed unless `COINBASE_ADMIN_API_BEARER_TOKEN` is configured on the backend.
+
 Use bootstrap and session reads to render environment, backend association,
 live-action posture, and backend RBAC evidence. These routes do not require
 idempotency headers and do not run Coinbase orders.
@@ -252,3 +262,24 @@ display:
 
 Every response includes `X-Correlation-Id`, `X-Request-Id`,
 `X-Admin-Api-Version`, and `X-Live-Execution-Enabled`.
+
+## Frontend Smoke Commands
+
+From `C:\coinbase-frontend`, use dry-run smoke commands to validate the route
+inventory without contacting a live backend:
+
+```powershell
+npm run smoke:read:dry
+npm run smoke:command:dry
+```
+
+Against a local Admin API, configure `ADMIN_API_BASE_URL`,
+`ADMIN_API_BEARER_TOKEN`, `ADMIN_API_ACTOR`, and `ADMIN_API_ROLES`, then run:
+
+```powershell
+npm run smoke:read
+npm run smoke:command
+```
+
+The command smoke expects `501` live-disabled responses and reports live
+Coinbase execution as not run with notional `$0`.

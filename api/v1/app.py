@@ -129,6 +129,7 @@ def create_app() -> FastAPI:
                 "X-Admin-Actor",
                 "X-Admin-Roles",
                 "X-Correlation-Id",
+                "X-CSRF-Token",
                 "X-Request-Id",
                 "X-Operator-Intent",
             ],

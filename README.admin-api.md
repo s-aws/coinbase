@@ -100,6 +100,14 @@ $env:COINBASE_ADMIN_API_CORS_ORIGINS = "http://127.0.0.1:3000"
 python tools\run_admin_api.py --port 8787
 ```
 
+`COINBASE_ADMIN_API_CORS_ORIGINS` is an allowlist, not a wildcard. The Admin
+API accepts browser preflight requests only from configured origins and allows
+the session/BFF bridge headers required by the frontend:
+`Authorization`, `X-Admin-Actor`, `X-Admin-Roles`, `X-Correlation-Id`,
+`X-Request-Id`, `X-Operator-Intent`, `Idempotency-Key`, and `X-CSRF-Token`.
+Bearer tokens still belong on the backend/session boundary; do not expose them
+through `NEXT_PUBLIC_*` frontend variables.
+
 ## Must Not Do
 
 - Do not implement live order behavior directly in FastAPI handlers.

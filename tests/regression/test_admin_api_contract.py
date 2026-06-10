@@ -169,6 +169,39 @@ def test_admin_api_mutating_routes_fail_closed_on_rbac_denial(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_cors_is_limited_to_configured_frontend_origins(monkeypatch):
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_CORS_ORIGINS",
+        "http://127.0.0.1:3000,https://admin.example.test",
+    )
+    client = TestClient(create_app())
+
+    allowed = client.options(
+        "/api/v1/admin/bootstrap",
+        headers={
+            "Origin": "http://127.0.0.1:3000",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": (
+                "Authorization,X-Admin-Actor,X-Admin-Roles,X-CSRF-Token"
+            ),
+        },
+    )
+    denied = client.options(
+        "/api/v1/admin/bootstrap",
+        headers={
+            "Origin": "https://unapproved.example.test",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
+    assert "X-CSRF-Token" in allowed.headers["access-control-allow-headers"]
+    assert "access-control-allow-origin" not in denied.headers
+
+
+@pytest.mark.regression
 def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     monkeypatch,
 ):
