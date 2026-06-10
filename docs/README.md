@@ -49,6 +49,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - Spot campaign operator reports:
   `python tools\run_spot_campaign.py --ledger-cleanup-plan --summary-only`
   and `python tools\run_spot_campaign.py --pnl-delta-report --summary-only`
+- Local Admin API runner:
+  `python tools\run_admin_api.py --dev-token local-admin-token`
 
 ## Examples
 

@@ -98,6 +98,15 @@ Generate the schema with:
 python tools\generate_admin_api_openapi.py
 ```
 
+Run the local Admin API for frontend development with:
+
+```powershell
+python tools\run_admin_api.py --dev-token local-admin-token
+```
+
+The runner starts `api.v1.app:app`, defaults to `http://127.0.0.1:8787`, and
+keeps live Coinbase execution disabled.
+
 ## 1) Coinbase REST Wrapper (`CoinbaseRestClient`)
 
 ### Account and portfolio

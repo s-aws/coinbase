@@ -7,9 +7,28 @@ operator endpoints are available behind the same fail-closed auth dependency.
 
 ## Bootstrap And Session
 
+Start the local backend target for frontend development:
+
+```powershell
+python tools\run_admin_api.py --dev-token local-admin-token
+```
+
+The runner binds `http://127.0.0.1:8787` by default and keeps mutating HTTP
+routes live-disabled.
+
 Use bootstrap and session reads to render environment, backend association,
 live-action posture, and backend RBAC evidence. These routes do not require
 idempotency headers and do not run Coinbase orders.
+
+```powershell
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8787/api/v1/admin/bootstrap `
+  -Headers @{
+    Authorization = "Bearer local-admin-token"
+    "X-Admin-Actor" = "viewer-001"
+    "X-Admin-Roles" = "viewer"
+  }
+```
 
 ```http
 GET /api/v1/admin/bootstrap

@@ -79,6 +79,27 @@ HTTP routes, and sweep/campaign execution, see
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 
+## Local Run
+
+Run the existing FastAPI app directly when developing the enterprise frontend:
+
+```powershell
+python tools\run_admin_api.py --dev-token local-admin-token
+```
+
+The helper starts `api.v1.app:app` on `http://127.0.0.1:8787`, sets local CORS
+for `http://127.0.0.1:3000`, and keeps live Coinbase execution disabled. It
+does not import trading clients or submit/cancel exchange orders.
+
+For a deployment-like local run, configure auth explicitly instead of using
+`--dev-token`:
+
+```powershell
+$env:COINBASE_ADMIN_API_BEARER_TOKEN = "local-admin-token"
+$env:COINBASE_ADMIN_API_CORS_ORIGINS = "http://127.0.0.1:3000"
+python tools\run_admin_api.py --port 8787
+```
+
 ## Must Not Do
 
 - Do not implement live order behavior directly in FastAPI handlers.

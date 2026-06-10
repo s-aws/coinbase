@@ -616,3 +616,585 @@ Exit criteria:
 Exit criteria:
 
 - Final review is recorded with no unresolved contract clarity blockers.
+
+## Approved Integration Completion Roadmap
+
+Phases 271-300 are approved to move the Admin API/frontend work from synced
+contracts to integrated local operation and release-candidate evidence. These
+phases do not authorize live Coinbase execution. HTTP commands remain
+live-disabled unless a later phase is explicitly approved for live execution.
+
+### Phase 271 - Local Admin API Run Contract
+
+- Document and test how to run the FastAPI Admin API locally for frontend
+  integration.
+
+Exit criteria:
+
+- A contextless developer can start the backend Admin API and identify the
+  required local environment variables.
+
+### Phase 272 - Frontend Runtime API Client Wiring
+
+- Support a runtime frontend client/provider around the generated
+  `BackendApiClient`, including backend and mock modes.
+
+Exit criteria:
+
+- Frontend code has one canonical runtime client path and no ad hoc feature
+  fetches.
+
+### Phase 273 - Admin Bootstrap And Session Integration
+
+- Use `/api/v1/admin/bootstrap` and `/api/v1/admin/session` as the source of
+  shell posture and session/RBAC evidence.
+
+Exit criteria:
+
+- Frontend shell can render backend-sourced environment and session posture
+  with mock fallback.
+
+### Phase 274 - Backend Health And Capability Integration
+
+- Use `/api/v1/admin/health` and `/api/v1/admin/capabilities` for diagnostics
+  and route/action posture.
+
+Exit criteria:
+
+- Operators can distinguish backend health, route availability, and
+  live-disabled routes from frontend evidence.
+
+### Phase 275 - Order Read UI Integration
+
+- Render order list/filter/detail data from `/api/v1/orders` and
+  `/api/v1/orders/{client_order_id}`.
+
+Exit criteria:
+
+- UI uses `client_order_id` for order identity and treats exchange ids as
+  evidence only.
+
+### Phase 276 - Spot Read Route Integration
+
+- Move spot readiness, sweep, P/L, cost-basis, campaign, and direct-order
+  audit views to backend-read-first data loading with mock fallback.
+
+Exit criteria:
+
+- Spot views use canonical backend read wrappers and retain safe empty/error
+  states.
+
+### Phase 277 - Recovery And Gate Read Integration
+
+- Wire release gate, recovery gate, and fill-ledger health panels to backend
+  read routes.
+
+Exit criteria:
+
+- Recovery/readiness views consume backend evidence and expose no repair
+  mutations.
+
+### Phase 278 - Structured Error And Observability UX
+
+- Render structured backend error fields and observability metadata
+  consistently.
+
+Exit criteria:
+
+- UI displays `code`, `severity`, `field_path`, `correlation_id`,
+  `X-Request-Id`, and live-disabled evidence where applicable.
+
+### Phase 279 - Live-Disabled Command Submission UX
+
+- Allow frontend command forms to submit to backend command routes and render
+  expected `501` live-disabled responses.
+
+Exit criteria:
+
+- Manual order, cancel, and campaign command dry submissions are tested and do
+  not enable live Coinbase execution.
+
+### Phase 280 - Command Idempotency UX Completion
+
+- Persist/display idempotency keys, replay results, conflict states, and retry
+  safety.
+
+Exit criteria:
+
+- Operators can see whether a command is new, replayed, or rejected for
+  payload drift.
+
+### Phase 281 - Command Audit Evidence UX
+
+- Surface `audit_id`, `client_order_id`, guard evidence, service method, and
+  backend decision in command result panels.
+
+Exit criteria:
+
+- Command result UI exposes backend-owned audit and guard evidence.
+
+### Phase 282 - Order Audit Deep Link Flow
+
+- Link command responses and order detail rows to direct spot order audit by
+  `client_order_id`.
+
+Exit criteria:
+
+- Operators can move from command/order evidence to read-only audit evidence
+  without using exchange `order_id` as identity.
+
+### Phase 283 - Frontend Query State Standardization
+
+- Use one query/cache/loading/error pattern across backend reads.
+
+Exit criteria:
+
+- Backend-read components share the same loading, empty, error, and refresh
+  behavior.
+
+### Phase 284 - Mock Backend Fixture Sync From Backend Examples
+
+- Keep frontend mocks aligned with backend fixture/example payloads.
+
+Exit criteria:
+
+- Mock payloads are traceable to backend-owned examples or fixtures.
+
+### Phase 285 - Cross-Repo Local E2E Smoke
+
+- Start backend and frontend locally and run browser smoke against real
+  backend read routes.
+
+Exit criteria:
+
+- A local cross-repo smoke proves frontend reads can use the real Admin API.
+
+### Phase 286 - Cross-Repo Command Dry-Submit E2E
+
+- Run browser smoke against real backend command routes and verify live-disabled
+  `501` responses, audit/idempotency evidence, and no live execution.
+
+Exit criteria:
+
+- Dry command submission is proven against the real backend without Coinbase
+  execution.
+
+### Phase 287 - Auth/RBAC UI Hardening
+
+- Use backend session permissions for UI availability hints while preserving
+  backend authority.
+
+Exit criteria:
+
+- UI permission state comes from backend session evidence when available and
+  remains fail-closed when unavailable.
+
+### Phase 288 - Configuration And Environment UX
+
+- Render local, staging, sandbox, and production posture from backend evidence.
+
+Exit criteria:
+
+- Operators can see environment, account/portfolio scope posture, and live
+  enablement state before any command.
+
+### Phase 289 - CI Contract Sync Gate
+
+- Ensure frontend CI fails on stale generated schema and backend CI fails on
+  OpenAPI drift.
+
+Exit criteria:
+
+- CI contract freshness is documented and enforced.
+
+### Phase 290 - CI Cross-Repo Smoke Gate
+
+- Add a cross-repo smoke gate that boots backend and frontend for read-only
+  contract verification.
+
+Exit criteria:
+
+- CI or documented local CI-equivalent smoke validates the integration path.
+
+### Phase 291 - Accessibility Pass For Integrated Data States
+
+- Verify loading, error, empty, and data states remain accessible.
+
+Exit criteria:
+
+- Accessibility tests cover backend-integrated states.
+
+### Phase 292 - Visual Regression Refresh
+
+- Refresh visual baselines for backend-integrated views.
+
+Exit criteria:
+
+- Browser screenshots remain non-empty and stable for integrated views.
+
+### Phase 293 - Performance Budget Pass
+
+- Check large order lists, long audit payloads, and dashboard render cost.
+
+Exit criteria:
+
+- Performance budget helpers account for integrated data volumes.
+
+### Phase 294 - Security Review Pass
+
+- Review CORS, browser-visible config, bearer-token handling, Coinbase secret
+  leakage, and ad hoc fetch prevention.
+
+Exit criteria:
+
+- Security docs/tests prove browser code does not expose backend or Coinbase
+  secrets.
+
+### Phase 295 - Operational Runbook Update
+
+- Document local run, dry-submit commands, troubleshooting, and evidence
+  collection.
+
+Exit criteria:
+
+- A human operator can run local integration and collect useful evidence.
+
+### Phase 296 - Contextless Blind-Agent Review
+
+- Run a fresh review asking how the live-disabled frontend talks to backend.
+
+Exit criteria:
+
+- Findings are fixed or explicitly deferred with rationale.
+
+### Phase 297 - Frontend Release Candidate Gate
+
+- Run full frontend quality and record the result.
+
+Exit criteria:
+
+- Frontend typecheck, lint, API check, unit tests, and browser tests pass.
+
+### Phase 298 - Backend Release Candidate Gate
+
+- Run backend regression and record the result.
+
+Exit criteria:
+
+- `pytest tests/regression/ -v --tb=short` passes.
+
+### Phase 299 - Cross-Repo Release Notes
+
+- Summarize backend/frontend contract state, live-disabled posture, and
+  remaining blockers.
+
+Exit criteria:
+
+- Release notes are current and linked from docs.
+
+### Phase 300 - Commit Both Repos
+
+- Commit the completed integration batch in both repositories.
+
+Exit criteria:
+
+- Both repositories have clean working trees after the approved batch is
+  committed.
+
+### Progress Update - 2026-06-10
+
+- Phase 271 completed: `tools/run_admin_api.py` documents and starts
+  `api.v1.app:app` locally, fails closed without Admin API auth, and has
+  regression coverage proving it is not a trading path.
+- Phases 272-274 started on the frontend side: runtime selection now defaults
+  to mock fixtures, can point at `NEXT_PUBLIC_ADMIN_API_BASE_URL`, and has a
+  snapshot loader for bootstrap, health, session, and capabilities.
+- Phase 279 started on the frontend side: command workflow UX now distinguishes
+  mock mode from backend mode blocked by missing session headers, while keeping
+  all command buttons disabled.
+- Verification: backend regression passed with `753 passed`; frontend
+  `npm run quality` passed.
+- Live Coinbase execution: not run; test notional `$0`.
+
+### Progress Update - 2026-06-10, Phases 301-325
+
+- Frontend phases 301-314 advanced against the current backend Admin API
+  surface: runtime read snapshots, backend-shaped spot/order adapters,
+  observability metadata, and live-disabled command dry-submit helpers now use
+  the canonical frontend API wrapper.
+- Phase 325 completed for this batch: a contextless blind review confirmed the
+  frontend spot-order path starts at the Admin API command workflow, does not
+  call Coinbase from the browser, and keeps cancellation keyed by
+  `client_order_id`.
+- Review remediation removed a misleading browser live-action env example and
+  tightened frontend docs/source comments around backend-only live authority.
+- Backend changes in this batch remain docs/runner-contract only; no live
+  Coinbase execution was run and test notional remains `$0`.
+
+## Approved Completion Batch - Phases 301-330
+
+These phases are approved as the next maximum aligned batch. They do not
+authorize live Coinbase execution. Any live execution still requires explicit
+approval naming the phase and notional cap.
+
+### Phase 301 - Runtime Read Snapshot Contract
+
+- Make the frontend runtime snapshot the canonical bootstrap/health/session
+  read entry for integrated views.
+
+Exit criteria:
+
+- Snapshot behavior is documented and tested against mock and backend-missing
+  auth states.
+
+### Phase 302 - Backend-Mode Auth Boundary Stub
+
+- Define the non-browser auth boundary required to supply Admin API read
+  headers.
+
+Exit criteria:
+
+- Docs and tests prove browser-visible tokens are not accepted as auth.
+
+### Phase 303 - Backend Session Evidence Sync
+
+- Use backend session evidence for UI posture when available.
+
+Exit criteria:
+
+- UI distinguishes mock session hints from backend session evidence.
+
+### Phase 304 - Health And Capability Data Mapping
+
+- Map backend health and capability payloads into frontend view models without
+  feature-level fetch calls.
+
+Exit criteria:
+
+- The admin shell can render health/capability state from runtime snapshots.
+
+### Phase 305 - Order List Read Integration
+
+- Connect order list UI to the canonical read wrapper and preserve
+  `client_order_id` identity.
+
+Exit criteria:
+
+- Order list tests cover data, empty, auth-denied, and backend-error states.
+
+### Phase 306 - Order Detail Read Integration
+
+- Connect order detail/deep-link UI to backend order detail reads.
+
+Exit criteria:
+
+- Operators can inspect order detail by `client_order_id`; exchange ids remain
+  evidence only.
+
+### Phase 307 - Spot Readiness Data Integration
+
+- Map spot readiness payloads into spot operator views.
+
+Exit criteria:
+
+- Spot readiness view supports backend-shaped data, empty, blocked, and error
+  states.
+
+### Phase 308 - Sweep Status And P/L Data Integration
+
+- Map sweep status and P/L payloads into frontend view models.
+
+Exit criteria:
+
+- Sweep/P&L views render backend payloads without frontend trading
+  calculations.
+
+### Phase 309 - Cost Basis And Campaign Data Integration
+
+- Map cost-basis and campaign status payloads into frontend view models.
+
+Exit criteria:
+
+- Cost-basis/campaign views show backend authority and freshness evidence.
+
+### Phase 310 - Direct Order Audit Integration
+
+- Connect direct-order audit UI to `client_order_id` audit reads.
+
+Exit criteria:
+
+- Audit reads remain read-only and keyed only by `client_order_id`.
+
+### Phase 311 - Structured Loading/Error/Empty State Contract
+
+- Standardize loading, empty, auth, RBAC, backend, validation, and guard
+  failure states across integrated views.
+
+Exit criteria:
+
+- Shared error components cover every backend error class used by the UI.
+
+### Phase 312 - Observability Header Surfacing
+
+- Surface correlation id, request id, API version, and live-execution-disabled
+  evidence from responses.
+
+Exit criteria:
+
+- Integrated views display or expose observability metadata for support.
+
+### Phase 313 - Command Form State Completion
+
+- Complete disabled command form state for manual order, cancel, and campaign
+  execution.
+
+Exit criteria:
+
+- Forms show required evidence, idempotency preview, and blocked backend
+  posture without enabling live actions.
+
+### Phase 314 - Command Dry-Submit Contract
+
+- Add an explicit dry-submit path against current live-disabled HTTP commands.
+
+Exit criteria:
+
+- Dry-submit tests verify `501`/live-disabled behavior and no Coinbase
+  execution.
+
+### Phase 315 - Idempotency Evidence UX
+
+- Render idempotency replay/conflict evidence for command responses.
+
+Exit criteria:
+
+- UI distinguishes accepted, replayed, rejected, conflict, and validation
+  responses.
+
+### Phase 316 - Audit Evidence UX
+
+- Render backend audit ids, command status, guard stage, and live execution
+  evidence in one reusable panel.
+
+Exit criteria:
+
+- Command and read views reuse the same audit evidence component.
+
+### Phase 317 - Local Cross-Repo Read Smoke
+
+- Boot local backend/frontend and run browser smoke against real read routes.
+
+Exit criteria:
+
+- Cross-repo read smoke passes without live Coinbase execution.
+
+### Phase 318 - Local Cross-Repo Command Dry Smoke
+
+- Boot local backend/frontend and dry-submit live-disabled commands.
+
+Exit criteria:
+
+- Command dry smoke records `501`, audit/idempotency evidence, and `$0`
+  live notional.
+
+### Phase 319 - Accessibility Pass For Integrated States
+
+- Validate integrated loading/error/empty/data states.
+
+Exit criteria:
+
+- Accessibility tests cover runtime and backend-integrated views.
+
+### Phase 320 - Visual Regression Pass For Integrated States
+
+- Refresh browser visual smoke for runtime-integrated shell/read/command
+  states.
+
+Exit criteria:
+
+- Screenshots are non-empty and stable across desktop/mobile.
+
+### Phase 321 - Performance Budget For Integrated Tables
+
+- Add budget checks for order tables, audit rows, and spot evidence lists.
+
+Exit criteria:
+
+- Large payloads have documented UI limits or virtualization plans.
+
+### Phase 322 - Security Review For Runtime Config
+
+- Review runtime config, CORS, auth headers, secret names, and ad hoc fetch
+  prevention.
+
+Exit criteria:
+
+- Tests/docs prove no browser-visible backend or Coinbase secrets are used.
+
+### Phase 323 - CI Cross-Repo Contract Path
+
+- Define CI or CI-equivalent steps for schema freshness and local integration.
+
+Exit criteria:
+
+- CI docs and scripts show how backend and frontend stay synced.
+
+### Phase 324 - Operator Runbook Refresh
+
+- Document local backend start, frontend runtime modes, smoke tests, and
+  troubleshooting.
+
+Exit criteria:
+
+- A contextless operator can run local integration from docs.
+
+### Phase 325 - Contextless Blind-Agent Review
+
+- Run a blind review asking how to create a spot order from the frontend
+  without inventing a trading path.
+
+Exit criteria:
+
+- Findings are fixed before moving to release notes.
+
+### Phase 326 - Backend API Hardening Review
+
+- Review read-route filtering, pagination, structured errors, and route
+  inventory drift.
+
+Exit criteria:
+
+- Backend contract tests cover discovered gaps or document explicit deferrals.
+
+### Phase 327 - Frontend Release Candidate Gate
+
+- Run full frontend quality after integrated states.
+
+Exit criteria:
+
+- `npm run quality` passes.
+
+### Phase 328 - Backend Release Candidate Gate
+
+- Run backend regression after integration/hardening.
+
+Exit criteria:
+
+- `pytest tests/regression/ -v --tb=short` passes.
+
+### Phase 329 - Cross-Repo Release Notes
+
+- Summarize the frontend/backend integration state and remaining live-action
+  blockers.
+
+Exit criteria:
+
+- Release notes are linked from documentation indexes.
+
+### Phase 330 - Commit Both Repos
+
+- Commit the completed maximum batch in both repositories.
+
+Exit criteria:
+
+- Both repositories have clean working trees after commit.

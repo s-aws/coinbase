@@ -204,6 +204,7 @@ owners:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
       - tools/generate_admin_api_openapi.py
+      - tools/run_admin_api.py
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
