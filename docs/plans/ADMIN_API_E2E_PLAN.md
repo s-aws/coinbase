@@ -1404,6 +1404,12 @@ Exit criteria:
 - Phases 344-348 advanced: accessibility, visual-smoke expectations,
   performance evidence-row budget, command-fetch guard, and runbook docs were
   updated.
-- Verification so far: focused Admin API regression passed; focused frontend
-  runtime/UI tests passed; command-fetch guard and smoke dry-runs passed.
+- Phase 349 completed for this batch: a contextless blind review confirmed the
+  order path, no-Coinbase-browser boundary, session-header source, runtime read
+  flow, dry-submit evidence, `client_order_id` cancel rule, and smoke script
+  discoverability. Remediation made the frontend low-level request method
+  private and expanded the command-fetch guard.
+- Verification: backend regression passed with `754 passed`; frontend
+  `npm run quality` passed with typecheck, lint, API freshness,
+  command-fetch guard, `88` unit tests, and `3` Playwright tests.
 - Live Coinbase execution: not run; test notional `$0`.
