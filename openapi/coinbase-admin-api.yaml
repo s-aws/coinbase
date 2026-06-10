@@ -1,0 +1,366 @@
+openapi: 3.1.0
+info:
+  title: Coinbase Admin API
+  description: Enterprise API skeleton for the Coinbase trading engine. Routes do
+    not submit Coinbase orders until shared-service extraction ships.
+  version: 0.1.0
+paths:
+  /api/v1/orders:
+    post:
+      tags:
+      - orders
+      summary: Create a manual order through the shared command service
+      description: 'Contract endpoint for future manual placement.
+
+
+        The current implementation returns ``not_implemented`` and does not call
+
+        Coinbase. Live behavior must be extracted into
+
+        ``AdminApiCommandService.place_manual_order`` first.'
+      operationId: create_manual_order_api_v1_orders_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Admin-Actor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualOrderRequest'
+      responses:
+        '501':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{client_order_id}/cancel:
+    post:
+      tags:
+      - orders
+      summary: Cancel an order by client_order_id through the shared command service
+      description: Contract endpoint for future cancel-by-client-order-id.
+      operationId: cancel_order_by_client_order_id_api_v1_orders__client_order_id__cancel_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Admin-Actor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelOrderRequest'
+      responses:
+        '501':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    AdminApiActionClass:
+      type: string
+      enum:
+      - read_only
+      - local_state_mutation
+      - live_exchange_place
+      - live_exchange_cancel
+      - admin_runtime
+      - audit
+      title: AdminApiActionClass
+      description: Enterprise Admin API route risk/action classification.
+    AdminApiCommandResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        live_exchange_submitted:
+          type: boolean
+          const: false
+          title: Live Exchange Submitted
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - action_class
+      - required_permission
+      - service_method
+      - message
+      title: AdminApiCommandResponse
+      description: Typed response returned by Admin API command adapters.
+    AdminApiCommandStatus:
+      type: string
+      enum:
+      - accepted
+      - rejected
+      - not_implemented
+      - replayed
+      - conflict
+      title: AdminApiCommandStatus
+      description: Admin API command status values returned to operators.
+    AdminApiPermission:
+      type: string
+      enum:
+      - analytics:read
+      - audit:read
+      - order:create
+      - order:cancel
+      - campaign:read
+      - campaign:execute
+      - config:update
+      - runtime:pause
+      - runtime:resume
+      - runtime:shutdown
+      title: AdminApiPermission
+      description: Backend-enforced Admin API permission names.
+    CancelOrderRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      additionalProperties: false
+      type: object
+      title: CancelOrderRequest
+      description: Cancel request body keyed by path ``client_order_id``.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ManualOrderRequest:
+      properties:
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+          examples:
+          - BTC-USDC
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        order_type:
+          $ref: '#/components/schemas/OrderType'
+        base_size:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Base Size
+        quote_size:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Quote Size
+        limit_price:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Limit Price
+        post_only:
+          type: boolean
+          title: Post Only
+          default: false
+        time_in_force:
+          anyOf:
+          - $ref: '#/components/schemas/TimeInForce'
+          - type: 'null'
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - side
+      - order_type
+      title: ManualOrderRequest
+      description: Manual order request shape for future enterprise placement.
+    OrderSide:
+      type: string
+      enum:
+      - BUY
+      - SELL
+      title: OrderSide
+      description: Direction of an order - BUY or SELL.
+    OrderType:
+      type: string
+      enum:
+      - LIMIT
+      - MARKET
+      - STOP_LIMIT
+      title: OrderType
+      description: 'Type of order - how it executes.
+
+
+        From Coinbase API: LIMIT, MARKET, STOP_LIMIT'
+    TimeInForce:
+      type: string
+      enum:
+      - GOOD_UNTIL_CANCELLED
+      - IMMEDIATE_OR_CANCEL
+      - FILL_OR_KILL
+      - GOOD_UNTIL_DATE_TIME
+      - GOOD_UNTIL_CANCELLED
+      - IMMEDIATE_OR_CANCEL
+      - FILL_OR_KILL
+      - GOOD_UNTIL_DATE_TIME
+      title: TimeInForce
+      description: 'How long an order remains valid.
+
+
+        - GTC (GOOD_UNTIL_CANCELLED): Order stays until filled or manually cancelled
+
+        - IOC (IMMEDIATE_OR_CANCEL): Fill entire order immediately or cancel
+
+        - FOK (FILL_OR_KILL): Fill entire order immediately or cancel (no partial)
+
+        - GTD (GOOD_UNTIL_DATE_TIME): Order expires at specified end_time'
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

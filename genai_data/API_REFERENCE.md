@@ -4,6 +4,52 @@ This file covers active API surfaces in the codebase:
 - Coinbase REST wrapper (`external/coinbase_client.py`)
 - Coinbase WebSocket wrapper (`external/coinbase_websocket.py`)
 - Dashboard WebSocket message contract (`dashboard_server.py`)
+- Enterprise Admin API skeleton (`api/v1/app.py`)
+
+## Enterprise Admin API Skeleton (`api/v1/app.py`)
+
+The backend now owns an OpenAPI contract skeleton for the future enterprise
+admin frontend. The skeleton is intentionally not a live trading path.
+
+Current generated schema artifact:
+- `openapi/coinbase-admin-api.yaml`
+
+Current route adapters:
+- `POST /api/v1/orders`
+- `POST /api/v1/orders/{client_order_id}/cancel`
+
+Current behavior:
+- both routes return `not_implemented`
+- neither route submits orders, cancels orders, calls Coinbase, or mutates live
+  exchange state
+- both routes call `application.admin_api.command_service.AdminApiCommandService`
+  skeleton methods
+
+Canonical future path:
+
+```text
+frontend request
+-> FastAPI route
+-> auth/RBAC
+-> idempotency and approval gate
+-> shared command service
+-> existing domain/bridge/exchange path
+-> durable audit
+-> typed response
+```
+
+Cancel remains `client_order_id` keyed. The future implementation must call the
+project Coinbase wrapper `cancel_order(client_order_id)` rather than resolving
+to exchange `order_id` first.
+
+Route inventory:
+- `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`
+
+Generate the schema with:
+
+```powershell
+python tools\generate_admin_api_openapi.py
+```
 
 ## 1) Coinbase REST Wrapper (`CoinbaseRestClient`)
 

@@ -13,8 +13,9 @@ Keep it short. Keep it factual.
 ## Current Objective
 
 - One-sentence objective: Continue the approved spot roadmap toward safe USDC
-  spot trading with campaign allowlists, durable evidence, explicit live-order
-  gates, and contextless-reader clarity.
+  spot trading while introducing a separate enterprise admin frontend and a
+  planned FastAPI/OpenAPI backend boundary without creating a second trading
+  behavior path.
 
 ## Hard Constraints
 
@@ -88,6 +89,33 @@ Keep it short. Keep it factual.
   - Reason: Direct placement lacks campaign dry-run, allowlist rendering, sweep JSONL ledger, retry, and recovery workflow evidence.
   - Impact: Docs direct automation work to campaign/sweep, while direct placement remains guarded for explicit manual orders.
 
+- [2026-06-10] Decision: Enterprise admin UI lives in a separate private
+  frontend repository at `C:\coinbase-frontend` / `s-aws/coinbase-frontend`.
+  - Reason: The existing dashboard HTML/WebSocket surfaces are proof-of-concept
+    operator tools and should not become the long-term enterprise frontend
+    foundation.
+  - Impact: The frontend owns browser UI, generated clients, mocks, and
+    frontend tests. This backend owns trading behavior, guard checks, Coinbase
+    integration, audit persistence, authorization, and the OpenAPI schema.
+
+- [2026-06-10] Decision: The planned enterprise API must extract shared command
+  services before adding FastAPI live-order endpoints.
+  - Reason: Adding FastAPI handlers beside `dashboard_server.py` would create a
+    parallel live trading path and violate the single-code-path invariant.
+  - Impact: Future API work follows `frontend request -> FastAPI route ->
+    auth/RBAC -> idempotency/approval -> shared command service -> existing
+    domain/bridge/exchange path -> audit -> response`.
+
+- [2026-06-10] Decision: The Admin API skeleton may expose contract-only
+  FastAPI routes before live command extraction.
+  - Reason: The frontend needs a generated OpenAPI artifact and typed contract
+    before real UI features can be built, but live behavior must not be
+    duplicated.
+  - Impact: `POST /api/v1/orders` and
+    `POST /api/v1/orders/{client_order_id}/cancel` currently return
+    `not_implemented`, call only the shared command-service skeleton, and do
+    not call Coinbase.
+
 - [2026-06-10] Decision: Broad all-USDC strict SELL remains blocked unless the
   full eligible USDC universe passes readiness without narrowed allow/deny
   scoping.
@@ -154,8 +182,15 @@ Keep it short. Keep it factual.
 
 ## Validation Status
 
+- Last focused Admin API run: 2026-06-10
+  `pytest tests\regression\test_admin_api_contract.py -v --tb=short`
+- Result: Passed, 7 tests.
+- Last frontend quality run: 2026-06-10 `npm run quality`
+- Result: Passed; generated API schema present.
+- Last contextless Admin API review: 2026-06-10
+- Result: Passed for backend skeleton and frontend generated-client wiring.
 - Last regression run: 2026-06-10 `pytest tests\regression\ -v --tb=short`
-- Result: Passed, 716 tests.
+- Result: Passed, 723 tests.
 - Spot readiness regression: passed, 212 tests.
 - Browser smoke: passed,
   `tests\e2e\test_direct_order_ui_smoke.py` and
@@ -166,13 +201,16 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Present the next approval batch, Phases 185-196, from
+1. Present or continue the next approved enterprise API/frontend phase:
+   extract direct manual placement/cancel dashboard branches into shared
+   command-service tests without enabling live HTTP execution.
+2. Present the next spot-roadmap approval batch, Phases 185-196, from
    `docs/SPOT_READINESS_ROADMAP.md`. Live execution is not included there;
    Phase 195 prepares a packet only.
-2. Keep broad SELL blocked. Current fresh strict authority narrowed to one
+3. Keep broad SELL blocked. Current fresh strict authority narrowed to one
    proposal product, `PERP-USDC`, with a proposed cap of `1` USDC if live
    execution is separately approved later.
-3. If Phases 185-196 are approved, start with the dashboard direct audit UI
+4. If Phases 185-196 are approved, start with the dashboard direct audit UI
    panel and browser smoke coverage.
 
 ## Handoff Notes
@@ -201,6 +239,10 @@ Keep it short. Keep it factual.
   `2026-06-10T14:32:37Z`, one eligible product `PERP-USDC`, validator passed
   with `max_products=1`, `max_total_notional_per_run=1`,
   `max_notional_per_order=1`, and `max_planned_orders=1`.
-- What is in progress: Nothing currently active after Phase 173-184 validation.
+- Admin API/frontend status: contract-only FastAPI skeleton, OpenAPI artifact,
+  route inventory, focused regression tests, and frontend generated TypeScript
+  schema are implemented. No live Coinbase execution was run.
+- What is in progress: Nothing currently active after Admin API skeleton
+  validation.
 - What is blocked: Nothing currently known.
 - Exact next command: `pytest tests\regression\ -v --tb=short` for the next non-agent-file change.

@@ -5,6 +5,9 @@
 The runtime is centered on a single `OrderEngine` instance (`core/order_engine.py`) with supporting subsystems:
 
 - `dashboard_server.py`: operator command surface and state broadcast over WebSocket.
+- `api/v1/app.py`: enterprise Admin API contract skeleton and OpenAPI source.
+- `application/admin_api/`: planned shared command-service boundary for future
+  FastAPI and dashboard compatibility adapters.
 - `bridges/stealth_order_bridge.py`: stealth condition evaluation and reveal orchestration.
 - `core/runtime_controller.py`: lifecycle admission gate and inflight drain coordinator.
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
@@ -17,6 +20,9 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 1. **Ingress Layer**
 - Coinbase user/ticker websocket events flow into `OrderEngine.on_message`.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
+- Enterprise Admin API skeleton routes flow through `api/v1/routes/*` into
+  `application.admin_api.command_service.AdminApiCommandService`. Current
+  skeleton routes return `not_implemented` and do not call Coinbase.
 
 2. **Domain Layer**
 - `OrderEngine` handles parent/child lifecycle, follow-up creation, partial-fill state, and ownership classification.
@@ -179,6 +185,46 @@ Broadcast model:
 - shared in-memory `engine_state`
 - periodic and event-driven `state_update` pushes
 - JSON-safe serialization for Decimal/datetime payloads
+
+## Enterprise Admin API Skeleton
+
+The enterprise Admin API skeleton is a contract surface for the separate
+frontend repository at `C:\coinbase-frontend`.
+
+Current modules:
+- `api/v1/app.py`: FastAPI app factory.
+- `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`
+  and `POST /api/v1/orders/{client_order_id}/cancel`.
+- `application/admin_api/command_service.py`: shared command-service skeleton.
+- `application/admin_api/idempotency.py`: idempotency decision/hash contract.
+- `application/admin_api/approval.py`: approval snapshot contract.
+- `application/admin_api/audit.py`: audit event contract.
+- `application/admin_api/route_inventory.py`: route/message inventory.
+- `openapi/coinbase-admin-api.yaml`: generated backend-owned OpenAPI artifact.
+
+Current behavior:
+- Admin API order routes return `not_implemented`.
+- They do not submit Coinbase orders, cancel Coinbase orders, or mutate live
+  exchange state.
+- They establish the route, schema, `client_order_id`, idempotency, approval,
+  audit, and shared-service boundaries needed before live behavior is extracted.
+
+Future live behavior must use one path:
+
+```text
+frontend request
+-> FastAPI route
+-> auth/RBAC
+-> idempotency and approval gate
+-> shared command service
+-> existing domain/bridge/exchange path
+-> durable audit
+-> typed response
+```
+
+Legacy dashboard WebSocket live commands must either call the same shared
+command service with equivalent enterprise gates or remain explicitly
+compatibility-only and excluded from new frontend workflows.
 
 ## Optional Cross-Venue Intelligence
 

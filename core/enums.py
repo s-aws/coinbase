@@ -112,6 +112,57 @@ class ProductType(str, Enum):
     FUTURE = "FUTURE"
 
 
+class AdminApiActionClass(str, Enum):
+    """Enterprise Admin API route risk/action classification."""
+
+    READ_ONLY = "read_only"
+    LOCAL_STATE_MUTATION = "local_state_mutation"
+    LIVE_EXCHANGE_PLACE = "live_exchange_place"
+    LIVE_EXCHANGE_CANCEL = "live_exchange_cancel"
+    ADMIN_RUNTIME = "admin_runtime"
+    AUDIT = "audit"
+
+
+class AdminApiPermission(str, Enum):
+    """Backend-enforced Admin API permission names."""
+
+    ANALYTICS_READ = "analytics:read"
+    AUDIT_READ = "audit:read"
+    ORDER_CREATE = "order:create"
+    ORDER_CANCEL = "order:cancel"
+    CAMPAIGN_READ = "campaign:read"
+    CAMPAIGN_EXECUTE = "campaign:execute"
+    CONFIG_UPDATE = "config:update"
+    RUNTIME_PAUSE = "runtime:pause"
+    RUNTIME_RESUME = "runtime:resume"
+    RUNTIME_SHUTDOWN = "runtime:shutdown"
+
+
+class AdminApiCommandStatus(str, Enum):
+    """Admin API command status values returned to operators."""
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    NOT_IMPLEMENTED = "not_implemented"
+    REPLAYED = "replayed"
+    CONFLICT = "conflict"
+
+
+class AdminApiIdempotencyDecision(str, Enum):
+    """Result of comparing a command with existing idempotency evidence."""
+
+    NEW = "new"
+    REPLAY = "replay"
+    CONFLICT = "conflict"
+
+
+class AdminApiCompatibilityMode(str, Enum):
+    """How legacy dashboard live messages relate to enterprise API gates."""
+
+    ENTERPRISE_GATED = "enterprise_gated"
+    COMPATIBILITY_ONLY = "compatibility_only"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

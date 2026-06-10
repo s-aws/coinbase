@@ -12,6 +12,7 @@ owners:
       - docs/agents/**
       - docs/README.md
       - docs/examples/**
+      - docs/plans/**
       - docs/EXTERNAL_TESTING_RUNBOOK.md
       - docs/PUBLIC_ROADMAP.md
       - docs/SPOT_READINESS_ROADMAP.md
@@ -46,6 +47,7 @@ owners:
       - agent.md
       - README.md
       - README.action-condition-guards.md
+      - README.admin-api.md
       - README.spot-campaign.md
       - README.spot-portfolio-sweep.md
       - README.spot-trading.md
@@ -53,6 +55,7 @@ owners:
       - .gitignore
       - .vscode/settings.json
       - genai_data/AGENT_*.md
+      - genai_data/README.md
       - genai_data/ARCHITECTURE.md
       - genai_data/API_REFERENCE.md
       - genai_data/CONFIGURATION.md
@@ -187,6 +190,23 @@ owners:
       - tests/e2e/**
     tests:
       - pytest tests/regression/test_dashboard_move_revealed_handler.py tests/regression/test_order_span_builder_ui.py -v --tb=short
+    requires_regression: true
+
+  admin_api_contract:
+    context: docs/agents/AGENT_ADMIN_API_CONTRACT.md
+    owns:
+      - api/**
+      - application/__init__.py
+      - application/admin_api/**
+      - openapi/**
+      - tests/regression/test_admin_api_*.py
+      - tests/unit/test_admin_api_*.py
+      - tools/generate_admin_api_openapi.py
+    test_owns:
+      - tests/regression/test_admin_api_*.py
+      - tests/unit/test_admin_api_*.py
+    tests:
+      - pytest tests/regression/test_admin_api_contract.py -v --tb=short
     requires_regression: true
 
   persistence:

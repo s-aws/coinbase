@@ -34,6 +34,8 @@ This is a multithreaded Coinbase trading engine with:
 - Startup and periodic reconciliation against exchange truth (`core/startup_reconciler.py`, `core/periodic_reconciler.py`).
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
 - Dashboard WebSocket server (`dashboard_server.py`) plus browser/terminal consumers.
+- Enterprise Admin API skeleton (`api/v1/app.py`) with a generated OpenAPI
+  contract at `openapi/coinbase-admin-api.yaml`.
 - Market telemetry for slide calibration and charting (`market_tick`, `market_candle_1m`, `database/*_helpers.py`).
 - Optional cross-venue intelligence (`market_intel/*`, `ui_console.py`).
 
@@ -54,6 +56,9 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 - `main.py` - starts dashboard, stealth bridge, order engine, runtime controller, and reconciler.
 - `dashboard_server.py` - WebSocket state hub and operator command surface.
+- `api/v1/app.py` - contract-only FastAPI Admin API app factory.
+- `application/admin_api/` - shared command-service, idempotency, approval,
+  audit, and route-inventory skeleton for future enterprise API work.
 - `core/order_engine.py` - event ingestion, order lifecycle, follow-up logic.
 - `core/stealth_order_manager.py` - stealth lifecycle and reveal/reprice/move logic.
 - `bridges/stealth_order_bridge.py` - evaluation and DB reconciliation loops.

@@ -17,6 +17,9 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Campaigns](../README.spot-campaign.md)
 - [Spot Campaign Public Runbook](SPOT_CAMPAIGN_PUBLIC_RUNBOOK.md)
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
+- [Admin API](../README.admin-api.md)
+- [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)
+- [Admin API Route Inventory](plans/ADMIN_API_ROUTE_INVENTORY.md)
 - [Netflix AI Engineer Workbench](../README.netflix-ai-engineer-site.md)
 - [API Reference](../genai_data/API_REFERENCE.md)
 - [Configuration](../genai_data/CONFIGURATION.md)
@@ -27,6 +30,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Agents Overview](agents/README.md)
 - [Public Invariants](agents/INVARIANTS.md)
 - [Ownership](agents/OWNERSHIP.md)
+- [Admin API Contract Agent](agents/AGENT_ADMIN_API_CONTRACT.md)
 - [Public Release Readiness](PUBLIC_RELEASE_READINESS.md)
 - [External Testing Runbook](EXTERNAL_TESTING_RUNBOOK.md)
 - [Testing Strategy](../genai_data/TESTING_STRATEGY.md)
@@ -49,6 +53,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Feature Intake Examples](examples/spot-feature-intake.md)
 - [Spot Portfolio Sweep Examples](examples/spot-portfolio-sweep.md)
 - [Spot Campaign Examples](examples/spot-campaign.md)
+- [Admin API Examples](examples/admin-api.md)
 - [Netflix AI Engineer Workbench Examples](examples/netflix-ai-engineer-site.md)
 
 ## State, Modes, And Roadmaps
