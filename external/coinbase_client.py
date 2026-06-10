@@ -34,6 +34,33 @@ def coinbase_sdk_response_to_dict(response: Any) -> Any:
     return response
 
 
+def coinbase_cancel_response_succeeded(response: Any) -> bool:
+    """Return whether a Coinbase cancel response explicitly succeeded.
+
+    The Advanced Trade cancel API can return a batch-style payload with
+    per-order ``success`` booleans. Treat unknown or failure-shaped responses as
+    failed so callers do not locally accept a rejected exchange cancel.
+    """
+
+    data = coinbase_sdk_response_to_dict(response)
+    if isinstance(data, bool):
+        return data
+    if data is None:
+        return False
+    if isinstance(data, dict):
+        if "success" in data:
+            return data.get("success") is True
+        results = data.get("results")
+        if isinstance(results, list):
+            return bool(results) and all(
+                coinbase_cancel_response_succeeded(item) for item in results
+            )
+        return False
+    if isinstance(data, list):
+        return bool(data) and all(coinbase_cancel_response_succeeded(item) for item in data)
+    return False
+
+
 def list_all_account_dicts(
     sdk_client: RESTClient,
     *,
@@ -308,7 +335,7 @@ class CoinbaseRestClient:
             ...     print("Order cancelled")
         """
         result = self._client.cancel_orders([client_order_id])
-        return result and len(result) > 0
+        return coinbase_cancel_response_succeeded(result)
     
     # ========================================================================
     # Futures Methods

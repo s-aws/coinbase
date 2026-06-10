@@ -6,10 +6,10 @@ This file covers active API surfaces in the codebase:
 - Dashboard WebSocket message contract (`dashboard_server.py`)
 - Enterprise Admin API skeleton (`api/v1/app.py`)
 
-## Enterprise Admin API Skeleton (`api/v1/app.py`)
+## Enterprise Admin API (`api/v1/app.py`)
 
-The backend now owns an OpenAPI contract skeleton for the future enterprise
-admin frontend. The skeleton is intentionally not a live trading path.
+The backend owns the OpenAPI contract for the enterprise admin frontend. HTTP
+mutating routes are intentionally not a live trading path yet.
 
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
@@ -17,15 +17,27 @@ Current generated schema artifact:
 Current route adapters:
 - `POST /api/v1/orders`
 - `POST /api/v1/orders/{client_order_id}/cancel`
+- `GET /api/v1/spot/readiness`
+- `GET /api/v1/spot/sweep/status`
+- `GET /api/v1/spot/sweep/pnl`
+- `GET /api/v1/spot/cost-basis/status`
+- `GET /api/v1/spot/campaign/status`
+- `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
 
 Current behavior:
-- both routes return `not_implemented`
-- neither route submits orders, cancels orders, calls Coinbase, or mutates live
-  exchange state
-- both routes call `application.admin_api.command_service.AdminApiCommandService`
-  skeleton methods
+- mutating HTTP routes authenticate, authorize, evaluate idempotency, write
+  command audit records, then return HTTP `501` with `status:
+  "not_implemented"`
+- mutating HTTP routes do not submit orders, cancel orders, call Coinbase, or
+  mutate live exchange state
+- legacy dashboard `place_order` and `cancel_order` messages now delegate to
+  `application.admin_api.command_service.AdminApiCommandService` as
+  compatibility adapters
+- read-only spot routes are available for operator views and remain
+  permission-gated; the OpenAPI contract documents `401` and `403` for those
+  auth/RBAC failures
 
-Canonical future path:
+Canonical path:
 
 ```text
 frontend request
@@ -41,6 +53,14 @@ frontend request
 Cancel remains `client_order_id` keyed. The future implementation must call the
 project Coinbase wrapper `cancel_order(client_order_id)` rather than resolving
 to exchange `order_id` first.
+
+HTTP auth bootstrap:
+- set `COINBASE_ADMIN_API_BEARER_TOKEN`
+- send `Authorization: Bearer <token>`
+- send `X-Admin-Actor`
+- send comma-separated `X-Admin-Roles`
+
+Without configured backend auth, routes fail closed with `401`.
 
 Route inventory:
 - `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`
@@ -89,6 +109,10 @@ building the currency-to-wallet map. Do not replace it with a single
 ### Notes
 - `place_limit_order` returns raw SDK response dict (do not coerce to `Order`).
 - `list_fills` maps user-facing params to SDK keys (`order_ids`, `product_ids`, `start_sequence_timestamp`, `end_sequence_timestamp`).
+- `cancel_order(client_order_id)` calls the Coinbase cancel wrapper with the
+  project `client_order_id` and treats only explicit `success: true` cancel
+  evidence as success. Non-empty failure payloads such as `success: false` are
+  rejected.
 
 ## Spot Sweep And Campaign CLI Outputs
 
@@ -762,4 +786,4 @@ Inflight categories used by callers include:
 
 ---
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10

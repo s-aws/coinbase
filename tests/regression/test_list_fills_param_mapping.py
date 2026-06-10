@@ -43,6 +43,56 @@ import pytest
 
 
 @pytest.mark.regression
+def test_cancel_order_accepts_explicit_success_true_payload():
+    from external.coinbase_client import CoinbaseRestClient
+
+    fake_sdk_response = MagicMock()
+    fake_sdk_response.to_dict.return_value = {
+        "results": [{"success": True, "order_id": "client-order-1"}]
+    }
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = fake_sdk_response
+
+    assert client.cancel_order("client-order-1") is True
+    client._client.cancel_orders.assert_called_once_with(["client-order-1"])
+
+
+@pytest.mark.regression
+def test_cancel_order_rejects_success_false_cancel_payload():
+    from external.coinbase_client import CoinbaseRestClient
+
+    fake_sdk_response = MagicMock()
+    fake_sdk_response.to_dict.return_value = {
+        "results": [
+            {
+                "success": False,
+                "failure_reason": "ORDER_NOT_FOUND",
+                "order_id": "client-order-1",
+            }
+        ]
+    }
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = fake_sdk_response
+
+    assert client.cancel_order("client-order-1") is False
+    client._client.cancel_orders.assert_called_once_with(["client-order-1"])
+
+
+@pytest.mark.regression
+def test_cancel_order_rejects_non_empty_payload_without_success_flag():
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = [{"order_id": "client-order-1"}]
+
+    assert client.cancel_order("client-order-1") is False
+    client._client.cancel_orders.assert_called_once_with(["client-order-1"])
+
+
+@pytest.mark.regression
 def test_list_fills_maps_friendly_names_to_sdk_param_names():
     """The wrapper must translate ``product_id`` → ``product_ids``,
     ``start_date`` → ``start_sequence_timestamp``,

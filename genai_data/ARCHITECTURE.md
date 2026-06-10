@@ -186,28 +186,38 @@ Broadcast model:
 - periodic and event-driven `state_update` pushes
 - JSON-safe serialization for Decimal/datetime payloads
 
-## Enterprise Admin API Skeleton
+## Enterprise Admin API
 
-The enterprise Admin API skeleton is a contract surface for the separate
-frontend repository at `C:\coinbase-frontend`.
+The enterprise Admin API is the contract surface for the separate frontend
+repository at `C:\coinbase-frontend`. HTTP live execution remains disabled
+until approval and cap gates are complete.
 
 Current modules:
 - `api/v1/app.py`: FastAPI app factory.
 - `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`
   and `POST /api/v1/orders/{client_order_id}/cancel`.
-- `application/admin_api/command_service.py`: shared command-service skeleton.
-- `application/admin_api/idempotency.py`: idempotency decision/hash contract.
+- `api/v1/routes/spot.py`: read-only spot operator routes.
+- `application/admin_api/command_service.py`: shared command service used by
+  HTTP routes and legacy dashboard compatibility adapters.
+- `application/admin_api/auth.py`: fail-closed bearer-token/RBAC bootstrap.
+- `application/admin_api/idempotency.py`: durable JSONL idempotency store and
+  payload-hash contract.
 - `application/admin_api/approval.py`: approval snapshot contract.
-- `application/admin_api/audit.py`: audit event contract.
+- `application/admin_api/audit.py`: durable JSONL command audit store.
+- `application/admin_api/read_service.py`: read-only operator status service.
 - `application/admin_api/route_inventory.py`: route/message inventory.
 - `openapi/coinbase-admin-api.yaml`: generated backend-owned OpenAPI artifact.
 
 Current behavior:
-- Admin API order routes return `not_implemented`.
-- They do not submit Coinbase orders, cancel Coinbase orders, or mutate live
-  exchange state.
-- They establish the route, schema, `client_order_id`, idempotency, approval,
-  audit, and shared-service boundaries needed before live behavior is extracted.
+- Admin API mutating routes authenticate, authorize, evaluate idempotency, write
+  audit records, then return HTTP `501` with `status: "not_implemented"`.
+- HTTP mutating routes do not submit Coinbase orders, cancel Coinbase orders,
+  or mutate live exchange state.
+- Legacy dashboard `place_order` and `cancel_order` WebSocket messages delegate
+  to `AdminApiCommandService` as compatibility adapters.
+- Read-only spot routes expose readiness, sweep status, sweep P/L, cost-basis
+  status, campaign status, and direct-order audit; they are auth/RBAC-gated and
+  document `401`/`403` in the generated OpenAPI contract.
 
 Future live behavior must use one path:
 
@@ -222,9 +232,9 @@ frontend request
 -> typed response
 ```
 
-Legacy dashboard WebSocket live commands must either call the same shared
-command service with equivalent enterprise gates or remain explicitly
-compatibility-only and excluded from new frontend workflows.
+Legacy dashboard WebSocket live commands that do not pass through equivalent
+enterprise gates remain explicitly compatibility-only and excluded from new
+frontend workflows.
 
 ## Optional Cross-Venue Intelligence
 
@@ -243,7 +253,8 @@ Current scope is intentionally narrow and fail-soft:
 - `order_id` is exchange-assigned and used for exchange-side lookup/reporting
   and raw endpoints that require it. The project Coinbase wrapper
   `cancel_order(client_order_id)` is the single-order cancellation exception
-  because Coinbase accepts our client id there.
+  because Coinbase accepts our client id there. That wrapper accepts only
+  explicit `success: true` cancel evidence as success.
 - Parent-child hierarchy is flat.
 - Stealth state must not lie about live exchange placement.
 - Cancel/re-entry, move, and repricing must share the same active-placement truth (`anchor_repricing_state_json`) instead of inventing a second exchange pointer.

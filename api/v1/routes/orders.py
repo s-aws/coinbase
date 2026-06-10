@@ -1,13 +1,20 @@
-"""Order command route adapters for the Admin API skeleton."""
+"""Order command route adapters for the Admin API."""
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Callable
 
-from fastapi import APIRouter, Header, Path, status
+from fastapi import APIRouter, Depends, Header, Path, Request, status
 from fastapi.responses import JSONResponse
 
+from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.command_service import AdminApiCommandService
+from application.admin_api.idempotency import (
+    FileIdempotencyStore,
+    IdempotencyRecord,
+    make_payload_hash,
+)
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiCommandEnvelope,
@@ -17,10 +24,32 @@ from application.admin_api.models import (
     ManualOrderCommand,
     ManualOrderRequest,
 )
-from core.enums import AdminApiCommandStatus
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiIdempotencyDecision,
+    AdminApiPermission,
+)
 
 
 router = APIRouter()
+
+COMMAND_ROUTE_RESPONSES = {
+    400: {
+        "model": AdminApiCommandResponse,
+        "description": "Command rejected before live exchange execution.",
+    },
+    401: {"description": "Missing or invalid Admin API authentication."},
+    403: {"description": "Actor lacks the required Admin API permission."},
+    409: {
+        "model": AdminApiCommandResponse,
+        "description": "Idempotency key conflict.",
+    },
+    501: {
+        "model": AdminApiCommandResponse,
+        "description": "Live HTTP execution is not implemented for this command.",
+    },
+}
 
 
 def get_command_service() -> AdminApiCommandService:
@@ -29,92 +58,267 @@ def get_command_service() -> AdminApiCommandService:
     return AdminApiCommandService()
 
 
+def get_idempotency_store() -> FileIdempotencyStore:
+    """Return durable idempotency storage for command routes."""
+
+    return FileIdempotencyStore()
+
+
+def get_audit_store() -> FileAdminApiAuditStore:
+    """Return durable command audit storage."""
+
+    return FileAdminApiAuditStore()
+
+
 def _build_envelope(
     *,
     idempotency_key: str,
     correlation_id: str,
     operator_intent: str,
-    actor_id: str,
+    actor: AdminApiActor,
 ) -> AdminApiCommandEnvelope:
     return AdminApiCommandEnvelope(
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
         operator_intent=operator_intent,
-        actor=AdminApiActor(actor_id=actor_id, roles=[]),
+        actor=actor,
     )
 
 
-def _command_response(response: AdminApiCommandResponse) -> JSONResponse:
-    http_status = (
-        status.HTTP_501_NOT_IMPLEMENTED
-        if response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
-        else status.HTTP_200_OK
-    )
+def _http_status_for(response: AdminApiCommandResponse) -> int:
+    if response.status == AdminApiCommandStatus.NOT_IMPLEMENTED:
+        return status.HTTP_501_NOT_IMPLEMENTED
+    if response.status == AdminApiCommandStatus.CONFLICT:
+        return status.HTTP_409_CONFLICT
+    if response.status == AdminApiCommandStatus.REJECTED:
+        return status.HTTP_400_BAD_REQUEST
+    return status.HTTP_200_OK
+
+
+def _command_response(
+    response: AdminApiCommandResponse,
+    *,
+    replayed: bool = False,
+) -> JSONResponse:
+    headers = {"X-Correlation-Id": response.correlation_id or ""}
+    if replayed:
+        headers["X-Idempotency-Replayed"] = "true"
     return JSONResponse(
-        status_code=http_status,
+        status_code=_http_status_for(response),
         content=response.model_dump(mode="json"),
-        headers={"X-Correlation-Id": response.correlation_id or ""},
+        headers=headers,
     )
+
+
+def _record_audit(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    response: AdminApiCommandResponse,
+) -> str:
+    return audit_store.append(
+        AdminApiAuditEvent(
+            actor_id=actor.actor_id,
+            action_class=response.action_class,
+            permission=response.required_permission,
+            endpoint=endpoint,
+            request_id=request_id,
+            idempotency_key=response.idempotency_key,
+            client_order_id=response.client_order_id,
+            coinbase_order_id=response.coinbase_order_id,
+            status=response.status,
+            failure_stage=response.failure_stage,
+            message=response.message,
+        )
+    )
+
+
+def _idempotency_payload_hash(
+    *,
+    endpoint: str,
+    actor: AdminApiActor,
+    body: dict,
+    path_params: dict | None = None,
+) -> str:
+    return make_payload_hash({
+        "endpoint": endpoint,
+        "actor_id": actor.actor_id,
+        "roles": [role.value for role in actor.roles],
+        "body": body,
+        "path_params": path_params or {},
+    })
+
+
+def _execute_idempotent_command(
+    *,
+    idempotency_key: str,
+    payload_hash: str,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    permission: AdminApiPermission,
+    action_class: AdminApiActionClass,
+    service_method: str,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    command_runner: Callable[[], AdminApiCommandResponse],
+) -> JSONResponse:
+    require_permission(actor, permission)
+    check = idempotency_store.evaluate(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        payload = dict(check.record.response)
+        response = AdminApiCommandResponse.model_validate(payload)
+        return _command_response(response, replayed=True)
+    if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+        response = AdminApiCommandResponse(
+            status=AdminApiCommandStatus.CONFLICT,
+            action_class=action_class,
+            required_permission=permission,
+            service_method=service_method,
+            message="Idempotency-Key was already used with a different payload.",
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage="idempotency",
+        )
+        response.audit_id = _record_audit(
+            audit_store=audit_store,
+            actor=actor,
+            endpoint=endpoint,
+            request_id=request_id,
+            response=response,
+        )
+        return _command_response(response)
+
+    response = command_runner()
+    response.audit_id = _record_audit(
+        audit_store=audit_store,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=request_id,
+        response=response,
+    )
+    idempotency_store.put_record(
+        IdempotencyRecord(
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            client_order_id=response.client_order_id,
+            status=response.status,
+            response=response.model_dump(mode="json"),
+            actor_id=actor.actor_id,
+            endpoint=endpoint,
+        )
+    )
+    return _command_response(response)
 
 
 @router.post(
     "/orders",
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    responses=COMMAND_ROUTE_RESPONSES,
     summary="Create a manual order through the shared command service",
 )
 def create_manual_order(
-    request: ManualOrderRequest,
+    request: Request,
+    body: ManualOrderRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
-    actor_id: Annotated[str, Header(alias="X-Admin-Actor", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
-    """Contract endpoint for future manual placement.
+    """Route adapter for manual placement.
 
-    The current implementation returns ``not_implemented`` and does not call
-    Coinbase. Live behavior must be extracted into
-    ``AdminApiCommandService.place_manual_order`` first.
+    The route is authenticated, idempotent, audited, and still live-disabled
+    until enterprise approval/cap gates are completed.
     """
 
-    service = get_command_service()
-    command = ManualOrderCommand(
-        envelope=_build_envelope(
-            idempotency_key=idempotency_key,
-            correlation_id=correlation_id,
-            operator_intent=operator_intent,
-            actor_id=actor_id,
-        ),
-        request=request,
+    endpoint = f"{request.method} {request.url.path}"
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
     )
-    return _command_response(service.place_manual_order(command))
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        body=body.model_dump(mode="json"),
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        permission=AdminApiPermission.ORDER_CREATE,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        service_method="place_manual_order",
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        command_runner=lambda: service.place_manual_order(
+            ManualOrderCommand(envelope=envelope, request=body)
+        ),
+    )
 
 
 @router.post(
     "/orders/{client_order_id}/cancel",
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    responses=COMMAND_ROUTE_RESPONSES,
     summary="Cancel an order by client_order_id through the shared command service",
 )
 def cancel_order_by_client_order_id(
-    request: CancelOrderRequest,
+    request: Request,
+    body: CancelOrderRequest,
     client_order_id: Annotated[str, Path(min_length=1)],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
-    actor_id: Annotated[str, Header(alias="X-Admin-Actor", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
-    """Contract endpoint for future cancel-by-client-order-id."""
+    """Route adapter for cancel-by-client-order-id."""
 
-    service = get_command_service()
-    command = CancelOrderCommand(
-        envelope=_build_envelope(
-            idempotency_key=idempotency_key,
-            correlation_id=correlation_id,
-            operator_intent=operator_intent,
-            actor_id=actor_id,
-        ),
-        client_order_id=client_order_id,
-        request=request,
+    endpoint = f"{request.method} {request.url.path}"
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
     )
-    return _command_response(service.cancel_order_by_client_order_id(command))
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        body=body.model_dump(mode="json"),
+        path_params={"client_order_id": client_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        service_method="cancel_order_by_client_order_id",
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        command_runner=lambda: service.cancel_order_by_client_order_id(
+            CancelOrderCommand(
+                envelope=envelope,
+                client_order_id=client_order_id,
+                request=body,
+            )
+        ),
+    )

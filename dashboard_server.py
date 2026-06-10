@@ -43,10 +43,12 @@ from core.enums import (
     EventSourceChannel,
     EventStreamType,
     FollowUpRevealDirection,
+    AdminApiRole,
     InventoryCostBasisStatus,
     InventoryLotSource,
     OrderStatus,
     OrderSide,
+    OrderType,
     ProductCapability,
     ProductCapabilityMode,
     ProductType,
@@ -64,6 +66,20 @@ from core.runtime_controller import (
 )
 from database.database import PostgresDB
 from calculation.formatter import safe_float
+from application.admin_api.command_service import (
+    AdminApiCommandDependencies,
+    AdminApiCommandService,
+    cancel_response_to_dashboard_payload,
+    manual_order_response_to_dashboard_payload,
+)
+from application.admin_api.models import (
+    AdminApiActor,
+    AdminApiCommandEnvelope,
+    CancelOrderCommand,
+    CancelOrderRequest,
+    ManualOrderCommand,
+    ManualOrderRequest,
+)
 
 # Message types that *originate* new work and are gated on EngineState.RUNNING.
 # Cancellations, queries, and admin commands are intentionally excluded so the
@@ -297,6 +313,56 @@ def _coinbase_order_response_order_id(
     if isinstance(order, Mapping) and order.get("order_id"):
         return str(order["order_id"])
     return None
+
+
+def _dashboard_admin_api_envelope(operator_intent: str) -> AdminApiCommandEnvelope:
+    return AdminApiCommandEnvelope(
+        idempotency_key=f"dashboard:{uuid.uuid4()}",
+        correlation_id=f"dashboard:{uuid.uuid4()}",
+        operator_intent=operator_intent,
+        actor=AdminApiActor(
+            actor_id="legacy-dashboard",
+            roles=[AdminApiRole.TRADER],
+        ),
+    )
+
+
+def _dashboard_command_service() -> AdminApiCommandService:
+    return AdminApiCommandService(
+        AdminApiCommandDependencies(
+            rest_client=REST_CLIENT if REST_CLIENT_AVAILABLE else None,
+            rest_client_available=REST_CLIENT_AVAILABLE,
+            runtime_controller_factory=get_runtime_controller,
+            add_log_entry=add_log_entry,
+            order_event_publisher_getter=_get_dashboard_order_event_stream_publisher,
+            planned_budget_fetcher=_get_dashboard_spot_planned_budget_commitments,
+            lot_authority_evaluator_getter=_get_dashboard_spot_lot_authority_evaluator,
+            uuid_factory=lambda: str(uuid.uuid4()),
+        )
+    )
+
+
+def _manual_order_request_from_dashboard_params(
+    order_params: Mapping[str, Any],
+) -> ManualOrderRequest:
+    order_configuration = order_params.get("order_configuration") or {}
+    inner_key = next(iter(order_configuration), None)
+    inner = order_configuration.get(inner_key, {}) if inner_key else {}
+    order_type = (
+        OrderType.MARKET
+        if str(inner_key or "").startswith("market_")
+        else OrderType.LIMIT
+    )
+    return ManualOrderRequest(
+        product_id=str(order_params.get("product_id") or ""),
+        side=OrderSide(str(order_params.get("side") or "").upper()),
+        order_type=order_type,
+        base_size=inner.get("base_size"),
+        quote_size=inner.get("quote_size"),
+        limit_price=inner.get("limit_price"),
+        post_only=bool(inner.get("post_only", False)),
+        manual_live_acknowledgement=_direct_spot_live_acknowledged(order_params),
+    )
 
 
 # Custom JSON encoder for handling Decimal and other non-standard types
@@ -1296,290 +1362,57 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             return
         
         if msg_type == "place_order":
-            # Place order via REST API
             order_params = data.get("params", {})
             logger.info(f"Order placement requested: {order_params}")
-            
-            if not REST_CLIENT_AVAILABLE:
-                response = {
-                    "type": "order_response",
-                    "status": "error",
-                    "message": "REST client not available",
-                }
-                await websocket.send(json.dumps(response))
-                return
-            
+
             try:
-                # Generate unique client order ID
-                client_order_id = str(uuid.uuid4())
-
-                # Boundary validation: tick-align size and reject sizes
-                # below the exchange's base_min_size / quote_min_size
-                # before we burn a REST call. Mirrors the boundary hook
-                # in core/stealth_order_manager.create_stealth_order so
-                # both order-creation paths get the same guard. See
-                # calculation/size_validation.py for the contract.
-                from calculation.size_validation import (
-                    validate_and_quantize_size,
-                    validate_quote_size,
-                )
-
-                product_id = order_params.get("product_id")
-                order_configuration = order_params.get("order_configuration") or {}
-                # order_configuration shape (per Coinbase Advanced Trade):
-                #   {"limit_limit_gtc": {"base_size": "...", "limit_price": "...", ...}}
-                #   {"market_market_ioc": {"base_size": "..."}} (or quote_size)
-                # Pick whichever inner config is present.
-                inner_key = next(iter(order_configuration), None)
-                inner = order_configuration.get(inner_key, {}) if inner_key else {}
-                raw_size = inner.get("base_size")
-                raw_quote_size = inner.get("quote_size")
-                raw_price = inner.get("limit_price")  # None for market orders
-
-                capability = evaluate_product_capability(
-                    product_id=product_id,
-                    capability=ProductCapability.DIRECT_PLACEMENT,
-                )
-                if not capability.allowed:
-                    response = {
-                        "type": "order_response",
-                        "status": "error",
-                        "message": (
-                            "Order rejected by product capability policy: "
-                            f"{capability.reason}"
-                        ),
-                        "capability": capability.to_dict(),
-                    }
-                    add_log_entry("WARNING", response["message"])
-                    logger.warning(response["message"])
-                    await websocket.send(json.dumps(response))
-                    return
-
-                if (
-                    capability.product_type == ProductType.SPOT.value
-                    and not _direct_spot_live_acknowledged(order_params)
-                ):
-                    reason = (
-                        "Direct spot place_order is a live manual order surface; "
-                        "set params.manual_live_acknowledgement=true before REST submission."
-                    )
-                    guard_failure = {
-                        "condition": ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value,
-                        "block_category": (
-                            ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value
-                        ),
-                        "reason": reason,
-                        "product_id": product_id,
-                        "product_type": capability.product_type,
-                        "side": order_params.get("side"),
-                        "client_order_id": client_order_id,
-                        "phase": ActionGuardPhase.PLANNING.value,
-                        "manual_live_acknowledgement_required": True,
-                    }
-                    response = {
-                        "type": "order_response",
-                        "status": "error",
-                        "message": (
-                            "Order rejected by manual live acknowledgement: "
-                            f"{reason}"
-                        ),
-                        "guard": guard_failure,
-                    }
-                    add_log_entry("WARNING", response["message"])
-                    logger.warning(response["message"])
-                    await websocket.send(json.dumps(response))
-                    return
-
-                approved_base_size = None
-                if raw_size is not None:
-                    size_check = validate_and_quantize_size(
-                        raw_size,
-                        product_id=product_id,
-                        price=float(raw_price) if raw_price is not None else None,
-                    )
-                    if not size_check:
-                        raise OrderCreationError(
-                            f"Order rejected at boundary: {size_check.reason}",
-                            client_order_id=client_order_id,
-                        )
-                    # Write quantized value back so the REST call sends
-                    # exactly what the validator approved.
-                    inner["base_size"] = str(size_check.size)
-                    approved_base_size = size_check.size
-
-                quote_size = safe_float(raw_quote_size, default=None)
-                if raw_quote_size is not None:
-                    quote_check = validate_quote_size(
-                        raw_quote_size,
-                        product_id=product_id,
-                    )
-                    if not quote_check:
-                        raise OrderCreationError(
-                            f"Order rejected at boundary: {quote_check.reason}",
-                            client_order_id=client_order_id,
-                        )
-                    inner["quote_size"] = str(quote_check.size)
-                    quote_size = quote_check.size
-
-                if approved_base_size is not None or quote_size is not None:
-                    guard_ok, guard_failure = ActionConditionGuard(
-                        planned_budget_fetcher=(
-                            _get_dashboard_spot_planned_budget_commitments
-                        ),
-                        lot_authority_evaluator=(
-                            _get_dashboard_spot_lot_authority_evaluator()
-                        ),
-                    ).evaluate(
-                        phase=ActionGuardPhase.PLANNING,
-                        product_id=product_id,
-                        side=order_params.get("side"),
-                        size=approved_base_size,
-                        limit_price=safe_float(raw_price, default=0.0),
-                        quote_size=quote_size,
-                        client_order_id=client_order_id,
-                    )
-                    if not guard_ok:
-                        reason = (guard_failure or {}).get("reason", "blocked")
-                        response = {
-                            "type": "order_response",
-                            "status": "error",
-                            "message": (
-                                "Order rejected by action-condition guard: "
-                                f"{reason}"
-                            ),
-                            "guard": guard_failure,
-                        }
-                        add_log_entry(
-                            "WARNING",
-                            f"Order rejected by action-condition guard: {reason}",
-                        )
-                        await websocket.send(json.dumps(response))
-                        return
-
-                # Call REST API to create order. Tracked as in-flight so a
-                # concurrent drain waits for the placement to settle before
-                # transitioning to STOPPED.
-                with controller.track_inflight(INFLIGHT_REST_PLACE):
-                    result = REST_CLIENT.create_order(
-                        client_order_id=client_order_id,
-                        product_id=product_id,
-                        side=order_params.get("side"),
-                        order_configuration=order_configuration,
-                    )
-                
-                result_dict = _coinbase_order_response_to_dict(result)
-                
-                logger.info(f"Order response: {result_dict}")
-                
-                # Check if order was successful
-                response_success = _coinbase_order_response_success(
-                    result,
-                    result_dict,
-                )
-                if response_success is False:
-                    error_msg = _coinbase_order_response_error_message(
-                        result,
-                        result_dict,
-                    )
-                    raise CoinbaseAPIError(
-                        f"Order creation failed: {error_msg}",
-                        api_error_code="order_creation_failed"
-                    )
-                
-                # Order successful
-                order_id = _coinbase_order_response_order_id(result, result_dict)
-
-                submission_event_recorded = _publish_direct_order_submission_event(
-                    client_order_id=client_order_id,
-                    order_id=order_id,
-                    order_params=order_params,
-                    order_configuration=order_configuration,
-                )
-                
-                response = {
-                    "type": "order_response",
-                    "status": "success",
-                    "message": "Order created",
-                    "client_order_id": client_order_id,
-                    "order_id": order_id,
-                    "submission_event_recorded": submission_event_recorded,
-                    "audit_command": (
-                        "python tools\\run_spot_direct_order_audit.py "
-                        f"--client-order-id {client_order_id}"
+                command = ManualOrderCommand(
+                    envelope=_dashboard_admin_api_envelope("dashboard_place_order"),
+                    request=_manual_order_request_from_dashboard_params(order_params),
+                    order_configuration_override=(
+                        order_params.get("order_configuration") or {}
                     ),
-                }
-                add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
-                
-            except CoinbaseAPIError as e:
-                logger.error(f"API error during order placement: {str(e)}")
-                response = {
-                    "type": "order_response",
-                    "status": "error",
-                    "message": str(e),
-                }
-                add_log_entry("ERROR", f"API error: {str(e)}")
+                    allow_live_execution=True,
+                )
+                service_response = _dashboard_command_service().place_manual_order(
+                    command
+                )
+                response = manual_order_response_to_dashboard_payload(
+                    service_response
+                )
             except Exception as e:
                 logger.error(f"Order placement failed: {type(e).__name__}: {str(e)}")
                 raise OrderCreationError(
                     f"Failed to place order: {e}",
-                    client_order_id=client_order_id if 'client_order_id' in locals() else None
+                    client_order_id=None,
                 ) from e
-            
+
             await websocket.send(json.dumps(response))
             
         elif msg_type == "cancel_order":
-            # Cancel order via the local REST wrapper using our internal
-            # client_order_id. The Coinbase Advanced Trade cancel path accepts
-            # this id, and the wrapper owns that exchange-specific detail.
             params = data.get("params") or {}
             client_order_id = data.get("client_order_id") or params.get("client_order_id")
             logger.info("Cancel requested for client_order_id=%s", client_order_id)
-            
-            if not REST_CLIENT_AVAILABLE:
-                response = {
-                    "type": "cancel_response",
-                    "status": "error",
-                    "message": "REST client not available",
-                }
-                await websocket.send(json.dumps(response))
-                return
-            
-            try:
-                if not client_order_id:
-                    response = {
-                        "type": "cancel_response",
-                        "status": "error",
-                        "message": "Missing client_order_id",
-                    }
-                    await websocket.send(json.dumps(response))
-                    return
 
-                # Cancellations are always-allowed (even while paused/draining)
-                # but still tracked so the drain waits for them.
-                with controller.track_inflight(INFLIGHT_REST_CANCEL):
-                    result = REST_CLIENT.cancel_order(client_order_id)
-                
-                logger.info(f"Order cancelled successfully: {result}")
-                response = {
-                    "type": "cancel_response",
-                    "status": "success",
-                    "message": "Order cancelled",
-                    "data": result,
-                    "client_order_id": client_order_id,
-                }
-                add_log_entry(
-                    "INFO",
-                    f"Order cancelled: client_order_id={client_order_id}",
-                )
-                
-            except Exception as e:
-                logger.error(f"Order cancellation failed: {str(e)}")
-                response = {
+            if not client_order_id:
+                await websocket.send(json.dumps({
                     "type": "cancel_response",
                     "status": "error",
-                    "message": str(e),
-                }
-                add_log_entry("ERROR", f"Order cancellation failed: {str(e)}")
+                    "message": "Missing client_order_id",
+                }))
+                return
+
+            command = CancelOrderCommand(
+                envelope=_dashboard_admin_api_envelope("dashboard_cancel_order"),
+                client_order_id=str(client_order_id),
+                request=CancelOrderRequest(reason=params.get("reason")),
+                allow_live_execution=True,
+            )
+            response = cancel_response_to_dashboard_payload(
+                _dashboard_command_service().cancel_order_by_client_order_id(
+                    command
+                )
+            )
             
             await websocket.send(json.dumps(response))
             

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,6 +23,8 @@ class IdempotencyRecord(BaseModel):
     client_order_id: str | None = None
     status: AdminApiCommandStatus
     response: dict[str, Any] = Field(default_factory=dict)
+    actor_id: str | None = None
+    endpoint: str | None = None
 
 
 class IdempotencyCheck(BaseModel):
@@ -61,3 +65,47 @@ def evaluate_idempotency(
         record=existing,
     )
 
+
+class FileIdempotencyStore:
+    """Append-only JSONL idempotency store for Admin API command requests.
+
+    This is intentionally dependency-injectable. The route contract depends on
+    the store interface, not the file implementation, so a PostgreSQL-backed
+    repository can replace it without creating a second command behavior path.
+    """
+
+    def __init__(self, path: Path | str = Path("runtime_state") / "admin_api_idempotency.jsonl") -> None:
+        self.path = Path(path)
+        self._lock = RLock()
+
+    def _load_latest_by_key(self) -> dict[str, IdempotencyRecord]:
+        records: dict[str, IdempotencyRecord] = {}
+        if not self.path.exists():
+            return records
+        with self.path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                record = IdempotencyRecord.model_validate_json(line)
+                records[record.idempotency_key] = record
+        return records
+
+    def get_record(self, idempotency_key: str) -> IdempotencyRecord | None:
+        with self._lock:
+            return self._load_latest_by_key().get(idempotency_key)
+
+    def evaluate(self, *, idempotency_key: str, payload_hash: str) -> IdempotencyCheck:
+        with self._lock:
+            existing = self._load_latest_by_key().get(idempotency_key)
+            return evaluate_idempotency(
+                existing=existing,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+            )
+
+    def put_record(self, record: IdempotencyRecord) -> None:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")

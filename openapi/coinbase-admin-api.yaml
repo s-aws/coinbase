@@ -10,14 +10,12 @@ paths:
       tags:
       - orders
       summary: Create a manual order through the shared command service
-      description: 'Contract endpoint for future manual placement.
+      description: 'Route adapter for manual placement.
 
 
-        The current implementation returns ``not_implemented`` and does not call
+        The route is authenticated, idempotent, audited, and still live-disabled
 
-        Coinbase. Live behavior must be extracted into
-
-        ``AdminApiCommandService.place_manual_order`` first.'
+        until enterprise approval/cap gates are completed.'
       operationId: create_manual_order_api_v1_orders_post
       parameters:
       - name: Idempotency-Key
@@ -41,13 +39,30 @@ paths:
           type: string
           minLength: 1
           title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
       - name: X-Admin-Actor
         in: header
         required: true
         schema:
-          type: string
-          minLength: 1
+          anyOf:
+          - type: string
+          - type: 'null'
           title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
       requestBody:
         required: true
         content:
@@ -56,7 +71,23 @@ paths:
               $ref: '#/components/schemas/ManualOrderRequest'
       responses:
         '501':
-          description: Successful Response
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
+        '409':
+          description: Idempotency key conflict.
           content:
             application/json:
               schema:
@@ -72,7 +103,7 @@ paths:
       tags:
       - orders
       summary: Cancel an order by client_order_id through the shared command service
-      description: Contract endpoint for future cancel-by-client-order-id.
+      description: Route adapter for cancel-by-client-order-id.
       operationId: cancel_order_by_client_order_id_api_v1_orders__client_order_id__cancel_post
       parameters:
       - name: client_order_id
@@ -103,13 +134,30 @@ paths:
           type: string
           minLength: 1
           title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
       - name: X-Admin-Actor
         in: header
         required: true
         schema:
-          type: string
-          minLength: 1
+          anyOf:
+          - type: string
+          - type: 'null'
           title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
       requestBody:
         required: true
         content:
@@ -118,11 +166,394 @@ paths:
               $ref: '#/components/schemas/CancelOrderRequest'
       responses:
         '501':
-          description: Successful Response
+          description: Live HTTP execution is not implemented for this command.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/readiness:
+    get:
+      tags:
+      - spot
+      summary: Read spot trading readiness
+      operationId: spot_readiness_api_v1_spot_readiness_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          title: Product Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/sweep/status:
+    get:
+      tags:
+      - spot
+      summary: Read spot sweep status
+      operationId: spot_sweep_status_api_v1_spot_sweep_status_get
+      parameters:
+      - name: state_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/sweep/pnl:
+    get:
+      tags:
+      - spot
+      summary: Read spot sweep P/L
+      operationId: spot_sweep_pnl_api_v1_spot_sweep_pnl_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          title: Product Id
+      - name: include_coinbase_average_cost
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Coinbase Average Cost
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/cost-basis/status:
+    get:
+      tags:
+      - spot
+      summary: Read spot cost-basis status
+      operationId: spot_cost_basis_status_api_v1_spot_cost_basis_status_get
+      parameters:
+      - name: state_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/campaign/status:
+    get:
+      tags:
+      - spot
+      summary: Read spot campaign status
+      operationId: spot_campaign_status_api_v1_spot_campaign_status_get
+      parameters:
+      - name: state_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/direct-orders/{client_order_id}/audit:
+    get:
+      tags:
+      - spot
+      summary: Read direct spot order audit by client_order_id
+      operationId: spot_direct_order_audit_api_v1_spot_direct_orders__client_order_id__audit_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Client Order Id
+      - name: include_events
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Include Events
+      - name: include_fills
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Include Fills
+      - name: event_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          title: Event Limit
+      - name: fill_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1000
+          title: Fill Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Missing or invalid Admin API authentication.
+        '403':
+          description: Actor lacks the required Admin API permission.
         '422':
           description: Validation Error
           content:
@@ -161,6 +592,11 @@ components:
           - type: string
           - type: 'null'
           title: Client Order Id
+        coinbase_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Coinbase Order Id
         correlation_id:
           anyOf:
           - type: string
@@ -178,9 +614,33 @@ components:
           title: Audit Id
         live_exchange_submitted:
           type: boolean
-          const: false
           title: Live Exchange Submitted
           default: false
+        submission_event_recorded:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Submission Event Recorded
+        audit_command:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Command
+        guard:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Guard
+        data:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Data
+        failure_stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Stage
       additionalProperties: false
       type: object
       required:

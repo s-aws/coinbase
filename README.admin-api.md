@@ -5,10 +5,20 @@ enterprise admin frontend at `C:\coinbase-frontend`.
 
 ## Current Status
 
-The repository now contains an Admin API contract skeleton and generated
-OpenAPI artifact. The skeleton routes return `not_implemented`; they do not
-submit orders, cancel orders, call Coinbase, or replace the current dashboard
-surface.
+The repository now contains an Admin API contract, generated OpenAPI artifact,
+fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores, and
+read-only spot operator routes. Mutating HTTP routes still return
+`not_implemented` after auth, permission, idempotency, and audit handling; they
+do not submit orders, cancel orders, or call Coinbase.
+
+The generated OpenAPI contract intentionally documents `501` as the current
+default mutating-route response, not `200`. Read-only spot routes document
+`401` and `403` because they use the same fail-closed auth/RBAC dependency.
+
+The legacy dashboard `place_order` and `cancel_order` WebSocket messages now
+delegate to `application.admin_api.command_service.AdminApiCommandService` as
+compatibility adapters. New product UI must use the HTTP API contract, not the
+dashboard WebSocket.
 
 The current operational dashboard is still the proof-of-concept WebSocket and
 HTML surface documented in `agent.md` and `genai_data/API_REFERENCE.md`.
@@ -17,14 +27,17 @@ HTML surface documented in `agent.md` and `genai_data/API_REFERENCE.md`.
 
 - Use FastAPI with backend-owned OpenAPI.
 - Keep the backend as the only authority for trading behavior.
-- Extract shared command services before adding HTTP live-order endpoints.
+- Keep HTTP live-order execution disabled until approval/cap gates are complete.
 - Keep legacy dashboard WebSocket handlers as compatibility adapters.
 - If a legacy WebSocket live command does not pass through enterprise
   idempotency, approval, and cap gates, label it compatibility-only and exclude
   it from new frontend workflows.
 - Use `client_order_id` for internal and operator-facing order tracking.
 - Preserve Coinbase cancellation through the project wrapper
-  `cancel_order(client_order_id)`.
+  `cancel_order(client_order_id)`, which accepts only explicit Coinbase
+  `success: true` cancel evidence as success.
+- Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
+  Without it, routes fail closed with `401`.
 
 ## Must Not Do
 

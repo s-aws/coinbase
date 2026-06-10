@@ -138,6 +138,17 @@ class AdminApiPermission(str, Enum):
     RUNTIME_SHUTDOWN = "runtime:shutdown"
 
 
+class AdminApiRole(str, Enum):
+    """Backend-recognized Admin API role names."""
+
+    VIEWER = "viewer"
+    OPERATOR = "operator"
+    TRADER = "trader"
+    ADMIN = "admin"
+    AUDITOR = "auditor"
+    EMERGENCY = "emergency"
+
+
 class AdminApiCommandStatus(str, Enum):
     """Admin API command status values returned to operators."""
 

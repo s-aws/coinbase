@@ -99,6 +99,10 @@ new frontend product workflows.
 
 ## Phase 1 - Contract Boundary
 
+Status: implemented for the initial order/cancel contract and read-only spot
+operator routes. OpenAPI is generated from FastAPI models and consumed by the
+frontend repository.
+
 - Add a versioned API namespace, initially `/api/v1`.
 - Use FastAPI with Pydantic request/response models.
 - Generate and snapshot OpenAPI under `openapi/coinbase-admin-api.yaml`.
@@ -117,6 +121,11 @@ Exit criteria:
 - Contract tests cover schema generation and representative typed responses.
 
 ## Phase 2 - Shared Command Services
+
+Status: partially implemented. Legacy dashboard `place_order` and
+`cancel_order` now delegate to `AdminApiCommandService`; HTTP mutating routes
+call the same service with live execution disabled. Hotpoint test placement is
+not yet extracted.
 
 - Extract live command handling out of `dashboard_server.py` into shared
   application services.
@@ -140,6 +149,9 @@ Exit criteria:
 
 ## Phase 3 - Command Classification
 
+Status: implemented for initial order, cancel, and read-only spot routes in
+`application/admin_api/route_inventory.py`.
+
 Classify every API operation as one of:
 
 - `read_only`
@@ -161,6 +173,11 @@ Exit criteria:
 
 ## Phase 4 - Auth And RBAC
 
+Status: bootstrap implemented. Routes fail closed unless
+`COINBASE_ADMIN_API_BEARER_TOKEN` is configured and requests include
+backend-recognized role evidence. Production OIDC/JWT verification is still a
+future hardening step.
+
 - Define backend-enforced roles before implementation: viewer, operator,
   trader, admin, auditor, and emergency if needed.
 - Map every route to permissions.
@@ -177,6 +194,9 @@ Exit criteria:
 
 ## Phase 5 - Idempotency
 
+Status: implemented for HTTP mutating routes with a durable JSONL repository.
+Replays return the stored response; payload drift returns conflict.
+
 - Require `Idempotency-Key` on live POST commands.
 - Persist command key, actor, role, endpoint, payload hash, generated
   `client_order_id`, status, response, failure stage, and timestamps.
@@ -190,6 +210,10 @@ Exit criteria:
 - Audit history links idempotency records to command outcomes.
 
 ## Phase 6 - Approval Gates And Live Caps
+
+Status: approval snapshot hashing exists, but live HTTP execution remains
+disabled until approval matching and cap enforcement are wired into the route
+admission path.
 
 - Live placement requires server-side approval, not only a frontend checkbox.
 - Approval binds to product, side, size, price, order config, cap result, actor,
@@ -215,6 +239,10 @@ Exit criteria:
 - Live Coinbase tests remain separately approved and must report notional.
 
 ## Phase 7 - Durable Audit
+
+Status: implemented for HTTP mutating command attempts with a durable JSONL
+audit repository. Database-backed retention remains a future production
+hardening step.
 
 - Add durable command audit records as a new table or a clearly separated
   `order_event_stream` event family.

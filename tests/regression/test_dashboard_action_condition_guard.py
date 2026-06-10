@@ -421,6 +421,35 @@ def test_cancel_order_calls_cancel_order_with_client_order_id():
 
 
 @pytest.mark.regression
+def test_cancel_order_false_result_is_error():
+    import dashboard_server
+
+    ws = _make_websocket()
+    rest_client = MagicMock()
+    rest_client.cancel_order.return_value = False
+    message = json.dumps({
+        "type": "cancel_order",
+        "client_order_id": "client-order-false",
+    })
+
+    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
+         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+         patch.object(dashboard_server, "get_runtime_controller",
+                      return_value=_admitting_controller()), \
+         patch.object(dashboard_server, "add_log_entry"):
+        _run(dashboard_server.handle_client_message(ws, message))
+
+    payload = _sent_payload(ws)
+    assert payload["type"] == "cancel_response"
+    assert payload["status"] == "error"
+    assert payload["client_order_id"] == "client-order-false"
+    assert payload["data"] is False
+    assert payload["message"] == "Order cancellation was not accepted by Coinbase"
+    rest_client.cancel_order.assert_called_once_with("client-order-false")
+    rest_client.cancel_orders.assert_not_called()
+
+
+@pytest.mark.regression
 def test_cancel_order_accepts_nested_params_client_order_id():
     import dashboard_server
 

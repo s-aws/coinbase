@@ -6,7 +6,7 @@ or mutate exchange state by themselves.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +14,7 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiPermission,
+    AdminApiRole,
     OrderSide,
     OrderType,
     TimeInForce,
@@ -36,7 +37,7 @@ class AdminApiActor(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     actor_id: str = Field(min_length=1)
-    roles: list[str] = Field(default_factory=list)
+    roles: list[AdminApiRole] = Field(default_factory=list)
 
 
 class AdminApiCommandEnvelope(BaseModel):
@@ -81,6 +82,8 @@ class ManualOrderCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: ManualOrderRequest
+    order_configuration_override: dict[str, Any] | None = None
+    allow_live_execution: bool = False
 
 
 class CancelOrderCommand(BaseModel):
@@ -91,6 +94,7 @@ class CancelOrderCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     client_order_id: str = Field(min_length=1)
     request: CancelOrderRequest
+    allow_live_execution: bool = False
 
 
 class AdminApiCommandResponse(BaseModel):
@@ -104,10 +108,16 @@ class AdminApiCommandResponse(BaseModel):
     service_method: str
     message: str
     client_order_id: str | None = None
+    coinbase_order_id: str | None = None
     correlation_id: str | None = None
     idempotency_key: str | None = None
     audit_id: str | None = None
-    live_exchange_submitted: Literal[False] = False
+    live_exchange_submitted: bool = False
+    submission_event_recorded: bool | None = None
+    audit_command: str | None = None
+    guard: dict[str, Any] | None = None
+    data: Any | None = None
+    failure_stage: str | None = None
 
 
 class AdminApiRouteInventoryItem(BaseModel):
@@ -125,4 +135,3 @@ class AdminApiRouteInventoryItem(BaseModel):
     shared_method: str
     parity_test: str
     compatibility_mode: str | None = None
-

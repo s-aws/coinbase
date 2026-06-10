@@ -182,21 +182,22 @@ Keep it short. Keep it factual.
 
 ## Validation Status
 
-- Last focused Admin API run: 2026-06-10
-  `pytest tests\regression\test_admin_api_contract.py -v --tb=short`
-- Result: Passed, 7 tests.
+- Last focused Admin API/exchange run: 2026-06-10
+  `python tools\generate_admin_api_openapi.py; pytest tests\regression\test_admin_api_contract.py tests\regression\test_dashboard_action_condition_guard.py tests\regression\test_list_fills_param_mapping.py -v --tb=short`
+- Result: Passed, 44 tests.
 - Last frontend quality run: 2026-06-10 `npm run quality`
-- Result: Passed; generated API schema present.
-- Last contextless Admin API review: 2026-06-10
-- Result: Passed for backend skeleton and frontend generated-client wiring.
+- Result: Passed; generated API schema fresh, unit tests passed, browser e2e passed.
+- Last contextless Admin API/frontend review: 2026-06-10
+- Result: Passed after fixing OpenAPI response metadata and Coinbase cancel
+  success parsing.
 - Last regression run: 2026-06-10 `pytest tests\regression\ -v --tb=short`
-- Result: Passed, 723 tests.
+- Result: Passed, 735 tests.
 - Spot readiness regression: passed, 212 tests.
 - Browser smoke: passed,
   `tests\e2e\test_direct_order_ui_smoke.py` and
   `tests\e2e\test_spot_readiness_ui_smoke.py`.
 - Ownership check passed.
-- `git diff --check` passed with CRLF warnings only.
+- Backend and frontend `git diff --check` passed with CRLF warnings only.
 - Failing tests (if any): None.
 
 ## Next 3 Actions
@@ -239,10 +240,15 @@ Keep it short. Keep it factual.
   `2026-06-10T14:32:37Z`, one eligible product `PERP-USDC`, validator passed
   with `max_products=1`, `max_total_notional_per_run=1`,
   `max_notional_per_order=1`, and `max_planned_orders=1`.
-- Admin API/frontend status: contract-only FastAPI skeleton, OpenAPI artifact,
-  route inventory, focused regression tests, and frontend generated TypeScript
-  schema are implemented. No live Coinbase execution was run.
-- What is in progress: Nothing currently active after Admin API skeleton
-  validation.
+- Admin API/frontend status: backend Admin API mutating routes are
+  auth/RBAC-gated, idempotent, audited, and still HTTP-live-disabled with
+  OpenAPI documenting `501` rather than `200`; read-only spot operator routes
+  are auth/RBAC-gated and document `401`/`403`; dashboard
+  `place_order`/`cancel_order` delegates to the shared command service; the
+  Coinbase single-order cancel wrapper remains `client_order_id` keyed and
+  rejects non-explicit-success cancel payloads; frontend generated schema and
+  read-only spot operator views are current. No live Coinbase execution was run.
+- What is in progress: approved Admin API/frontend roadmap work continues after
+  this backend/frontend contract hardening batch is committed and pushed.
 - What is blocked: Nothing currently known.
 - Exact next command: `pytest tests\regression\ -v --tb=short` for the next non-agent-file change.
