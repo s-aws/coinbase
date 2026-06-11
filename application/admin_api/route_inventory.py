@@ -112,6 +112,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="stealth_order_id identity with runtime claims as evidence only",
     ),
     AdminApiRouteInventoryItem(
+        surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for rate/session controls, mutation claims, and exchange-reality reconciliation",
+        audit="required",
+        shared_method="reprice_stealth_order_by_stealth_order_id",
+        parity_test="stealth_order_id identity; no cooldown clearing or live repricing until exchange handling is complete",
+    ),
+    AdminApiRouteInventoryItem(
         surface="GET /api/v1/futures/account",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

@@ -262,12 +262,11 @@ Response rows include lifecycle and policy evidence such as `status`,
 platform. They must not be used by a frontend to mutate stealth lifecycle
 state or cancel a live placement.
 
-## Movement And Repricing Reads
+## Movement And Repricing
 
 Movement/repricing reads expose existing durable and runtime-safe evidence.
-They are not command routes. They do not move parent orders, premark moves,
-trigger repricing, cancel Coinbase orders, or replace revealed stealth
-placements.
+The read routes do not move parent orders, premark moves, trigger repricing,
+cancel Coinbase orders, or replace revealed stealth placements.
 
 ```http
 GET /api/v1/movement-repricing/evidence?product_id=BTC-USDC&evidence_type=stealth_repricing_state&limit=50&offset=0
@@ -295,6 +294,28 @@ move audit rows from `stealth_order_moves`, repricing state from
 `stealth_orders.anchor_repricing_state_json`, replacement-slot evidence, and
 runtime mutation claim evidence when the existing manager state is observable.
 Exchange-native ids are exposed as exchange evidence only.
+
+Movement repricing has one live-disabled command draft:
+
+```http
+POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice
+Authorization: Bearer <backend-verifiable-token>
+Idempotency-Key: idem-movement-reprice-001
+X-Correlation-Id: corr-movement-reprice-001
+X-Operator-Intent: movement_reprice_review
+X-Admin-Actor: trader-001
+X-Admin-Roles: trader
+Content-Type: application/json
+
+{"reason":"operator_requested_reprice"}
+```
+
+The request identity is the path `stealth_order_id`. Do not send
+`client_order_id` or `order_id` in the body. The current response is HTTP
+`501` with `status="not_implemented"`, durable audit/idempotency evidence,
+`live_exchange_submitted=false`, and `data.stealth_manager_invoked=false`.
+It does not clear repricing cooldowns, invoke the live dashboard repricer,
+cancel placements, or call Coinbase.
 
 ## Futures/Perpetuals Reads
 
@@ -356,7 +377,7 @@ and `rejection_categories`.
 Expected safety posture:
 
 - `read_only=true`
-- `command_routes_mode="not_modeled"`
+- `command_routes_mode="live_disabled"`
 - `live_coinbase_orders_ran=false`
 - `live_coinbase_read_ran=false`
 
@@ -473,12 +494,13 @@ Current response behavior:
 
 ## Idempotent Retry
 
-If the same `Idempotency-Key` and same payload are sent again, the API should
+If the same `Idempotency-Key` and same command payload are sent again for the
+same endpoint, path identity, actor/roles, and operator intent, the API should
 return the original command result without minting a second `client_order_id`
 or submitting a second Coinbase order.
 
-If the same `Idempotency-Key` is reused with a different payload, the API
-should return conflict.
+If the same `Idempotency-Key` is reused with a different payload, path
+identity, actor/roles, or `X-Operator-Intent`, the API should return conflict.
 
 ## Read-Only Spot Operator Routes
 

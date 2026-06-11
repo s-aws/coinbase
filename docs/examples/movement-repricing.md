@@ -49,7 +49,7 @@ Expected posture fields:
 {
   "type": "admin_movement_repricing_evidence",
   "read_only": true,
-  "command_routes_mode": "not_modeled",
+  "command_routes_mode": "live_disabled",
   "live_coinbase_orders_ran": false
 }
 ```
@@ -75,5 +75,46 @@ Example evidence item:
 }
 ```
 
-Do not post to these paths. M2 intentionally exposes no enterprise
-movement/repricing command route.
+Live-disabled reprice draft:
+
+```http
+POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice
+Authorization: Bearer <backend-verifiable-token>
+Idempotency-Key: idem-movement-reprice-001
+X-Correlation-Id: corr-movement-reprice-001
+X-Operator-Intent: movement_reprice_review
+X-Admin-Actor: trader-001
+X-Admin-Roles: trader
+Content-Type: application/json
+
+{"reason":"operator_requested_reprice"}
+```
+
+Expected command response posture:
+
+```json
+{
+  "status": "not_implemented",
+  "action_class": "live_exchange_cancel",
+  "required_permission": "order:cancel",
+  "service_method": "reprice_stealth_order_by_stealth_order_id",
+  "stealth_order_id": "stealth-root-id",
+  "client_order_id": null,
+  "live_exchange_submitted": false,
+  "data": {
+    "identity_key": "stealth_order_id",
+    "mutation_kind": "reprice",
+    "cooldown_cleared": false,
+    "stealth_manager_invoked": false,
+    "exchange_order_id_evidence_only": true
+  }
+}
+```
+
+Do not send `client_order_id` or Coinbase `order_id` in the request body.
+The current route writes audit/idempotency evidence and stops at the
+live-disabled gate. `X-Operator-Intent` is persisted as audit evidence and is
+part of the idempotency payload hash; changing it while reusing the same
+`Idempotency-Key` returns conflict. The route does not clear repricing
+cooldowns, invoke the live dashboard repricer, cancel placements, or call
+Coinbase.

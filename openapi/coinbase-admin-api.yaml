@@ -1300,6 +1300,122 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice:
+    post:
+      tags:
+      - movement-repricing
+      summary: Reprice a stealth order by stealth_order_id through the shared command
+        service
+      description: Route adapter for live-disabled movement repricing by ``stealth_order_id``.
+      operationId: reprice_stealth_order_by_stealth_order_id_api_v1_movement_repricing_stealth__stealth_order_id__reprice_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MovementRepriceRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders:
     get:
       tags:
@@ -2989,6 +3105,11 @@ components:
           - type: string
           - type: 'null'
           title: Request Id
+        operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Intent
         idempotency_key:
           anyOf:
           - type: string
@@ -3694,9 +3815,8 @@ components:
           title: Read Only
           default: true
         command_routes_mode:
-          type: string
-          title: Command Routes Mode
-          default: not_modeled
+          $ref: '#/components/schemas/AdminApiCommandRoutesMode'
+          default: live_disabled
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
@@ -3946,9 +4066,8 @@ components:
           title: Read Only
           default: true
         command_routes_mode:
-          type: string
-          title: Command Routes Mode
-          default: not_modeled
+          $ref: '#/components/schemas/AdminApiCommandRoutesMode'
+          default: live_disabled
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
@@ -4903,6 +5022,17 @@ components:
       - order_type
       title: ManualOrderRequest
       description: Manual order request shape for future enterprise placement.
+    MovementRepriceRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      additionalProperties: false
+      type: object
+      title: MovementRepriceRequest
+      description: Movement/reprice request body keyed by path ``stealth_order_id``.
     OrderSide:
       type: string
       enum:

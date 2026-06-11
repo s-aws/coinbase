@@ -25,6 +25,7 @@ class AdminApiAuditEvent(BaseModel):
     permission: AdminApiPermission
     endpoint: str = Field(min_length=1)
     request_id: str = Field(min_length=1)
+    operator_intent: str | None = None
     idempotency_key: str | None = None
     approval_id: str | None = None
     client_order_id: str | None = None

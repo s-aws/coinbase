@@ -234,12 +234,13 @@ Current behavior:
   Exchange-native ids are exposed only as `exchange_order_id` evidence.
 - Stealth read routes are local-evidence reads keyed by `stealth_order_id`.
   Active placement client ids and exchange-native ids are exposed as evidence
-  only. Stealth commands are not modeled in the enterprise Admin API yet.
+  only. Stealth cancel is modeled as a live-disabled Admin API command keyed
+  by `stealth_order_id`.
 - Movement/repricing read routes expose durable parent move history, revealed
   stealth move audit rows, anchor repricing state, replacement-slot evidence,
-  and runtime mutation claim state when safely observable. These routes are
-  read-only and do not expose move, premark, reprice-now, or move-revealed
-  command authority.
+  and runtime mutation claim state when safely observable. Movement reprice is
+  modeled as a live-disabled Admin API command keyed by `stealth_order_id`;
+  move, premark, and move-revealed command authority is not modeled.
 - Futures/perpetual read routes expose account, margin, collateral, funding,
   liquidation, close/reduce-side, position, and P/L evidence. `position_key`
   is the position read identity. Configured product scope and observed

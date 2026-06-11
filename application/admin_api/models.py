@@ -105,6 +105,14 @@ class StealthCancelRequest(BaseModel):
     reason: str | None = None
 
 
+class MovementRepriceRequest(BaseModel):
+    """Movement/reprice request body keyed by path ``stealth_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = None
+
+
 class CampaignExecutionRequest(BaseModel):
     """Campaign execution request shape for future gated spot campaigns."""
 
@@ -149,6 +157,17 @@ class StealthCancelCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthCancelRequest
+    allow_live_execution: bool = False
+
+
+class MovementRepriceCommand(BaseModel):
+    """Shared service command for live-disabled stealth repricing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: MovementRepriceRequest
     allow_live_execution: bool = False
 
 
@@ -520,7 +539,7 @@ class AdminMovementRepricingListResponse(BaseModel):
     pagination: AdminOrderPagination
     items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
     read_only: bool = True
-    command_routes_mode: str = "not_modeled"
+    command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False
 
 
@@ -536,7 +555,7 @@ class AdminMovementRepricingDetailResponse(BaseModel):
     found: bool
     items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
     read_only: bool = True
-    command_routes_mode: str = "not_modeled"
+    command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False
 
 
@@ -741,6 +760,7 @@ class AdminAuditWorkbenchEventItem(BaseModel):
     correlation_id: str | None = None
     audit_id: str | None = None
     request_id: str | None = None
+    operator_intent: str | None = None
     idempotency_key: str | None = None
     exchange_order_id: str | None = None
     exchange_order_id_evidence_only: bool = True

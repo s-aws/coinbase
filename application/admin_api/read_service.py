@@ -1275,6 +1275,7 @@ def _audit_event_from_command_event(
         correlation_id=event.request_id,
         audit_id=event.audit_id,
         request_id=event.request_id,
+        operator_intent=event.operator_intent,
         idempotency_key=event.idempotency_key,
         exchange_order_id=event.coinbase_order_id,
         recorded_at=event.recorded_at,

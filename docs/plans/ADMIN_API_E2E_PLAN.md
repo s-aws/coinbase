@@ -199,10 +199,11 @@ Status: implemented for HTTP mutating routes with a durable JSONL repository.
 Replays return the stored response; payload drift returns conflict.
 
 - Require `Idempotency-Key` on live POST commands.
-- Persist command key, actor, role, endpoint, payload hash, generated
+- Persist command key, actor, role, endpoint, operator intent, payload hash, generated
   `client_order_id`, status, response, failure stage, and timestamps.
 - Replays with the same key and same payload hash return the original result.
-- Replays with the same key and different payload hash return conflict.
+- Replays with the same key and different payload hash, including changed
+  operator intent, return conflict.
 - Never mint a second `client_order_id` for a retried placement.
 
 Exit criteria:

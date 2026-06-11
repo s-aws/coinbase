@@ -26,6 +26,7 @@ Current route adapters:
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
+- `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 - `GET /api/v1/futures/account`
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
@@ -58,8 +59,10 @@ Current behavior:
   mutate live exchange state
 - the generated OpenAPI contract includes eventual `200` accepted/replayed
   command response schemas, but the current runtime still returns `501` for
-  create, order cancel, stealth cancel, and campaign execution commands
-  because HTTP live execution is not approved
+  create, order cancel, stealth cancel, movement reprice, and campaign
+  execution commands because HTTP live execution is not approved
+- `X-Operator-Intent` is durable command audit evidence and part of the
+  idempotency payload hash
 - `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose
   read-only local order evidence keyed by `client_order_id`; exchange-native
   ids can appear only as `exchange_order_id` evidence and are not cancel keys
@@ -76,9 +79,11 @@ Current behavior:
   `GET /api/v1/movement-repricing/stealth/{stealth_order_id}` expose
   read-only movement/repricing evidence from `order_moves`,
   `stealth_order_moves`, `stealth_orders.anchor_repricing_state_json`, and
-  runtime claim snapshots when safely observable; no move, premark,
-  reprice-now, or move-revealed command route is modeled through the
-  enterprise Admin API yet
+  runtime claim snapshots when safely observable
+- `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice` is a
+  live-disabled command draft keyed by `stealth_order_id`; it returns `501`,
+  writes command audit evidence, never calls Coinbase, and does not clear
+  cooldowns or invoke the live dashboard repricer
 - `GET /api/v1/futures/account`, `GET /api/v1/futures/positions`, and
   `GET /api/v1/futures/positions/{position_key}` expose read-only
   futures/perpetual account, risk, and position evidence; `position_key` is

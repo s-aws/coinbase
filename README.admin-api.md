@@ -13,10 +13,10 @@ The repository now contains an Admin API contract, generated OpenAPI artifact,
 fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
 structured error payloads, observability headers, read-only admin diagnostics,
 order read routes, read-only stealth lifecycle routes, a live-disabled
-stealth cancel command contract, read-only
-movement/repricing evidence routes, read-only futures/perpetual account and
-position routes, read-only guard/risk policy evidence, read-only cross-module
-audit workbench evidence, and read-only spot operator routes.
+stealth cancel command contract, movement/repricing evidence routes, a
+live-disabled movement reprice command contract, read-only futures/perpetual
+account and position routes, read-only guard/risk policy evidence, read-only
+cross-module audit workbench evidence, and read-only spot operator routes.
 Mutating HTTP routes still return `not_implemented` after
 auth, permission, idempotency, and audit handling; they do not submit orders,
 cancel orders, or call Coinbase.
@@ -24,9 +24,9 @@ cancel orders, or call Coinbase.
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
 The current runtime still returns `501` for create, order cancel, stealth
-cancel, and campaign execution commands because HTTP live execution is not
-approved. Read routes document typed `200` payloads plus structured `401` and
-`403` errors.
+cancel, movement reprice, and campaign execution commands because HTTP live
+execution is not approved. Read routes document typed `200` payloads plus
+structured `401` and `403` errors.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -74,6 +74,7 @@ Current mutating HTTP command surfaces are:
 - `POST /api/v1/orders`
 - `POST /api/v1/orders/{client_order_id}/cancel`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
+- `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 - `POST /api/v1/spot/campaign/executions`
 
 The current operational dashboard is still the proof-of-concept WebSocket and
@@ -155,6 +156,10 @@ The platform/module split is documented in
   only when safely observable through the existing manager/engine state; if
   unavailable, the response says so instead of treating the database as proof
   that no runtime claim exists.
+- Movement repricing command draft:
+  `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
+  is live-disabled and keyed by `stealth_order_id`. It does not clear
+  cooldowns, invoke the live repricer, cancel placements, or call Coinbase.
 - Futures/perpetual read rows use backend-defined `position_key` identity.
   Account evidence separates `configured_product_scope` from
   `observed_position_scope`; close/reduce sides are backend-derived from
@@ -214,6 +219,11 @@ browser code: `Content-Type`, `X-Correlation-Id`, `X-Request-Id`,
 `X-Idempotency-Replayed`. Treat missing BFF authority as a session/transport
 configuration failure, not as a live trading gate result.
 
+For mutating HTTP commands, `X-Operator-Intent` is durable audit evidence and
+part of the idempotency payload hash together with endpoint, actor/roles, body,
+and path identity. Reusing an `Idempotency-Key` with changed operator intent
+returns conflict instead of replaying the prior command.
+
 Frontend `server_env_static` BFF authority is local/staging evidence only.
 Production readiness requires frontend `backend_oidc_jwt` BFF mode and
 backend `oidc_jwt` verifier configuration. Browser-visible RBAC remains a UI
@@ -263,7 +273,7 @@ and rotation policy without disclosing a token value.
 - [Admin Platform Architecture](docs/ADMIN_PLATFORM_ARCHITECTURE.md)
 - [Admin Module Capability Matrix](docs/ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Admin API Examples](docs/examples/admin-api.md)
-- [Movement And Repricing Reads](README.movement-repricing.md)
+- [Movement And Repricing](README.movement-repricing.md)
 - [Futures/Perpetuals Admin Reads](README.futures-perpetuals.md)
 - [Guard/Risk Policy Admin Reads](README.guard-risk-policy.md)
 - [Audit Workbench Admin Reads](README.audit-workbench.md)

@@ -19,7 +19,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
 - [Live Order Surfaces](LIVE_ORDER_SURFACES.md)
 - [Admin API](../README.admin-api.md)
-- [Movement And Repricing Reads](../README.movement-repricing.md)
+- [Movement And Repricing](../README.movement-repricing.md)
 - [Futures/Perpetuals Admin Reads](../README.futures-perpetuals.md)
 - [Guard/Risk Policy Admin Reads](../README.guard-risk-policy.md)
 - [Audit Workbench Admin Reads](../README.audit-workbench.md)

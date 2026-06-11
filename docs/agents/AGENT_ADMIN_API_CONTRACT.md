@@ -26,6 +26,8 @@ and live-disabled. They return typed `501` `not_implemented` responses until
 live HTTP approval, guard, cap, and audit gates are complete. The generated
 OpenAPI schema also includes typed `200` accepted/replayed response contracts
 for the future live-enabled state.
+`X-Operator-Intent` is required command evidence. It must be recorded in the
+durable command audit event and included in the idempotency payload hash.
 
 ## Platform And Module Boundary
 
@@ -64,6 +66,7 @@ Implemented modules:
 Shared command service methods currently cover manual placement,
 cancel-by-`client_order_id`, hotpoint test placement for legacy dashboard
 compatibility, live-disabled stealth cancel by `stealth_order_id`, and a
+live-disabled movement reprice command keyed by `stealth_order_id`, and a
 live-disabled spot campaign execution contract.
 
 Read-only Admin API routes currently cover backend bootstrap, health,
@@ -73,6 +76,10 @@ fixtures, order list/detail, stealth lifecycle list/detail,
 movement/repricing evidence, futures/perpetual account and position evidence,
 spot readiness, sweep status, sweep P/L, cost-basis status, campaign status,
 and direct order audit.
+The movement reprice command draft is not the legacy dashboard repricer: it
+must not clear cooldowns, call `process_anchor_repricing_for_product`, or
+mutate live revealed placements until the existing exchange-reality
+reconciliation path is explicitly wired.
 Guard/risk policy reads expose existing backend policy and authority sources as
 evidence only. They must not become browser preflight approval or a second
 guard engine.
@@ -113,6 +120,7 @@ pytest tests/regression/test_admin_api_contract.py -v --tb=short
 Focused tests must cover auth denial, RBAC denial, idempotent retry,
 idempotency conflict, approval/live-disabled gate evidence, no live REST call
 from HTTP command routes, cancel by `client_order_id`, audit creation,
-WebSocket/HTTP shared-service parity, typed OpenAPI routes, and read-only route
-contracts. OIDC verifier changes must also keep the no-live OIDC readiness
-smoke covered by `tests/regression/test_admin_api_contract.py`.
+operator intent audit/idempotency evidence, WebSocket/HTTP shared-service
+parity, typed OpenAPI routes, and read-only route contracts. OIDC verifier
+changes must also keep the no-live OIDC readiness smoke covered by
+`tests/regression/test_admin_api_contract.py`.

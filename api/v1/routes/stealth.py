@@ -143,6 +143,7 @@ def cancel_stealth_order_by_stealth_order_id(
     payload_hash = _idempotency_payload_hash(
         endpoint=endpoint,
         actor=actor,
+        operator_intent=operator_intent,
         body=body.model_dump(mode="json"),
         path_params={"stealth_order_id": stealth_order_id},
     )
@@ -152,6 +153,7 @@ def cancel_stealth_order_by_stealth_order_id(
         actor=actor,
         endpoint=endpoint,
         request_id=correlation_id,
+        operator_intent=operator_intent,
         permission=AdminApiPermission.ORDER_CANCEL,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         service_method="cancel_stealth_order_by_stealth_order_id",

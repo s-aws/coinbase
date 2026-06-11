@@ -1,9 +1,9 @@
-# Movement And Repricing Reads
+# Movement And Repricing
 
 This feature exposes movement and repricing evidence through the enterprise
-Admin API. It is read-only. It does not create moves, premark moves, trigger
-repricing, cancel Coinbase orders, replace Coinbase orders, or mutate stealth
-state.
+Admin API. Read routes remain read-only. One live-disabled reprice command
+draft exists so operators and frontend agents can review the eventual contract
+without creating a second live repricing path.
 
 ## When To Use
 
@@ -11,19 +11,25 @@ Use these routes when an operator needs to inspect why an order or stealth
 placement moved, what replacement-slot evidence exists, what repricing state is
 durable, and whether runtime mutation claims were observable.
 
-The routes are useful before any future command UI because they make the
-existing movement/repricing behavior inspectable without granting frontend
-authority.
+The routes are useful before command UI work because they make the existing
+movement/repricing behavior inspectable without granting frontend authority.
 
 ## Routes
 
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
+- `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 
-All routes require Admin API authentication and `audit:read` permission. They
-return `read_only=true`, `command_routes_mode=not_modeled`, and
+Read routes require Admin API authentication and `audit:read` permission. They
+return `read_only=true`, `command_routes_mode=live_disabled`, and
 `live_coinbase_orders_ran=false`.
+
+The reprice command draft requires Admin API authentication, `order:cancel`,
+idempotency headers, operator intent, and audit. The current runtime returns
+HTTP `501` with `status=not_implemented`,
+`service_method=reprice_stealth_order_by_stealth_order_id`, and
+`live_exchange_submitted=false`.
 
 ## Evidence Sources
 
@@ -50,8 +56,12 @@ database proves no claim exists.
 
 ## Safety Constraints
 
-- The enterprise Admin API does not expose move, premark, reprice-now, or
-  move-revealed command routes in this feature.
+- The enterprise Admin API does not expose move, premark, or move-revealed
+  command routes in this feature.
+- The live-disabled reprice draft must not clear cooldowns, call
+  `process_anchor_repricing_for_product`, cancel placements, replace
+  placements, or invoke `StealthOrderManager` until the exchange-reality
+  reconciliation path is explicitly wired.
 - Legacy dashboard WebSocket commands remain compatibility surfaces.
 - Revealed stealth placement truth must continue to come from the existing
   cancel/move/reprice/reconcile paths.

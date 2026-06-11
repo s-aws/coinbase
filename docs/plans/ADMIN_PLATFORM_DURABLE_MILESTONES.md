@@ -335,6 +335,18 @@ Current M6 completion:
   live-disabled with HTTP `501`; idempotency conflicts preserve
   `stealth_order_id` audit identity; live Coinbase execution not run,
   notional `$0`.
+- `movement_reprice` is the second non-spot command draft contract.
+- Backend route:
+  `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`.
+- Shared service method:
+  `reprice_stealth_order_by_stealth_order_id`.
+- Identity key: `stealth_order_id`. Active placement client ids and exchange
+  ids are evidence only. The draft does not clear cooldowns, invoke the live
+  dashboard repricer, cancel placements, or call Coinbase.
+- Current runtime posture: authenticated, RBAC-gated, idempotent, audited, and
+  live-disabled with HTTP `501`; idempotency conflicts preserve
+  `stealth_order_id` audit identity; live Coinbase execution not run,
+  notional `$0`.
 
 ## M7 - Production Auth And Operations Hardening
 

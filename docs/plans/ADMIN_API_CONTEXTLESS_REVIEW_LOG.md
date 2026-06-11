@@ -918,3 +918,73 @@ Status:
   Playwright tests.
 - Frontend blind review focused checks passed with `75` tests.
 - Live Coinbase execution was not run for M6; notional `$0`.
+
+## M6 Live-Disabled Movement Reprice Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
+  is authenticated, RBAC-gated, idempotent, audited, live-disabled, and routed
+  through the shared command service
+- verify the command identity is the path `stealth_order_id`; body
+  `client_order_id`, Coinbase `order_id`, active placement ids, cooldown
+  controls, and dashboard repricer controls are not accepted
+- verify operator intent is durable command audit evidence and part of the
+  idempotency payload hash
+- verify generated OpenAPI, route inventory, docs, tests, frontend generated
+  schema, wrappers, BFF allowlist, command draft, dry-submit helper, admin
+  navigation, and release gates are aligned
+- verify no Coinbase execution path, cooldown clearing, dashboard repricer
+  invocation, live placement cancellation, or browser-local command fetch path
+  was introduced
+
+Findings:
+
+- Initial backend blind review found the command was fail-closed and keyed by
+  `stealth_order_id`, but flagged blocker-level ambiguity: the movement route
+  module docstring still said read-only, `X-Operator-Intent` was not persisted
+  in command audit/idempotency evidence, and docs could let a smaller agent
+  believe `allow_live_execution` or a legacy dashboard repricer path enabled
+  this route.
+- Initial frontend blind review found the wrapper, body shape, disabled UI, and
+  no-live posture were correct, but flagged docs that omitted stealth cancel
+  and movement reprice from the current `501` command list and could confuse
+  helper dry-submit with a payload-level `dry_run` field.
+- Follow-up frontend blind review then found two stale docs blockers:
+  `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` still called movement/repricing
+  command drafts and dry-submit not modeled, and `docs/STEALTH_ORDER_READS.md`
+  still said reprice commands were absent from the enterprise frontend.
+
+Resolution:
+
+- Changed the movement route module docstring to cover read routes plus
+  live-disabled command routes.
+- Added `operator_intent` to durable Admin API command audit events, the shared
+  idempotency payload hash, and normalized audit-workbench event output.
+- Added regression coverage for operator-intent audit persistence and
+  same-key changed-intent conflicts, including movement reprice.
+- Regenerated `openapi/coinbase-admin-api.yaml` and the frontend generated
+  TypeScript schema.
+- Updated backend Admin API, examples, agent contract, E2E plan, and local
+  expanded API reference docs.
+- Updated frontend API/command docs so dry-submit is described as a
+  helper/smoke path, not a universal `dry_run` body field.
+- Updated the frontend capability matrix and stealth reads docs to point
+  movement reprice to the Order Movement / Repricing module as a disabled
+  `stealth_order_id` command draft.
+- Follow-up backend and frontend blind reviews found no blockers.
+
+Status:
+
+- Backend focused Admin API contract tests passed with `54 passed, 1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend focused movement/command/quality checks passed with `44` tests.
+- Frontend `npm run release:gate` passed with `169` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for movement reprice; notional `$0`.

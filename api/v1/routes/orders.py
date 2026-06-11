@@ -154,6 +154,7 @@ def _record_audit(
     actor: AdminApiActor,
     endpoint: str,
     request_id: str,
+    operator_intent: str,
     response: AdminApiCommandResponse,
 ) -> str:
     return audit_store.append(
@@ -163,6 +164,7 @@ def _record_audit(
             permission=response.required_permission,
             endpoint=endpoint,
             request_id=request_id,
+            operator_intent=operator_intent,
             idempotency_key=response.idempotency_key,
             client_order_id=response.client_order_id,
             stealth_order_id=response.stealth_order_id,
@@ -178,6 +180,7 @@ def _idempotency_payload_hash(
     *,
     endpoint: str,
     actor: AdminApiActor,
+    operator_intent: str,
     body: dict,
     path_params: dict | None = None,
 ) -> str:
@@ -185,6 +188,7 @@ def _idempotency_payload_hash(
         "endpoint": endpoint,
         "actor_id": actor.actor_id,
         "roles": [role.value for role in actor.roles],
+        "operator_intent": operator_intent,
         "body": body,
         "path_params": path_params or {},
     })
@@ -197,6 +201,7 @@ def _execute_idempotent_command(
     actor: AdminApiActor,
     endpoint: str,
     request_id: str,
+    operator_intent: str,
     permission: AdminApiPermission,
     action_class: AdminApiActionClass,
     service_method: str,
@@ -233,6 +238,7 @@ def _execute_idempotent_command(
             actor=actor,
             endpoint=endpoint,
             request_id=request_id,
+            operator_intent=operator_intent,
             response=response,
         )
         return _command_response(response)
@@ -243,6 +249,7 @@ def _execute_idempotent_command(
         actor=actor,
         endpoint=endpoint,
         request_id=request_id,
+        operator_intent=operator_intent,
         response=response,
     )
     idempotency_store.put_record(
@@ -338,6 +345,7 @@ def create_manual_order(
     payload_hash = _idempotency_payload_hash(
         endpoint=endpoint,
         actor=actor,
+        operator_intent=operator_intent,
         body=body.model_dump(mode="json"),
     )
     return _execute_idempotent_command(
@@ -346,6 +354,7 @@ def create_manual_order(
         actor=actor,
         endpoint=endpoint,
         request_id=correlation_id,
+        operator_intent=operator_intent,
         permission=AdminApiPermission.ORDER_CREATE,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         service_method="place_manual_order",
@@ -388,6 +397,7 @@ def cancel_order_by_client_order_id(
     payload_hash = _idempotency_payload_hash(
         endpoint=endpoint,
         actor=actor,
+        operator_intent=operator_intent,
         body=body.model_dump(mode="json"),
         path_params={"client_order_id": client_order_id},
     )
@@ -397,6 +407,7 @@ def cancel_order_by_client_order_id(
         actor=actor,
         endpoint=endpoint,
         request_id=correlation_id,
+        operator_intent=operator_intent,
         permission=AdminApiPermission.ORDER_CANCEL,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         service_method="cancel_order_by_client_order_id",
@@ -447,6 +458,7 @@ def execute_spot_campaign(
     payload_hash = _idempotency_payload_hash(
         endpoint=endpoint,
         actor=actor,
+        operator_intent=operator_intent,
         body=body.model_dump(mode="json"),
     )
     return _execute_idempotent_command(
@@ -455,6 +467,7 @@ def execute_spot_campaign(
         actor=actor,
         endpoint=endpoint,
         request_id=correlation_id,
+        operator_intent=operator_intent,
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         service_method="execute_spot_campaign",

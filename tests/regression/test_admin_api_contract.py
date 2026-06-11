@@ -62,13 +62,14 @@ ROUTE_INVENTORY_DOC = ROOT / "docs" / "plans" / "ADMIN_API_ROUTE_INVENTORY.md"
 def _headers(
     *,
     idempotency_key: str = "idem-001",
+    operator_intent: str = "manual_one_off",
     roles: str = AdminApiRole.TRADER.value,
 ) -> dict[str, str]:
     return {
         "Authorization": "Bearer test-admin-token",
         "Idempotency-Key": idempotency_key,
         "X-Correlation-Id": "corr-001",
-        "X-Operator-Intent": "manual_one_off",
+        "X-Operator-Intent": operator_intent,
         "X-Admin-Actor": "operator-001",
         "X-Admin-Roles": roles,
     }
@@ -170,6 +171,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/movement-repricing/evidence" in written["paths"]
     assert "/api/v1/movement-repricing/orders/{client_order_id}" in written["paths"]
     assert "/api/v1/movement-repricing/stealth/{stealth_order_id}" in written["paths"]
+    assert (
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        in written["paths"]
+    )
     assert "/api/v1/futures/account" in written["paths"]
     assert "/api/v1/futures/positions" in written["paths"]
     assert "/api/v1/futures/positions/{position_key}" in written["paths"]
@@ -212,6 +217,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]["post"]
     assert "200" in stealth_cancel_operation["responses"]
     assert "501" in stealth_cancel_operation["responses"]
+    movement_reprice_operation = written["paths"][
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    ]["post"]
+    assert "200" in movement_reprice_operation["responses"]
+    assert "501" in movement_reprice_operation["responses"]
     campaign_operation = written["paths"]["/api/v1/spot/campaign/executions"]["post"]
     assert "200" in campaign_operation["responses"]
     assert "501" in campaign_operation["responses"]
@@ -293,6 +303,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "client_order_id" in audit_event_schema["properties"]
     assert "exchange_order_id" in audit_event_schema["properties"]
     assert "exchange_order_id_evidence_only" in audit_event_schema["properties"]
+    assert "operator_intent" in audit_event_schema["properties"]
     assert "order_id" not in audit_event_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
@@ -751,6 +762,37 @@ def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypa
 
 
 @pytest.mark.regression
+def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkeypatch):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/movement-repricing/stealth/stealth-abc/reprice",
+        headers=_headers(idempotency_key="idem-movement-reprice"),
+        json={"reason": "operator_requested_reprice"},
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value
+    assert payload["required_permission"] == AdminApiPermission.ORDER_CANCEL.value
+    assert payload["service_method"] == "reprice_stealth_order_by_stealth_order_id"
+    assert payload["client_order_id"] is None
+    assert payload["stealth_order_id"] == "stealth-abc"
+    assert payload["coinbase_order_id"] is None
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["guard"]["approval_snapshot_required"] is True
+    assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["data"]["identity_key"] == "stealth_order_id"
+    assert payload["data"]["mutation_kind"] == "reprice"
+    assert payload["data"]["active_placement_client_order_id"] is None
+    assert payload["data"]["exchange_order_id_evidence_only"] is True
+    assert payload["data"]["cooldown_cleared"] is False
+    assert payload["data"]["stealth_manager_invoked"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
     monkeypatch,
 ):
@@ -834,6 +876,74 @@ def test_admin_api_idempotency_conflicts_on_payload_drift(monkeypatch):
     ]
     assert audit_rows[-1]["stealth_order_id"] == "stealth-abc"
     assert audit_rows[-1]["client_order_id"] is None
+    assert audit_rows[-1]["operator_intent"] == "manual_one_off"
+
+    movement_headers = _headers(idempotency_key="idem-movement-conflict")
+    movement_first = client.post(
+        "/api/v1/movement-repricing/stealth/stealth-abc/reprice",
+        headers=movement_headers,
+        json={"reason": "operator_request"},
+    )
+    movement_second = client.post(
+        "/api/v1/movement-repricing/stealth/stealth-abc/reprice",
+        headers=movement_headers,
+        json={"reason": "operator_request_changed"},
+    )
+
+    assert movement_first.status_code == 501
+    assert movement_second.status_code == 409
+    movement_conflict = movement_second.json()
+    assert movement_conflict["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert movement_conflict["stealth_order_id"] == "stealth-abc"
+    assert movement_conflict["client_order_id"] is None
+    audit_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "audit.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert audit_rows[-1]["stealth_order_id"] == "stealth-abc"
+    assert audit_rows[-1]["client_order_id"] is None
+    assert audit_rows[-1]["operator_intent"] == "manual_one_off"
+
+
+@pytest.mark.regression
+def test_admin_api_idempotency_conflicts_on_operator_intent_drift(monkeypatch):
+    client = _client(monkeypatch)
+    first_headers = _headers(
+        idempotency_key="idem-intent-conflict",
+        operator_intent="manual_one_off",
+    )
+    second_headers = _headers(
+        idempotency_key="idem-intent-conflict",
+        operator_intent="changed_operator_intent",
+    )
+
+    first = client.post(
+        "/api/v1/movement-repricing/stealth/stealth-abc/reprice",
+        headers=first_headers,
+        json={"reason": "operator_request"},
+    )
+    second = client.post(
+        "/api/v1/movement-repricing/stealth/stealth-abc/reprice",
+        headers=second_headers,
+        json={"reason": "operator_request"},
+    )
+
+    assert first.status_code == 501
+    assert second.status_code == 409
+    payload = second.json()
+    assert payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert payload["stealth_order_id"] == "stealth-abc"
+    audit_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "audit.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert audit_rows[-1]["operator_intent"] == "changed_operator_intent"
 
 
 @pytest.mark.regression
@@ -858,6 +968,7 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["actor_id"] == "operator-001"
     assert audit_rows[-1]["client_order_id"] == "client-abc"
     assert audit_rows[-1]["permission"] == AdminApiPermission.ORDER_CANCEL.value
+    assert audit_rows[-1]["operator_intent"] == "manual_one_off"
 
     stealth_response = client.post(
         "/api/v1/stealth/orders/stealth-abc/cancel",
@@ -877,6 +988,38 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["stealth_order_id"] == "stealth-abc"
     assert audit_rows[-1]["client_order_id"] is None
     assert audit_rows[-1]["permission"] == AdminApiPermission.ORDER_CANCEL.value
+    assert audit_rows[-1]["operator_intent"] == "manual_one_off"
+    idempotency_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "idempotency.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert idempotency_rows[-1]["stealth_order_id"] == "stealth-abc"
+    assert idempotency_rows[-1]["client_order_id"] is None
+
+    movement_response = client.post(
+        "/api/v1/movement-repricing/stealth/stealth-abc/reprice",
+        headers=_headers(idempotency_key="idem-movement-audit"),
+        json={"reason": "operator_requested_reprice"},
+    )
+
+    assert movement_response.status_code == 501
+    audit_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "audit.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert audit_rows[-1]["endpoint"] == (
+        "POST /api/v1/movement-repricing/stealth/stealth-abc/reprice"
+    )
+    assert audit_rows[-1]["stealth_order_id"] == "stealth-abc"
+    assert audit_rows[-1]["client_order_id"] is None
+    assert audit_rows[-1]["permission"] == AdminApiPermission.ORDER_CANCEL.value
+    assert audit_rows[-1]["operator_intent"] == "manual_one_off"
     idempotency_rows = [
         json.loads(line)
         for line in (client.admin_api_test_store_dir / "idempotency.jsonl").read_text(
@@ -913,6 +1056,22 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
     assert "order_id" not in stealth_cancel_schema.get("properties", {})
     assert "stealth_order_id" in str(
         schema["paths"]["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["post"]["parameters"]
+    )
+
+    movement_reprice_body_ref = schema["paths"][
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    ]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    movement_reprice_model_name = movement_reprice_body_ref.rsplit("/", 1)[-1]
+    movement_reprice_schema = schema["components"]["schemas"][
+        movement_reprice_model_name
+    ]
+    assert "stealth_order_id" not in movement_reprice_schema.get("properties", {})
+    assert "client_order_id" not in movement_reprice_schema.get("properties", {})
+    assert "order_id" not in movement_reprice_schema.get("properties", {})
+    assert "stealth_order_id" in str(
+        schema["paths"][
+            "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        ]["post"]["parameters"]
     )
 
 
@@ -958,6 +1117,9 @@ def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates()
         [
             inspect.getsource(__import__("api.v1.routes.orders", fromlist=[""])),
             inspect.getsource(__import__("api.v1.routes.stealth", fromlist=[""])),
+            inspect.getsource(
+                __import__("api.v1.routes.movement_repricing", fromlist=[""])
+            ),
         ]
     )
     import dashboard_server
@@ -971,6 +1133,7 @@ def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates()
         "create_order(",
         "limit_order_gtc(",
         "cancel_orders(",
+        "process_anchor_repricing_for_product(",
     ]
     for token in route_forbidden_tokens:
         assert token not in route_source
@@ -1516,7 +1679,7 @@ def test_admin_api_movement_repricing_read_routes_use_read_service_without_comma
                 }
             ],
             "read_only": True,
-            "command_routes_mode": "not_modeled",
+            "command_routes_mode": "live_disabled",
             "live_coinbase_orders_ran": False,
         },
         build_movement_repricing_order_detail=lambda client_order_id: {
@@ -1536,7 +1699,7 @@ def test_admin_api_movement_repricing_read_routes_use_read_service_without_comma
                 }
             ],
             "read_only": True,
-            "command_routes_mode": "not_modeled",
+            "command_routes_mode": "live_disabled",
             "live_coinbase_orders_ran": False,
         },
         build_movement_repricing_stealth_detail=lambda stealth_order_id: {
@@ -1557,7 +1720,7 @@ def test_admin_api_movement_repricing_read_routes_use_read_service_without_comma
                 }
             ],
             "read_only": True,
-            "command_routes_mode": "not_modeled",
+            "command_routes_mode": "live_disabled",
             "live_coinbase_orders_ran": False,
         },
     )
@@ -1582,7 +1745,7 @@ def test_admin_api_movement_repricing_read_routes_use_read_service_without_comma
     )
 
     assert list_response.status_code == 200
-    assert list_response.json()["command_routes_mode"] == "not_modeled"
+    assert list_response.json()["command_routes_mode"] == "live_disabled"
     assert list_response.json()["items"][0]["stealth_order_id"] == "stealth-abc"
     assert list_response.json()["items"][0]["mutation_claims"][0]["kind"] == "move"
     assert list_response.json()["items"][0]["replacement_slots"][0][
@@ -1735,7 +1898,7 @@ def test_admin_api_movement_repricing_read_service_maps_durable_and_runtime_evid
     )
 
     assert response.type == "admin_movement_repricing_evidence"
-    assert response.command_routes_mode == "not_modeled"
+    assert response.command_routes_mode == AdminApiCommandRoutesMode.LIVE_DISABLED
     assert response.live_coinbase_orders_ran is False
     evidence_by_type = {item.evidence_type.value: item for item in response.items}
     parent_move = evidence_by_type["parent_move"]
@@ -2354,6 +2517,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
             permission=AdminApiPermission.ORDER_CANCEL,
             endpoint="/api/v1/orders/client-abc/cancel",
             request_id="corr-001",
+            operator_intent="manual_one_off",
             idempotency_key="idem-001",
             client_order_id="client-abc",
             coinbase_order_id="exchange-evidence-001",
@@ -2399,6 +2563,10 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].audit_id
     assert events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].request_id == (
         "corr-001"
+    )
+    assert (
+        events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].operator_intent
+        == "manual_one_off"
     )
     assert events_by_source[AdminAuditEvidenceSource.ORDER_PARENT].client_order_id == (
         "client-abc"
@@ -2495,6 +2663,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "GET /api/v1/movement-repricing/stealth/{stealth_order_id}"
     ].shared_method == "build_movement_repricing_stealth_detail"
+    assert rows[
+        "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    ].shared_method == "reprice_stealth_order_by_stealth_order_id"
+    assert rows[
+        "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    ].action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
     assert rows["GET /api/v1/futures/account"].shared_method == (
         "build_futures_account"
     )
@@ -2545,6 +2719,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_movement_repricing_evidence" in doc
     assert "build_movement_repricing_order_detail" in doc
     assert "build_movement_repricing_stealth_detail" in doc
+    assert "reprice_stealth_order_by_stealth_order_id" in doc
     assert "build_futures_account" in doc
     assert "build_futures_positions" in doc
     assert "build_futures_position_detail" in doc
@@ -2573,6 +2748,14 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/stealth/orders" in schema_http_surfaces
     assert "GET /api/v1/movement-repricing/evidence" in inventory_http_surfaces
     assert "GET /api/v1/movement-repricing/evidence" in schema_http_surfaces
+    assert (
+        "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        in inventory_http_surfaces
+    )
+    assert (
+        "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        in schema_http_surfaces
+    )
     assert "GET /api/v1/futures/account" in inventory_http_surfaces
     assert "GET /api/v1/futures/account" in schema_http_surfaces
     assert "GET /api/v1/futures/positions" in inventory_http_surfaces
