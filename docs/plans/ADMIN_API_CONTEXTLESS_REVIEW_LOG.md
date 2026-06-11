@@ -2,6 +2,48 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Runtime Evidence Review - Phases 541-560
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer task:
+
+- determine whether a contextless maintainer can find the command that writes
+  saved runtime/UI evidence
+- confirm `artifacts/runtime-evidence.json` naming and no-live Coinbase
+  posture
+- find active queue range `541-560`, live cap, and stop conditions
+- verify OIDC readiness, canonical wrappers, visual smoke targets, and route
+  evidence are represented clearly enough to prevent parallel implementations
+
+Findings:
+
+- First blind review failed the batch. The saved runtime evidence artifact
+  listed only the narrow admin wrapper/route subset and under-represented
+  order, spot, and command wrappers documented by the API contract. That could
+  mislead a contextless maintainer into inventing parallel order/spot paths.
+- Remediation expanded runtime evidence to include canonical admin, order,
+  spot, and command wrappers plus all generated Admin API route evidence.
+  Runtime evidence validators, release/deployment checks, and unit tests now
+  require the broader surface.
+- Follow-up blind review passed with no blockers. It confirmed
+  `npm run runtime:evidence`, `artifacts/runtime-evidence.json`, no-live
+  notional `$0`, OIDC readiness, visual smoke targets, route evidence, and the
+  active queue range/caps are discoverable.
+- Non-blocking concern: `runtime-evidence.json` itself does not embed the
+  queue range/cap/stop posture. That posture remains centralized in
+  `docs/plans/AUTONOMOUS_WORK_QUEUE.md` and queue validators to avoid a
+  second source of truth.
+
+Status:
+
+- Findings resolved. No live Coinbase execution was run in this batch;
+  notional `$0`.
+
 ## Backend Sync Review - Phases 241-270
 
 Review scope:

@@ -3106,3 +3106,137 @@ Progress update:
   notional `$0`.
 - Phase 536 backend full regression passed with `772 passed, 1 warning`.
 - Live Coinbase execution in this batch: not run; test notional `$0`.
+
+## Approved Runtime Evidence Batch - Phases 541-560
+
+These phases are approved as the next 20-phase unattended work batch. Work may
+continue without another approval while it stays inside
+[Autonomous Work Queue](AUTONOMOUS_WORK_QUEUE.md). Default execution is
+dry/no-live. Any backend live Coinbase work must stay under the carried-forward
+cap: maximum `3.10` USDC submitted, maximum `1.00` USDC executed, cheapest
+Coinbase `USDC` spot product available to US customers, retained inventory,
+and passing reconciliation before the next phase advances.
+
+### Phase 541 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 521-540 to active
+  phases 541-560 while preserving live cap and stop-condition policy.
+
+### Phase 542 - Runtime Evidence Contract
+
+- Add a frontend runtime/UI evidence contract to the shared artifact contract.
+
+### Phase 543 - Runtime Evidence Artifact Builder
+
+- Add a builder that emits supported runtime modes, snapshot loaders,
+  canonical wrappers, route evidence, UI surfaces, and visual smoke targets in
+  one runtime evidence shape.
+
+### Phase 544 - Runtime Evidence Writer
+
+- Add a no-live frontend script that writes
+  `artifacts/runtime-evidence.json`.
+
+### Phase 545 - Runtime Evidence Check
+
+- Add release/deployment checks that fail when runtime evidence scripts,
+  docs, or artifact paths drift.
+
+### Phase 546 - CI Runtime Evidence Upload
+
+- Include runtime evidence generation and upload in frontend CI.
+
+### Phase 547 - Release Gate Runtime Evidence
+
+- Include runtime evidence generation in `npm run release:gate`.
+
+### Phase 548 - Visual Smoke Target Contract
+
+- Record the canonical Playwright visual smoke selectors in the runtime
+  evidence contract.
+
+### Phase 549 - Runtime Evidence Docs
+
+- Update testing, deployment, runbook, observability, and roadmap docs for
+  runtime evidence.
+
+### Phase 550 - Runtime Evidence Unit Coverage
+
+- Cover runtime evidence artifact building and required artifact paths in unit
+  tests.
+
+### Phase 551 - Contextless Runtime Evidence Review
+
+- Run a blind/contextless review to verify a maintainer can find saved
+  runtime/UI evidence without chat history.
+
+### Phase 552 - Contextless Runtime Evidence Remediation
+
+- Fix unclear runtime evidence docs, scripts, or gates found by the review.
+
+### Phase 553 - Frontend Focused Verification
+
+- Run focused frontend quality/runtime evidence tests and checks.
+
+### Phase 554 - Backend Queue Verification
+
+- Run backend queue validation for phases 541-560.
+
+### Phase 555 - Frontend Release Gate
+
+- Run full `npm run release:gate`.
+
+### Phase 556 - Backend Regression Gate
+
+- Run full backend regression after backend queue/OpenAPI artifact changes.
+
+### Phase 557 - Generated Contract Freshness
+
+- Regenerate frontend generated schema when backend OpenAPI output changes.
+
+### Phase 558 - No-Live Evidence Discipline
+
+- Confirm runtime evidence and release artifacts report no live Coinbase
+  execution with `$0` notional.
+
+### Phase 559 - Commit Backend And Frontend
+
+- Commit completed backend and frontend work separately.
+
+### Phase 560 - Final Batch Summary
+
+- Summarize implementation, verification, live posture, commits, and next
+  approved phase range.
+
+Progress update:
+
+- Phase 541 completed: active autonomous queue range advanced to `541-560`
+  in backend and frontend queue docs/checkers while preserving the carried
+  live cap and stop conditions.
+- Phases 542-550 completed on the frontend side: runtime evidence is now a
+  shared artifact contract, Node writer, release/deployment/readiness check,
+  CI upload, release-gate step, docs, and unit-tested artifact builder.
+- Phase 551 first blind/contextless review found a blocker: the saved runtime
+  evidence artifact under-represented canonical wrappers/routes and could
+  mislead a contextless maintainer into inventing order/spot paths.
+- Phase 552 remediation completed: runtime evidence now includes canonical
+  admin, order, spot, and command wrappers plus all generated Admin API route
+  evidence, and validator/tests/checks require that broader surface.
+- Phase 551 follow-up blind/contextless review found no blockers. It recorded
+  one non-blocking concern that queue phase/cap posture is intentionally held
+  by the queue docs/checker instead of duplicated inside
+  `runtime-evidence.json`.
+- Phase 553 focused frontend verification passed: `npm run runtime:evidence`,
+  `npm run release:check`, `npm run deployment:check`, `npm run api:check`,
+  `npm run autonomous:check`, `npm run typecheck`, and focused
+  `qualityGates` unit tests all passed.
+- Phase 554 backend queue verification passed, and focused
+  `test_spot_readiness_gate.py` passed with `8 passed, 1 warning`.
+- Phase 555 frontend `npm run release:gate` passed with production build,
+  typecheck, lint, generated API freshness plus route coverage, command
+  security, release/deployment/autonomous checks, `120` unit tests, dry
+  read/command/BFF/OIDC smokes, and `3` Playwright tests.
+- Phase 556 backend full regression passed with `772 passed, 1 warning`.
+- Phase 557 completed: backend OpenAPI artifact and frontend generated schema
+  were refreshed for `additionalProperties` object-map output.
+- Live Coinbase execution in this batch: not run; test notional `$0`.

@@ -1681,7 +1681,8 @@ components:
           title: Audit Command
         guard:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Guard
         data:
@@ -2052,6 +2053,7 @@ components:
           type: string
           title: Schema Version
         fixtures:
+          additionalProperties: true
           type: object
           title: Fixtures
         live_coinbase_orders_ran:
@@ -2249,6 +2251,7 @@ components:
           title: Type
           default: admin_order_list
         filters:
+          additionalProperties: true
           type: object
           title: Filters
         count:

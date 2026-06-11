@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **521-540**.
+- Approved phase range: **541-560**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,97 +46,95 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Approved Phases 521-540
+## Approved Phases 541-560
 
-### Phase 521 - Advance Active Queue Range
+### Phase 541 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 501-520 to active
-  phases 521-540 while preserving the same live cap and stop-condition policy.
+- Move the durable autonomous queue from completed phases 521-540 to active
+  phases 541-560 while preserving the same live cap and stop-condition policy.
 
-### Phase 522 - Backend Route Coverage Sentinel
+### Phase 542 - Runtime Evidence Contract
 
-- Add or extend backend regression evidence proving the OpenAPI schema,
-  route inventory, and route docs include every current Admin API route.
+- Define a machine-readable frontend runtime/UI evidence artifact contract for
+  admin shell readiness, route coverage, OIDC readiness, and visual smoke
+  targets.
 
-### Phase 523 - OIDC Readiness Frontend Contract Sync
+### Phase 543 - Runtime Evidence Artifact Builder
 
-- Ensure frontend route lists include `GET /api/v1/admin/oidc-readiness`.
+- Add shared artifact builder code so TypeScript and Node release tooling use
+  one runtime evidence shape.
 
-### Phase 524 - Typed OIDC Readiness Wrapper
+### Phase 544 - Runtime Evidence Writer
 
-- Add a canonical frontend `BackendApiClient` wrapper for the OIDC readiness
-  route instead of relying on ad hoc smoke-script access.
+- Add a no-live frontend script that writes `artifacts/runtime-evidence.json`.
 
-### Phase 525 - Frontend Route Coverage Check
+### Phase 545 - Runtime Evidence Check
 
-- Add a no-live frontend check that fails when generated OpenAPI paths are
-  missing from frontend contract paths or typed wrappers.
+- Add release/deployment checks that fail when runtime evidence scripts,
+  artifact paths, UI surfaces, or no-live posture drift.
 
-### Phase 526 - API Check Gate Inclusion
+### Phase 546 - CI Artifact Upload
 
-- Include the route coverage check in `npm run api:check` and release/CI
-  gates without introducing a parallel API-client path.
+- Include runtime evidence generation and upload in frontend CI.
 
-### Phase 527 - Mock Fixture Parity
+### Phase 547 - Release Gate Inclusion
 
-- Add OIDC readiness mock fixture coverage so local frontend mode mirrors the
-  backend read contract.
+- Include runtime evidence generation in `npm run release:gate`.
 
-### Phase 528 - Runtime Snapshot Parity
+### Phase 548 - Visual Target Documentation
 
-- Include OIDC readiness in the shared admin runtime read snapshot where it
-  belongs with bootstrap, health, session, capabilities, and CSRF evidence.
+- Record the UI surfaces proven by Playwright visual smoke without storing
+  browser screenshots in source control.
 
-### Phase 529 - UI Evidence Surface
+### Phase 549 - Documentation Sync
 
-- Surface OIDC readiness status in the admin shell as backend evidence only;
-  do not create frontend authorization authority.
+- Update testing, API, deployment, and roadmap docs for runtime evidence.
 
-### Phase 530 - Documentation Sync
+### Phase 550 - Unit Coverage
 
-- Update frontend API docs, backend examples if needed, and documentation
-  indexes so contextless maintainers can find the route-coverage gate.
+- Cover runtime evidence artifact building and required artifact paths in unit
+  tests.
 
-### Phase 531 - Contextless Route Sync Review
+### Phase 551 - Contextless Runtime Evidence Review
 
-- Run a blind/contextless review asking whether a smaller agent can create or
-  inspect a spot/admin route without missing generated-contract sync.
+- Run a blind/contextless review asking whether saved runtime/UI evidence is
+  discoverable without chat history.
 
-### Phase 532 - Contextless Remediation
+### Phase 552 - Contextless Remediation
 
-- Fix any unclear route-sync docs, scripts, or wrappers found by the review.
+- Fix unclear runtime evidence docs, scripts, or gates found by the review.
 
-### Phase 533 - Backend Focused Verification
+### Phase 553 - Frontend Focused Verification
 
-- Run focused Admin API contract tests and queue validation after backend
-  changes.
+- Run focused frontend quality/runtime evidence tests and checks.
 
-### Phase 534 - Frontend Focused Verification
+### Phase 554 - Backend Queue Validation
 
-- Run focused frontend API-client, mock, runtime, and route-coverage tests.
+- Run backend autonomous queue validation and focused regression coverage for
+  changed backend files.
 
-### Phase 535 - Frontend Release Gate
+### Phase 555 - Frontend Release Gate
 
-- Run full `npm run release:gate` after frontend release/API changes.
+- Run full `npm run release:gate`.
 
-### Phase 536 - Backend Regression Gate
+### Phase 556 - Backend Regression Gate
 
 - Run full backend regression after backend changes.
 
-### Phase 537 - No-Live Evidence Discipline
+### Phase 557 - No-Live Evidence Discipline
 
-- Confirm all frontend release, artifact, smoke, and route-coverage checks
-  report no live Coinbase execution with `$0` notional.
+- Confirm runtime evidence and release artifacts report no live Coinbase
+  execution with `$0` notional.
 
-### Phase 538 - Cross-Repo Clean Tree Check
+### Phase 558 - Cross-Repo Clean Tree Check
 
 - Verify both repositories are clean before final summary or next batch.
 
-### Phase 539 - Commit Backend And Frontend
+### Phase 559 - Commit Backend And Frontend
 
 - Commit completed backend and frontend work separately.
 
-### Phase 540 - Final Batch Summary
+### Phase 560 - Final Batch Summary
 
 - Summarize implementation, verification, live posture, commits, and next
   approved phase range.
