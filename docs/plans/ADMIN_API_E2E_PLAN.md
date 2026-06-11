@@ -3795,3 +3795,6 @@ Progress update:
   is organized into accessible status, dry-run, recovery, and execution tabs
   with active-view evidence filtering; execution evidence remains
   live-disabled and read-only.
+- Phase 628 completed on the frontend side: Spot Operator Views now include a
+  compact quick-facts strip for read-route count, evidence-view count, live
+  execution posture, and `client_order_id` identity.
