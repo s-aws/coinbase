@@ -3816,3 +3816,7 @@ Progress update:
   now render inside named responsive scroll regions with stable local
   horizontal scrolling, while Playwright verifies mobile page width remains
   contained.
+- Phase 633 completed on the frontend side: campaign read tabs now support
+  roving keyboard focus with arrow/Home/End keys, responsive table regions are
+  keyboard focusable, and shared focus-visible styling plus unit coverage
+  protect labels and read-model interaction focus paths.
