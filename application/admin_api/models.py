@@ -18,6 +18,7 @@ from core.enums import (
     AdminApiAuthMode,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminMovementRepricingEvidenceType,
     AdminApiPermission,
     AdminApiRouteAvailability,
     AdminApiRole,
@@ -25,6 +26,7 @@ from core.enums import (
     AdminApiVerifierReadinessStatus,
     OrderSide,
     OrderType,
+    StealthMutationKind,
     TimeInForce,
 )
 
@@ -399,6 +401,108 @@ class AdminStealthOrderDetailResponse(BaseModel):
     stealth_order_id: str
     found: bool
     order: AdminStealthOrderReadItem | None = None
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminMutationClaimEvidence(BaseModel):
+    """Runtime claim evidence for repeatable stealth mutations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: StealthMutationKind
+    state: str | None = None
+    runtime_observed: bool = False
+    source: str
+
+
+class AdminReplacementSlotEvidence(BaseModel):
+    """Replacement-slot evidence for a parent/placement client id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str | None = None
+    max_order_replacement: int | None = None
+    current_order_replacement: int | None = None
+    pending_replacement_claims: int | None = None
+    pending_claims_runtime_observed: bool = False
+    source: str
+
+
+class AdminMovementRepricingEvidenceItem(BaseModel):
+    """Read-only movement/repricing evidence from durable and runtime-safe sources."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_id: str
+    evidence_type: AdminMovementRepricingEvidenceType
+    client_order_id: str | None = None
+    original_parent_client_order_id: str | None = None
+    new_parent_client_order_id: str | None = None
+    stealth_order_id: str | None = None
+    product_id: str | None = None
+    side: str | None = None
+    status: str | None = None
+    move_on_cancel: bool | None = None
+    reason: str | None = None
+    notes: str | None = None
+    old_placement_client_order_id: str | None = None
+    old_exchange_order_id: str | None = None
+    old_submitted_price: str | None = None
+    new_placement_client_order_id: str | None = None
+    new_exchange_order_id: str | None = None
+    new_submitted_price: str | None = None
+    active_placement_client_order_id: str | None = None
+    active_exchange_order_id: str | None = None
+    active_exchange_price: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    target_movement: str | None = None
+    target_movement_type: str | None = None
+    replacement_slots: list[AdminReplacementSlotEvidence] = Field(default_factory=list)
+    mutation_claims: list[AdminMutationClaimEvidence] = Field(default_factory=list)
+    anchor_repricing_policy: dict[str, Any] | None = None
+    anchor_repricing_state: dict[str, Any] | None = None
+    reprice_history: list[Any] = Field(default_factory=list)
+    reprice_reason: str | None = None
+    last_reprice_at: str | None = None
+    next_reprice_at: str | None = None
+    post_fill_retreat_offset: str | None = None
+    market_bid: str | None = None
+    market_ask: str | None = None
+    error_message: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    moved_at: str | None = None
+    source: str
+
+
+class AdminMovementRepricingListResponse(BaseModel):
+    """Read-only movement/repricing evidence list response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_movement_repricing_evidence"
+    filters: dict[str, Any] = Field(default_factory=dict)
+    count: int
+    pagination: AdminOrderPagination
+    items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminMovementRepricingDetailResponse(BaseModel):
+    """Read-only movement/repricing detail response for order or stealth scope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_movement_repricing_detail"
+    scope: str
+    client_order_id: str | None = None
+    stealth_order_id: str | None = None
+    found: bool
+    items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
     live_coinbase_orders_ran: bool = False

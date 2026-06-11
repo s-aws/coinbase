@@ -13,10 +13,12 @@ from core.enums import (
     AdminApiAuthMode,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminMovementRepricingEvidenceType,
     AdminApiPermission,
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
     AdminApiVerifierReadinessStatus,
+    StealthMutationKind,
 )
 
 from .auth import (
@@ -34,10 +36,15 @@ from .models import (
     AdminGateCheck,
     AdminGateReadResponse,
     AdminHealthResponse,
+    AdminMovementRepricingDetailResponse,
+    AdminMovementRepricingEvidenceItem,
+    AdminMovementRepricingListResponse,
+    AdminMutationClaimEvidence,
     AdminOidcJwtReadinessResponse,
     AdminOrderDetailResponse,
     AdminOrderListResponse,
     AdminOrderReadItem,
+    AdminReplacementSlotEvidence,
     AdminSessionResponse,
     AdminStealthOrderDetailResponse,
     AdminStealthOrderListResponse,
@@ -200,6 +207,346 @@ def _stealth_item_from_row(row: dict[str, Any]) -> AdminStealthOrderReadItem:
         created_at=_string_or_none(row.get("created_at")),
         updated_at=_string_or_none(row.get("updated_at")),
     )
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _bool_or_none(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes"}:
+            return True
+        if normalized in {"0", "false", "no"}:
+            return False
+    return bool(value)
+
+
+def _list_or_empty(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return list(value)
+    return [value]
+
+
+def _query_admin_rows(
+    query: str,
+    params: tuple[Any, ...] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    try:
+        from database import order as order_module
+
+        rows = order_module.DB_CLIENT.execute_query(query, params) or []
+        return [dict(row) for row in rows], None
+    except Exception as exc:
+        return [], f"{type(exc).__name__}: {exc}"
+
+
+def _runtime_bridge() -> Any | None:
+    try:
+        import dashboard_server
+
+        return getattr(dashboard_server, "stealth_order_bridge", None)
+    except Exception:
+        return None
+
+
+def _runtime_mutation_claims_for(
+    stealth_order_id: str | None,
+) -> list[AdminMutationClaimEvidence]:
+    if not stealth_order_id:
+        return []
+    bridge = _runtime_bridge()
+    manager = getattr(bridge, "stealth_manager", None) if bridge else None
+    claim_ledger = getattr(manager, "_mutation_claims", None) if manager else None
+    if claim_ledger is None:
+        return [
+            AdminMutationClaimEvidence(
+                kind=kind,
+                state=None,
+                runtime_observed=False,
+                source="runtime_stealth_manager_unavailable",
+            )
+            for kind in StealthMutationKind
+        ]
+    claims: list[AdminMutationClaimEvidence] = []
+    for kind in StealthMutationKind:
+        try:
+            state = _string_or_none(claim_ledger.state(kind, stealth_order_id))
+        except Exception as exc:
+            state = f"unavailable:{type(exc).__name__}"
+        claims.append(
+            AdminMutationClaimEvidence(
+                kind=kind,
+                state=state,
+                runtime_observed=True,
+                source="stealth_manager._mutation_claims",
+            )
+        )
+    return claims
+
+
+def _runtime_pending_replacement_claims(
+    client_order_id: str | None,
+) -> tuple[int | None, bool]:
+    if not client_order_id:
+        return None, False
+    bridge = _runtime_bridge()
+    engine = getattr(bridge, "order_engine", None) if bridge else None
+    claims = getattr(engine, "_pending_replacement_claims", None) if engine else None
+    if claims is None:
+        return None, False
+    lock = getattr(engine, "orderbook_lock", None)
+    if lock is None:
+        return None, False
+    try:
+        with lock:
+            return _int_or_none(claims.get(client_order_id, 0)), True
+    except Exception:
+        return None, False
+
+
+def _parent_order_row(client_order_id: str | None) -> dict[str, Any] | None:
+    if not client_order_id:
+        return None
+    try:
+        from database import order as order_module
+
+        row = order_module.get_parent_order(client_order_id)
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def _stealth_order_row(stealth_order_id: str | None) -> dict[str, Any] | None:
+    if not stealth_order_id:
+        return None
+    try:
+        from database import order as order_module
+
+        row = order_module.get_stealth_order_by_id(stealth_order_id)
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def _replacement_slot_evidence(
+    client_order_id: str | None,
+) -> AdminReplacementSlotEvidence | None:
+    if not client_order_id:
+        return None
+    pending_claims, pending_observed = _runtime_pending_replacement_claims(
+        client_order_id
+    )
+    row = _parent_order_row(client_order_id)
+    if row:
+        return AdminReplacementSlotEvidence(
+            client_order_id=client_order_id,
+            max_order_replacement=_int_or_none(row.get("max_order_replacement")),
+            current_order_replacement=_int_or_none(
+                row.get("current_order_replacement")
+            ),
+            pending_replacement_claims=pending_claims,
+            pending_claims_runtime_observed=pending_observed,
+            source="order_parent",
+        )
+    if pending_observed:
+        return AdminReplacementSlotEvidence(
+            client_order_id=client_order_id,
+            pending_replacement_claims=pending_claims,
+            pending_claims_runtime_observed=True,
+            source="runtime_order_engine",
+        )
+    return AdminReplacementSlotEvidence(
+        client_order_id=client_order_id,
+        pending_replacement_claims=None,
+        pending_claims_runtime_observed=False,
+        source="order_parent_missing",
+    )
+
+
+def _replacement_slots_for(
+    *client_order_ids: str | None,
+) -> list[AdminReplacementSlotEvidence]:
+    slots: list[AdminReplacementSlotEvidence] = []
+    seen: set[str] = set()
+    for client_order_id in client_order_ids:
+        if not client_order_id or client_order_id in seen:
+            continue
+        seen.add(client_order_id)
+        slot = _replacement_slot_evidence(client_order_id)
+        if slot:
+            slots.append(slot)
+    return slots
+
+
+def _parent_move_item_from_row(row: dict[str, Any]) -> AdminMovementRepricingEvidenceItem:
+    original_parent_client_order_id = _string_or_none(
+        row.get("original_parent_client_order_id")
+    )
+    new_parent_client_order_id = _string_or_none(row.get("new_parent_client_order_id"))
+    move_on_cancel = _bool_or_none(row.get("move_on_cancel"))
+    status = (
+        "pending_move"
+        if move_on_cancel and not new_parent_client_order_id
+        else "completed_move"
+    )
+    parent_row = (
+        _parent_order_row(original_parent_client_order_id)
+        or _parent_order_row(new_parent_client_order_id)
+        or {}
+    )
+    return AdminMovementRepricingEvidenceItem(
+        evidence_id=f"parent_move:{row.get('id') or original_parent_client_order_id}",
+        evidence_type=AdminMovementRepricingEvidenceType.PARENT_MOVE,
+        client_order_id=original_parent_client_order_id,
+        original_parent_client_order_id=original_parent_client_order_id,
+        new_parent_client_order_id=new_parent_client_order_id,
+        product_id=_string_or_none(parent_row.get("product_id")),
+        side=_string_or_none(parent_row.get("side")),
+        status=status,
+        move_on_cancel=move_on_cancel,
+        reason=_string_or_none(row.get("reason")),
+        notes=_string_or_none(row.get("notes")),
+        replacement_slots=_replacement_slots_for(
+            original_parent_client_order_id,
+            new_parent_client_order_id,
+        ),
+        created_at=_string_or_none(row.get("created_at")),
+        moved_at=_string_or_none(row.get("moved_at")),
+        source="order_moves",
+    )
+
+
+def _stealth_move_item_from_row(row: dict[str, Any]) -> AdminMovementRepricingEvidenceItem:
+    stealth_order_id = _string_or_none(row.get("stealth_order_id"))
+    stealth_row = _stealth_order_row(stealth_order_id) or {}
+    new_placement_client_order_id = _string_or_none(
+        row.get("new_placement_client_order_id")
+    )
+    old_placement_client_order_id = _string_or_none(
+        row.get("old_placement_client_order_id")
+    )
+    return AdminMovementRepricingEvidenceItem(
+        evidence_id=f"stealth_move:{row.get('id') or stealth_order_id}",
+        evidence_type=AdminMovementRepricingEvidenceType.STEALTH_MOVE,
+        client_order_id=new_placement_client_order_id or old_placement_client_order_id,
+        stealth_order_id=stealth_order_id,
+        product_id=_string_or_none(stealth_row.get("product_id")),
+        side=_string_or_none(stealth_row.get("side")),
+        status=_string_or_none(row.get("status")),
+        reason=_string_or_none(row.get("reason")),
+        notes=_string_or_none(row.get("notes")),
+        old_placement_client_order_id=old_placement_client_order_id,
+        old_exchange_order_id=_string_or_none(row.get("old_exchange_order_id")),
+        old_submitted_price=_string_or_none(row.get("old_submitted_price")),
+        new_placement_client_order_id=new_placement_client_order_id,
+        new_exchange_order_id=_string_or_none(row.get("new_exchange_order_id")),
+        new_submitted_price=_string_or_none(row.get("new_submitted_price")),
+        mutation_claims=_runtime_mutation_claims_for(stealth_order_id),
+        market_bid=_string_or_none(row.get("market_bid")),
+        market_ask=_string_or_none(row.get("market_ask")),
+        error_message=_string_or_none(row.get("error_message")),
+        moved_at=_string_or_none(row.get("moved_at")),
+        source="stealth_order_moves",
+    )
+
+
+def _stealth_repricing_item_from_row(
+    row: dict[str, Any],
+) -> AdminMovementRepricingEvidenceItem:
+    stealth_order_id = _string_or_none(row.get("stealth_order_id"))
+    parent_order_id = _string_or_none(row.get("parent_order_id"))
+    anchor_state = _json_object_or_none(row.get("anchor_repricing_state_json")) or {}
+    active_placement_client_order_id = _string_or_none(
+        anchor_state.get("active_placement_client_order_id")
+        or anchor_state.get("active_placement_order_id")
+        or anchor_state.get("active_placed_order_id")
+    )
+    active_exchange_order_id = _string_or_none(
+        anchor_state.get("active_exchange_order_id")
+    )
+    return AdminMovementRepricingEvidenceItem(
+        evidence_id=f"stealth_repricing_state:{stealth_order_id}",
+        evidence_type=AdminMovementRepricingEvidenceType.STEALTH_REPRICING_STATE,
+        client_order_id=active_placement_client_order_id,
+        stealth_order_id=stealth_order_id,
+        product_id=_string_or_none(row.get("product_id")),
+        side=_string_or_none(row.get("side")),
+        status=_string_or_none(row.get("status")),
+        active_placement_client_order_id=active_placement_client_order_id,
+        active_exchange_order_id=active_exchange_order_id,
+        active_exchange_price=_string_or_none(anchor_state.get("active_exchange_price")),
+        target_movement=_string_or_none(row.get("target_movement")),
+        target_movement_type=_string_or_none(row.get("target_movement_type")),
+        replacement_slots=_replacement_slots_for(parent_order_id, stealth_order_id),
+        mutation_claims=_runtime_mutation_claims_for(stealth_order_id),
+        anchor_repricing_policy=_json_object_or_none(
+            row.get("anchor_repricing_policy_json")
+        ),
+        anchor_repricing_state=anchor_state,
+        reprice_history=_list_or_empty(anchor_state.get("reprice_history")),
+        reprice_reason=_string_or_none(anchor_state.get("reprice_reason")),
+        last_reprice_at=_string_or_none(anchor_state.get("last_reprice_at")),
+        next_reprice_at=_string_or_none(anchor_state.get("next_reprice_at")),
+        post_fill_retreat_offset=_string_or_none(
+            anchor_state.get("post_fill_retreat_offset")
+        ),
+        created_at=_string_or_none(row.get("created_at")),
+        updated_at=_string_or_none(row.get("updated_at")),
+        source="stealth_orders",
+    )
+
+
+def _movement_evidence_type_value(
+    evidence_type: AdminMovementRepricingEvidenceType | str | None,
+) -> str | None:
+    if evidence_type is None:
+        return None
+    if isinstance(evidence_type, AdminMovementRepricingEvidenceType):
+        return evidence_type.value
+    return str(evidence_type)
+
+
+def _movement_item_matches(
+    item: AdminMovementRepricingEvidenceItem,
+    *,
+    product_id: str | None,
+    client_order_id: str | None,
+    stealth_order_id: str | None,
+    evidence_type: AdminMovementRepricingEvidenceType | str | None,
+) -> bool:
+    if product_id and item.product_id != product_id:
+        return False
+    if stealth_order_id and item.stealth_order_id != stealth_order_id:
+        return False
+    if evidence_type and item.evidence_type.value != _movement_evidence_type_value(
+        evidence_type
+    ):
+        return False
+    if client_order_id:
+        client_fields = {
+            item.client_order_id,
+            item.original_parent_client_order_id,
+            item.new_parent_client_order_id,
+            item.old_placement_client_order_id,
+            item.new_placement_client_order_id,
+            item.active_placement_client_order_id,
+        }
+        if client_order_id not in client_fields:
+            return False
+    return True
 
 
 class AdminApiReadService:
@@ -478,6 +825,121 @@ class AdminApiReadService:
             order=_stealth_item_from_row(row) if row else None,
         )
 
+    def build_movement_repricing_evidence(
+        self,
+        *,
+        product_id: str | None = None,
+        client_order_id: str | None = None,
+        stealth_order_id: str | None = None,
+        evidence_type: AdminMovementRepricingEvidenceType | str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AdminMovementRepricingListResponse:
+        """Return read-only movement/repricing evidence from owned sources."""
+
+        normalized_limit = max(1, min(limit, 500))
+        normalized_offset = max(0, offset)
+        filters: dict[str, Any] = {
+            "product_id": product_id,
+            "client_order_id": client_order_id,
+            "stealth_order_id": stealth_order_id,
+            "evidence_type": _movement_evidence_type_value(evidence_type),
+            "limit": normalized_limit,
+            "offset": normalized_offset,
+        }
+        read_errors: list[str] = []
+
+        order_move_rows, error = _query_admin_rows(
+            "SELECT * FROM order_moves ORDER BY created_at DESC, moved_at DESC"
+        )
+        if error:
+            read_errors.append(f"order_moves:{error}")
+
+        stealth_move_rows, error = _query_admin_rows(
+            "SELECT * FROM stealth_order_moves ORDER BY moved_at DESC"
+        )
+        if error:
+            read_errors.append(f"stealth_order_moves:{error}")
+
+        stealth_rows, error = _query_admin_rows(
+            "SELECT * FROM stealth_orders ORDER BY updated_at DESC, created_at DESC"
+        )
+        if error:
+            read_errors.append(f"stealth_orders:{error}")
+        if read_errors:
+            filters["backend_read_errors"] = read_errors
+
+        items: list[AdminMovementRepricingEvidenceItem] = []
+        items.extend(_parent_move_item_from_row(row) for row in order_move_rows)
+        items.extend(_stealth_move_item_from_row(row) for row in stealth_move_rows)
+        items.extend(_stealth_repricing_item_from_row(row) for row in stealth_rows)
+
+        filtered = [
+            item
+            for item in items
+            if _movement_item_matches(
+                item,
+                product_id=product_id,
+                client_order_id=client_order_id,
+                stealth_order_id=stealth_order_id,
+                evidence_type=evidence_type,
+            )
+        ]
+        page_items = filtered[normalized_offset:normalized_offset + normalized_limit]
+        next_offset = normalized_offset + len(page_items)
+        has_more = next_offset < len(filtered)
+        return AdminMovementRepricingListResponse(
+            filters=filters,
+            count=len(page_items),
+            pagination={
+                "limit": normalized_limit,
+                "offset": normalized_offset,
+                "returned_count": len(page_items),
+                "total_matching_count": len(filtered),
+                "next_offset": next_offset if has_more else None,
+                "has_more": has_more,
+            },
+            items=page_items,
+        )
+
+    def build_movement_repricing_order_detail(
+        self,
+        *,
+        client_order_id: str,
+    ) -> AdminMovementRepricingDetailResponse:
+        """Return movement/repricing evidence linked to one ``client_order_id``."""
+
+        evidence = self.build_movement_repricing_evidence(
+            client_order_id=client_order_id,
+            limit=500,
+            offset=0,
+        )
+        return AdminMovementRepricingDetailResponse(
+            scope="client_order_id",
+            client_order_id=client_order_id,
+            found=bool(evidence.items),
+            items=evidence.items,
+        )
+
+    def build_movement_repricing_stealth_detail(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> AdminMovementRepricingDetailResponse:
+        """Return movement/repricing evidence linked to one ``stealth_order_id``."""
+
+        evidence = self.build_movement_repricing_evidence(
+            stealth_order_id=stealth_order_id,
+            limit=500,
+            offset=0,
+        )
+        return AdminMovementRepricingDetailResponse(
+            scope="stealth_order_id",
+            stealth_order_id=stealth_order_id,
+            found=bool(evidence.items),
+            items=evidence.items,
+        )
+
     def build_release_gate(self) -> AdminGateReadResponse:
         """Return release-gate evidence without running tests from the browser."""
 
@@ -572,6 +1034,13 @@ class AdminApiReadService:
                 "orders.list": self.build_order_list().model_dump(mode="json"),
                 "orders.detail.empty": self.build_order_detail(
                     client_order_id="00000000-0000-0000-0000-000000000000"
+                ).model_dump(mode="json"),
+                "movementRepricing.evidence": self.build_movement_repricing_evidence().model_dump(mode="json"),
+                "movementRepricing.order.empty": self.build_movement_repricing_order_detail(
+                    client_order_id="00000000-0000-0000-0000-000000000000"
+                ).model_dump(mode="json"),
+                "movementRepricing.stealth.empty": self.build_movement_repricing_stealth_detail(
+                    stealth_order_id="00000000-0000-0000-0000-000000000000"
                 ).model_dump(mode="json"),
                 "release.gate": self.build_release_gate().model_dump(mode="json"),
                 "recovery.gate": self.build_recovery_gate().model_dump(mode="json"),

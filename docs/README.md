@@ -19,6 +19,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
 - [Live Order Surfaces](LIVE_ORDER_SURFACES.md)
 - [Admin API](../README.admin-api.md)
+- [Movement And Repricing Reads](../README.movement-repricing.md)
 - [Admin Platform Architecture](ADMIN_PLATFORM_ARCHITECTURE.md)
 - [Admin Module Capability Matrix](ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
@@ -69,6 +70,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Campaign Examples](examples/spot-campaign.md)
 - [Spot Campaign Retry Fixture](examples/spot-campaign-retry-plan-fixture.json)
 - [Admin API Examples](examples/admin-api.md)
+- [Movement And Repricing Examples](examples/movement-repricing.md)
 - [Netflix AI Engineer Workbench Examples](examples/netflix-ai-engineer-site.md)
 
 ## State, Modes, And Roadmaps

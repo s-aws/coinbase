@@ -31,8 +31,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | --- | --- | --- |
 | M0 - Platform Pivot Baseline | Complete | Reframe admin as whole-project platform with Spot as first complete module. |
 | M1 - First Non-Spot Read Module | Complete | Add a backend-owned read-only Stealth Orders Admin API/frontend module. |
-| M2 - Movement And Repricing Reads | Next | Add read-only movement/repricing evidence without command authority. |
-| M3 - Futures/Perpetuals Read Foundation | Pending | Add futures/perpetual account, position, funding, and risk read contracts. |
+| M2 - Movement And Repricing Reads | Complete | Add read-only movement/repricing evidence without command authority. |
+| M3 - Futures/Perpetuals Read Foundation | Next | Add futures/perpetual account, position, funding, and risk read contracts. |
 | M4 - Guard And Risk Policy Evidence | Pending | Expose backend guard/risk decisions as read-only evidence across modules. |
 | M5 - Cross-Module Audit Workbench | Pending | Unify operator audit, reconciliation, and correlation evidence across modules. |
 | M6 - Non-Spot Command Draft Contracts | Pending | Add disabled drafts/dry-submit contracts only after read contracts are stable. |
@@ -133,6 +133,29 @@ Frontend scope:
 Done when focused tests, frontend release gate, backend regression when
 required, and contextless review prove movement/repricing is inspectable but
 not executable through the frontend.
+
+Completed evidence:
+
+- Backend read-only movement/repricing routes, response models, route
+  inventory, OpenAPI, examples, feature README, and expanded API/architecture
+  docs are implemented.
+- `AdminApiReadService` maps durable `order_moves`,
+  `stealth_order_moves`, stealth anchor repricing state, runtime mutation
+  claims, and replacement-slot evidence without creating command authority.
+- Runtime replacement claims are observed only when the existing order engine
+  lock is available; otherwise they are reported as unobserved.
+- Frontend generated schema, canonical `BackendApiClient` wrappers, BFF
+  allowlist, mock fixtures, runtime snapshot, read-only UI, row links, docs,
+  quality artifacts, and route coverage are implemented.
+- Backend `pytest tests\regression\ -v --tb=short` passed with `777 passed,
+  1 warning`.
+- Frontend `npm run release:gate` passed with build, typecheck, lint, API
+  freshness/route coverage, command guard, release/deployment/runtime
+  artifacts, dry smokes, unit tests, and Playwright e2e.
+- Blind/contextless backend and frontend reviews found no blockers. A
+  backend hardening note about reading pending replacement claims without a
+  lock was remediated.
+- Live Coinbase execution was not run for M2; notional `$0`.
 
 ## M3 - Futures/Perpetuals Read Foundation
 

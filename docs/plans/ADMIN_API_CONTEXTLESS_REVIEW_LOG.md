@@ -683,3 +683,59 @@ Status:
   typecheck, lint, API freshness/route coverage, command guard, artifacts,
   dry smokes, unit tests, and Playwright e2e.
 - Live Coinbase execution was not run; notional `$0`.
+
+## M2 Movement/Repricing Read Module Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify movement/repricing Admin API and frontend modules are read-only and
+  backend-contract-first
+- verify routes expose movement, replacement-slot, mutation-claim, and
+  repricing evidence without command authority
+- verify `client_order_id` and `stealth_order_id` remain the identity keys and
+  exchange ids remain evidence only
+- verify stealth exchange-reality and flat hierarchy rules are preserved
+- verify frontend generated schema, wrappers, BFF allowlist, mocks, runtime,
+  UI, docs, tests, and artifacts are understandable to contextless maintainers
+
+Findings:
+
+- Backend blind review found no blockers. It confirmed the three
+  movement/repricing routes are `GET` only, `audit:read` gated, delegated to
+  `AdminApiReadService`, and represented in route inventory/OpenAPI.
+- Backend blind review confirmed movement/repricing reads use durable local
+  evidence and runtime-safe claim evidence without creating a parallel move or
+  reprice lifecycle path.
+- Backend blind review confirmed exchange ids are named evidence fields and
+  are not used as tracking identity.
+- Backend blind review made a non-blocking hardening suggestion: if pending
+  replacement claims exist but `orderbook_lock` is unavailable, mark runtime
+  claims unobserved instead of reading the mutable set.
+- Frontend blind review found no blockers. It confirmed generated schema,
+  contract paths, canonical GET wrappers, BFF GET allowlist, mock fixtures,
+  runtime loading, read-only UI, row links, docs, and tests are aligned.
+- Frontend blind review found no executable move/reprice behavior, no
+  spot-only wallet/cost-basis/no-shorting leakage, and no exchange-id identity
+  misuse.
+
+Resolution:
+
+- Applied the backend hardening suggestion so pending replacement claims are
+  observed only under the existing order engine lock.
+- Recorded M2 as complete in backend and frontend durable milestone docs.
+
+Status:
+
+- Focused backend Admin API contract tests passed with `42 passed`.
+- Backend full regression passed with `777 passed, 1 warning`.
+- Frontend focused M2 test set passed with `74 passed`; full unit suite
+  passed with `148 passed`; Playwright e2e passed with `3 passed`.
+- Frontend `npm run release:gate` passed and reported no live Coinbase
+  execution.
+- Live Coinbase execution was not run for M2; notional `$0`.

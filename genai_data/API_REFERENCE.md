@@ -22,6 +22,9 @@ Current route adapters:
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `GET /api/v1/movement-repricing/evidence`
+- `GET /api/v1/movement-repricing/orders/{client_order_id}`
+- `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `POST /api/v1/orders/{client_order_id}/cancel`
 - `POST /api/v1/spot/campaign/executions`
 - `GET /api/v1/admin/bootstrap`
@@ -59,6 +62,14 @@ Current behavior:
   stealth lifecycle evidence keyed by `stealth_order_id`; active placement
   client ids and exchange ids are evidence only, and no stealth command route
   is modeled through the enterprise Admin API yet
+- `GET /api/v1/movement-repricing/evidence`,
+  `GET /api/v1/movement-repricing/orders/{client_order_id}`, and
+  `GET /api/v1/movement-repricing/stealth/{stealth_order_id}` expose
+  read-only movement/repricing evidence from `order_moves`,
+  `stealth_order_moves`, `stealth_orders.anchor_repricing_state_json`, and
+  runtime claim snapshots when safely observable; no move, premark,
+  reprice-now, or move-revealed command route is modeled through the
+  enterprise Admin API yet
 - admin bootstrap, health, session, OIDC readiness, capabilities, CSRF,
   release gate, recovery gate, fill-ledger health, and frontend fixture routes
   are read-only and auth/RBAC-gated

@@ -163,6 +163,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/orders/{client_order_id}/cancel" in written["paths"]
     assert "/api/v1/stealth/orders" in written["paths"]
     assert "/api/v1/stealth/orders/{stealth_order_id}" in written["paths"]
+    assert "/api/v1/movement-repricing/evidence" in written["paths"]
+    assert "/api/v1/movement-repricing/orders/{client_order_id}" in written["paths"]
+    assert "/api/v1/movement-repricing/stealth/{stealth_order_id}" in written["paths"]
     assert "/api/v1/spot/campaign/executions" in written["paths"]
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
@@ -220,6 +223,22 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
     assert "pagination" in stealth_list_schema["properties"]
     assert "command_routes_mode" in stealth_list_schema["properties"]
+    movement_item_schema = written["components"]["schemas"][
+        "AdminMovementRepricingEvidenceItem"
+    ]
+    assert "client_order_id" in movement_item_schema["properties"]
+    assert "original_parent_client_order_id" in movement_item_schema["properties"]
+    assert "stealth_order_id" in movement_item_schema["properties"]
+    assert "mutation_claims" in movement_item_schema["properties"]
+    assert "replacement_slots" in movement_item_schema["properties"]
+    assert "active_placement_client_order_id" in movement_item_schema["properties"]
+    assert "active_exchange_order_id" in movement_item_schema["properties"]
+    assert "exchange_order_id_evidence_only" in movement_item_schema["properties"]
+    assert "order_id" not in movement_item_schema["properties"]
+    movement_list_schema = written["components"]["schemas"][
+        "AdminMovementRepricingListResponse"
+    ]
+    assert "command_routes_mode" in movement_list_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
     assert "wallet_snapshot" in spot_readiness_schema["properties"]
@@ -1287,6 +1306,298 @@ def test_admin_api_stealth_read_service_does_not_promote_historical_reveals_to_a
 
 
 @pytest.mark.regression
+def test_admin_api_movement_repricing_read_routes_use_read_service_without_commands(
+    monkeypatch,
+):
+    from api.v1.routes import movement_repricing as movement_routes
+
+    client = _client(monkeypatch)
+    service = SimpleNamespace(
+        build_movement_repricing_evidence=lambda **kwargs: {
+            "type": "admin_movement_repricing_evidence",
+            "filters": kwargs,
+            "count": 1,
+            "pagination": {
+                "limit": kwargs["limit"],
+                "offset": kwargs["offset"],
+                "returned_count": 1,
+                "total_matching_count": 1,
+                "next_offset": None,
+                "has_more": False,
+            },
+            "items": [
+                {
+                    "evidence_id": "stealth_repricing_state:stealth-abc",
+                    "evidence_type": "stealth_repricing_state",
+                    "stealth_order_id": "stealth-abc",
+                    "client_order_id": "placement-client-1",
+                    "active_placement_client_order_id": "placement-client-1",
+                    "active_exchange_order_id": "exchange-evidence-1",
+                    "exchange_order_id_evidence_only": True,
+                    "mutation_claims": [
+                        {
+                            "kind": "move",
+                            "state": "processing",
+                            "runtime_observed": True,
+                            "source": "stealth_manager._mutation_claims",
+                        }
+                    ],
+                    "replacement_slots": [
+                        {
+                            "client_order_id": "parent-1",
+                            "max_order_replacement": 3,
+                            "current_order_replacement": 1,
+                            "pending_replacement_claims": 0,
+                            "pending_claims_runtime_observed": True,
+                            "source": "order_parent",
+                        }
+                    ],
+                    "source": "stealth_orders",
+                }
+            ],
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+        build_movement_repricing_order_detail=lambda client_order_id: {
+            "type": "admin_movement_repricing_detail",
+            "scope": "client_order_id",
+            "client_order_id": client_order_id,
+            "stealth_order_id": None,
+            "found": True,
+            "items": [
+                {
+                    "evidence_id": "parent_move:1",
+                    "evidence_type": "parent_move",
+                    "client_order_id": client_order_id,
+                    "original_parent_client_order_id": client_order_id,
+                    "exchange_order_id_evidence_only": True,
+                    "source": "order_moves",
+                }
+            ],
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+        build_movement_repricing_stealth_detail=lambda stealth_order_id: {
+            "type": "admin_movement_repricing_detail",
+            "scope": "stealth_order_id",
+            "client_order_id": None,
+            "stealth_order_id": stealth_order_id,
+            "found": True,
+            "items": [
+                {
+                    "evidence_id": "stealth_move:2",
+                    "evidence_type": "stealth_move",
+                    "stealth_order_id": stealth_order_id,
+                    "old_exchange_order_id": "old-exchange-evidence",
+                    "new_exchange_order_id": "new-exchange-evidence",
+                    "exchange_order_id_evidence_only": True,
+                    "source": "stealth_order_moves",
+                }
+            ],
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+    )
+    client.app.dependency_overrides[movement_routes.get_read_service] = lambda: service
+
+    list_response = client.get(
+        (
+            "/api/v1/movement-repricing/evidence"
+            "?product_id=BTC-USDC&stealth_order_id=stealth-abc"
+            "&client_order_id=placement-client-1&evidence_type=stealth_repricing_state"
+            "&limit=10&offset=0"
+        ),
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    order_response = client.get(
+        "/api/v1/movement-repricing/orders/parent-1",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    stealth_response = client.get(
+        "/api/v1/movement-repricing/stealth/stealth-abc",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["command_routes_mode"] == "not_modeled"
+    assert list_response.json()["items"][0]["stealth_order_id"] == "stealth-abc"
+    assert list_response.json()["items"][0]["mutation_claims"][0]["kind"] == "move"
+    assert list_response.json()["items"][0]["replacement_slots"][0][
+        "client_order_id"
+    ] == "parent-1"
+    assert "order_id" not in list_response.json()["items"][0]
+    assert order_response.status_code == 200
+    assert order_response.json()["client_order_id"] == "parent-1"
+    assert order_response.json()["items"][0]["evidence_type"] == "parent_move"
+    assert stealth_response.status_code == 200
+    assert stealth_response.json()["stealth_order_id"] == "stealth-abc"
+    assert stealth_response.json()["items"][0]["evidence_type"] == "stealth_move"
+    assert stealth_response.json()["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_movement_repricing_read_service_maps_durable_and_runtime_evidence(
+    monkeypatch,
+):
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+    from core.enums import StealthMutationKind
+
+    parent_rows = {
+        "parent-old": {
+            "client_order_id": "parent-old",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "max_order_replacement": 4,
+            "current_order_replacement": 2,
+        },
+        "parent-new": {
+            "client_order_id": "parent-new",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "max_order_replacement": 4,
+            "current_order_replacement": 0,
+        },
+    }
+    order_move_rows = [
+        {
+            "id": 1,
+            "original_parent_client_order_id": "parent-old",
+            "new_parent_client_order_id": "parent-new",
+            "move_on_cancel": False,
+            "moved_at": "2026-06-11T10:00:00Z",
+            "reason": "user_move",
+            "notes": "operator move",
+            "created_at": "2026-06-11T09:59:00Z",
+        }
+    ]
+    stealth_move_rows = [
+        {
+            "id": 2,
+            "stealth_order_id": "stealth-root",
+            "old_placement_client_order_id": "placement-old",
+            "old_exchange_order_id": "exchange-old",
+            "old_submitted_price": "100.00",
+            "new_placement_client_order_id": "placement-new",
+            "new_exchange_order_id": "exchange-new",
+            "new_submitted_price": "101.00",
+            "reason": "manual_user_move",
+            "status": "completed",
+            "market_bid": "100.90",
+            "market_ask": "101.10",
+            "moved_at": "2026-06-11T10:05:00Z",
+        }
+    ]
+    stealth_rows = [
+        {
+            "stealth_order_id": "stealth-root",
+            "parent_order_id": "parent-old",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "status": "REVEALED",
+            "target_movement": "0.005",
+            "target_movement_type": "P",
+            "anchor_repricing_policy_json": {"enabled": True},
+            "anchor_repricing_state_json": {
+                "active_placement_client_order_id": "placement-new",
+                "active_exchange_order_id": "exchange-new",
+                "active_exchange_price": "101.00",
+                "last_reprice_at": "2026-06-11T10:05:00Z",
+                "next_reprice_at": "2026-06-11T10:06:00Z",
+                "reprice_reason": "reference_price_updated",
+                "reprice_history": ["2026-06-11T10:05:00Z"],
+                "post_fill_retreat_offset": "0.25",
+            },
+            "updated_at": "2026-06-11T10:05:00Z",
+        }
+    ]
+
+    def execute_query(query, params=None):
+        if "FROM order_moves" in query:
+            return order_move_rows
+        if "FROM stealth_order_moves" in query:
+            return stealth_move_rows
+        if "FROM stealth_orders" in query:
+            return stealth_rows
+        return []
+
+    class ClaimSnapshot:
+        def state(self, kind, stealth_order_id):
+            if kind == StealthMutationKind.REPRICE and stealth_order_id == "stealth-root":
+                return "processing"
+            return None
+
+    runtime_manager = SimpleNamespace(_mutation_claims=ClaimSnapshot())
+    class RuntimeLock:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    runtime_engine = SimpleNamespace(
+        orderbook_lock=RuntimeLock(),
+        _pending_replacement_claims={"parent-old": 1},
+    )
+    runtime_bridge = SimpleNamespace(
+        stealth_manager=runtime_manager,
+        order_engine=runtime_engine,
+    )
+    monkeypatch.setattr(
+        order_module,
+        "DB_CLIENT",
+        SimpleNamespace(execute_query=execute_query),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: parent_rows.get(client_order_id),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_order_by_id",
+        lambda stealth_order_id: stealth_rows[0]
+        if stealth_order_id == "stealth-root"
+        else None,
+    )
+    import dashboard_server
+
+    monkeypatch.setattr(dashboard_server, "stealth_order_bridge", runtime_bridge)
+
+    response = AdminApiReadService().build_movement_repricing_evidence(
+        product_id="BTC-USDC",
+        limit=10,
+        offset=0,
+    )
+
+    assert response.type == "admin_movement_repricing_evidence"
+    assert response.command_routes_mode == "not_modeled"
+    assert response.live_coinbase_orders_ran is False
+    evidence_by_type = {item.evidence_type.value: item for item in response.items}
+    parent_move = evidence_by_type["parent_move"]
+    assert parent_move.original_parent_client_order_id == "parent-old"
+    assert parent_move.new_parent_client_order_id == "parent-new"
+    assert parent_move.replacement_slots[0].client_order_id == "parent-old"
+    assert parent_move.replacement_slots[0].pending_replacement_claims == 1
+    stealth_move = evidence_by_type["stealth_move"]
+    assert stealth_move.old_exchange_order_id == "exchange-old"
+    assert stealth_move.new_exchange_order_id == "exchange-new"
+    assert stealth_move.exchange_order_id_evidence_only is True
+    reprice_state = evidence_by_type["stealth_repricing_state"]
+    assert reprice_state.client_order_id == "placement-new"
+    assert reprice_state.active_placement_client_order_id == "placement-new"
+    assert reprice_state.active_exchange_order_id == "exchange-new"
+    assert reprice_state.reprice_history == ["2026-06-11T10:05:00Z"]
+    assert reprice_state.mutation_claims[1].kind == StealthMutationKind.REPRICE
+    assert reprice_state.mutation_claims[1].state == "processing"
+    assert reprice_state.exchange_order_id_evidence_only is True
+
+
+@pytest.mark.regression
 def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     rows = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
     doc = ROUTE_INVENTORY_DOC.read_text(encoding="utf-8")
@@ -1309,6 +1620,15 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/stealth/orders/{stealth_order_id}"].shared_method == (
         "build_stealth_order_detail"
     )
+    assert rows["GET /api/v1/movement-repricing/evidence"].shared_method == (
+        "build_movement_repricing_evidence"
+    )
+    assert rows[
+        "GET /api/v1/movement-repricing/orders/{client_order_id}"
+    ].shared_method == "build_movement_repricing_order_detail"
+    assert rows[
+        "GET /api/v1/movement-repricing/stealth/{stealth_order_id}"
+    ].shared_method == "build_movement_repricing_stealth_detail"
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )
@@ -1337,6 +1657,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
+    assert "build_movement_repricing_evidence" in doc
+    assert "build_movement_repricing_order_detail" in doc
+    assert "build_movement_repricing_stealth_detail" in doc
 
 
 @pytest.mark.regression
@@ -1358,4 +1681,6 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/admin/oidc-readiness" in schema_http_surfaces
     assert "GET /api/v1/stealth/orders" in inventory_http_surfaces
     assert "GET /api/v1/stealth/orders" in schema_http_surfaces
+    assert "GET /api/v1/movement-repricing/evidence" in inventory_http_surfaces
+    assert "GET /api/v1/movement-repricing/evidence" in schema_http_surfaces
     assert schema_http_surfaces == inventory_http_surfaces

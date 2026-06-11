@@ -245,6 +245,14 @@ class AdminApiVerifierReadinessStatus(str, Enum):
     BLOCKED = "blocked"
 
 
+class AdminMovementRepricingEvidenceType(str, Enum):
+    """Read-only evidence categories for movement/repricing admin views."""
+
+    PARENT_MOVE = "parent_move"
+    STEALTH_MOVE = "stealth_move"
+    STEALTH_REPRICING_STATE = "stealth_repricing_state"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

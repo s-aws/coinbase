@@ -202,6 +202,9 @@ Current modules:
   `POST /api/v1/spot/campaign/executions`.
 - `api/v1/routes/spot.py`: read-only spot operator routes.
 - `api/v1/routes/stealth.py`: read-only stealth lifecycle evidence routes.
+- `api/v1/routes/movement_repricing.py`: read-only movement/repricing
+  evidence routes over `order_moves`, `stealth_order_moves`, stealth repricing
+  state, and runtime-safe claim snapshots.
 - `application/admin_api/command_service.py`: shared command service used by
   HTTP routes and legacy dashboard compatibility adapters.
 - `application/admin_api/auth.py`: fail-closed bearer-token/RBAC bootstrap.
@@ -229,6 +232,11 @@ Current behavior:
 - Stealth read routes are local-evidence reads keyed by `stealth_order_id`.
   Active placement client ids and exchange-native ids are exposed as evidence
   only. Stealth commands are not modeled in the enterprise Admin API yet.
+- Movement/repricing read routes expose durable parent move history, revealed
+  stealth move audit rows, anchor repricing state, replacement-slot evidence,
+  and runtime mutation claim state when safely observable. These routes are
+  read-only and do not expose move, premark, reprice-now, or move-revealed
+  command authority.
 - Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
   fill-ledger health, and frontend fixture routes are read-only backend
   association surfaces for `C:\coinbase-frontend`.

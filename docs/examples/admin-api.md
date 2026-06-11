@@ -226,6 +226,40 @@ Response rows include lifecycle and policy evidence such as `status`,
 platform. They must not be used by a frontend to mutate stealth lifecycle
 state or cancel a live placement.
 
+## Movement And Repricing Reads
+
+Movement/repricing reads expose existing durable and runtime-safe evidence.
+They are not command routes. They do not move parent orders, premark moves,
+trigger repricing, cancel Coinbase orders, or replace revealed stealth
+placements.
+
+```http
+GET /api/v1/movement-repricing/evidence?product_id=BTC-USDC&evidence_type=stealth_repricing_state&limit=50&offset=0
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+```http
+GET /api/v1/movement-repricing/orders/{client_order_id}
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+```http
+GET /api/v1/movement-repricing/stealth/{stealth_order_id}
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Response items may include parent move history from `order_moves`, stealth
+move audit rows from `stealth_order_moves`, repricing state from
+`stealth_orders.anchor_repricing_state_json`, replacement-slot evidence, and
+runtime mutation claim evidence when the existing manager state is observable.
+Exchange-native ids are exposed as exchange evidence only.
+
 ## Live Placement Approval
 
 Current live-disabled command shape:
@@ -347,6 +381,11 @@ Current read-only routes:
 - `GET /api/v1/admin/frontend-fixtures`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
+- `GET /api/v1/stealth/orders`
+- `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `GET /api/v1/movement-repricing/evidence`
+- `GET /api/v1/movement-repricing/orders/{client_order_id}`
+- `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`

@@ -626,6 +626,258 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/evidence:
+    get:
+      tags:
+      - movement-repricing
+      summary: Read movement and repricing evidence
+      description: Read movement/repricing evidence without creating, moving, or repricing.
+      operationId: list_movement_repricing_evidence_api_v1_movement_repricing_evidence_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: client_order_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+      - name: stealth_order_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Order Id
+      - name: evidence_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminMovementRepricingEvidenceType'
+          - type: 'null'
+          title: Evidence Type
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMovementRepricingListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/orders/{client_order_id}:
+    get:
+      tags:
+      - movement-repricing
+      summary: Read movement and repricing evidence for one client_order_id
+      description: Read movement/repricing evidence linked to one ``client_order_id``.
+      operationId: get_movement_repricing_by_client_order_id_api_v1_movement_repricing_orders__client_order_id__get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMovementRepricingDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}:
+    get:
+      tags:
+      - movement-repricing
+      summary: Read movement and repricing evidence for one stealth_order_id
+      description: Read movement/repricing evidence linked to one ``stealth_order_id``.
+      operationId: get_movement_repricing_by_stealth_order_id_api_v1_movement_repricing_stealth__stealth_order_id__get
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMovementRepricingDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders:
     get:
       tags:
@@ -2310,6 +2562,324 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminMovementRepricingDetailResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_movement_repricing_detail
+        scope:
+          type: string
+          title: Scope
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        stealth_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Order Id
+        found:
+          type: boolean
+          title: Found
+        items:
+          items:
+            $ref: '#/components/schemas/AdminMovementRepricingEvidenceItem'
+          type: array
+          title: Items
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - scope
+      - found
+      title: AdminMovementRepricingDetailResponse
+      description: Read-only movement/repricing detail response for order or stealth
+        scope.
+    AdminMovementRepricingEvidenceItem:
+      properties:
+        evidence_id:
+          type: string
+          title: Evidence Id
+        evidence_type:
+          $ref: '#/components/schemas/AdminMovementRepricingEvidenceType'
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        original_parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Original Parent Client Order Id
+        new_parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: New Parent Client Order Id
+        stealth_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Order Id
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        side:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Side
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        move_on_cancel:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Move On Cancel
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+        old_placement_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Old Placement Client Order Id
+        old_exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Old Exchange Order Id
+        old_submitted_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Old Submitted Price
+        new_placement_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: New Placement Client Order Id
+        new_exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: New Exchange Order Id
+        new_submitted_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: New Submitted Price
+        active_placement_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Placement Client Order Id
+        active_exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Exchange Order Id
+        active_exchange_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Exchange Price
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        target_movement:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Movement
+        target_movement_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Movement Type
+        replacement_slots:
+          items:
+            $ref: '#/components/schemas/AdminReplacementSlotEvidence'
+          type: array
+          title: Replacement Slots
+        mutation_claims:
+          items:
+            $ref: '#/components/schemas/AdminMutationClaimEvidence'
+          type: array
+          title: Mutation Claims
+        anchor_repricing_policy:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Anchor Repricing Policy
+        anchor_repricing_state:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Anchor Repricing State
+        reprice_history:
+          items: {}
+          type: array
+          title: Reprice History
+        reprice_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reprice Reason
+        last_reprice_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Reprice At
+        next_reprice_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Reprice At
+        post_fill_retreat_offset:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Post Fill Retreat Offset
+        market_bid:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Market Bid
+        market_ask:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Market Ask
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        moved_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Moved At
+        source:
+          type: string
+          title: Source
+      additionalProperties: false
+      type: object
+      required:
+      - evidence_id
+      - evidence_type
+      - source
+      title: AdminMovementRepricingEvidenceItem
+      description: Read-only movement/repricing evidence from durable and runtime-safe
+        sources.
+    AdminMovementRepricingEvidenceType:
+      type: string
+      enum:
+      - parent_move
+      - stealth_move
+      - stealth_repricing_state
+      title: AdminMovementRepricingEvidenceType
+      description: Read-only evidence categories for movement/repricing admin views.
+    AdminMovementRepricingListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_movement_repricing_evidence
+        filters:
+          type: object
+          title: Filters
+        count:
+          type: integer
+          title: Count
+        pagination:
+          $ref: '#/components/schemas/AdminOrderPagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AdminMovementRepricingEvidenceItem'
+          type: array
+          title: Items
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - count
+      - pagination
+      title: AdminMovementRepricingListResponse
+      description: Read-only movement/repricing evidence list response.
+    AdminMutationClaimEvidence:
+      properties:
+        kind:
+          $ref: '#/components/schemas/StealthMutationKind'
+        state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State
+        runtime_observed:
+          type: boolean
+          title: Runtime Observed
+          default: false
+        source:
+          type: string
+          title: Source
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - source
+      title: AdminMutationClaimEvidence
+      description: Runtime claim evidence for repeatable stealth mutations.
     AdminOidcJwtReadinessResponse:
       properties:
         type:
@@ -2559,6 +3129,41 @@ components:
       - client_order_id
       title: AdminOrderReadItem
       description: Read-only order row keyed by ``client_order_id``.
+    AdminReplacementSlotEvidence:
+      properties:
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        max_order_replacement:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Order Replacement
+        current_order_replacement:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Current Order Replacement
+        pending_replacement_claims:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Pending Replacement Claims
+        pending_claims_runtime_observed:
+          type: boolean
+          title: Pending Claims Runtime Observed
+          default: false
+        source:
+          type: string
+          title: Source
+      additionalProperties: false
+      type: object
+      required:
+      - source
+      title: AdminReplacementSlotEvidence
+      description: Replacement-slot evidence for a parent/placement client id.
     AdminSessionResponse:
       properties:
         type:
@@ -3195,6 +3800,41 @@ components:
       type: object
       title: SpotSweepStatusResponse
       description: Spot sweep status response.
+    StealthMutationKind:
+      type: string
+      enum:
+      - move
+      - reprice
+      - retreat
+      title: StealthMutationKind
+      description: 'Kind of in-flight mutation against a single stealth order.
+
+
+        Stealth orders may be mutated concurrently by two independent paths:
+
+        - The ticker-driven anchor reprice loop (background, REPRICE)
+
+        - User-initiated "move REVEALED" actions from the dashboard (MOVE)
+
+        - Fill-driven hidden order retreat (background, RETREAT)
+
+
+        Each kind has its own per-(kind, stealth_order_id) claim namespace in
+
+        a :class:`core.orderbook.ClaimLedger`. A held MOVE claim must block a
+
+        REPRICE attempt on the same order, and vice versa, to prevent
+
+        double-cancellation of the exchange order.
+
+
+        Unlike :class:`FollowUpKind`, stealth mutations are **repeatable** --
+
+        a moved order may later be moved again, a repriced order may later be
+
+        repriced again. Callers must release the claim with ``release`` after
+
+        both success and failure paths; there is no terminal ``done`` state.'
     TimeInForce:
       type: string
       enum:

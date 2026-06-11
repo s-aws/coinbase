@@ -15,6 +15,7 @@ from application.admin_api.models import AdminApiErrorResponse
 from core.enums import AdminApiErrorCode, AdminApiErrorSeverity
 
 from .routes.admin import router as admin_router
+from .routes.movement_repricing import router as movement_repricing_router
 from .routes.orders import router as orders_router
 from .routes.spot import router as spot_router
 from .routes.stealth import router as stealth_router
@@ -267,6 +268,11 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
+    app.include_router(
+        movement_repricing_router,
+        prefix="/api/v1",
+        tags=["movement-repricing"],
+    )
     app.include_router(orders_router, prefix="/api/v1", tags=["orders"])
     app.include_router(spot_router, prefix="/api/v1", tags=["spot"])
     app.include_router(stealth_router, prefix="/api/v1", tags=["stealth"])

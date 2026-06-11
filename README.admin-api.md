@@ -12,8 +12,9 @@ The repository association is documented in
 The repository now contains an Admin API contract, generated OpenAPI artifact,
 fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
 structured error payloads, observability headers, read-only admin diagnostics,
-order read routes, read-only stealth lifecycle routes, and read-only spot
-operator routes. Mutating HTTP routes still return `not_implemented` after
+order read routes, read-only stealth lifecycle routes, read-only
+movement/repricing evidence routes, and read-only spot operator routes.
+Mutating HTTP routes still return `not_implemented` after
 auth, permission, idempotency, and audit handling; they do not submit orders,
 cancel orders, or call Coinbase.
 
@@ -49,6 +50,9 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `GET /api/v1/movement-repricing/evidence`
+- `GET /api/v1/movement-repricing/orders/{client_order_id}`
+- `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`
@@ -132,6 +136,12 @@ The platform/module split is documented in
   `active_placement_client_order_id` for active placement evidence, and
   `active_exchange_order_id` as exchange evidence only. Stealth command routes
   are not modeled through the enterprise Admin API yet.
+- Movement/repricing read rows combine durable `order_moves`,
+  `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
+  evidence. Runtime mutation claims and pending replacement claims are shown
+  only when safely observable through the existing manager/engine state; if
+  unavailable, the response says so instead of treating the database as proof
+  that no runtime claim exists.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap
@@ -227,6 +237,7 @@ and rotation policy without disclosing a token value.
 - [Admin Platform Architecture](docs/ADMIN_PLATFORM_ARCHITECTURE.md)
 - [Admin Module Capability Matrix](docs/ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Admin API Examples](docs/examples/admin-api.md)
+- [Movement And Repricing Reads](README.movement-repricing.md)
 - [Frontend Association](docs/FRONTEND_ASSOCIATION.md)
 - [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md)
 - [API Reference](genai_data/API_REFERENCE.md)
