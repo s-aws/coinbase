@@ -28,6 +28,7 @@ class AdminApiAuditEvent(BaseModel):
     idempotency_key: str | None = None
     approval_id: str | None = None
     client_order_id: str | None = None
+    stealth_order_id: str | None = None
     coinbase_order_id: str | None = None
     status: AdminApiCommandStatus
     failure_stage: str | None = None

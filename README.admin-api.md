@@ -12,7 +12,8 @@ The repository association is documented in
 The repository now contains an Admin API contract, generated OpenAPI artifact,
 fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
 structured error payloads, observability headers, read-only admin diagnostics,
-order read routes, read-only stealth lifecycle routes, read-only
+order read routes, read-only stealth lifecycle routes, a live-disabled
+stealth cancel command contract, read-only
 movement/repricing evidence routes, read-only futures/perpetual account and
 position routes, read-only guard/risk policy evidence, read-only cross-module
 audit workbench evidence, and read-only spot operator routes.
@@ -22,9 +23,10 @@ cancel orders, or call Coinbase.
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
-The current runtime still returns `501` for create, cancel, and campaign
-execution commands because HTTP live execution is not approved. Read routes
-document typed `200` payloads plus structured `401` and `403` errors.
+The current runtime still returns `501` for create, order cancel, stealth
+cancel, and campaign execution commands because HTTP live execution is not
+approved. Read routes document typed `200` payloads plus structured `401` and
+`403` errors.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -71,6 +73,7 @@ Current mutating HTTP command surfaces are:
 
 - `POST /api/v1/orders`
 - `POST /api/v1/orders/{client_order_id}/cancel`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `POST /api/v1/spot/campaign/executions`
 
 The current operational dashboard is still the proof-of-concept WebSocket and
@@ -141,8 +144,11 @@ The platform/module split is documented in
   audit navigation evidence, not order identity.
 - Stealth read rows use `stealth_order_id` for stealth lifecycle identity,
   `active_placement_client_order_id` for active placement evidence, and
-  `active_exchange_order_id` as exchange evidence only. Stealth command routes
-  are not modeled through the enterprise Admin API yet.
+  `active_exchange_order_id` as exchange evidence only. The enterprise Admin
+  API has a live-disabled stealth cancel command keyed by `stealth_order_id`;
+  it must not use active placement ids or exchange ids as cancel keys, and it
+  must not mutate lifecycle state until exchange handling and reconciliation
+  are implemented.
 - Movement/repricing read rows combine durable `order_moves`,
   `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
   evidence. Runtime mutation claims and pending replacement claims are shown

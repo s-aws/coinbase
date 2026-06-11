@@ -21,6 +21,7 @@ class IdempotencyRecord(BaseModel):
     idempotency_key: str = Field(min_length=1)
     payload_hash: str = Field(min_length=64, max_length=64)
     client_order_id: str | None = None
+    stealth_order_id: str | None = None
     status: AdminApiCommandStatus
     response: dict[str, Any] = Field(default_factory=dict)
     actor_id: str | None = None

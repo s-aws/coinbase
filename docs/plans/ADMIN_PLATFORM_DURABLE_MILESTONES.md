@@ -322,6 +322,20 @@ Frontend scope:
 Done when command paths are traceable through the single backend behavior path
 and contextless review finds no parallel trading implementation.
 
+Current M6 completion:
+
+- `stealth_cancel` is the first non-spot command draft contract.
+- Backend route:
+  `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`.
+- Shared service method:
+  `cancel_stealth_order_by_stealth_order_id`.
+- Identity key: `stealth_order_id`. Active placement client ids and exchange
+  ids are evidence only.
+- Current runtime posture: authenticated, RBAC-gated, idempotent, audited, and
+  live-disabled with HTTP `501`; idempotency conflicts preserve
+  `stealth_order_id` audit identity; live Coinbase execution not run,
+  notional `$0`.
+
 ## M7 - Production Auth And Operations Hardening
 
 Purpose: make the platform deployable in a conventional enterprise setting.

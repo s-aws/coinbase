@@ -22,6 +22,7 @@ Current route adapters:
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
@@ -57,16 +58,19 @@ Current behavior:
   mutate live exchange state
 - the generated OpenAPI contract includes eventual `200` accepted/replayed
   command response schemas, but the current runtime still returns `501` for
-  create, cancel, and campaign execution commands because HTTP live execution
-  is not approved
+  create, order cancel, stealth cancel, and campaign execution commands
+  because HTTP live execution is not approved
 - `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose
   read-only local order evidence keyed by `client_order_id`; exchange-native
   ids can appear only as `exchange_order_id` evidence and are not cancel keys
 - `GET /api/v1/stealth/orders` and
   `GET /api/v1/stealth/orders/{stealth_order_id}` expose read-only local
   stealth lifecycle evidence keyed by `stealth_order_id`; active placement
-  client ids and exchange ids are evidence only, and no stealth command route
-  is modeled through the enterprise Admin API yet
+  client ids and exchange ids are evidence only
+- `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is a
+  live-disabled command draft keyed by `stealth_order_id`; it returns `501`,
+  writes command audit evidence, never calls Coinbase, and must not use active
+  placement ids or exchange ids as cancel keys
 - `GET /api/v1/movement-repricing/evidence`,
   `GET /api/v1/movement-repricing/orders/{client_order_id}`, and
   `GET /api/v1/movement-repricing/stealth/{stealth_order_id}` expose

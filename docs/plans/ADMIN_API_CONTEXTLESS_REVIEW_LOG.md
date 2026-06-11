@@ -863,3 +863,58 @@ Status:
 - Frontend `npm run release:gate` passed with `161` unit tests and `3`
   Playwright tests.
 - Live Coinbase execution was not run for M5; notional `$0`.
+
+## M6 Live-Disabled Stealth Cancel Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is
+  authenticated, RBAC-gated, idempotent, audited, live-disabled, and routed
+  through the shared command service
+- verify the command identity is `stealth_order_id`; active placement client
+  ids and exchange `order_id` values remain evidence only
+- verify generated OpenAPI, route inventory, docs, tests, frontend generated
+  schema, wrappers, BFF allowlist, command draft, dry-submit helper, admin
+  navigation, and release gates are aligned
+- verify no Coinbase execution path, stealth manager mutation, spot-only
+  authority, or browser-local command fetch path was introduced
+
+Findings:
+
+- Initial backend blind review found one blocker: same-key/different-payload
+  idempotency conflicts for stealth cancel returned and audited a `409`
+  response without preserving `stealth_order_id`.
+- The same review found two non-blocking gaps: the no-direct-Coinbase route
+  guard scanned `api.v1.routes.orders` but not `api.v1.routes.stealth`, and a
+  generic cancel example used a stealth-specific reason string.
+- Frontend blind review found no blockers. It flagged one stale doc sentence
+  that omitted stealth cancel from the browser smoke description.
+
+Resolution:
+
+- The shared idempotent command executor now accepts route identity fields and
+  preserves `stealth_order_id` or `client_order_id` in idempotency-conflict
+  responses and audit rows.
+- Added regression coverage for stealth cancel payload-drift conflict response
+  and audit identity.
+- The no-direct-Coinbase route guard now scans both order and stealth route
+  modules.
+- Backend and frontend example wording was corrected.
+- Follow-up backend blind review found no blockers and independently probed
+  the conflict case.
+
+Status:
+
+- Backend focused Admin API contract tests passed with `52 passed, 1 warning`.
+- Backend full regression passed with `787 passed, 1 warning`.
+- Frontend focused command/AdminShell checks passed with `17 passed`.
+- Frontend `npm run release:gate` passed with `165` unit tests and `3`
+  Playwright tests.
+- Frontend blind review focused checks passed with `75` tests.
+- Live Coinbase execution was not run for M6; notional `$0`.

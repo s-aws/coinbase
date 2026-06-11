@@ -42,6 +42,7 @@ from .models import (
     CampaignExecutionCommand,
     CancelOrderCommand,
     ManualOrderCommand,
+    StealthCancelCommand,
 )
 
 
@@ -702,6 +703,43 @@ class AdminApiCommandService:
                 message=str(exc),
                 failure_stage="coinbase_rest",
             )
+
+    def cancel_stealth_order_by_stealth_order_id(
+        self,
+        command: StealthCancelCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a stealth lifecycle cancel command through the live gate.
+
+        This contract is keyed by ``stealth_order_id``. Active placement client
+        ids and Coinbase order ids remain evidence only until the stealth
+        lifecycle path owns the exchange handling and local-state reconciliation.
+        """
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method="cancel_stealth_order_by_stealth_order_id",
+            message=(
+                "Stealth cancel requires enterprise auth, idempotency, audit, "
+                "approval, cap/rate gates, and exchange-reality reconciliation "
+                "before live execution."
+            ),
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "stealth_order_id": command.stealth_order_id,
+                "reason": command.request.reason,
+                "identity_key": "stealth_order_id",
+                "active_placement_client_order_id": None,
+                "exchange_order_id_evidence_only": True,
+            },
+            failure_stage="approval",
+        )
 
     def execute_spot_campaign(
         self,

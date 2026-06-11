@@ -165,6 +165,7 @@ def _record_audit(
             request_id=request_id,
             idempotency_key=response.idempotency_key,
             client_order_id=response.client_order_id,
+            stealth_order_id=response.stealth_order_id,
             coinbase_order_id=response.coinbase_order_id,
             status=response.status,
             failure_stage=response.failure_stage,
@@ -202,6 +203,8 @@ def _execute_idempotent_command(
     idempotency_store: FileIdempotencyStore,
     audit_store: FileAdminApiAuditStore,
     command_runner: Callable[[], AdminApiCommandResponse],
+    client_order_id: str | None = None,
+    stealth_order_id: str | None = None,
 ) -> JSONResponse:
     require_permission(actor, permission)
     check = idempotency_store.evaluate(
@@ -221,6 +224,8 @@ def _execute_idempotent_command(
             message="Idempotency-Key was already used with a different payload.",
             correlation_id=request_id,
             idempotency_key=idempotency_key,
+            client_order_id=client_order_id,
+            stealth_order_id=stealth_order_id,
             failure_stage="idempotency",
         )
         response.audit_id = _record_audit(
@@ -245,6 +250,7 @@ def _execute_idempotent_command(
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
             client_order_id=response.client_order_id,
+            stealth_order_id=response.stealth_order_id,
             status=response.status,
             response=response.model_dump(mode="json"),
             actor_id=actor.actor_id,
@@ -396,6 +402,7 @@ def cancel_order_by_client_order_id(
         service_method="cancel_order_by_client_order_id",
         idempotency_store=idempotency_store,
         audit_store=audit_store,
+        client_order_id=client_order_id,
         command_runner=lambda: service.cancel_order_by_client_order_id(
             CancelOrderCommand(
                 envelope=envelope,

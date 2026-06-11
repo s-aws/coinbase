@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiCommandRoutesMode,
     AdminApiErrorCode,
     AdminApiErrorSeverity,
     AdminAuditEvidenceSource,
@@ -96,6 +97,14 @@ class CancelOrderRequest(BaseModel):
     reason: str | None = None
 
 
+class StealthCancelRequest(BaseModel):
+    """Stealth cancel request body keyed by path ``stealth_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = None
+
+
 class CampaignExecutionRequest(BaseModel):
     """Campaign execution request shape for future gated spot campaigns."""
 
@@ -132,6 +141,17 @@ class CancelOrderCommand(BaseModel):
     allow_live_execution: bool = False
 
 
+class StealthCancelCommand(BaseModel):
+    """Shared service command for cancel-by-stealth-order-id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthCancelRequest
+    allow_live_execution: bool = False
+
+
 class CampaignExecutionCommand(BaseModel):
     """Shared service command for campaign execution."""
 
@@ -153,6 +173,7 @@ class AdminApiCommandResponse(BaseModel):
     service_method: str
     message: str
     client_order_id: str | None = None
+    stealth_order_id: str | None = None
     coinbase_order_id: str | None = None
     correlation_id: str | None = None
     idempotency_key: str | None = None
@@ -399,7 +420,7 @@ class AdminStealthOrderListResponse(BaseModel):
     pagination: AdminOrderPagination
     items: list[AdminStealthOrderReadItem] = Field(default_factory=list)
     read_only: bool = True
-    command_routes_mode: str = "not_modeled"
+    command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False
 
 
@@ -413,7 +434,7 @@ class AdminStealthOrderDetailResponse(BaseModel):
     found: bool
     order: AdminStealthOrderReadItem | None = None
     read_only: bool = True
-    command_routes_mode: str = "not_modeled"
+    command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False
 
 

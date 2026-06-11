@@ -1271,6 +1271,7 @@ def _audit_event_from_command_event(
         actor_id=event.actor_id,
         permission=event.permission,
         client_order_id=event.client_order_id,
+        stealth_order_id=event.stealth_order_id,
         correlation_id=event.request_id,
         audit_id=event.audit_id,
         request_id=event.request_id,

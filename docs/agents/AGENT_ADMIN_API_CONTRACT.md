@@ -63,7 +63,8 @@ Implemented modules:
 
 Shared command service methods currently cover manual placement,
 cancel-by-`client_order_id`, hotpoint test placement for legacy dashboard
-compatibility, and a live-disabled spot campaign execution contract.
+compatibility, live-disabled stealth cancel by `stealth_order_id`, and a
+live-disabled spot campaign execution contract.
 
 Read-only Admin API routes currently cover backend bootstrap, health,
 session/RBAC evidence, capabilities, guard/risk policy evidence, audit

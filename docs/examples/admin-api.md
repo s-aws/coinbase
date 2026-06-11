@@ -145,6 +145,9 @@ X-Operator-Intent: operator_cancel
 X-Admin-Actor: operator-001
 X-Admin-Roles: trader
 X-CSRF-Token: <configured-csrf-token-when-required>
+Content-Type: application/json
+
+{"reason":"operator_requested_cancel"}
 ```
 
 Current backend behavior:
@@ -161,6 +164,38 @@ Future live execution must call the project Coinbase wrapper
 `cancel_order(client_order_id)` after rate/cap policy is complete. The wrapper
 must parse Coinbase cancel payloads and accept only explicit `success: true`
 evidence as a successful exchange cancellation.
+
+## Stealth Cancel By Stealth Order ID
+
+Current live-disabled command shape:
+
+```http
+POST /api/v1/stealth/orders/{stealth_order_id}/cancel
+Authorization: Bearer <backend-verifiable-token>
+Idempotency-Key: 018f1a2b-4b9c-7e20-9d39-7d6c4a5f1083
+X-Correlation-Id: corr-20260610-002
+X-Operator-Intent: operator_stealth_cancel
+X-Admin-Actor: operator-001
+X-Admin-Roles: trader
+X-CSRF-Token: <configured-csrf-token-when-required>
+```
+
+Current backend behavior:
+
+- parse the request through FastAPI/Pydantic
+- authenticate actor and authorize `order:cancel`
+- evaluate durable idempotency
+- call the shared command service with HTTP live execution disabled
+- write durable command audit evidence with `stealth_order_id`
+- return `501` with `status: "not_implemented"`
+- never call Coinbase
+- never mark a revealed placement hidden/cancelled or mutate stealth lifecycle
+  state
+
+This command draft is keyed by `stealth_order_id`. Active placement client ids
+and exchange order ids are evidence only. Future live execution must reconcile
+the live placement through the existing stealth lifecycle exchange-handling
+path before local state can change.
 
 ## Order Reads
 
@@ -202,8 +237,9 @@ browser.
 
 Stealth reads are local/backend lifecycle evidence routes. They are keyed by
 `stealth_order_id`. Active placement client ids and exchange order ids are
-evidence fields only; the current enterprise Admin API does not expose stealth
-create, cancel, reveal, hide, move, or reprice command routes.
+evidence fields only. The current enterprise Admin API exposes only the
+live-disabled stealth cancel draft above; stealth create, reveal, hide, move,
+and reprice command routes are not modeled.
 
 ```http
 GET /api/v1/stealth/orders?product_id=BTC-USDC&stealth_status=REVEALED&limit=50&offset=0

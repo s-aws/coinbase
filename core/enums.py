@@ -190,6 +190,14 @@ class AdminApiRouteAvailability(str, Enum):
     BACKEND_BLOCKED = "backend_blocked"
 
 
+class AdminApiCommandRoutesMode(str, Enum):
+    """Command-route posture exposed by read models."""
+
+    NOT_MODELED = "not_modeled"
+    LIVE_DISABLED = "live_disabled"
+    EVIDENCE_ONLY = "evidence_only"
+
+
 class AdminApiSessionStatus(str, Enum):
     """Authenticated Admin API session status."""
 
