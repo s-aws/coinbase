@@ -2982,3 +2982,127 @@ Progress update:
   run with notional `$0`.
 - Phase 512 backend full regression passed with `771 passed, 1 warning`.
 - Live Coinbase execution in this batch: not run; test notional `$0`.
+
+## Approved Route Coverage Sync Batch - Phases 521-540
+
+These phases are approved as the next 20-phase unattended work batch. Work may
+continue without another approval while it stays inside
+[Autonomous Work Queue](AUTONOMOUS_WORK_QUEUE.md). Default execution is
+dry/no-live. Any backend live Coinbase work must stay under the carried-forward
+cap: maximum `3.10` USDC submitted, maximum `1.00` USDC executed, cheapest
+Coinbase `USDC` spot product available to US customers, retained inventory,
+and passing reconciliation before the next phase advances.
+
+### Phase 521 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 501-520 to active
+  phases 521-540 while preserving live cap and stop-condition policy.
+
+### Phase 522 - Backend Route Coverage Sentinel
+
+- Add backend regression evidence proving OpenAPI, route inventory, and route
+  docs include every current Admin API route.
+
+### Phase 523 - OIDC Readiness Frontend Contract Sync
+
+- Ensure frontend route lists include `GET /api/v1/admin/oidc-readiness`.
+
+### Phase 524 - Typed OIDC Readiness Wrapper
+
+- Add a canonical frontend `BackendApiClient` wrapper for OIDC readiness.
+
+### Phase 525 - Frontend Route Coverage Check
+
+- Add a no-live frontend check that fails when generated OpenAPI paths are
+  missing from frontend contract paths, typed wrappers, mocks, runtime
+  snapshots, or docs.
+
+### Phase 526 - API Check Gate Inclusion
+
+- Include route coverage in `npm run api:check` and release/CI gates.
+
+### Phase 527 - Mock Fixture Parity
+
+- Add OIDC readiness mock fixture coverage.
+
+### Phase 528 - Runtime Snapshot Parity
+
+- Include OIDC readiness in the shared admin runtime read snapshot.
+
+### Phase 529 - UI Evidence Surface
+
+- Surface OIDC readiness status in the admin shell as backend evidence only.
+
+### Phase 530 - Documentation Sync
+
+- Update API, testing, and roadmap docs for the route-coverage gate.
+
+### Phase 531 - Contextless Route Sync Review
+
+- Run a blind/contextless review for route-sync discoverability.
+
+### Phase 532 - Contextless Remediation
+
+- Fix unclear route-sync docs, scripts, or wrappers found by the review.
+
+### Phase 533 - Backend Focused Verification
+
+- Run focused Admin API contract checks and backend queue validation.
+
+### Phase 534 - Frontend Focused Verification
+
+- Run focused frontend API-client, mock, runtime, and route-coverage tests.
+
+### Phase 535 - Frontend Release Gate
+
+- Run full `npm run release:gate`.
+
+### Phase 536 - Backend Regression Gate
+
+- Run full backend regression after backend changes.
+
+### Phase 537 - No-Live Evidence Discipline
+
+- Confirm frontend release, artifact, smoke, and route-coverage checks report
+  no live Coinbase execution with `$0` notional.
+
+### Phase 538 - Cross-Repo Clean Tree Check
+
+- Verify both repositories are clean before final summary or next batch.
+
+### Phase 539 - Commit Backend And Frontend
+
+- Commit completed backend and frontend work separately.
+
+### Phase 540 - Final Batch Summary
+
+- Summarize implementation, verification, live posture, commits, and next
+  approved phase range.
+
+Progress update:
+
+- Phases 521-522 completed on the backend side: the active queue now covers
+  `521-540`, and `test_admin_api_route_inventory_and_openapi_paths_stay_in_sync`
+  proves every HTTP route in the Admin API inventory matches the generated
+  OpenAPI schema.
+- Phases 523-529 completed on the frontend side: OIDC readiness is in
+  contract paths, typed `BackendApiClient`, mock fixtures, runtime snapshots,
+  and admin-shell backend evidence.
+- Phases 525-526 completed: `npm run api:check` now runs generated-schema
+  freshness plus `npm run api:routes:check`; route coverage reports no live
+  Coinbase execution with notional `$0`.
+- Phase 531 completed. Blind/contextless review found no blocker and recorded
+  one non-blocking evidence-packaging gap for saved frontend runtime/UI
+  artifacts.
+- Phase 533 focused backend verification passed with `45 passed, 1 warning`
+  across Admin API contract and spot readiness gate tests.
+- Phase 534 focused frontend verification passed with `43 passed` across API
+  client, mock backend, runtime, and quality-gate tests.
+- Phase 535 frontend `npm run release:gate` passed with production build,
+  typecheck, lint, generated API freshness plus route coverage, command
+  security, release/deployment/autonomous checks, `120` unit tests, dry
+  read/command/BFF/OIDC smokes, and `3` Playwright tests. All frontend
+  release/artifact/smoke checks reported no live Coinbase execution with
+  notional `$0`.
+- Phase 536 backend full regression passed with `772 passed, 1 warning`.
+- Live Coinbase execution in this batch: not run; test notional `$0`.

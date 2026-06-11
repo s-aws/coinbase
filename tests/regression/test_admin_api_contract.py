@@ -1085,3 +1085,23 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc
     assert "build_order_list" in doc
+
+
+@pytest.mark.regression
+def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
+    schema = generate_openapi_schema(OPENAPI_PATH)
+    inventory_http_surfaces = {
+        item.surface
+        for item in ADMIN_API_ROUTE_INVENTORY
+        if item.surface.split(" ", 1)[0] in {"GET", "POST", "PUT", "PATCH", "DELETE"}
+    }
+    schema_http_surfaces = {
+        f"{method.upper()} {path}"
+        for path, operations in schema["paths"].items()
+        for method in operations
+        if method in {"get", "post", "put", "patch", "delete"}
+    }
+
+    assert "GET /api/v1/admin/oidc-readiness" in inventory_http_surfaces
+    assert "GET /api/v1/admin/oidc-readiness" in schema_http_surfaces
+    assert schema_http_surfaces == inventory_http_surfaces

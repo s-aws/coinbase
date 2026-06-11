@@ -12,7 +12,8 @@ from typing import Any, Sequence
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASES = tuple(range(501, 521))
+APPROVED_PHASES = tuple(range(521, 541))
+APPROVED_PHASE_RANGE = "521-540"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -59,7 +60,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
     passed = all(check.passed for check in checks)
     return {
         "status": "passed" if passed else "blocked",
-        "approved_phase_range": "501-520",
+        "approved_phase_range": APPROVED_PHASE_RANGE,
         "approved_phase_count": len(APPROVED_PHASES),
         "live_coinbase_orders_ran": False,
         "live_order_notional_usdc": "0",
@@ -84,8 +85,9 @@ def _check_phase_range(body: str) -> QueueCheck:
         if f"Phase {phase} -" not in body
     ]
     return QueueCheck(
-        name="approved_phase_range_501_520",
-        passed="Approved phase range: **501-520**" in body and not missing,
+        name="approved_phase_range_521_540",
+        passed=f"Approved phase range: **{APPROVED_PHASE_RANGE}**" in body
+        and not missing,
         evidence={
             "expected_first_phase": APPROVED_PHASES[0],
             "expected_last_phase": APPROVED_PHASES[-1],

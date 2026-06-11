@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **501-520**.
+- Approved phase range: **521-540**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,98 +46,97 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Approved Phases 501-520
+## Approved Phases 521-540
 
-### Phase 501 - Autonomous Work Queue Contract
+### Phase 521 - Advance Active Queue Range
 
-- Persist the unattended-work approval, live caps, stop conditions, and final
-  gate policy in backend and frontend docs.
+- Move the durable autonomous queue from completed phases 501-520 to active
+  phases 521-540 while preserving the same live cap and stop-condition policy.
 
-### Phase 502 - Machine-Readable Queue Validation
+### Phase 522 - Backend Route Coverage Sentinel
 
-- Add a no-live validator that checks phase coverage, live caps, stop
-  conditions, and required gate commands.
+- Add or extend backend regression evidence proving the OpenAPI schema,
+  route inventory, and route docs include every current Admin API route.
 
-### Phase 503 - Frontend Queue Gate
+### Phase 523 - OIDC Readiness Frontend Contract Sync
 
-- Add a frontend release/deployment check for the same autonomous queue
-  contract.
+- Ensure frontend route lists include `GET /api/v1/admin/oidc-readiness`.
 
-### Phase 504 - CI Queue Parity
+### Phase 524 - Typed OIDC Readiness Wrapper
 
-- Make CI/local release checks fail when the autonomous queue contract is
-  missing or stale.
+- Add a canonical frontend `BackendApiClient` wrapper for the OIDC readiness
+  route instead of relying on ad hoc smoke-script access.
 
-### Phase 505 - Long-Run Progress Format
+### Phase 525 - Frontend Route Coverage Check
 
-- Define a concise progress format for unattended execution: current phase,
-  gate status, live execution status, blockers, and next phase.
+- Add a no-live frontend check that fails when generated OpenAPI paths are
+  missing from frontend contract paths or typed wrappers.
 
-### Phase 506 - Live Cap Audit Proof
+### Phase 526 - API Check Gate Inclusion
 
-- Ensure live cap policy is visible beside live smoke docs and cannot be
-  confused with frontend live enablement.
+- Include the route coverage check in `npm run api:check` and release/CI
+  gates without introducing a parallel API-client path.
 
-### Phase 507 - Backend Queue Validator Tests
+### Phase 527 - Mock Fixture Parity
 
-- Cover the backend queue validator in regression tests.
+- Add OIDC readiness mock fixture coverage so local frontend mode mirrors the
+  backend read contract.
 
-### Phase 508 - Frontend Queue Validator Tests
+### Phase 528 - Runtime Snapshot Parity
 
-- Cover the frontend queue contract in unit tests.
+- Include OIDC readiness in the shared admin runtime read snapshot where it
+  belongs with bootstrap, health, session, capabilities, and CSRF evidence.
 
-### Phase 509 - Contextless Review Prompt
+### Phase 529 - UI Evidence Surface
 
-- Run a blind/contextless review asking whether a smaller agent can continue
-  phases 501-520 safely from repository docs alone.
+- Surface OIDC readiness status in the admin shell as backend evidence only;
+  do not create frontend authorization authority.
 
-### Phase 510 - Contextless Remediation
+### Phase 530 - Documentation Sync
 
-- Fix any unclear docs, scripts, or gates found by the review.
+- Update frontend API docs, backend examples if needed, and documentation
+  indexes so contextless maintainers can find the route-coverage gate.
 
-### Phase 511 - Release Gate Inclusion
+### Phase 531 - Contextless Route Sync Review
 
-- Include autonomous queue validation in frontend release and deployment
-  gates.
+- Run a blind/contextless review asking whether a smaller agent can create or
+  inspect a spot/admin route without missing generated-contract sync.
 
-### Phase 512 - Backend Regression Gate
+### Phase 532 - Contextless Remediation
 
-- Run focused backend checks and full backend regression after backend file
+- Fix any unclear route-sync docs, scripts, or wrappers found by the review.
+
+### Phase 533 - Backend Focused Verification
+
+- Run focused Admin API contract tests and queue validation after backend
   changes.
 
-### Phase 513 - Frontend Release Gate
+### Phase 534 - Frontend Focused Verification
 
-- Run focused frontend checks and full `npm run release:gate` after frontend
-  file changes.
+- Run focused frontend API-client, mock, runtime, and route-coverage tests.
 
-### Phase 514 - Cross-Repo Clean Tree Check
+### Phase 535 - Frontend Release Gate
+
+- Run full `npm run release:gate` after frontend release/API changes.
+
+### Phase 536 - Backend Regression Gate
+
+- Run full backend regression after backend changes.
+
+### Phase 537 - No-Live Evidence Discipline
+
+- Confirm all frontend release, artifact, smoke, and route-coverage checks
+  report no live Coinbase execution with `$0` notional.
+
+### Phase 538 - Cross-Repo Clean Tree Check
 
 - Verify both repositories are clean before final summary or next batch.
 
-### Phase 515 - Public Documentation Index Sync
-
-- Link the queue contract from ordered documentation indexes.
-
-### Phase 516 - Flight-Safe Batch Extension
-
-- Prepare the next 20-phase candidate batch only after blockers from this
-  batch are resolved.
-
-### Phase 517 - Live Execution Summary Discipline
-
-- If live execution occurs, record exact product/notional evidence in the
-  final summary and relevant roadmap.
-
-### Phase 518 - No-Live Frontend Evidence
-
-- Reconfirm frontend release artifacts and smokes report no live Coinbase
-  execution with `$0` notional.
-
-### Phase 519 - Commit Backend And Frontend
+### Phase 539 - Commit Backend And Frontend
 
 - Commit completed backend and frontend work separately.
 
-### Phase 520 - Final Batch Summary
+### Phase 540 - Final Batch Summary
 
 - Summarize implementation, verification, live posture, commits, and next
   approved phase range.
