@@ -3787,3 +3787,7 @@ Progress update:
 - Phase 621 completed: active autonomous queue range advanced to `621-640`
   in backend and frontend queue docs/checkers while preserving the carried
   live cap and stop conditions.
+- Phases 622-625 completed on the frontend side: order read-model interactions
+  now have a typed no-live filter/sort state, selectable backend-shaped rows,
+  selected detail evidence keyed by `client_order_id`, and stable
+  `#order-detail-<client_order_id>` anchors without exchange-id identity.
