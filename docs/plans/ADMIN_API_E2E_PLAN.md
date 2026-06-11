@@ -3808,3 +3808,7 @@ Progress update:
   a single audit-link helper across row/detail surfaces, and expose matching
   direct-order audit targets without changing order identity or cancellation
   behavior.
+- Phase 631 completed on the frontend side: Settings diagnostics now drill
+  into runtime mode, API route inventory, BFF posture, OIDC readiness, release
+  evidence, request/correlation ids, backend health, and live-execution header
+  evidence from the existing runtime snapshot, including non-ready states.
