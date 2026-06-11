@@ -3527,3 +3527,145 @@ Progress update:
   backend regression passed with `772 passed, 1 warning`.
 - Phase 599 completed: live Coinbase execution was not run; test notional
   `$0`.
+
+## Approved Admin Navigation Batch - Phases 601-620
+
+These phases are approved as the next 20-phase unattended backend/frontend
+admin navigation batch. Work may continue without another approval while it
+stays inside [Autonomous Work Queue](AUTONOMOUS_WORK_QUEUE.md). Default
+execution is dry/no-live. Any backend live Coinbase work must stay under the
+carried-forward cap: maximum `3.10` USDC submitted, maximum `1.00` USDC
+executed, cheapest Coinbase `USDC` spot product available to US customers,
+retained inventory, and passing reconciliation before the next phase advances.
+
+### Phase 601 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 581-600 to active
+  phases 601-620 while preserving live cap and stop-condition policy.
+
+### Phase 602 - Navigation Anchor Contract
+
+- Replace inert admin navigation links with stable in-page anchors for the
+  existing frontend sections.
+
+### Phase 603 - Section Landmark Structure
+
+- Add accessible section landmarks/headings for overview, spot operations,
+  orders, campaigns, audit, settings, and admin evidence.
+
+### Phase 604 - Active Navigation Semantics
+
+- Keep a clear current-section hint without creating client-only routing or a
+  second navigation implementation.
+
+### Phase 605 - Overview Section Polish
+
+- Group environment, runtime, session, and status evidence under the overview
+  section.
+
+### Phase 606 - Spot Operations Anchor
+
+- Make spot readiness/sweep/P&L/cost-basis/campaign status evidence reachable
+  from the Spot Operations nav link.
+
+### Phase 607 - Orders Anchor
+
+- Make order list/detail read models reachable from the Orders nav link while
+  preserving `client_order_id` identity.
+
+### Phase 608 - Campaigns Anchor
+
+- Make campaign read models and disabled campaign draft evidence reachable
+  from the Campaigns nav link.
+
+### Phase 609 - Audit Anchor
+
+- Keep audit trail and direct-order audit anchors reachable without exchange id
+  navigation.
+
+### Phase 610 - Settings And Admin Evidence
+
+- Add settings/admin evidence sections for runtime mode, diagnostics, session,
+  RBAC, OIDC readiness, and release posture.
+
+### Phase 611 - Responsive Navigation Coverage
+
+- Ensure the anchored navigation works on desktop and mobile without overflow.
+
+### Phase 612 - Accessibility Coverage
+
+- Add/update tests for unique ids, section landmarks, nav hrefs, and disabled
+  live controls.
+
+### Phase 613 - Documentation Sync
+
+- Update admin frontend, testing, operator runbook, and examples for navigable
+  admin shell sections.
+
+### Phase 614 - Contextless Navigation Review
+
+- Run a blind/contextless review asking whether a maintainer can navigate the
+  frontend sections without chat history or frontend trading behavior.
+
+### Phase 615 - Contextless Remediation
+
+- Fix unclear navigation, section, docs, tests, or no-live evidence found by
+  the review.
+
+### Phase 616 - Frontend Focused Verification
+
+- Run focused admin-shell, accessibility, operator read-model, docs/sentinel,
+  and Playwright checks.
+
+### Phase 617 - Frontend Release Gate
+
+- Run full `npm run release:gate`.
+
+### Phase 618 - Backend Queue And Regression Gate
+
+- Run backend autonomous queue validation and full backend regression after
+  backend queue/doc/checker changes.
+
+### Phase 619 - No-Live Evidence Discipline
+
+- Confirm navigation, release, and regression evidence ran no live Coinbase
+  execution with notional `$0`.
+
+### Phase 620 - Commit And Final Batch Summary
+
+- Commit completed backend and frontend work separately, then summarize
+  implementation, verification, live posture, commits, and next approved phase
+  range.
+
+Progress update:
+
+- Phase 601 completed: active autonomous queue range advanced to `601-620`
+  in backend and frontend queue docs/checkers while preserving the carried
+  live cap and stop conditions.
+- Phases 602-613 are implemented on the frontend side: stable in-page section
+  anchors, accessible landmarks, overview/spot/order/campaign/audit/settings/
+  admin evidence sections, mobile and desktop browser coverage, and docs are
+  in place without enabling frontend live execution.
+- Phase 614 first blind/contextless review found one blocker: Playwright did
+  not click all seven section anchors on both desktop and mobile while docs
+  claimed that coverage.
+- Phase 615 remediation completed: Playwright now clicks every admin section
+  anchor on desktop and mobile, header Audit is a real `#audit` link,
+  `aria-current` follows the active hash section, and the live-action gate is
+  documented/tested as a UI affordance signal only.
+- Phase 614 follow-up blind/contextless review found no blockers.
+- Phase 616 focused frontend verification passed: admin shell, accessibility,
+  read-model, and live-action-gate unit tests passed with `14 passed`;
+  `npm run typecheck`, `npm run lint`, and focused admin-shell Playwright
+  passed.
+- Phase 617 completed after remediation: the first `npm run release:gate`
+  exposed a hashchange timing race in nav `aria-current`; after updating
+  click handling, full `npm run release:gate` passed with production build,
+  typecheck, lint, generated API freshness plus route coverage, command
+  security, release/deployment/autonomous checks, `129` unit tests, dry
+  read/command/BFF/OIDC smokes, and `3` Playwright tests.
+- Phase 618 backend queue validation passed, focused
+  `test_spot_readiness_gate.py` passed with `8 passed, 1 warning`, and full
+  backend regression passed with `772 passed, 1 warning`.
+- Phase 619 completed: live Coinbase execution was not run; test notional
+  `$0`.

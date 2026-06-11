@@ -471,3 +471,52 @@ Status:
 
 - Follow-up blind review found no blockers. Live Coinbase execution was not
   run in this batch; notional `$0`.
+
+## Admin Navigation Review - Phases 601-620
+
+Review scope:
+
+- `C:\coinbase-frontend`
+- Backend queue and Admin API roadmap references in `C:\coinbase`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- identify the approved autonomous phase range and live cap posture
+- verify admin shell navigation is discoverable from contextless docs
+- verify section links are real anchors for overview, spot operations, orders,
+  campaigns, audit, settings, and admin evidence
+- verify unavailable backend capability posture does not disable section links
+- verify desktop and mobile Playwright coverage exercises the anchors
+- verify no frontend path implies Coinbase execution authority
+
+Findings:
+
+- First blind review failed the batch because Playwright only clicked Orders
+  and Admin on desktop, checked Admin on mobile, and did not exercise all
+  seven section anchors on both viewport sizes while docs claimed stable
+  anchor coverage for every section.
+- The same review found two non-blocking clarity issues: the header Audit
+  button was dead UI, and the frontend live-action gate helper could be read
+  as trading authority if taken out of context.
+
+Resolution:
+
+- Expanded frontend Playwright coverage with a shared navigation target matrix
+  that clicks Overview, Spot Operations, Orders, Campaigns, Audit, Settings,
+  and Admin on both desktop and mobile, then verifies the expected named
+  region for each target.
+- Converted the frontend header Audit control to a real `#audit` link with a
+  distinct accessible name.
+- Clarified the frontend live-action gate helper, its unit test, and command
+  workflow docs so a true gate result is described as a UI affordance signal
+  only, never authority to submit a Coinbase order without backend acceptance.
+- Updated frontend nav `aria-current` to follow the active hash section and
+  covered the active-state behavior in unit and Playwright tests after the
+  follow-up review flagged the static Overview current state as misleading.
+
+Status:
+
+- Follow-up blind review found no blockers. The remaining accessibility
+  concern was remediated. Live Coinbase execution was not run in this
+  remediation; notional `$0`.

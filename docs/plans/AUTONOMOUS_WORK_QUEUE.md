@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **581-600**.
+- Approved phase range: **601-620**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,104 +46,102 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Approved Phases 581-600
+## Approved Phases 601-620
 
-### Phase 581 - Advance Active Queue Range
+### Phase 601 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 561-580 to active
-  phases 581-600 while preserving the same live cap and stop-condition policy.
+- Move the durable autonomous queue from completed phases 581-600 to active
+  phases 601-620 while preserving the same live cap and stop-condition policy.
 
-### Phase 582 - Command Draft Model
+### Phase 602 - Navigation Anchor Contract
 
-- Add a typed frontend command draft model for manual order, cancel by
-  `client_order_id`, and spot campaign execution without adding trading logic.
+- Replace inert admin navigation links with stable in-page anchors for the
+  existing frontend sections.
 
-### Phase 583 - Manual Order Draft UX
+### Phase 603 - Section Landmark Structure
 
-- Render operator intent, product, side, order type, notional/size, post-only,
-  and acknowledgement fields for manual order drafts while keeping submit
-  disabled unless backend evidence later enables it.
+- Add accessible section landmarks/headings for overview, spot operations,
+  orders, campaigns, audit, settings, and admin evidence.
 
-### Phase 584 - Cancel Draft UX
+### Phase 604 - Active Navigation Semantics
 
-- Render cancel-by-`client_order_id` draft fields with no exchange `order_id`
-  cancellation path.
+- Keep a clear current-section hint without creating client-only routing or a
+  second navigation implementation.
 
-### Phase 585 - Campaign Execution Draft UX
+### Phase 605 - Overview Section Polish
 
-- Render campaign execution draft fields for schedule/scope/caps as
-  backend-owned intent evidence only.
+- Group environment, runtime, session, and status evidence under the overview
+  section.
 
-### Phase 586 - Draft Validation
+### Phase 606 - Spot Operations Anchor
 
-- Add frontend-only validation for required draft evidence and unsafe missing
-  acknowledgement states without deciding wallet, guard, or trading authority.
+- Make spot readiness/sweep/P&L/cost-basis/campaign status evidence reachable
+  from the Spot Operations nav link.
 
-### Phase 587 - Idempotency And Correlation Preview
+### Phase 607 - Orders Anchor
 
-- Generate deterministic request id, idempotency key, and operator-intent
-  preview evidence from the draft state.
+- Make order list/detail read models reachable from the Orders nav link while
+  preserving `client_order_id` identity.
 
-### Phase 588 - Dry-Submit Payload Mapping
+### Phase 608 - Campaigns Anchor
 
-- Map validated drafts to the existing canonical dry-submit helpers and
-  generated backend request shapes without feature-local fetch calls.
+- Make campaign read models and disabled campaign draft evidence reachable from
+  the Campaigns nav link.
 
-### Phase 589 - Per-Workflow Evidence Panels
+### Phase 609 - Audit Anchor
 
-- Render per-workflow backend decision, validation, idempotency, audit, and
-  live-disabled evidence instead of relying only on one shared preview panel.
+- Keep audit trail and direct-order audit anchors reachable without exchange id
+  navigation.
 
-### Phase 590 - Disabled Submit Semantics
+### Phase 610 - Settings And Admin Evidence
 
-- Keep command submit controls disabled in mock/local and incomplete-auth
-  backend modes, with visible backend-owned enablement requirements.
+- Add settings/admin evidence sections for runtime mode, diagnostics, session,
+  RBAC, OIDC readiness, and release posture.
 
-### Phase 591 - Backend And BFF Consistency
+### Phase 611 - Responsive Navigation Coverage
 
-- Verify direct backend and BFF modes use the same command draft mapping,
-  headers, dry-submit helpers, and no-live evidence.
+- Ensure the anchored navigation works on desktop and mobile without overflow.
 
-### Phase 592 - Command Documentation Sync
+### Phase 612 - Accessibility Coverage
 
-- Update command workflow, spot order flow, runbook, and example docs for the
-  draft UX and disabled dry-submit evidence.
+- Add/update tests for unique ids, section landmarks, nav hrefs, and disabled
+  live controls.
 
-### Phase 593 - Browser And Accessibility Coverage
+### Phase 613 - Documentation Sync
 
-- Add or update unit and Playwright coverage for command draft fields,
-  disabled buttons, mobile layout, and no exchange-id cancel input.
+- Update admin frontend, testing, operator runbook, and examples for navigable
+  admin shell sections.
 
-### Phase 594 - Contextless Command UX Review
+### Phase 614 - Contextless Navigation Review
 
-- Run a blind/contextless review asking how to draft a spot order/cancel/campaign
-  command without inventing frontend trading behavior.
+- Run a blind/contextless review asking whether a maintainer can navigate the
+  frontend sections without chat history or frontend trading behavior.
 
-### Phase 595 - Contextless Remediation
+### Phase 615 - Contextless Remediation
 
-- Fix unclear command UX docs, code organization, tests, or evidence found by
+- Fix unclear navigation, section, docs, tests, or no-live evidence found by
   the review.
 
-### Phase 596 - Frontend Focused Verification
+### Phase 616 - Frontend Focused Verification
 
-- Run focused command workflow tests, command dry-submit tests, security guard,
-  and browser tests.
+- Run focused admin-shell, accessibility, operator read-model, docs/sentinel,
+  and Playwright checks.
 
-### Phase 597 - Frontend Release Gate
+### Phase 617 - Frontend Release Gate
 
 - Run full `npm run release:gate`.
 
-### Phase 598 - Backend Queue And Regression Gate
+### Phase 618 - Backend Queue And Regression Gate
 
 - Run backend autonomous queue validation and full backend regression after
   backend queue/doc/checker changes.
 
-### Phase 599 - No-Live Evidence Discipline
+### Phase 619 - No-Live Evidence Discipline
 
-- Confirm command UX, dry-submit, release, and regression evidence ran no live
-  Coinbase execution with notional `$0`.
+- Confirm navigation, release, and regression evidence ran no live Coinbase
+  execution with notional `$0`.
 
-### Phase 600 - Commit And Final Batch Summary
+### Phase 620 - Commit And Final Batch Summary
 
 - Commit completed backend and frontend work separately, then summarize
   implementation, verification, live posture, commits, and next approved phase
