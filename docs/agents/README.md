@@ -31,8 +31,8 @@ or require files from private orchestration repos.
 4. The specialist context pack for the files in scope
 5. `.agents/ownership.yaml`
 
-The planned enterprise Admin API owner context is
-`AGENT_ADMIN_API_CONTRACT.md`. It applies once FastAPI/OpenAPI work starts and
+The enterprise Admin API owner context is
+`AGENT_ADMIN_API_CONTRACT.md`. It applies to current FastAPI/OpenAPI work and
 must preserve the existing single trading behavior path.
 
 ## Enforcement

@@ -98,22 +98,22 @@ Keep it short. Keep it factual.
     frontend tests. This backend owns trading behavior, guard checks, Coinbase
     integration, audit persistence, authorization, and the OpenAPI schema.
 
-- [2026-06-10] Decision: The planned enterprise API must extract shared command
-  services before adding FastAPI live-order endpoints.
+- [2026-06-10] Decision: The enterprise API must use shared command services
+  before enabling FastAPI live-order endpoints.
   - Reason: Adding FastAPI handlers beside `dashboard_server.py` would create a
     parallel live trading path and violate the single-code-path invariant.
-  - Impact: Future API work follows `frontend request -> FastAPI route ->
+  - Impact: API work follows `frontend request -> FastAPI route ->
     auth/RBAC -> idempotency/approval -> shared command service -> existing
     domain/bridge/exchange path -> audit -> response`.
 
-- [2026-06-10] Decision: The Admin API skeleton may expose contract-only
-  FastAPI routes before live command extraction.
+- [2026-06-10] Decision: The Admin API exposes live-disabled FastAPI command
+  routes before HTTP live execution is approved.
   - Reason: The frontend needs a generated OpenAPI artifact and typed contract
     before real UI features can be built, but live behavior must not be
     duplicated.
   - Impact: `POST /api/v1/orders` and
     `POST /api/v1/orders/{client_order_id}/cancel` currently return
-    `not_implemented`, call only the shared command-service skeleton, and do
+    `not_implemented`, call only the shared command service, and do
     not call Coinbase.
 
 - [2026-06-10] Decision: Broad all-USDC strict SELL remains blocked unless the

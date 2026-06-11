@@ -19,7 +19,7 @@ implemented in two places.
 | `stealth_lifecycle` | Stealth state machine and active placement truth | `core/stealth_order_manager.py`, stealth policy/strategy modules |
 | `bridge_hook` | Bridges, hook registries, dedup entrypoints | `bridges/*`, `integration/*`, `business/event_processor.py` |
 | `dashboard_contract` | WebSocket contract and operator UI | `dashboard_server.py`, `order.py`, `ui_*.html`, console UIs |
-| `admin_api_contract` | Planned FastAPI/OpenAPI boundary and shared command-service adapters | future `api/*`, future `application/admin_api/*`, future `openapi/*` |
+| `admin_api_contract` | FastAPI/OpenAPI boundary and shared command-service adapters | `api/*`, `application/admin_api/*`, `openapi/*` |
 | `persistence` | Schema, SQL helpers, repositories | `database/*`, `data/*` |
 | `fill_audit` | Fill ledger, fill reconciliation, event stream | `business/fill_ledger.py`, `business/fill_reconciler.py`, `business/order_event_stream.py` |
 | `calculation` | Size, price, fee, product, profitability helpers | `calculation/*` |

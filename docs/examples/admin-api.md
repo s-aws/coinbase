@@ -5,6 +5,11 @@ HTTP endpoints are authenticated, permission-checked, idempotent, and audited,
 then return `not_implemented`; they do not call Coinbase. Read-only spot
 operator endpoints are available behind the same fail-closed auth dependency.
 
+The Admin API is the backend contract layer for the enterprise admin platform.
+Spot is the first complete product module. Do not use spot wallet, USDC,
+cost-basis, or no-shorting rules as generic admin behavior for
+futures/perpetuals, stealth orders, repricing, or risk policy modules.
+
 ## Bootstrap And Session
 
 Start the local backend target for frontend development:
@@ -129,7 +134,7 @@ reachability, and no-live notional posture.
 
 ## Cancel By Client Order ID
 
-Current skeleton shape:
+Current live-disabled command shape:
 
 ```http
 POST /api/v1/orders/{client_order_id}/cancel
@@ -195,7 +200,7 @@ browser.
 
 ## Live Placement Approval
 
-Current skeleton shape:
+Current live-disabled command shape:
 
 ```json
 {

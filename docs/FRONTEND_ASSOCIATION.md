@@ -24,6 +24,10 @@ C:\coinbase-frontend
   repository. It must not call the legacy dashboard WebSocket.
 - HTTP mutating routes remain live-disabled until backend approval/cap/audit
   gates are completed and tested.
+- The enterprise admin surface is a platform plus domain modules. Spot is the
+  first complete module; futures/perpetuals, stealth orders, repricing, and
+  other modules need their own backend-owned contracts before frontend UI
+  broadening.
 
 ## Schema Association
 

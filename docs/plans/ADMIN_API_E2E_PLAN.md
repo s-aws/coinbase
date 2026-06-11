@@ -3851,3 +3851,17 @@ Progress update:
   `npm run typecheck` passed after restoring `next-env.d.ts` from the Next
   production-build route type rewrite. No live Coinbase execution ran;
   notional `$0`.
+
+## Enterprise Admin Platform Pivot
+
+The objective is reframed from a spot-specific admin surface to an enterprise
+admin platform for the whole project, with spot as the first complete product
+module. The backend perspective is documented in:
+
+- `docs/ADMIN_PLATFORM_ARCHITECTURE.md`
+- `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md`
+
+Future Admin API phases should classify work as reusable platform primitive or
+domain module before adding contracts. Non-spot modules must define
+backend-owned semantics and must not import spot-only wallet, USDC,
+cost-basis, average-cost, lot authority, or no-shorting assumptions.

@@ -4,7 +4,7 @@ This file covers active API surfaces in the codebase:
 - Coinbase REST wrapper (`external/coinbase_client.py`)
 - Coinbase WebSocket wrapper (`external/coinbase_websocket.py`)
 - Dashboard WebSocket message contract (`dashboard_server.py`)
-- Enterprise Admin API skeleton (`api/v1/app.py`)
+- Enterprise Admin API contract (`api/v1/app.py`)
 
 ## Enterprise Admin API (`api/v1/app.py`)
 

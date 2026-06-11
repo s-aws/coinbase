@@ -2,6 +2,56 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Enterprise Admin Platform Pivot Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify the backend Admin API is documented as the current live-disabled
+  contract layer for an enterprise admin platform across the whole trading
+  engine
+- verify Spot is the first complete product module but not the generic module
+  shape
+- verify non-spot modules require backend-owned contracts and must not import
+  spot-only rules
+- verify frontend/backend boundaries, ownership/testing gates, and release
+  gate wording are discoverable
+
+Findings:
+
+- The platform pivot and capability matrix were discoverable.
+- Initial backend blind review found stale `planned`, `future`, and `skeleton`
+  wording in required entry docs and expanded local context that could imply
+  the Admin API was future-only.
+- A follow-up review found `genai_data/API_REFERENCE.md` still called the
+  Admin API a skeleton.
+- A final frontend-focused review found the human operator runbook still
+  described `npm run quality` as the full frontend gate.
+
+Resolution:
+
+- Added backend admin platform architecture and module capability matrix docs.
+- Updated Admin API README, docs index, frontend association, examples, agent
+  contract, ownership docs, and expanded local context to use current
+  live-disabled-contract language.
+- Replaced stale skeleton labels with current live-disabled command wording.
+- Mirrored the frontend release-gate correction so contextless agents see
+  `npm run release:gate` as the canonical full/release gate.
+
+Status:
+
+- Final blind blocker review found no remaining blocker-level contradictions.
+- Backend checks passed: `python tools\check_ownership.py --owner architect`
+  and `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Backend regression was not rerun because the backend change set is docs,
+  expanded local context, and ownership metadata only.
+- Live Coinbase execution was not run; backend notional `$0`.
+
 ## Runtime Evidence Review - Phases 541-560
 
 Review scope:

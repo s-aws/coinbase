@@ -27,6 +27,16 @@ live HTTP approval, guard, cap, and audit gates are complete. The generated
 OpenAPI schema also includes typed `200` accepted/replayed response contracts
 for the future live-enabled state.
 
+## Platform And Module Boundary
+
+Admin API work must distinguish reusable admin platform primitives from domain
+modules. Shared primitives include OpenAPI, auth/RBAC, idempotency, audit,
+approval gates, observability headers, route inventory, and release evidence.
+Spot is the first complete product module. Do not copy spot-only wallet,
+USDC, cost-basis, average-cost, lot authority, or no-shorting rules into
+futures/perpetuals, stealth orders, repricing, or risk modules. Add or update
+`docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` before broadening a module.
+
 Legacy dashboard compatibility path:
 
 ```text

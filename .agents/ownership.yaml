@@ -16,6 +16,8 @@ owners:
       - docs/EXTERNAL_TESTING_RUNBOOK.md
       - docs/FRONTEND_ASSOCIATION.md
       - docs/LIVE_ORDER_SURFACES.md
+      - docs/ADMIN_PLATFORM_ARCHITECTURE.md
+      - docs/ADMIN_MODULE_CAPABILITY_MATRIX.md
       - docs/PUBLIC_ROADMAP.md
       - docs/SPOT_READINESS_ROADMAP.md
       - docs/SPOT_READINESS_TEST_GATE.md

@@ -5,9 +5,9 @@
 The runtime is centered on a single `OrderEngine` instance (`core/order_engine.py`) with supporting subsystems:
 
 - `dashboard_server.py`: operator command surface and state broadcast over WebSocket.
-- `api/v1/app.py`: enterprise Admin API contract skeleton and OpenAPI source.
-- `application/admin_api/`: planned shared command-service boundary for future
-  FastAPI and dashboard compatibility adapters.
+- `api/v1/app.py`: enterprise Admin API contract app and OpenAPI source.
+- `application/admin_api/`: shared command-service boundary for FastAPI and
+  dashboard compatibility adapters.
 - `bridges/stealth_order_bridge.py`: stealth condition evaluation and reveal orchestration.
 - `core/runtime_controller.py`: lifecycle admission gate and inflight drain coordinator.
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
@@ -20,9 +20,9 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 1. **Ingress Layer**
 - Coinbase user/ticker websocket events flow into `OrderEngine.on_message`.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
-- Enterprise Admin API skeleton routes flow through `api/v1/routes/*` into
+- Enterprise Admin API routes flow through `api/v1/routes/*` into
   `application.admin_api.command_service.AdminApiCommandService`. Current
-  skeleton routes return `not_implemented` and do not call Coinbase.
+  HTTP mutating routes return `not_implemented` and do not call Coinbase.
 
 2. **Domain Layer**
 - `OrderEngine` handles parent/child lifecycle, follow-up creation, partial-fill state, and ownership classification.

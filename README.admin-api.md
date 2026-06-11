@@ -1,7 +1,9 @@
 # Admin API
 
-This repository will expose the professional backend API for the separate
-enterprise admin frontend at `C:\coinbase-frontend`.
+This repository exposes the professional backend API for the separate
+enterprise admin platform at `C:\coinbase-frontend`.
+Spot is the first complete product module consumed by that platform; it is not
+the generic contract shape for every backend feature.
 The repository association is documented in
 [Frontend Association](docs/FRONTEND_ASSOCIATION.md).
 
@@ -101,6 +103,9 @@ decisions, order profitability checks, Coinbase calls, or exchange
 The current frontend command draft scope remains crypto-USDC spot pairs and
 must not be broadened in browser code before backend Admin API contracts and
 tests define a broader scope.
+The platform/module split is documented in
+[Admin Platform Architecture](docs/ADMIN_PLATFORM_ARCHITECTURE.md) and
+[Admin Module Capability Matrix](docs/ADMIN_MODULE_CAPABILITY_MATRIX.md).
 
 ## Direction
 
@@ -212,6 +217,8 @@ and rotation policy without disclosing a token value.
 
 - [Admin API E2E Plan](docs/plans/ADMIN_API_E2E_PLAN.md)
 - [Admin API Route Inventory](docs/plans/ADMIN_API_ROUTE_INVENTORY.md)
+- [Admin Platform Architecture](docs/ADMIN_PLATFORM_ARCHITECTURE.md)
+- [Admin Module Capability Matrix](docs/ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Admin API Examples](docs/examples/admin-api.md)
 - [Frontend Association](docs/FRONTEND_ASSOCIATION.md)
 - [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md)

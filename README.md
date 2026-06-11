@@ -22,7 +22,7 @@ For USDC-only spot portfolio sweep planning, see
 [README.spot-portfolio-sweep.md](README.spot-portfolio-sweep.md).
 For account-level stealth planning/reveal guards, see
 [README.action-condition-guards.md](README.action-condition-guards.md).
-For the planned enterprise admin API boundary, see
+For the enterprise admin API boundary, see
 [README.admin-api.md](README.admin-api.md).
 
 ## Setup

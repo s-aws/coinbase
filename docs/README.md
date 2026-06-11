@@ -19,6 +19,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
 - [Live Order Surfaces](LIVE_ORDER_SURFACES.md)
 - [Admin API](../README.admin-api.md)
+- [Admin Platform Architecture](ADMIN_PLATFORM_ARCHITECTURE.md)
+- [Admin Module Capability Matrix](ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Frontend Association](FRONTEND_ASSOCIATION.md)
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)
 - [Admin API Route Inventory](plans/ADMIN_API_ROUTE_INVENTORY.md)
