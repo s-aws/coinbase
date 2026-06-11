@@ -106,6 +106,57 @@ Status:
 
 - Findings resolved. No live Coinbase execution was run. Notional `$0`.
 
+## Autonomous Work Queue Review - Phases 501-520
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer task:
+
+- determine whether a smaller local agent or human can continue approved
+  unattended phases 501-520 from repository docs alone
+- identify the autonomous queue docs, approved phases, live caps, stop
+  conditions, backend/frontend gates, no-live frontend posture, and stale or
+  contradictory docs
+
+Findings:
+
+- The queue was discoverable in both repos:
+  `docs/plans/AUTONOMOUS_WORK_QUEUE.md`, linked from ordered docs indexes.
+- Approved phases were clear: 501-520.
+- Live cap posture was clear: default no live execution; if a phase explicitly
+  needs backend live evidence, cap at `3.10` USDC submitted and `1.00` USDC
+  executed on the cheapest Coinbase `USDC` spot product available to US
+  customers, retain inventory, and require reconciliation.
+- Frontend no-live posture was clear: frontend release/artifact/smoke gates
+  must report live Coinbase execution not run and notional `$0`.
+- Findings requiring remediation:
+  - Worktrees were dirty with intended in-progress queue changes; this must be
+    resolved by final commit/clean-tree check before claiming phase 520 or
+    advancing to the next batch.
+  - Frontend `AGENTS.md` called its shorter command list the full quality gate
+    while release/deployment docs use the broader `npm run release:gate`.
+  - Backend regression command spelling varied between Windows and Bash
+    contexts.
+
+Resolution:
+
+- Frontend `AGENTS.md` now calls the shorter list the baseline gate and points
+  release/BFF/deployment/autonomous/API work to `npm run release:gate`.
+- Backend and frontend autonomous queue docs now list both Windows
+  `pytest tests\regression\ -v --tb=short` and Bash
+  `python3 -m pytest tests/regression/ -v` backend regression commands.
+- Backend and frontend autonomous queue validators now enforce the command
+  clarity and the approved cap posture.
+
+Status:
+
+- Findings remediated in the active change set. Live Coinbase execution: not
+  run; notional `$0`.
+
 ## OIDC Release Readiness Closure Review - Phases 491-500
 
 Review scope:

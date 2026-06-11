@@ -23,6 +23,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)
 - [Admin API Route Inventory](plans/ADMIN_API_ROUTE_INVENTORY.md)
 - [Admin API Contextless Review Log](plans/ADMIN_API_CONTEXTLESS_REVIEW_LOG.md)
+- [Autonomous Work Queue](plans/AUTONOMOUS_WORK_QUEUE.md)
 - [Spot Phases 185-196 Report](plans/SPOT_PHASE_185_196_REPORT.md)
 - [Netflix AI Engineer Workbench](../README.netflix-ai-engineer-site.md)
 - [API Reference](../genai_data/API_REFERENCE.md)
@@ -53,6 +54,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   `python tools\run_admin_api.py --dev-token local-admin-token`
 - Admin API OIDC readiness smoke:
   `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
+- Autonomous work queue check:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`
 
 ## Examples
 

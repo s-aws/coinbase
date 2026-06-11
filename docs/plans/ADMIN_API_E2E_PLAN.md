@@ -2860,3 +2860,125 @@ Progress update:
   generation, `120` unit tests, dry read/command/BFF/OIDC smokes, and `3`
   Playwright tests.
 - Live Coinbase execution in this batch: not run; test notional `$0`.
+
+## Approved Autonomous Work Queue Batch - Phases 501-520
+
+These phases are approved as a 20-phase unattended work batch. Work may
+continue without another approval while it stays inside
+[Autonomous Work Queue](AUTONOMOUS_WORK_QUEUE.md). Default execution is
+dry/no-live. Any live Coinbase work must stay under the carried-forward cap:
+maximum `3.10` USDC submitted, maximum `1.00` USDC executed, cheapest
+Coinbase `USDC` spot product available to US customers, retained inventory,
+and passing reconciliation before the next phase advances.
+
+### Phase 501 - Autonomous Work Queue Contract
+
+- Persist unattended-work approval, live caps, stop conditions, and final gate
+  policy in backend and frontend docs.
+
+### Phase 502 - Machine-Readable Queue Validation
+
+- Add no-live validation for phase coverage, caps, stop conditions, and gate
+  commands.
+
+### Phase 503 - Frontend Queue Gate
+
+- Add a frontend release/deployment check for the autonomous queue contract.
+
+### Phase 504 - CI Queue Parity
+
+- Keep local release checks and CI aligned with the autonomous queue check.
+
+### Phase 505 - Long-Run Progress Format
+
+- Define progress output for unattended work: current phase, gate status, live
+  posture, blockers, and next phase.
+
+### Phase 506 - Live Cap Audit Proof
+
+- Keep live cap policy visible beside live smoke evidence and separate from
+  frontend release approval.
+
+### Phase 507 - Backend Queue Validator Tests
+
+- Cover the backend queue validator in regression tests.
+
+### Phase 508 - Frontend Queue Validator Tests
+
+- Cover the frontend queue contract in unit tests.
+
+### Phase 509 - Contextless Review Prompt
+
+- Run a blind/contextless review for repository-only continuation of phases
+  501-520.
+
+### Phase 510 - Contextless Remediation
+
+- Fix unclear docs, scripts, or gates found by the review.
+
+### Phase 511 - Release Gate Inclusion
+
+- Include autonomous queue validation in frontend release and deployment
+  gates.
+
+### Phase 512 - Backend Regression Gate
+
+- Run focused backend checks and full backend regression after backend changes.
+
+### Phase 513 - Frontend Release Gate
+
+- Run focused frontend checks and full `npm run release:gate` after frontend
+  changes.
+
+### Phase 514 - Cross-Repo Clean Tree Check
+
+- Verify both repositories are clean before final summary or next batch.
+
+### Phase 515 - Public Documentation Index Sync
+
+- Link the queue contract from ordered documentation indexes.
+
+### Phase 516 - Flight-Safe Batch Extension
+
+- Prepare the next 20-phase candidate batch only after blockers from this
+  batch are resolved.
+
+### Phase 517 - Live Execution Summary Discipline
+
+- If live execution occurs, record exact product/notional evidence in the
+  final summary and relevant roadmap.
+
+### Phase 518 - No-Live Frontend Evidence
+
+- Reconfirm frontend release artifacts and smokes report no live Coinbase
+  execution with `$0` notional.
+
+### Phase 519 - Commit Backend And Frontend
+
+- Commit completed backend and frontend work separately.
+
+### Phase 520 - Final Batch Summary
+
+- Summarize implementation, verification, live posture, commits, and next
+  approved phase range.
+
+Progress update:
+
+- Phases 501-502 and 507 completed on the backend side: the autonomous queue
+  doc, no-live queue validator, ownership coverage, docs index link, and
+  regression coverage were added.
+- Phase 509 blind/contextless review completed. It found the queue
+  discoverable and the 501-520 approval/caps understandable, then requested
+  remediation for dirty worktree classification, frontend gate wording, and
+  backend Windows/Bash regression command clarity.
+- Phase 510 remediation completed: frontend `AGENTS.md` now distinguishes
+  baseline quality from `npm run release:gate`, and queue docs/checks include
+  both Windows and Bash backend regression commands.
+- Phase 511 and 518 completed from frontend evidence: `npm run release:gate`
+  passed with production build, typecheck, lint, API freshness,
+  command-security, release/deployment checks, autonomous check, `120` unit
+  tests, dry read/command/BFF/OIDC smokes, and `3` Playwright tests. All
+  frontend release/artifact/smoke steps reported live Coinbase execution not
+  run with notional `$0`.
+- Phase 512 backend full regression passed with `771 passed, 1 warning`.
+- Live Coinbase execution in this batch: not run; test notional `$0`.

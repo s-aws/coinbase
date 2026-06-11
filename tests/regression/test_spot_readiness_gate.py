@@ -12,6 +12,14 @@ from tools.run_spot_release_gate import (
     build_parser,
     build_release_gate_steps,
 )
+from tools.run_autonomous_work_queue_check import (
+    APPROVED_PHASES as AUTONOMOUS_APPROVED_PHASES,
+    MAX_EXECUTED_NOTIONAL_USDC as AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC,
+    MAX_SUBMITTED_NOTIONAL_USDC as AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC,
+    SUMMARY_PREFIX as AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX,
+    build_autonomous_work_queue_summary,
+    build_parser as build_autonomous_work_queue_parser,
+)
 
 
 pytestmark = pytest.mark.regression
@@ -54,6 +62,30 @@ def test_spot_release_gate_command_is_read_only_by_default():
     assert SUMMARY_PREFIX == "SPOT_RELEASE_GATE_SUMMARY "
     assert args.include_browser is False
     assert args.include_coinbase_readonly is False
+
+
+def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
+    parser = build_autonomous_work_queue_parser()
+    args = parser.parse_args(["--summary-only"])
+    summary = build_autonomous_work_queue_summary()
+
+    assert args.summary_only is True
+    assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
+        "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
+    )
+    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(501, 521))
+    assert summary["status"] == "passed"
+    assert summary["approved_phase_range"] == "501-520"
+    assert summary["approved_phase_count"] == 20
+    assert summary["live_coinbase_orders_ran"] is False
+    assert summary["live_order_notional_usdc"] == "0"
+    assert summary["max_submitted_notional_usdc"] == (
+        AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC
+    )
+    assert summary["max_executed_notional_usdc"] == (
+        AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC
+    )
+    assert all(check["passed"] for check in summary["checks"])
 
 
 def test_spot_release_gate_coinbase_readonly_includes_cost_basis_checks():
