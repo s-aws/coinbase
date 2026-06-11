@@ -3240,3 +3240,145 @@ Progress update:
 - Phase 557 completed: backend OpenAPI artifact and frontend generated schema
   were refreshed for `additionalProperties` object-map output.
 - Live Coinbase execution in this batch: not run; test notional `$0`.
+
+## Approved Release Candidate Parity Batch - Phases 561-580
+
+These phases are approved as the next 20-phase unattended backend/frontend
+release-candidate parity batch. Work may continue without another approval
+while it stays inside [Autonomous Work Queue](AUTONOMOUS_WORK_QUEUE.md).
+Default execution is dry/no-live. Any backend live Coinbase work must stay
+under the carried-forward cap: maximum `3.10` USDC submitted, maximum `1.00`
+USDC executed, cheapest Coinbase `USDC` spot product available to US
+customers, retained inventory, and passing reconciliation before the next phase
+advances.
+
+### Phase 561 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 541-560 to active
+  phases 561-580 while preserving live cap and stop-condition policy.
+
+### Phase 562 - V1 Release Candidate Gate Parity
+
+- Keep frontend V1 release-candidate docs aligned with the canonical
+  `npm run release:gate` sequence.
+
+### Phase 563 - Runtime Evidence Release Candidate Docs
+
+- Document `artifacts/runtime-evidence.json` as a release-candidate artifact
+  wherever frontend release evidence is described.
+
+### Phase 564 - Production Readiness Runtime Evidence
+
+- Keep production readiness docs aligned with runtime evidence, UI evidence,
+  dry smokes, and no-live posture.
+
+### Phase 565 - Public Checklist Documentation Parity
+
+- Keep backend public release/admin API docs aligned with the frontend release
+  gate and artifact set.
+
+### Phase 566 - Release Readiness Doc Sentinel
+
+- Add release-readiness checks that fail when V1 release docs omit runtime
+  evidence, autonomous queue, or current no-live release-gate language.
+
+### Phase 567 - Deployment Readiness Doc Sentinel
+
+- Add deployment-readiness checks that fail when production/deployment docs
+  omit runtime evidence, autonomous queue, or current no-live release-gate
+  language.
+
+### Phase 568 - Unit Coverage
+
+- Update unit coverage for the current autonomous queue range and release
+  evidence expectations.
+
+### Phase 569 - CI Artifact Parity
+
+- Keep CI/release artifact upload docs aligned with saved runtime evidence.
+
+### Phase 570 - Ordered Documentation Sync
+
+- Update ordered documentation references so contextless maintainers can find
+  current release-candidate evidence without chat history.
+
+### Phase 571 - Contextless Release Candidate Review
+
+- Run a blind/contextless review for release-candidate documentation parity.
+
+### Phase 572 - Contextless Remediation
+
+- Fix stale or contradictory docs found by the release-candidate review.
+
+### Phase 573 - Frontend Focused Verification
+
+- Run focused frontend release/deployment/autonomous checks and unit coverage.
+
+### Phase 574 - Backend Queue Validation
+
+- Run backend autonomous queue validation and focused spot-readiness gate.
+
+### Phase 575 - Frontend Release Gate
+
+- Run full `npm run release:gate`.
+
+### Phase 576 - Backend Regression Gate
+
+- Run full backend regression after backend documentation and sentinel
+  changes.
+
+### Phase 577 - No-Live Evidence Discipline
+
+- Confirm release-candidate checks report no live Coinbase execution with
+  notional `$0`.
+
+### Phase 578 - Cross-Repo Clean Tree Check
+
+- Verify both repositories only contain intended release-candidate parity
+  changes before committing.
+
+### Phase 579 - Commit Backend And Frontend
+
+- Commit completed backend and frontend work separately.
+
+### Phase 580 - Final Batch Summary
+
+- Summarize implementation, verification, live posture, commits, and next
+  approved phase range.
+
+Progress update:
+
+- Phase 561 completed: active autonomous queue range advanced to `561-580`
+  in backend and frontend queue docs/checkers while preserving the carried
+  live cap and stop conditions.
+- Phases 562-570 completed across the backend and frontend docs/checkers:
+  V1 release-candidate, production readiness, backend association, public
+  release readiness, admin API, examples, release readiness, deployment
+  readiness, runtime evidence, and autonomous queue evidence now point to the
+  canonical `npm run release:gate` path and saved
+  `artifacts/runtime-evidence.json` artifact.
+- Phase 571 first blind/contextless review found blockers in backend public
+  release docs: `docs/PUBLIC_RELEASE_READINESS.md` and
+  `docs/FRONTEND_ASSOCIATION.md` still described a stale frontend release gate
+  and omitted runtime evidence.
+- Phase 572 first remediation completed by updating those backend docs and
+  widening the backend autonomous queue sentinel.
+- Phase 571 follow-up blind/contextless review found two remaining blockers:
+  `README.admin-api.md` and `docs/examples/admin-api.md` still documented a
+  narrower frontend smoke/check subset instead of the canonical release gate.
+- Phase 572 second remediation completed by updating those backend docs and
+  requiring the exact no-live/runtime evidence language in the sentinel.
+- Phase 571 final blind/contextless review found no blockers and no
+  non-blocking concerns.
+- Phase 573 frontend focused verification passed: `npm run release:check`,
+  `npm run deployment:check`, `npm run autonomous:check`, focused
+  `qualityGates` tests, and `npm run typecheck` passed after restoring
+  `next-env.d.ts`.
+- Phase 574 backend queue verification passed, and focused
+  `test_spot_readiness_gate.py` passed with `8 passed, 1 warning`.
+- Phase 575 frontend `npm run release:gate` passed with production build,
+  typecheck, lint, generated API freshness plus route coverage, command
+  security, release/deployment/autonomous checks, `120` unit tests, dry
+  read/command/BFF/OIDC smokes, and `3` Playwright tests.
+- Phase 576 backend full regression passed with `772 passed, 1 warning`.
+- Live Coinbase execution in this batch: not run; test notional `$0`.

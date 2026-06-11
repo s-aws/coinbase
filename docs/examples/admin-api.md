@@ -331,22 +331,12 @@ Every response includes `X-Correlation-Id`, `X-Request-Id`,
 
 ## Frontend Smoke Commands
 
-From `C:\coinbase-frontend`, use dry-run smoke commands to validate the route
-inventory without contacting a live backend:
+From `C:\coinbase-frontend`, use the canonical release-hardening gate to
+validate the route inventory, artifact evidence, runtime evidence, autonomous
+queue posture, tests, and dry smokes without contacting Coinbase:
 
 ```powershell
-npm run smoke:read:dry
-npm run smoke:command:dry
-npm run smoke:bff:dry
-npm run smoke:oidc:dry
-npm run build
-npm run release:check
-npm run release:artifact
-npm run deployment:package
-npm run observability:drill
-npm run probe:synthetic
-npm run release:checklist
-npm run deployment:check
+npm run release:gate
 ```
 
 Against a local Admin API, configure `ADMIN_API_BASE_URL`,
@@ -372,9 +362,13 @@ The frontend release artifact bundle includes:
 - `artifacts/observability-drill.json`
 - `artifacts/synthetic-probes.json`
 - `artifacts/public-release-checklist.json`
+- `artifacts/runtime-evidence.json`
 
-Those artifacts are no-live deployment evidence. They are not backend approval
-to place or cancel Coinbase orders.
+Those artifacts are no-live deployment evidence. They are not approval for
+live Coinbase execution and not backend approval to place or cancel Coinbase
+orders.
+The autonomous queue remains part of the no-live release gate, and these
+artifacts are not approval for live Coinbase execution.
 
 For same-origin BFF smoke, start the frontend with `NEXT_PUBLIC_ADMIN_API_MODE=bff`
 and server-only `ADMIN_API_*` variables, then run:

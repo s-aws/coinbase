@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **541-560**.
+- Approved phase range: **561-580**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,95 +46,101 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Approved Phases 541-560
+## Approved Phases 561-580
 
-### Phase 541 - Advance Active Queue Range
+### Phase 561 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 521-540 to active
-  phases 541-560 while preserving the same live cap and stop-condition policy.
+- Move the durable autonomous queue from completed phases 541-560 to active
+  phases 561-580 while preserving the same live cap and stop-condition policy.
 
-### Phase 542 - Runtime Evidence Contract
+### Phase 562 - V1 Release Candidate Gate Parity
 
-- Define a machine-readable frontend runtime/UI evidence artifact contract for
-  admin shell readiness, route coverage, OIDC readiness, and visual smoke
-  targets.
+- Align the frontend V1 release-candidate document with the current canonical
+  release gate, runtime evidence, autonomous queue, and dry-smoke commands.
 
-### Phase 543 - Runtime Evidence Artifact Builder
+### Phase 563 - Runtime Evidence Release Candidate Docs
 
-- Add shared artifact builder code so TypeScript and Node release tooling use
-  one runtime evidence shape.
+- Ensure the V1 release candidate explains `artifacts/runtime-evidence.json`
+  and its no-live `$0` posture.
 
-### Phase 544 - Runtime Evidence Writer
+### Phase 564 - Production Readiness Runtime Evidence
 
-- Add a no-live frontend script that writes `artifacts/runtime-evidence.json`.
+- Update production-readiness docs so runtime evidence and autonomous queue
+  checks are part of the release evidence set.
 
-### Phase 545 - Runtime Evidence Check
+### Phase 565 - Public Checklist Documentation Parity
 
-- Add release/deployment checks that fail when runtime evidence scripts,
-  artifact paths, UI surfaces, or no-live posture drift.
+- Confirm public release checklist docs agree with current artifacts and
+  conditional OIDC/JWT production posture.
 
-### Phase 546 - CI Artifact Upload
+### Phase 566 - Release Readiness Doc Sentinel
 
-- Include runtime evidence generation and upload in frontend CI.
+- Add no-live release-readiness checks that fail when V1 release-candidate docs
+  omit required scripts, artifacts, runtime evidence, or autonomous queue
+  posture.
 
-### Phase 547 - Release Gate Inclusion
+### Phase 567 - Deployment Readiness Doc Sentinel
 
-- Include runtime evidence generation in `npm run release:gate`.
+- Add deployment-readiness checks that fail when production-readiness docs omit
+  runtime evidence, public checklist, OIDC readiness, or no-live posture.
 
-### Phase 548 - Visual Target Documentation
+### Phase 568 - Unit Coverage
 
-- Record the UI surfaces proven by Playwright visual smoke without storing
-  browser screenshots in source control.
+- Extend focused unit coverage for the release-candidate artifact and queue
+  parity expectations.
 
-### Phase 549 - Documentation Sync
+### Phase 569 - CI Artifact Parity
 
-- Update testing, API, deployment, and roadmap docs for runtime evidence.
+- Confirm CI still runs and uploads every release artifact after smoke/browser
+  gates.
 
-### Phase 550 - Unit Coverage
+### Phase 570 - Ordered Documentation Sync
 
-- Cover runtime evidence artifact building and required artifact paths in unit
-  tests.
+- Keep ordered docs and README surfaces pointing at the current release
+  candidate, production readiness, and runtime evidence docs.
 
-### Phase 551 - Contextless Runtime Evidence Review
+### Phase 571 - Contextless Release Candidate Review
 
-- Run a blind/contextless review asking whether saved runtime/UI evidence is
-  discoverable without chat history.
+- Run a blind/contextless review asking whether the release candidate can be
+  understood without chat history and without inventing frontend trading
+  behavior.
 
-### Phase 552 - Contextless Remediation
+### Phase 572 - Contextless Remediation
 
-- Fix unclear runtime evidence docs, scripts, or gates found by the review.
+- Fix unclear release-candidate docs, scripts, checks, or artifact references
+  found by the review.
 
-### Phase 553 - Frontend Focused Verification
+### Phase 573 - Frontend Focused Verification
 
-- Run focused frontend quality/runtime evidence tests and checks.
+- Run focused frontend release/deployment/doc parity checks and tests.
 
-### Phase 554 - Backend Queue Validation
+### Phase 574 - Backend Queue Validation
 
 - Run backend autonomous queue validation and focused regression coverage for
   changed backend files.
 
-### Phase 555 - Frontend Release Gate
+### Phase 575 - Frontend Release Gate
 
 - Run full `npm run release:gate`.
 
-### Phase 556 - Backend Regression Gate
+### Phase 576 - Backend Regression Gate
 
 - Run full backend regression after backend changes.
 
-### Phase 557 - No-Live Evidence Discipline
+### Phase 577 - No-Live Evidence Discipline
 
-- Confirm runtime evidence and release artifacts report no live Coinbase
-  execution with `$0` notional.
+- Confirm release-candidate parity, runtime evidence, and release artifacts
+  report no live Coinbase execution with `$0` notional.
 
-### Phase 558 - Cross-Repo Clean Tree Check
+### Phase 578 - Cross-Repo Clean Tree Check
 
 - Verify both repositories are clean before final summary or next batch.
 
-### Phase 559 - Commit Backend And Frontend
+### Phase 579 - Commit Backend And Frontend
 
 - Commit completed backend and frontend work separately.
 
-### Phase 560 - Final Batch Summary
+### Phase 580 - Final Batch Summary
 
 - Summarize implementation, verification, live posture, commits, and next
   approved phase range.

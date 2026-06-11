@@ -11,9 +11,13 @@ from typing import Any, Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
+PUBLIC_RELEASE_DOC = PROJECT_ROOT / "docs" / "PUBLIC_RELEASE_READINESS.md"
+FRONTEND_ASSOCIATION_DOC = PROJECT_ROOT / "docs" / "FRONTEND_ASSOCIATION.md"
+ADMIN_API_README = PROJECT_ROOT / "README.admin-api.md"
+ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASES = tuple(range(541, 561))
-APPROVED_PHASE_RANGE = "541-560"
+APPROVED_PHASES = tuple(range(561, 581))
+APPROVED_PHASE_RANGE = "561-580"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -56,6 +60,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_live_caps(body),
         _check_stop_conditions(body),
         _check_required_gates(body),
+        _check_frontend_release_docs(),
     ]
     passed = all(check.passed for check in checks)
     return {
@@ -85,7 +90,7 @@ def _check_phase_range(body: str) -> QueueCheck:
         if f"Phase {phase} -" not in body
     ]
     return QueueCheck(
-        name="approved_phase_range_541_560",
+        name="approved_phase_range_561_580",
         passed=f"Approved phase range: **{APPROVED_PHASE_RANGE}**" in body
         and not missing,
         evidence={
@@ -145,6 +150,33 @@ def _check_required_gates(body: str) -> QueueCheck:
         name="required_final_gates",
         passed=not missing,
         evidence={"missing_gate_text": missing},
+    )
+
+
+def _check_frontend_release_docs() -> QueueCheck:
+    required = [
+        "npm run release:gate",
+        "runtime evidence",
+        "autonomous queue",
+        "artifacts/runtime-evidence.json",
+        "notional `$0`",
+        "not approval for live Coinbase execution",
+    ]
+    missing: dict[str, list[str]] = {}
+    for path in [
+        PUBLIC_RELEASE_DOC,
+        FRONTEND_ASSOCIATION_DOC,
+        ADMIN_API_README,
+        ADMIN_API_EXAMPLES_DOC,
+    ]:
+        body = path.read_text(encoding="utf-8") if path.exists() else ""
+        path_missing = [text for text in required if text not in body]
+        if path_missing:
+            missing[str(path.relative_to(PROJECT_ROOT))] = path_missing
+    return QueueCheck(
+        name="frontend_release_doc_parity",
+        passed=not missing,
+        evidence={"missing_evidence_text": missing},
     )
 
 

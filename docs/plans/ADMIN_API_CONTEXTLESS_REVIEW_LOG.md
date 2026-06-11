@@ -378,3 +378,48 @@ Resolution:
 Status:
 
 - Findings resolved. No live Coinbase execution was run. Notional `$0`.
+
+## Release Candidate Parity Review - Phases 561-580
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- identify the current approved autonomous phase range and live cap posture
+- identify the canonical frontend release-candidate gate
+- verify saved runtime/UI evidence is documented for release candidates
+- verify backend public docs and examples do not publish stale frontend smoke
+  subsets as the release gate
+- verify docs make clear that frontend release artifacts are no-live evidence,
+  not approval for live Coinbase execution
+
+Findings:
+
+- First blind review failed the batch because backend
+  `docs/PUBLIC_RELEASE_READINESS.md` and `docs/FRONTEND_ASSOCIATION.md`
+  still described a stale frontend release-gate subset and omitted
+  `artifacts/runtime-evidence.json`.
+- Remediation updated those backend docs to point to canonical
+  `npm run release:gate`, include runtime evidence, reference the autonomous
+  queue, and preserve no-live `$0` posture.
+- Follow-up blind review failed the batch because `README.admin-api.md` and
+  `docs/examples/admin-api.md` still published the old narrower frontend
+  smoke/check sequence.
+- Second remediation updated the admin API README and example docs, then
+  widened the backend autonomous queue sentinel to require release-gate,
+  runtime-evidence, autonomous-queue, artifact-path, `$0` notional, and
+  non-approval-for-live-execution language in all backend frontend-release
+  references.
+- Final blind review passed with no blockers and no non-blocking concerns.
+
+Status:
+
+- Findings resolved. Frontend release-candidate docs, backend public admin
+  docs, release/deployment sentinels, and autonomous queue checks align on
+  `npm run release:gate`, `artifacts/runtime-evidence.json`, active phases
+  `561-580`, and no-live evidence. Live Coinbase execution was not run in this
+  batch; notional `$0`.

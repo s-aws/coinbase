@@ -47,32 +47,27 @@ broad or that omit total/order/count safety caps.
 ## Admin Frontend Release Gate
 
 For the enterprise admin frontend sibling repository at `C:\coinbase-frontend`,
-run:
+run the canonical no-live release gate:
 
 ```powershell
-npm run build
-npm run release:check
-npm run release:artifact
-npm run deployment:package
-npm run observability:drill
-npm run probe:synthetic
-npm run release:checklist
-npm run deployment:check
-npm run smoke:read:dry
-npm run smoke:command:dry
-npm run smoke:bff:dry
-npm run smoke:oidc:dry
+npm run release:gate
 ```
 
-These checks are dry/no-live checks. They must report live Coinbase execution
-as not run with notional `$0`. `npm run release:artifact` writes
+This expands to build, typecheck, lint, generated API freshness, command
+security, release/deployment checks, artifact generation, runtime evidence,
+autonomous queue validation, unit tests, dry read/command/BFF/OIDC smokes, and
+Playwright e2e. These checks are dry/no-live checks. They must report live
+Coinbase execution as not run with notional `$0`.
+
+`npm run release:artifact` writes
 `artifacts/release-readiness.json` in the frontend repository for CI upload.
 `npm run deployment:package` writes
 `artifacts/deployment-package-manifest.json`, and
 `npm run observability:drill` writes `artifacts/observability-drill.json`.
 `npm run probe:synthetic` writes `artifacts/synthetic-probes.json`, and
 `npm run release:checklist` writes
-`artifacts/public-release-checklist.json`.
+`artifacts/public-release-checklist.json`. `npm run runtime:evidence` writes
+`artifacts/runtime-evidence.json`.
 It is release evidence for the read-only/disabled-command frontend candidate,
 not approval for live Coinbase execution. These checks do not replace this
 repository's backend regression gate when backend files changed.

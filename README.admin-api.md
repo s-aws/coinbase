@@ -63,21 +63,31 @@ For the current boundary between legacy live WebSocket commands, read-only
 HTTP routes, and sweep/campaign execution, see
 [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
-The frontend release-hardening gate is owned by `C:\coinbase-frontend` and
-includes `npm run build`, `npm run release:check`,
-`npm run release:artifact`, `npm run deployment:package`,
-`npm run observability:drill`, `npm run probe:synthetic`,
-`npm run release:checklist`, `npm run deployment:check`, dry-run read smoke,
-dry-run command smoke, and dry-run BFF smoke. Those checks are no-live checks
-and must report live Coinbase execution as not run with notional `$0`. The
-release artifact is written in the frontend repository at
+The frontend release-hardening gate is owned by `C:\coinbase-frontend` and is
+the canonical no-live command:
+
+```powershell
+npm run release:gate
+```
+
+That gate expands to build, typecheck, lint, generated API freshness, command
+security, release/deployment checks, release artifact generation, runtime
+evidence, autonomous queue validation, unit tests, dry read/command/BFF/OIDC
+smokes, and Playwright e2e. Those checks are no-live checks and must report
+live Coinbase execution as not run with notional `$0`. They are not approval
+for live Coinbase execution. The release artifact is written in the frontend
+repository at
 `artifacts/release-readiness.json`; the package manifest is
 `artifacts/deployment-package-manifest.json`; and the route/header drill is
 `artifacts/observability-drill.json`. Synthetic probe evidence is written to
 `artifacts/synthetic-probes.json`, and the public release checklist is written
-to `artifacts/public-release-checklist.json`. They are uploaded by frontend
-CI; they are not backend approval to trade. These checks do not replace this
+to `artifacts/public-release-checklist.json`. Runtime/UI evidence is written
+to `artifacts/runtime-evidence.json`. They are uploaded by frontend CI; they
+are not backend approval to trade. These checks do not replace this
 repository's required backend regression gate when backend files change.
+In short: runtime evidence is saved, and these artifacts are not approval for
+live Coinbase execution.
+No-live release artifacts are not approval for live Coinbase execution.
 
 ## Direction
 

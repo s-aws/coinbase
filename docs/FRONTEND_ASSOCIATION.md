@@ -77,12 +77,12 @@ Any backend API contract change intended for frontend consumption must update:
 - frontend generated client or contract tests
 - backend regression gate when backend files changed
 - frontend quality gate when frontend files changed
-- frontend `npm run build`, `npm run release:check`,
-  `npm run release:artifact`, `npm run deployment:package`,
-  `npm run observability:drill`, `npm run probe:synthetic`,
-  `npm run release:checklist`, `npm run deployment:check`, and dry-run smoke
-  checks for release candidates, including `npm run smoke:oidc:dry`
+- frontend `npm run release:gate` for release candidates
 
+`npm run release:gate` expands to build, typecheck, lint, generated API
+freshness, command security, release/deployment checks, release artifact
+generation, runtime evidence, autonomous queue validation, unit tests, dry
+read/command/BFF/OIDC smokes, and Playwright e2e.
 Frontend release checks are dry/no-live checks. They must report live Coinbase
 execution as not run with notional `$0` and do not replace backend regression.
 The frontend release artifact is `C:\coinbase-frontend\artifacts\release-readiness.json`;
@@ -91,7 +91,10 @@ The same CI artifact includes
 `C:\coinbase-frontend\artifacts\deployment-package-manifest.json` and
 `C:\coinbase-frontend\artifacts\observability-drill.json`,
 `C:\coinbase-frontend\artifacts\synthetic-probes.json`, and
-`C:\coinbase-frontend\artifacts\public-release-checklist.json`.
+`C:\coinbase-frontend\artifacts\public-release-checklist.json`, and
+`C:\coinbase-frontend\artifacts\runtime-evidence.json`
+(`artifacts/runtime-evidence.json` in the frontend checkout).
+These artifacts are not approval for live Coinbase execution.
 Read-only frontend rollback is a hosting/build rollback. Live-action rollback
 is out of scope until live HTTP command execution is separately approved.
 
