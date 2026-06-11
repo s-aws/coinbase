@@ -53,6 +53,10 @@ Completed evidence:
 - Spot is documented as first complete module, not the generic model.
 - Backend Admin API is documented as current live-disabled contract, not
   merely planned future work.
+- Backend `python tools\check_ownership.py --owner architect` passed for the
+  M0 milestone docs.
+- Frontend `npm run release:gate` passed after the final M0 remediation with
+  no live Coinbase execution and notional `$0`.
 
 ## M1 - First Non-Spot Read Module
 
