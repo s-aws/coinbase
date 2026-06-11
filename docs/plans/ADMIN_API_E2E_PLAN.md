@@ -3669,3 +3669,121 @@ Progress update:
   backend regression passed with `772 passed, 1 warning`.
 - Phase 619 completed: live Coinbase execution was not run; test notional
   `$0`.
+
+## Approved Read Model Interaction Batch - Phases 621-640
+
+These phases are approved as the next 20-phase unattended backend/frontend
+read-model interaction batch. Work may continue without another approval while
+it stays inside [Autonomous Work Queue](AUTONOMOUS_WORK_QUEUE.md). Default
+execution is dry/no-live. Any backend live Coinbase work must stay under the
+carried-forward cap: maximum `3.10` USDC submitted, maximum `1.00` USDC
+executed, cheapest Coinbase `USDC` spot product available to US customers,
+retained inventory, and passing reconciliation before the next phase advances.
+
+### Phase 621 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 601-620 to active
+  phases 621-640 while preserving live cap and stop-condition policy.
+
+### Phase 622 - Read Model Interaction Contract
+
+- Define the no-live interaction contract for order, campaign, audit,
+  settings, and diagnostics read models.
+
+### Phase 623 - Orders Filter State Model
+
+- Add typed order read-model filter/sort state without adding frontend trading
+  calculations.
+
+### Phase 624 - Orders Detail Selection UX
+
+- Let operators select fixture/backend order rows and inspect detail evidence
+  keyed by `client_order_id`.
+
+### Phase 625 - Client Order Id Deep Link
+
+- Add a durable `client_order_id` search/deep-link path for the orders section
+  without introducing exchange `order_id` identity.
+
+### Phase 626 - Campaign Read Model Tabs
+
+- Organize campaign status, sweep, P/L, recovery, and disabled execution
+  evidence into accessible read-only views.
+
+### Phase 627 - Campaign Evidence Filters
+
+- Add local filter/search affordances for campaign evidence while keeping
+  backend data authoritative.
+
+### Phase 628 - Spot Operations Density
+
+- Improve spot operations KPI density and scanability without changing backend
+  contracts.
+
+### Phase 629 - Empty Loading Error States
+
+- Standardize empty, loading, auth-blocked, and backend-error states across
+  read models.
+
+### Phase 630 - Audit Evidence Cross Links
+
+- Cross-link read-model rows to audit evidence by `client_order_id`,
+  correlation id, and audit id where backend evidence exists.
+
+### Phase 631 - Settings Diagnostics Drilldown
+
+- Add diagnostics drilldown rows for runtime mode, API routes, BFF mode,
+  OIDC readiness, and release evidence.
+
+### Phase 632 - Responsive Tables And Overflow
+
+- Make order/campaign/audit tables usable on desktop and mobile without
+  horizontal page overflow.
+
+### Phase 633 - Accessibility Keyboard Coverage
+
+- Add/update keyboard, focus, region, and form-label coverage for read-model
+  interactions.
+
+### Phase 634 - Documentation Sync
+
+- Update admin frontend, read-model, testing, runbook, and examples docs for
+  the interaction batch.
+
+### Phase 635 - Contextless Read Model Review
+
+- Run a blind/contextless review asking whether a maintainer can understand
+  order/campaign/audit read-model interactions without frontend trading
+  behavior.
+
+### Phase 636 - Contextless Remediation
+
+- Fix unclear read-model interactions, docs, tests, or no-live evidence found
+  by the review.
+
+### Phase 637 - Frontend Focused Verification
+
+- Run focused read-model, admin-shell, accessibility, docs/sentinel, and
+  Playwright checks.
+
+### Phase 638 - Frontend Release Gate
+
+- Run full `npm run release:gate`.
+
+### Phase 639 - Backend Queue, Regression, And No-Live Evidence
+
+- Run backend autonomous queue validation and full backend regression after
+  backend queue/doc/checker changes, then confirm release and regression
+  evidence ran no live Coinbase execution with notional `$0`.
+
+### Phase 640 - Commit And Final Batch Summary
+
+- Commit completed backend and frontend work separately, then summarize
+  implementation, verification, live posture, commits, and next approved phase
+  range.
+
+Progress update:
+
+- Phase 621 completed: active autonomous queue range advanced to `621-640`
+  in backend and frontend queue docs/checkers while preserving the carried
+  live cap and stop conditions.

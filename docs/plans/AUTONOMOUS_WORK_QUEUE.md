@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **601-620**.
+- Approved phase range: **621-640**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,102 +46,105 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Approved Phases 601-620
+## Approved Phases 621-640
 
-### Phase 601 - Advance Active Queue Range
+### Phase 621 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 581-600 to active
-  phases 601-620 while preserving the same live cap and stop-condition policy.
+- Move the durable autonomous queue from completed phases 601-620 to active
+  phases 621-640 while preserving the same live cap and stop-condition policy.
 
-### Phase 602 - Navigation Anchor Contract
+### Phase 622 - Read Model Interaction Contract
 
-- Replace inert admin navigation links with stable in-page anchors for the
-  existing frontend sections.
+- Define the no-live interaction contract for order, campaign, audit,
+  settings, and diagnostics read models.
 
-### Phase 603 - Section Landmark Structure
+### Phase 623 - Orders Filter State Model
 
-- Add accessible section landmarks/headings for overview, spot operations,
-  orders, campaigns, audit, settings, and admin evidence.
+- Add typed order read-model filter/sort state without adding frontend trading
+  calculations.
 
-### Phase 604 - Active Navigation Semantics
+### Phase 624 - Orders Detail Selection UX
 
-- Keep a clear current-section hint without creating client-only routing or a
-  second navigation implementation.
+- Let operators select fixture/backend order rows and inspect detail evidence
+  keyed by `client_order_id`.
 
-### Phase 605 - Overview Section Polish
+### Phase 625 - Client Order Id Deep Link
 
-- Group environment, runtime, session, and status evidence under the overview
-  section.
+- Add a durable `client_order_id` search/deep-link path for the orders section
+  without introducing exchange `order_id` identity.
 
-### Phase 606 - Spot Operations Anchor
+### Phase 626 - Campaign Read Model Tabs
 
-- Make spot readiness/sweep/P&L/cost-basis/campaign status evidence reachable
-  from the Spot Operations nav link.
+- Organize campaign status, sweep, P/L, recovery, and disabled execution
+  evidence into accessible read-only views.
 
-### Phase 607 - Orders Anchor
+### Phase 627 - Campaign Evidence Filters
 
-- Make order list/detail read models reachable from the Orders nav link while
-  preserving `client_order_id` identity.
+- Add local filter/search affordances for campaign evidence while keeping
+  backend data authoritative.
 
-### Phase 608 - Campaigns Anchor
+### Phase 628 - Spot Operations Density
 
-- Make campaign read models and disabled campaign draft evidence reachable from
-  the Campaigns nav link.
+- Improve spot operations KPI density and scanability without changing backend
+  contracts.
 
-### Phase 609 - Audit Anchor
+### Phase 629 - Empty Loading Error States
 
-- Keep audit trail and direct-order audit anchors reachable without exchange id
-  navigation.
+- Standardize empty, loading, auth-blocked, and backend-error states across
+  read models.
 
-### Phase 610 - Settings And Admin Evidence
+### Phase 630 - Audit Evidence Cross Links
 
-- Add settings/admin evidence sections for runtime mode, diagnostics, session,
-  RBAC, OIDC readiness, and release posture.
+- Cross-link read-model rows to audit evidence by `client_order_id`,
+  correlation id, and audit id where backend evidence exists.
 
-### Phase 611 - Responsive Navigation Coverage
+### Phase 631 - Settings Diagnostics Drilldown
 
-- Ensure the anchored navigation works on desktop and mobile without overflow.
+- Add diagnostics drilldown rows for runtime mode, API routes, BFF mode,
+  OIDC readiness, and release evidence.
 
-### Phase 612 - Accessibility Coverage
+### Phase 632 - Responsive Tables And Overflow
 
-- Add/update tests for unique ids, section landmarks, nav hrefs, and disabled
-  live controls.
+- Make order/campaign/audit tables usable on desktop and mobile without
+  horizontal page overflow.
 
-### Phase 613 - Documentation Sync
+### Phase 633 - Accessibility Keyboard Coverage
 
-- Update admin frontend, testing, operator runbook, and examples for navigable
-  admin shell sections.
+- Add/update keyboard, focus, region, and form-label coverage for read-model
+  interactions.
 
-### Phase 614 - Contextless Navigation Review
+### Phase 634 - Documentation Sync
 
-- Run a blind/contextless review asking whether a maintainer can navigate the
-  frontend sections without chat history or frontend trading behavior.
+- Update admin frontend, read-model, testing, runbook, and examples docs for
+  the interaction batch.
 
-### Phase 615 - Contextless Remediation
+### Phase 635 - Contextless Read Model Review
 
-- Fix unclear navigation, section, docs, tests, or no-live evidence found by
-  the review.
+- Run a blind/contextless review asking whether a maintainer can understand
+  order/campaign/audit read-model interactions without frontend trading
+  behavior.
 
-### Phase 616 - Frontend Focused Verification
+### Phase 636 - Contextless Remediation
 
-- Run focused admin-shell, accessibility, operator read-model, docs/sentinel,
-  and Playwright checks.
+- Fix unclear read-model interactions, docs, tests, or no-live evidence found
+  by the review.
 
-### Phase 617 - Frontend Release Gate
+### Phase 637 - Frontend Focused Verification
+
+- Run focused read-model, admin-shell, accessibility, docs/sentinel, and
+  Playwright checks.
+
+### Phase 638 - Frontend Release Gate
 
 - Run full `npm run release:gate`.
 
-### Phase 618 - Backend Queue And Regression Gate
+### Phase 639 - Backend Queue, Regression, And No-Live Evidence
 
 - Run backend autonomous queue validation and full backend regression after
-  backend queue/doc/checker changes.
+  backend queue/doc/checker changes, then confirm release and regression
+  evidence ran no live Coinbase execution with notional `$0`.
 
-### Phase 619 - No-Live Evidence Discipline
-
-- Confirm navigation, release, and regression evidence ran no live Coinbase
-  execution with notional `$0`.
-
-### Phase 620 - Commit And Final Batch Summary
+### Phase 640 - Commit And Final Batch Summary
 
 - Commit completed backend and frontend work separately, then summarize
   implementation, verification, live posture, commits, and next approved phase
