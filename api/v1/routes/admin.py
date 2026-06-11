@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
@@ -15,6 +15,7 @@ from application.admin_api.auth import (
 )
 from application.admin_api.models import (
     AdminApiActor,
+    AdminAuditWorkbenchReadResponse,
     AdminApiErrorResponse,
     AdminBootstrapResponse,
     AdminCapabilityRegistryResponse,
@@ -27,7 +28,7 @@ from application.admin_api.models import (
     AdminSessionResponse,
 )
 from application.admin_api.read_service import AdminApiReadService
-from core.enums import AdminApiPermission
+from core.enums import AdminApiPermission, AdminAuditWorkbenchModule
 
 
 router = APIRouter()
@@ -164,6 +165,39 @@ def admin_guard_risk_policy(
 
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_response(service.build_guard_risk_policy(product_id=product_id))
+
+
+@router.get(
+    "/admin/audit-workbench",
+    response_model=AdminAuditWorkbenchReadResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read cross-module audit and correlation evidence",
+)
+def admin_audit_workbench(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    module: AdminAuditWorkbenchModule | None = None,
+    product_id: str | None = None,
+    client_order_id: str | None = None,
+    correlation_id: str | None = None,
+    audit_id: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> JSONResponse:
+    """Read normalized audit evidence without Coinbase reads or mutations."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(
+        service.build_audit_workbench(
+            module=module,
+            product_id=product_id,
+            client_order_id=client_order_id,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+            limit=limit,
+            offset=offset,
+        )
+    )
 
 
 @router.get(

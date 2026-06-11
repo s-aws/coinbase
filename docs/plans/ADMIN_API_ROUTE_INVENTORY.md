@@ -32,6 +32,7 @@ parity test target.
 | `GET /api/v1/admin/capabilities` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_admin_capabilities` | route inventory derived registry | |
 | `GET /api/v1/admin/csrf` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_csrf_contract` | does not disclose token value | |
 | `GET /api/v1/admin/guard-risk-policy` | `read_only` | `analytics:read` | not required | not required | read-only evidence only | optional read audit | `build_guard_risk_policy` | read-only guard/risk policy evidence; no browser authority or Coinbase read | |
+| `GET /api/v1/admin/audit-workbench` | `read_only` | `audit:read` | not required | not required | not applicable | optional read audit | `build_audit_workbench` | cross-module audit evidence only; no Coinbase read or mutation | |
 | `GET /api/v1/admin/release-gate` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_release_gate` | browser does not run pytest | |
 | `GET /api/v1/admin/recovery-gate` | `read_only` | `audit:read` | not required | not required | not applicable | optional read audit | `build_recovery_gate` | read-only recovery evidence | |
 | `GET /api/v1/admin/fill-ledger-health` | `read_only` | `audit:read` | not required | not required | not applicable | optional read audit | `build_fill_ledger_health` | no ledger repair mutation | |

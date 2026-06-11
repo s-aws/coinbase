@@ -14,6 +14,8 @@ from core.enums import (
     ActionGuardPhase,
     AdminApiActionClass,
     AdminApiAuthMode,
+    AdminAuditEvidenceSource,
+    AdminAuditWorkbenchModule,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminFuturesPositionSide,
@@ -34,6 +36,7 @@ from core.enums import (
 )
 
 from .approval import evaluate_live_execution_gate
+from .audit import AdminApiAuditEvent, FileAdminApiAuditStore
 from .auth import (
     build_oidc_jwt_readiness,
     check_oidc_jwks_reachability,
@@ -41,6 +44,9 @@ from .auth import (
 )
 from .models import (
     AdminApiActor,
+    AdminAuditModuleSummaryItem,
+    AdminAuditWorkbenchEventItem,
+    AdminAuditWorkbenchReadResponse,
     AdminBootstrapResponse,
     AdminCapabilityItem,
     AdminCapabilityRegistryResponse,
@@ -1087,6 +1093,295 @@ def _movement_item_matches(
     return True
 
 
+def _audit_module_for_surface(
+    surface: str,
+    shared_method: str | None = None,
+) -> AdminAuditWorkbenchModule:
+    normalized = f"{surface} {shared_method or ''}".lower()
+    if "/api/v1/admin/guard-risk-policy" in normalized:
+        return AdminAuditWorkbenchModule.GUARD_RISK
+    if "/api/v1/futures" in normalized:
+        return AdminAuditWorkbenchModule.FUTURES_PERPETUALS
+    if "/api/v1/movement-repricing" in normalized:
+        return AdminAuditWorkbenchModule.MOVEMENT_REPRICING
+    if "/api/v1/stealth" in normalized or "stealth" in normalized:
+        return AdminAuditWorkbenchModule.STEALTH
+    if "/api/v1/spot/campaign" in normalized or "campaign" in normalized:
+        return AdminAuditWorkbenchModule.CAMPAIGNS
+    if "/api/v1/spot" in normalized:
+        return AdminAuditWorkbenchModule.SPOT
+    if "/api/v1/orders" in normalized or "place_order" in normalized or "cancel_order" in normalized:
+        return AdminAuditWorkbenchModule.ORDERS
+    if "/api/v1/admin" in normalized:
+        return AdminAuditWorkbenchModule.ADMIN
+    return AdminAuditWorkbenchModule.ADMIN
+
+
+def _audit_module_identity(module: AdminAuditWorkbenchModule) -> str:
+    return {
+        AdminAuditWorkbenchModule.ADMIN: "route_and_actor_evidence",
+        AdminAuditWorkbenchModule.SPOT: "client_order_id",
+        AdminAuditWorkbenchModule.ORDERS: "client_order_id",
+        AdminAuditWorkbenchModule.STEALTH: "stealth_order_id",
+        AdminAuditWorkbenchModule.MOVEMENT_REPRICING: "client_order_id_or_stealth_order_id",
+        AdminAuditWorkbenchModule.FUTURES_PERPETUALS: "position_key",
+        AdminAuditWorkbenchModule.GUARD_RISK: "policy_id_and_product_id",
+        AdminAuditWorkbenchModule.CAMPAIGNS: "campaign_id",
+    }[module]
+
+
+def _audit_module_source(module: AdminAuditWorkbenchModule) -> AdminAuditEvidenceSource:
+    return {
+        AdminAuditWorkbenchModule.ADMIN: AdminAuditEvidenceSource.BACKEND_CONTRACT,
+        AdminAuditWorkbenchModule.SPOT: AdminAuditEvidenceSource.ORDER_PARENT,
+        AdminAuditWorkbenchModule.ORDERS: AdminAuditEvidenceSource.ORDER_PARENT,
+        AdminAuditWorkbenchModule.STEALTH: AdminAuditEvidenceSource.STEALTH_ORDERS,
+        AdminAuditWorkbenchModule.MOVEMENT_REPRICING: AdminAuditEvidenceSource.MOVEMENT_REPRICING,
+        AdminAuditWorkbenchModule.FUTURES_PERPETUALS: AdminAuditEvidenceSource.FUTURES_POSITIONS,
+        AdminAuditWorkbenchModule.GUARD_RISK: AdminAuditEvidenceSource.GUARD_RISK_POLICY,
+        AdminAuditWorkbenchModule.CAMPAIGNS: AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+    }[module]
+
+
+def _audit_module_note(module: AdminAuditWorkbenchModule) -> str:
+    return {
+        AdminAuditWorkbenchModule.ADMIN: "Admin/session/auth evidence only; no trading behavior.",
+        AdminAuditWorkbenchModule.SPOT: "Spot audit identity remains client_order_id; wallet and lot authority stay backend-owned.",
+        AdminAuditWorkbenchModule.ORDERS: "Order audit links use client_order_id; exchange order_id is evidence only.",
+        AdminAuditWorkbenchModule.STEALTH: "Stealth audit links preserve stealth_order_id and active placement evidence.",
+        AdminAuditWorkbenchModule.MOVEMENT_REPRICING: "Move/reprice evidence is read-only and cannot mutate live placements.",
+        AdminAuditWorkbenchModule.FUTURES_PERPETUALS: "Futures/perpetual audit identity is position_key, not spot wallet inventory.",
+        AdminAuditWorkbenchModule.GUARD_RISK: "Guard/risk rows are policy evidence, not browser authority.",
+        AdminAuditWorkbenchModule.CAMPAIGNS: "Campaign command evidence remains live-disabled unless backend gates approve it.",
+    }[module]
+
+
+def _normalize_audit_module(
+    module: AdminAuditWorkbenchModule | str | None,
+) -> AdminAuditWorkbenchModule | None:
+    if module is None:
+        return None
+    if isinstance(module, AdminAuditWorkbenchModule):
+        return module
+    try:
+        return AdminAuditWorkbenchModule(str(module))
+    except ValueError:
+        return None
+
+
+def _audit_module_summary() -> list[AdminAuditModuleSummaryItem]:
+    order = [
+        AdminAuditWorkbenchModule.ADMIN,
+        AdminAuditWorkbenchModule.SPOT,
+        AdminAuditWorkbenchModule.ORDERS,
+        AdminAuditWorkbenchModule.STEALTH,
+        AdminAuditWorkbenchModule.MOVEMENT_REPRICING,
+        AdminAuditWorkbenchModule.FUTURES_PERPETUALS,
+        AdminAuditWorkbenchModule.GUARD_RISK,
+        AdminAuditWorkbenchModule.CAMPAIGNS,
+    ]
+    state: dict[AdminAuditWorkbenchModule, dict[str, Any]] = {
+        module: {
+            "read_route_count": 0,
+            "command_route_count": 0,
+            "evidence_sources": [
+                AdminAuditEvidenceSource.ROUTE_INVENTORY,
+                _audit_module_source(module),
+            ],
+            "routes": [],
+        }
+        for module in order
+    }
+    for item in ADMIN_API_ROUTE_INVENTORY:
+        module = _audit_module_for_surface(item.surface, item.shared_method)
+        method, path = _surface_method_and_path(item.surface)
+        route_label = f"{method} {path}"
+        if item.action_class == AdminApiActionClass.READ_ONLY:
+            state[module]["read_route_count"] += 1
+        else:
+            state[module]["command_route_count"] += 1
+        state[module]["routes"].append(route_label)
+
+    return [
+        AdminAuditModuleSummaryItem(
+            module=module,
+            read_route_count=state[module]["read_route_count"],
+            command_route_count=state[module]["command_route_count"],
+            live_enabled=False,
+            primary_identity=_audit_module_identity(module),
+            evidence_sources=list(dict.fromkeys(state[module]["evidence_sources"])),
+            routes=state[module]["routes"],
+            notes=_audit_module_note(module),
+        )
+        for module in order
+    ]
+
+
+def _audit_event_matches(
+    item: AdminAuditWorkbenchEventItem,
+    *,
+    module: AdminAuditWorkbenchModule | None,
+    product_id: str | None,
+    client_order_id: str | None,
+    correlation_id: str | None,
+    audit_id: str | None,
+) -> bool:
+    if module and item.module != module:
+        return False
+    if product_id and item.product_id != product_id:
+        return False
+    if client_order_id and client_order_id not in _audit_event_client_order_ids(
+        item
+    ):
+        return False
+    if correlation_id and item.correlation_id != correlation_id and item.request_id != correlation_id:
+        return False
+    if audit_id and item.audit_id != audit_id:
+        return False
+    return True
+
+
+def _audit_event_client_order_ids(item: AdminAuditWorkbenchEventItem) -> set[str]:
+    values = {item.client_order_id} if item.client_order_id else set()
+    if item.source == AdminAuditEvidenceSource.MOVEMENT_REPRICING:
+        for key in (
+            "original_parent_client_order_id",
+            "new_parent_client_order_id",
+            "old_placement_client_order_id",
+            "new_placement_client_order_id",
+            "active_placement_client_order_id",
+        ):
+            value = item.raw_event.get(key)
+            if value is not None:
+                values.add(str(value))
+    return values
+
+
+def _audit_event_from_command_event(
+    event: AdminApiAuditEvent,
+) -> AdminAuditWorkbenchEventItem:
+    raw_event = event.model_dump(mode="json")
+    return AdminAuditWorkbenchEventItem(
+        event_id=event.audit_id,
+        module=_audit_module_for_surface(event.endpoint),
+        source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+        action_class=event.action_class,
+        endpoint=event.endpoint,
+        status=event.status.value,
+        actor_id=event.actor_id,
+        permission=event.permission,
+        client_order_id=event.client_order_id,
+        correlation_id=event.request_id,
+        audit_id=event.audit_id,
+        request_id=event.request_id,
+        idempotency_key=event.idempotency_key,
+        exchange_order_id=event.coinbase_order_id,
+        recorded_at=event.recorded_at,
+        message=event.message,
+        raw_event=raw_event,
+    )
+
+
+def _audit_event_from_order_item(
+    item: AdminOrderReadItem,
+) -> AdminAuditWorkbenchEventItem:
+    return AdminAuditWorkbenchEventItem(
+        event_id=f"order:{item.client_order_id}",
+        module=AdminAuditWorkbenchModule.ORDERS,
+        source=AdminAuditEvidenceSource.ORDER_PARENT,
+        action_class=AdminApiActionClass.READ_ONLY,
+        endpoint="/api/v1/orders/{client_order_id}",
+        status=item.status,
+        client_order_id=item.client_order_id,
+        product_id=item.product_id,
+        correlation_id=item.correlation_id,
+        audit_id=item.audit_id,
+        exchange_order_id=item.exchange_order_id,
+        recorded_at=item.updated_at or item.created_at,
+        message="Local order row audit anchor.",
+        raw_event=item.model_dump(mode="json"),
+    )
+
+
+def _audit_event_from_stealth_item(
+    item: AdminStealthOrderReadItem,
+) -> AdminAuditWorkbenchEventItem:
+    return AdminAuditWorkbenchEventItem(
+        event_id=f"stealth:{item.stealth_order_id}",
+        module=AdminAuditWorkbenchModule.STEALTH,
+        source=AdminAuditEvidenceSource.STEALTH_ORDERS,
+        action_class=AdminApiActionClass.READ_ONLY,
+        endpoint="/api/v1/stealth/orders/{stealth_order_id}",
+        status=item.status,
+        client_order_id=item.active_placement_client_order_id,
+        stealth_order_id=item.stealth_order_id,
+        product_id=item.product_id,
+        exchange_order_id=item.active_exchange_order_id,
+        recorded_at=item.updated_at or item.created_at,
+        message="Stealth lifecycle audit anchor with active placement evidence.",
+        raw_event=item.model_dump(mode="json"),
+    )
+
+
+def _audit_event_from_movement_item(
+    item: AdminMovementRepricingEvidenceItem,
+) -> AdminAuditWorkbenchEventItem:
+    return AdminAuditWorkbenchEventItem(
+        event_id=f"movement:{item.evidence_id}",
+        module=AdminAuditWorkbenchModule.MOVEMENT_REPRICING,
+        source=AdminAuditEvidenceSource.MOVEMENT_REPRICING,
+        action_class=AdminApiActionClass.READ_ONLY,
+        endpoint="/api/v1/movement-repricing/evidence",
+        status=item.status,
+        client_order_id=item.client_order_id
+        or item.active_placement_client_order_id
+        or item.new_placement_client_order_id
+        or item.old_placement_client_order_id,
+        stealth_order_id=item.stealth_order_id,
+        product_id=item.product_id,
+        exchange_order_id=item.active_exchange_order_id
+        or item.new_exchange_order_id
+        or item.old_exchange_order_id,
+        recorded_at=item.updated_at or item.moved_at or item.created_at,
+        message=f"Movement/repricing evidence: {item.evidence_type.value}.",
+        raw_event=item.model_dump(mode="json"),
+    )
+
+
+def _audit_event_from_futures_position(
+    item: AdminFuturesPositionReadItem,
+) -> AdminAuditWorkbenchEventItem:
+    return AdminAuditWorkbenchEventItem(
+        event_id=f"futures:{item.position_key}",
+        module=AdminAuditWorkbenchModule.FUTURES_PERPETUALS,
+        source=AdminAuditEvidenceSource.FUTURES_POSITIONS,
+        action_class=AdminApiActionClass.READ_ONLY,
+        endpoint="/api/v1/futures/positions/{position_key}",
+        status=item.position_side.value if item.position_side else None,
+        position_key=item.position_key,
+        product_id=item.product_id,
+        recorded_at=item.updated_at,
+        message="Futures/perpetual position audit anchor.",
+        raw_event=item.model_dump(mode="json"),
+    )
+
+
+def _audit_event_from_guard_risk_policy(
+    item: AdminRiskPolicyReadResponse,
+) -> AdminAuditWorkbenchEventItem:
+    return AdminAuditWorkbenchEventItem(
+        event_id="guard_risk:policy",
+        module=AdminAuditWorkbenchModule.GUARD_RISK,
+        source=AdminAuditEvidenceSource.GUARD_RISK_POLICY,
+        action_class=AdminApiActionClass.READ_ONLY,
+        endpoint="/api/v1/admin/guard-risk-policy",
+        status=item.live_execution_gate.status.value,
+        product_id=_string_or_none(item.filters.get("product_id")),
+        message="Backend guard/risk policy evidence; browser authority is not allowed.",
+        raw_event=item.model_dump(mode="json"),
+    )
+
+
 class AdminApiReadService:
     """Read-only status service for operator views.
 
@@ -1402,6 +1697,143 @@ class AdminApiReadService:
         """Return CSRF posture without disclosing a token value."""
 
         return AdminCsrfContractResponse(csrf_required=_csrf_required())
+
+    def build_audit_workbench(
+        self,
+        *,
+        module: AdminAuditWorkbenchModule | str | None = None,
+        product_id: str | None = None,
+        client_order_id: str | None = None,
+        correlation_id: str | None = None,
+        audit_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AdminAuditWorkbenchReadResponse:
+        """Return cross-module audit/correlation evidence without Coinbase reads."""
+
+        normalized_module = _normalize_audit_module(module)
+        normalized_limit = max(1, min(limit, 500))
+        normalized_offset = max(0, offset)
+        filters: dict[str, Any] = {
+            "module": normalized_module.value if normalized_module else None,
+            "product_id": product_id,
+            "client_order_id": client_order_id,
+            "correlation_id": correlation_id,
+            "audit_id": audit_id,
+            "limit": normalized_limit,
+            "offset": normalized_offset,
+        }
+        if module is not None and normalized_module is None:
+            filters["module_error"] = f"Unknown audit module: {module}"
+
+        events: list[AdminAuditWorkbenchEventItem] = []
+        source_errors: list[str] = []
+
+        try:
+            command_events = FileAdminApiAuditStore().read_recent(limit=500)
+            events.extend(
+                _audit_event_from_command_event(event)
+                for event in command_events
+            )
+        except Exception as exc:
+            source_errors.append(f"admin_api_audit_log:{type(exc).__name__}: {exc}")
+
+        if normalized_module in {None, AdminAuditWorkbenchModule.ORDERS}:
+            order_response = self.build_order_list(
+                product_id=product_id,
+                limit=500,
+                offset=0,
+            )
+            if order_response.filters.get("backend_read_error"):
+                source_errors.append(
+                    f"orders:{order_response.filters['backend_read_error']}"
+                )
+            events.extend(
+                _audit_event_from_order_item(item)
+                for item in order_response.items
+            )
+
+        if normalized_module in {None, AdminAuditWorkbenchModule.STEALTH}:
+            stealth_response = self.build_stealth_order_list(
+                product_id=product_id,
+                limit=500,
+                offset=0,
+            )
+            if stealth_response.filters.get("backend_read_error"):
+                source_errors.append(
+                    f"stealth:{stealth_response.filters['backend_read_error']}"
+                )
+            events.extend(
+                _audit_event_from_stealth_item(item)
+                for item in stealth_response.items
+            )
+
+        if normalized_module in {None, AdminAuditWorkbenchModule.MOVEMENT_REPRICING}:
+            movement_response = self.build_movement_repricing_evidence(
+                product_id=product_id,
+                client_order_id=client_order_id,
+                limit=500,
+                offset=0,
+            )
+            if movement_response.filters.get("backend_read_errors"):
+                source_errors.extend(
+                    f"movement_repricing:{error}"
+                    for error in movement_response.filters["backend_read_errors"]
+                )
+            events.extend(
+                _audit_event_from_movement_item(item)
+                for item in movement_response.items
+            )
+
+        if normalized_module in {None, AdminAuditWorkbenchModule.FUTURES_PERPETUALS}:
+            futures_response = self.build_futures_positions(
+                product_id=product_id,
+                limit=500,
+                offset=0,
+            )
+            events.extend(
+                _audit_event_from_futures_position(item)
+                for item in futures_response.items
+            )
+
+        if normalized_module in {None, AdminAuditWorkbenchModule.GUARD_RISK}:
+            events.append(
+                _audit_event_from_guard_risk_policy(
+                    self.build_guard_risk_policy(product_id=product_id)
+                )
+            )
+
+        if source_errors:
+            filters["source_errors"] = source_errors
+
+        filtered = [
+            item
+            for item in events
+            if _audit_event_matches(
+                item,
+                module=normalized_module,
+                product_id=product_id,
+                client_order_id=client_order_id,
+                correlation_id=correlation_id,
+                audit_id=audit_id,
+            )
+        ]
+        page_items = filtered[normalized_offset:normalized_offset + normalized_limit]
+        next_offset = normalized_offset + len(page_items)
+        has_more = next_offset < len(filtered)
+        return AdminAuditWorkbenchReadResponse(
+            filters=filters,
+            module_summary=_audit_module_summary(),
+            events=page_items,
+            pagination={
+                "limit": normalized_limit,
+                "offset": normalized_offset,
+                "returned_count": len(page_items),
+                "total_matching_count": len(filtered),
+                "next_offset": next_offset if has_more else None,
+                "has_more": has_more,
+            },
+        )
 
     def build_order_list(
         self,
@@ -2001,6 +2433,7 @@ class AdminApiReadService:
                     position_key="futures_position:runtime:UNKNOWN"
                 ).model_dump(mode="json"),
                 "admin.guardRiskPolicy": self.build_guard_risk_policy().model_dump(mode="json"),
+                "admin.auditWorkbench": self.build_audit_workbench().model_dump(mode="json"),
                 "release.gate": self.build_release_gate().model_dump(mode="json"),
                 "recovery.gate": self.build_recovery_gate().model_dump(mode="json"),
                 "fillLedger.health": self.build_fill_ledger_health().model_dump(mode="json"),

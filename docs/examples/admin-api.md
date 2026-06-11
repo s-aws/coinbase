@@ -327,6 +327,31 @@ Expected safety posture:
 Do not use this route as a browser preflight approval endpoint. Actual command
 acceptance/rejection remains in the backend command service path.
 
+## Audit Workbench Reads
+
+Audit workbench reads expose backend-owned cross-module evidence. They are not
+command routes and they do not mutate audit history, replay commands, call
+Coinbase, or approve live execution.
+
+```http
+GET /api/v1/admin/audit-workbench?module=orders&client_order_id=client-order-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: auditor
+```
+
+The response includes `module_summary`, `events`, `filters`, `pagination`,
+and no-live posture fields. Order events are keyed by `client_order_id`.
+Stealth events use `stealth_order_id`. Futures/perpetual events use
+`position_key`. Exchange-native ids appear only as exchange evidence.
+
+Expected safety posture:
+
+- `read_only=true`
+- `command_routes_mode="evidence_only"`
+- `live_coinbase_orders_ran=false`
+- `live_coinbase_read_ran=false`
+
 ## Live Placement Approval
 
 Current live-disabled command shape:
@@ -443,6 +468,7 @@ Current read-only routes:
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/guard-risk-policy`
+- `GET /api/v1/admin/audit-workbench`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`

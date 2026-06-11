@@ -35,6 +35,8 @@ from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
     AdminApiActionClass,
     AdminApiAuthMode,
+    AdminAuditEvidenceSource,
+    AdminAuditWorkbenchModule,
     AdminApiCommandStatus,
     AdminApiErrorCode,
     AdminApiGateStatus,
@@ -170,6 +172,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/futures/positions" in written["paths"]
     assert "/api/v1/futures/positions/{position_key}" in written["paths"]
     assert "/api/v1/admin/guard-risk-policy" in written["paths"]
+    assert "/api/v1/admin/audit-workbench" in written["paths"]
     assert "/api/v1/spot/campaign/executions" in written["paths"]
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
@@ -270,6 +273,18 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "profitability_policy" in risk_policy_schema["properties"]
     assert "authority_sources" in risk_policy_schema["properties"]
     assert "rejection_categories" in risk_policy_schema["properties"]
+    audit_workbench_schema = written["components"]["schemas"][
+        "AdminAuditWorkbenchReadResponse"
+    ]
+    assert "module_summary" in audit_workbench_schema["properties"]
+    assert "events" in audit_workbench_schema["properties"]
+    audit_event_schema = written["components"]["schemas"][
+        "AdminAuditWorkbenchEventItem"
+    ]
+    assert "client_order_id" in audit_event_schema["properties"]
+    assert "exchange_order_id" in audit_event_schema["properties"]
+    assert "exchange_order_id_evidence_only" in audit_event_schema["properties"]
+    assert "order_id" not in audit_event_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
     assert "wallet_snapshot" in spot_readiness_schema["properties"]
@@ -2121,6 +2136,214 @@ def test_admin_api_guard_risk_policy_surfaces_capability_evaluation_errors(
 
 
 @pytest.mark.regression
+def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
+    monkeypatch,
+):
+    from api.v1.routes import admin as admin_routes
+
+    client = _client(monkeypatch)
+    captured: dict[str, object] = {}
+
+    def build_audit_workbench(**kwargs):
+        captured.update(kwargs)
+        return {
+            "type": "admin_audit_workbench",
+            "filters": kwargs,
+            "module_summary": [
+                {
+                    "module": "orders",
+                    "read_route_count": 2,
+                    "command_route_count": 2,
+                    "live_enabled": False,
+                    "primary_identity": "client_order_id",
+                    "evidence_sources": ["route_inventory", "order_parent"],
+                    "routes": ["/api/v1/orders"],
+                    "notes": "Order audit links use client_order_id.",
+                }
+            ],
+            "events": [
+                {
+                    "event_id": "audit-001",
+                    "module": "orders",
+                    "source": "admin_api_audit_log",
+                    "action_class": "live_exchange_cancel",
+                    "endpoint": "/api/v1/orders/client-abc/cancel",
+                    "status": "not_implemented",
+                    "actor_id": "operator-001",
+                    "permission": "order:cancel",
+                    "client_order_id": "client-abc",
+                    "correlation_id": "corr-001",
+                    "audit_id": "audit-001",
+                    "request_id": "corr-001",
+                    "exchange_order_id_evidence_only": True,
+                    "live_coinbase_orders_ran": False,
+                    "raw_event": {},
+                }
+            ],
+            "pagination": {
+                "limit": kwargs["limit"],
+                "offset": kwargs["offset"],
+                "returned_count": 1,
+                "total_matching_count": 1,
+                "next_offset": None,
+                "has_more": False,
+            },
+            "read_only": True,
+            "command_routes_mode": "evidence_only",
+            "live_coinbase_orders_ran": False,
+            "live_coinbase_read_ran": False,
+        }
+
+    service = SimpleNamespace(build_audit_workbench=build_audit_workbench)
+    client.app.dependency_overrides[admin_routes.get_read_service] = lambda: service
+
+    response = client.get(
+        "/api/v1/admin/audit-workbench"
+        "?module=orders&product_id=BTC-USDC&client_order_id=client-abc"
+        "&correlation_id=corr-001&audit_id=audit-001&limit=10&offset=5",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    assert captured == {
+        "module": AdminAuditWorkbenchModule.ORDERS,
+        "product_id": "BTC-USDC",
+        "client_order_id": "client-abc",
+        "correlation_id": "corr-001",
+        "audit_id": "audit-001",
+        "limit": 10,
+        "offset": 5,
+    }
+    payload = response.json()
+    assert payload["read_only"] is True
+    assert payload["command_routes_mode"] == "evidence_only"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["events"][0]["client_order_id"] == "client-abc"
+    assert "order_id" not in payload["events"][0]
+
+
+@pytest.mark.regression
+def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence(
+    monkeypatch,
+):
+    import database.order as order_module
+    from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+    from application.admin_api.read_service import AdminApiReadService
+
+    audit_path = _store_dir() / "audit.jsonl"
+    audit_store = FileAdminApiAuditStore(audit_path)
+    audit_store.append(
+        AdminApiAuditEvent(
+            actor_id="operator-001",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            permission=AdminApiPermission.ORDER_CANCEL,
+            endpoint="/api/v1/orders/client-abc/cancel",
+            request_id="corr-001",
+            idempotency_key="idem-001",
+            client_order_id="client-abc",
+            coinbase_order_id="exchange-evidence-001",
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            failure_stage="approval",
+            message="cancel live disabled",
+        )
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_AUDIT_LOG_PATH", str(audit_path))
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [
+            {
+                "client_order_id": "client-abc",
+                "product_id": "BTC-USDC",
+                "status": "OPEN",
+                "exchange_order_id": "exchange-evidence-001",
+                "correlation_id": "corr-001",
+                "audit_id": "audit-order-001",
+                "updated_at": "2026-06-11T12:00:00Z",
+            }
+        ],
+    )
+
+    response = AdminApiReadService().build_audit_workbench(
+        module=AdminAuditWorkbenchModule.ORDERS,
+        client_order_id="client-abc",
+        correlation_id="corr-001",
+        limit=10,
+        offset=0,
+    )
+
+    assert response.type == "admin_audit_workbench"
+    assert response.read_only is True
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is False
+    assert response.pagination.total_matching_count == 2
+    modules = {item.module for item in response.module_summary}
+    assert AdminAuditWorkbenchModule.ORDERS in modules
+    assert AdminAuditWorkbenchModule.FUTURES_PERPETUALS in modules
+    events_by_source = {item.source: item for item in response.events}
+    assert events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].audit_id
+    assert events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].request_id == (
+        "corr-001"
+    )
+    assert events_by_source[AdminAuditEvidenceSource.ORDER_PARENT].client_order_id == (
+        "client-abc"
+    )
+    for event in response.events:
+        assert event.exchange_order_id_evidence_only is True
+        assert event.live_coinbase_orders_ran is False
+        assert "order_id" not in event.model_dump(mode="json")
+
+
+@pytest.mark.regression
+def test_admin_api_audit_workbench_preserves_movement_client_alias_filters(
+    monkeypatch,
+):
+    from application.admin_api import read_service as read_service_module
+    from application.admin_api.read_service import AdminApiReadService
+
+    def fake_query(query, params=None):
+        if "FROM order_moves" in query:
+            return [
+                {
+                    "id": 1,
+                    "original_parent_client_order_id": "parent-old",
+                    "new_parent_client_order_id": "parent-new",
+                    "move_on_cancel": False,
+                    "created_at": "2026-06-11T11:00:00Z",
+                    "moved_at": "2026-06-11T11:01:00Z",
+                }
+            ], None
+        if "FROM stealth_order_moves" in query:
+            return [], None
+        if "FROM stealth_orders" in query:
+            return [], None
+        return [], None
+
+    monkeypatch.setattr(read_service_module, "_query_admin_rows", fake_query)
+    monkeypatch.setattr(read_service_module, "_parent_order_row", lambda client_order_id: {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+    })
+
+    response = AdminApiReadService().build_audit_workbench(
+        module=AdminAuditWorkbenchModule.MOVEMENT_REPRICING,
+        client_order_id="parent-new",
+        limit=10,
+        offset=0,
+    )
+
+    assert response.pagination.total_matching_count == 1
+    event = response.events[0]
+    assert event.module == AdminAuditWorkbenchModule.MOVEMENT_REPRICING
+    assert event.client_order_id == "parent-old"
+    assert event.raw_event["new_parent_client_order_id"] == "parent-new"
+    assert event.exchange_order_id_evidence_only is True
+    assert "order_id" not in event.model_dump(mode="json")
+
+
+@pytest.mark.regression
 def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     rows = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
     doc = ROUTE_INVENTORY_DOC.read_text(encoding="utf-8")
@@ -2164,6 +2387,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/admin/guard-risk-policy"].shared_method == (
         "build_guard_risk_policy"
     )
+    assert rows["GET /api/v1/admin/audit-workbench"].shared_method == (
+        "build_audit_workbench"
+    )
+    assert rows["GET /api/v1/admin/audit-workbench"].permission == (
+        AdminApiPermission.AUDIT_READ
+    )
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )
@@ -2199,6 +2428,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_futures_positions" in doc
     assert "build_futures_position_detail" in doc
     assert "build_guard_risk_policy" in doc
+    assert "build_audit_workbench" in doc
 
 
 @pytest.mark.regression
@@ -2230,4 +2460,6 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/futures/positions/{position_key}" in schema_http_surfaces
     assert "GET /api/v1/admin/guard-risk-policy" in inventory_http_surfaces
     assert "GET /api/v1/admin/guard-risk-policy" in schema_http_surfaces
+    assert "GET /api/v1/admin/audit-workbench" in inventory_http_surfaces
+    assert "GET /api/v1/admin/audit-workbench" in schema_http_surfaces
     assert schema_http_surfaces == inventory_http_surfaces

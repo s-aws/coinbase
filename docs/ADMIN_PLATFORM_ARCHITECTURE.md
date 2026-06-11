@@ -42,6 +42,7 @@ Domain modules keep their own contracts and risk semantics:
 - Campaigns / Sweeps
 - P/L, Ledger, And Reconciliation
 - Guard / Risk Policy
+- Audit Workbench
 - Admin / System Health
 
 Spot rules include wallet inventory, USDC scope, no shorting, cost basis,
@@ -54,6 +55,10 @@ Guard / Risk Policy is a platform evidence module over
 live-execution, product capability, profitability, authority, and rejection
 posture without becoming a second evaluator or performing Coinbase wallet
 reads.
+Audit Workbench is a platform evidence module over
+`GET /api/v1/admin/audit-workbench`; it normalizes route, command,
+correlation, audit, module, and exchange evidence without becoming a command
+replay path, audit mutation path, or Coinbase reader.
 
 ## Extension Rule
 

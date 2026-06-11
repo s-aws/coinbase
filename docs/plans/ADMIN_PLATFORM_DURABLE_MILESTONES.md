@@ -34,7 +34,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M2 - Movement And Repricing Reads | Complete | Add read-only movement/repricing evidence without command authority. |
 | M3 - Futures/Perpetuals Read Foundation | Complete | Add futures/perpetual account, position, funding, and risk read contracts. |
 | M4 - Guard And Risk Policy Evidence | Complete | Expose backend guard/risk decisions as read-only evidence across modules. |
-| M5 - Cross-Module Audit Workbench | Next | Unify operator audit, reconciliation, and correlation evidence across modules. |
+| M5 - Cross-Module Audit Workbench | Complete | Unify operator audit, reconciliation, and correlation evidence across modules. |
 | M6 - Non-Spot Command Draft Contracts | Pending | Add disabled drafts/dry-submit contracts only after read contracts are stable. |
 | M7 - Production Auth And Operations Hardening | Pending | Finish enterprise auth, deployment, observability, and operator runbooks. |
 | M8 - Controlled Live Enablement | Pending | Enable live execution only per approved backend path, cap, and reconciliation gate. |
@@ -269,6 +269,36 @@ Frontend scope:
 
 Done when audit evidence can trace a command or read model across modules
 without inventing a second command path.
+
+Completed evidence:
+
+- Backend `GET /api/v1/admin/audit-workbench` is implemented as a read-only
+  `audit:read` route delegated to `AdminApiReadService`.
+- Response models normalize route inventory, command audit events, order,
+  stealth, movement/repricing, futures/perpetuals, guard/risk, and campaign
+  route/command-audit evidence into one workbench.
+- Identity remains module-specific: order evidence uses `client_order_id`,
+  stealth evidence uses `stealth_order_id`, futures/perpetual evidence uses
+  `position_key`, and exchange ids are normalized as evidence only.
+- Backend filtering is alias-aware for movement/repricing evidence, including
+  parent and placement client id aliases.
+- OpenAPI, route inventory, capability matrix, feature README, examples,
+  agent contract, expanded local API/architecture docs, ownership metadata,
+  and regression tests are updated.
+- Frontend generated schema, canonical `getAdminAuditWorkbench` wrapper, BFF
+  allowlist, mock/runtime fixtures, read-only UI, route coverage, release
+  artifacts, docs, and examples consume the backend contract.
+- Frontend mock audit workbench reads now apply backend-like filters and
+  pagination instead of only echoing query parameters.
+- Initial blind/contextless review found two blockers: movement/repricing
+  client alias filtering and frontend mock filtering/pagination. Both were
+  remediated, and follow-up blind review found no blockers.
+- Backend focused Admin API contract tests passed with `51 passed, 1 warning`;
+  backend full regression passed with `786 passed, 1 warning`.
+- Frontend focused audit workbench/client/runtime/mock/BFF/AdminShell checks
+  passed with `75 passed`; frontend `npm run release:gate` passed with `161`
+  unit tests and `3` Playwright tests.
+- Live Coinbase execution was not run for M5; notional `$0`.
 
 ## M6 - Non-Spot Command Draft Contracts
 

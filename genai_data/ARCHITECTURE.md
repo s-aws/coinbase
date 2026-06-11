@@ -195,8 +195,8 @@ until approval and cap gates are complete.
 Current modules:
 - `api/v1/app.py`: FastAPI app factory.
 - `api/v1/routes/admin.py`: read-only backend association, health,
-  session/RBAC, capability, guard/risk policy, gate, and frontend-fixture
-  routes.
+  session/RBAC, capability, guard/risk policy, audit workbench, gate, and
+  frontend-fixture routes.
 - `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`,
   `GET /api/v1/orders`, `GET /api/v1/orders/{client_order_id}`,
   `POST /api/v1/orders/{client_order_id}/cancel`, and
@@ -250,6 +250,10 @@ Current behavior:
   policy, profitability-validator posture, authority sources, and rejection
   categories as evidence only. They do not fetch Coinbase wallets and do not
   approve browser live execution.
+- Audit workbench reads expose route inventory, command audit events,
+  correlation ids, request ids, audit ids, module summaries, and exchange
+  evidence as a read-only cross-module workbench. They do not mutate audit
+  history, fetch Coinbase, replay commands, or approve browser live execution.
 - Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
   fill-ledger health, and frontend fixture routes are read-only backend
   association surfaces for `C:\coinbase-frontend`.

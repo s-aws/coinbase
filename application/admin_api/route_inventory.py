@@ -145,6 +145,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="read-only guard/risk policy evidence; no browser authority or Coinbase read",
     ),
     AdminApiRouteInventoryItem(
+        surface="GET /api/v1/admin/audit-workbench",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_audit_workbench",
+        parity_test="cross-module audit evidence only; no Coinbase read or mutation",
+    ),
+    AdminApiRouteInventoryItem(
         surface="place_order WebSocket",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission="compatibility policy",

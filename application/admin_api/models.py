@@ -15,6 +15,8 @@ from core.enums import (
     AdminApiCommandStatus,
     AdminApiErrorCode,
     AdminApiErrorSeverity,
+    AdminAuditEvidenceSource,
+    AdminAuditWorkbenchModule,
     AdminApiAuthMode,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
@@ -679,6 +681,66 @@ class AdminRiskPolicyReadResponse(BaseModel):
     rejection_categories: list[AdminRiskRejectionCategoryItem] = Field(default_factory=list)
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+
+
+class AdminAuditModuleSummaryItem(BaseModel):
+    """Cross-module audit workbench summary for one admin module."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    module: AdminAuditWorkbenchModule
+    read_route_count: int = 0
+    command_route_count: int = 0
+    live_enabled: bool = False
+    primary_identity: str
+    evidence_sources: list[AdminAuditEvidenceSource] = Field(default_factory=list)
+    routes: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+
+class AdminAuditWorkbenchEventItem(BaseModel):
+    """One normalized cross-module audit/correlation evidence row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str
+    module: AdminAuditWorkbenchModule
+    source: AdminAuditEvidenceSource
+    action_class: AdminApiActionClass | None = None
+    endpoint: str | None = None
+    status: str | None = None
+    actor_id: str | None = None
+    permission: AdminApiPermission | str | None = None
+    client_order_id: str | None = None
+    stealth_order_id: str | None = None
+    position_key: str | None = None
+    product_id: str | None = None
+    correlation_id: str | None = None
+    audit_id: str | None = None
+    request_id: str | None = None
+    idempotency_key: str | None = None
+    exchange_order_id: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    recorded_at: str | None = None
+    message: str | None = None
+    live_coinbase_orders_ran: bool = False
+    raw_event: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminAuditWorkbenchReadResponse(BaseModel):
+    """Read-only cross-module audit and correlation workbench."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_audit_workbench"
+    filters: dict[str, Any] = Field(default_factory=dict)
+    module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
+    events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)
+    pagination: AdminOrderPagination
+    read_only: bool = True
+    command_routes_mode: str = "evidence_only"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
 

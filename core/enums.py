@@ -295,6 +295,33 @@ class AdminRiskEvidenceSource(str, Enum):
     RUNTIME_UNAVAILABLE = "runtime_unavailable"
 
 
+class AdminAuditWorkbenchModule(str, Enum):
+    """Admin audit workbench module buckets."""
+
+    ADMIN = "admin"
+    SPOT = "spot"
+    ORDERS = "orders"
+    STEALTH = "stealth"
+    MOVEMENT_REPRICING = "movement_repricing"
+    FUTURES_PERPETUALS = "futures_perpetuals"
+    GUARD_RISK = "guard_risk"
+    CAMPAIGNS = "campaigns"
+
+
+class AdminAuditEvidenceSource(str, Enum):
+    """Source labels for cross-module audit workbench evidence."""
+
+    ROUTE_INVENTORY = "route_inventory"
+    ADMIN_API_AUDIT_LOG = "admin_api_audit_log"
+    ORDER_PARENT = "order_parent"
+    STEALTH_ORDERS = "stealth_orders"
+    MOVEMENT_REPRICING = "movement_repricing"
+    FUTURES_POSITIONS = "futures_positions"
+    GUARD_RISK_POLICY = "guard_risk_policy"
+    BACKEND_CONTRACT = "backend_contract"
+    RUNTIME_UNAVAILABLE = "runtime_unavailable"
+
+
 class AdminFuturesPositionSide(str, Enum):
     """Derived futures/perpetual position direction."""
 

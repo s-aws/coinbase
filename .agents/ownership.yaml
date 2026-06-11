@@ -53,6 +53,7 @@ owners:
       - README.md
       - README.action-condition-guards.md
       - README.admin-api.md
+      - README.audit-workbench.md
       - README.futures-perpetuals.md
       - README.guard-risk-policy.md
       - README.movement-repricing.md

@@ -14,8 +14,8 @@ fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
 structured error payloads, observability headers, read-only admin diagnostics,
 order read routes, read-only stealth lifecycle routes, read-only
 movement/repricing evidence routes, read-only futures/perpetual account and
-position routes, read-only guard/risk policy evidence, and read-only spot
-operator routes.
+position routes, read-only guard/risk policy evidence, read-only cross-module
+audit workbench evidence, and read-only spot operator routes.
 Mutating HTTP routes still return `not_implemented` after
 auth, permission, idempotency, and audit handling; they do not submit orders,
 cancel orders, or call Coinbase.
@@ -45,6 +45,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/guard-risk-policy`
+- `GET /api/v1/admin/audit-workbench`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
@@ -157,6 +158,10 @@ The platform/module split is documented in
   profitability-validator posture, authority sources, and rejection categories
   as evidence only. They do not fetch Coinbase wallets and do not approve live
   execution.
+- Audit workbench reads normalize route inventory, command audit, order,
+  stealth, movement/repricing, futures/perpetual, guard/risk, and campaign
+  evidence into one read-only surface. They do not mutate audit history, read
+  Coinbase, or create a second command path.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap
@@ -255,6 +260,7 @@ and rotation policy without disclosing a token value.
 - [Movement And Repricing Reads](README.movement-repricing.md)
 - [Futures/Perpetuals Admin Reads](README.futures-perpetuals.md)
 - [Guard/Risk Policy Admin Reads](README.guard-risk-policy.md)
+- [Audit Workbench Admin Reads](README.audit-workbench.md)
 - [Frontend Association](docs/FRONTEND_ASSOCIATION.md)
 - [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md)
 - [API Reference](genai_data/API_REFERENCE.md)

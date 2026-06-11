@@ -801,3 +801,65 @@ Status:
   Playwright tests.
 - Blind/contextless backend and frontend reviews found no blockers.
 - Live Coinbase execution was not run for M3; notional `$0`.
+
+## M5 Cross-Module Audit Workbench Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify the audit workbench has a canonical backend route and frontend
+  wrapper
+- verify the route is read-only/evidence-only and does not read or mutate
+  Coinbase state
+- verify `client_order_id`, `stealth_order_id`, and `position_key` identity
+  boundaries remain clear and exchange ids are evidence only
+- verify backend route inventory, OpenAPI, models, route, read service,
+  frontend generated contract, client wrapper, BFF allowlist, mock/runtime,
+  UI, docs, and tests are aligned
+- identify stale wording likely to cause a contextless agent to invent a
+  parallel command path, copy spot-only logic, or track by exchange `order_id`
+
+Findings:
+
+- Initial blind review found two blockers.
+- Backend audit filtering could drop movement/repricing evidence when the
+  requested `client_order_id` matched `new_parent_client_order_id`,
+  `old_placement_client_order_id`, `new_placement_client_order_id`, or
+  `active_placement_client_order_id` instead of the normalized display
+  `client_order_id`.
+- Frontend mock audit workbench reads echoed query filters but did not filter
+  or paginate events, which could mask backend behavior in local tests.
+- The reviewer also flagged ambiguous campaign wording: campaign workbench
+  evidence currently means route summaries and command-audit rows, not a
+  separate campaign-status aggregation.
+- The reviewer found no doc drift toward a parallel command path, spot-only
+  generic logic, or exchange-id tracking beyond those blockers.
+
+Resolution:
+
+- Backend audit workbench filtering now checks movement/repricing client id
+  aliases from raw evidence while preserving the normalized public event
+  identity.
+- Added backend regression coverage for movement/repricing alias filtering.
+- Frontend mock audit workbench reads now apply module/product/client/
+  correlation/audit filters and pagination before returning fixture events.
+- Added frontend tests proving filtered results and offset pagination.
+- Clarified backend and frontend docs that campaign workbench evidence is
+  route/command-audit scope; campaign-status aggregation remains in the spot
+  campaign read route.
+- Follow-up blind review found no blockers.
+
+Status:
+
+- Backend focused Admin API contract tests passed with `51 passed, 1 warning`.
+- Backend full regression passed with `786 passed, 1 warning`.
+- Frontend focused audit workbench/client/runtime/mock/BFF/AdminShell checks
+  passed with `75 passed`.
+- Frontend `npm run release:gate` passed with `161` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for M5; notional `$0`.

@@ -449,6 +449,126 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/audit-workbench:
+    get:
+      tags:
+      - admin
+      summary: Read cross-module audit and correlation evidence
+      description: Read normalized audit evidence without Coinbase reads or mutations.
+      operationId: admin_audit_workbench_api_v1_admin_audit_workbench_get
+      parameters:
+      - name: module
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminAuditWorkbenchModule'
+          - type: 'null'
+          title: Module
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: client_order_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+      - name: correlation_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+      - name: audit_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAuditWorkbenchReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/release-gate:
     get:
       tags:
@@ -2421,8 +2541,7 @@ components:
           title: Audit Command
         guard:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Guard
         data:
@@ -2616,6 +2735,225 @@ components:
       - blocked
       title: AdminApiVerifierReadinessStatus
       description: Implementation readiness for Admin API authentication verifiers.
+    AdminAuditEvidenceSource:
+      type: string
+      enum:
+      - route_inventory
+      - admin_api_audit_log
+      - order_parent
+      - stealth_orders
+      - movement_repricing
+      - futures_positions
+      - guard_risk_policy
+      - backend_contract
+      - runtime_unavailable
+      title: AdminAuditEvidenceSource
+      description: Source labels for cross-module audit workbench evidence.
+    AdminAuditModuleSummaryItem:
+      properties:
+        module:
+          $ref: '#/components/schemas/AdminAuditWorkbenchModule'
+        read_route_count:
+          type: integer
+          title: Read Route Count
+          default: 0
+        command_route_count:
+          type: integer
+          title: Command Route Count
+          default: 0
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        primary_identity:
+          type: string
+          title: Primary Identity
+        evidence_sources:
+          items:
+            $ref: '#/components/schemas/AdminAuditEvidenceSource'
+          type: array
+          title: Evidence Sources
+        routes:
+          items:
+            type: string
+          type: array
+          title: Routes
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - module
+      - primary_identity
+      title: AdminAuditModuleSummaryItem
+      description: Cross-module audit workbench summary for one admin module.
+    AdminAuditWorkbenchEventItem:
+      properties:
+        event_id:
+          type: string
+          title: Event Id
+        module:
+          $ref: '#/components/schemas/AdminAuditWorkbenchModule'
+        source:
+          $ref: '#/components/schemas/AdminAuditEvidenceSource'
+        action_class:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiActionClass'
+          - type: 'null'
+        endpoint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Endpoint
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Id
+        permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          - type: 'null'
+          title: Permission
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        stealth_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Order Id
+        position_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position Key
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        request_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Request Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange Order Id
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recorded At
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        raw_event:
+          type: object
+          title: Raw Event
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - module
+      - source
+      title: AdminAuditWorkbenchEventItem
+      description: One normalized cross-module audit/correlation evidence row.
+    AdminAuditWorkbenchModule:
+      type: string
+      enum:
+      - admin
+      - spot
+      - orders
+      - stealth
+      - movement_repricing
+      - futures_perpetuals
+      - guard_risk
+      - campaigns
+      title: AdminAuditWorkbenchModule
+      description: Admin audit workbench module buckets.
+    AdminAuditWorkbenchReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_audit_workbench
+        filters:
+          type: object
+          title: Filters
+        module_summary:
+          items:
+            $ref: '#/components/schemas/AdminAuditModuleSummaryItem'
+          type: array
+          title: Module Summary
+        events:
+          items:
+            $ref: '#/components/schemas/AdminAuditWorkbenchEventItem'
+          type: array
+          title: Events
+        pagination:
+          $ref: '#/components/schemas/AdminOrderPagination'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: evidence_only
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - pagination
+      title: AdminAuditWorkbenchReadResponse
+      description: Read-only cross-module audit and correlation workbench.
     AdminBootstrapResponse:
       properties:
         type:
@@ -2793,7 +3131,6 @@ components:
           type: string
           title: Schema Version
         fixtures:
-          additionalProperties: true
           type: object
           title: Fixtures
         live_coinbase_orders_ran:
@@ -2952,7 +3289,6 @@ components:
           title: Type
           default: admin_futures_positions
         filters:
-          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -3036,8 +3372,7 @@ components:
           title: Margin Type
         margin_amount:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Margin Amount
         leverage:
@@ -3068,14 +3403,12 @@ components:
           - type: 'null'
         position_pnl:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Position Pnl
         product_metadata:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Product Metadata
         mandatory_fee_per_contract:
@@ -3084,7 +3417,6 @@ components:
           - type: 'null'
           title: Mandatory Fee Per Contract
         raw_position:
-          additionalProperties: true
           type: object
           title: Raw Position
         source:
@@ -3367,14 +3699,12 @@ components:
           title: Mutation Claims
         anchor_repricing_policy:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Anchor Repricing Policy
         anchor_repricing_state:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Anchor Repricing State
         reprice_history:
@@ -3458,7 +3788,6 @@ components:
           title: Type
           default: admin_movement_repricing_evidence
         filters:
-          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -3618,7 +3947,6 @@ components:
           title: Type
           default: admin_order_list
         filters:
-          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -3885,7 +4213,6 @@ components:
           title: Type
           default: admin_guard_risk_policy
         filters:
-          additionalProperties: true
           type: object
           title: Filters
         action_condition_policy:
@@ -3995,7 +4322,6 @@ components:
           - type: 'null'
           title: Max Base Size
         raw_rule:
-          additionalProperties: true
           type: object
           title: Raw Rule
       additionalProperties: false
@@ -4106,7 +4432,6 @@ components:
           title: Type
           default: admin_stealth_order_list
         filters:
-          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -4210,19 +4535,16 @@ components:
           title: Reveal Condition Type
         reveal_condition:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Reveal Condition
         sizing_strategy:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Sizing Strategy
         revealed_orders:
           items:
-            additionalProperties: true
             type: object
           type: array
           title: Revealed Orders
@@ -4257,32 +4579,27 @@ components:
           title: Failure Reason
         cancel_reentry_policy:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Cancel Reentry Policy
         cancel_reentry_state:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Cancel Reentry State
         post_fill_retreat_policy:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Post Fill Retreat Policy
         anchor_repricing_policy:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Anchor Repricing Policy
         anchor_repricing_state:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Anchor Repricing State
         created_at:

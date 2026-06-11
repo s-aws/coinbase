@@ -37,6 +37,7 @@ Current route adapters:
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/guard-risk-policy`
+- `GET /api/v1/admin/audit-workbench`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
@@ -85,6 +86,11 @@ Current behavior:
   posture, product capability policy, profitability-validator posture,
   authority sources, and rejection categories. It does not fetch Coinbase
   wallets, approve live execution, or move guard calculations into the browser
+- `GET /api/v1/admin/audit-workbench` exposes backend-owned cross-module
+  audit evidence: route inventory, command audit events, correlation ids,
+  request ids, audit ids, module summaries, and exchange evidence. It does not
+  mutate audit history, fetch Coinbase, approve live execution, or create a
+  second command path
 - admin bootstrap, health, session, OIDC readiness, capabilities, CSRF,
   release gate, recovery gate, fill-ledger health, and frontend fixture routes
   are read-only and auth/RBAC-gated
