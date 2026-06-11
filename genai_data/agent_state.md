@@ -186,12 +186,14 @@ Keep it short. Keep it factual.
   `python tools\generate_admin_api_openapi.py; pytest tests\regression\test_admin_api_contract.py tests\regression\test_dashboard_action_condition_guard.py tests\regression\test_list_fills_param_mapping.py -v --tb=short`
 - Result: Passed, 44 tests.
 - Last frontend quality run: 2026-06-10 `npm run quality`
-- Result: Passed; generated API schema fresh, unit tests passed, browser e2e passed.
+- Result: Passed; typecheck, lint, generated API schema freshness,
+  command-fetch guard, 103 unit tests, and 3 Playwright tests.
 - Last contextless Admin API/frontend review: 2026-06-10
-- Result: Passed after fixing OpenAPI response metadata and Coinbase cancel
-  success parsing.
+- Result: Passed after legacy WebSocket docs were clarified for enterprise
+  frontend work and HTTP cancel approval inventory wording was aligned with
+  the current fail-closed gate.
 - Last regression run: 2026-06-10 `pytest tests\regression\ -v --tb=short`
-- Result: Passed, 745 tests.
+- Result: Passed, 758 tests.
 - Spot readiness regression: passed, 223 tests.
 - Spot release gate: passed; no live Coinbase orders run, submitted/executed
   notional `0` USDC.
@@ -252,8 +254,10 @@ Keep it short. Keep it factual.
 - Admin API/frontend status: backend Admin API mutating routes are
   auth/RBAC-gated, idempotent, audited, and still HTTP-live-disabled with
   OpenAPI documenting `501` rather than `200`; read-only spot operator routes
-  are auth/RBAC-gated and document `401`/`403`; dashboard
-  `place_order`/`cancel_order` delegates to the shared command service; the
+  are auth/RBAC-gated and document `401`/`403`; auth mode evidence and
+  read-only CSRF contract evidence are exposed for BFF/session deployments;
+  dashboard `place_order`/`cancel_order` delegates to the shared command
+  service but remains legacy compatibility for frontend product flows; the
   Coinbase single-order cancel wrapper remains `client_order_id` keyed and
   rejects non-explicit-success cancel payloads; frontend generated schema and
   read-only spot operator views are current. No live Coinbase execution was run.

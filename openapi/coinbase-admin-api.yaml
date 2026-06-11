@@ -2444,8 +2444,7 @@ components:
           type: array
           title: Products
         planned_budget:
-          type: object
-          title: Planned Budget
+          $ref: '#/components/schemas/AdminApiFlexibleObject'
         wallet_snapshot:
           anyOf:
           - $ref: '#/components/schemas/AdminApiFlexibleObject'

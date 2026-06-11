@@ -381,7 +381,7 @@ class SpotReadinessResponse(AdminApiReadPayload):
     """Spot readiness response."""
 
     products: list[AdminApiFlexibleObject | str] = Field(default_factory=list)
-    planned_budget: dict[str, Any] = Field(default_factory=dict)
+    planned_budget: AdminApiFlexibleObject = Field(default_factory=AdminApiFlexibleObject)
     wallet_snapshot: AdminApiFlexibleObject | None = None
     action_guard_summary: list[AdminApiFlexibleObject] = Field(default_factory=list)
     message: str | None = None

@@ -121,6 +121,10 @@ $env:ACTION_CONDITION_GUARDS_JSON = '{"known_inventory_available":{"enabled":tru
 Raw dashboard `place_order` messages also run the planning-phase action guard
 after size validation and before REST placement:
 
+Do not use this WebSocket surface for new enterprise frontend product flows.
+The enterprise frontend must use the HTTP Admin API contract and BFF/session
+boundary; raw dashboard messages remain compatibility/manual operator tools.
+
 ```json
 {
   "type": "place_order",

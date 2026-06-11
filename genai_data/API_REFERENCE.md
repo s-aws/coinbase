@@ -221,6 +221,11 @@ Parent order views and CRUD:
 `order_parent` row and does not submit a Coinbase order. Live dashboard
 submission uses `place_order`.
 
+Compatibility warning: the enterprise admin frontend must not build product
+workflows on this dashboard WebSocket surface. New frontend work uses the HTTP
+Admin API contract and BFF/session boundary described above. The dashboard
+messages below remain legacy/operator compatibility surfaces.
+
 `place_order` submits a live Coinbase order when REST is available and the
 product capability, size validator, manual spot live acknowledgement, and
 action-condition guard admit the request. For spot products,

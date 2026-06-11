@@ -1616,3 +1616,201 @@ Exit criteria:
   command-fetch guard, `99` unit tests, and `3` Playwright tests. Smoke
   dry-runs passed and reported `$0` live notional.
 - Live Coinbase execution: not run; test notional `$0`.
+
+## Approved Runtime Hardening Batch - Phases 371-390
+
+These phases are approved as the next aligned completion batch. They do not
+authorize live Coinbase execution. Backend HTTP command routes remain
+live-disabled unless separately approved with a named phase and notional cap.
+
+### Phase 371 - Real Production Session Model For BFF
+
+- Make the current BFF session model explicit as server-side authority while
+  preserving backend RBAC as enforcement.
+
+Exit criteria:
+
+- Docs/tests distinguish BFF session transport from trading authority.
+
+### Phase 372 - Backend OIDC/JWT Verifier Adapter Contract
+
+- Model bootstrap bearer and future OIDC/JWT auth modes.
+- Keep OIDC/JWT fail-closed until a real verifier is implemented.
+
+Exit criteria:
+
+- Regression proves OIDC/JWT mode does not accept requests without a verifier.
+
+### Phase 373 - CSRF Token Issuance/Rotation Design
+
+- Expose a read-only CSRF contract route without disclosing token values.
+
+Exit criteria:
+
+- Frontend can discover CSRF posture, header name, token source, and rotation
+  policy without browser-visible secrets.
+
+### Phase 374 - Runtime Refresh/Retry Button Implementation
+
+- Support frontend refresh through the canonical runtime snapshot loader.
+
+Exit criteria:
+
+- Refresh uses the same typed Admin API wrappers and does not create a
+  feature-local fetch path.
+
+### Phase 375 - Shared Query/Cache/Loading Pattern
+
+- Use a shared query/cache pattern for runtime reads.
+
+Exit criteria:
+
+- Runtime loading, error, refresh, and ready states are tested.
+
+### Phase 376 - Capability-Driven UI Permission State Across All Routes
+
+- Keep backend capability registry coverage current for new read routes.
+
+Exit criteria:
+
+- Capability registry includes the CSRF contract route and frontend mocks
+  mirror it.
+
+### Phase 377 - Command Dry-Submit Result Rendering
+
+- Render actual backend dry-submit responses when available.
+
+Exit criteria:
+
+- UI displays HTTP status, command status, idempotency, `client_order_id`,
+  audit id, correlation id, and live-disabled evidence.
+
+### Phase 378 - BFF Route Handler Integration Tests
+
+- Test the Next BFF route handler against server-only backend authority.
+
+Exit criteria:
+
+- Tests prove browser-supplied auth is overwritten and CSRF is server-supplied.
+
+### Phase 379 - Local Integrated Smoke Orchestration Script
+
+- Add a BFF smoke script with dry-run support.
+
+Exit criteria:
+
+- Smoke reports no live Coinbase execution and notional `$0`.
+
+### Phase 380 - CI-Equivalent Cross-Repo BFF Smoke Gate
+
+- Document and script the BFF smoke command for local/CI-equivalent use.
+
+Exit criteria:
+
+- Operators can run BFF smoke against a local frontend/backend pair.
+
+### Phase 381 - Typed Backend Spot Read Schemas
+
+- Tighten spot read-only OpenAPI schemas while preserving dashboard-owned
+  extra payload fields.
+
+Exit criteria:
+
+- OpenAPI exposes known spot read fields and regression validates payloads.
+
+### Phase 382 - Backend Order Pagination Metadata
+
+- Add `limit`, `offset`, returned count, total matching count, next offset,
+  and has-more metadata to order list reads.
+
+Exit criteria:
+
+- Regression covers route/service pagination metadata.
+
+### Phase 383 - Frontend Order Pagination Controls
+
+- Render backend pagination evidence in the order read model.
+
+Exit criteria:
+
+- UI displays pagination without introducing a new frontend fetch path.
+
+### Phase 384 - Audit Evidence Panel Deep-Link Polish
+
+- Preserve `client_order_id` audit anchors and evidence rows.
+
+Exit criteria:
+
+- Tests keep audit links keyed by `client_order_id`.
+
+### Phase 385 - Command Response Audit/Guard Detail Expansion
+
+- Keep command evidence rows aligned with backend command response fields.
+
+Exit criteria:
+
+- Submitted dry-submit evidence renders audit and guard-related fields when
+  returned by the backend.
+
+### Phase 386 - Production Config Matrix Hardening
+
+- Update BFF/server env documentation and examples.
+
+Exit criteria:
+
+- Contextless deployers can configure direct backend, mock, and BFF modes
+  without browser-exposed secrets.
+
+### Phase 387 - Accessibility Pass For New Query/Filter States
+
+- Verify refresh, pagination, and command evidence states remain accessible.
+
+Exit criteria:
+
+- Frontend quality and browser smoke pass.
+
+### Phase 388 - Contextless Blind-Agent Review
+
+- Run a fresh blind review for spot order creation through the frontend/BFF
+  without inventing a trading path.
+
+Exit criteria:
+
+- Findings are fixed or explicitly deferred before commit.
+
+### Phase 389 - Full Backend/Frontend Gates
+
+- Run full backend regression and frontend quality.
+
+Exit criteria:
+
+- Gates pass and live Coinbase execution is reported as not run with `$0`
+  notional.
+
+### Phase 390 - Commit Both Repos
+
+- Commit the completed batch in backend and frontend.
+
+Exit criteria:
+
+- Both repositories are committed with clean working trees.
+
+### Progress Update - 2026-06-10, Phases 371-390
+
+- Phases 371-373 advanced from the backend contract side: auth mode evidence is
+  exposed through bootstrap/session, `oidc_jwt` remains fail-closed until a
+  verifier exists, and `/api/v1/admin/csrf` exposes CSRF posture without
+  returning token values.
+- Phases 376, 381, and 382 advanced: capability inventory includes the CSRF
+  contract route, spot read schemas expose known payload fields while
+  preserving dashboard-owned extras, and order list reads return backend
+  pagination metadata.
+- Phase 388 completed: a contextless blind review passed and remediation
+  clarified that enterprise frontend product flows must use the HTTP Admin
+  API/BFF contract, not legacy dashboard WebSocket messages. HTTP cancel
+  inventory wording now matches the current live-disabled approval gate.
+- Verification: focused Admin API regression passed with 24 tests. Full
+  backend regression passed with `758 passed`. Frontend quality passed with
+  typecheck, lint, API freshness, command-fetch guard, `103` unit tests, and
+  `3` Playwright tests. Smoke dry-runs passed.
+- Live Coinbase execution: not run; test notional `$0`.
