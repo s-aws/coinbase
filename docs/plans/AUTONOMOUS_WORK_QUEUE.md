@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **621-640**.
+- Approved phase range: **641-660**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,105 +46,105 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Approved Phases 621-640
+## Approved Phases 641-660
 
-### Phase 621 - Advance Active Queue Range
+### Phase 641 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 601-620 to active
-  phases 621-640 while preserving the same live cap and stop-condition policy.
+- Move the durable autonomous queue from completed phases 621-640 to active
+  phases 641-660 while preserving the same live cap and stop-condition policy.
 
-### Phase 622 - Read Model Interaction Contract
+### Phase 642 - M6 Command Draft Inventory Closure
 
-- Define the no-live interaction contract for order, campaign, audit,
-  settings, and diagnostics read models.
+- Update M6 milestone evidence so stealth cancel and movement reprice drafts
+  are both documented as live-disabled command contracts.
 
-### Phase 623 - Orders Filter State Model
+### Phase 643 - Command Draft Capability Matrix Sync
 
-- Add typed order read-model filter/sort state without adding frontend trading
-  calculations.
+- Sync the command-capability matrix across manual order, cancel, stealth
+  cancel, movement reprice, and campaign execution drafts.
 
-### Phase 624 - Orders Detail Selection UX
+### Phase 644 - Command Workflow Evidence Matrix
 
-- Let operators select fixture/backend order rows and inspect detail evidence
-  keyed by `client_order_id`.
+- Add or refine frontend/backend evidence that shows each command draft's
+  route, identity key, live-disabled posture, and audit/idempotency contract.
 
-### Phase 625 - Client Order Id Deep Link
+### Phase 645 - Dry Submit Consistency
 
-- Add a durable `client_order_id` search/deep-link path for the orders section
-  without introducing exchange `order_id` identity.
+- Ensure frontend dry-submit and backend command responses surface live
+  evidence, correlation/audit ids, and fail-closed status consistently.
 
-### Phase 626 - Campaign Read Model Tabs
+### Phase 646 - BFF Command Boundary Hardening
 
-- Organize campaign status, sweep, P/L, recovery, and disabled execution
-  evidence into accessible read-only views.
+- Validate that command routes cannot be broadened accidentally through BFF
+  or undocumented backend paths.
 
-### Phase 627 - Campaign Evidence Filters
+### Phase 647 - Command Fetch Guard Hardening
 
-- Add local filter/search affordances for campaign evidence while keeping
-  backend data authoritative.
+- Strengthen static command-fetch guard expectations around canonical
+  frontend/backend command wrappers.
 
-### Phase 628 - Spot Operations Density
+### Phase 648 - Operator Intent Audit Evidence
 
-- Improve spot operations KPI density and scanability without changing backend
-  contracts.
+- Verify command drafts and docs preserve operator intent, idempotency, and
+  audit evidence without using exchange ids as application identity.
 
-### Phase 629 - Empty Loading Error States
+### Phase 649 - M6 Contextless Command Review
 
-- Standardize empty, loading, auth-blocked, and backend-error states across
-  read models.
+- Run a blind/contextless review focused on command draft discoverability,
+  backend authority, BFF boundaries, and no-live posture.
 
-### Phase 630 - Audit Evidence Cross Links
+### Phase 650 - M6 Review Remediation
 
-- Cross-link read-model rows to audit evidence by `client_order_id`,
-  correlation id, and audit id where backend evidence exists.
+- Fix any blocker or unclear command-draft path found by the M6 review before
+  advancing into production-auth work.
 
-### Phase 631 - Settings Diagnostics Drilldown
+### Phase 651 - M7 Auth Boundary Inventory
 
-- Add diagnostics drilldown rows for runtime mode, API routes, BFF mode,
-  OIDC readiness, and release evidence.
+- Inventory frontend, BFF, and backend auth boundaries for production OIDC,
+  CSRF, CORS, session, role, and server-only secret handling.
 
-### Phase 632 - Responsive Tables And Overflow
+### Phase 652 - Server Secret Exposure Tests
 
-- Make order/campaign/audit tables usable on desktop and mobile without
-  horizontal page overflow.
+- Add or refine tests that prove Admin API bearer tokens, actor headers,
+  roles, and CSRF authority stay server-side in BFF mode.
 
-### Phase 633 - Accessibility Keyboard Coverage
+### Phase 653 - OIDC Readiness Operator UX
 
-- Add/update keyboard, focus, region, and form-label coverage for read-model
-  interactions.
+- Improve operator-facing OIDC/JWT readiness evidence without simulating
+  browser-trusted production auth.
 
-### Phase 634 - Documentation Sync
+### Phase 654 - CSRF And CORS Deployment Evidence
 
-- Update admin frontend, read-model, testing, runbook, and examples docs for
-  the interaction batch.
+- Strengthen deployment docs/artifacts for CSRF and CORS posture while keeping
+  unsafe methods fail-closed.
 
-### Phase 635 - Contextless Read Model Review
+### Phase 655 - Release Artifact Operations Evidence
 
-- Run a blind/contextless review asking whether a maintainer can understand
-  order/campaign/audit read-model interactions without frontend trading
-  behavior.
+- Expand release/deployment/runtime artifacts with auth, observability,
+  command, and no-live evidence needed by enterprise operators.
 
-### Phase 636 - Contextless Remediation
+### Phase 656 - Observability Correlation UX
 
-- Fix unclear read-model interactions, docs, tests, or no-live evidence found
-  by the review.
+- Improve request/correlation/audit evidence in diagnostics and command
+  outputs without adding frontend data authority.
 
-### Phase 637 - Frontend Focused Verification
+### Phase 657 - Human Operator Runbook Auth Path
 
-- Run focused read-model, admin-shell, accessibility, docs/sentinel, and
-  Playwright checks.
+- Update human operator runbooks for production auth/deployment setup,
+  failure modes, and no-live verification.
 
-### Phase 638 - Frontend Release Gate
+### Phase 658 - Focused Verification
 
-- Run full `npm run release:gate`.
+- Run focused frontend/backend checks for command drafts, BFF/auth
+  boundaries, diagnostics, docs, and Playwright production-start smoke.
 
-### Phase 639 - Backend Queue, Regression, And No-Live Evidence
+### Phase 659 - Backend Queue, Regression, And No-Live Evidence
 
 - Run backend autonomous queue validation and full backend regression after
   backend queue/doc/checker changes, then confirm release and regression
   evidence ran no live Coinbase execution with notional `$0`.
 
-### Phase 640 - Commit And Final Batch Summary
+### Phase 660 - Commit And Final Batch Summary
 
 - Commit completed backend and frontend work separately, then summarize
   implementation, verification, live posture, commits, and next approved phase

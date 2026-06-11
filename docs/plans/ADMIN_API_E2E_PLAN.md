@@ -3853,6 +3853,110 @@ Progress update:
   production-build route type rewrite. No live Coinbase execution ran;
   notional `$0`.
 
+## Approved Command/Auth Hardening Batch - Phases 641-660
+
+### Phase 641 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 621-640 to active
+  phases 641-660 while preserving live cap and stop-condition policy.
+
+### Phase 642 - M6 Command Draft Inventory Closure
+
+- Update M6 milestone evidence so stealth cancel and movement reprice drafts
+  are both documented as live-disabled command contracts.
+
+### Phase 643 - Command Draft Capability Matrix Sync
+
+- Sync command capability evidence across manual order, cancel, stealth
+  cancel, movement reprice, and campaign execution drafts.
+
+### Phase 644 - Command Workflow Evidence Matrix
+
+- Add or refine frontend/backend evidence that shows each command draft's
+  route, identity key, live-disabled posture, and audit/idempotency contract.
+
+### Phase 645 - Dry Submit Consistency
+
+- Ensure frontend dry-submit and backend command responses surface live
+  evidence, correlation/audit ids, and fail-closed status consistently.
+
+### Phase 646 - BFF Command Boundary Hardening
+
+- Validate that command routes cannot be broadened accidentally through BFF
+  or undocumented backend paths.
+
+### Phase 647 - Command Fetch Guard Hardening
+
+- Strengthen static command-fetch guard expectations around canonical
+  frontend/backend command wrappers.
+
+### Phase 648 - Operator Intent Audit Evidence
+
+- Verify command drafts and docs preserve operator intent, idempotency, and
+  audit evidence without using exchange ids as application identity.
+
+### Phase 649 - M6 Contextless Command Review
+
+- Run a blind/contextless review focused on command draft discoverability,
+  backend authority, BFF boundaries, and no-live posture.
+
+### Phase 650 - M6 Review Remediation
+
+- Fix any blocker or unclear command-draft path found by the M6 review before
+  advancing into production-auth work.
+
+### Phase 651 - M7 Auth Boundary Inventory
+
+- Inventory frontend, BFF, and backend auth boundaries for production OIDC,
+  CSRF, CORS, session, role, and server-only secret handling.
+
+### Phase 652 - Server Secret Exposure Tests
+
+- Add or refine tests that prove Admin API bearer tokens, actor headers,
+  roles, and CSRF authority stay server-side in BFF mode.
+
+### Phase 653 - OIDC Readiness Operator UX
+
+- Improve operator-facing OIDC/JWT readiness evidence without simulating
+  browser-trusted production auth.
+
+### Phase 654 - CSRF And CORS Deployment Evidence
+
+- Strengthen deployment docs/artifacts for CSRF and CORS posture while keeping
+  unsafe methods fail-closed.
+
+### Phase 655 - Release Artifact Operations Evidence
+
+- Expand release/deployment/runtime artifacts with auth, observability,
+  command, and no-live evidence needed by enterprise operators.
+
+### Phase 656 - Observability Correlation UX
+
+- Improve request/correlation/audit evidence in diagnostics and command
+  outputs without adding frontend data authority.
+
+### Phase 657 - Human Operator Runbook Auth Path
+
+- Update human operator runbooks for production auth/deployment setup,
+  failure modes, and no-live verification.
+
+### Phase 658 - Focused Verification
+
+- Run focused frontend/backend checks for command drafts, BFF/auth
+  boundaries, diagnostics, docs, and Playwright production-start smoke.
+
+### Phase 659 - Backend Queue, Regression, And No-Live Evidence
+
+- Run backend autonomous queue validation and full backend regression after
+  backend queue/doc/checker changes, then confirm no-live evidence with
+  notional `$0`.
+
+### Phase 660 - Commit And Final Batch Summary
+
+- Commit completed backend and frontend work separately, then summarize
+  implementation, verification, live posture, commits, and the next approved
+  phase range.
+
 ## Enterprise Admin Platform Pivot
 
 The objective is reframed from a spot-specific admin surface to an enterprise
