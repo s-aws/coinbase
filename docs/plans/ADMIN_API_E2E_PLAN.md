@@ -3827,3 +3827,27 @@ Progress update:
   evidence tabs, deterministic state semantics, diagnostics, and responsive
   scrolling explicitly outside wallet, guard, profitability, and Coinbase
   execution authority.
+- Phases 635-636 completed: blind/contextless read-model and spot-order flow
+  reviews found no read-model blockers and confirmed the canonical frontend
+  path into backend Admin API command service. Remediation clarified the
+  current frontend command draft scope as crypto-USDC spot pairs, reinforced
+  disabled command review wording, surfaced backend-derived live Coinbase
+  evidence in submitted dry-submit results, added frontend BFF route
+  allowlisting, and recorded that no live Coinbase execution ran with
+  notional `$0`.
+- Phase 637 completed on the frontend side: focused read-model,
+  spot-read-only, accessibility, admin shell, BFF proxy/route, dry-submit, and
+  command shell unit coverage passed, along with command-fetch guard, generated
+  API/route coverage, deployment/autonomous sentinels, and admin-shell
+  Playwright smoke. No live Coinbase execution ran; notional `$0`.
+- Phase 638 completed on the frontend side: full `npm run release:gate`
+  passed with production build, typecheck, lint, generated API freshness and
+  route coverage, command security, release/deployment/artifact/runtime
+  evidence checks, autonomous queue validation, `137` unit tests, dry
+  read/command/BFF/OIDC smokes, and `3` Playwright tests. All release evidence
+  reported live Coinbase execution not run with notional `$0`.
+- Phase 639 completed: backend autonomous queue validation passed, full
+  backend regression passed with `772 passed, 1 warning`, and frontend
+  `npm run typecheck` passed after restoring `next-env.d.ts` from the Next
+  production-build route type rewrite. No live Coinbase execution ran;
+  notional `$0`.

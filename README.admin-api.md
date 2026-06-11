@@ -98,6 +98,9 @@ empty/error states, and keep tables usable on narrow viewports. None of those
 interactions create frontend trading authority, wallet checks, guard
 decisions, order profitability checks, Coinbase calls, or exchange
 `order_id` identity.
+The current frontend command draft scope remains crypto-USDC spot pairs and
+must not be broadened in browser code before backend Admin API contracts and
+tests define a broader scope.
 
 ## Direction
 

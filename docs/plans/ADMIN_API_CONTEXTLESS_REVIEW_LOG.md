@@ -521,3 +521,60 @@ Status:
 - Follow-up blind review found no blockers. The remaining accessibility
   concern was remediated. Live Coinbase execution was not run in this
   remediation; notional `$0`.
+
+## Read Model Interaction Review - Phases 621-640
+
+Review scope:
+
+- `C:\coinbase-frontend`
+- `C:\coinbase`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- determine whether a contextless maintainer can understand the current
+  frontend read-model interactions without inventing frontend trading behavior
+- explain the future spot order creation path from the frontend using repo
+  docs/code only
+- identify backend Admin API path, service boundary, auth/RBAC/idempotency,
+  audit evidence, live-disabled posture, `client_order_id` identity, cancel
+  behavior, and required gates
+
+Findings:
+
+- Read-model review passed with no blockers. The reviewer found frontend and
+  backend docs aligned on display-only filtering, sorting, detail selection,
+  audit anchors, campaign tabs, diagnostics, empty/error states, responsive
+  scrolling, and no Coinbase execution authority.
+- Spot-order path was discoverable:
+  `CommandWorkflowShell` -> `commandDrySubmit.ts` ->
+  `BackendApiClient.createManualOrder` -> backend `POST /api/v1/orders` ->
+  `AdminApiCommandService.place_manual_order`.
+- Intentional current blockers were clear: frontend command buttons remain
+  disabled, UI buttons do not call dry-submit helpers, and backend HTTP
+  command routes return live-disabled `501` until approval/cap/audit/live HTTP
+  gates are completed.
+- Remediation items accepted:
+  - clarify current frontend command draft scope as crypto-USDC spot pairs
+  - clarify disabled command review wording
+  - surface backend-derived live Coinbase evidence in frontend dry-submit
+    results instead of hardcoding false for submitted responses
+  - enforce a frontend BFF Admin API route allowlist before forwarding
+  - rename a shortened frontend example gate that was labelled as a full gate
+
+Resolution:
+
+- Frontend code/docs were updated for BFF route allowlisting,
+  backend-derived live evidence, disabled command review copy, USDC draft
+  scope, and focused-gate wording.
+- Backend association docs now mirror that the frontend BFF allowlist is a
+  transport control and that current browser draft scope remains crypto-USDC
+  until backend contracts/tests define a broader scope.
+
+Status:
+
+- Findings resolved. Focused frontend remediation and read-model verification
+  checks passed, including BFF proxy/route, dry-submit, command shell, admin
+  shell, read-model, spot read-only, accessibility, command-fetch guard, API
+  route coverage, deployment/autonomous sentinels, and admin-shell Playwright
+  smoke. Live Coinbase execution was not run; notional `$0`.

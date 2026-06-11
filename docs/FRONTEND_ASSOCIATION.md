@@ -161,6 +161,9 @@ the frontend BFF forwards only the configured OIDC cookie value as
 `X-Admin-Actor` or `X-Admin-Roles`. This is backend/session bridge evidence
 only. It does not allow the frontend to enforce authorization or place backend
 tokens in browser-visible variables.
+The frontend BFF is also expected to enforce a documented Admin API route
+allowlist before forwarding. Unsupported methods or route shapes are frontend
+transport failures, not backend trading approval evidence.
 
 Frontend staging environment template evidence may use `server_env_static`
 BFF authority with server-only `ADMIN_API_*` values. Production readiness is
