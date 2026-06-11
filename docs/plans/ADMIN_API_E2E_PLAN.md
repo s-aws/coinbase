@@ -3798,3 +3798,8 @@ Progress update:
 - Phase 628 completed on the frontend side: Spot Operator Views now include a
   compact quick-facts strip for read-route count, evidence-view count, live
   execution posture, and `client_order_id` identity.
+- Phase 629 completed on the frontend side: order, campaign, and spot
+  read-model surfaces now render named unloaded/no-match states, clear
+  selected detail evidence when filters hide all rows, and expose
+  ready/loading/warning runtime states as status regions while
+  backend-error/auth-blocked states use alert regions.
