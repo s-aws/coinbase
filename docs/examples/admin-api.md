@@ -32,6 +32,9 @@ requests must include `X-CSRF-Token` matching
 Use bootstrap and session reads to render environment, backend association,
 live-action posture, and backend RBAC evidence. These routes do not require
 idempotency headers and do not run Coinbase orders.
+The active local verifier mode is `bootstrap_bearer`; configuring
+`COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt` currently fails closed until a
+production verifier is implemented.
 
 ```powershell
 Invoke-RestMethod `
@@ -72,6 +75,16 @@ X-Admin-Roles: trader
 The session response includes `actor`, `roles`, `permissions`, and
 `bearer_token_visible_to_browser=false`.
 
+```http
+GET /api/v1/admin/csrf
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+This route returns the CSRF header name, whether CSRF is required, and the
+token source/rotation policy. It never returns the token value.
+
 ## Cancel By Client Order ID
 
 Current skeleton shape:
@@ -109,7 +122,7 @@ Order reads are local/backend evidence routes. They are keyed by
 evidence.
 
 ```http
-GET /api/v1/orders?product_id=BTC-USDC&order_status=OPEN&limit=50
+GET /api/v1/orders?product_id=BTC-USDC&order_status=OPEN&limit=50&offset=0
 Authorization: Bearer <backend-verifiable-token>
 X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
@@ -124,7 +137,9 @@ X-Admin-Roles: auditor
 
 The response model does not contain an `order_id` identity field. If exchange
 evidence is known, it appears as `exchange_order_id` with
-`exchange_order_id_evidence_only=true`.
+`exchange_order_id_evidence_only=true`. List responses include pagination
+metadata: `limit`, `offset`, `returned_count`, `total_matching_count`,
+`next_offset`, and `has_more`.
 
 ## Live Placement Approval
 
@@ -238,6 +253,7 @@ Current read-only routes:
 - `GET /api/v1/admin/health`
 - `GET /api/v1/admin/session`
 - `GET /api/v1/admin/capabilities`
+- `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`

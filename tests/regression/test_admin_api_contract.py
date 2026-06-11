@@ -24,6 +24,7 @@ from application.admin_api.models import AdminApiActor
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
     AdminApiActionClass,
+    AdminApiAuthMode,
     AdminApiCommandStatus,
     AdminApiErrorCode,
     AdminApiIdempotencyDecision,
@@ -101,6 +102,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/health" in written["paths"]
     assert "/api/v1/admin/session" in written["paths"]
     assert "/api/v1/admin/capabilities" in written["paths"]
+    assert "/api/v1/admin/csrf" in written["paths"]
     assert "/api/v1/admin/release-gate" in written["paths"]
     assert "/api/v1/admin/recovery-gate" in written["paths"]
     assert "/api/v1/admin/fill-ledger-health" in written["paths"]
@@ -135,6 +137,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "client_order_id" in order_item_schema["properties"]
     assert "order_id" not in order_item_schema["properties"]
     assert "exchange_order_id" in order_item_schema["properties"]
+    order_list_schema = written["components"]["schemas"]["AdminOrderListResponse"]
+    assert "pagination" in order_list_schema["properties"]
+    spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
+    assert "products" in spot_readiness_schema["properties"]
+    assert "wallet_snapshot" in spot_readiness_schema["properties"]
+    spot_pnl_schema = written["components"]["schemas"]["SpotSweepPnlResponse"]
+    assert "pnl_report" in spot_pnl_schema["properties"]
     for schema_name, component_schema in written["components"]["schemas"].items():
         enum_values = component_schema.get("enum")
         if enum_values is not None:
@@ -157,6 +166,23 @@ def test_admin_api_mutating_routes_fail_closed_without_auth(monkeypatch):
     assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
     assert response.headers["x-live-execution-enabled"] == "false"
     assert response.headers["x-correlation-id"]
+
+
+@pytest.mark.regression
+def test_admin_api_oidc_auth_mode_fails_closed_until_verifier_is_implemented(monkeypatch):
+    monkeypatch.setenv("COINBASE_ADMIN_API_AUTH_MODE", AdminApiAuthMode.OIDC_JWT.value)
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    client = TestClient(create_app())
+
+    response = client.get(
+        "/api/v1/admin/bootstrap",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
+    assert "OIDC/JWT verifier is not implemented" in response.json()["message"]
+    assert response.headers["x-live-execution-enabled"] == "false"
 
 
 @pytest.mark.regression
@@ -477,6 +503,56 @@ def test_admin_api_read_only_spot_readiness_uses_read_service(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_spot_routes_preserve_typed_read_payload_fields(monkeypatch):
+    from api.v1.routes import spot as spot_routes
+
+    client = _client(monkeypatch)
+    service = SimpleNamespace(
+        build_spot_sweep_pnl=lambda product_ids=None, include_coinbase_average_cost=False: {
+            "type": "spot_sweep_pnl",
+            "status": "success",
+            "pnl_report": {
+                "snapshot": {
+                    "products": [{"product_id": "BTC-USDC", "total_pnl": "1.23"}],
+                    "portfolio": {"total_pnl": "1.23"},
+                }
+            },
+            "read_only_coinbase_requests": ["accounts"],
+            "backend_extra_evidence": {"kept": True},
+            "live_coinbase_orders_ran": False,
+        },
+        build_spot_direct_order_audit=lambda **kwargs: {
+            "type": "spot_direct_order_audit",
+            "status": "success",
+            "client_order_id": kwargs["client_order_id"],
+            "audit": {"audit_is_read_only": True},
+            "events": [{"event_type": "order_submitted"}],
+            "fills": [{"fill_id": "fill-001"}],
+            "live_coinbase_orders_ran": False,
+        },
+    )
+    client.app.dependency_overrides[spot_routes.get_read_service] = lambda: service
+
+    pnl_response = client.get(
+        "/api/v1/spot/sweep/pnl?product_id=BTC-USDC&include_coinbase_average_cost=true",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    audit_response = client.get(
+        "/api/v1/spot/direct-orders/client-abc/audit",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert pnl_response.status_code == 200
+    assert pnl_response.json()["pnl_report"]["snapshot"]["products"][0]["product_id"] == "BTC-USDC"
+    assert pnl_response.json()["read_only_coinbase_requests"] == ["accounts"]
+    assert pnl_response.json()["backend_extra_evidence"] == {"kept": True}
+    assert audit_response.status_code == 200
+    assert audit_response.json()["client_order_id"] == "client-abc"
+    assert audit_response.json()["audit"]["audit_is_read_only"] is True
+    assert audit_response.json()["events"][0]["event_type"] == "order_submitted"
+
+
+@pytest.mark.regression
 def test_admin_api_backend_rbac_matches_frontend_role_hints():
     viewer = AdminApiActor(actor_id="viewer-001", roles=[AdminApiRole.VIEWER])
     operator = AdminApiActor(actor_id="operator-001", roles=[AdminApiRole.OPERATOR])
@@ -504,22 +580,37 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     health = client.get("/api/v1/admin/health", headers=headers)
     session = client.get("/api/v1/admin/session", headers=headers)
     capabilities = client.get("/api/v1/admin/capabilities", headers=headers)
+    csrf = client.get("/api/v1/admin/csrf", headers=headers)
     release_gate = client.get("/api/v1/admin/release-gate", headers=headers)
 
     assert bootstrap.status_code == 200
     assert bootstrap.json()["backend_repository"] == "s-aws/coinbase"
     assert bootstrap.json()["mutating_routes_live_disabled"] is True
     assert bootstrap.json()["live_coinbase_orders_ran"] is False
+    assert bootstrap.json()["auth_mode"] == AdminApiAuthMode.BOOTSTRAP_BEARER.value
     assert health.status_code == 200
     assert health.json()["failed_route_count"] == 0
     assert health.json()["live_coinbase_orders_ran"] is False
     assert session.status_code == 200
     assert AdminApiPermission.AUDIT_READ.value in session.json()["permissions"]
+    assert session.json()["auth_mode"] == AdminApiAuthMode.BOOTSTRAP_BEARER.value
     assert session.json()["bearer_token_visible_to_browser"] is False
     assert capabilities.status_code == 200
     routes = {item["route"] for item in capabilities.json()["capabilities"]}
     assert "/api/v1/spot/campaign/executions" in routes
     assert "/api/v1/admin/bootstrap" in routes
+    assert "/api/v1/admin/csrf" in routes
+    assert csrf.status_code == 200
+    assert csrf.json() == {
+        "type": "admin_csrf_contract",
+        "csrf_required": False,
+        "csrf_header_name": "X-CSRF-Token",
+        "token_issued_by_backend": False,
+        "token_visible_to_browser": False,
+        "token_source": "session_or_bff_boundary",
+        "rotation_policy": "rotate_on_session_or_deploy_secret_change",
+        "live_coinbase_orders_ran": False,
+    }
     assert release_gate.status_code == 200
     assert release_gate.json()["live_coinbase_orders_ran"] is False
 
@@ -530,14 +621,23 @@ def test_admin_api_order_read_routes_use_read_service_and_client_order_id(monkey
 
     client = _client(monkeypatch)
     service = SimpleNamespace(
-        build_order_list=lambda product_id=None, status=None, limit=100: {
+        build_order_list=lambda product_id=None, status=None, limit=100, offset=0: {
             "type": "admin_order_list",
             "filters": {
                 "product_id": product_id,
                 "status": status,
                 "limit": limit,
+                "offset": offset,
             },
             "count": 1,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "returned_count": 1,
+                "total_matching_count": 2,
+                "next_offset": offset + 1,
+                "has_more": True,
+            },
             "items": [
                 {
                     "client_order_id": "client-abc",
@@ -565,7 +665,7 @@ def test_admin_api_order_read_routes_use_read_service_and_client_order_id(monkey
     client.app.dependency_overrides[order_routes.get_read_service] = lambda: service
 
     list_response = client.get(
-        "/api/v1/orders?product_id=BTC-USDC&order_status=OPEN&limit=10",
+        "/api/v1/orders?product_id=BTC-USDC&order_status=OPEN&limit=10&offset=20",
         headers=_headers(roles=AdminApiRole.VIEWER.value),
     )
     detail_response = client.get(
@@ -574,12 +674,47 @@ def test_admin_api_order_read_routes_use_read_service_and_client_order_id(monkey
     )
 
     assert list_response.status_code == 200
+    assert list_response.json()["filters"]["offset"] == 20
+    assert list_response.json()["pagination"]["next_offset"] == 21
     assert list_response.json()["items"][0]["client_order_id"] == "client-abc"
     assert list_response.json()["items"][0]["exchange_order_id_evidence_only"] is True
     assert "order_id" not in list_response.json()["items"][0]
     assert detail_response.status_code == 200
     assert detail_response.json()["client_order_id"] == "client-abc"
     assert "order_id" not in detail_response.json()["order"]
+
+
+@pytest.mark.regression
+def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypatch):
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    rows = [
+        {
+            "client_order_id": f"client-{index}",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+        for index in range(5)
+    ]
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: rows)
+
+    response = AdminApiReadService().build_order_list(
+        product_id="BTC-USDC",
+        status="OPEN",
+        limit=2,
+        offset=1,
+    )
+
+    assert response.count == 2
+    assert [item.client_order_id for item in response.items] == ["client-1", "client-2"]
+    assert response.pagination.limit == 2
+    assert response.pagination.offset == 1
+    assert response.pagination.returned_count == 2
+    assert response.pagination.total_matching_count == 5
+    assert response.pagination.next_offset == 3
+    assert response.pagination.has_more is True
 
 
 @pytest.mark.regression
@@ -606,6 +741,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/admin/capabilities"].shared_method == (
         "build_admin_capabilities"
     )
+    assert rows["GET /api/v1/admin/csrf"].shared_method == "build_csrf_contract"
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -618,4 +754,5 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "place_hotpoint_test_order" in doc
     assert "execute_spot_campaign" in doc
     assert "build_admin_bootstrap" in doc
+    assert "build_csrf_contract" in doc
     assert "build_order_list" in doc

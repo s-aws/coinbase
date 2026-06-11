@@ -148,6 +148,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="route inventory derived registry",
     ),
     AdminApiRouteInventoryItem(
+        surface="GET /api/v1/admin/csrf",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_csrf_contract",
+        parity_test="does not disclose token value",
+    ),
+    AdminApiRouteInventoryItem(
         surface="GET /api/v1/admin/release-gate",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

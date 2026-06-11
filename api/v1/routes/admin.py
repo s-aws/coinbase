@@ -18,6 +18,7 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminBootstrapResponse,
     AdminCapabilityRegistryResponse,
+    AdminCsrfContractResponse,
     AdminFrontendFixturesResponse,
     AdminGateReadResponse,
     AdminHealthResponse,
@@ -116,6 +117,20 @@ def admin_capabilities(
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_response(service.build_admin_capabilities())
+
+
+@router.get(
+    "/admin/csrf",
+    response_model=AdminCsrfContractResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read Admin API CSRF contract without disclosing token values",
+)
+def admin_csrf_contract(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_response(service.build_csrf_contract())
 
 
 @router.get(

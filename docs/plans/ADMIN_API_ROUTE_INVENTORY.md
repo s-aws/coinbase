@@ -21,6 +21,7 @@ parity test target.
 | `GET /api/v1/admin/health` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_admin_health` | no Coinbase REST placement | |
 | `GET /api/v1/admin/session` | `read_only` | authenticated actor | not required | not required | not applicable | optional read audit | `build_admin_session` | backend RBAC evidence only | |
 | `GET /api/v1/admin/capabilities` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_admin_capabilities` | route inventory derived registry | |
+| `GET /api/v1/admin/csrf` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_csrf_contract` | does not disclose token value | |
 | `GET /api/v1/admin/release-gate` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_release_gate` | browser does not run pytest | |
 | `GET /api/v1/admin/recovery-gate` | `read_only` | `audit:read` | not required | not required | not applicable | optional read audit | `build_recovery_gate` | read-only recovery evidence | |
 | `GET /api/v1/admin/fill-ledger-health` | `read_only` | `audit:read` | not required | not required | not applicable | optional read audit | `build_fill_ledger_health` | no ledger repair mutation | |

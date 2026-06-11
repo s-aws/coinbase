@@ -36,6 +36,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/health`
 - `GET /api/v1/admin/session`
 - `GET /api/v1/admin/capabilities`
+- `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
@@ -78,6 +79,9 @@ HTTP routes, and sweep/campaign execution, see
   model exposes it as `exchange_order_id`; it is not an identity or cancel key.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
+- `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the only active verifier
+  today. `oidc_jwt` is modeled as a production replacement boundary and fails
+  closed until a real verifier is implemented.
 
 ## Local Run
 
@@ -119,6 +123,8 @@ When required, unsafe HTTP methods under `/api/v1/` must include
 `X-CSRF-Token` matching the configured token. Read-only `GET` routes are not
 blocked by CSRF middleware. Failed CSRF checks return structured `403` errors
 with `X-Live-Execution-Enabled: false`.
+`GET /api/v1/admin/csrf` exposes the CSRF posture, header name, token source,
+and rotation policy without disclosing a token value.
 
 ## Must Not Do
 

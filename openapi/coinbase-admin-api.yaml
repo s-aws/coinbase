@@ -230,6 +230,62 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/csrf:
+    get:
+      tags:
+      - admin
+      summary: Read Admin API CSRF contract without disclosing token values
+      operationId: admin_csrf_contract_api_v1_admin_csrf_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCsrfContractResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/release-gate:
     get:
       tags:
@@ -487,6 +543,14 @@ paths:
           minimum: 1
           default: 100
           title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
       - name: Authorization
         in: header
         required: true
@@ -1373,6 +1437,13 @@ components:
       - actor_id
       title: AdminApiActor
       description: Authenticated actor evidence supplied by future auth middleware.
+    AdminApiAuthMode:
+      type: string
+      enum:
+      - bootstrap_bearer
+      - oidc_jwt
+      title: AdminApiAuthMode
+      description: Admin API authentication verifier mode.
     AdminApiCommandResponse:
       properties:
         status:
@@ -1524,6 +1595,13 @@ components:
       - critical
       title: AdminApiErrorSeverity
       description: Operator-facing severity for structured Admin API errors.
+    AdminApiFlexibleObject:
+      properties: {}
+      additionalProperties: true
+      type: object
+      title: AdminApiFlexibleObject
+      description: Typed object shell that preserves dashboard-owned read payload
+        detail.
     AdminApiGateStatus:
       type: string
       enum:
@@ -1635,12 +1713,18 @@ components:
         auth_required:
           type: boolean
           title: Auth Required
+        auth_mode:
+          $ref: '#/components/schemas/AdminApiAuthMode'
         cors_configured:
           type: boolean
           title: Cors Configured
         csrf_required:
           type: boolean
           title: Csrf Required
+        csrf_header_name:
+          type: string
+          title: Csrf Header Name
+          default: X-CSRF-Token
         capabilities_route:
           type: string
           title: Capabilities Route
@@ -1661,6 +1745,7 @@ components:
       - mutating_routes_live_disabled
       - live_execution_enabled
       - auth_required
+      - auth_mode
       - cors_configured
       - csrf_required
       - capabilities_route
@@ -1729,6 +1814,45 @@ components:
       type: object
       title: AdminCapabilityRegistryResponse
       description: Route/capability registry for frontend navigation and diagnostics.
+    AdminCsrfContractResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_csrf_contract
+        csrf_required:
+          type: boolean
+          title: Csrf Required
+        csrf_header_name:
+          type: string
+          title: Csrf Header Name
+          default: X-CSRF-Token
+        token_issued_by_backend:
+          type: boolean
+          title: Token Issued By Backend
+          default: false
+        token_visible_to_browser:
+          type: boolean
+          title: Token Visible To Browser
+          default: false
+        token_source:
+          type: string
+          title: Token Source
+          default: session_or_bff_boundary
+        rotation_policy:
+          type: string
+          title: Rotation Policy
+          default: rotate_on_session_or_deploy_secret_change
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - csrf_required
+      title: AdminCsrfContractResponse
+      description: Read-only CSRF contract for BFF/session deployments.
     AdminFrontendFixturesResponse:
       properties:
         type:
@@ -1874,6 +1998,8 @@ components:
         count:
           type: integer
           title: Count
+        pagination:
+          $ref: '#/components/schemas/AdminOrderPagination'
         items:
           items:
             $ref: '#/components/schemas/AdminOrderReadItem'
@@ -1891,8 +2017,47 @@ components:
       type: object
       required:
       - count
+      - pagination
       title: AdminOrderListResponse
       description: Read-only order list/filter response.
+    AdminOrderPagination:
+      properties:
+        limit:
+          type: integer
+          maximum: 500.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_matching_count:
+          type: integer
+          minimum: 0.0
+          title: Total Matching Count
+        next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Next Offset
+        has_more:
+          type: boolean
+          title: Has More
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - limit
+      - offset
+      - returned_count
+      - total_matching_count
+      title: AdminOrderPagination
+      description: Pagination evidence for order list reads.
     AdminOrderReadItem:
       properties:
         client_order_id:
@@ -1977,6 +2142,8 @@ components:
             $ref: '#/components/schemas/AdminApiPermission'
           type: array
           title: Permissions
+        auth_mode:
+          $ref: '#/components/schemas/AdminApiAuthMode'
         bearer_token_visible_to_browser:
           type: boolean
           title: Bearer Token Visible To Browser
@@ -1990,6 +2157,7 @@ components:
       required:
       - status
       - actor
+      - auth_mode
       title: AdminSessionResponse
       description: Authenticated session/RBAC evidence for the frontend.
     CampaignExecutionRequest:
@@ -2156,6 +2324,20 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        operator_status:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        state_file:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
       additionalProperties: true
       type: object
       title: SpotCampaignStatusResponse
@@ -2176,6 +2358,20 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        operator_status:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        state_file:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
       additionalProperties: true
       type: object
       title: SpotCostBasisStatusResponse
@@ -2201,6 +2397,25 @@ components:
           - type: string
           - type: 'null'
           title: Client Order Id
+        audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        events:
+          items:
+            $ref: '#/components/schemas/AdminApiFlexibleObject'
+          type: array
+          title: Events
+        fills:
+          items:
+            $ref: '#/components/schemas/AdminApiFlexibleObject'
+          type: array
+          title: Fills
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
       additionalProperties: true
       type: object
       title: SpotDirectOrderAuditResponse
@@ -2221,6 +2436,30 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        products:
+          items:
+            anyOf:
+            - $ref: '#/components/schemas/AdminApiFlexibleObject'
+            - type: string
+          type: array
+          title: Products
+        planned_budget:
+          type: object
+          title: Planned Budget
+        wallet_snapshot:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        action_guard_summary:
+          items:
+            $ref: '#/components/schemas/AdminApiFlexibleObject'
+          type: array
+          title: Action Guard Summary
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
       additionalProperties: true
       type: object
       title: SpotReadinessResponse
@@ -2241,6 +2480,20 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        pnl_report:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        read_only_coinbase_requests:
+          items:
+            type: string
+          type: array
+          title: Read Only Coinbase Requests
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
       additionalProperties: true
       type: object
       title: SpotSweepPnlResponse
@@ -2261,6 +2514,20 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        operator_status:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        state_file:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
       additionalProperties: true
       type: object
       title: SpotSweepStatusResponse

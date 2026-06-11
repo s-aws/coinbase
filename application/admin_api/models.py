@@ -15,6 +15,7 @@ from core.enums import (
     AdminApiCommandStatus,
     AdminApiErrorCode,
     AdminApiErrorSeverity,
+    AdminApiAuthMode,
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiPermission,
@@ -189,8 +190,10 @@ class AdminBootstrapResponse(BaseModel):
     mutating_routes_live_disabled: bool
     live_execution_enabled: bool
     auth_required: bool
+    auth_mode: AdminApiAuthMode
     cors_configured: bool
     csrf_required: bool
+    csrf_header_name: str = "X-CSRF-Token"
     capabilities_route: str
     session_route: str
     live_coinbase_orders_ran: bool = False
@@ -219,6 +222,7 @@ class AdminSessionResponse(BaseModel):
     status: AdminApiSessionStatus
     actor: AdminApiActor
     permissions: list[AdminApiPermission] = Field(default_factory=list)
+    auth_mode: AdminApiAuthMode
     bearer_token_visible_to_browser: bool = False
     live_coinbase_orders_ran: bool = False
 
@@ -269,6 +273,19 @@ class AdminOrderReadItem(BaseModel):
     source: str = "order_parent"
 
 
+class AdminOrderPagination(BaseModel):
+    """Pagination evidence for order list reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    returned_count: int = Field(ge=0)
+    total_matching_count: int = Field(ge=0)
+    next_offset: int | None = Field(default=None, ge=0)
+    has_more: bool = False
+
+
 class AdminOrderListResponse(BaseModel):
     """Read-only order list/filter response."""
 
@@ -277,6 +294,7 @@ class AdminOrderListResponse(BaseModel):
     type: str = "admin_order_list"
     filters: dict[str, Any] = Field(default_factory=dict)
     count: int
+    pagination: AdminOrderPagination
     items: list[AdminOrderReadItem] = Field(default_factory=list)
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
@@ -328,6 +346,21 @@ class AdminFrontendFixturesResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminCsrfContractResponse(BaseModel):
+    """Read-only CSRF contract for BFF/session deployments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_csrf_contract"
+    csrf_required: bool
+    csrf_header_name: str = "X-CSRF-Token"
+    token_issued_by_backend: bool = False
+    token_visible_to_browser: bool = False
+    token_source: str = "session_or_bff_boundary"
+    rotation_policy: str = "rotate_on_session_or_deploy_secret_change"
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminApiReadPayload(BaseModel):
     """Loose typed shell for existing dashboard-shaped read-only payloads."""
 
@@ -338,30 +371,62 @@ class AdminApiReadPayload(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminApiFlexibleObject(BaseModel):
+    """Typed object shell that preserves dashboard-owned read payload detail."""
+
+    model_config = ConfigDict(extra="allow")
+
+
 class SpotReadinessResponse(AdminApiReadPayload):
     """Spot readiness response."""
+
+    products: list[AdminApiFlexibleObject | str] = Field(default_factory=list)
+    planned_budget: dict[str, Any] = Field(default_factory=dict)
+    wallet_snapshot: AdminApiFlexibleObject | None = None
+    action_guard_summary: list[AdminApiFlexibleObject] = Field(default_factory=list)
+    message: str | None = None
 
 
 class SpotSweepStatusResponse(AdminApiReadPayload):
     """Spot sweep status response."""
 
+    operator_status: AdminApiFlexibleObject | None = None
+    state_file: str | None = None
+    message: str | None = None
+
 
 class SpotSweepPnlResponse(AdminApiReadPayload):
     """Spot sweep P/L response."""
+
+    pnl_report: AdminApiFlexibleObject | None = None
+    read_only_coinbase_requests: list[str] = Field(default_factory=list)
+    message: str | None = None
 
 
 class SpotCostBasisStatusResponse(AdminApiReadPayload):
     """Spot cost-basis status response."""
 
+    operator_status: AdminApiFlexibleObject | None = None
+    state_file: str | None = None
+    message: str | None = None
+
 
 class SpotCampaignStatusResponse(AdminApiReadPayload):
     """Spot campaign status response."""
+
+    operator_status: AdminApiFlexibleObject | None = None
+    state_file: str | None = None
+    message: str | None = None
 
 
 class SpotDirectOrderAuditResponse(AdminApiReadPayload):
     """Direct spot order audit response keyed by ``client_order_id``."""
 
     client_order_id: str | None = None
+    audit: AdminApiFlexibleObject | None = None
+    events: list[AdminApiFlexibleObject] = Field(default_factory=list)
+    fills: list[AdminApiFlexibleObject] = Field(default_factory=list)
+    message: str | None = None
 
 
 class AdminApiRouteInventoryItem(BaseModel):

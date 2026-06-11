@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.models import (
@@ -43,8 +44,11 @@ def get_read_service() -> AdminApiReadService:
     return AdminApiReadService()
 
 
-def _read_response(payload: dict) -> JSONResponse:
-    return JSONResponse(content=jsonable_encoder(payload))
+TReadModel = TypeVar("TReadModel", bound=BaseModel)
+
+
+def _read_model_response(model: type[TReadModel], payload: dict) -> JSONResponse:
+    return JSONResponse(content=jsonable_encoder(model.model_validate(payload)))
 
 
 @router.get(
@@ -59,7 +63,10 @@ def spot_readiness(
     product_ids: Annotated[list[str] | None, Query(alias="product_id")] = None,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_response(service.build_spot_readiness(product_ids=product_ids))
+    return _read_model_response(
+        SpotReadinessResponse,
+        service.build_spot_readiness(product_ids=product_ids),
+    )
 
 
 @router.get(
@@ -74,7 +81,10 @@ def spot_sweep_status(
     state_file: str | None = None,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_response(service.build_spot_sweep_status(state_file=state_file))
+    return _read_model_response(
+        SpotSweepStatusResponse,
+        service.build_spot_sweep_status(state_file=state_file),
+    )
 
 
 @router.get(
@@ -90,11 +100,12 @@ def spot_sweep_pnl(
     include_coinbase_average_cost: bool = False,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_response(
+    return _read_model_response(
+        SpotSweepPnlResponse,
         service.build_spot_sweep_pnl(
             product_ids=product_ids,
             include_coinbase_average_cost=include_coinbase_average_cost,
-        )
+        ),
     )
 
 
@@ -110,7 +121,10 @@ def spot_cost_basis_status(
     state_file: str | None = None,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_response(service.build_spot_cost_basis_status(state_file=state_file))
+    return _read_model_response(
+        SpotCostBasisStatusResponse,
+        service.build_spot_cost_basis_status(state_file=state_file),
+    )
 
 
 @router.get(
@@ -125,7 +139,10 @@ def spot_campaign_status(
     state_file: str | None = None,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.CAMPAIGN_READ)
-    return _read_response(service.build_spot_campaign_status(state_file=state_file))
+    return _read_model_response(
+        SpotCampaignStatusResponse,
+        service.build_spot_campaign_status(state_file=state_file),
+    )
 
 
 @router.get(
@@ -144,12 +161,13 @@ def spot_direct_order_audit(
     fill_limit: int = 1000,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.AUDIT_READ)
-    return _read_response(
+    return _read_model_response(
+        SpotDirectOrderAuditResponse,
         service.build_spot_direct_order_audit(
             client_order_id=client_order_id,
             include_events=include_events,
             include_fills=include_fills,
             event_limit=event_limit,
             fill_limit=fill_limit,
-        )
+        ),
     )

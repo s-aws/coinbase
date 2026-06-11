@@ -9,6 +9,7 @@ from typing import Any
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiAuthMode,
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiPermission,
@@ -16,11 +17,13 @@ from core.enums import (
     AdminApiSessionStatus,
 )
 
+from .auth import configured_auth_mode
 from .models import (
     AdminApiActor,
     AdminBootstrapResponse,
     AdminCapabilityItem,
     AdminCapabilityRegistryResponse,
+    AdminCsrfContractResponse,
     AdminFrontendFixturesResponse,
     AdminGateCheck,
     AdminGateReadResponse,
@@ -46,6 +49,13 @@ def _string_or_none(value: Any) -> str | None:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _csrf_required() -> bool:
+    return os.environ.get(
+        "COINBASE_ADMIN_API_CSRF_REQUIRED",
+        "",
+    ).strip().lower() in {"1", "true", "yes"}
 
 
 def _surface_method_and_path(surface: str) -> tuple[str, str]:
@@ -106,10 +116,6 @@ class AdminApiReadService:
         """Return backend association and live-action posture."""
 
         cors_configured = bool(os.environ.get("COINBASE_ADMIN_API_CORS_ORIGINS", "").strip())
-        csrf_required = os.environ.get(
-            "COINBASE_ADMIN_API_CSRF_REQUIRED",
-            "",
-        ).strip().lower() in {"1", "true", "yes"}
         return AdminBootstrapResponse(
             backend_repository="s-aws/coinbase",
             api_version=API_VERSION,
@@ -118,8 +124,9 @@ class AdminApiReadService:
             mutating_routes_live_disabled=True,
             live_execution_enabled=False,
             auth_required=True,
+            auth_mode=configured_auth_mode(),
             cors_configured=cors_configured,
-            csrf_required=csrf_required,
+            csrf_required=_csrf_required(),
             capabilities_route="/api/v1/admin/capabilities",
             session_route="/api/v1/admin/session",
         )
@@ -171,6 +178,7 @@ class AdminApiReadService:
             status=AdminApiSessionStatus.SIGNED_IN,
             actor=actor,
             permissions=permissions,
+            auth_mode=configured_auth_mode(),
         )
 
     def build_admin_capabilities(self) -> AdminCapabilityRegistryResponse:
@@ -199,19 +207,28 @@ class AdminApiReadService:
             )
         return AdminCapabilityRegistryResponse(capabilities=capabilities)
 
+    def build_csrf_contract(self) -> AdminCsrfContractResponse:
+        """Return CSRF posture without disclosing a token value."""
+
+        return AdminCsrfContractResponse(csrf_required=_csrf_required())
+
     def build_order_list(
         self,
         *,
         product_id: str | None = None,
         status: str | None = None,
         limit: int = 100,
+        offset: int = 0,
     ) -> AdminOrderListResponse:
         """Return a read-only order list from local order_parent evidence."""
 
+        normalized_limit = max(1, min(limit, 500))
+        normalized_offset = max(0, offset)
         filters: dict[str, Any] = {
             "product_id": product_id,
             "status": status,
-            "limit": limit,
+            "limit": normalized_limit,
+            "offset": normalized_offset,
         }
         try:
             from database.order import get_parent_orders
@@ -228,10 +245,23 @@ class AdminApiReadService:
             if status and str(row.get("status") or "").lower() != status.lower():
                 continue
             filtered.append(row)
-            if len(filtered) >= max(1, min(limit, 500)):
-                break
-        items = [_order_item_from_row(row) for row in filtered]
-        return AdminOrderListResponse(filters=filters, count=len(items), items=items)
+        page_rows = filtered[normalized_offset:normalized_offset + normalized_limit]
+        items = [_order_item_from_row(row) for row in page_rows]
+        next_offset = normalized_offset + len(items)
+        has_more = next_offset < len(filtered)
+        return AdminOrderListResponse(
+            filters=filters,
+            count=len(items),
+            pagination={
+                "limit": normalized_limit,
+                "offset": normalized_offset,
+                "returned_count": len(items),
+                "total_matching_count": len(filtered),
+                "next_offset": next_offset if has_more else None,
+                "has_more": has_more,
+            },
+            items=items,
+        )
 
     def build_order_detail(self, *, client_order_id: str) -> AdminOrderDetailResponse:
         """Return one read-only order row by ``client_order_id``."""
@@ -338,6 +368,7 @@ class AdminApiReadService:
                 "admin.bootstrap": self.build_admin_bootstrap().model_dump(mode="json"),
                 "admin.health": self.build_admin_health().model_dump(mode="json"),
                 "admin.capabilities": self.build_admin_capabilities().model_dump(mode="json"),
+                "admin.csrf": self.build_csrf_contract().model_dump(mode="json"),
                 "orders.list": self.build_order_list().model_dump(mode="json"),
                 "orders.detail.empty": self.build_order_detail(
                     client_order_id="00000000-0000-0000-0000-000000000000"

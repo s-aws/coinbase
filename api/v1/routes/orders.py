@@ -266,6 +266,7 @@ def list_orders(
     product_id: str | None = None,
     order_status: str | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> JSONResponse:
     """Read local order_parent evidence without contacting Coinbase."""
 
@@ -275,6 +276,7 @@ def list_orders(
             product_id=product_id,
             status=order_status,
             limit=limit,
+            offset=offset,
         )
     )
 

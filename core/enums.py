@@ -231,6 +231,13 @@ class AdminApiCompatibilityMode(str, Enum):
     COMPATIBILITY_ONLY = "compatibility_only"
 
 
+class AdminApiAuthMode(str, Enum):
+    """Admin API authentication verifier mode."""
+
+    BOOTSTRAP_BEARER = "bootstrap_bearer"
+    OIDC_JWT = "oidc_jwt"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

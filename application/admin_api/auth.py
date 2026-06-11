@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import Header, HTTPException, status
 
-from core.enums import AdminApiPermission, AdminApiRole
+from core.enums import AdminApiAuthMode, AdminApiPermission, AdminApiRole
 
 from .models import AdminApiActor
 
@@ -56,6 +56,23 @@ def _configured_bearer_token() -> str | None:
     return token or None
 
 
+def configured_auth_mode() -> AdminApiAuthMode:
+    """Return the configured Admin API auth verifier mode."""
+
+    raw_mode = os.environ.get(
+        "COINBASE_ADMIN_API_AUTH_MODE",
+        AdminApiAuthMode.BOOTSTRAP_BEARER.value,
+    )
+    mode = raw_mode.strip() if raw_mode else AdminApiAuthMode.BOOTSTRAP_BEARER.value
+    try:
+        return AdminApiAuthMode(mode)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Unsupported Admin API auth mode: {mode}",
+        ) from exc
+
+
 def _parse_roles(raw_roles: str | None) -> list[AdminApiRole]:
     roles: list[AdminApiRole] = []
     for raw_role in (raw_roles or "").split(","):
@@ -92,18 +109,12 @@ def require_permission(actor: AdminApiActor, permission: AdminApiPermission) -> 
     )
 
 
-def get_authenticated_actor(
-    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
-    actor_id: Annotated[str | None, Header(alias="X-Admin-Actor")] = None,
-    roles: Annotated[str | None, Header(alias="X-Admin-Roles")] = None,
+def _get_bootstrap_bearer_actor(
+    *,
+    authorization: str | None,
+    actor_id: str | None,
+    roles: str | None,
 ) -> AdminApiActor:
-    """Authenticate an Admin API actor.
-
-    This is a fail-closed bootstrap verifier. Production deployment should
-    replace it with OIDC/JWT verification, but routes already depend on this
-    enforcement point instead of trusting frontend button visibility.
-    """
-
     configured_token = _configured_bearer_token()
     if configured_token is None:
         raise HTTPException(
@@ -133,3 +144,37 @@ def get_authenticated_actor(
         )
 
     return AdminApiActor(actor_id=actor_text, roles=parsed_roles)
+
+
+def _get_oidc_jwt_actor() -> AdminApiActor:
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Admin API OIDC/JWT verifier is not implemented",
+    )
+
+
+def get_authenticated_actor(
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+    actor_id: Annotated[str | None, Header(alias="X-Admin-Actor")] = None,
+    roles: Annotated[str | None, Header(alias="X-Admin-Roles")] = None,
+) -> AdminApiActor:
+    """Authenticate an Admin API actor.
+
+    This dependency is the single verifier boundary used by Admin API routes.
+    Bootstrap bearer mode is active for local integration. OIDC/JWT mode is
+    modeled as a fail-closed adapter until production verification is wired.
+    """
+
+    mode = configured_auth_mode()
+    if mode == AdminApiAuthMode.BOOTSTRAP_BEARER:
+        return _get_bootstrap_bearer_actor(
+            authorization=authorization,
+            actor_id=actor_id,
+            roles=roles,
+        )
+    if mode == AdminApiAuthMode.OIDC_JWT:
+        return _get_oidc_jwt_actor()
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Admin API auth verifier is not configured",
+    )
