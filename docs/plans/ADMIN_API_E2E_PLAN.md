@@ -3865,3 +3865,8 @@ Future Admin API phases should classify work as reusable platform primitive or
 domain module before adding contracts. Non-spot modules must define
 backend-owned semantics and must not import spot-only wallet, USDC,
 cost-basis, average-cost, lot authority, or no-shorting assumptions.
+
+The durable completion path now lives in
+[Admin Platform Durable Milestones](ADMIN_PLATFORM_DURABLE_MILESTONES.md).
+Future phase batches should be derived from that milestone plan rather than
+from spot-specific backlog shape.

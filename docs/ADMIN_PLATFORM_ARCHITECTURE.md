@@ -80,3 +80,9 @@ A reviewer with no chat history should be able to answer:
 If any answer is unclear, update contracts, route inventory, or docs before
 adding UI behavior.
 
+## Durable Milestones
+
+Use [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
+as the completion-oriented plan for broadening the platform beyond spot. The
+milestones define what counts as done, which evidence is required, and why the
+next non-spot slice should start with read-only backend-owned contracts.

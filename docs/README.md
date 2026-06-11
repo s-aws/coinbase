@@ -21,6 +21,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin API](../README.admin-api.md)
 - [Admin Platform Architecture](ADMIN_PLATFORM_ARCHITECTURE.md)
 - [Admin Module Capability Matrix](ADMIN_MODULE_CAPABILITY_MATRIX.md)
+- [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
 - [Frontend Association](FRONTEND_ASSOCIATION.md)
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)
 - [Admin API Route Inventory](plans/ADMIN_API_ROUTE_INVENTORY.md)
@@ -73,6 +74,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## State, Modes, And Roadmaps
 
 - [Public Roadmap](PUBLIC_ROADMAP.md)
+- [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
 - [Agent State](../genai_data/agent_state.md)
 - [Debugging Strategy](../genai_data/DEBUGGING_STRATEGY.md)
