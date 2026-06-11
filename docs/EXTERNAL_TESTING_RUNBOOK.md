@@ -19,6 +19,9 @@ It covers REST contract tests, WebSocket contract tests, and opt-in live WebSock
 4. Live spot order smoke is allowed only as a manual, explicitly approved
    release-readiness exception. It must report every live order and all
    submitted/executed notional.
+5. Enterprise admin frontend release checks are separate dry/no-live checks;
+   they must report live Coinbase execution as not run with notional `$0` and
+   do not approve any live smoke command in this runbook.
 
 ## Required Environment Variables
 

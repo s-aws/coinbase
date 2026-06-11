@@ -62,6 +62,12 @@ For the current boundary between legacy live WebSocket commands, read-only
 HTTP routes, and sweep/campaign execution, see
 [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
+The frontend release-hardening gate is owned by `C:\coinbase-frontend` and
+includes `npm run release:check`, dry-run read smoke, dry-run command smoke,
+and dry-run BFF smoke. Those checks are no-live checks and must report live
+Coinbase execution as not run with notional `$0`. They do not replace this
+repository's required backend regression gate when backend files change.
+
 ## Direction
 
 - Use FastAPI with backend-owned OpenAPI.

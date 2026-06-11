@@ -105,3 +105,49 @@ Resolution:
 Status:
 
 - Findings resolved. No live Coinbase execution was run. Notional `$0`.
+
+## Release Hardening Review - Phases 391-410
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer task:
+
+- identify frontend release-readiness commands
+- identify machine-readable release evidence
+- verify BFF mode keeps backend bearer tokens server-only
+- verify BFF smoke command-route expectations
+- identify backend regression responsibility
+- surface confusing docs/code likely to imply live Coinbase execution is
+  approved
+
+Findings:
+
+- Release commands were discoverable: frontend quality pieces, release check,
+  dry read smoke, dry command smoke, dry BFF smoke, and Playwright.
+- Machine-readable frontend evidence lives in
+  `src/shared/quality/releaseReadiness.ts` and is checked by
+  `scripts/check-release-readiness.mjs`.
+- BFF mode was clear: browser calls same-origin `/api/admin`, and server-only
+  `ADMIN_API_*` variables supply backend authority.
+- BFF smoke command routes expect backend `501` live-disabled responses,
+  `x-live-execution-enabled=false`, and `live_exchange_submitted=false`.
+- Backend regression remains required when backend files change.
+- Clarity gaps found:
+  - frontend agent/root README docs omitted some release/dry-smoke checks
+  - frontend admin README omitted `smoke:bff:dry`
+  - backend live testing docs could be skimmed as frontend release approval
+
+Resolution:
+
+- Updated frontend AGENTS and README docs to include release-aware checks and
+  dry-smoke commands.
+- Updated backend live-surface and external-testing docs to explicitly separate
+  frontend dry/no-live release checks from manually approved live smoke tools.
+
+Status:
+
+- Findings resolved. No live Coinbase execution was run. Notional `$0`.

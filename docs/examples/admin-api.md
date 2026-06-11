@@ -293,6 +293,8 @@ inventory without contacting a live backend:
 ```powershell
 npm run smoke:read:dry
 npm run smoke:command:dry
+npm run smoke:bff:dry
+npm run release:check
 ```
 
 Against a local Admin API, configure `ADMIN_API_BASE_URL`,
@@ -305,4 +307,16 @@ npm run smoke:command
 ```
 
 The command smoke expects `501` live-disabled responses and reports live
+Coinbase execution as not run with notional `$0`.
+
+For same-origin BFF smoke, start the frontend with `NEXT_PUBLIC_ADMIN_API_MODE=bff`
+and server-only `ADMIN_API_*` variables, then run:
+
+```powershell
+$env:FRONTEND_BASE_URL = "http://127.0.0.1:3000"
+npm run smoke:bff
+```
+
+BFF smoke reads through `/api/admin/api/v1/...` and posts to BFF command
+routes expecting backend `501` live-disabled responses. It must report live
 Coinbase execution as not run with notional `$0`.

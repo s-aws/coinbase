@@ -44,6 +44,22 @@ readiness, and durable P/L/cost-basis surfaces without submitting live orders.
 The all-USDC campaign gate additionally fails configs that are not explicitly
 broad or that omit total/order/count safety caps.
 
+## Admin Frontend Release Gate
+
+For the enterprise admin frontend sibling repository at `C:\coinbase-frontend`,
+run:
+
+```powershell
+npm run release:check
+npm run smoke:read:dry
+npm run smoke:command:dry
+npm run smoke:bff:dry
+```
+
+These checks are dry/no-live checks. They must report live Coinbase execution
+as not run with notional `$0`. They do not replace this repository's backend
+regression gate when backend files changed.
+
 ## Browser Smoke Gate
 
 Install Playwright support for the Python used by `pytest`:

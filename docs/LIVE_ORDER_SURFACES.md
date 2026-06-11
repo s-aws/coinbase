@@ -3,6 +3,10 @@
 This project has multiple operator surfaces, but they do not have equal live
 trading authority.
 
+The enterprise admin frontend release path is not a live-order surface. Its
+release checks are dry/no-live validation and must report live Coinbase
+execution as not run with notional `$0`.
+
 ## Current Live-Capable Surfaces
 
 - Legacy dashboard WebSocket `place_order` is a compatibility-only manual live

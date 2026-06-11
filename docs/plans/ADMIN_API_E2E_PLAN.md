@@ -1814,3 +1814,212 @@ Exit criteria:
   typecheck, lint, API freshness, command-fetch guard, `103` unit tests, and
   `3` Playwright tests. Smoke dry-runs passed.
 - Live Coinbase execution: not run; test notional `$0`.
+
+## Approved Release Hardening Batch - Phases 391-410
+
+These phases are approved as the next aligned completion batch. They do not
+authorize live Coinbase execution. Backend HTTP command routes remain
+live-disabled unless a later named phase explicitly approves live execution
+with a notional cap.
+
+### Phase 391 - CI Parity For Local Quality
+
+- Support the frontend CI parity update by keeping backend OpenAPI available
+  as the generated-client source of truth.
+
+Exit criteria:
+
+- CI/local checks still require backend OpenAPI freshness and do not bypass
+  backend regression when backend files change.
+
+### Phase 392 - Machine-Readable Release Evidence Manifest
+
+- Mirror the frontend release evidence posture in backend docs.
+
+Exit criteria:
+
+- Backend docs state that release evidence is frontend-owned while backend
+  command authority remains in the Admin API.
+
+### Phase 393 - Release Check Script Association
+
+- Document frontend release-check responsibilities and backend regression
+  responsibilities.
+
+Exit criteria:
+
+- Operators know release checks are dry/no-live and do not replace backend
+  regression.
+
+### Phase 394 - Release Candidate UI Evidence
+
+- Keep backend read payloads and observability headers sufficient for release
+  evidence display.
+
+Exit criteria:
+
+- No backend route change is required for read-only release evidence.
+
+### Phase 395 - BFF Smoke Contract Expansion
+
+- Keep BFF smoke expectations aligned with backend read routes and current
+  command `501` live-disabled behavior.
+
+Exit criteria:
+
+- Backend docs name expected `501` command behavior and `$0` live notional.
+
+### Phase 396 - Production Configuration Validation
+
+- Keep backend environment docs clear for auth mode, CORS, CSRF, and BFF
+  server authority.
+
+Exit criteria:
+
+- No backend doc instructs operators to expose bearer tokens in browser
+  variables.
+
+### Phase 397 - Security Header Production Notes
+
+- Keep CORS/CSRF security posture documented as backend-owned.
+
+Exit criteria:
+
+- Frontend header hardening does not imply backend CORS/CSRF can be skipped.
+
+### Phase 398 - Accessibility And Visual Evidence Refresh
+
+- Preserve backend response fields used by accessible release evidence UI.
+
+Exit criteria:
+
+- Backend route contracts do not require browser-side reinterpretation.
+
+### Phase 399 - Backend Association Release Sync
+
+- Update backend Admin API docs and association docs for the release-hardening
+  checks.
+
+Exit criteria:
+
+- Backend and frontend release docs describe the same no-live posture.
+
+### Phase 400 - Contextless Blind-Agent Release Review
+
+- Run or consume a fresh blind review focused on release readiness, CI parity,
+  BFF authority, and no-live execution posture.
+
+Exit criteria:
+
+- Backend-facing findings are fixed or explicitly deferred before commit.
+
+### Phase 401 - Operator Runbook Final Pass
+
+- Ensure backend runbook references dry smoke and regression expectations.
+
+Exit criteria:
+
+- Contextless operators can run dry checks without Coinbase execution.
+
+### Phase 402 - Deployment Rollback Evidence
+
+- Keep live-action rollback out of scope until live HTTP command execution is
+  separately approved.
+
+Exit criteria:
+
+- Backend docs do not overpromise rollback behavior for disabled live commands.
+
+### Phase 403 - Generated Contract Drift Guard Review
+
+- Preserve OpenAPI generation and freshness checks.
+
+Exit criteria:
+
+- Backend schema remains generated from current FastAPI routes.
+
+### Phase 404 - Command Evidence Snapshot Coverage
+
+- Keep command responses aligned with audit, idempotency, guard, and
+  live-disabled fields.
+
+Exit criteria:
+
+- Backend regression continues covering command evidence fields.
+
+### Phase 405 - BFF Failure-State UX Review
+
+- Keep structured errors and observability headers suitable for frontend BFF
+  failure states.
+
+Exit criteria:
+
+- Backend failures remain structured and non-live.
+
+### Phase 406 - Performance Budget Release Check
+
+- No backend performance commitment is added beyond existing read-route
+  contract stability.
+
+Exit criteria:
+
+- Frontend performance evidence remains a UI release check, not a backend
+  trading guarantee.
+
+### Phase 407 - Documentation Index Final Sync
+
+- Ensure backend release and association docs remain linked from the ordered
+  index.
+
+Exit criteria:
+
+- No backend release-critical docs are orphaned.
+
+### Phase 408 - Full Backend/Frontend Gates
+
+- Run full backend regression and frontend quality plus dry-run smokes.
+
+Exit criteria:
+
+- Gates pass and live Coinbase execution is reported as not run with `$0`
+  notional.
+
+### Phase 409 - Release Hardening Progress Update
+
+- Record completed scope, verification, smoke posture, and no-live execution
+  in both roadmaps.
+
+Exit criteria:
+
+- Roadmaps are current for contextless continuation.
+
+### Phase 410 - Commit Both Repos
+
+- Commit the completed batch in backend and frontend.
+
+Exit criteria:
+
+- Both repositories are committed with clean working trees.
+
+### Progress Update - 2026-06-10, Phases 391-410
+
+- Phases 391-393 advanced from the backend association side: frontend release
+  checks now validate CI parity, generated-schema freshness, command-security,
+  dry-smoke coverage, and no-live Coinbase evidence while backend regression
+  remains required for backend file changes.
+- Phases 395-399 advanced: backend docs now describe frontend release checks
+  as dry/no-live validation, BFF smoke command routes as expected backend
+  `501` live-disabled responses, and BFF server authority as separate from
+  browser-visible frontend configuration.
+- Phase 400 completed: a contextless blind review found that backend live
+  testing docs could be skimmed as frontend release approval. Remediation
+  clarified that frontend release checks are separate dry/no-live checks and
+  do not approve live smoke tools.
+- Phases 401-407 advanced: public release readiness, frontend association,
+  Admin API examples, live-surface docs, and contextless review logs are synced
+  with the release-hardening posture.
+- Verification: backend full regression passed with `758 passed`. Frontend
+  `npm run quality` passed with typecheck, lint, API freshness,
+  command-fetch guard, release-check, `104` unit tests, and `3` Playwright
+  tests. Dry read, command, and BFF smokes passed.
+- Live Coinbase execution: not run; test notional `$0`.

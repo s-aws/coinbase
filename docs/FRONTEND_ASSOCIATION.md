@@ -53,6 +53,21 @@ NEXT_PUBLIC_ADMIN_API_BASE_URL=http://127.0.0.1:8787
 This is an origin, not a credential. Do not expose backend bearer tokens,
 Coinbase credentials, account secrets, or private prompts to the browser.
 
+Deployment-like frontend runtime should use the same-origin BFF mode:
+
+```text
+NEXT_PUBLIC_ADMIN_API_MODE=bff
+ADMIN_API_BASE_URL=http://127.0.0.1:8787
+ADMIN_API_BEARER_TOKEN=<server-only backend token>
+ADMIN_API_ACTOR_ID=<server-side actor>
+ADMIN_API_ROLES=<server-side roles>
+ADMIN_API_CSRF_TOKEN=<server-only csrf token when required>
+```
+
+Only `NEXT_PUBLIC_ADMIN_API_MODE` is browser-visible in that configuration.
+The `ADMIN_API_*` values are server-only BFF authority and must not be exposed
+through `NEXT_PUBLIC_*`.
+
 ## Release Rule
 
 Any backend API contract change intended for frontend consumption must update:
@@ -62,3 +77,8 @@ Any backend API contract change intended for frontend consumption must update:
 - frontend generated client or contract tests
 - backend regression gate when backend files changed
 - frontend quality gate when frontend files changed
+- frontend `npm run release:check` and dry-run smoke checks for release
+  candidates
+
+Frontend release checks are dry/no-live checks. They must report live Coinbase
+execution as not run with notional `$0` and do not replace backend regression.
