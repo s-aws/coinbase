@@ -988,3 +988,69 @@ Status:
 - Frontend `npm run release:gate` passed with `169` unit tests and `3`
   Playwright tests.
 - Live Coinbase execution was not run for movement reprice; notional `$0`.
+
+## M6/M7 Command And Auth Boundary Hardening Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify stealth cancel and movement reprice remain backend-owned,
+  live-disabled command draft contracts
+- verify command dry-submit evidence is understandable without relying on
+  browser-local trading authority
+- verify the BFF and frontend command paths cannot broaden command routes or
+  bypass canonical wrappers
+- verify OIDC/JWT cookie-backed unsafe requests require browser same-origin
+  evidence and do not treat server CSRF token injection as standalone browser
+  CSRF protection
+
+Findings:
+
+- Initial backend blind review found no unsafe command path, but flagged
+  blocker-level completion ambiguity until milestone docs recorded final gate
+  evidence and dry-submit wording was made consistent.
+- Initial backend review also flagged that movement reprice uses a
+  cancel-shaped action class and `order:cancel` permission; this needed
+  explicit docs because future live repricing is cancel/replace-shaped.
+- Initial frontend blind review found an M7 blocker: OIDC cookie-backed
+  unsafe requests could rely on server CSRF evidence without validating
+  browser same-origin evidence before forwarding.
+- The frontend review also flagged missing BFF mutation-evidence preflight,
+  command-shell wording that sounded like a backend decision before BFF
+  preflight, and command-fetch guard brittleness.
+
+Resolution:
+
+- Backend Admin API, movement repricing README, examples, and capability matrix
+  now state that movement reprice dry-submit means posting the live-disabled
+  command and preserving the `501`, idempotency, audit, operator-intent, and
+  no-live evidence.
+- Movement reprice docs now explain the `live_exchange_cancel` action class
+  and `order:cancel` permission as intentional cancel/replace-shaped command
+  evidence, not current live repricing approval.
+- Frontend BFF mutation forwarding rejects missing `Idempotency-Key`,
+  `X-Correlation-Id`, and `X-Operator-Intent` before forwarding.
+- OIDC/JWT cookie-backed unsafe requests now require `Origin` or Fetch
+  Metadata same-origin evidence before server-to-backend CSRF evidence is
+  considered.
+- Frontend command fetch guard now rejects direct command-route fetches
+  outside the canonical `BackendApiClient` and same-origin BFF route.
+- Follow-up blind review found no remaining M7 auth/CSRF blockers.
+
+Status:
+
+- Backend focused Admin API contract tests passed with `54 passed,
+  1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Backend autonomous queue validation passed with status `passed`.
+- Frontend focused command/auth contract tests passed with `72 passed`.
+- Frontend `npm run security:commands` passed.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

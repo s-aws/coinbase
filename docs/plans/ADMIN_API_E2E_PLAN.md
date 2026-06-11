@@ -3957,6 +3957,30 @@ Progress update:
   implementation, verification, live posture, commits, and the next approved
   phase range.
 
+Completion evidence:
+
+- Phases 641-660 completed the M6 non-spot command draft contracts and M7
+  production auth/operations hardening evidence.
+- Stealth cancel and movement reprice remain backend-owned, authenticated,
+  RBAC-gated, idempotent, audited, and live-disabled with HTTP `501`.
+- Frontend dry-submit evidence now preserves backend decision, service method,
+  action class, required permission, failure stage, live-submitted flag,
+  operator intent, idempotency key, audit id, and correlation id.
+- BFF command hardening rejects missing mutation evidence headers and rejects
+  OIDC/JWT cookie-backed unsafe requests without same-origin browser evidence.
+- Initial blind/contextless review found M6 documentation ambiguity and an M7
+  OIDC/CSRF browser-boundary blocker; remediation was completed and follow-up
+  review found no remaining blockers.
+- Backend focused Admin API contract tests passed with `54 passed,
+  1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Backend autonomous queue validation passed with status `passed`.
+- Frontend focused command/auth contract tests passed with `72 passed`.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Enterprise Admin Platform Pivot
 
 The objective is reframed from a spot-specific admin surface to an enterprise

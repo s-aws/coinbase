@@ -150,6 +150,32 @@ Stop advancement to the next phase until fixed when any of these occur:
   implementation, verification, live posture, commits, and next approved phase
   range.
 
+## Completion Evidence - Phases 641-660
+
+- Phase range 641-660 completed the M6 non-spot command draft contracts and
+  M7 production auth/operations hardening evidence.
+- Backend command contracts remain live-disabled for stealth cancel and
+  movement reprice; both route through the shared Admin API command service,
+  auth/RBAC, idempotency, audit, and approval gates.
+- Frontend BFF mutation forwarding now rejects missing mutation evidence
+  headers and rejects OIDC/JWT cookie-backed unsafe requests without
+  same-origin browser evidence before forwarding.
+- Command fetch guard hardening passed and continues to require canonical
+  frontend wrappers for command routes.
+- Blind/contextless review found M6 documentation ambiguity and an M7
+  OIDC/CSRF browser-boundary blocker; both were remediated and follow-up
+  review found no remaining blockers.
+- Backend focused Admin API contract tests passed with `54 passed,
+  1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Backend autonomous queue validation passed with status `passed`.
+- Frontend focused command/auth contract tests passed with `72 passed`.
+- Frontend `npm run security:commands` passed.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Required Final Gates
 
 Backend changes:

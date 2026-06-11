@@ -26,10 +26,15 @@ return `read_only=true`, `command_routes_mode=live_disabled`, and
 `live_coinbase_orders_ran=false`.
 
 The reprice command draft requires Admin API authentication, `order:cancel`,
-idempotency headers, operator intent, and audit. The current runtime returns
-HTTP `501` with `status=not_implemented`,
+idempotency headers, operator intent, and audit. The cancel-class permission
+and action class are intentional: future live repricing is cancel/replace
+shaped and must preserve revealed-placement exchange truth. The current
+runtime returns HTTP `501` with `status=not_implemented`,
 `service_method=reprice_stealth_order_by_stealth_order_id`, and
 `live_exchange_submitted=false`.
+For this module, dry-submit means posting the live-disabled command contract
+and preserving the backend `501`, idempotency, audit, operator-intent, and
+no-live evidence. It is not live repricing approval.
 
 ## Evidence Sources
 

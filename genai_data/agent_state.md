@@ -5,17 +5,22 @@ Keep it short. Keep it factual.
 
 ## Metadata
 
-- Last updated (ET): 2026-06-10
+- Last updated (ET): 2026-06-11
 - Updated by: Codex
 - Branch: main
 - Commit (optional):
 
 ## Current Objective
 
-- One-sentence objective: Continue the approved spot roadmap toward safe USDC
-  spot trading while introducing a separate enterprise admin frontend and a
-  planned FastAPI/OpenAPI backend boundary without creating a second trading
-  behavior path.
+- One-sentence objective: Build the enterprise admin frontend/API path for
+  the entire Coinbase trading engine, with Spot as the first complete product
+  module but not the generic model.
+
+- Durable objective detail: Every new admin module must use backend-owned
+  contracts, preserve the single trading behavior path, avoid importing
+  spot-only rules into non-spot domains, and remain understandable to
+  contextless/blind agents through docs, capability matrices, tests, and
+  review logs.
 
 ## Hard Constraints
 
@@ -31,9 +36,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- In-scope files: spot campaign/sweep strategy, spot docs, dashboard status docs, regression tests, and agent context needed for local-agent accuracy.
-- Out-of-scope files: product catalogs and local order span JSON artifacts unless explicitly requested.
-- Interfaces or modules that must not change without tests: dashboard WebSocket contract, stealth lifecycle, DB write paths.
+- In-scope files: Admin API contracts, admin platform docs, command/auth
+  boundaries, frontend association docs, regression tests, and agent context
+  needed for local-agent accuracy.
+- Out-of-scope files: product catalogs, local order span JSON artifacts, and
+  live Coinbase execution unless an approved phase explicitly requires it.
+- Interfaces or modules that must not change without tests: dashboard
+  WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
+  mutation allowlist, command services, and DB write paths.
 
 ## Decisions (Durable)
 
@@ -151,6 +161,25 @@ Keep it short. Keep it factual.
   - Impact: Spot changes should keep docs readable from `docs/README.md`,
     `README.spot-trading.md`, `README.spot-portfolio-sweep.md`,
     `README.spot-campaign.md`, and `genai_data/ORDER_ID_HANDLING.md`.
+
+- [2026-06-11] Decision: The durable objective is now the enterprise admin
+  frontend/API path for the whole trading engine, with Spot as the first
+  complete product module but not the generic model.
+  - Reason: The admin platform must be extensible to stealth, movement/
+    repricing, futures/perpetuals, guard/risk, audit, and future modules
+    without copying spot-specific wallet or cost-basis assumptions.
+  - Impact: Roadmap work follows backend-owned contracts, capability
+    matrices, release gates, and blind/contextless review logs across both
+    `C:\coinbase` and `C:\coinbase-frontend`.
+
+- [2026-06-11] Decision: M6 non-spot command draft contracts and M7 production
+  auth/operations hardening are complete for the current admin-platform scope.
+  - Reason: Stealth cancel and movement reprice are live-disabled,
+    backend-owned command drafts; BFF/auth hardening now rejects missing
+    mutation evidence and OIDC/JWT cookie-backed unsafe requests without
+    same-origin browser evidence.
+  - Impact: M8 controlled live enablement remains pending and still requires
+    explicit live approval, caps, audit, and reconciliation evidence.
 
 ## Open Risks
 

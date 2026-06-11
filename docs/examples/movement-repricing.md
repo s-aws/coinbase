@@ -111,6 +111,12 @@ Expected command response posture:
 }
 ```
 
+The `live_exchange_cancel` action class and `order:cancel` permission are
+intentional. Approved live repricing would replace a revealed placement through
+the existing cancel/replace/reconcile path, so there is no separate browser
+repricing authority. For this module, dry-submit means preserving this
+live-disabled `501` command evidence; it is not live repricing approval.
+
 Do not send `client_order_id` or Coinbase `order_id` in the request body.
 The current route writes audit/idempotency evidence and stops at the
 live-disabled gate. `X-Operator-Intent` is persisted as audit evidence and is

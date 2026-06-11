@@ -160,6 +160,11 @@ The platform/module split is documented in
   `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
   is live-disabled and keyed by `stealth_order_id`. It does not clear
   cooldowns, invoke the live repricer, cancel placements, or call Coinbase.
+  Its `live_exchange_cancel` action class and `order:cancel` permission are
+  intentional because approved live repricing would be cancel/replace-shaped;
+  no standalone browser repricing permission exists. Dry-submit for this
+  command means preserving the backend `501` response, idempotency, audit,
+  operator-intent, and no-live evidence.
 - Futures/perpetual read rows use backend-defined `position_key` identity.
   Account evidence separates `configured_product_scope` from
   `observed_position_scope`; close/reduce sides are backend-derived from

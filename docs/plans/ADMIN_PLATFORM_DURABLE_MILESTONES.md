@@ -35,8 +35,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M3 - Futures/Perpetuals Read Foundation | Complete | Add futures/perpetual account, position, funding, and risk read contracts. |
 | M4 - Guard And Risk Policy Evidence | Complete | Expose backend guard/risk decisions as read-only evidence across modules. |
 | M5 - Cross-Module Audit Workbench | Complete | Unify operator audit, reconciliation, and correlation evidence across modules. |
-| M6 - Non-Spot Command Draft Contracts | Pending | Add disabled drafts/dry-submit contracts only after read contracts are stable. |
-| M7 - Production Auth And Operations Hardening | Pending | Finish enterprise auth, deployment, observability, and operator runbooks. |
+| M6 - Non-Spot Command Draft Contracts | Complete | Add disabled drafts/dry-submit contracts only after read contracts are stable. |
+| M7 - Production Auth And Operations Hardening | Complete | Finish enterprise auth, deployment, observability, and operator runbooks. |
 | M8 - Controlled Live Enablement | Pending | Enable live execution only per approved backend path, cap, and reconciliation gate. |
 | M9 - Enterprise Release Candidate | Pending | Prove the whole admin platform with release, security, contextless, and regression gates. |
 | M10 - Public Maintainer Handoff | Pending | Make onboarding, contribution, and contextless-agent operation durable. |
@@ -322,7 +322,7 @@ Frontend scope:
 Done when command paths are traceable through the single backend behavior path
 and contextless review finds no parallel trading implementation.
 
-Current M6 completion:
+Completed evidence:
 
 - `stealth_cancel` is the first non-spot command draft contract.
 - Backend route:
@@ -347,6 +347,27 @@ Current M6 completion:
   live-disabled with HTTP `501`; idempotency conflicts preserve
   `stealth_order_id` audit identity; live Coinbase execution not run,
   notional `$0`.
+- Command dry-submit evidence now preserves backend decision, service method,
+  action class, required permission, failure stage, live exchange submission
+  flag, operator intent, idempotency key, audit id, correlation id, and live
+  Coinbase evidence.
+- Frontend command drafts display backend route, backend-owned route evidence,
+  identity key, live-enabled posture, audit evidence, and idempotency evidence
+  for manual order, cancel, stealth cancel, movement reprice, and campaign
+  execution drafts.
+- Backend focused Admin API contract tests passed with `54 passed,
+  1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend focused command/auth contract tests passed with `72 passed`.
+- Frontend `npm run security:commands` passed.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Backend autonomous queue validation passed.
+- Initial blind/contextless review found documentation/gate-evidence
+  ambiguity and dry-submit wording ambiguity; remediation clarified
+  movement reprice dry-submit and action-class semantics. Follow-up review
+  found no remaining M6 blockers.
+- Live Coinbase execution was not run for M6; notional `$0`.
 
 ## M7 - Production Auth And Operations Hardening
 
@@ -366,6 +387,37 @@ Frontend scope:
 Done when staging/prod readiness checks, release artifacts, deployment docs,
 and contextless review prove production auth is not simulated by browser
 headers.
+
+Completed evidence:
+
+- BFF mutation forwarding now rejects missing `Idempotency-Key`,
+  `X-Correlation-Id`, or `X-Operator-Intent` before forwarding unsafe
+  requests to the backend.
+- BFF POST route coverage is set-equal to the backend-owned mutation
+  contracts; undocumented command paths cannot be broadened through the BFF
+  allowlist.
+- OIDC/JWT cookie-backed unsafe requests require same-origin browser evidence
+  from `Origin` or Fetch Metadata. Server-side CSRF token injection remains
+  server-to-backend evidence only and is not treated as standalone browser
+  CSRF protection.
+- Command fetch guards reject direct frontend command-route `fetch` calls
+  outside the canonical `BackendApiClient` and same-origin BFF route.
+- Auth, deployment, observability, command-workflow, and human-operator
+  runbook docs now describe server-only authority, OIDC cookie deployment
+  settings, no-live release evidence, and BFF preflight behavior.
+- Frontend focused auth/BFF tests passed with `72 passed` in the combined
+  command/auth focused suite.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Initial blind/contextless frontend review found a blocker: OIDC cookie mode
+  could rely on server CSRF evidence without browser same-origin validation.
+  The BFF boundary was remediated and follow-up blind review found no
+  remaining blockers.
+- Production OIDC cookie `SameSite`, `Secure`, and host/domain settings remain
+  a deployment/auth-layer configuration requirement, documented in deployment
+  and auth docs.
+- Live Coinbase execution was not run for M7; notional `$0`.
 
 ## M8 - Controlled Live Enablement
 
