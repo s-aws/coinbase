@@ -63,13 +63,17 @@ HTTP routes, and sweep/campaign execution, see
 [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
 The frontend release-hardening gate is owned by `C:\coinbase-frontend` and
-includes `npm run release:check`, `npm run release:artifact`, dry-run read
-smoke, dry-run command smoke, and dry-run BFF smoke. Those checks are no-live
-checks and must report live Coinbase execution as not run with notional `$0`.
-The release artifact is written in the frontend repository at
-`artifacts/release-readiness.json` and uploaded by frontend CI; it is not a
-backend approval to trade. These checks do not replace this repository's
-required backend regression gate when backend files change.
+includes `npm run build`, `npm run release:check`,
+`npm run release:artifact`, `npm run deployment:package`,
+`npm run observability:drill`, `npm run deployment:check`, dry-run read smoke,
+dry-run command smoke, and dry-run BFF smoke. Those checks are no-live checks
+and must report live Coinbase execution as not run with notional `$0`. The
+release artifact is written in the frontend repository at
+`artifacts/release-readiness.json`; the package manifest is
+`artifacts/deployment-package-manifest.json`; and the route/header drill is
+`artifacts/observability-drill.json`. They are uploaded by frontend CI; they
+are not backend approval to trade. These checks do not replace this
+repository's required backend regression gate when backend files change.
 
 ## Direction
 
@@ -126,6 +130,11 @@ browser code: `Content-Type`, `X-Correlation-Id`, `X-Request-Id`,
 `X-Admin-Api-Version`, `X-Live-Execution-Enabled`, and
 `X-Idempotency-Replayed`. Treat missing BFF authority as a session/transport
 configuration failure, not as a live trading gate result.
+
+Frontend `server_env_static` BFF authority is local/staging evidence only.
+Production remains blocked until a real backend OIDC/JWT session bridge exists
+and backend `oidc_jwt` verification is implemented. Browser-visible RBAC
+remains a UI hint; backend RBAC is the enforcement authority.
 
 CSRF enforcement is opt-in for cookie/session or BFF deployments:
 

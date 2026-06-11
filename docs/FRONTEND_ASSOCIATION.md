@@ -77,13 +77,18 @@ Any backend API contract change intended for frontend consumption must update:
 - frontend generated client or contract tests
 - backend regression gate when backend files changed
 - frontend quality gate when frontend files changed
-- frontend `npm run release:check`, `npm run release:artifact`, and dry-run
-  smoke checks for release candidates
+- frontend `npm run build`, `npm run release:check`,
+  `npm run release:artifact`, `npm run deployment:package`,
+  `npm run observability:drill`, `npm run deployment:check`, and dry-run smoke
+  checks for release candidates
 
 Frontend release checks are dry/no-live checks. They must report live Coinbase
 execution as not run with notional `$0` and do not replace backend regression.
 The frontend release artifact is `C:\coinbase-frontend\artifacts\release-readiness.json`;
 CI uploads it as `frontend-release-readiness` instead of committing it.
+The same CI artifact includes
+`C:\coinbase-frontend\artifacts\deployment-package-manifest.json` and
+`C:\coinbase-frontend\artifacts\observability-drill.json`.
 Read-only frontend rollback is a hosting/build rollback. Live-action rollback
 is out of scope until live HTTP command execution is separately approved.
 
@@ -96,3 +101,7 @@ authority even when frontend deployment validation passes.
 BFF response evidence back to browser code is limited to `Content-Type`,
 `X-Correlation-Id`, `X-Request-Id`, `X-Admin-Api-Version`,
 `X-Live-Execution-Enabled`, and `X-Idempotency-Replayed`.
+
+Current frontend BFF authority is `server_env_static`, which is local/staging
+evidence only. Production remains blocked until a real backend OIDC/JWT
+session bridge exists and backend `oidc_jwt` verification is implemented.

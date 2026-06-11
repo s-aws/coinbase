@@ -2225,3 +2225,214 @@ Progress update:
   execution not run with notional `$0`. Backend regression passed with
   `758 passed`.
 - Live Coinbase execution: not run; test notional `$0`.
+
+## Approved Production Readiness Closure Batch - Phases 431-450
+
+These phases are approved to keep backend/frontend release closure aligned.
+They do not authorize live Coinbase execution. Backend HTTP command routes
+remain live-disabled unless a later named phase explicitly approves live
+execution with a notional cap.
+
+### Phase 431 - Auth Session Readiness Contract
+
+- Mirror the frontend auth/session readiness contract from the backend
+  association perspective.
+
+Exit criteria:
+
+- Backend docs state current `bootstrap_bearer`/BFF static authority and
+  future OIDC/JWT authority without implying browser-side enforcement.
+
+### Phase 432 - Production Auth Failure Gate
+
+- Document that production-like frontend deployments must fail closed without
+  backend OIDC/JWT session authority.
+
+Exit criteria:
+
+- Backend docs do not treat static BFF env as final production auth.
+
+### Phase 433 - Session Boundary Artifact Evidence
+
+- Document the frontend release artifact auth/session evidence.
+
+Exit criteria:
+
+- Backend docs know the artifact is no-live evidence, not live approval.
+
+### Phase 434 - Deployment Package Manifest
+
+- Document the frontend deployment package manifest.
+
+Exit criteria:
+
+- Backend association docs identify where package/deployment evidence is
+  generated.
+
+### Phase 435 - Deployment Package Check
+
+- Keep backend docs clear that frontend package checks do not replace backend
+  regression.
+
+Exit criteria:
+
+- Backend regression remains the backend validation gate.
+
+### Phase 436 - CI Deployment Package Upload
+
+- Mirror frontend CI artifact upload behavior in backend release docs.
+
+Exit criteria:
+
+- Backend docs distinguish frontend CI artifacts from backend test evidence.
+
+### Phase 437 - Production Build Gate
+
+- Document frontend production build verification as a frontend gate.
+
+Exit criteria:
+
+- Backend docs do not require backend code changes for frontend build gates.
+
+### Phase 438 - Observability Drill Artifact
+
+- Mirror observability drill evidence fields from the backend perspective.
+
+Exit criteria:
+
+- Backend docs identify request id, correlation id, API version,
+  live-disabled, and idempotency replay evidence fields.
+
+### Phase 439 - Observability Drill Check
+
+- Keep backend docs aligned with frontend observability drill checks.
+
+Exit criteria:
+
+- No docs imply drill evidence is Coinbase execution evidence.
+
+### Phase 440 - Runbook Deployment Drill
+
+- Mirror the local deployment drill sequence in backend release docs.
+
+Exit criteria:
+
+- Operators know when to run backend regression versus frontend release gates.
+
+### Phase 441 - Auth/RBAC Documentation Sync
+
+- Sync backend auth/RBAC wording with frontend production auth boundary.
+
+Exit criteria:
+
+- Docs keep backend RBAC as enforcement authority.
+
+### Phase 442 - Backend Association Auth Sync
+
+- Update backend association docs for auth/session and package manifest
+  boundaries.
+
+Exit criteria:
+
+- Backend and frontend docs agree on current/future auth authority.
+
+### Phase 443 - Security/Secret Drift Review
+
+- Re-validate backend docs do not instruct browser-visible backend tokens.
+
+Exit criteria:
+
+- Backend authority remains server/session boundary only.
+
+### Phase 444 - Artifact Schema Stability
+
+- Document frontend artifact schemas as versioned evidence.
+
+Exit criteria:
+
+- Backend docs can be consumed by contextless agents without session history.
+
+### Phase 445 - Contextless Auth/Deployment Review
+
+- Run or consume a fresh blind review focused on auth/session, deployment
+  package, observability drill, and no-live posture.
+
+Exit criteria:
+
+- Backend-facing findings are fixed or explicitly deferred before commit.
+
+### Phase 446 - Final Dry Smoke Evidence
+
+- Record frontend dry-smoke no-live evidence.
+
+Exit criteria:
+
+- Dry smokes report live Coinbase execution not run with notional `$0`.
+
+### Phase 447 - Full Frontend Quality Gate
+
+- Record frontend full quality evidence.
+
+Exit criteria:
+
+- Frontend quality passes.
+
+### Phase 448 - Production Build Verification
+
+- Record frontend production build evidence.
+
+Exit criteria:
+
+- Frontend `npm run build` passes.
+
+### Phase 449 - Full Backend Regression Gate
+
+- Run backend regression.
+
+Exit criteria:
+
+- Backend regression passes.
+
+### Phase 450 - Roadmap Progress And Commits
+
+- Record completed scope, verification, review, and commits in both repos.
+
+Exit criteria:
+
+- Roadmaps are current and both repositories are committed with clean working
+  trees.
+
+Progress update:
+
+- Phases 431-433 advanced from the backend association side: backend docs now
+  state that current frontend `server_env_static` BFF authority is
+  local/staging evidence only and production remains blocked until a real
+  backend OIDC/JWT session bridge exists and backend `oidc_jwt` verification
+  is implemented.
+- Phases 434-439 advanced: backend release docs now identify frontend
+  `artifacts/release-readiness.json`,
+  `artifacts/deployment-package-manifest.json`, and
+  `artifacts/observability-drill.json` as no-live frontend evidence uploaded
+  by frontend CI.
+- Phases 440-444 advanced: backend examples and association docs now include
+  frontend build/package/drill/check commands, canonical
+  `ADMIN_API_ACTOR_ID`, BFF response-evidence headers, and
+  `admin_bff_proxy_error` as session/transport evidence rather than trading
+  approval.
+- Phase 445 review: the first blind contextless auth/deployment review failed
+  on stale frontend batch wording, missing closure evidence, and split direct
+  smoke actor env naming. Remediation updated the frontend entry README,
+  standardized direct smoke scripts on `ADMIN_API_ACTOR_ID` with
+  `ADMIN_API_ACTOR` legacy fallback, clarified backend/frontend docs, and
+  added this closure summary.
+- Verification so far: frontend focused `qualityGates` tests passed with `11`
+  tests. Frontend `npm run build`, `npm run deployment:package`,
+  `npm run observability:drill`, `npm run deployment:check`,
+  `npm run release:check`, dry read smoke, dry command smoke, and dry BFF
+  smoke passed and reported live Coinbase execution not run with notional
+  `$0`. Frontend full quality passed sequentially with `110` unit tests and
+  `3` Playwright tests. Backend regression passed with `758 passed`.
+- Phase 450 commit evidence is completed by the git commits that contain this
+  progress update. Contextless readers should verify clean-tree status with
+  `git status --short` in both repositories after those commits.
+- Live Coinbase execution: not run; test notional `$0`.

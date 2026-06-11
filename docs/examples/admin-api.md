@@ -294,18 +294,26 @@ inventory without contacting a live backend:
 npm run smoke:read:dry
 npm run smoke:command:dry
 npm run smoke:bff:dry
+npm run build
 npm run release:check
 npm run release:artifact
+npm run deployment:package
+npm run observability:drill
+npm run deployment:check
 ```
 
 Against a local Admin API, configure `ADMIN_API_BASE_URL`,
-`ADMIN_API_BEARER_TOKEN`, `ADMIN_API_ACTOR`, and `ADMIN_API_ROLES`. If backend
-CSRF is required, also configure `ADMIN_API_CSRF_TOKEN`, then run:
+`ADMIN_API_BEARER_TOKEN`, `ADMIN_API_ACTOR_ID`, and `ADMIN_API_ROLES`. If
+backend CSRF is required, also configure `ADMIN_API_CSRF_TOKEN`, then run:
 
 ```powershell
 npm run smoke:read
 npm run smoke:command
 ```
+
+Direct frontend smoke scripts still accept `ADMIN_API_ACTOR` as a legacy
+fallback, but `ADMIN_API_ACTOR_ID` is the canonical actor variable shared with
+BFF mode.
 
 The command smoke expects `501` live-disabled responses and reports live
 Coinbase execution as not run with notional `$0`.
@@ -328,3 +336,8 @@ The BFF copies only documented response-evidence headers back to browser code:
 `X-Idempotency-Replayed`. Missing BFF server authority should be handled as
 `admin_bff_proxy_error`, not as a trading approval or Coinbase execution
 failure.
+
+The frontend deployment package manifest and observability drill are no-live
+evidence artifacts. `server_env_static` BFF authority is local/staging evidence
+only; production remains blocked until a real backend OIDC/JWT session bridge
+exists and backend `oidc_jwt` verification is implemented.

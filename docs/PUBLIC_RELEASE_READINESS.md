@@ -50,8 +50,12 @@ For the enterprise admin frontend sibling repository at `C:\coinbase-frontend`,
 run:
 
 ```powershell
+npm run build
 npm run release:check
 npm run release:artifact
+npm run deployment:package
+npm run observability:drill
+npm run deployment:check
 npm run smoke:read:dry
 npm run smoke:command:dry
 npm run smoke:bff:dry
@@ -60,9 +64,16 @@ npm run smoke:bff:dry
 These checks are dry/no-live checks. They must report live Coinbase execution
 as not run with notional `$0`. `npm run release:artifact` writes
 `artifacts/release-readiness.json` in the frontend repository for CI upload.
+`npm run deployment:package` writes
+`artifacts/deployment-package-manifest.json`, and
+`npm run observability:drill` writes `artifacts/observability-drill.json`.
 It is release evidence for the read-only/disabled-command frontend candidate,
 not approval for live Coinbase execution. These checks do not replace this
 repository's backend regression gate when backend files changed.
+
+Frontend production readiness remains blocked until a real backend OIDC/JWT
+session bridge exists. Current `server_env_static` BFF authority is local or
+staging evidence, not final enterprise production auth.
 
 ## Browser Smoke Gate
 
