@@ -108,6 +108,18 @@ the session/BFF bridge headers required by the frontend:
 Bearer tokens still belong on the backend/session boundary; do not expose them
 through `NEXT_PUBLIC_*` frontend variables.
 
+CSRF enforcement is opt-in for cookie/session or BFF deployments:
+
+```powershell
+$env:COINBASE_ADMIN_API_CSRF_REQUIRED = "true"
+$env:COINBASE_ADMIN_API_CSRF_TOKEN = "local-csrf-token"
+```
+
+When required, unsafe HTTP methods under `/api/v1/` must include
+`X-CSRF-Token` matching the configured token. Read-only `GET` routes are not
+blocked by CSRF middleware. Failed CSRF checks return structured `403` errors
+with `X-Live-Execution-Enabled: false`.
+
 ## Must Not Do
 
 - Do not implement live order behavior directly in FastAPI handlers.

@@ -22,9 +22,12 @@ For frontend integration, set CORS to the exact local frontend origin:
 $env:COINBASE_ADMIN_API_CORS_ORIGINS = "http://127.0.0.1:3000"
 ```
 
-The CORS contract is origin-allowlisted and permits `X-CSRF-Token` for future
-cookie/session bridge deployments. Current bearer-token bootstrap still fails
-closed unless `COINBASE_ADMIN_API_BEARER_TOKEN` is configured on the backend.
+The CORS contract is origin-allowlisted and permits `X-CSRF-Token` for
+cookie/session or BFF bridge deployments. Current bearer-token bootstrap still
+fails closed unless `COINBASE_ADMIN_API_BEARER_TOKEN` is configured on the
+backend. When `COINBASE_ADMIN_API_CSRF_REQUIRED=true`, mutating `/api/v1/`
+requests must include `X-CSRF-Token` matching
+`COINBASE_ADMIN_API_CSRF_TOKEN`; read-only `GET` routes do not require it.
 
 Use bootstrap and session reads to render environment, backend association,
 live-action posture, and backend RBAC evidence. These routes do not require
@@ -81,6 +84,7 @@ X-Correlation-Id: corr-20260610-001
 X-Operator-Intent: operator_cancel
 X-Admin-Actor: operator-001
 X-Admin-Roles: trader
+X-CSRF-Token: <configured-csrf-token-when-required>
 ```
 
 Current backend behavior:
@@ -146,6 +150,7 @@ X-Correlation-Id: corr-20260610-002
 X-Operator-Intent: manual_one_off
 X-Admin-Actor: trader-001
 X-Admin-Roles: trader
+X-CSRF-Token: <configured-csrf-token-when-required>
 ```
 
 Current backend behavior:
@@ -181,6 +186,7 @@ X-Operator-Intent: campaign_execute
 X-Admin-Actor: trader-001
 X-Admin-Roles: trader
 Content-Type: application/json
+X-CSRF-Token: <configured-csrf-token-when-required>
 ```
 
 ```json
@@ -274,7 +280,8 @@ npm run smoke:command:dry
 ```
 
 Against a local Admin API, configure `ADMIN_API_BASE_URL`,
-`ADMIN_API_BEARER_TOKEN`, `ADMIN_API_ACTOR`, and `ADMIN_API_ROLES`, then run:
+`ADMIN_API_BEARER_TOKEN`, `ADMIN_API_ACTOR`, and `ADMIN_API_ROLES`. If backend
+CSRF is required, also configure `ADMIN_API_CSRF_TOKEN`, then run:
 
 ```powershell
 npm run smoke:read

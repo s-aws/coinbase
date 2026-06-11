@@ -206,6 +206,35 @@ def test_admin_api_cors_is_limited_to_configured_frontend_origins(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_csrf_is_enforced_for_mutations_when_configured(monkeypatch):
+    monkeypatch.setenv("COINBASE_ADMIN_API_CSRF_REQUIRED", "true")
+    monkeypatch.setenv("COINBASE_ADMIN_API_CSRF_TOKEN", "csrf-test-token")
+    client = _client(monkeypatch)
+
+    read_response = client.get(
+        "/api/v1/admin/bootstrap",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    missing_csrf = client.post(
+        "/api/v1/orders",
+        headers=_headers(),
+        json=_manual_order_payload(),
+    )
+    accepted_csrf = client.post(
+        "/api/v1/orders",
+        headers={**_headers(idempotency_key="idem-csrf-ok"), "X-CSRF-Token": "csrf-test-token"},
+        json=_manual_order_payload(),
+    )
+
+    assert read_response.status_code == 200
+    assert missing_csrf.status_code == 403
+    assert missing_csrf.json()["code"] == AdminApiErrorCode.PERMISSION_DENIED.value
+    assert missing_csrf.headers["x-live-execution-enabled"] == "false"
+    assert accepted_csrf.status_code == 501
+    assert accepted_csrf.json()["live_exchange_submitted"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     monkeypatch,
 ):

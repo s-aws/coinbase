@@ -1416,3 +1416,203 @@ Exit criteria:
   `npm run quality` passed with typecheck, lint, API freshness,
   command-fetch guard, `89` unit tests, and `3` Playwright tests.
 - Live Coinbase execution: not run; test notional `$0`.
+
+## Approved BFF Completion Batch - Phases 351-370
+
+These phases are approved as the next aligned completion batch. They do not
+authorize live Coinbase execution. Backend HTTP command routes remain
+live-disabled unless separately approved with a named phase and notional cap.
+
+### Phase 351 - Production BFF Session Bridge
+
+- Support the frontend same-origin BFF model without exposing backend bearer
+  tokens to browser code.
+
+Exit criteria:
+
+- Backend docs identify the BFF as a session/transport boundary, not a trading
+  authority.
+
+### Phase 352 - Backend Auth Verifier Contract
+
+- Keep the current bearer/RBAC bootstrap fail-closed and document the future
+  OIDC/JWT verifier replacement boundary.
+
+Exit criteria:
+
+- Tests continue proving missing/invalid auth and RBAC denial fail closed.
+
+### Phase 353 - Cookie/Session CSRF Enforcement
+
+- Enforce `X-CSRF-Token` for unsafe `/api/v1/` methods when
+  `COINBASE_ADMIN_API_CSRF_REQUIRED=true`.
+
+Exit criteria:
+
+- Regression proves mutating routes fail without CSRF while read routes remain
+  accessible.
+
+### Phase 354 - Frontend Server API Proxy Association
+
+- Document the frontend `/api/admin` proxy and required backend-facing
+  environment variables.
+
+Exit criteria:
+
+- The association makes clear that backend handlers still own every guard,
+  wallet, approval, and Coinbase boundary.
+
+### Phase 355 - Runtime Refresh/Retry/Error Boundary
+
+- Preserve structured error and observability headers for BFF/direct backend
+  runtime states.
+
+Exit criteria:
+
+- Errors remain structured and live execution evidence remains false.
+
+### Phase 356 - Capability Coverage For All Routes
+
+- Keep backend route inventory and capability registry as the authoritative
+  source for frontend route/action availability.
+
+Exit criteria:
+
+- Contract tests continue covering the current route inventory.
+
+### Phase 357 - Orders Search, Filtering, And Pagination Prep
+
+- Keep order list filters backend-owned and read-only.
+
+Exit criteria:
+
+- Frontend local filtering does not become order planning or execution logic.
+
+### Phase 358 - Order Detail Deep-Link Hardening
+
+- Preserve order detail identity as `client_order_id`.
+
+Exit criteria:
+
+- Exchange ids remain evidence only.
+
+### Phase 359 - Audit Evidence Deep Links
+
+- Preserve direct-order audit reads by `client_order_id`.
+
+Exit criteria:
+
+- Audit routes remain read-only and do not call Coinbase.
+
+### Phase 360 - Spot P/L Read Contract Tightening
+
+- Keep spot P/L under `pnl_report.snapshot` as the canonical read shape.
+
+Exit criteria:
+
+- Frontend maps backend P/L evidence without introducing calculations.
+
+### Phase 361 - Read-Only P/L Surface
+
+- Maintain operational P/L disclaimers and avoid tax-accounting claims.
+
+Exit criteria:
+
+- Docs keep P/L framed as operational evidence.
+
+### Phase 362 - Backend/Frontend Contract Tests
+
+- Add focused backend/frontend tests for CSRF, BFF association, route coverage,
+  and read identity rules.
+
+Exit criteria:
+
+- Focused tests pass before full gates.
+
+### Phase 363 - Command Dry-Submit Fixture Expansion
+
+- Keep command dry-submit live-disabled across direct backend and BFF paths.
+
+Exit criteria:
+
+- Command smoke expects `501` and no live Coinbase execution.
+
+### Phase 364 - Local Integrated Smoke
+
+- Keep local smoke scripts compatible with backend CSRF configuration.
+
+Exit criteria:
+
+- Operators can run read and command dry smoke with `$0` live notional.
+
+### Phase 365 - Production Config Matrix
+
+- Document backend env vars for local, BFF, staging, sandbox, and production.
+
+Exit criteria:
+
+- Contextless deployers can configure the API without browser-exposed secrets.
+
+### Phase 366 - Dependency And Security Audit Gate
+
+- Preserve CORS, CSRF, auth, and no-direct-Coinbase boundaries in docs/tests.
+
+Exit criteria:
+
+- Security checks and backend regression pass.
+
+### Phase 367 - Accessibility And Keyboard Pass
+
+- Support the frontend accessibility pass with stable read/error payloads.
+
+Exit criteria:
+
+- Backend response shapes remain accessible to render without reinterpretation.
+
+### Phase 368 - Contextless Blind-Agent Review
+
+- Run a fresh blind review focused on BFF mode, command dry-submit, and audit
+  navigation.
+
+Exit criteria:
+
+- Findings are fixed or explicitly deferred before committing.
+
+### Phase 369 - Full Gates And Release Notes
+
+- Run backend regression and frontend quality, and record live Coinbase
+  execution as not run with `$0` notional.
+
+Exit criteria:
+
+- Full gates pass and docs include verification evidence.
+
+### Phase 370 - Commit Both Repos
+
+- Commit the completed batch in backend and frontend.
+
+Exit criteria:
+
+- Both repositories are committed with clean working trees.
+
+### Progress Update - 2026-06-10, Phases 351-370
+
+- Phases 351-354 advanced: the frontend BFF path is documented as a
+  transport/session boundary, while backend handlers remain the authority for
+  auth, RBAC, guards, approval, audit, and Coinbase boundaries. Backend CSRF
+  enforcement now fails closed for unsafe `/api/v1/` methods when
+  `COINBASE_ADMIN_API_CSRF_REQUIRED=true`.
+- Phases 356-360 advanced from the backend contract side: capability registry,
+  order read identity, direct-order audit identity, and spot P/L read shape
+  remain backend-owned.
+- Phases 362-364 advanced: focused backend regression covers auth/RBAC,
+  idempotency, CORS, CSRF, route inventory, command live-disabled posture,
+  `client_order_id` cancel, and read-only order routes.
+- Phase 368 completed for this batch: a contextless blind review confirmed the
+  BFF/order/audit/P&L path and found one frontend docs clarity gap. Remediation
+  added a focused frontend flow doc.
+- Verification: backend regression passed with `755 passed`; frontend
+  `npm run quality` passed with typecheck, lint, API freshness,
+  command-fetch guard, `99` unit tests, and `3` Playwright tests. Smoke
+  dry-runs passed and reported `$0` live notional.
+- Live Coinbase execution: not run; test notional `$0`.

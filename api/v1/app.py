@@ -24,6 +24,8 @@ _ADMIN_AUTH_HEADERS = {
     "X-Admin-Actor",
     "X-Admin-Roles",
 }
+_CSRF_MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_TRUTHY_ENV_VALUES = {"1", "true", "yes"}
 
 
 def _request_ids(request: Request) -> tuple[str, str]:
@@ -72,6 +74,33 @@ def _error_headers(correlation_id: str, request_id: str) -> dict[str, str]:
         "X-Request-Id": request_id,
         "X-Live-Execution-Enabled": "false",
     }
+
+
+def _csrf_required() -> bool:
+    return (
+        os.environ.get("COINBASE_ADMIN_API_CSRF_REQUIRED", "").strip().lower()
+        in _TRUTHY_ENV_VALUES
+    )
+
+
+def _configured_csrf_token() -> str | None:
+    token = os.environ.get("COINBASE_ADMIN_API_CSRF_TOKEN")
+    token = token.strip() if token else ""
+    return token or None
+
+
+def _csrf_error_response(correlation_id: str, request_id: str) -> JSONResponse:
+    body = AdminApiErrorResponse(
+        code=AdminApiErrorCode.PERMISSION_DENIED,
+        message="Invalid or missing Admin API CSRF token",
+        severity=AdminApiErrorSeverity.WARNING,
+        correlation_id=correlation_id,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content=body.model_dump(mode="json"),
+        headers=_error_headers(correlation_id, request_id),
+    )
 
 
 def _customize_openapi(app: FastAPI) -> dict:
@@ -161,6 +190,15 @@ def create_app() -> FastAPI:
         request_id = request.headers.get("X-Request-Id") or correlation_id
         request.state.correlation_id = correlation_id
         request.state.request_id = request_id
+        if (
+            _csrf_required()
+            and request.method.upper() in _CSRF_MUTATION_METHODS
+            and request.url.path.startswith("/api/v1/")
+        ):
+            expected_csrf_token = _configured_csrf_token()
+            submitted_csrf_token = request.headers.get("X-CSRF-Token")
+            if not expected_csrf_token or submitted_csrf_token != expected_csrf_token:
+                return _csrf_error_response(correlation_id, request_id)
         response = await call_next(request)
         if "X-Correlation-Id" not in response.headers:
             response.headers["X-Correlation-Id"] = correlation_id
