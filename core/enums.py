@@ -190,6 +190,16 @@ class AdminApiRouteAvailability(str, Enum):
     BACKEND_BLOCKED = "backend_blocked"
 
 
+class AdminApiModuleSupportStatus(str, Enum):
+    """Enterprise admin support posture for a platform or domain module."""
+
+    PLATFORM_READY = "platform_ready"
+    READ_ONLY_READY = "read_only_ready"
+    COMMAND_DRAFT_LIVE_DISABLED = "command_draft_live_disabled"
+    NOT_MODELED = "not_modeled"
+    UNSUPPORTED = "unsupported"
+
+
 class AdminApiCommandRoutesMode(str, Enum):
     """Command-route posture exposed by read models."""
 

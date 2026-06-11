@@ -145,7 +145,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "661-680",
+  "approved_phase_range": "681-700",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -207,6 +207,71 @@ This route is evidence only. It lists command paths that could later be
 considered for controlled live enablement, but every current path remains
 `live_enabled=false` until explicit live approval, cap, guard, audit, and
 reconciliation gates pass.
+
+```http
+GET /api/v1/admin/enterprise-readiness
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Expected M9 enterprise readiness posture:
+
+```json
+{
+  "type": "admin_enterprise_readiness",
+  "candidate": "enterprise_admin_m9",
+  "approved_phase_range": "681-700",
+  "status": "warning",
+  "supported_module_count": 7,
+  "unsupported_module_count": 1,
+  "modules": [
+    {
+      "module": "Spot Operations",
+      "support_status": "command_draft_live_disabled",
+      "unsupported_actions": [
+        "spot short selling",
+        "browser-side wallet or cost-basis authority",
+        "frontend live order placement without backend M8 approval"
+      ],
+      "identity_keys": ["client_order_id"]
+    },
+    {
+      "module": "Legacy Dashboard WebSocket",
+      "support_status": "unsupported",
+      "unsupported_actions": [
+        "enterprise frontend direct WebSocket command execution",
+        "new admin module implementation through dashboard.py"
+      ]
+    }
+  ],
+  "security_checks": [
+    {
+      "name": "browser_authority_boundary",
+      "status": "passed",
+      "detail": "Enterprise admin frontend/Admin HTTP authority is backend_contract_only; this path does not approve, place, cancel, or reconcile Coinbase orders. Legacy browser live surfaces are compatibility-only and documented in docs/LIVE_ORDER_SURFACES.md."
+    }
+  ],
+  "release_checks": [
+    {
+      "name": "frontend_release_gate",
+      "status": "warning",
+      "detail": "Run npm run release:gate after frontend/API changes before release."
+    }
+  ],
+  "frontend_authority": "backend_contract_only",
+  "live_posture": "live_disabled",
+  "default_live_coinbase_execution": "not_run",
+  "submitted_notional_usdc": "0",
+  "executed_notional_usdc": "0",
+  "read_only": true,
+  "live_coinbase_orders_ran": false
+}
+```
+
+This route is module and release-candidate evidence only. Warning release
+checks mean the external gate still has to be run; they are not browser-side
+approval or live execution authority.
 
 ## Cancel By Client Order ID
 

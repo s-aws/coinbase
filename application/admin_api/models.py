@@ -25,6 +25,7 @@ from core.enums import (
     AdminApiHealthStatus,
     AdminApiLiveExecutionStatus,
     AdminMovementRepricingEvidenceType,
+    AdminApiModuleSupportStatus,
     AdminApiPermission,
     AdminApiRouteAvailability,
     AdminApiRole,
@@ -330,6 +331,47 @@ class AdminCapabilityRegistryResponse(BaseModel):
 
     type: str = "admin_capabilities"
     capabilities: list[AdminCapabilityItem] = Field(default_factory=list)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminEnterpriseReadinessModuleItem(BaseModel):
+    """One module's enterprise admin readiness posture."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    module: str
+    support_status: AdminApiModuleSupportStatus
+    read_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    live_routes: list[str] = Field(default_factory=list)
+    unsupported_actions: list[str] = Field(default_factory=list)
+    identity_keys: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    evidence_routes: list[str] = Field(default_factory=list)
+    verification: list[str] = Field(default_factory=list)
+
+
+class AdminEnterpriseReadinessResponse(BaseModel):
+    """M9 enterprise readiness evidence for the whole admin platform."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_enterprise_readiness"
+    candidate: str = "enterprise_admin_m9"
+    approved_phase_range: str
+    status: AdminApiGateStatus
+    module_count: int = 0
+    supported_module_count: int = 0
+    unsupported_module_count: int = 0
+    modules: list[AdminEnterpriseReadinessModuleItem] = Field(default_factory=list)
+    security_checks: list[AdminGateCheck] = Field(default_factory=list)
+    release_checks: list[AdminGateCheck] = Field(default_factory=list)
+    frontend_authority: str = "backend_contract_only"
+    live_posture: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    default_live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    read_only: bool = True
     live_coinbase_orders_ran: bool = False
 
 

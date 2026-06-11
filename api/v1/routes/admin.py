@@ -20,6 +20,7 @@ from application.admin_api.models import (
     AdminBootstrapResponse,
     AdminCapabilityRegistryResponse,
     AdminCsrfContractResponse,
+    AdminEnterpriseReadinessResponse,
     AdminFrontendFixturesResponse,
     AdminGateReadResponse,
     AdminHealthResponse,
@@ -163,6 +164,20 @@ def admin_live_enablement(
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_response(service.build_live_enablement())
+
+
+@router.get(
+    "/admin/enterprise-readiness",
+    response_model=AdminEnterpriseReadinessResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read enterprise admin module and release-candidate readiness evidence",
+)
+def admin_enterprise_readiness(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_response(service.build_enterprise_readiness())
 
 
 @router.get(

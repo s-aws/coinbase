@@ -440,6 +440,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/enterprise-readiness:
+    get:
+      tags:
+      - admin
+      summary: Read enterprise admin module and release-candidate readiness evidence
+      operationId: admin_enterprise_readiness_api_v1_admin_enterprise_readiness_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEnterpriseReadinessResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/guard-risk-policy:
     get:
       tags:
@@ -2979,6 +3041,16 @@ components:
       - completed
       title: AdminApiLiveExecutionStatus
       description: Live-execution posture exposed by read-only Admin API readiness.
+    AdminApiModuleSupportStatus:
+      type: string
+      enum:
+      - platform_ready
+      - read_only_ready
+      - command_draft_live_disabled
+      - not_modeled
+      - unsupported
+      title: AdminApiModuleSupportStatus
+      description: Enterprise admin support posture for a platform or domain module.
     AdminApiPermission:
       type: string
       enum:
@@ -3445,6 +3517,145 @@ components:
       - csrf_required
       title: AdminCsrfContractResponse
       description: Read-only CSRF contract for BFF/session deployments.
+    AdminEnterpriseReadinessModuleItem:
+      properties:
+        module:
+          type: string
+          title: Module
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        live_routes:
+          items:
+            type: string
+          type: array
+          title: Live Routes
+        unsupported_actions:
+          items:
+            type: string
+          type: array
+          title: Unsupported Actions
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        constraints:
+          items:
+            type: string
+          type: array
+          title: Constraints
+        evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Evidence Routes
+        verification:
+          items:
+            type: string
+          type: array
+          title: Verification
+      additionalProperties: false
+      type: object
+      required:
+      - module
+      - support_status
+      title: AdminEnterpriseReadinessModuleItem
+      description: One module's enterprise admin readiness posture.
+    AdminEnterpriseReadinessResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_enterprise_readiness
+        candidate:
+          type: string
+          title: Candidate
+          default: enterprise_admin_m9
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        module_count:
+          type: integer
+          title: Module Count
+          default: 0
+        supported_module_count:
+          type: integer
+          title: Supported Module Count
+          default: 0
+        unsupported_module_count:
+          type: integer
+          title: Unsupported Module Count
+          default: 0
+        modules:
+          items:
+            $ref: '#/components/schemas/AdminEnterpriseReadinessModuleItem'
+          type: array
+          title: Modules
+        security_checks:
+          items:
+            $ref: '#/components/schemas/AdminGateCheck'
+          type: array
+          title: Security Checks
+        release_checks:
+          items:
+            $ref: '#/components/schemas/AdminGateCheck'
+          type: array
+          title: Release Checks
+        frontend_authority:
+          type: string
+          title: Frontend Authority
+          default: backend_contract_only
+        live_posture:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        default_live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - status
+      title: AdminEnterpriseReadinessResponse
+      description: M9 enterprise readiness evidence for the whole admin platform.
     AdminFrontendFixturesResponse:
       properties:
         type:

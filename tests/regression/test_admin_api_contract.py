@@ -42,6 +42,7 @@ from core.enums import (
     AdminApiErrorCode,
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
+    AdminApiModuleSupportStatus,
     AdminApiPermission,
     AdminApiRole,
     AdminApiVerifierReadinessStatus,
@@ -188,6 +189,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/capabilities" in written["paths"]
     assert "/api/v1/admin/csrf" in written["paths"]
     assert "/api/v1/admin/live-enablement" in written["paths"]
+    assert "/api/v1/admin/enterprise-readiness" in written["paths"]
     assert "/api/v1/admin/release-gate" in written["paths"]
     assert "/api/v1/admin/recovery-gate" in written["paths"]
     assert "/api/v1/admin/fill-ledger-health" in written["paths"]
@@ -1259,6 +1261,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     capabilities = client.get("/api/v1/admin/capabilities", headers=headers)
     csrf = client.get("/api/v1/admin/csrf", headers=headers)
     live_enablement = client.get("/api/v1/admin/live-enablement", headers=headers)
+    enterprise_readiness = client.get(
+        "/api/v1/admin/enterprise-readiness",
+        headers=headers,
+    )
     release_gate = client.get("/api/v1/admin/release-gate", headers=headers)
 
     assert bootstrap.status_code == 200
@@ -1279,6 +1285,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/admin/bootstrap" in routes
     assert "/api/v1/admin/csrf" in routes
     assert "/api/v1/admin/live-enablement" in routes
+    assert "/api/v1/admin/enterprise-readiness" in routes
     assert csrf.status_code == 200
     assert csrf.json() == {
         "type": "admin_csrf_contract",
@@ -1294,7 +1301,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "661-680"
+    assert live_payload["approved_phase_range"] == "681-700"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1314,6 +1321,62 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/spot/campaign/executions" in live_routes
     assert all(item["live_enabled"] is False for item in live_routes.values())
     assert all(item["status"] == "live_disabled" for item in live_routes.values())
+    assert enterprise_readiness.status_code == 200
+    enterprise_payload = enterprise_readiness.json()
+    assert enterprise_payload["type"] == "admin_enterprise_readiness"
+    assert enterprise_payload["candidate"] == "enterprise_admin_m9"
+    assert enterprise_payload["approved_phase_range"] == "681-700"
+    assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
+    assert enterprise_payload["frontend_authority"] == "backend_contract_only"
+    assert enterprise_payload["live_posture"] == "live_disabled"
+    assert enterprise_payload["default_live_coinbase_execution"] == "not_run"
+    assert enterprise_payload["submitted_notional_usdc"] == "0"
+    assert enterprise_payload["executed_notional_usdc"] == "0"
+    assert enterprise_payload["read_only"] is True
+    assert enterprise_payload["live_coinbase_orders_ran"] is False
+    module_statuses = {
+        item["module"]: item["support_status"]
+        for item in enterprise_payload["modules"]
+    }
+    assert module_statuses["Admin / System Health"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
+    assert module_statuses["Spot Operations"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert module_statuses["Futures / Perpetuals"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    assert module_statuses["Legacy Dashboard WebSocket"] == (
+        AdminApiModuleSupportStatus.UNSUPPORTED.value
+    )
+    assert enterprise_payload["supported_module_count"] >= 7
+    assert enterprise_payload["unsupported_module_count"] == 1
+    spot_module = next(
+        item
+        for item in enterprise_payload["modules"]
+        if item["module"] == "Spot Operations"
+    )
+    assert "spot short selling" in spot_module["unsupported_actions"]
+    assert "client_order_id" in spot_module["identity_keys"]
+    assert "POST /api/v1/orders" in spot_module["command_routes"]
+    assert all(check["status"] == "passed" for check in enterprise_payload["security_checks"])
+    browser_boundary = next(
+        check
+        for check in enterprise_payload["security_checks"]
+        if check["name"] == "browser_authority_boundary"
+    )
+    assert "Enterprise admin frontend/Admin HTTP" in browser_boundary["detail"]
+    assert "docs/LIVE_ORDER_SURFACES.md" in browser_boundary["detail"]
+    assert {
+        check["name"]
+        for check in enterprise_payload["release_checks"]
+        if check["status"] == "warning"
+    } >= {
+        "backend_regression_gate",
+        "frontend_release_gate",
+        "contextless_review_gate",
+    }
     assert release_gate.status_code == 200
     assert release_gate.json()["live_coinbase_orders_ran"] is False
 
@@ -2728,6 +2791,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/admin/live-enablement"].shared_method == (
         "build_live_enablement"
     )
+    assert rows["GET /api/v1/admin/enterprise-readiness"].shared_method == (
+        "build_enterprise_readiness"
+    )
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -2743,6 +2809,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc
     assert "build_live_enablement" in doc
+    assert "build_enterprise_readiness" in doc
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
@@ -2797,4 +2864,6 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/admin/guard-risk-policy" in schema_http_surfaces
     assert "GET /api/v1/admin/audit-workbench" in inventory_http_surfaces
     assert "GET /api/v1/admin/audit-workbench" in schema_http_surfaces
+    assert "GET /api/v1/admin/enterprise-readiness" in inventory_http_surfaces
+    assert "GET /api/v1/admin/enterprise-readiness" in schema_http_surfaces
     assert schema_http_surfaces == inventory_http_surfaces

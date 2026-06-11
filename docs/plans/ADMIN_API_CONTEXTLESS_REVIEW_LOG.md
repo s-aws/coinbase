@@ -1055,6 +1055,53 @@ Status:
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
 
+## M9 Enterprise-Readiness Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- explain `GET /api/v1/admin/enterprise-readiness`
+- verify the route is backend-owned, read-only, and no-live
+- verify frontend consumption uses generated contracts, canonical wrappers,
+  runtime snapshot, BFF allowlist, mock fixtures, artifacts, and tests
+- verify the enterprise frontend cannot approve, place, cancel, move, reprice,
+  or reconcile live Coinbase orders
+- identify whether module support, unsupported actions, security checks, and
+  release checks are understandable without chat history
+
+Findings:
+
+- Initial blind review found two blockers. The backend readiness detail
+  overstated browser safety by not distinguishing the enterprise Admin HTTP
+  path from compatibility-only legacy dashboard browser surfaces. Frontend docs
+  also promised module status, unsupported actions, identity keys, security
+  checks, and release checks while the UI displayed only summary counts.
+
+Resolution:
+
+- Backend readiness evidence now scopes `browser_authority_boundary` to the
+  enterprise admin frontend/Admin HTTP path and references
+  `docs/LIVE_ORDER_SURFACES.md` for legacy live-capable browser surfaces.
+- Frontend operational diagnostics now display enterprise module statuses,
+  unsupported actions, identity keys, security checks, and release checks from
+  the backend-owned readiness payload.
+- Follow-up blind review found no remaining M9 blockers.
+
+Status:
+
+- Backend focused Admin API contract test passed.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend focused Admin shell/mock tests passed with `11 passed`.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## M8 Live-Enablement Readiness Review
 
 Review scope:

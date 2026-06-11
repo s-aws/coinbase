@@ -4000,7 +4000,7 @@ The durable completion path now lives in
 Future phase batches should be derived from that milestone plan rather than
 from spot-specific backlog shape.
 
-## Approved Controlled-Live Readiness Batch - Phases 661-680
+## Completed Controlled-Live Readiness Batch - Phases 661-680
 
 ### Phase 661 - Advance Active Queue Range
 
@@ -4122,3 +4122,107 @@ Completion evidence:
 - Backend full regression passed with `789 passed, 1 warning`.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
+
+## Approved Enterprise Readiness Batch - Phases 681-700
+
+### Phase 681 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 661-680 to active
+  phases 681-700 while preserving live cap and stop-condition policy.
+
+### Phase 682 - M9 Enterprise Module Contract
+
+- Add `GET /api/v1/admin/enterprise-readiness` as a backend-owned read model
+  for module support status, unsupported actions, identity keys, constraints,
+  and verification evidence.
+
+### Phase 683 - M9 Security Posture Evidence
+
+- Include browser-authority, server-secret, command-bypass, and no-live
+  security checks in backend readiness evidence.
+
+### Phase 684 - M9 Release Gate Evidence
+
+- Record backend regression, frontend release gate, and contextless review as
+  external release checks that cannot be run by the browser.
+
+### Phase 685 - Backend Route Inventory Sync
+
+- Sync route inventory, capabilities, OpenAPI, fixtures, examples, and docs
+  with the enterprise-readiness contract.
+
+### Phase 686 - Backend Regression Coverage
+
+- Add regression coverage proving the M9 route is read-only, no-live,
+  backend-owned, and explicit about unsupported modules/actions.
+
+### Phase 687 - Frontend Schema And BFF Sync
+
+- Regenerate frontend schema and add canonical client, BFF, route-coverage,
+  runtime, and mock support for the enterprise-readiness route.
+
+### Phase 688 - Frontend Enterprise Evidence Surface
+
+- Surface M9 module support, unsupported actions, release checks, and security
+  checks as operator evidence without adding trading authority.
+
+### Phase 689 - Release Artifact Enterprise Posture
+
+- Extend release/runtime/deployment artifacts and validators so supported and
+  unsupported module posture is captured in release evidence.
+
+### Phase 690 - Documentation And Runbook Sync
+
+- Update admin API/frontend docs, examples, capability matrices, and runbooks
+  so contextless readers can understand the M9 enterprise boundary.
+
+### Phase 691 - Module Onboarding Contract
+
+- Add contextless onboarding guidance for future modules that requires
+  backend-owned contracts, capability-matrix updates, tests, and review logs.
+
+### Phase 692 - Unsupported Action Drift Check
+
+- Add checks that fail if release docs or frontend artifacts omit unsupported
+  actions for legacy dashboard, live commands, or module-specific gaps.
+
+### Phase 693 - Security Review Pass
+
+- Run a security-focused review for browser authority, secret exposure, BFF
+  forwarding, command bypass, and live execution posture.
+
+### Phase 694 - Contextless M9 Review
+
+- Run blind/contextless reviews focused on enterprise-readiness
+  discoverability and whether a fresh agent can explain supported and
+  unsupported modules.
+
+### Phase 695 - Review Remediation
+
+- Resolve any blocker or ambiguity from security/contextless review before
+  advancing to release gates.
+
+### Phase 696 - Focused Backend Verification
+
+- Run focused backend Admin API contract, route inventory, and autonomous
+  queue checks for the M9 readiness surface.
+
+### Phase 697 - Focused Frontend Verification
+
+- Run focused frontend API, runtime, BFF, artifact, and UI tests for the M9
+  readiness surface.
+
+### Phase 698 - Full Release Gates
+
+- Run full backend regression and frontend release gate after the M9 no-live
+  readiness surface is complete.
+
+### Phase 699 - Milestone Evidence
+
+- Mark M9 readiness evidence complete only if gates and reviews pass, while
+  keeping the broader enterprise admin objective open until handoff is proven.
+
+### Phase 700 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and the next approved phase range.

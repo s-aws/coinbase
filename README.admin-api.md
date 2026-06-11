@@ -47,6 +47,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/live-enablement`
+- `GET /api/v1/admin/enterprise-readiness`
 - `GET /api/v1/admin/guard-risk-policy`
 - `GET /api/v1/admin/audit-workbench`
 - `GET /api/v1/admin/release-gate`

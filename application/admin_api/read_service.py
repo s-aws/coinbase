@@ -22,6 +22,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiLiveExecutionStatus,
+    AdminApiModuleSupportStatus,
     AdminMovementRepricingEvidenceType,
     AdminApiPermission,
     AdminApiRouteAvailability,
@@ -52,6 +53,8 @@ from .models import (
     AdminCapabilityItem,
     AdminCapabilityRegistryResponse,
     AdminCsrfContractResponse,
+    AdminEnterpriseReadinessModuleItem,
+    AdminEnterpriseReadinessResponse,
     AdminFrontendFixturesResponse,
     AdminFuturesAccountReadResponse,
     AdminFuturesEvidenceItem,
@@ -88,7 +91,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "661-680"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "681-700"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1543,6 +1546,303 @@ class AdminApiReadService:
             )
         return AdminCapabilityRegistryResponse(capabilities=capabilities)
 
+    def build_enterprise_readiness(self) -> AdminEnterpriseReadinessResponse:
+        """Return whole-platform M9 readiness evidence without running gates."""
+
+        def route_groups(
+            *prefixes: str,
+        ) -> tuple[list[str], list[str], list[str], list[str]]:
+            read_routes: list[str] = []
+            command_routes: list[str] = []
+            live_routes: list[str] = []
+            evidence_routes: list[str] = []
+            for item in ADMIN_API_ROUTE_INVENTORY:
+                method, path = _surface_method_and_path(item.surface)
+                if not any(path.startswith(prefix) for prefix in prefixes):
+                    continue
+                route = f"{method} {path}"
+                if item.action_class == AdminApiActionClass.READ_ONLY:
+                    read_routes.append(route)
+                    evidence_routes.append(path)
+                else:
+                    command_routes.append(route)
+                if item.action_class in {
+                    AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                    AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                }:
+                    live_routes.append(route)
+            return read_routes, command_routes, live_routes, sorted(set(evidence_routes))
+
+        def module_item(
+            *,
+            module: str,
+            support_status: AdminApiModuleSupportStatus,
+            prefixes: tuple[str, ...] = (),
+            unsupported_actions: list[str] | None = None,
+            identity_keys: list[str] | None = None,
+            constraints: list[str] | None = None,
+            verification: list[str] | None = None,
+        ) -> AdminEnterpriseReadinessModuleItem:
+            read_routes, command_routes, live_routes, evidence_routes = route_groups(
+                *prefixes
+            )
+            return AdminEnterpriseReadinessModuleItem(
+                module=module,
+                support_status=support_status,
+                read_routes=read_routes,
+                command_routes=command_routes,
+                live_routes=live_routes,
+                unsupported_actions=unsupported_actions or [],
+                identity_keys=identity_keys or [],
+                constraints=constraints or [],
+                evidence_routes=evidence_routes,
+                verification=verification or [],
+            )
+
+        modules = [
+            module_item(
+                module="Admin / System Health",
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                prefixes=("/api/v1/admin/",),
+                unsupported_actions=[
+                    "browser-run backend tests",
+                    "browser-held backend secrets",
+                    "browser-side live execution authority",
+                ],
+                identity_keys=[
+                    "request_id",
+                    "correlation_id",
+                    "actor_id",
+                    "audit_id",
+                ],
+                constraints=[
+                    "Platform primitive only; no trading behavior lives in the frontend.",
+                    "Release and regression gates are external evidence, not browser actions.",
+                ],
+                verification=[
+                    "Admin API contract regression",
+                    "frontend release gate",
+                    "contextless platform review",
+                ],
+            ),
+            module_item(
+                module="Spot Operations",
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                prefixes=("/api/v1/spot/", "/api/v1/orders"),
+                unsupported_actions=[
+                    "spot short selling",
+                    "browser-side wallet or cost-basis authority",
+                    "frontend live order placement without backend M8 approval",
+                ],
+                identity_keys=["client_order_id"],
+                constraints=[
+                    "USDC spot scope and no-shorting rules are spot-only.",
+                    "Cost basis and inventory authority stay backend-owned.",
+                ],
+                verification=[
+                    "spot readiness regression",
+                    "Admin API contract regression",
+                    "contextless spot order review",
+                ],
+            ),
+            module_item(
+                module="Futures / Perpetuals",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                prefixes=("/api/v1/futures/",),
+                unsupported_actions=[
+                    "frontend futures placement",
+                    "frontend futures cancel/close/reduce",
+                    "spot inventory rules in futures workflows",
+                ],
+                identity_keys=["position_key"],
+                constraints=[
+                    "Position side and close/reduce semantics are backend-derived.",
+                    "Funding remains not modeled until a backend contract is added.",
+                ],
+                verification=[
+                    "Admin API contract regression",
+                    "frontend route coverage",
+                    "contextless non-spot review",
+                ],
+            ),
+            module_item(
+                module="Stealth Orders",
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                prefixes=("/api/v1/stealth/",),
+                unsupported_actions=[
+                    "cancel by exchange order id",
+                    "hide-again mutation for live revealed placements",
+                    "browser-side active placement mutation",
+                ],
+                identity_keys=["stealth_order_id", "client_order_id"],
+                constraints=[
+                    "Local state must reflect live exchange reality.",
+                    "Cancel/re-entry policy is narrower than general hide-again behavior.",
+                ],
+                verification=[
+                    "stealth regression",
+                    "Admin API contract regression",
+                    "contextless module review",
+                ],
+            ),
+            module_item(
+                module="Order Movement / Repricing",
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                prefixes=("/api/v1/movement-repricing/",),
+                unsupported_actions=[
+                    "frontend live repricing",
+                    "cooldown clearing from command draft",
+                    "revealed placement mutation without exchange handling",
+                ],
+                identity_keys=["stealth_order_id", "client_order_id"],
+                constraints=[
+                    "Move/reprice claim locks remain backend-owned.",
+                    "Reprice command is cancel/replace-shaped and live-disabled.",
+                ],
+                verification=[
+                    "movement/repricing regression",
+                    "Admin API contract regression",
+                    "contextless module review",
+                ],
+            ),
+            module_item(
+                module="Guard / Risk Policy",
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                prefixes=("/api/v1/admin/guard-risk-policy",),
+                unsupported_actions=[
+                    "browser-side guard calculation",
+                    "browser-side profitability authority",
+                    "browser-side wallet or margin authority",
+                ],
+                identity_keys=["policy_id", "product_id", "correlation_id"],
+                constraints=[
+                    "The browser may display guard evidence but must not decide authority.",
+                ],
+                verification=[
+                    "guard/risk regression",
+                    "Admin API contract regression",
+                    "contextless guard/risk review",
+                ],
+            ),
+            module_item(
+                module="Audit Workbench",
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                prefixes=("/api/v1/admin/audit-workbench",),
+                unsupported_actions=[
+                    "audit mutation",
+                    "command replay",
+                    "exchange-id cancellation or tracking authority",
+                ],
+                identity_keys=[
+                    "client_order_id",
+                    "stealth_order_id",
+                    "position_key",
+                    "audit_id",
+                    "correlation_id",
+                ],
+                constraints=[
+                    "Exchange ids are evidence only and never application identity.",
+                ],
+                verification=[
+                    "Admin API contract regression",
+                    "frontend audit workbench tests",
+                    "contextless audit review",
+                ],
+            ),
+            AdminEnterpriseReadinessModuleItem(
+                module="Legacy Dashboard WebSocket",
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                unsupported_actions=[
+                    "enterprise frontend direct WebSocket command execution",
+                    "new admin module implementation through dashboard.py",
+                ],
+                identity_keys=["client_order_id"],
+                constraints=[
+                    "Legacy dashboard surfaces are compatibility-only and not the enterprise admin path.",
+                ],
+                verification=[
+                    "command fetch guard",
+                    "BFF command boundary tests",
+                    "contextless enterprise boundary review",
+                ],
+            ),
+        ]
+        unsupported_statuses = {
+            AdminApiModuleSupportStatus.NOT_MODELED,
+            AdminApiModuleSupportStatus.UNSUPPORTED,
+        }
+        security_checks = [
+            AdminGateCheck(
+                name="browser_authority_boundary",
+                status=AdminApiGateStatus.PASSED,
+                detail=(
+                    "Enterprise admin frontend/Admin HTTP authority is backend_contract_only; "
+                    "this path does not approve, place, cancel, or reconcile Coinbase "
+                    "orders. Legacy browser live surfaces are compatibility-only and "
+                    "documented in docs/LIVE_ORDER_SURFACES.md."
+                ),
+            ),
+            AdminGateCheck(
+                name="server_secret_boundary",
+                status=AdminApiGateStatus.PASSED,
+                detail="BFF mode keeps ADMIN_API_* authority server-side and rejects browser-supplied authority headers.",
+            ),
+            AdminGateCheck(
+                name="command_bypass_boundary",
+                status=AdminApiGateStatus.PASSED,
+                detail="Command paths must use canonical Admin API wrappers, idempotency, RBAC, and audit evidence.",
+            ),
+            AdminGateCheck(
+                name="live_execution_default",
+                status=AdminApiGateStatus.PASSED,
+                detail="Live Coinbase execution is disabled by default and this read route submits no orders.",
+            ),
+        ]
+        release_checks = [
+            AdminGateCheck(
+                name="backend_regression_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail="Run pytest tests\\regression\\ -v --tb=short after backend changes before release.",
+            ),
+            AdminGateCheck(
+                name="frontend_release_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail="Run npm run release:gate after frontend/API changes before release.",
+            ),
+            AdminGateCheck(
+                name="contextless_review_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail="Run backend, frontend, and module-onboarding contextless reviews before M9 release closure.",
+            ),
+            AdminGateCheck(
+                name="module_capability_matrix",
+                status=AdminApiGateStatus.PASSED,
+                detail="Supported and unsupported module posture is exposed by this backend-owned contract.",
+            ),
+        ]
+        supported_module_count = sum(
+            1 for module in modules if module.support_status not in unsupported_statuses
+        )
+        unsupported_module_count = len(modules) - supported_module_count
+        status = (
+            AdminApiGateStatus.BLOCKED
+            if any(
+                check.status == AdminApiGateStatus.BLOCKED
+                for check in [*security_checks, *release_checks]
+            )
+            else AdminApiGateStatus.WARNING
+        )
+        return AdminEnterpriseReadinessResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=status,
+            module_count=len(modules),
+            supported_module_count=supported_module_count,
+            unsupported_module_count=unsupported_module_count,
+            modules=modules,
+            security_checks=security_checks,
+            release_checks=release_checks,
+        )
+
     def build_guard_risk_policy(
         self,
         *,
@@ -2533,6 +2833,7 @@ class AdminApiReadService:
                 "admin.capabilities": self.build_admin_capabilities().model_dump(mode="json"),
                 "admin.csrf": self.build_csrf_contract().model_dump(mode="json"),
                 "admin.liveEnablement": self.build_live_enablement().model_dump(mode="json"),
+                "admin.enterpriseReadiness": self.build_enterprise_readiness().model_dump(mode="json"),
                 "orders.list": self.build_order_list().model_dump(mode="json"),
                 "orders.detail.empty": self.build_order_detail(
                     client_order_id="00000000-0000-0000-0000-000000000000"

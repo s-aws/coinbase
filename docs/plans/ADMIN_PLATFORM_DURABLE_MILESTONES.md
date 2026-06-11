@@ -454,6 +454,15 @@ contextless review, live evidence under cap, and post-live reconciliation.
 Purpose: prove the admin platform is complete enough for controlled external
 use.
 
+Current readiness work:
+
+- Phases 681-700 add `GET /api/v1/admin/enterprise-readiness` as read-only
+  M9 evidence for supported modules, unsupported actions, security posture,
+  release-check posture, frontend authority, live posture, and no-live
+  notional. The route intentionally reports external release gates as warning
+  evidence until backend regression, frontend release gate, security review,
+  and contextless reviews are run.
+
 Done when:
 
 - Backend regression passes.
