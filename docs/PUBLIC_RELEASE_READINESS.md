@@ -76,11 +76,14 @@ It is release evidence for the read-only/disabled-command frontend candidate,
 not approval for live Coinbase execution. These checks do not replace this
 repository's backend regression gate when backend files changed.
 
-Frontend production readiness remains blocked until a real backend OIDC/JWT
-session bridge exists. Current `server_env_static` BFF authority is local or
-staging evidence, not final enterprise production auth. Backend `oidc_jwt`
-readiness reports required issuer, audience, and JWKS settings, but the
-verifier remains fail-closed until implementation is complete.
+Frontend production readiness is conditional on a real backend OIDC/JWT
+session bridge. Current `server_env_static` BFF authority is local or staging
+evidence, not final enterprise production auth. Backend `oidc_jwt` readiness
+reports required issuer, audience, and JWKS settings and fails closed when
+they are missing or when JWT verification fails.
+Use `GET /api/v1/admin/oidc-readiness` as backend release evidence for active
+auth mode, missing environment settings, claim mapping, JWKS reachability, and
+no-live notional posture.
 
 ## Browser Smoke Gate
 

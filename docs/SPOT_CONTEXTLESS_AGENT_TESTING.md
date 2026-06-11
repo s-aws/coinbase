@@ -157,3 +157,11 @@ this gate passed and which docs/code were changed if it did not.
   known-profit policy, Admin HTTP live-disabled status, direct-audit
   `audited_order_*` evidence fields, and no remaining
   `--disable-safety-policy --approved-live-orders` path.
+- 2026-06-11, explorer agent, Admin frontend spot-order flow prompt: passed.
+  The agent identified backend OpenAPI as the contract source, frontend
+  `CommandWorkflowShell` dry-submit wrappers, BFF mode, backend
+  `POST /api/v1/orders`, `AdminApiCommandService`, live-disabled HTTP command
+  status, backend RBAC authority, `client_order_id` cancellation, and required
+  gates. It flagged missing full-gate proof commands in the frontend
+  spot-order flow doc; the doc was fixed to include `npm run release:gate` and
+  full backend regression.

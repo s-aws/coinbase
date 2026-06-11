@@ -15,9 +15,14 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
+    AdminApiVerifierReadinessStatus,
 )
 
-from .auth import configured_auth_mode
+from .auth import (
+    build_oidc_jwt_readiness,
+    check_oidc_jwks_reachability,
+    configured_auth_mode,
+)
 from .models import (
     AdminApiActor,
     AdminBootstrapResponse,
@@ -28,6 +33,7 @@ from .models import (
     AdminGateCheck,
     AdminGateReadResponse,
     AdminHealthResponse,
+    AdminOidcJwtReadinessResponse,
     AdminOrderDetailResponse,
     AdminOrderListResponse,
     AdminOrderReadItem,
@@ -179,6 +185,35 @@ class AdminApiReadService:
             actor=actor,
             permissions=permissions,
             auth_mode=configured_auth_mode(),
+        )
+
+    def build_oidc_jwt_readiness(self) -> AdminOidcJwtReadinessResponse:
+        """Return backend OIDC/JWT verifier readiness evidence."""
+
+        readiness = build_oidc_jwt_readiness()
+        jwks_reachability = "not_checked"
+        jwks_failure_reason: str | None = None
+        status = readiness.status
+        failure_reason = readiness.failure_reason
+        if not readiness.missing_env_vars:
+            jwks_reachability, jwks_failure_reason = check_oidc_jwks_reachability()
+            if jwks_reachability != "reachable":
+                status = AdminApiVerifierReadinessStatus.BLOCKED
+                failure_reason = jwks_failure_reason
+
+        return AdminOidcJwtReadinessResponse(
+            active_auth_mode=configured_auth_mode(),
+            mode=readiness.mode,
+            status=status,
+            verifier_implemented=readiness.verifier_implemented,
+            required_env_vars=list(readiness.required_env_vars),
+            missing_env_vars=list(readiness.missing_env_vars),
+            claims_contract=dict(readiness.claims_contract),
+            failure_reason=failure_reason,
+            jwks_reachability=jwks_reachability,
+            jwks_failure_reason=jwks_failure_reason,
+            live_coinbase_execution=readiness.live_coinbase_execution,
+            notional_usdc=readiness.notional_usdc,
         )
 
     def build_admin_capabilities(self) -> AdminCapabilityRegistryResponse:

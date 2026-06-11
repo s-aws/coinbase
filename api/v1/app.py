@@ -19,10 +19,18 @@ from .routes.orders import router as orders_router
 from .routes.spot import router as spot_router
 
 
-_ADMIN_AUTH_HEADERS = {
-    "Authorization",
-    "X-Admin-Actor",
-    "X-Admin-Roles",
+_ADMIN_REQUIRED_AUTH_HEADERS = {"Authorization"}
+_BOOTSTRAP_ACTOR_HEADERS = {
+    "X-Admin-Actor": (
+        "Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer. "
+        "Ignored in oidc_jwt mode because actor identity is derived from "
+        "verified JWT claims."
+    ),
+    "X-Admin-Roles": (
+        "Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer. "
+        "Ignored in oidc_jwt mode because role evidence is derived from "
+        "verified JWT claims."
+    ),
 }
 _CSRF_MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _TRUTHY_ENV_VALUES = {"1", "true", "yes"}
@@ -115,11 +123,16 @@ def _customize_openapi(app: FastAPI) -> dict:
             if not isinstance(operation, dict):
                 continue
             for parameter in operation.get("parameters", []):
-                if (
-                    parameter.get("in") == "header"
-                    and parameter.get("name") in _ADMIN_AUTH_HEADERS
-                ):
+                if parameter.get("in") != "header":
+                    continue
+                header_name = parameter.get("name")
+                if header_name in _ADMIN_REQUIRED_AUTH_HEADERS:
                     parameter["required"] = True
+                    continue
+                description = _BOOTSTRAP_ACTOR_HEADERS.get(header_name)
+                if description:
+                    parameter["required"] = False
+                    parameter["description"] = description
     _deduplicate_schema_enums(schema)
     return schema
 

@@ -22,6 +22,7 @@ from application.admin_api.models import (
     AdminFrontendFixturesResponse,
     AdminGateReadResponse,
     AdminHealthResponse,
+    AdminOidcJwtReadinessResponse,
     AdminSessionResponse,
 )
 from application.admin_api.read_service import AdminApiReadService
@@ -103,6 +104,20 @@ def admin_session(
             permissions=_permissions_for_actor(actor),
         )
     )
+
+
+@router.get(
+    "/admin/oidc-readiness",
+    response_model=AdminOidcJwtReadinessResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read backend OIDC/JWT verifier readiness evidence",
+)
+def admin_oidc_readiness(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_response(service.build_oidc_jwt_readiness())
 
 
 @router.get(

@@ -32,11 +32,12 @@ requests must include `X-CSRF-Token` matching
 Use bootstrap and session reads to render environment, backend association,
 live-action posture, and backend RBAC evidence. These routes do not require
 idempotency headers and do not run Coinbase orders.
-The active local verifier mode is `bootstrap_bearer`; configuring
-`COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt` currently fails closed until a
-production verifier is implemented.
+The local bootstrap verifier mode is `bootstrap_bearer`. Production-shaped
+OIDC deployments use `COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt`; that mode
+verifies RS256 JWTs against configured issuer, audience, and JWKS settings
+and derives actor/role evidence from claims.
 
-Future OIDC/JWT readiness uses these backend environment names:
+OIDC/JWT readiness uses these backend environment names:
 
 ```powershell
 $env:COINBASE_ADMIN_API_AUTH_MODE = "oidc_jwt"
@@ -45,10 +46,11 @@ $env:COINBASE_ADMIN_API_OIDC_AUDIENCE = "coinbase-admin-api"
 $env:COINBASE_ADMIN_API_OIDC_JWKS_URL = "https://issuer.example.test/.well-known/jwks.json"
 ```
 
-Even when those values are configured, the current backend returns `401`
-because the verifier is not implemented. Expected claim mapping is `sub` for
+Missing values fail closed with `401`. Expected claim mapping is `sub` for
 subject, `email` for email, `roles` for roles, `iss` for issuer, and `aud`
-for audience.
+for audience. In OIDC mode the backend ignores browser-supplied
+`X-Admin-Actor` and `X-Admin-Roles`; those values are derived from verified
+JWT claims.
 
 ```powershell
 Invoke-RestMethod `
@@ -98,6 +100,17 @@ X-Admin-Roles: viewer
 
 This route returns the CSRF header name, whether CSRF is required, and the
 token source/rotation policy. It never returns the token value.
+
+```http
+GET /api/v1/admin/oidc-readiness
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+This route returns backend OIDC verifier evidence for release checks:
+active auth mode, required and missing OIDC settings, claim mapping, JWKS
+reachability, and no-live notional posture.
 
 ## Cancel By Client Order ID
 
@@ -249,10 +262,11 @@ should return conflict.
 
 ## Read-Only Spot Operator Routes
 
-Read-only routes require `Authorization`, `X-Admin-Actor`, and
-`X-Admin-Roles`. They do not require `Idempotency-Key`.
-Missing or invalid auth returns `401`; insufficient role evidence returns
-`403`.
+Read-only routes always require `Authorization`. In `bootstrap_bearer` mode
+they also require `X-Admin-Actor` and `X-Admin-Roles`. In `oidc_jwt` mode the
+backend derives actor and roles from verified JWT claims and ignores those
+bootstrap headers. Read routes do not require `Idempotency-Key`. Missing or
+invalid auth returns `401`; insufficient role evidence returns `403`.
 
 ```http
 GET /api/v1/spot/readiness?product_id=BTC-USDC
@@ -266,6 +280,7 @@ Current read-only routes:
 - `GET /api/v1/admin/bootstrap`
 - `GET /api/v1/admin/health`
 - `GET /api/v1/admin/session`
+- `GET /api/v1/admin/oidc-readiness`
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/release-gate`
@@ -366,5 +381,5 @@ failure.
 
 The frontend deployment package manifest and observability drill are no-live
 evidence artifacts. `server_env_static` BFF authority is local/staging evidence
-only; production remains blocked until a real backend OIDC/JWT session bridge
-exists and backend `oidc_jwt` verification is implemented.
+only; production readiness is conditional on frontend `backend_oidc_jwt` BFF
+mode and backend `oidc_jwt` verifier configuration.

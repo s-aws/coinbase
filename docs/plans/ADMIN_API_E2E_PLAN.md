@@ -1635,7 +1635,7 @@ Exit criteria:
 ### Phase 372 - Backend OIDC/JWT Verifier Adapter Contract
 
 - Model bootstrap bearer and future OIDC/JWT auth modes.
-- Keep OIDC/JWT fail-closed until a real verifier is implemented.
+- Keep OIDC/JWT fail-closed until a later phase implements the real verifier.
 
 Exit criteria:
 
@@ -2447,12 +2447,12 @@ named phase explicitly approves live execution with a notional cap.
 ### Phase 451 - Backend OIDC Verifier Readiness Contract
 
 - Add backend machine-readable OIDC/JWT verifier readiness evidence while
-  keeping the verifier fail-closed.
+  keeping the verifier fail-closed at that phase.
 
 Exit criteria:
 
-- Tests prove required issuer, audience, and JWKS settings are reported and
-  OIDC/JWT auth still rejects requests until the verifier is implemented.
+- Tests prove required issuer, audience, and JWKS settings are reported; later
+  phases replace the fail-closed placeholder with the real verifier.
 
 ### Phase 452 - Frontend Session Bridge Contract
 
@@ -2625,9 +2625,9 @@ Progress update:
 
 - Phases 451-453 advanced from the backend side: Admin API auth now exposes a
   fail-closed OIDC/JWT readiness contract with required issuer, audience, and
-  JWKS environment names, expected claim mapping, `verifier_implemented=false`,
-  blocked status, and no-live evidence. `COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt`
-  still returns `401` until a real verifier is implemented.
+  JWKS environment names, expected claim mapping, and no-live evidence.
+  Later phases implement the real verifier and promote production readiness to
+  conditional on OIDC configuration.
 - Phases 454-459 advanced from the frontend association side: backend docs now
   mirror frontend staging BFF template evidence, synthetic read/BFF probe
   evidence, public release checklist evidence, and versioned artifact paths.
@@ -2649,3 +2649,126 @@ Progress update:
 - Dry smokes and artifact writers reported live Coinbase execution not run
   with notional `$0`.
 - Live Coinbase execution: not run; test notional `$0`.
+
+## Approved OIDC Bridge And Live Canary Evidence Batch - Phases 471-490
+
+These phases are approved to finish the Admin API OIDC/JWT verifier, align the
+frontend BFF session bridge with backend verification, and run a capped live
+Coinbase USDC spot canary. Frontend live trading remains disabled; live
+execution in this batch is backend smoke evidence only.
+
+### Phase 471 - Backend OIDC Verifier Implementation
+
+- Implement fail-closed Admin API OIDC/JWT verification with issuer, audience,
+  JWKS, RS256 signature, and role-claim checks.
+
+### Phase 472 - Backend OIDC Route Coverage
+
+- Cover valid JWT, bad signature, wrong issuer, wrong audience, expiration,
+  missing role evidence, missing config, and JWKS fetch failures.
+
+### Phase 473 - Frontend OIDC BFF Session Mode
+
+- Align backend expectations with frontend
+  `ADMIN_API_SESSION_MODE=backend_oidc_jwt`, where the BFF forwards only the
+  OIDC JWT and the backend derives actor/roles from verified claims.
+
+### Phase 474 - Production Readiness Promotion
+
+- Promote production readiness from unimplemented to conditional on backend
+  OIDC verifier configuration and frontend BFF OIDC mode.
+
+### Phase 475 - Deployment, Auth, Security, And Runbook Sync
+
+- Sync backend/frontend docs so contextless readers see static BFF as
+  local/staging only and OIDC as production-required.
+
+### Phase 476 - Frontend Focused Verification
+
+- Record focused frontend BFF proxy, route, and quality-gate tests plus
+  release/deployment checks and typecheck.
+
+### Phase 477 - Backend Focused Verification
+
+- Run focused Admin API contract tests for the OIDC verifier and route
+  behavior.
+
+### Phase 478 - Approved Live Coinbase USDC Canary
+
+- Run the backend live USDC spot validation matrix with retained inventory and
+  reconciliation gate.
+
+### Phase 479 - Contextless Blind Review
+
+- Run blind/contextless subagent review for the spot-order flow and for the
+  OIDC/BFF/live-canary evidence.
+
+### Phase 480 - Full Frontend Release Gate
+
+- Run `npm run release:gate` and preserve no-live frontend evidence.
+
+### Phase 481 - Full Backend Regression Gate
+
+- Run `pytest tests\regression\ -v --tb=short`.
+
+### Phase 482 - Roadmap And Review Log Closure
+
+- Update roadmap/review docs with completed evidence and unresolved risks.
+
+### Phase 483 - Commit Frontend Changes
+
+- Commit frontend BFF/readiness/docs work.
+
+### Phase 484 - Commit Backend Changes
+
+- Commit backend OIDC verifier/test/dependency work.
+
+### Phase 485 - Post-Commit Clean Tree Check
+
+- Verify both repositories have clean working trees.
+
+### Phase 486 - Live Canary Evidence Summary
+
+- Report the exact live Coinbase product, submitted notional, executed
+  notional, retained inventory, and reconciliation result.
+
+### Phase 487 - Public Release Boundary Check
+
+- Reconfirm frontend release artifacts still report no live Coinbase execution
+  because frontend live trading remains disabled.
+
+### Phase 488 - Backend Association Check
+
+- Reconfirm frontend docs point to backend-owned trading, RBAC, guard, cap,
+  and audit authority.
+
+### Phase 489 - Next Batch Preparation
+
+- Prepare the next aligned phase batch only after blockers from this batch are
+  resolved.
+
+### Phase 490 - Final Summary
+
+- Summarize implementation, verification, live notional, residual risks, and
+  next approved work.
+
+Progress update:
+
+- Phases 471-477 completed locally. Focused Admin API contract tests passed
+  with `35 passed`; frontend focused BFF/readiness tests passed with
+  `26 passed`; `npm run release:check`, `npm run deployment:check`, and
+  `npm run typecheck` passed.
+- Phase 478 live Coinbase execution ran against `MOG-USDC` at
+  `2026-06-11T07:53:16.082154+00:00`. The validation matrix submitted
+  `3.09020044` USDC total notional, executed `0.99935033` USDC, retained
+  `9085003` MOG, fetched/appended `1` fill, and passed reconciliation.
+- Phase 479 blind/contextless reviews completed. The reviews passed the
+  spot-order flow, OIDC/BFF forwarding, and live-canary auditability after
+  remediation for OpenAPI header optionality, stale OIDC docs, backend OIDC
+  readiness evidence, and frontend proof-command docs.
+- Phase 480 frontend `npm run release:gate` passed with production build,
+  typecheck, lint, API freshness, command-security, release/deployment checks,
+  artifact generation, `140` unit tests across the gate, dry
+  read/command/BFF smokes, and `3` Playwright tests. Frontend artifact writers
+  and smokes reported live Coinbase execution not run with notional `$0`.
+- Phase 481 backend full regression passed with `769 passed, 1 warning`.

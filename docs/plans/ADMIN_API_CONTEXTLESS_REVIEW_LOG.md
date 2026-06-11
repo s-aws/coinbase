@@ -106,6 +106,65 @@ Status:
 
 - Findings resolved. No live Coinbase execution was run. Notional `$0`.
 
+## OIDC Bridge And Live Canary Review - Phases 471-490
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- explain the frontend-to-backend spot order flow without inventing frontend
+  trading behavior
+- review Admin API OIDC/JWT verifier, frontend BFF OIDC session bridge, and
+  production readiness evidence
+- review live Coinbase USDC spot smoke auditability
+- surface stale docs or contract drift
+
+Findings:
+
+- Spot-order flow passed. The frontend cannot create a live Coinbase spot
+  order today; it can dry-submit through the HTTP Admin API/BFF path and
+  display backend `501` live-disabled command evidence.
+- OIDC/BFF forwarding passed. `backend_oidc_jwt` mode forwards only the
+  configured OIDC cookie value as backend Bearer authority and does not trust
+  browser actor/role headers.
+- Live Coinbase canary evidence was auditable: `MOG-USDC`, submitted
+  `3.09020044` USDC, executed `0.99935033` USDC, retained `9085003` MOG,
+  fetched/appended `1` fill, and passed reconciliation.
+- Review findings requiring fixes:
+  - OpenAPI marked `X-Admin-Actor` and `X-Admin-Roles` globally required even
+    though OIDC derives actor/roles from JWT claims.
+  - Backend docs still described OIDC as future-only.
+  - Frontend production readiness needed backend evidence beyond a manual
+    boolean.
+  - The frontend spot-order flow doc omitted `npm run release:gate` and full
+    backend regression guidance.
+
+Resolution:
+
+- Regenerated backend OpenAPI and frontend generated schema.
+- Updated OpenAPI customization and tests so `Authorization` is required while
+  bootstrap actor/role headers are optional and documented as bootstrap-only.
+- Added `GET /api/v1/admin/oidc-readiness`, `AdminOidcJwtReadinessResponse`,
+  route inventory entry, OpenAPI schema, docs, and tests.
+- Updated backend/frontend docs and frontend readiness artifacts to reference
+  backend `/api/v1/admin/oidc-readiness` evidence.
+- Updated frontend spot-order flow proof commands.
+
+Status:
+
+- Findings resolved. Focused Admin API contract tests passed with `35 passed`;
+  focused frontend BFF/readiness tests passed with `26 passed`; frontend
+  `api:check`, release check, deployment check, and typecheck passed.
+  Frontend `npm run release:gate` passed with no live Coinbase execution and
+  frontend notional `$0`. Backend full regression passed with `769 passed,
+  1 warning`.
+  Live Coinbase execution did run for the backend canary above with submitted
+  notional `3.09020044` USDC and executed notional `0.99935033` USDC.
+
 ## Release Hardening Review - Phases 391-410
 
 Review scope:

@@ -137,6 +137,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend RBAC evidence only",
     ),
     AdminApiRouteInventoryItem(
+        surface="GET /api/v1/admin/oidc-readiness",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_oidc_jwt_readiness",
+        parity_test="backend OIDC verifier readiness evidence only",
+    ),
+    AdminApiRouteInventoryItem(
         surface="GET /api/v1/admin/capabilities",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

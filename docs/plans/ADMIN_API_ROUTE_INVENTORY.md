@@ -20,6 +20,7 @@ parity test target.
 | `GET /api/v1/admin/bootstrap` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_admin_bootstrap` | backend association and live-disabled posture | |
 | `GET /api/v1/admin/health` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_admin_health` | no Coinbase REST placement | |
 | `GET /api/v1/admin/session` | `read_only` | authenticated actor | not required | not required | not applicable | optional read audit | `build_admin_session` | backend RBAC evidence only | |
+| `GET /api/v1/admin/oidc-readiness` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_oidc_jwt_readiness` | backend OIDC verifier readiness evidence only | |
 | `GET /api/v1/admin/capabilities` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_admin_capabilities` | route inventory derived registry | |
 | `GET /api/v1/admin/csrf` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_csrf_contract` | does not disclose token value | |
 | `GET /api/v1/admin/release-gate` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_release_gate` | browser does not run pytest | |

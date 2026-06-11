@@ -22,6 +22,7 @@ from core.enums import (
     AdminApiRouteAvailability,
     AdminApiRole,
     AdminApiSessionStatus,
+    AdminApiVerifierReadinessStatus,
     OrderSide,
     OrderType,
     TimeInForce,
@@ -224,6 +225,27 @@ class AdminSessionResponse(BaseModel):
     permissions: list[AdminApiPermission] = Field(default_factory=list)
     auth_mode: AdminApiAuthMode
     bearer_token_visible_to_browser: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminOidcJwtReadinessResponse(BaseModel):
+    """Backend OIDC/JWT verifier readiness evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_oidc_jwt_readiness"
+    active_auth_mode: AdminApiAuthMode
+    mode: AdminApiAuthMode
+    status: AdminApiVerifierReadinessStatus
+    verifier_implemented: bool
+    required_env_vars: list[str]
+    missing_env_vars: list[str] = Field(default_factory=list)
+    claims_contract: dict[str, str]
+    failure_reason: str | None = None
+    jwks_reachability: str
+    jwks_failure_reason: str | None = None
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: str = "0"
     live_coinbase_orders_ran: bool = False
 
 

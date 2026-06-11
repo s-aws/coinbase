@@ -60,8 +60,8 @@ session/RBAC evidence, capabilities, release/recovery gates, fill-ledger
 health, frontend fixtures, order list/detail, spot readiness, sweep status,
 sweep P/L, cost-basis status, campaign status, and direct order audit.
 OIDC/JWT auth mode is represented by a fail-closed readiness contract that
-reports required issuer, audience, and JWKS settings, but it is not an
-implemented verifier yet.
+reports required issuer, audience, and JWKS settings. When configured, the
+verifier validates RS256 JWTs and derives actor/role evidence from claims.
 
 ## Must Not Do
 

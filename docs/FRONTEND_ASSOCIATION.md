@@ -106,22 +106,30 @@ BFF response evidence back to browser code is limited to `Content-Type`,
 `X-Live-Execution-Enabled`, and `X-Idempotency-Replayed`.
 
 Current frontend BFF authority is `server_env_static`, which is local/staging
-evidence only. Production remains blocked until a real backend OIDC/JWT
-session bridge exists and backend `oidc_jwt` verification is implemented.
+evidence only. Production readiness requires frontend `backend_oidc_jwt` BFF
+mode and backend `oidc_jwt` verifier configuration.
 
-The future backend OIDC/JWT verifier readiness contract reports required
-settings for issuer, audience, and JWKS:
+The backend OIDC/JWT verifier readiness contract reports required settings
+for issuer, audience, and JWKS:
 
 - `COINBASE_ADMIN_API_OIDC_ISSUER`
 - `COINBASE_ADMIN_API_OIDC_AUDIENCE`
 - `COINBASE_ADMIN_API_OIDC_JWKS_URL`
 
+Backend release evidence for this boundary is available at
+`GET /api/v1/admin/oidc-readiness`. It reports the active auth mode,
+required/missing OIDC settings, claim mapping, JWKS reachability, and no-live
+notional posture.
+
 Expected claim mapping is `sub` for subject, `email` for email, `roles` for
-roles, `iss` for issuer, and `aud` for audience. This is backend/session
-bridge evidence only. It does not allow the frontend to enforce authorization
-or place backend tokens in browser-visible variables.
+roles, `iss` for issuer, and `aud` for audience. In `backend_oidc_jwt` mode
+the frontend BFF forwards only the configured OIDC cookie value as
+`Authorization: Bearer <jwt>`; it must not forward browser-supplied
+`X-Admin-Actor` or `X-Admin-Roles`. This is backend/session bridge evidence
+only. It does not allow the frontend to enforce authorization or place backend
+tokens in browser-visible variables.
 
 Frontend staging environment template evidence may use `server_env_static`
-BFF authority with server-only `ADMIN_API_*` values. Production readiness
-remains `blocked_until_oidc_session_bridge` until `backend_oidc_jwt` is active
-and the backend verifier is implemented.
+BFF authority with server-only `ADMIN_API_*` values. Production readiness is
+`conditional_on_oidc_configuration`: `backend_oidc_jwt` must be active and the
+backend verifier must be configured.

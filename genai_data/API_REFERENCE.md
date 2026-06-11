@@ -25,7 +25,9 @@ Current route adapters:
 - `GET /api/v1/admin/bootstrap`
 - `GET /api/v1/admin/health`
 - `GET /api/v1/admin/session`
+- `GET /api/v1/admin/oidc-readiness`
 - `GET /api/v1/admin/capabilities`
+- `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
@@ -50,9 +52,9 @@ Current behavior:
 - `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose
   read-only local order evidence keyed by `client_order_id`; exchange-native
   ids can appear only as `exchange_order_id` evidence and are not cancel keys
-- admin bootstrap, health, session, capabilities, release gate, recovery gate,
-  fill-ledger health, and frontend fixture routes are read-only and
-  auth/RBAC-gated
+- admin bootstrap, health, session, OIDC readiness, capabilities, CSRF,
+  release gate, recovery gate, fill-ledger health, and frontend fixture routes
+  are read-only and auth/RBAC-gated
 - auth, RBAC, and validation errors return structured error payloads with
   `code`, `message`, `severity`, optional `field_path`, and correlation id
 - responses include `X-Correlation-Id`, `X-Request-Id`,
@@ -81,11 +83,23 @@ Cancel remains `client_order_id` keyed. The future implementation must call the
 project Coinbase wrapper `cancel_order(client_order_id)` rather than resolving
 to exchange `order_id` first.
 
-HTTP auth bootstrap:
+HTTP auth bootstrap mode:
 - set `COINBASE_ADMIN_API_BEARER_TOKEN`
 - send `Authorization: Bearer <token>`
 - send `X-Admin-Actor`
 - send comma-separated `X-Admin-Roles`
+
+HTTP OIDC/JWT mode:
+- set `COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt`
+- set `COINBASE_ADMIN_API_OIDC_ISSUER`
+- set `COINBASE_ADMIN_API_OIDC_AUDIENCE`
+- set `COINBASE_ADMIN_API_OIDC_JWKS_URL`
+- send `Authorization: Bearer <jwt>`
+- do not use browser-supplied actor/role headers as authority; the backend
+  derives actor and roles from verified JWT claims
+- read `GET /api/v1/admin/oidc-readiness` for active auth mode,
+  required/missing OIDC env, claim mapping, JWKS reachability, and no-live
+  notional evidence
 
 Without configured backend auth, routes fail closed with `401`.
 

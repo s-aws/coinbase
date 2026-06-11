@@ -22,7 +22,9 @@ requires-python = ">=3.13"
 # Dependencies are NOT pinned here intentionally — they're already
 # installed in your environment via prior `pip install` commands.
 # Re-add them only if you decide to version-control the lockfile.
-dependencies = []
+dependencies = [
+    "PyJWT[crypto]>=2.12,<3",
+]
 
 [tool.setuptools]
 # Explicit list. Avoids accidentally scooping `tests/`, `genai_tools/`,

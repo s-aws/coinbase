@@ -23,20 +23,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -79,20 +85,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -135,20 +147,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -156,6 +174,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminSessionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/oidc-readiness:
+    get:
+      tags:
+      - admin
+      summary: Read backend OIDC/JWT verifier readiness evidence
+      operationId: admin_oidc_readiness_api_v1_admin_oidc_readiness_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOidcJwtReadinessResponse'
         '401':
           description: Missing or invalid Admin API authentication.
           content:
@@ -191,20 +271,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -247,20 +333,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -303,20 +395,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -359,20 +457,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -415,20 +519,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -471,20 +581,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -561,20 +677,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -643,20 +765,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       requestBody:
         required: true
         content:
@@ -731,20 +859,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -816,20 +950,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       requestBody:
         required: true
         content:
@@ -923,20 +1063,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       requestBody:
         required: true
         content:
@@ -1013,20 +1159,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -1077,20 +1229,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -1150,20 +1308,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -1214,20 +1378,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -1278,20 +1448,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -1368,20 +1544,26 @@ paths:
           title: Authorization
       - name: X-Admin-Actor
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
       - name: X-Admin-Roles
         in: header
-        required: true
+        required: false
         schema:
           anyOf:
           - type: string
           - type: 'null'
           title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
       responses:
         '200':
           description: Successful Response
@@ -1686,6 +1868,13 @@ components:
       - forbidden
       title: AdminApiSessionStatus
       description: Authenticated Admin API session status.
+    AdminApiVerifierReadinessStatus:
+      type: string
+      enum:
+      - ready
+      - blocked
+      title: AdminApiVerifierReadinessStatus
+      description: Implementation readiness for Admin API authentication verifiers.
     AdminBootstrapResponse:
       properties:
         type:
@@ -1955,6 +2144,73 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminOidcJwtReadinessResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_oidc_jwt_readiness
+        active_auth_mode:
+          $ref: '#/components/schemas/AdminApiAuthMode'
+        mode:
+          $ref: '#/components/schemas/AdminApiAuthMode'
+        status:
+          $ref: '#/components/schemas/AdminApiVerifierReadinessStatus'
+        verifier_implemented:
+          type: boolean
+          title: Verifier Implemented
+        required_env_vars:
+          items:
+            type: string
+          type: array
+          title: Required Env Vars
+        missing_env_vars:
+          items:
+            type: string
+          type: array
+          title: Missing Env Vars
+        claims_contract:
+          additionalProperties:
+            type: string
+          type: object
+          title: Claims Contract
+        failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Reason
+        jwks_reachability:
+          type: string
+          title: Jwks Reachability
+        jwks_failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Jwks Failure Reason
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+          default: '0'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - active_auth_mode
+      - mode
+      - status
+      - verifier_implemented
+      - required_env_vars
+      - claims_contract
+      - jwks_reachability
+      title: AdminOidcJwtReadinessResponse
+      description: Backend OIDC/JWT verifier readiness evidence.
     AdminOrderDetailResponse:
       properties:
         type:

@@ -180,6 +180,10 @@ Implemented:
 - The contextless blind-agent gate passed again after the docs clarified that
   raw dashboard `place_order` is a manual one-off path, not the scheduled or
   portfolio automation path.
+- An approved live USDC spot smoke validation matrix ran for `MOG-USDC` on
+  2026-06-11 with retained inventory. It submitted `3.09020044` USDC total
+  notional, executed `0.99935033` USDC, retained `9085003` MOG, appended one
+  fill, and passed the reconciliation gate.
 
 Not yet solid enough for broad spot-specific features:
 

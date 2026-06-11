@@ -2,19 +2,25 @@ from __future__ import annotations
 
 import inspect
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
+import jwt
 import pytest
 import yaml
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
+from jwt.algorithms import RSAAlgorithm
 
 from api.v1.app import create_app
 from application.admin_api.auth import (
+    OidcJwtVerificationError,
     actor_has_permission,
     build_oidc_jwt_readiness,
     oidc_jwt_required_env_vars,
+    verify_oidc_jwt,
 )
 from application.admin_api import command_service
 from application.admin_api.audit import FileAdminApiAuditStore
@@ -93,6 +99,53 @@ def _manual_order_payload(quote_size: str = "1.00") -> dict:
     }
 
 
+def _oidc_env() -> dict[str, str]:
+    return {
+        "COINBASE_ADMIN_API_OIDC_ISSUER": "https://issuer.example.test",
+        "COINBASE_ADMIN_API_OIDC_AUDIENCE": "coinbase-admin-api",
+        "COINBASE_ADMIN_API_OIDC_JWKS_URL": "https://issuer.example.test/jwks.json",
+    }
+
+
+def _oidc_keypair(kid: str = "test-key-1"):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    jwk = json.loads(RSAAlgorithm.to_jwk(private_key.public_key()))
+    jwk["kid"] = kid
+    jwk["alg"] = "RS256"
+    jwk["use"] = "sig"
+    return private_key, {"keys": [jwk]}
+
+
+def _oidc_token(
+    private_key,
+    *,
+    kid: str = "test-key-1",
+    issuer: str = "https://issuer.example.test",
+    audience: str = "coinbase-admin-api",
+    subject: str = "user-oidc-001",
+    roles: list[str] | str | None = None,
+    expires_delta: timedelta | None = timedelta(minutes=5),
+) -> str:
+    now = datetime.now(timezone.utc)
+    claims = {
+        "sub": subject,
+        "email": f"{subject}@example.test",
+        "iss": issuer,
+        "aud": audience,
+        "iat": now,
+    }
+    if expires_delta is not None:
+        claims["exp"] = now + expires_delta
+    if roles is not None:
+        claims["roles"] = roles
+    return jwt.encode(
+        claims,
+        private_key,
+        algorithm="RS256",
+        headers={"kid": kid},
+    )
+
+
 @pytest.mark.regression
 def test_admin_api_openapi_schema_file_matches_generated_contract():
     generated = generate_openapi_schema(OPENAPI_PATH)
@@ -106,6 +159,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
     assert "/api/v1/admin/session" in written["paths"]
+    assert "/api/v1/admin/oidc-readiness" in written["paths"]
     assert "/api/v1/admin/capabilities" in written["paths"]
     assert "/api/v1/admin/csrf" in written["paths"]
     assert "/api/v1/admin/release-gate" in written["paths"]
@@ -121,8 +175,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         for param in order_operation["parameters"]
         if param["in"] == "header"
     }
-    for header_name in ("Authorization", "X-Admin-Actor", "X-Admin-Roles"):
-        assert header_params[header_name]["required"] is True
+    assert header_params["Authorization"]["required"] is True
+    for header_name in ("X-Admin-Actor", "X-Admin-Roles"):
+        assert header_params[header_name]["required"] is False
+        assert "bootstrap_bearer" in header_params[header_name]["description"]
+        assert "oidc_jwt" in header_params[header_name]["description"]
     for status_code in ("200", "400", "401", "403", "409", "501"):
         assert status_code in order_operation["responses"]
     cancel_operation = written["paths"]["/api/v1/orders/{client_order_id}/cancel"][
@@ -174,20 +231,57 @@ def test_admin_api_mutating_routes_fail_closed_without_auth(monkeypatch):
 
 
 @pytest.mark.regression
-def test_admin_api_oidc_auth_mode_fails_closed_until_verifier_is_implemented(monkeypatch):
+def test_admin_api_oidc_auth_mode_fails_closed_without_required_config(monkeypatch):
     monkeypatch.setenv("COINBASE_ADMIN_API_AUTH_MODE", AdminApiAuthMode.OIDC_JWT.value)
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    for key in oidc_jwt_required_env_vars():
+        monkeypatch.delenv(key, raising=False)
     client = TestClient(create_app())
 
     response = client.get(
         "/api/v1/admin/bootstrap",
-        headers=_headers(roles=AdminApiRole.VIEWER.value),
+        headers={"Authorization": "Bearer invalid-unverified-token"},
     )
 
     assert response.status_code == 401
     assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
-    assert "OIDC/JWT verifier is not implemented" in response.json()["message"]
+    assert "OIDC/JWT verifier is not configured" in response.json()["message"]
     assert response.headers["x-live-execution-enabled"] == "false"
+
+
+@pytest.mark.regression
+def test_admin_api_oidc_auth_mode_accepts_valid_jwt_and_uses_claim_roles(
+    monkeypatch,
+):
+    from application.admin_api import auth as auth_module
+
+    private_key, jwks = _oidc_keypair()
+    token = _oidc_token(private_key, roles=[AdminApiRole.VIEWER.value])
+    monkeypatch.setenv("COINBASE_ADMIN_API_AUTH_MODE", AdminApiAuthMode.OIDC_JWT.value)
+    for key, value in _oidc_env().items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(auth_module, "_fetch_oidc_jwks", lambda _: jwks)
+    client = TestClient(create_app())
+
+    response = client.get(
+        "/api/v1/admin/session",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Admin-Actor": "forged-browser-actor",
+            "X-Admin-Roles": AdminApiRole.ADMIN.value,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["actor"] == {
+        "actor_id": "user-oidc-001",
+        "roles": [AdminApiRole.VIEWER.value],
+    }
+    assert payload["auth_mode"] == AdminApiAuthMode.OIDC_JWT.value
+    assert payload["bearer_token_visible_to_browser"] is False
+    assert AdminApiPermission.ANALYTICS_READ.value in payload["permissions"]
+    assert AdminApiPermission.ORDER_CREATE.value not in payload["permissions"]
 
 
 @pytest.mark.regression
@@ -199,7 +293,7 @@ def test_admin_api_oidc_readiness_reports_required_env_and_no_live_boundary(monk
 
     assert readiness.mode == AdminApiAuthMode.OIDC_JWT
     assert readiness.status == AdminApiVerifierReadinessStatus.BLOCKED
-    assert readiness.verifier_implemented is False
+    assert readiness.verifier_implemented is True
     assert readiness.required_env_vars == (
         "COINBASE_ADMIN_API_OIDC_ISSUER",
         "COINBASE_ADMIN_API_OIDC_AUDIENCE",
@@ -211,7 +305,7 @@ def test_admin_api_oidc_readiness_reports_required_env_and_no_live_boundary(monk
     assert readiness.to_dict() == {
         "mode": "oidc_jwt",
         "status": "blocked",
-        "verifier_implemented": False,
+        "verifier_implemented": True,
         "required_env_vars": [
             "COINBASE_ADMIN_API_OIDC_ISSUER",
             "COINBASE_ADMIN_API_OIDC_AUDIENCE",
@@ -229,7 +323,7 @@ def test_admin_api_oidc_readiness_reports_required_env_and_no_live_boundary(monk
             "issuer": "iss",
             "audience": "aud",
         },
-        "failure_reason": "Admin API OIDC/JWT verifier is not implemented",
+        "failure_reason": "Admin API OIDC/JWT verifier is not configured",
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0",
     }
@@ -243,11 +337,149 @@ def test_admin_api_oidc_readiness_reports_required_env_and_no_live_boundary(monk
 
     configured_readiness = build_oidc_jwt_readiness()
 
-    assert configured_readiness.status == AdminApiVerifierReadinessStatus.BLOCKED
+    assert configured_readiness.status == AdminApiVerifierReadinessStatus.READY
     assert configured_readiness.missing_env_vars == ()
-    assert configured_readiness.failure_reason == (
-        "Admin API OIDC/JWT verifier is not implemented"
+    assert configured_readiness.failure_reason is None
+
+
+@pytest.mark.regression
+def test_admin_api_oidc_readiness_route_reports_env_jwks_and_no_live(monkeypatch):
+    from application.admin_api import auth as auth_module
+
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    for key in oidc_jwt_required_env_vars():
+        monkeypatch.delenv(key, raising=False)
+    client = TestClient(create_app())
+
+    missing_response = client.get(
+        "/api/v1/admin/oidc-readiness",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
     )
+
+    assert missing_response.status_code == 200
+    missing_payload = missing_response.json()
+    assert missing_payload["type"] == "admin_oidc_jwt_readiness"
+    assert missing_payload["active_auth_mode"] == AdminApiAuthMode.BOOTSTRAP_BEARER.value
+    assert missing_payload["mode"] == AdminApiAuthMode.OIDC_JWT.value
+    assert missing_payload["status"] == AdminApiVerifierReadinessStatus.BLOCKED.value
+    assert missing_payload["verifier_implemented"] is True
+    assert missing_payload["missing_env_vars"] == list(oidc_jwt_required_env_vars())
+    assert missing_payload["jwks_reachability"] == "not_checked"
+    assert missing_payload["live_coinbase_execution"] == "not_run"
+    assert missing_payload["notional_usdc"] == "0"
+    assert missing_payload["live_coinbase_orders_ran"] is False
+
+    for key, value in _oidc_env().items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(auth_module, "_fetch_oidc_jwks", lambda _: {"keys": []})
+
+    ready_response = client.get(
+        "/api/v1/admin/oidc-readiness",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert ready_response.status_code == 200
+    ready_payload = ready_response.json()
+    assert ready_payload["status"] == AdminApiVerifierReadinessStatus.READY.value
+    assert ready_payload["missing_env_vars"] == []
+    assert ready_payload["failure_reason"] is None
+    assert ready_payload["jwks_reachability"] == "reachable"
+    assert ready_payload["jwks_failure_reason"] is None
+
+
+@pytest.mark.regression
+def test_admin_api_oidc_verifier_maps_roles_from_jwt_claims():
+    private_key, jwks = _oidc_keypair()
+    token = _oidc_token(private_key, roles="viewer,trader")
+
+    actor = verify_oidc_jwt(token, env=_oidc_env(), jwks=jwks)
+
+    assert actor.actor_id == "user-oidc-001"
+    assert actor.roles == [AdminApiRole.VIEWER, AdminApiRole.TRADER]
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    ("mutator", "message"),
+    [
+        (
+            lambda key: _oidc_token(
+                rsa.generate_private_key(public_exponent=65537, key_size=2048),
+                roles=[AdminApiRole.VIEWER.value],
+            ),
+            "Invalid Admin API OIDC/JWT token",
+        ),
+        (
+            lambda key: _oidc_token(
+                key,
+                issuer="https://wrong-issuer.example.test",
+                roles=[AdminApiRole.VIEWER.value],
+            ),
+            "Invalid Admin API OIDC/JWT issuer",
+        ),
+        (
+            lambda key: _oidc_token(
+                key,
+                audience="wrong-audience",
+                roles=[AdminApiRole.VIEWER.value],
+            ),
+            "Invalid Admin API OIDC/JWT audience",
+        ),
+        (
+            lambda key: _oidc_token(
+                key,
+                roles=[AdminApiRole.VIEWER.value],
+                expires_delta=timedelta(minutes=-1),
+            ),
+            "Expired Admin API OIDC/JWT token",
+        ),
+        (
+            lambda key: _oidc_token(key, roles=None),
+            "Missing Admin API role evidence",
+        ),
+        (
+            lambda key: _oidc_token(
+                key,
+                roles=[AdminApiRole.VIEWER.value],
+                expires_delta=None,
+            ),
+            "Missing required Admin API OIDC/JWT claim",
+        ),
+    ],
+)
+def test_admin_api_oidc_verifier_fails_closed_for_invalid_tokens(mutator, message):
+    private_key, jwks = _oidc_keypair()
+    token = mutator(private_key)
+
+    with pytest.raises(OidcJwtVerificationError, match=message):
+        verify_oidc_jwt(token, env=_oidc_env(), jwks=jwks)
+
+
+@pytest.mark.regression
+def test_admin_api_oidc_route_fails_closed_when_jwks_fetch_fails(monkeypatch):
+    from application.admin_api import auth as auth_module
+
+    private_key, _jwks = _oidc_keypair()
+    token = _oidc_token(private_key, roles=[AdminApiRole.VIEWER.value])
+    monkeypatch.setenv("COINBASE_ADMIN_API_AUTH_MODE", AdminApiAuthMode.OIDC_JWT.value)
+    for key, value in _oidc_env().items():
+        monkeypatch.setenv(key, value)
+
+    def _raise_fetch_error(_url: str):
+        raise OidcJwtVerificationError("Unable to fetch Admin API OIDC/JWT JWKS")
+
+    monkeypatch.setattr(auth_module, "_fetch_oidc_jwks", _raise_fetch_error)
+    client = TestClient(create_app())
+
+    response = client.get(
+        "/api/v1/admin/session",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
+    assert "Unable to fetch Admin API OIDC/JWT JWKS" in response.json()["message"]
+    assert response.headers["x-live-execution-enabled"] == "false"
 
 
 @pytest.mark.regression
@@ -803,6 +1035,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         "execute_spot_campaign"
     )
     assert rows["GET /api/v1/admin/bootstrap"].shared_method == "build_admin_bootstrap"
+    assert rows["GET /api/v1/admin/oidc-readiness"].shared_method == (
+        "build_oidc_jwt_readiness"
+    )
     assert rows["GET /api/v1/admin/capabilities"].shared_method == (
         "build_admin_capabilities"
     )
@@ -819,5 +1054,6 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "place_hotpoint_test_order" in doc
     assert "execute_spot_campaign" in doc
     assert "build_admin_bootstrap" in doc
+    assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc
     assert "build_order_list" in doc

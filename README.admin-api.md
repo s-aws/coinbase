@@ -35,6 +35,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/bootstrap`
 - `GET /api/v1/admin/health`
 - `GET /api/v1/admin/session`
+- `GET /api/v1/admin/oidc-readiness`
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/release-gate`
@@ -95,14 +96,14 @@ repository's required backend regression gate when backend files change.
   model exposes it as `exchange_order_id`; it is not an identity or cancel key.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
-- `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the only active verifier
-  today. `oidc_jwt` is modeled as a production replacement boundary and fails
-  closed until a real verifier is implemented.
-- The future `oidc_jwt` verifier readiness contract reports required
+- `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap
+  verifier. `COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt` verifies RS256 JWTs
+  against the configured issuer, audience, and JWKS, then derives actor and
+  role evidence from JWT claims.
+- The `oidc_jwt` verifier readiness contract reports required
   `COINBASE_ADMIN_API_OIDC_ISSUER`,
   `COINBASE_ADMIN_API_OIDC_AUDIENCE`, and
-  `COINBASE_ADMIN_API_OIDC_JWKS_URL` settings, but remains blocked even when
-  those settings are present until verifier implementation is complete.
+  `COINBASE_ADMIN_API_OIDC_JWKS_URL` settings. Missing settings fail closed.
 
 ## Local Run
 
@@ -140,9 +141,12 @@ browser code: `Content-Type`, `X-Correlation-Id`, `X-Request-Id`,
 configuration failure, not as a live trading gate result.
 
 Frontend `server_env_static` BFF authority is local/staging evidence only.
-Production remains blocked until a real backend OIDC/JWT session bridge exists
-and backend `oidc_jwt` verification is implemented. Browser-visible RBAC
-remains a UI hint; backend RBAC is the enforcement authority.
+Production readiness requires frontend `backend_oidc_jwt` BFF mode and
+backend `oidc_jwt` verifier configuration. Browser-visible RBAC remains a UI
+hint; backend RBAC is the enforcement authority.
+`GET /api/v1/admin/oidc-readiness` exposes backend OIDC verifier evidence for
+release checks, including active auth mode, required/missing environment
+settings, claim mapping, JWKS reachability, and no-live notional posture.
 
 CSRF enforcement is opt-in for cookie/session or BFF deployments:
 
