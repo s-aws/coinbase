@@ -3791,3 +3791,7 @@ Progress update:
   now have a typed no-live filter/sort state, selectable backend-shaped rows,
   selected detail evidence keyed by `client_order_id`, and stable
   `#order-detail-<client_order_id>` anchors without exchange-id identity.
+- Phases 626-627 completed on the frontend side: campaign read-model evidence
+  is organized into accessible status, dry-run, recovery, and execution tabs
+  with active-view evidence filtering; execution evidence remains
+  live-disabled and read-only.

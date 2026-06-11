@@ -512,8 +512,9 @@ Resolution:
   workflow docs so a true gate result is described as a UI affordance signal
   only, never authority to submit a Coinbase order without backend acceptance.
 - Updated frontend nav `aria-current` to follow the active hash section and
-  covered the active-state behavior in unit and Playwright tests after the
-  follow-up review flagged the static Overview current state as misleading.
+  covered the hydrated active-state behavior in unit tests after the follow-up
+  review flagged the static Overview current state as misleading. Playwright
+  remains focused on clickability, URL hashes, and visible region targets.
 
 Status:
 
