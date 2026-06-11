@@ -66,11 +66,14 @@ cancel-by-`client_order_id`, hotpoint test placement for legacy dashboard
 compatibility, and a live-disabled spot campaign execution contract.
 
 Read-only Admin API routes currently cover backend bootstrap, health,
-session/RBAC evidence, capabilities, release/recovery gates, fill-ledger
-health, frontend fixtures, order list/detail, stealth lifecycle list/detail,
-movement/repricing evidence, futures/perpetual account and position evidence,
-spot readiness, sweep status, sweep P/L, cost-basis status, campaign status,
-and direct order audit.
+session/RBAC evidence, capabilities, guard/risk policy evidence,
+release/recovery gates, fill-ledger health, frontend fixtures, order
+list/detail, stealth lifecycle list/detail, movement/repricing evidence,
+futures/perpetual account and position evidence, spot readiness, sweep status,
+sweep P/L, cost-basis status, campaign status, and direct order audit.
+Guard/risk policy reads expose existing backend policy and authority sources as
+evidence only. They must not become browser preflight approval or a second
+guard engine.
 Futures/perpetual reads use `position_key` for position identity, separate
 configured product scope from observed position scope, and must not import
 spot wallet, no-shorting, cost-basis, or average-cost authority.

@@ -23,6 +23,7 @@ from application.admin_api.models import (
     AdminGateReadResponse,
     AdminHealthResponse,
     AdminOidcJwtReadinessResponse,
+    AdminRiskPolicyReadResponse,
     AdminSessionResponse,
 )
 from application.admin_api.read_service import AdminApiReadService
@@ -146,6 +147,23 @@ def admin_csrf_contract(
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_response(service.build_csrf_contract())
+
+
+@router.get(
+    "/admin/guard-risk-policy",
+    response_model=AdminRiskPolicyReadResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read backend-owned guard and risk policy evidence",
+)
+def admin_guard_risk_policy(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    product_id: str | None = None,
+) -> JSONResponse:
+    """Read guard/risk posture without Coinbase reads or command execution."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_response(service.build_guard_risk_policy(product_id=product_id))
 
 
 @router.get(

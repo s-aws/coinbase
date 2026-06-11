@@ -33,8 +33,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M1 - First Non-Spot Read Module | Complete | Add a backend-owned read-only Stealth Orders Admin API/frontend module. |
 | M2 - Movement And Repricing Reads | Complete | Add read-only movement/repricing evidence without command authority. |
 | M3 - Futures/Perpetuals Read Foundation | Complete | Add futures/perpetual account, position, funding, and risk read contracts. |
-| M4 - Guard And Risk Policy Evidence | Next | Expose backend guard/risk decisions as read-only evidence across modules. |
-| M5 - Cross-Module Audit Workbench | Pending | Unify operator audit, reconciliation, and correlation evidence across modules. |
+| M4 - Guard And Risk Policy Evidence | Complete | Expose backend guard/risk decisions as read-only evidence across modules. |
+| M5 - Cross-Module Audit Workbench | Next | Unify operator audit, reconciliation, and correlation evidence across modules. |
 | M6 - Non-Spot Command Draft Contracts | Pending | Add disabled drafts/dry-submit contracts only after read contracts are stable. |
 | M7 - Production Auth And Operations Hardening | Pending | Finish enterprise auth, deployment, observability, and operator runbooks. |
 | M8 - Controlled Live Enablement | Pending | Enable live execution only per approved backend path, cap, and reconciliation gate. |
@@ -221,6 +221,33 @@ Frontend scope:
 Done when tests prove guard/risk evidence is rendered from backend responses
 and contextless review finds no browser-trusted authority.
 
+Completed evidence:
+
+- Backend `GET /api/v1/admin/guard-risk-policy` is implemented as a
+  read-only `analytics:read` route delegated to `AdminApiReadService`.
+- Response models expose action-condition guard phases, configured limit
+  rules, product capability policy decisions, live execution posture,
+  profitability policy, authority sources, and rejection categories as
+  evidence only.
+- Capability decision evaluation now reports degraded/unavailable evidence if
+  backend policy evaluation raises instead of silently presenting a clean
+  observed status.
+- OpenAPI, route inventory, capability matrix, feature README, examples,
+  agent contract, expanded local API/architecture docs, ownership metadata,
+  and regression tests are updated.
+- Frontend generated schema, canonical `BackendApiClient` wrapper, BFF
+  allowlist, mock/runtime fixtures, read-only UI, docs, and release gate
+  consume the backend contract.
+- Backend focused Admin API contract tests passed with `48 passed, 1 warning`;
+  backend full regression passed with `783 passed, 1 warning`.
+- Frontend focused guard/risk checks passed after wording remediation;
+  frontend `npm run release:gate` passed with `157` unit tests and `3`
+  Playwright tests.
+- Blind/contextless backend and frontend reviews found no blockers. Backend
+  review hardening around policy-evaluation errors was remediated. Frontend
+  review wording risk around capability decisions was remediated.
+- Live Coinbase execution was not run for M4; notional `$0`.
+
 ## M5 - Cross-Module Audit Workbench
 
 Purpose: give operators one evidence surface across modules.
@@ -235,6 +262,9 @@ Backend scope:
 Frontend scope:
 
 - Add module-aware audit filtering, correlation links, and detail panels.
+- Carry module/product scope into related evidence reads, including
+  guard/risk policy `product_id` filters, without moving authority into the
+  browser.
 - Keep audit UI display-only.
 
 Done when audit evidence can trace a command or read model across modules

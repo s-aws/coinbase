@@ -274,6 +274,27 @@ class AdminFuturesEvidenceSource(str, Enum):
     RUNTIME_UNAVAILABLE = "runtime_unavailable"
 
 
+class AdminRiskEvidenceStatus(str, Enum):
+    """Availability/status for Admin API guard and risk evidence."""
+
+    OBSERVED = "observed"
+    UNAVAILABLE = "unavailable"
+    NOT_MODELED = "not_modeled"
+    FAIL_CLOSED = "fail_closed"
+
+
+class AdminRiskEvidenceSource(str, Enum):
+    """Source labels for backend-owned guard and risk policy evidence."""
+
+    ACTION_CONDITION_GUARD = "action_condition_guard"
+    PRODUCT_CAPABILITY_POLICY = "product_capability_policy"
+    LIVE_EXECUTION_GATE = "live_execution_gate"
+    PROFIT_VALIDATOR = "profit_validator"
+    SPOT_INVENTORY_AUTHORITY = "spot_inventory_authority"
+    BACKEND_CONTRACT = "backend_contract"
+    RUNTIME_UNAVAILABLE = "runtime_unavailable"
+
+
 class AdminFuturesPositionSide(str, Enum):
     """Derived futures/perpetual position direction."""
 

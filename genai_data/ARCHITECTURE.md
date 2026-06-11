@@ -195,7 +195,8 @@ until approval and cap gates are complete.
 Current modules:
 - `api/v1/app.py`: FastAPI app factory.
 - `api/v1/routes/admin.py`: read-only backend association, health,
-  session/RBAC, capability, gate, and frontend-fixture routes.
+  session/RBAC, capability, guard/risk policy, gate, and frontend-fixture
+  routes.
 - `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`,
   `GET /api/v1/orders`, `GET /api/v1/orders/{client_order_id}`,
   `POST /api/v1/orders/{client_order_id}/cancel`, and
@@ -244,6 +245,11 @@ Current behavior:
   is the position read identity. Configured product scope and observed
   position scope are separate. Close/reduce sides are backend-derived from
   observed position side and are not exchange-observed order flags.
+- Guard/risk policy reads expose existing backend action-condition policy,
+  configured cap rules, live execution gate posture, product capability
+  policy, profitability-validator posture, authority sources, and rejection
+  categories as evidence only. They do not fetch Coinbase wallets and do not
+  approve browser live execution.
 - Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
   fill-ledger health, and frontend fixture routes are read-only backend
   association surfaces for `C:\coinbase-frontend`.

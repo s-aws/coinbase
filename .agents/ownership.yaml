@@ -54,6 +54,7 @@ owners:
       - README.action-condition-guards.md
       - README.admin-api.md
       - README.futures-perpetuals.md
+      - README.guard-risk-policy.md
       - README.movement-repricing.md
       - README.spot-campaign.md
       - README.spot-portfolio-sweep.md

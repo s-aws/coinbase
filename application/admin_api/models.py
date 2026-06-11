@@ -27,8 +27,13 @@ from core.enums import (
     AdminApiSessionStatus,
     AdminApiVerifierReadinessStatus,
     AdminFuturesPositionSide,
+    AdminRiskEvidenceSource,
+    AdminRiskEvidenceStatus,
+    ActionConditionType,
+    ActionGuardPhase,
     OrderSide,
     OrderType,
+    ProductCapability,
     ProductType,
     StealthMutationKind,
     TimeInForce,
@@ -602,6 +607,80 @@ class AdminFuturesAccountReadResponse(BaseModel):
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
     live_coinbase_orders_ran: bool = False
+
+
+class AdminRiskEvidenceItem(BaseModel):
+    """One backend-owned guard/risk evidence cell."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    status: AdminRiskEvidenceStatus
+    source: AdminRiskEvidenceSource
+    value: Any | None = None
+    detail: str | None = None
+
+
+class AdminRiskPolicyRuleItem(BaseModel):
+    """One configured action-condition limit/cap rule."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_id: str
+    enabled: bool = True
+    product_id: str | None = None
+    product_type: ProductType | str | None = None
+    side: OrderSide | str | None = None
+    phases: list[ActionGuardPhase | str] = Field(default_factory=list)
+    max_notional: DecimalString | None = None
+    max_base_size: DecimalString | None = None
+    raw_rule: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminRiskRejectionCategoryItem(BaseModel):
+    """Backend-owned guard rejection category shown as evidence only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    condition: ActionConditionType
+    source: AdminRiskEvidenceSource
+    applies_to_product_type: ProductType | str | None = None
+    blocks_before_exchange: bool = True
+    detail: str
+
+
+class AdminProductCapabilityDecisionItem(BaseModel):
+    """Read-only product capability policy decision for one capability."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str
+    product_type: ProductType | str
+    capability: ProductCapability
+    mode: str
+    allowed: bool
+    reason: str
+
+
+class AdminRiskPolicyReadResponse(BaseModel):
+    """Read-only guard/risk policy evidence for Admin API modules."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_guard_risk_policy"
+    filters: dict[str, Any] = Field(default_factory=dict)
+    action_condition_policy: AdminRiskEvidenceItem
+    configured_limit_rules: list[AdminRiskPolicyRuleItem] = Field(default_factory=list)
+    live_execution_gate: AdminRiskEvidenceItem
+    product_capability_policy: AdminRiskEvidenceItem
+    product_capability_decisions: list[AdminProductCapabilityDecisionItem] = Field(default_factory=list)
+    profitability_policy: AdminRiskEvidenceItem
+    authority_sources: list[AdminRiskEvidenceItem] = Field(default_factory=list)
+    rejection_categories: list[AdminRiskRejectionCategoryItem] = Field(default_factory=list)
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
 
 
 class AdminGateCheck(BaseModel):

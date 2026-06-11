@@ -299,6 +299,34 @@ are backend-derived from observed position side and are not exchange-observed
 reduce-only or close-only order flags. Funding-rate evidence is currently
 `not_modeled`.
 
+## Guard/Risk Policy Reads
+
+Guard/risk policy reads expose backend-owned policy posture. They are not
+command routes and they do not approve live execution, run wallet checks,
+calculate profitability in the browser, or contact Coinbase.
+
+```http
+GET /api/v1/admin/guard-risk-policy?product_id=BTC-USDC
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+The response includes `action_condition_policy`, `configured_limit_rules`,
+`live_execution_gate`, `product_capability_policy`,
+`product_capability_decisions`, `profitability_policy`, `authority_sources`,
+and `rejection_categories`.
+
+Expected safety posture:
+
+- `read_only=true`
+- `command_routes_mode="not_modeled"`
+- `live_coinbase_orders_ran=false`
+- `live_coinbase_read_ran=false`
+
+Do not use this route as a browser preflight approval endpoint. Actual command
+acceptance/rejection remains in the backend command service path.
+
 ## Live Placement Approval
 
 Current live-disabled command shape:
@@ -414,6 +442,7 @@ Current read-only routes:
 - `GET /api/v1/admin/oidc-readiness`
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
+- `GET /api/v1/admin/guard-risk-policy`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`

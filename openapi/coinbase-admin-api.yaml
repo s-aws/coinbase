@@ -378,6 +378,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/guard-risk-policy:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned guard and risk policy evidence
+      description: Read guard/risk posture without Coinbase reads or command execution.
+      operationId: admin_guard_risk_policy_api_v1_admin_guard_risk_policy_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRiskPolicyReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/release-gate:
     get:
       tags:
@@ -2240,6 +2311,26 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    ActionConditionType:
+      type: string
+      enum:
+      - wallet_available
+      - planned_budget_available
+      - known_inventory_available
+      - manual_live_acknowledgement
+      - direct_spot_cap_required
+      - durable_audit_available
+      - max_base_size
+      - max_notional
+      title: ActionConditionType
+      description: Built-in action-condition guard types.
+    ActionGuardPhase:
+      type: string
+      enum:
+      - planning
+      - reveal
+      title: ActionGuardPhase
+      description: Action-condition guard evaluation phase.
     AdminApiActionClass:
       type: string
       enum:
@@ -2330,7 +2421,8 @@ components:
           title: Audit Command
         guard:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Guard
         data:
@@ -2701,6 +2793,7 @@ components:
           type: string
           title: Schema Version
         fixtures:
+          additionalProperties: true
           type: object
           title: Fixtures
         live_coinbase_orders_ran:
@@ -2859,6 +2952,7 @@ components:
           title: Type
           default: admin_futures_positions
         filters:
+          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -2942,7 +3036,8 @@ components:
           title: Margin Type
         margin_amount:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Margin Amount
         leverage:
@@ -2973,12 +3068,14 @@ components:
           - type: 'null'
         position_pnl:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Position Pnl
         product_metadata:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Product Metadata
         mandatory_fee_per_contract:
@@ -2987,6 +3084,7 @@ components:
           - type: 'null'
           title: Mandatory Fee Per Contract
         raw_position:
+          additionalProperties: true
           type: object
           title: Raw Position
         source:
@@ -3269,12 +3367,14 @@ components:
           title: Mutation Claims
         anchor_repricing_policy:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Anchor Repricing Policy
         anchor_repricing_state:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Anchor Repricing State
         reprice_history:
@@ -3358,6 +3458,7 @@ components:
           title: Type
           default: admin_movement_repricing_evidence
         filters:
+          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -3517,6 +3618,7 @@ components:
           title: Type
           default: admin_order_list
         filters:
+          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -3661,6 +3763,38 @@ components:
       - client_order_id
       title: AdminOrderReadItem
       description: Read-only order row keyed by ``client_order_id``.
+    AdminProductCapabilityDecisionItem:
+      properties:
+        product_id:
+          type: string
+          title: Product Id
+        product_type:
+          anyOf:
+          - $ref: '#/components/schemas/ProductType'
+          - type: string
+          title: Product Type
+        capability:
+          $ref: '#/components/schemas/ProductCapability'
+        mode:
+          type: string
+          title: Mode
+        allowed:
+          type: boolean
+          title: Allowed
+        reason:
+          type: string
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - product_type
+      - capability
+      - mode
+      - allowed
+      - reason
+      title: AdminProductCapabilityDecisionItem
+      description: Read-only product capability policy decision for one capability.
     AdminReplacementSlotEvidence:
       properties:
         client_order_id:
@@ -3696,6 +3830,207 @@ components:
       - source
       title: AdminReplacementSlotEvidence
       description: Replacement-slot evidence for a parent/placement client id.
+    AdminRiskEvidenceItem:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          $ref: '#/components/schemas/AdminRiskEvidenceStatus'
+        source:
+          $ref: '#/components/schemas/AdminRiskEvidenceSource'
+        value:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Value
+        detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - status
+      - source
+      title: AdminRiskEvidenceItem
+      description: One backend-owned guard/risk evidence cell.
+    AdminRiskEvidenceSource:
+      type: string
+      enum:
+      - action_condition_guard
+      - product_capability_policy
+      - live_execution_gate
+      - profit_validator
+      - spot_inventory_authority
+      - backend_contract
+      - runtime_unavailable
+      title: AdminRiskEvidenceSource
+      description: Source labels for backend-owned guard and risk policy evidence.
+    AdminRiskEvidenceStatus:
+      type: string
+      enum:
+      - observed
+      - unavailable
+      - not_modeled
+      - fail_closed
+      title: AdminRiskEvidenceStatus
+      description: Availability/status for Admin API guard and risk evidence.
+    AdminRiskPolicyReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_guard_risk_policy
+        filters:
+          additionalProperties: true
+          type: object
+          title: Filters
+        action_condition_policy:
+          $ref: '#/components/schemas/AdminRiskEvidenceItem'
+        configured_limit_rules:
+          items:
+            $ref: '#/components/schemas/AdminRiskPolicyRuleItem'
+          type: array
+          title: Configured Limit Rules
+        live_execution_gate:
+          $ref: '#/components/schemas/AdminRiskEvidenceItem'
+        product_capability_policy:
+          $ref: '#/components/schemas/AdminRiskEvidenceItem'
+        product_capability_decisions:
+          items:
+            $ref: '#/components/schemas/AdminProductCapabilityDecisionItem'
+          type: array
+          title: Product Capability Decisions
+        profitability_policy:
+          $ref: '#/components/schemas/AdminRiskEvidenceItem'
+        authority_sources:
+          items:
+            $ref: '#/components/schemas/AdminRiskEvidenceItem'
+          type: array
+          title: Authority Sources
+        rejection_categories:
+          items:
+            $ref: '#/components/schemas/AdminRiskRejectionCategoryItem'
+          type: array
+          title: Rejection Categories
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - action_condition_policy
+      - live_execution_gate
+      - product_capability_policy
+      - profitability_policy
+      title: AdminRiskPolicyReadResponse
+      description: Read-only guard/risk policy evidence for Admin API modules.
+    AdminRiskPolicyRuleItem:
+      properties:
+        policy_id:
+          type: string
+          title: Policy Id
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        product_type:
+          anyOf:
+          - $ref: '#/components/schemas/ProductType'
+          - type: string
+          - type: 'null'
+          title: Product Type
+        side:
+          anyOf:
+          - $ref: '#/components/schemas/OrderSide'
+          - type: string
+          - type: 'null'
+          title: Side
+        phases:
+          items:
+            anyOf:
+            - $ref: '#/components/schemas/ActionGuardPhase'
+            - type: string
+          type: array
+          title: Phases
+        max_notional:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Max Notional
+        max_base_size:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Max Base Size
+        raw_rule:
+          additionalProperties: true
+          type: object
+          title: Raw Rule
+      additionalProperties: false
+      type: object
+      required:
+      - policy_id
+      title: AdminRiskPolicyRuleItem
+      description: One configured action-condition limit/cap rule.
+    AdminRiskRejectionCategoryItem:
+      properties:
+        condition:
+          $ref: '#/components/schemas/ActionConditionType'
+        source:
+          $ref: '#/components/schemas/AdminRiskEvidenceSource'
+        applies_to_product_type:
+          anyOf:
+          - $ref: '#/components/schemas/ProductType'
+          - type: string
+          - type: 'null'
+          title: Applies To Product Type
+        blocks_before_exchange:
+          type: boolean
+          title: Blocks Before Exchange
+          default: true
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - condition
+      - source
+      - detail
+      title: AdminRiskRejectionCategoryItem
+      description: Backend-owned guard rejection category shown as evidence only.
     AdminSessionResponse:
       properties:
         type:
@@ -3771,6 +4106,7 @@ components:
           title: Type
           default: admin_stealth_order_list
         filters:
+          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -3874,16 +4210,19 @@ components:
           title: Reveal Condition Type
         reveal_condition:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Reveal Condition
         sizing_strategy:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Sizing Strategy
         revealed_orders:
           items:
+            additionalProperties: true
             type: object
           type: array
           title: Revealed Orders
@@ -3918,27 +4257,32 @@ components:
           title: Failure Reason
         cancel_reentry_policy:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Cancel Reentry Policy
         cancel_reentry_state:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Cancel Reentry State
         post_fill_retreat_policy:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Post Fill Retreat Policy
         anchor_repricing_policy:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Anchor Repricing Policy
         anchor_repricing_state:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Anchor Repricing State
         created_at:
@@ -4109,6 +4453,28 @@ components:
 
 
         From Coinbase API: LIMIT, MARKET, STOP_LIMIT'
+    ProductCapability:
+      type: string
+      enum:
+      - direct_placement
+      - stealth_planning
+      - stealth_reveal
+      - size_validation
+      - profitability
+      - filled_follow_up
+      - partial_fill_follow_up
+      - cancelled_follow_up
+      - same_side_post_fill_retreat
+      - move_revealed
+      - reprice_revealed
+      - cancel_reentry
+      - hotpoint_auto_placement
+      - futures_position_flip
+      - margin_validation
+      - liquidation_check
+      - funding_check
+      title: ProductCapability
+      description: Feature/action capability controlled by product type policy.
     ProductType:
       type: string
       enum:

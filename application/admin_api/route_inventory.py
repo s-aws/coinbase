@@ -134,6 +134,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend-defined position identity with no order placement or cancellation",
     ),
     AdminApiRouteInventoryItem(
+        surface="GET /api/v1/admin/guard-risk-policy",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only evidence only",
+        audit="optional read audit",
+        shared_method="build_guard_risk_policy",
+        parity_test="read-only guard/risk policy evidence; no browser authority or Coinbase read",
+    ),
+    AdminApiRouteInventoryItem(
         surface="place_order WebSocket",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission="compatibility policy",

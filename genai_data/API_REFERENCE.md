@@ -36,6 +36,7 @@ Current route adapters:
 - `GET /api/v1/admin/oidc-readiness`
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
+- `GET /api/v1/admin/guard-risk-policy`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
@@ -79,6 +80,11 @@ Current behavior:
   the read identity, configured product scope is separate from observed
   position scope, close/reduce sides are backend-derived from observed
   position side, and no futures/perpetual command route is modeled yet
+- `GET /api/v1/admin/guard-risk-policy` exposes backend-owned guard/risk
+  policy evidence: action-condition policy, configured cap rules, live gate
+  posture, product capability policy, profitability-validator posture,
+  authority sources, and rejection categories. It does not fetch Coinbase
+  wallets, approve live execution, or move guard calculations into the browser
 - admin bootstrap, health, session, OIDC readiness, capabilities, CSRF,
   release gate, recovery gate, fill-ledger health, and frontend fixture routes
   are read-only and auth/RBAC-gated

@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from core.enums import (
+    ActionConditionType,
+    ActionGuardPhase,
     AdminApiActionClass,
     AdminApiAuthMode,
     AdminFuturesEvidenceSource,
@@ -23,10 +25,15 @@ from core.enums import (
     AdminApiSessionStatus,
     AdminApiVerifierReadinessStatus,
     OrderSide,
+    ProductCapability,
     ProductType,
+    StealthOrderStatus,
     StealthMutationKind,
+    AdminRiskEvidenceSource,
+    AdminRiskEvidenceStatus,
 )
 
+from .approval import evaluate_live_execution_gate
 from .auth import (
     build_oidc_jwt_readiness,
     check_oidc_jwks_reachability,
@@ -56,6 +63,11 @@ from .models import (
     AdminOrderListResponse,
     AdminOrderReadItem,
     AdminReplacementSlotEvidence,
+    AdminProductCapabilityDecisionItem,
+    AdminRiskEvidenceItem,
+    AdminRiskPolicyReadResponse,
+    AdminRiskPolicyRuleItem,
+    AdminRiskRejectionCategoryItem,
     AdminSessionResponse,
     AdminStealthOrderDetailResponse,
     AdminStealthOrderListResponse,
@@ -607,6 +619,165 @@ def _futures_evidence(
     )
 
 
+def _risk_evidence(
+    *,
+    name: str,
+    status: AdminRiskEvidenceStatus,
+    source: AdminRiskEvidenceSource,
+    value: Any | None = None,
+    detail: str | None = None,
+) -> AdminRiskEvidenceItem:
+    return AdminRiskEvidenceItem(
+        name=name,
+        status=status,
+        source=source,
+        value=value,
+        detail=detail,
+    )
+
+
+def _normalize_guard_phases(value: Any) -> list[str]:
+    if value is None:
+        return [
+            ActionGuardPhase.PLANNING.value,
+            ActionGuardPhase.REVEAL.value,
+        ]
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, (list, tuple, set)):
+        values = list(value)
+    else:
+        values = [value]
+    phases: list[str] = []
+    for item in values:
+        try:
+            phase = ActionGuardPhase(str(item)).value
+        except ValueError:
+            phase = str(item)
+        if phase not in phases:
+            phases.append(phase)
+    return phases
+
+
+def _configured_limit_rules(policy: dict[str, Any]) -> list[AdminRiskPolicyRuleItem]:
+    limits = policy.get("limits") or []
+    if isinstance(limits, dict):
+        limits = list(limits.values())
+    if not isinstance(limits, list):
+        return []
+
+    items: list[AdminRiskPolicyRuleItem] = []
+    for index, raw_rule in enumerate(limits):
+        if not isinstance(raw_rule, dict):
+            continue
+        rule = dict(raw_rule)
+        policy_id = str(rule.get("name") or f"limit_{index}")
+        max_notional = rule.get(ActionConditionType.MAX_NOTIONAL.value)
+        max_base_size = rule.get(ActionConditionType.MAX_BASE_SIZE.value)
+        items.append(
+            AdminRiskPolicyRuleItem(
+                policy_id=policy_id,
+                enabled=rule.get("enabled", True) is not False,
+                product_id=_string_or_none(rule.get("product_id")),
+                product_type=rule.get("product_type"),
+                side=rule.get("side"),
+                phases=_normalize_guard_phases(rule.get("phases")),
+                max_notional=(
+                    str(max_notional) if max_notional is not None else None
+                ),
+                max_base_size=(
+                    str(max_base_size) if max_base_size is not None else None
+                ),
+                raw_rule=rule,
+            )
+        )
+    return items
+
+
+def _product_capability_decisions(
+    product_id: str | None,
+) -> tuple[list[AdminProductCapabilityDecisionItem], list[str]]:
+    if not product_id:
+        return [], []
+    try:
+        from core.product_capability import evaluate_product_capability
+    except Exception as exc:
+        return [], [f"import_error:{type(exc).__name__}: {exc}"]
+
+    decisions: list[AdminProductCapabilityDecisionItem] = []
+    errors: list[str] = []
+    for capability in ProductCapability:
+        try:
+            decision = evaluate_product_capability(
+                product_id=product_id,
+                capability=capability,
+            )
+        except Exception as exc:
+            errors.append(f"{capability.value}:{type(exc).__name__}: {exc}")
+            continue
+        decisions.append(
+            AdminProductCapabilityDecisionItem(
+                product_id=decision.product_id,
+                product_type=decision.product_type,
+                capability=capability,
+                mode=decision.mode,
+                allowed=decision.allowed,
+                reason=decision.reason,
+            )
+        )
+    return decisions, errors
+
+
+def _risk_rejection_categories() -> list[AdminRiskRejectionCategoryItem]:
+    return [
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT,
+            source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+            applies_to_product_type=ProductType.SPOT,
+            detail="Direct spot placement requires explicit manual live acknowledgement before REST submission.",
+        ),
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.DIRECT_SPOT_CAP_REQUIRED,
+            source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+            applies_to_product_type=ProductType.SPOT,
+            detail="Direct spot placement requires a planning-phase max_notional cap before REST submission.",
+        ),
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.MAX_NOTIONAL,
+            source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+            detail="Configured max_notional rules block oversized actions before exchange work.",
+        ),
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.MAX_BASE_SIZE,
+            source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+            detail="Configured max_base_size rules block oversized actions before exchange work.",
+        ),
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.WALLET_AVAILABLE,
+            source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+            applies_to_product_type=ProductType.SPOT,
+            detail="Spot wallet availability is evaluated at backend action boundaries only.",
+        ),
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.PLANNED_BUDGET_AVAILABLE,
+            source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+            applies_to_product_type=ProductType.SPOT,
+            detail="Spot planned budget commitments are subtracted at planning and reveal boundaries.",
+        ),
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.KNOWN_INVENTORY_AVAILABLE,
+            source=AdminRiskEvidenceSource.SPOT_INVENTORY_AUTHORITY,
+            applies_to_product_type=ProductType.SPOT,
+            detail="Known profitable inventory authority applies only to spot SELL actions.",
+        ),
+        AdminRiskRejectionCategoryItem(
+            condition=ActionConditionType.DURABLE_AUDIT_AVAILABLE,
+            source=AdminRiskEvidenceSource.LIVE_EXECUTION_GATE,
+            detail="Durable audit evidence is required before approved live command execution.",
+        ),
+    ]
+
+
 def _query_admin_rows(
     query: str,
     params: tuple[Any, ...] | None = None,
@@ -1047,6 +1218,185 @@ class AdminApiReadService:
                 )
             )
         return AdminCapabilityRegistryResponse(capabilities=capabilities)
+
+    def build_guard_risk_policy(
+        self,
+        *,
+        product_id: str | None = None,
+    ) -> AdminRiskPolicyReadResponse:
+        """Return read-only guard/risk policy evidence without Coinbase reads."""
+
+        from core.action_condition_guard import (
+            get_action_condition_guard_policy,
+            normalize_action_guard_known_inventory_policy,
+            normalize_action_guard_wallet_policy,
+            rest_credentials_configured,
+        )
+        from core.product_capability import get_product_capability_policy
+
+        action_policy = get_action_condition_guard_policy()
+        wallet_policy = normalize_action_guard_wallet_policy(action_policy)
+        known_inventory_policy = normalize_action_guard_known_inventory_policy(
+            action_policy
+        )
+        limit_rules = _configured_limit_rules(action_policy)
+        product_capability_policy = get_product_capability_policy()
+        live_gate = evaluate_live_execution_gate(allow_live_execution=False)
+
+        action_policy_value = {
+            "policy_configured": bool(action_policy),
+            "wallet_available": wallet_policy,
+            "known_inventory_available": known_inventory_policy,
+            "limit_rule_count": len(limit_rules),
+            "limit_policy_ids": [rule.policy_id for rule in limit_rules],
+            "rest_credentials_configured": rest_credentials_configured(),
+            "coinbase_wallet_fetch_performed": False,
+            "decision_boundary": (
+                "ActionConditionGuard.evaluate at planning/reveal/command "
+                "boundaries; this read route reports policy only."
+            ),
+        }
+
+        capability_decisions, capability_errors = _product_capability_decisions(product_id)
+        capability_value: dict[str, Any] = {
+            "configured_overrides": product_capability_policy,
+            "decision_product_id": product_id,
+            "decision_count": len(capability_decisions),
+            "decision_error_count": len(capability_errors),
+            "decision_errors": capability_errors,
+            "conditional_modes_are_not_live_authority": True,
+        }
+        if not product_id:
+            capability_value["decision_detail"] = (
+                "Pass product_id to inspect product-specific capability "
+                "decisions; defaults remain backend-owned."
+            )
+
+        authority_sources = [
+            _risk_evidence(
+                name="wallet_authority",
+                status=(
+                    AdminRiskEvidenceStatus.OBSERVED
+                    if wallet_policy.get("enabled", True) is not False
+                    else AdminRiskEvidenceStatus.NOT_MODELED
+                ),
+                source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+                value={
+                    "policy": wallet_policy,
+                    "coinbase_wallet_fetch_performed": False,
+                },
+                detail=(
+                    "Spot wallet availability is evaluated by the backend "
+                    "action guard at command/reveal boundaries; this route "
+                    "does not fetch Coinbase wallets."
+                ),
+            ),
+            _risk_evidence(
+                name="planned_budget_authority",
+                status=AdminRiskEvidenceStatus.OBSERVED,
+                source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+                value={
+                    "hidden_statuses_counted": [
+                        StealthOrderStatus.HIDDEN.value,
+                        StealthOrderStatus.PENDING.value,
+                        StealthOrderStatus.TRIGGERED.value,
+                    ],
+                    "revealed_orders_excluded": True,
+                },
+                detail=(
+                    "Local pre-exchange spot commitments are subtracted by "
+                    "the existing planned-budget guard."
+                ),
+            ),
+            _risk_evidence(
+                name="spot_known_inventory_authority",
+                status=(
+                    AdminRiskEvidenceStatus.OBSERVED
+                    if known_inventory_policy.get("enabled", False) is not False
+                    else AdminRiskEvidenceStatus.NOT_MODELED
+                ),
+                source=AdminRiskEvidenceSource.SPOT_INVENTORY_AUTHORITY,
+                value={"policy": known_inventory_policy},
+                detail=(
+                    "Known profitable inventory authority is spot SELL only; "
+                    "it is not imported into futures/perpetual modules."
+                ),
+            ),
+            _risk_evidence(
+                name="position_authority",
+                status=AdminRiskEvidenceStatus.OBSERVED,
+                source=AdminRiskEvidenceSource.BACKEND_CONTRACT,
+                value={
+                    "futures_position_identity": "position_key",
+                    "spot_inventory_identity": "client_order_id_and_lot_authority",
+                },
+                detail=(
+                    "Position authority is product-domain specific. Futures "
+                    "uses position evidence; spot uses wallet/lot authority."
+                ),
+            ),
+        ]
+
+        return AdminRiskPolicyReadResponse(
+            filters={"product_id": product_id},
+            action_condition_policy=_risk_evidence(
+                name="action_condition_policy",
+                status=AdminRiskEvidenceStatus.OBSERVED,
+                source=AdminRiskEvidenceSource.ACTION_CONDITION_GUARD,
+                value=action_policy_value,
+                detail=(
+                    "Configured guard policy and cap rules are exposed as "
+                    "read-only evidence; no guard decision is trusted to the browser."
+                ),
+            ),
+            configured_limit_rules=limit_rules,
+            live_execution_gate=_risk_evidence(
+                name="live_execution_gate",
+                status=AdminRiskEvidenceStatus.FAIL_CLOSED,
+                source=AdminRiskEvidenceSource.LIVE_EXECUTION_GATE,
+                value=live_gate.model_dump(mode="json"),
+                detail=(
+                    "HTTP live execution remains fail-closed until approval, "
+                    "cap evaluation, and durable audit gates are enforced."
+                ),
+            ),
+            product_capability_policy=_risk_evidence(
+                name="product_capability_policy",
+                status=(
+                    AdminRiskEvidenceStatus.UNAVAILABLE
+                    if capability_errors
+                    else AdminRiskEvidenceStatus.OBSERVED
+                ),
+                source=AdminRiskEvidenceSource.PRODUCT_CAPABILITY_POLICY,
+                value=capability_value,
+                detail=(
+                    "Product capability decisions come from core.product_capability; "
+                    "the frontend may display but not override them."
+                ),
+            ),
+            product_capability_decisions=capability_decisions,
+            profitability_policy=_risk_evidence(
+                name="profitability_policy",
+                status=AdminRiskEvidenceStatus.OBSERVED,
+                source=AdminRiskEvidenceSource.PROFIT_VALIDATOR,
+                value={
+                    "validator": "calculation.profit_validator.ProfitValidator",
+                    "product_specific": True,
+                    "browser_calculation_allowed": False,
+                    "known_contract_gaps": [
+                        "futures_margin_validation",
+                        "futures_liquidation_distance",
+                        "perpetual_funding_cost_accounting",
+                    ],
+                },
+                detail=(
+                    "Profitability evidence is backend-owned and product-specific; "
+                    "M4 exposes policy posture, not a browser calculator."
+                ),
+            ),
+            authority_sources=authority_sources,
+            rejection_categories=_risk_rejection_categories(),
+        )
 
     def build_csrf_contract(self) -> AdminCsrfContractResponse:
         """Return CSRF posture without disclosing a token value."""
@@ -1650,6 +2000,7 @@ class AdminApiReadService:
                 "futures.position.empty": self.build_futures_position_detail(
                     position_key="futures_position:runtime:UNKNOWN"
                 ).model_dump(mode="json"),
+                "admin.guardRiskPolicy": self.build_guard_risk_policy().model_dump(mode="json"),
                 "release.gate": self.build_release_gate().model_dump(mode="json"),
                 "recovery.gate": self.build_recovery_gate().model_dump(mode="json"),
                 "fillLedger.health": self.build_fill_ledger_health().model_dump(mode="json"),

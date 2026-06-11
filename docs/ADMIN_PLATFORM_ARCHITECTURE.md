@@ -49,6 +49,11 @@ average-cost evidence, and known profitable inventory. Those are spot-only.
 Futures/perpetual modules need position, margin, leverage, liquidation,
 reduce-only, close-only, funding, collateral, and position P/L contracts
 before the frontend can safely model them.
+Guard / Risk Policy is a platform evidence module over
+`GET /api/v1/admin/guard-risk-policy`; it reports backend guard, cap,
+live-execution, product capability, profitability, authority, and rejection
+posture without becoming a second evaluator or performing Coinbase wallet
+reads.
 
 ## Extension Rule
 

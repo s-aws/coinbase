@@ -169,6 +169,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/futures/account" in written["paths"]
     assert "/api/v1/futures/positions" in written["paths"]
     assert "/api/v1/futures/positions/{position_key}" in written["paths"]
+    assert "/api/v1/admin/guard-risk-policy" in written["paths"]
     assert "/api/v1/spot/campaign/executions" in written["paths"]
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
@@ -258,6 +259,17 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "funding" in futures_account_schema["properties"]
     assert "liquidation" in futures_account_schema["properties"]
     assert "command_routes_mode" in futures_account_schema["properties"]
+    risk_policy_schema = written["components"]["schemas"][
+        "AdminRiskPolicyReadResponse"
+    ]
+    assert "action_condition_policy" in risk_policy_schema["properties"]
+    assert "configured_limit_rules" in risk_policy_schema["properties"]
+    assert "live_execution_gate" in risk_policy_schema["properties"]
+    assert "product_capability_policy" in risk_policy_schema["properties"]
+    assert "product_capability_decisions" in risk_policy_schema["properties"]
+    assert "profitability_policy" in risk_policy_schema["properties"]
+    assert "authority_sources" in risk_policy_schema["properties"]
+    assert "rejection_categories" in risk_policy_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
     assert "wallet_snapshot" in spot_readiness_schema["properties"]
@@ -1890,6 +1902,225 @@ def test_admin_api_futures_dashboard_fallback_does_not_promote_unknown_spot_rows
 
 
 @pytest.mark.regression
+def test_admin_api_guard_risk_policy_route_uses_read_service_without_commands(
+    monkeypatch,
+):
+    from api.v1.routes import admin as admin_routes
+
+    client = _client(monkeypatch)
+    captured: dict[str, str | None] = {}
+
+    def build_guard_risk_policy(product_id=None):
+        captured["product_id"] = product_id
+        return {
+            "type": "admin_guard_risk_policy",
+            "filters": {"product_id": product_id},
+            "action_condition_policy": {
+                "name": "action_condition_policy",
+                "status": "observed",
+                "source": "action_condition_guard",
+                "value": {"policy_configured": True},
+            },
+            "configured_limit_rules": [
+                {
+                    "policy_id": "spot_cap",
+                    "enabled": True,
+                    "product_type": "SPOT",
+                    "side": "BUY",
+                    "phases": ["planning"],
+                    "max_notional": "25",
+                    "raw_rule": {"name": "spot_cap"},
+                }
+            ],
+            "live_execution_gate": {
+                "name": "live_execution_gate",
+                "status": "fail_closed",
+                "source": "live_execution_gate",
+                "value": {"allowed": False},
+            },
+            "product_capability_policy": {
+                "name": "product_capability_policy",
+                "status": "observed",
+                "source": "product_capability_policy",
+                "value": {"decision_product_id": product_id},
+            },
+            "product_capability_decisions": [
+                {
+                    "product_id": "BTC-USDC",
+                    "product_type": "SPOT",
+                    "capability": "direct_placement",
+                    "mode": "enabled",
+                    "allowed": True,
+                    "reason": "direct placement enabled",
+                }
+            ],
+            "profitability_policy": {
+                "name": "profitability_policy",
+                "status": "observed",
+                "source": "profit_validator",
+                "value": {"browser_calculation_allowed": False},
+            },
+            "authority_sources": [
+                {
+                    "name": "wallet_authority",
+                    "status": "observed",
+                    "source": "action_condition_guard",
+                    "value": {"coinbase_wallet_fetch_performed": False},
+                }
+            ],
+            "rejection_categories": [
+                {
+                    "condition": "wallet_available",
+                    "source": "action_condition_guard",
+                    "applies_to_product_type": "SPOT",
+                    "blocks_before_exchange": True,
+                    "detail": "backend wallet guard",
+                }
+            ],
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+            "live_coinbase_read_ran": False,
+        }
+
+    service = SimpleNamespace(build_guard_risk_policy=build_guard_risk_policy)
+    client.app.dependency_overrides[admin_routes.get_read_service] = lambda: service
+
+    response = client.get(
+        "/api/v1/admin/guard-risk-policy?product_id=BTC-USDC",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert captured["product_id"] == "BTC-USDC"
+    assert payload["read_only"] is True
+    assert payload["command_routes_mode"] == "not_modeled"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["live_execution_gate"]["status"] == "fail_closed"
+    assert payload["configured_limit_rules"][0]["policy_id"] == "spot_cap"
+    assert payload["product_capability_decisions"][0]["capability"] == (
+        "direct_placement"
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_guard_risk_policy_read_service_reports_backend_authority_without_wallet_fetch(
+    monkeypatch,
+):
+    import configuration
+    import core.action_condition_guard as guard_module
+    from application.admin_api.read_service import AdminApiReadService
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {
+            "wallet_available": {"enabled": True, "block_without_credentials": True},
+            "known_inventory_available": {
+                "enabled": True,
+                "phases": ["planning"],
+            },
+            "limits": [
+                {
+                    "name": "spot_buy_cap",
+                    "product_type": "SPOT",
+                    "side": "BUY",
+                    "max_notional": "25",
+                    "phases": ["planning"],
+                },
+                {
+                    "name": "future_contract_cap",
+                    "product_type": "FUTURE",
+                    "max_base_size": "10",
+                    "phases": ["planning", "reveal"],
+                },
+            ],
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        configuration,
+        "PRODUCT_CAPABILITIES",
+        {"product_type": {"SPOT": {"move_revealed": "disabled"}}},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "fetch_account_wallets",
+        lambda: (_ for _ in ()).throw(AssertionError("wallet fetch not allowed")),
+    )
+
+    response = AdminApiReadService().build_guard_risk_policy(
+        product_id="BTC-USDC"
+    )
+
+    assert response.type == "admin_guard_risk_policy"
+    assert response.read_only is True
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is False
+    assert response.action_condition_policy.source == "action_condition_guard"
+    assert response.action_condition_policy.value["policy_configured"] is True
+    assert response.action_condition_policy.value["coinbase_wallet_fetch_performed"] is False
+    assert response.live_execution_gate.status == "fail_closed"
+    assert response.live_execution_gate.value["allowed"] is False
+    assert response.live_execution_gate.value["cap_evaluation_required"] is True
+    assert {rule.policy_id for rule in response.configured_limit_rules} == {
+        "spot_buy_cap",
+        "future_contract_cap",
+    }
+    assert any(
+        decision.capability == "direct_placement"
+        for decision in response.product_capability_decisions
+    )
+    assert response.profitability_policy.value["browser_calculation_allowed"] is False
+    assert "futures_margin_validation" in (
+        response.profitability_policy.value["known_contract_gaps"]
+    )
+    authority = {item.name: item for item in response.authority_sources}
+    assert authority["wallet_authority"].value["coinbase_wallet_fetch_performed"] is False
+    assert authority["spot_known_inventory_authority"].source == (
+        "spot_inventory_authority"
+    )
+    rejection_conditions = {item.condition for item in response.rejection_categories}
+    assert "wallet_available" in rejection_conditions
+    assert "known_inventory_available" in rejection_conditions
+
+
+@pytest.mark.regression
+def test_admin_api_guard_risk_policy_surfaces_capability_evaluation_errors(
+    monkeypatch,
+):
+    import core.product_capability as capability_module
+    from application.admin_api.read_service import AdminApiReadService
+
+    def fail_evaluate_product_capability(*args, **kwargs):
+        raise RuntimeError("capability evaluator unavailable")
+
+    monkeypatch.setattr(
+        capability_module,
+        "evaluate_product_capability",
+        fail_evaluate_product_capability,
+    )
+
+    response = AdminApiReadService().build_guard_risk_policy(
+        product_id="BTC-USDC"
+    )
+
+    assert response.product_capability_decisions == []
+    assert response.product_capability_policy.status == "unavailable"
+    assert response.product_capability_policy.value["decision_count"] == 0
+    assert response.product_capability_policy.value["decision_error_count"] >= 1
+    assert any(
+        "capability evaluator unavailable" in error
+        for error in response.product_capability_policy.value["decision_errors"]
+    )
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is False
+
+
+@pytest.mark.regression
 def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     rows = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
     doc = ROUTE_INVENTORY_DOC.read_text(encoding="utf-8")
@@ -1930,6 +2161,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/futures/positions/{position_key}"].shared_method == (
         "build_futures_position_detail"
     )
+    assert rows["GET /api/v1/admin/guard-risk-policy"].shared_method == (
+        "build_guard_risk_policy"
+    )
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )
@@ -1964,6 +2198,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_futures_account" in doc
     assert "build_futures_positions" in doc
     assert "build_futures_position_detail" in doc
+    assert "build_guard_risk_policy" in doc
 
 
 @pytest.mark.regression
@@ -1993,4 +2228,6 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/futures/positions" in schema_http_surfaces
     assert "GET /api/v1/futures/positions/{position_key}" in inventory_http_surfaces
     assert "GET /api/v1/futures/positions/{position_key}" in schema_http_surfaces
+    assert "GET /api/v1/admin/guard-risk-policy" in inventory_http_surfaces
+    assert "GET /api/v1/admin/guard-risk-policy" in schema_http_surfaces
     assert schema_http_surfaces == inventory_http_surfaces

@@ -21,6 +21,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin API](../README.admin-api.md)
 - [Movement And Repricing Reads](../README.movement-repricing.md)
 - [Futures/Perpetuals Admin Reads](../README.futures-perpetuals.md)
+- [Guard/Risk Policy Admin Reads](../README.guard-risk-policy.md)
 - [Admin Platform Architecture](ADMIN_PLATFORM_ARCHITECTURE.md)
 - [Admin Module Capability Matrix](ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
@@ -73,6 +74,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin API Examples](examples/admin-api.md)
 - [Movement And Repricing Examples](examples/movement-repricing.md)
 - [Futures/Perpetuals Examples](examples/futures-perpetuals.md)
+- [Guard/Risk Policy Examples](examples/guard-risk-policy.md)
 - [Netflix AI Engineer Workbench Examples](examples/netflix-ai-engineer-site.md)
 
 ## State, Modes, And Roadmaps

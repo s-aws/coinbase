@@ -14,7 +14,8 @@ fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
 structured error payloads, observability headers, read-only admin diagnostics,
 order read routes, read-only stealth lifecycle routes, read-only
 movement/repricing evidence routes, read-only futures/perpetual account and
-position routes, and read-only spot operator routes.
+position routes, read-only guard/risk policy evidence, and read-only spot
+operator routes.
 Mutating HTTP routes still return `not_implemented` after
 auth, permission, idempotency, and audit handling; they do not submit orders,
 cancel orders, or call Coinbase.
@@ -43,6 +44,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/oidc-readiness`
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
+- `GET /api/v1/admin/guard-risk-policy`
 - `GET /api/v1/admin/release-gate`
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
@@ -150,6 +152,11 @@ The platform/module split is documented in
   Account evidence separates `configured_product_scope` from
   `observed_position_scope`; close/reduce sides are backend-derived from
   observed position side and are not exchange-observed order flags.
+- Guard/risk policy reads expose existing backend action-condition policy,
+  configured cap rules, product capability policy, live gate posture,
+  profitability-validator posture, authority sources, and rejection categories
+  as evidence only. They do not fetch Coinbase wallets and do not approve live
+  execution.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap
@@ -247,6 +254,7 @@ and rotation policy without disclosing a token value.
 - [Admin API Examples](docs/examples/admin-api.md)
 - [Movement And Repricing Reads](README.movement-repricing.md)
 - [Futures/Perpetuals Admin Reads](README.futures-perpetuals.md)
+- [Guard/Risk Policy Admin Reads](README.guard-risk-policy.md)
 - [Frontend Association](docs/FRONTEND_ASSOCIATION.md)
 - [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md)
 - [API Reference](genai_data/API_REFERENCE.md)
