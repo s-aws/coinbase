@@ -79,7 +79,8 @@ Any backend API contract change intended for frontend consumption must update:
 - frontend quality gate when frontend files changed
 - frontend `npm run build`, `npm run release:check`,
   `npm run release:artifact`, `npm run deployment:package`,
-  `npm run observability:drill`, `npm run deployment:check`, and dry-run smoke
+  `npm run observability:drill`, `npm run probe:synthetic`,
+  `npm run release:checklist`, `npm run deployment:check`, and dry-run smoke
   checks for release candidates
 
 Frontend release checks are dry/no-live checks. They must report live Coinbase
@@ -88,7 +89,9 @@ The frontend release artifact is `C:\coinbase-frontend\artifacts\release-readine
 CI uploads it as `frontend-release-readiness` instead of committing it.
 The same CI artifact includes
 `C:\coinbase-frontend\artifacts\deployment-package-manifest.json` and
-`C:\coinbase-frontend\artifacts\observability-drill.json`.
+`C:\coinbase-frontend\artifacts\observability-drill.json`,
+`C:\coinbase-frontend\artifacts\synthetic-probes.json`, and
+`C:\coinbase-frontend\artifacts\public-release-checklist.json`.
 Read-only frontend rollback is a hosting/build rollback. Live-action rollback
 is out of scope until live HTTP command execution is separately approved.
 
@@ -105,3 +108,20 @@ BFF response evidence back to browser code is limited to `Content-Type`,
 Current frontend BFF authority is `server_env_static`, which is local/staging
 evidence only. Production remains blocked until a real backend OIDC/JWT
 session bridge exists and backend `oidc_jwt` verification is implemented.
+
+The future backend OIDC/JWT verifier readiness contract reports required
+settings for issuer, audience, and JWKS:
+
+- `COINBASE_ADMIN_API_OIDC_ISSUER`
+- `COINBASE_ADMIN_API_OIDC_AUDIENCE`
+- `COINBASE_ADMIN_API_OIDC_JWKS_URL`
+
+Expected claim mapping is `sub` for subject, `email` for email, `roles` for
+roles, `iss` for issuer, and `aud` for audience. This is backend/session
+bridge evidence only. It does not allow the frontend to enforce authorization
+or place backend tokens in browser-visible variables.
+
+Frontend staging environment template evidence may use `server_env_static`
+BFF authority with server-only `ADMIN_API_*` values. Production readiness
+remains `blocked_until_oidc_session_bridge` until `backend_oidc_jwt` is active
+and the backend verifier is implemented.

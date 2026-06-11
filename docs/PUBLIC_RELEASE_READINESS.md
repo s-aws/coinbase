@@ -55,6 +55,8 @@ npm run release:check
 npm run release:artifact
 npm run deployment:package
 npm run observability:drill
+npm run probe:synthetic
+npm run release:checklist
 npm run deployment:check
 npm run smoke:read:dry
 npm run smoke:command:dry
@@ -67,13 +69,18 @@ as not run with notional `$0`. `npm run release:artifact` writes
 `npm run deployment:package` writes
 `artifacts/deployment-package-manifest.json`, and
 `npm run observability:drill` writes `artifacts/observability-drill.json`.
+`npm run probe:synthetic` writes `artifacts/synthetic-probes.json`, and
+`npm run release:checklist` writes
+`artifacts/public-release-checklist.json`.
 It is release evidence for the read-only/disabled-command frontend candidate,
 not approval for live Coinbase execution. These checks do not replace this
 repository's backend regression gate when backend files changed.
 
 Frontend production readiness remains blocked until a real backend OIDC/JWT
 session bridge exists. Current `server_env_static` BFF authority is local or
-staging evidence, not final enterprise production auth.
+staging evidence, not final enterprise production auth. Backend `oidc_jwt`
+readiness reports required issuer, audience, and JWKS settings, but the
+verifier remains fail-closed until implementation is complete.
 
 ## Browser Smoke Gate
 

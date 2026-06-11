@@ -238,6 +238,13 @@ class AdminApiAuthMode(str, Enum):
     OIDC_JWT = "oidc_jwt"
 
 
+class AdminApiVerifierReadinessStatus(str, Enum):
+    """Implementation readiness for Admin API authentication verifiers."""
+
+    READY = "ready"
+    BLOCKED = "blocked"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

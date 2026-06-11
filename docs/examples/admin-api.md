@@ -36,6 +36,20 @@ The active local verifier mode is `bootstrap_bearer`; configuring
 `COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt` currently fails closed until a
 production verifier is implemented.
 
+Future OIDC/JWT readiness uses these backend environment names:
+
+```powershell
+$env:COINBASE_ADMIN_API_AUTH_MODE = "oidc_jwt"
+$env:COINBASE_ADMIN_API_OIDC_ISSUER = "https://issuer.example.test"
+$env:COINBASE_ADMIN_API_OIDC_AUDIENCE = "coinbase-admin-api"
+$env:COINBASE_ADMIN_API_OIDC_JWKS_URL = "https://issuer.example.test/.well-known/jwks.json"
+```
+
+Even when those values are configured, the current backend returns `401`
+because the verifier is not implemented. Expected claim mapping is `sub` for
+subject, `email` for email, `roles` for roles, `iss` for issuer, and `aud`
+for audience.
+
 ```powershell
 Invoke-RestMethod `
   -Uri http://127.0.0.1:8787/api/v1/admin/bootstrap `
@@ -299,6 +313,8 @@ npm run release:check
 npm run release:artifact
 npm run deployment:package
 npm run observability:drill
+npm run probe:synthetic
+npm run release:checklist
 npm run deployment:check
 ```
 
@@ -317,6 +333,17 @@ BFF mode.
 
 The command smoke expects `501` live-disabled responses and reports live
 Coinbase execution as not run with notional `$0`.
+
+The frontend release artifact bundle includes:
+
+- `artifacts/release-readiness.json`
+- `artifacts/deployment-package-manifest.json`
+- `artifacts/observability-drill.json`
+- `artifacts/synthetic-probes.json`
+- `artifacts/public-release-checklist.json`
+
+Those artifacts are no-live deployment evidence. They are not backend approval
+to place or cancel Coinbase orders.
 
 For same-origin BFF smoke, start the frontend with `NEXT_PUBLIC_ADMIN_API_MODE=bff`
 and server-only `ADMIN_API_*` variables, then run:

@@ -65,14 +65,17 @@ HTTP routes, and sweep/campaign execution, see
 The frontend release-hardening gate is owned by `C:\coinbase-frontend` and
 includes `npm run build`, `npm run release:check`,
 `npm run release:artifact`, `npm run deployment:package`,
-`npm run observability:drill`, `npm run deployment:check`, dry-run read smoke,
+`npm run observability:drill`, `npm run probe:synthetic`,
+`npm run release:checklist`, `npm run deployment:check`, dry-run read smoke,
 dry-run command smoke, and dry-run BFF smoke. Those checks are no-live checks
 and must report live Coinbase execution as not run with notional `$0`. The
 release artifact is written in the frontend repository at
 `artifacts/release-readiness.json`; the package manifest is
 `artifacts/deployment-package-manifest.json`; and the route/header drill is
-`artifacts/observability-drill.json`. They are uploaded by frontend CI; they
-are not backend approval to trade. These checks do not replace this
+`artifacts/observability-drill.json`. Synthetic probe evidence is written to
+`artifacts/synthetic-probes.json`, and the public release checklist is written
+to `artifacts/public-release-checklist.json`. They are uploaded by frontend
+CI; they are not backend approval to trade. These checks do not replace this
 repository's required backend regression gate when backend files change.
 
 ## Direction
@@ -95,6 +98,11 @@ repository's required backend regression gate when backend files change.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the only active verifier
   today. `oidc_jwt` is modeled as a production replacement boundary and fails
   closed until a real verifier is implemented.
+- The future `oidc_jwt` verifier readiness contract reports required
+  `COINBASE_ADMIN_API_OIDC_ISSUER`,
+  `COINBASE_ADMIN_API_OIDC_AUDIENCE`, and
+  `COINBASE_ADMIN_API_OIDC_JWKS_URL` settings, but remains blocked even when
+  those settings are present until verifier implementation is complete.
 
 ## Local Run
 

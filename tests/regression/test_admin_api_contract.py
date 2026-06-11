@@ -11,7 +11,11 @@ import yaml
 from fastapi.testclient import TestClient
 
 from api.v1.app import create_app
-from application.admin_api.auth import actor_has_permission
+from application.admin_api.auth import (
+    actor_has_permission,
+    build_oidc_jwt_readiness,
+    oidc_jwt_required_env_vars,
+)
 from application.admin_api import command_service
 from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.idempotency import (
@@ -30,6 +34,7 @@ from core.enums import (
     AdminApiIdempotencyDecision,
     AdminApiPermission,
     AdminApiRole,
+    AdminApiVerifierReadinessStatus,
 )
 from tools.generate_admin_api_openapi import generate_openapi_schema
 
@@ -183,6 +188,66 @@ def test_admin_api_oidc_auth_mode_fails_closed_until_verifier_is_implemented(mon
     assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
     assert "OIDC/JWT verifier is not implemented" in response.json()["message"]
     assert response.headers["x-live-execution-enabled"] == "false"
+
+
+@pytest.mark.regression
+def test_admin_api_oidc_readiness_reports_required_env_and_no_live_boundary(monkeypatch):
+    for key in oidc_jwt_required_env_vars():
+        monkeypatch.delenv(key, raising=False)
+
+    readiness = build_oidc_jwt_readiness()
+
+    assert readiness.mode == AdminApiAuthMode.OIDC_JWT
+    assert readiness.status == AdminApiVerifierReadinessStatus.BLOCKED
+    assert readiness.verifier_implemented is False
+    assert readiness.required_env_vars == (
+        "COINBASE_ADMIN_API_OIDC_ISSUER",
+        "COINBASE_ADMIN_API_OIDC_AUDIENCE",
+        "COINBASE_ADMIN_API_OIDC_JWKS_URL",
+    )
+    assert readiness.missing_env_vars == readiness.required_env_vars
+    assert readiness.live_coinbase_execution == "not_run"
+    assert readiness.notional_usdc == "0"
+    assert readiness.to_dict() == {
+        "mode": "oidc_jwt",
+        "status": "blocked",
+        "verifier_implemented": False,
+        "required_env_vars": [
+            "COINBASE_ADMIN_API_OIDC_ISSUER",
+            "COINBASE_ADMIN_API_OIDC_AUDIENCE",
+            "COINBASE_ADMIN_API_OIDC_JWKS_URL",
+        ],
+        "missing_env_vars": [
+            "COINBASE_ADMIN_API_OIDC_ISSUER",
+            "COINBASE_ADMIN_API_OIDC_AUDIENCE",
+            "COINBASE_ADMIN_API_OIDC_JWKS_URL",
+        ],
+        "claims_contract": {
+            "subject": "sub",
+            "email": "email",
+            "roles": "roles",
+            "issuer": "iss",
+            "audience": "aud",
+        },
+        "failure_reason": "Admin API OIDC/JWT verifier is not implemented",
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0",
+    }
+
+    monkeypatch.setenv("COINBASE_ADMIN_API_OIDC_ISSUER", "https://issuer.example.test")
+    monkeypatch.setenv("COINBASE_ADMIN_API_OIDC_AUDIENCE", "coinbase-admin-api")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OIDC_JWKS_URL",
+        "https://issuer.example.test/.well-known/jwks.json",
+    )
+
+    configured_readiness = build_oidc_jwt_readiness()
+
+    assert configured_readiness.status == AdminApiVerifierReadinessStatus.BLOCKED
+    assert configured_readiness.missing_env_vars == ()
+    assert configured_readiness.failure_reason == (
+        "Admin API OIDC/JWT verifier is not implemented"
+    )
 
 
 @pytest.mark.regression

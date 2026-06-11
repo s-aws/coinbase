@@ -2436,3 +2436,216 @@ Progress update:
   progress update. Contextless readers should verify clean-tree status with
   `git status --short` in both repositories after those commits.
 - Live Coinbase execution: not run; test notional `$0`.
+
+## Approved OIDC, Staging, And Public Release Evidence Batch - Phases 451-470
+
+These phases are approved to keep the backend Admin API aligned with the
+frontend enterprise deployment story. They do not authorize live Coinbase
+execution. Backend HTTP command routes remain live-disabled unless a later
+named phase explicitly approves live execution with a notional cap.
+
+### Phase 451 - Backend OIDC Verifier Readiness Contract
+
+- Add backend machine-readable OIDC/JWT verifier readiness evidence while
+  keeping the verifier fail-closed.
+
+Exit criteria:
+
+- Tests prove required issuer, audience, and JWKS settings are reported and
+  OIDC/JWT auth still rejects requests until the verifier is implemented.
+
+### Phase 452 - Frontend Session Bridge Contract
+
+- Mirror the frontend session bridge contract from the backend association
+  perspective.
+
+Exit criteria:
+
+- Backend docs state current static BFF authority and future OIDC/JWT session
+  bridge requirements.
+
+### Phase 453 - OIDC Claims Mapping Plan
+
+- Document backend claim-to-actor/role expectations for the future verifier.
+
+Exit criteria:
+
+- Docs cover subject, email, roles, issuer, audience, JWKS, and fail-closed
+  behavior.
+
+### Phase 454 - Staging Env Template
+
+- Mirror frontend staging environment template expectations in backend docs.
+
+Exit criteria:
+
+- Backend association docs identify safe staging placeholders and server-only
+  authority.
+
+### Phase 455 - Staging Deployment Validation Gate
+
+- Document the frontend staging deployment validation gate.
+
+Exit criteria:
+
+- Backend docs state frontend deployment gates do not replace backend
+  regression.
+
+### Phase 456 - Synthetic Read Probe Artifact
+
+- Mirror synthetic read probe evidence expectations from the backend side.
+
+Exit criteria:
+
+- Backend docs identify read-only route/header evidence and no-live posture.
+
+### Phase 457 - Synthetic BFF Probe Artifact
+
+- Mirror synthetic BFF proxy probe evidence expectations from the backend
+  side.
+
+Exit criteria:
+
+- Backend docs identify BFF transport/session failure evidence as not trading
+  approval.
+
+### Phase 458 - Probe Check Script
+
+- Document frontend probe generation as a no-live release artifact command.
+
+Exit criteria:
+
+- Backend release docs identify the command and artifact path.
+
+### Phase 459 - Artifact Schema Versioning
+
+- Keep backend docs aligned with frontend versioned artifact schemas.
+
+Exit criteria:
+
+- Contextless readers can find schema versions for release, deployment,
+  observability, probe, and checklist artifacts.
+
+### Phase 460 - Rollback Rehearsal Checklist
+
+- Mirror frontend rollback rehearsal boundaries.
+
+Exit criteria:
+
+- Docs distinguish frontend hosting rollback from backend live-order rollback.
+
+### Phase 461 - Production Incident Checklist
+
+- Mirror production incident checklist expectations.
+
+Exit criteria:
+
+- Backend docs cover auth/session, BFF transport, backend health, regression,
+  and no-live evidence.
+
+### Phase 462 - Public Release Checklist
+
+- Mirror frontend public release checklist evidence.
+
+Exit criteria:
+
+- Backend docs identify required gates, artifact paths, contextless review,
+  and no-live posture.
+
+### Phase 463 - CI Artifact Upload Expansion
+
+- Mirror CI artifact upload expansion.
+
+Exit criteria:
+
+- Backend docs distinguish frontend CI artifacts from backend regression and
+  OpenAPI evidence.
+
+### Phase 464 - Docs And Runbook Sync
+
+- Sync backend Admin API docs, examples, release readiness, and frontend
+  association docs.
+
+Exit criteria:
+
+- Backend/frontend docs tell the same deployment and auth story.
+
+### Phase 465 - Security And Secret Drift Sync
+
+- Re-check backend docs for browser-visible token guidance and static auth
+  drift.
+
+Exit criteria:
+
+- No backend doc instructs exposing backend tokens in browser-visible env.
+
+### Phase 466 - Contextless Auth And Probe Review
+
+- Run or consume a fresh blind review focused on OIDC readiness, staging,
+  probes, and public-release evidence.
+
+Exit criteria:
+
+- Backend-facing findings are fixed or explicitly deferred before completion.
+
+### Phase 467 - Final Dry Smoke Evidence
+
+- Record frontend dry-smoke no-live evidence.
+
+Exit criteria:
+
+- Dry smokes report live Coinbase execution not run with notional `$0`.
+
+### Phase 468 - Full Frontend Quality Gate
+
+- Record frontend full quality evidence.
+
+Exit criteria:
+
+- Frontend quality passes.
+
+### Phase 469 - Full Backend Regression Gate
+
+- Run backend regression.
+
+Exit criteria:
+
+- Backend regression passes.
+
+### Phase 470 - Roadmap Progress And Commits
+
+- Record completed scope, verification, review, and commits in both repos.
+
+Exit criteria:
+
+- Roadmaps are current and both repositories are committed with clean working
+  trees.
+
+Progress update:
+
+- Phases 451-453 advanced from the backend side: Admin API auth now exposes a
+  fail-closed OIDC/JWT readiness contract with required issuer, audience, and
+  JWKS environment names, expected claim mapping, `verifier_implemented=false`,
+  blocked status, and no-live evidence. `COINBASE_ADMIN_API_AUTH_MODE=oidc_jwt`
+  still returns `401` until a real verifier is implemented.
+- Phases 454-459 advanced from the frontend association side: backend docs now
+  mirror frontend staging BFF template evidence, synthetic read/BFF probe
+  evidence, public release checklist evidence, and versioned artifact paths.
+- Phases 460-465 advanced: backend Admin API docs, frontend association docs,
+  public release readiness docs, examples, and Admin API agent context now
+  describe frontend rollback/incident boundaries, OIDC claim expectations,
+  `server_env_static` as local/staging only, and no-live artifact posture.
+- Phase 466 review: blind contextless reviews passed the canonical frontend
+  spot-order path and OIDC/probe boundary, then flagged frontend-side
+  remediation. The frontend added `npm run release:gate`, corrected the BFF
+  missing-authority probe to `503_session_transport`, centralized artifact
+  contract data, clarified BFF placeholder headers, and documented read-only
+  `.env.example` role defaults.
+- Verification so far: focused backend Admin API contract tests passed with
+  `25 passed`; backend regression passed with `759 passed`. Frontend
+  `npm run release:gate` passed with production build, typecheck, lint, API
+  freshness, command-security, release/deployment checks, artifact generation,
+  `112` unit tests, dry read/command/BFF smokes, and `3` Playwright tests.
+- Dry smokes and artifact writers reported live Coinbase execution not run
+  with notional `$0`.
+- Live Coinbase execution: not run; test notional `$0`.

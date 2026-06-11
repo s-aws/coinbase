@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import os
-from typing import Annotated
+from dataclasses import dataclass
+from typing import Annotated, Mapping
 
 from fastapi import Header, HTTPException, status
 
-from core.enums import AdminApiAuthMode, AdminApiPermission, AdminApiRole
+from core.enums import (
+    AdminApiAuthMode,
+    AdminApiPermission,
+    AdminApiRole,
+    AdminApiVerifierReadinessStatus,
+)
 
 from .models import AdminApiActor
 
@@ -48,6 +54,90 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.RUNTIME_SHUTDOWN,
     }),
 }
+
+_OIDC_JWT_REQUIRED_ENV_VARS = (
+    "COINBASE_ADMIN_API_OIDC_ISSUER",
+    "COINBASE_ADMIN_API_OIDC_AUDIENCE",
+    "COINBASE_ADMIN_API_OIDC_JWKS_URL",
+)
+
+_OIDC_JWT_CLAIMS_CONTRACT = {
+    "subject": "sub",
+    "email": "email",
+    "roles": "roles",
+    "issuer": "iss",
+    "audience": "aud",
+}
+
+_OIDC_JWT_NOT_IMPLEMENTED_REASON = "Admin API OIDC/JWT verifier is not implemented"
+
+
+@dataclass(frozen=True)
+class OidcJwtReadiness:
+    """Machine-readable readiness evidence for the future OIDC/JWT verifier."""
+
+    mode: AdminApiAuthMode
+    status: AdminApiVerifierReadinessStatus
+    verifier_implemented: bool
+    required_env_vars: tuple[str, ...]
+    missing_env_vars: tuple[str, ...]
+    claims_contract: Mapping[str, str]
+    failure_reason: str
+    live_coinbase_execution: str
+    notional_usdc: str
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-safe readiness payload for docs and release artifacts."""
+
+        return {
+            "mode": self.mode.value,
+            "status": self.status.value,
+            "verifier_implemented": self.verifier_implemented,
+            "required_env_vars": list(self.required_env_vars),
+            "missing_env_vars": list(self.missing_env_vars),
+            "claims_contract": dict(self.claims_contract),
+            "failure_reason": self.failure_reason,
+            "live_coinbase_execution": self.live_coinbase_execution,
+            "notional_usdc": self.notional_usdc,
+        }
+
+
+def oidc_jwt_required_env_vars() -> tuple[str, ...]:
+    """Return the required backend settings for the future OIDC/JWT verifier."""
+
+    return _OIDC_JWT_REQUIRED_ENV_VARS
+
+
+def build_oidc_jwt_readiness(
+    env: Mapping[str, str | None] | None = None,
+) -> OidcJwtReadiness:
+    """Build fail-closed OIDC/JWT verifier readiness evidence.
+
+    The verifier is intentionally not implemented yet. Supplying all required
+    configuration removes env gaps but does not change the blocked status.
+    """
+
+    source = os.environ if env is None else env
+    missing_env_vars = tuple(
+        key for key in _OIDC_JWT_REQUIRED_ENV_VARS if not _read_config_value(source, key)
+    )
+    return OidcJwtReadiness(
+        mode=AdminApiAuthMode.OIDC_JWT,
+        status=AdminApiVerifierReadinessStatus.BLOCKED,
+        verifier_implemented=False,
+        required_env_vars=_OIDC_JWT_REQUIRED_ENV_VARS,
+        missing_env_vars=missing_env_vars,
+        claims_contract=_OIDC_JWT_CLAIMS_CONTRACT,
+        failure_reason=_OIDC_JWT_NOT_IMPLEMENTED_REASON,
+        live_coinbase_execution="not_run",
+        notional_usdc="0",
+    )
+
+
+def _read_config_value(source: Mapping[str, str | None], key: str) -> str | None:
+    value = source.get(key)
+    value = value.strip() if value else ""
+    return value or None
 
 
 def _configured_bearer_token() -> str | None:
@@ -147,9 +237,10 @@ def _get_bootstrap_bearer_actor(
 
 
 def _get_oidc_jwt_actor() -> AdminApiActor:
+    readiness = build_oidc_jwt_readiness()
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Admin API OIDC/JWT verifier is not implemented",
+        detail=readiness.failure_reason,
     )
 
 
