@@ -107,6 +107,8 @@ def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
             or row.get("coinbase_order_id")
             or row.get("active_exchange_order_id")
         ),
+        correlation_id=_string_or_none(row.get("correlation_id")),
+        audit_id=_string_or_none(row.get("audit_id")),
     )
 
 

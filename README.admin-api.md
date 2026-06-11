@@ -104,6 +104,9 @@ No-live release artifacts are not approval for live Coinbase execution.
   `success: true` cancel evidence as success.
 - Treat exchange-native `order_id` as exchange evidence only. The order read
   model exposes it as `exchange_order_id`; it is not an identity or cancel key.
+- Order list/detail read rows may include `correlation_id` and `audit_id`
+  when the backend row source has durable evidence for them. These fields are
+  audit navigation evidence, not order identity.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap

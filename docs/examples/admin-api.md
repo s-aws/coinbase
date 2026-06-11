@@ -162,6 +162,9 @@ evidence as a successful exchange cancellation.
 Order reads are local/backend evidence routes. They are keyed by
 `client_order_id`; exchange-native ids are exposed only as `exchange_order_id`
 evidence.
+If durable row-level audit metadata exists, read items may also include
+optional `correlation_id` and `audit_id` fields for operator audit navigation.
+Those ids are not order identity and must not be used for cancellation.
 
 ```http
 GET /api/v1/orders?product_id=BTC-USDC&order_status=OPEN&limit=50&offset=0

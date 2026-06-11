@@ -2376,6 +2376,16 @@ components:
           type: boolean
           title: Exchange Order Id Evidence Only
           default: true
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
         source:
           type: string
           title: Source

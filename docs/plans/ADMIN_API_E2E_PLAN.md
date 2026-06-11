@@ -3803,3 +3803,8 @@ Progress update:
   selected detail evidence when filters hide all rows, and expose
   ready/loading/warning runtime states as status regions while
   backend-error/auth-blocked states use alert regions.
+- Phase 630 completed: backend-generated order schemas and frontend read
+  models now carry optional `correlation_id` and `audit_id` evidence, render
+  a single audit-link helper across row/detail surfaces, and expose matching
+  direct-order audit targets without changing order identity or cancellation
+  behavior.

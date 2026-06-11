@@ -292,6 +292,8 @@ class AdminOrderReadItem(BaseModel):
     updated_at: str | None = None
     exchange_order_id: str | None = None
     exchange_order_id_evidence_only: bool = True
+    correlation_id: str | None = None
+    audit_id: str | None = None
     source: str = "order_parent"
 
 

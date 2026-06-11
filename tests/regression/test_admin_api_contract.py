@@ -205,6 +205,8 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "client_order_id" in order_item_schema["properties"]
     assert "order_id" not in order_item_schema["properties"]
     assert "exchange_order_id" in order_item_schema["properties"]
+    assert "correlation_id" in order_item_schema["properties"]
+    assert "audit_id" in order_item_schema["properties"]
     order_list_schema = written["components"]["schemas"]["AdminOrderListResponse"]
     assert "pagination" in order_list_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
@@ -969,6 +971,8 @@ def test_admin_api_order_read_routes_use_read_service_and_client_order_id(monkey
                     "product_id": "BTC-USDC",
                     "exchange_order_id": "coinbase-evidence-001",
                     "exchange_order_id_evidence_only": True,
+                    "correlation_id": "corr-order-read",
+                    "audit_id": "audit-order-read",
                 }
             ],
             "read_only": True,
@@ -982,6 +986,8 @@ def test_admin_api_order_read_routes_use_read_service_and_client_order_id(monkey
                 "client_order_id": client_order_id,
                 "exchange_order_id": "coinbase-evidence-001",
                 "exchange_order_id_evidence_only": True,
+                "correlation_id": "corr-order-detail",
+                "audit_id": "audit-order-detail",
             },
             "read_only": True,
             "live_coinbase_orders_ran": False,
@@ -1003,9 +1009,13 @@ def test_admin_api_order_read_routes_use_read_service_and_client_order_id(monkey
     assert list_response.json()["pagination"]["next_offset"] == 21
     assert list_response.json()["items"][0]["client_order_id"] == "client-abc"
     assert list_response.json()["items"][0]["exchange_order_id_evidence_only"] is True
+    assert list_response.json()["items"][0]["correlation_id"] == "corr-order-read"
+    assert list_response.json()["items"][0]["audit_id"] == "audit-order-read"
     assert "order_id" not in list_response.json()["items"][0]
     assert detail_response.status_code == 200
     assert detail_response.json()["client_order_id"] == "client-abc"
+    assert detail_response.json()["order"]["correlation_id"] == "corr-order-detail"
+    assert detail_response.json()["order"]["audit_id"] == "audit-order-detail"
     assert "order_id" not in detail_response.json()["order"]
 
 
@@ -1020,6 +1030,8 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
             "client_order_id": f"client-{index}",
             "product_id": "BTC-USDC",
             "status": "OPEN",
+            "correlation_id": f"corr-{index}",
+            "audit_id": f"audit-{index}",
         }
         for index in range(5)
     ]
@@ -1034,6 +1046,8 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
 
     assert response.count == 2
     assert [item.client_order_id for item in response.items] == ["client-1", "client-2"]
+    assert response.items[0].correlation_id == "corr-1"
+    assert response.items[0].audit_id == "audit-1"
     assert response.pagination.limit == 2
     assert response.pagination.offset == 1
     assert response.pagination.returned_count == 2
