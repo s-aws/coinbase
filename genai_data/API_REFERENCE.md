@@ -20,6 +20,8 @@ Current route adapters:
 - `POST /api/v1/orders`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
+- `GET /api/v1/stealth/orders`
+- `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `POST /api/v1/orders/{client_order_id}/cancel`
 - `POST /api/v1/spot/campaign/executions`
 - `GET /api/v1/admin/bootstrap`
@@ -52,6 +54,11 @@ Current behavior:
 - `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose
   read-only local order evidence keyed by `client_order_id`; exchange-native
   ids can appear only as `exchange_order_id` evidence and are not cancel keys
+- `GET /api/v1/stealth/orders` and
+  `GET /api/v1/stealth/orders/{stealth_order_id}` expose read-only local
+  stealth lifecycle evidence keyed by `stealth_order_id`; active placement
+  client ids and exchange ids are evidence only, and no stealth command route
+  is modeled through the enterprise Admin API yet
 - admin bootstrap, health, session, OIDC readiness, capabilities, CSRF,
   release gate, recovery gate, fill-ledger health, and frontend fixture routes
   are read-only and auth/RBAC-gated

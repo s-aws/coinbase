@@ -30,8 +30,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | Milestone | Status | Purpose |
 | --- | --- | --- |
 | M0 - Platform Pivot Baseline | Complete | Reframe admin as whole-project platform with Spot as first complete module. |
-| M1 - First Non-Spot Read Module | Next | Add a backend-owned read-only Stealth Orders Admin API/frontend module. |
-| M2 - Movement And Repricing Reads | Pending | Add read-only movement/repricing evidence without command authority. |
+| M1 - First Non-Spot Read Module | Complete | Add a backend-owned read-only Stealth Orders Admin API/frontend module. |
+| M2 - Movement And Repricing Reads | Next | Add read-only movement/repricing evidence without command authority. |
 | M3 - Futures/Perpetuals Read Foundation | Pending | Add futures/perpetual account, position, funding, and risk read contracts. |
 | M4 - Guard And Risk Policy Evidence | Pending | Expose backend guard/risk decisions as read-only evidence across modules. |
 | M5 - Cross-Module Audit Workbench | Pending | Unify operator audit, reconciliation, and correlation evidence across modules. |
@@ -93,6 +93,26 @@ Done when:
 - A blind/contextless review can explain stealth identity, placement evidence,
   exchange-reality rules, and why no frontend trading path exists.
 - Live Coinbase execution is not run; notional `$0`.
+
+Completed evidence:
+
+- Backend read-only stealth list/detail routes, OpenAPI, route inventory,
+  examples, and architecture docs are implemented.
+- `AdminApiReadService` maps active placement/exchange evidence only from
+  active anchor state and preserves historical `revealed_orders` as historical
+  evidence.
+- Frontend generated schema, canonical `BackendApiClient` wrappers, BFF
+  allowlist, mock fixtures, runtime snapshot, read-only UI, docs, and route
+  coverage are implemented.
+- Backend `pytest tests\regression\ -v --tb=short` passed with `775 passed,
+  1 warning`.
+- Frontend `npm run release:gate` passed after remediation, including build,
+  typecheck, lint, API freshness/route coverage, command guard, artifacts,
+  dry smokes, unit tests, and Playwright e2e.
+- Blind/contextless review initially found active placement evidence and
+  matrix-shape blockers; both were remediated. Final blind review found no
+  blockers.
+- Live Coinbase execution was not run; notional `$0`.
 
 ## M2 - Movement And Repricing Reads
 

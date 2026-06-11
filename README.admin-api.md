@@ -12,9 +12,10 @@ The repository association is documented in
 The repository now contains an Admin API contract, generated OpenAPI artifact,
 fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
 structured error payloads, observability headers, read-only admin diagnostics,
-order read routes, and read-only spot operator routes. Mutating HTTP routes
-still return `not_implemented` after auth, permission, idempotency, and audit
-handling; they do not submit orders, cancel orders, or call Coinbase.
+order read routes, read-only stealth lifecycle routes, and read-only spot
+operator routes. Mutating HTTP routes still return `not_implemented` after
+auth, permission, idempotency, and audit handling; they do not submit orders,
+cancel orders, or call Coinbase.
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
@@ -46,6 +47,8 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/frontend-fixtures`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
+- `GET /api/v1/stealth/orders`
+- `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`
@@ -125,6 +128,10 @@ The platform/module split is documented in
 - Order list/detail read rows may include `correlation_id` and `audit_id`
   when the backend row source has durable evidence for them. These fields are
   audit navigation evidence, not order identity.
+- Stealth read rows use `stealth_order_id` for stealth lifecycle identity,
+  `active_placement_client_order_id` for active placement evidence, and
+  `active_exchange_order_id` as exchange evidence only. Stealth command routes
+  are not modeled through the enterprise Admin API yet.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap

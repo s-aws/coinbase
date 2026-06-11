@@ -1,4 +1,4 @@
-"""FastAPI application factory for the enterprise Admin API skeleton."""
+"""FastAPI application factory for the enterprise Admin API contract."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from core.enums import AdminApiErrorCode, AdminApiErrorSeverity
 from .routes.admin import router as admin_router
 from .routes.orders import router as orders_router
 from .routes.spot import router as spot_router
+from .routes.stealth import router as stealth_router
 
 
 _ADMIN_REQUIRED_AUTH_HEADERS = {"Authorization"}
@@ -268,6 +269,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
     app.include_router(orders_router, prefix="/api/v1", tags=["orders"])
     app.include_router(spot_router, prefix="/api/v1", tags=["spot"])
+    app.include_router(stealth_router, prefix="/api/v1", tags=["stealth"])
 
     def custom_openapi() -> dict:
         if app.openapi_schema:

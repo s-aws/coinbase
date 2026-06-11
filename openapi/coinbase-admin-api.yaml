@@ -1589,6 +1589,172 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders:
+    get:
+      tags:
+      - stealth
+      summary: Read stealth order lifecycle evidence
+      description: Read local stealth order evidence without mutating lifecycle state.
+      operationId: list_stealth_orders_api_v1_stealth_orders_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: stealth_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStealthOrderListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/orders/{stealth_order_id}:
+    get:
+      tags:
+      - stealth
+      summary: Read one stealth order by stealth_order_id
+      description: Read one local stealth order row by ``stealth_order_id``.
+      operationId: get_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__get
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Stealth Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStealthOrderDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AdminApiActionClass:
@@ -1681,8 +1847,7 @@ components:
           title: Audit Command
         guard:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - type: object
           - type: 'null'
           title: Guard
         data:
@@ -2053,7 +2218,6 @@ components:
           type: string
           title: Schema Version
         fixtures:
-          additionalProperties: true
           type: object
           title: Fixtures
         live_coinbase_orders_ran:
@@ -2251,7 +2415,6 @@ components:
           title: Type
           default: admin_order_list
         filters:
-          additionalProperties: true
           type: object
           title: Filters
         count:
@@ -2429,6 +2592,238 @@ components:
       - auth_mode
       title: AdminSessionResponse
       description: Authenticated session/RBAC evidence for the frontend.
+    AdminStealthOrderDetailResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_stealth_order_detail
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        found:
+          type: boolean
+          title: Found
+        order:
+          anyOf:
+          - $ref: '#/components/schemas/AdminStealthOrderReadItem'
+          - type: 'null'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - found
+      title: AdminStealthOrderDetailResponse
+      description: Read-only stealth detail response keyed by ``stealth_order_id``.
+    AdminStealthOrderListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_stealth_order_list
+        filters:
+          type: object
+          title: Filters
+        count:
+          type: integer
+          title: Count
+        pagination:
+          $ref: '#/components/schemas/AdminOrderPagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AdminStealthOrderReadItem'
+          type: array
+          title: Items
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - count
+      - pagination
+      title: AdminStealthOrderListResponse
+      description: Read-only stealth order list/filter response.
+    AdminStealthOrderReadItem:
+      properties:
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        parent_stealth_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Stealth Order Id
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        side:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Side
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        total_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Total Size
+        revealed_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revealed Size
+        remaining_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Remaining Size
+        executed_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Executed Size
+        limit_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Limit Price
+        target_movement:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Movement
+        target_movement_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Movement Type
+        visibility_score:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Visibility Score
+        reveal_condition_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reveal Condition Type
+        reveal_condition:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Reveal Condition
+        sizing_strategy:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Sizing Strategy
+        revealed_orders:
+          items:
+            type: object
+          type: array
+          title: Revealed Orders
+        active_placement_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Placement Client Order Id
+        active_exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Exchange Order Id
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        last_placement_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Placement At
+        last_lifecycle_event:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Lifecycle Event
+        failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Reason
+        cancel_reentry_policy:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Cancel Reentry Policy
+        cancel_reentry_state:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Cancel Reentry State
+        post_fill_retreat_policy:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Post Fill Retreat Policy
+        anchor_repricing_policy:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Anchor Repricing Policy
+        anchor_repricing_state:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Anchor Repricing State
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        source:
+          type: string
+          title: Source
+          default: stealth_orders
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      title: AdminStealthOrderReadItem
+      description: Read-only stealth order evidence from ``stealth_orders``.
     CampaignExecutionRequest:
       properties:
         campaign_id:

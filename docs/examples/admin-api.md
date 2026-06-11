@@ -198,6 +198,34 @@ Admin API. They must not create a second fetch path, use exchange
 `order_id` as identity, or infer wallet/guard/execution authority in the
 browser.
 
+## Stealth Order Reads
+
+Stealth reads are local/backend lifecycle evidence routes. They are keyed by
+`stealth_order_id`. Active placement client ids and exchange order ids are
+evidence fields only; the current enterprise Admin API does not expose stealth
+create, cancel, reveal, hide, move, or reprice command routes.
+
+```http
+GET /api/v1/stealth/orders?product_id=BTC-USDC&stealth_status=REVEALED&limit=50&offset=0
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```http
+GET /api/v1/stealth/orders/{stealth_order_id}
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Response rows include lifecycle and policy evidence such as `status`,
+`revealed_orders`, `active_placement_client_order_id`,
+`active_exchange_order_id`, `cancel_reentry_state`, and
+`anchor_repricing_state`. These fields are display evidence for the admin
+platform. They must not be used by a frontend to mutate stealth lifecycle
+state or cancel a live placement.
+
 ## Live Placement Approval
 
 Current live-disabled command shape:

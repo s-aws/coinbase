@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,9 @@ from .models import (
     AdminOrderListResponse,
     AdminOrderReadItem,
     AdminSessionResponse,
+    AdminStealthOrderDetailResponse,
+    AdminStealthOrderListResponse,
+    AdminStealthOrderReadItem,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
@@ -109,6 +113,92 @@ def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
         ),
         correlation_id=_string_or_none(row.get("correlation_id")),
         audit_id=_string_or_none(row.get("audit_id")),
+    )
+
+
+def _json_object_or_none(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return {"raw": value}
+        return parsed if isinstance(parsed, dict) else {"value": parsed}
+    return {"value": value}
+
+
+def _json_list(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [
+            dict(item) if isinstance(item, dict) else {"value": item}
+            for item in value
+        ]
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return [{"raw": value}]
+        if isinstance(parsed, list):
+            return [
+                dict(item) if isinstance(item, dict) else {"value": item}
+                for item in parsed
+            ]
+        return [{"value": parsed}]
+    return [{"value": value}]
+
+
+def _stealth_item_from_row(row: dict[str, Any]) -> AdminStealthOrderReadItem:
+    revealed_orders = _json_list(row.get("revealed_orders"))
+    anchor_state = _json_object_or_none(row.get("anchor_repricing_state_json")) or {}
+    active_placement_client_order_id = _string_or_none(
+        anchor_state.get("active_placement_client_order_id")
+        or anchor_state.get("active_placement_order_id")
+        or anchor_state.get("active_placed_order_id")
+    )
+    active_exchange_order_id = _string_or_none(
+        anchor_state.get("active_exchange_order_id")
+    )
+    return AdminStealthOrderReadItem(
+        stealth_order_id=str(row.get("stealth_order_id") or ""),
+        parent_stealth_order_id=_string_or_none(row.get("parent_order_id")),
+        product_id=_string_or_none(row.get("product_id")),
+        side=_string_or_none(row.get("side")),
+        status=_string_or_none(row.get("status")),
+        total_size=_string_or_none(row.get("total_size")),
+        revealed_size=_string_or_none(row.get("revealed_size")),
+        remaining_size=_string_or_none(row.get("remaining_size")),
+        executed_size=_string_or_none(row.get("executed_size")),
+        limit_price=_string_or_none(row.get("limit_price")),
+        target_movement=_string_or_none(row.get("target_movement")),
+        target_movement_type=_string_or_none(row.get("target_movement_type")),
+        visibility_score=_string_or_none(row.get("visibility_score")),
+        reveal_condition_type=_string_or_none(row.get("reveal_condition_type")),
+        reveal_condition=_json_object_or_none(row.get("reveal_condition_json")),
+        sizing_strategy=_json_object_or_none(row.get("sizing_strategy_json")),
+        revealed_orders=revealed_orders,
+        active_placement_client_order_id=active_placement_client_order_id,
+        active_exchange_order_id=active_exchange_order_id,
+        last_placement_at=_string_or_none(row.get("last_placement_at")),
+        last_lifecycle_event=_string_or_none(row.get("last_lifecycle_event")),
+        failure_reason=_string_or_none(row.get("failure_reason")),
+        cancel_reentry_policy=_json_object_or_none(row.get("cancel_reentry_policy_json")),
+        cancel_reentry_state=_json_object_or_none(row.get("cancel_reentry_state_json")),
+        post_fill_retreat_policy=_json_object_or_none(row.get("post_fill_retreat_policy_json")),
+        anchor_repricing_policy=_json_object_or_none(row.get("anchor_repricing_policy_json")),
+        anchor_repricing_state=anchor_state,
+        created_at=_string_or_none(row.get("created_at")),
+        updated_at=_string_or_none(row.get("updated_at")),
     )
 
 
@@ -313,6 +403,79 @@ class AdminApiReadService:
             client_order_id=client_order_id,
             found=row is not None,
             order=_order_item_from_row(row) if row else None,
+        )
+
+    def build_stealth_order_list(
+        self,
+        *,
+        product_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AdminStealthOrderListResponse:
+        """Return read-only stealth order evidence from local persistence."""
+
+        normalized_limit = max(1, min(limit, 500))
+        normalized_offset = max(0, offset)
+        filters: dict[str, Any] = {
+            "product_id": product_id,
+            "status": status,
+            "limit": normalized_limit,
+            "offset": normalized_offset,
+        }
+        try:
+            from database import order as order_module
+
+            rows = order_module.DB_CLIENT.execute_query(
+                "SELECT * FROM stealth_orders ORDER BY updated_at DESC, created_at DESC"
+            ) or []
+        except Exception as exc:
+            filters["backend_read_error"] = f"{type(exc).__name__}: {exc}"
+            rows = []
+
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            if product_id and row.get("product_id") != product_id:
+                continue
+            if status and str(row.get("status") or "").lower() != status.lower():
+                continue
+            filtered.append(row)
+
+        page_rows = filtered[normalized_offset:normalized_offset + normalized_limit]
+        items = [_stealth_item_from_row(row) for row in page_rows]
+        next_offset = normalized_offset + len(items)
+        has_more = next_offset < len(filtered)
+        return AdminStealthOrderListResponse(
+            filters=filters,
+            count=len(items),
+            pagination={
+                "limit": normalized_limit,
+                "offset": normalized_offset,
+                "returned_count": len(items),
+                "total_matching_count": len(filtered),
+                "next_offset": next_offset if has_more else None,
+                "has_more": has_more,
+            },
+            items=items,
+        )
+
+    def build_stealth_order_detail(
+        self,
+        *,
+        stealth_order_id: str,
+    ) -> AdminStealthOrderDetailResponse:
+        """Return one read-only stealth order row by ``stealth_order_id``."""
+
+        try:
+            from database.order import get_stealth_order_by_id
+
+            row = get_stealth_order_by_id(stealth_order_id)
+        except Exception:
+            row = None
+        return AdminStealthOrderDetailResponse(
+            stealth_order_id=stealth_order_id,
+            found=row is not None,
+            order=_stealth_item_from_row(row) if row else None,
         )
 
     def build_release_gate(self) -> AdminGateReadResponse:

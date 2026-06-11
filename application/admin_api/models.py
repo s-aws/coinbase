@@ -337,6 +337,73 @@ class AdminOrderDetailResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminStealthOrderReadItem(BaseModel):
+    """Read-only stealth order evidence from ``stealth_orders``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str
+    parent_stealth_order_id: str | None = None
+    product_id: str | None = None
+    side: str | None = None
+    status: str | None = None
+    total_size: str | None = None
+    revealed_size: str | None = None
+    remaining_size: str | None = None
+    executed_size: str | None = None
+    limit_price: str | None = None
+    target_movement: str | None = None
+    target_movement_type: str | None = None
+    visibility_score: str | None = None
+    reveal_condition_type: str | None = None
+    reveal_condition: dict[str, Any] | None = None
+    sizing_strategy: dict[str, Any] | None = None
+    revealed_orders: list[dict[str, Any]] = Field(default_factory=list)
+    active_placement_client_order_id: str | None = None
+    active_exchange_order_id: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    last_placement_at: str | None = None
+    last_lifecycle_event: str | None = None
+    failure_reason: str | None = None
+    cancel_reentry_policy: dict[str, Any] | None = None
+    cancel_reentry_state: dict[str, Any] | None = None
+    post_fill_retreat_policy: dict[str, Any] | None = None
+    anchor_repricing_policy: dict[str, Any] | None = None
+    anchor_repricing_state: dict[str, Any] | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    source: str = "stealth_orders"
+
+
+class AdminStealthOrderListResponse(BaseModel):
+    """Read-only stealth order list/filter response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_stealth_order_list"
+    filters: dict[str, Any] = Field(default_factory=dict)
+    count: int
+    pagination: AdminOrderPagination
+    items: list[AdminStealthOrderReadItem] = Field(default_factory=list)
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminStealthOrderDetailResponse(BaseModel):
+    """Read-only stealth detail response keyed by ``stealth_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_stealth_order_detail"
+    stealth_order_id: str
+    found: bool
+    order: AdminStealthOrderReadItem | None = None
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminGateCheck(BaseModel):
     """One release/recovery check exposed to the frontend."""
 

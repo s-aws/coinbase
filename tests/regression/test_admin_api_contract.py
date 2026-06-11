@@ -161,6 +161,8 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/orders" in written["paths"]
     assert "/api/v1/orders/{client_order_id}" in written["paths"]
     assert "/api/v1/orders/{client_order_id}/cancel" in written["paths"]
+    assert "/api/v1/stealth/orders" in written["paths"]
+    assert "/api/v1/stealth/orders/{stealth_order_id}" in written["paths"]
     assert "/api/v1/spot/campaign/executions" in written["paths"]
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
@@ -209,6 +211,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "audit_id" in order_item_schema["properties"]
     order_list_schema = written["components"]["schemas"]["AdminOrderListResponse"]
     assert "pagination" in order_list_schema["properties"]
+    stealth_item_schema = written["components"]["schemas"]["AdminStealthOrderReadItem"]
+    assert "stealth_order_id" in stealth_item_schema["properties"]
+    assert "active_placement_client_order_id" in stealth_item_schema["properties"]
+    assert "active_exchange_order_id" in stealth_item_schema["properties"]
+    assert "exchange_order_id_evidence_only" in stealth_item_schema["properties"]
+    assert "order_id" not in stealth_item_schema["properties"]
+    stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
+    assert "pagination" in stealth_list_schema["properties"]
+    assert "command_routes_mode" in stealth_list_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
     assert "wallet_snapshot" in spot_readiness_schema["properties"]
@@ -1057,6 +1068,225 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeypatch):
+    from api.v1.routes import stealth as stealth_routes
+
+    client = _client(monkeypatch)
+    service = SimpleNamespace(
+        build_stealth_order_list=lambda product_id=None, status=None, limit=100, offset=0: {
+            "type": "admin_stealth_order_list",
+            "filters": {
+                "product_id": product_id,
+                "status": status,
+                "limit": limit,
+                "offset": offset,
+            },
+            "count": 1,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "returned_count": 1,
+                "total_matching_count": 1,
+                "next_offset": None,
+                "has_more": False,
+            },
+            "items": [
+                {
+                    "stealth_order_id": "stealth-abc",
+                    "product_id": "BTC-USDC",
+                    "status": "REVEALED",
+                    "active_placement_client_order_id": "placement-client-1",
+                    "active_exchange_order_id": "exchange-evidence-1",
+                    "exchange_order_id_evidence_only": True,
+                }
+            ],
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+        build_stealth_order_detail=lambda stealth_order_id: {
+            "type": "admin_stealth_order_detail",
+            "stealth_order_id": stealth_order_id,
+            "found": True,
+            "order": {
+                "stealth_order_id": stealth_order_id,
+                "active_placement_client_order_id": "placement-client-1",
+                "active_exchange_order_id": "exchange-evidence-1",
+                "exchange_order_id_evidence_only": True,
+            },
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+    )
+    client.app.dependency_overrides[stealth_routes.get_read_service] = lambda: service
+
+    list_response = client.get(
+        "/api/v1/stealth/orders?product_id=BTC-USDC&stealth_status=REVEALED&limit=10&offset=0",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    detail_response = client.get(
+        "/api/v1/stealth/orders/stealth-abc",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["filters"]["status"] == "REVEALED"
+    assert list_response.json()["command_routes_mode"] == "not_modeled"
+    assert list_response.json()["items"][0]["stealth_order_id"] == "stealth-abc"
+    assert list_response.json()["items"][0]["active_placement_client_order_id"] == (
+        "placement-client-1"
+    )
+    assert list_response.json()["items"][0]["active_exchange_order_id"] == (
+        "exchange-evidence-1"
+    )
+    assert list_response.json()["items"][0]["exchange_order_id_evidence_only"] is True
+    assert "order_id" not in list_response.json()["items"][0]
+    assert detail_response.status_code == 200
+    assert detail_response.json()["order"]["stealth_order_id"] == "stealth-abc"
+    assert detail_response.json()["command_routes_mode"] == "not_modeled"
+    assert detail_response.json()["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_read_service_maps_placement_and_exchange_evidence(monkeypatch):
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    rows = [
+        {
+            "stealth_order_id": "stealth-root",
+            "parent_order_id": None,
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "status": "REVEALED",
+            "total_size": "2.00",
+            "revealed_size": "1.00",
+            "remaining_size": "1.00",
+            "executed_size": "0.25",
+            "limit_price": "65000.00",
+            "visibility_score": "0.42",
+            "reveal_condition_type": "price",
+            "reveal_condition_json": {"price_threshold": "65000.00"},
+            "sizing_strategy_json": {"type": "tranche"},
+            "revealed_orders": [
+                {
+                    "placed_order_id": "placement-client-old",
+                    "exchange_order_id": "exchange-old",
+                },
+                {
+                    "placed_order_id": "placement-client-latest",
+                    "exchange_order_id": "exchange-latest",
+                },
+            ],
+            "anchor_repricing_policy_json": {"enabled": True},
+            "anchor_repricing_state_json": {
+                "active_placement_client_order_id": "placement-client-active",
+                "active_exchange_order_id": "exchange-active",
+            },
+            "cancel_reentry_policy_json": {"enabled": True},
+            "cancel_reentry_state_json": {"state": "watching"},
+            "post_fill_retreat_policy_json": {"enabled": False},
+            "last_lifecycle_event": "revealed",
+            "failure_reason": None,
+            "created_at": "2026-06-11T10:00:00Z",
+            "updated_at": "2026-06-11T10:05:00Z",
+        },
+        {
+            "stealth_order_id": "stealth-other",
+            "product_id": "ETH-USDC",
+            "status": "HIDDEN",
+        },
+    ]
+    monkeypatch.setattr(
+        order_module,
+        "DB_CLIENT",
+        SimpleNamespace(execute_query=lambda _query: rows),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_order_by_id",
+        lambda stealth_order_id: rows[0] if stealth_order_id == "stealth-root" else None,
+    )
+
+    service = AdminApiReadService()
+    list_response = service.build_stealth_order_list(
+        product_id="BTC-USDC",
+        status="REVEALED",
+        limit=10,
+        offset=0,
+    )
+    detail_response = service.build_stealth_order_detail(stealth_order_id="stealth-root")
+
+    assert list_response.type == "admin_stealth_order_list"
+    assert list_response.count == 1
+    assert list_response.pagination.total_matching_count == 1
+    assert list_response.command_routes_mode == "not_modeled"
+    item = list_response.items[0]
+    assert item.stealth_order_id == "stealth-root"
+    assert item.active_placement_client_order_id == "placement-client-active"
+    assert item.active_exchange_order_id == "exchange-active"
+    assert item.exchange_order_id_evidence_only is True
+    assert item.revealed_orders[-1]["placed_order_id"] == "placement-client-latest"
+    assert item.anchor_repricing_policy == {"enabled": True}
+    assert item.cancel_reentry_state == {"state": "watching"}
+    assert item.source == "stealth_orders"
+    assert detail_response.found is True
+    assert detail_response.order is not None
+    assert detail_response.order.stealth_order_id == "stealth-root"
+    assert detail_response.live_coinbase_orders_ran is False
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_read_service_does_not_promote_historical_reveals_to_active(monkeypatch):
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    rows = [
+        {
+            "stealth_order_id": "stealth-terminal",
+            "product_id": "BTC-USDC",
+            "status": "FILLED",
+            "revealed_orders": [
+                {
+                    "placed_order_id": "historical-placement-client",
+                    "exchange_order_id": "historical-exchange-evidence",
+                }
+            ],
+            "anchor_repricing_state_json": {},
+            "last_lifecycle_event": "filled",
+        }
+    ]
+    monkeypatch.setattr(
+        order_module,
+        "DB_CLIENT",
+        SimpleNamespace(execute_query=lambda _query: rows),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_order_by_id",
+        lambda stealth_order_id: rows[0] if stealth_order_id == "stealth-terminal" else None,
+    )
+
+    service = AdminApiReadService()
+    list_response = service.build_stealth_order_list(limit=10, offset=0)
+    detail_response = service.build_stealth_order_detail(
+        stealth_order_id="stealth-terminal"
+    )
+
+    item = list_response.items[0]
+    assert item.stealth_order_id == "stealth-terminal"
+    assert item.revealed_orders[0]["placed_order_id"] == "historical-placement-client"
+    assert item.active_placement_client_order_id is None
+    assert item.active_exchange_order_id is None
+    assert detail_response.order is not None
+    assert detail_response.order.active_placement_client_order_id is None
+    assert detail_response.order.active_exchange_order_id is None
+
+
+@pytest.mark.regression
 def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     rows = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
     doc = ROUTE_INVENTORY_DOC.read_text(encoding="utf-8")
@@ -1072,6 +1302,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/orders"].shared_method == "build_order_list"
     assert rows["GET /api/v1/orders/{client_order_id}"].shared_method == (
         "build_order_detail"
+    )
+    assert rows["GET /api/v1/stealth/orders"].shared_method == (
+        "build_stealth_order_list"
+    )
+    assert rows["GET /api/v1/stealth/orders/{stealth_order_id}"].shared_method == (
+        "build_stealth_order_detail"
     )
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
@@ -1099,6 +1335,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc
     assert "build_order_list" in doc
+    assert "build_stealth_order_list" in doc
+    assert "build_stealth_order_detail" in doc
 
 
 @pytest.mark.regression
@@ -1118,4 +1356,6 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
 
     assert "GET /api/v1/admin/oidc-readiness" in inventory_http_surfaces
     assert "GET /api/v1/admin/oidc-readiness" in schema_http_surfaces
+    assert "GET /api/v1/stealth/orders" in inventory_http_surfaces
+    assert "GET /api/v1/stealth/orders" in schema_http_surfaces
     assert schema_http_surfaces == inventory_http_surfaces

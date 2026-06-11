@@ -201,6 +201,7 @@ Current modules:
   `POST /api/v1/orders/{client_order_id}/cancel`, and
   `POST /api/v1/spot/campaign/executions`.
 - `api/v1/routes/spot.py`: read-only spot operator routes.
+- `api/v1/routes/stealth.py`: read-only stealth lifecycle evidence routes.
 - `application/admin_api/command_service.py`: shared command service used by
   HTTP routes and legacy dashboard compatibility adapters.
 - `application/admin_api/auth.py`: fail-closed bearer-token/RBAC bootstrap.
@@ -225,6 +226,9 @@ Current behavior:
   to `AdminApiCommandService` as compatibility adapters.
 - Order read routes are local-evidence reads keyed by `client_order_id`.
   Exchange-native ids are exposed only as `exchange_order_id` evidence.
+- Stealth read routes are local-evidence reads keyed by `stealth_order_id`.
+  Active placement client ids and exchange-native ids are exposed as evidence
+  only. Stealth commands are not modeled in the enterprise Admin API yet.
 - Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
   fill-ledger health, and frontend fixture routes are read-only backend
   association surfaces for `C:\coinbase-frontend`.

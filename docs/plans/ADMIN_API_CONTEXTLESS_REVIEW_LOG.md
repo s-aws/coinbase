@@ -628,3 +628,58 @@ Status:
   shell, read-model, spot read-only, accessibility, command-fetch guard, API
   route coverage, deployment/autonomous sentinels, and admin-shell Playwright
   smoke. Live Coinbase execution was not run; notional `$0`.
+
+## M1 Stealth Orders Read Module Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify the Stealth Orders Admin API/frontend module is read-only and
+  backend-contract-first
+- verify stealth identity is `stealth_order_id`
+- verify active placement client ids and exchange ids are evidence only
+- verify the frontend does not add stealth lifecycle/trading behavior
+- verify spot-only wallet, USDC, cost-basis, average-cost, and no-shorting
+  rules do not leak into the stealth module
+- verify the OpenAPI -> generated client -> `BackendApiClient` ->
+  mock/runtime -> UI path is understandable
+
+Findings:
+
+- First blind review found an active-placement evidence blocker:
+  `AdminApiReadService` promoted the latest historical `revealed_orders`
+  placement and exchange ids into `active_*` fields when active anchor state
+  was absent.
+- First blind review also found that the backend capability matrix still
+  described the frontend Stealth Orders module as pending.
+- Second blind review found the active-evidence fix sound but flagged a matrix
+  shape mismatch: backend columns used different names than the frontend
+  matrix and placed frontend-module status outside the read-only column.
+
+Resolution:
+
+- Removed the historical `revealed_orders` fallback for
+  `active_placement_client_order_id` and `active_exchange_order_id`.
+- Added regression coverage proving historical reveal evidence is preserved
+  but terminal/cleared-anchor rows return `active_* = None`.
+- Updated backend and frontend capability matrices so Stealth Orders read-only
+  views are implemented, command drafts and dry-submit are not modeled, and
+  live execution is not approved through the frontend.
+- Added frontend read-only Stealth Orders wrappers, mock fixtures, BFF
+  allowlist entries, runtime snapshot loading, route coverage metadata, UI,
+  docs, examples, and ownership mapping.
+
+Status:
+
+- Final blind review found no blockers.
+- Backend `pytest tests\regression\ -v --tb=short` passed with `775 passed,
+  1 warning`.
+- Frontend `npm run release:gate` passed after remediation, including build,
+  typecheck, lint, API freshness/route coverage, command guard, artifacts,
+  dry smokes, unit tests, and Playwright e2e.
+- Live Coinbase execution was not run; notional `$0`.
