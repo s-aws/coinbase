@@ -46,6 +46,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/oidc-readiness`
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
+- `GET /api/v1/admin/live-enablement`
 - `GET /api/v1/admin/guard-risk-policy`
 - `GET /api/v1/admin/audit-workbench`
 - `GET /api/v1/admin/release-gate`
@@ -174,6 +175,11 @@ The platform/module split is documented in
   profitability-validator posture, authority sources, and rejection categories
   as evidence only. They do not fetch Coinbase wallets and do not approve live
   execution.
+- Live-enablement reads expose controlled M8 live path readiness, cap
+  posture, approval requirements, guard requirements, audit requirements, and
+  reconciliation requirements. The route is read-only, reports
+  `default_live_coinbase_execution=not_run`, submitted/executed notional
+  `$0`, and does not enable any command path.
 - Audit workbench reads normalize route inventory, command audit, order,
   stealth, movement/repricing, futures/perpetual, guard/risk, and campaign
   evidence into one read-only surface. They do not mutate audit history, read

@@ -302,6 +302,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="does not disclose token value",
     ),
     AdminApiRouteInventoryItem(
+        surface="GET /api/v1/admin/live-enablement",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only cap evidence only",
+        audit="optional read audit",
+        shared_method="build_live_enablement",
+        parity_test="read-only M8 live-enablement readiness; no Coinbase execution",
+    ),
+    AdminApiRouteInventoryItem(
         surface="GET /api/v1/admin/release-gate",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

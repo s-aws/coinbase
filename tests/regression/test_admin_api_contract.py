@@ -187,6 +187,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/oidc-readiness" in written["paths"]
     assert "/api/v1/admin/capabilities" in written["paths"]
     assert "/api/v1/admin/csrf" in written["paths"]
+    assert "/api/v1/admin/live-enablement" in written["paths"]
     assert "/api/v1/admin/release-gate" in written["paths"]
     assert "/api/v1/admin/recovery-gate" in written["paths"]
     assert "/api/v1/admin/fill-ledger-health" in written["paths"]
@@ -1257,6 +1258,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     session = client.get("/api/v1/admin/session", headers=headers)
     capabilities = client.get("/api/v1/admin/capabilities", headers=headers)
     csrf = client.get("/api/v1/admin/csrf", headers=headers)
+    live_enablement = client.get("/api/v1/admin/live-enablement", headers=headers)
     release_gate = client.get("/api/v1/admin/release-gate", headers=headers)
 
     assert bootstrap.status_code == 200
@@ -1276,6 +1278,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/spot/campaign/executions" in routes
     assert "/api/v1/admin/bootstrap" in routes
     assert "/api/v1/admin/csrf" in routes
+    assert "/api/v1/admin/live-enablement" in routes
     assert csrf.status_code == 200
     assert csrf.json() == {
         "type": "admin_csrf_contract",
@@ -1287,6 +1290,30 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "rotation_policy": "rotate_on_session_or_deploy_secret_change",
         "live_coinbase_orders_ran": False,
     }
+    assert live_enablement.status_code == 200
+    live_payload = live_enablement.json()
+    assert live_payload["type"] == "admin_live_enablement"
+    assert live_payload["status"] == "live_disabled"
+    assert live_payload["approved_phase_range"] == "661-680"
+    assert live_payload["default_live_coinbase_execution"] == "not_run"
+    assert live_payload["submitted_notional_usdc"] == "0"
+    assert live_payload["executed_notional_usdc"] == "0"
+    assert live_payload["max_submitted_notional_usdc"] == "3.10"
+    assert live_payload["max_executed_notional_usdc"] == "1.00"
+    assert live_payload["live_enabled_path_count"] == 0
+    assert live_payload["live_eligible_path_count"] == 0
+    assert live_payload["live_coinbase_orders_ran"] is False
+    live_routes = {item["route"]: item for item in live_payload["paths"]}
+    assert "/api/v1/orders" in live_routes
+    assert "/api/v1/orders/{client_order_id}/cancel" in live_routes
+    assert "/api/v1/stealth/orders/{stealth_order_id}/cancel" in live_routes
+    assert (
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        in live_routes
+    )
+    assert "/api/v1/spot/campaign/executions" in live_routes
+    assert all(item["live_enabled"] is False for item in live_routes.values())
+    assert all(item["status"] == "live_disabled" for item in live_routes.values())
     assert release_gate.status_code == 200
     assert release_gate.json()["live_coinbase_orders_ran"] is False
 
@@ -2698,6 +2725,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         "build_admin_capabilities"
     )
     assert rows["GET /api/v1/admin/csrf"].shared_method == "build_csrf_contract"
+    assert rows["GET /api/v1/admin/live-enablement"].shared_method == (
+        "build_live_enablement"
+    )
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -2712,6 +2742,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_admin_bootstrap" in doc
     assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc
+    assert "build_live_enablement" in doc
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc

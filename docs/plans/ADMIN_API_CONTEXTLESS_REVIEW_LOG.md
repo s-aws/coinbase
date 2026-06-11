@@ -1054,3 +1054,53 @@ Status:
   Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M8 Live-Enablement Readiness Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- explain what `GET /api/v1/admin/live-enablement` does
+- verify it is read-only/no-live evidence
+- verify frontend consumption uses generated contracts, canonical wrappers,
+  runtime snapshot, BFF allowlist, and mock fixtures
+- identify what blocks future live execution
+- report whether this feature creates any frontend path to approve, place,
+  cancel, or reconcile live Coinbase orders
+
+Findings:
+
+- The blind/contextless review found no blockers and found no frontend path
+  where live-enablement can approve, place, cancel, or reconcile live Coinbase
+  orders.
+- The review flagged two non-blocking clarity gaps: frontend docs referenced
+  reconciliation posture before the UI displayed the field, and the backend
+  example response omitted useful blocker fields such as `paths`, `checks`,
+  `read_only`, `reconciliation_required`, and `live_eligible_path_count`.
+
+Resolution:
+
+- The Admin shell now displays reconciliation requirement and blocked-check
+  count as backend evidence.
+- The backend example response now includes path, check, read-only,
+  reconciliation, and live-eligible evidence.
+- Backend dynamic evidence maps now emit open-object OpenAPI schema without
+  changing runtime values from plain dicts.
+
+Status:
+
+- Backend focused Admin API contract checks passed with `62 passed,
+  1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend focused client/runtime/mock/BFF/AdminShell/quality checks passed
+  with `80 passed`; follow-up focused schema/read-model checks passed with
+  `83 passed`.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

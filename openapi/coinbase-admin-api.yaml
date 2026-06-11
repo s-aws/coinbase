@@ -378,6 +378,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/live-enablement:
+    get:
+      tags:
+      - admin
+      summary: Read controlled live-enablement readiness without enabling live execution
+      operationId: admin_live_enablement_api_v1_admin_live_enablement_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLiveEnablementReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/guard-risk-policy:
     get:
       tags:
@@ -2888,8 +2950,7 @@ components:
       additionalProperties: true
       type: object
       title: AdminApiFlexibleObject
-      description: Typed object shell that preserves dashboard-owned read payload
-        detail.
+      description: Typed object shell that preserves backend-owned read payload detail.
     AdminApiGateStatus:
       type: string
       enum:
@@ -2908,6 +2969,16 @@ components:
       - blocked
       title: AdminApiHealthStatus
       description: Admin API health/readiness state.
+    AdminApiLiveExecutionStatus:
+      type: string
+      enum:
+      - not_run
+      - live_disabled
+      - approval_required
+      - reconciliation_required
+      - completed
+      title: AdminApiLiveExecutionStatus
+      description: Live-execution posture exposed by read-only Admin API readiness.
     AdminApiPermission:
       type: string
       enum:
@@ -3783,6 +3854,205 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminLiveEnablementPathItem:
+      properties:
+        path_id:
+          type: string
+          title: Path Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module:
+          type: string
+          title: Module
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        live_eligible:
+          type: boolean
+          title: Live Eligible
+          default: false
+        status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        approval_required:
+          type: boolean
+          title: Approval Required
+          default: true
+        cap_required:
+          type: boolean
+          title: Cap Required
+          default: true
+        guard_required:
+          type: boolean
+          title: Guard Required
+          default: true
+        audit_required:
+          type: boolean
+          title: Audit Required
+          default: true
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        product_scope:
+          type: string
+          title: Product Scope
+          default: not_selected
+        max_submitted_notional_usdc:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Max Submitted Notional Usdc
+        max_executed_notional_usdc:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Max Executed Notional Usdc
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        notes:
+          type: string
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - path_id
+      - route
+      - method
+      - module
+      - action_class
+      - required_permission
+      - shared_method
+      - notes
+      title: AdminLiveEnablementPathItem
+      description: One live-eligible path and the gates required before enablement.
+    AdminLiveEnablementReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_live_enablement
+        status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        default_live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        quote_currency:
+          type: string
+          title: Quote Currency
+          default: USDC
+        product_scope:
+          type: string
+          title: Product Scope
+        max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        max_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        retain_inventory:
+          type: boolean
+          title: Retain Inventory
+          default: true
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        live_enabled_path_count:
+          type: integer
+          title: Live Enabled Path Count
+          default: 0
+        live_eligible_path_count:
+          type: integer
+          title: Live Eligible Path Count
+          default: 0
+        paths:
+          items:
+            $ref: '#/components/schemas/AdminLiveEnablementPathItem'
+          type: array
+          title: Paths
+        checks:
+          items:
+            $ref: '#/components/schemas/AdminGateCheck'
+          type: array
+          title: Checks
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - product_scope
+      - max_submitted_notional_usdc
+      - max_executed_notional_usdc
+      title: AdminLiveEnablementReadResponse
+      description: Read-only M8 live-enablement readiness and cap evidence.
     AdminMovementRepricingDetailResponse:
       properties:
         type:

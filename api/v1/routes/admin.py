@@ -23,6 +23,7 @@ from application.admin_api.models import (
     AdminFrontendFixturesResponse,
     AdminGateReadResponse,
     AdminHealthResponse,
+    AdminLiveEnablementReadResponse,
     AdminOidcJwtReadinessResponse,
     AdminRiskPolicyReadResponse,
     AdminSessionResponse,
@@ -148,6 +149,20 @@ def admin_csrf_contract(
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_response(service.build_csrf_contract())
+
+
+@router.get(
+    "/admin/live-enablement",
+    response_model=AdminLiveEnablementReadResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read controlled live-enablement readiness without enabling live execution",
+)
+def admin_live_enablement(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_response(service.build_live_enablement())
 
 
 @router.get(

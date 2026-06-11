@@ -132,6 +132,82 @@ This route returns backend OIDC verifier evidence for release checks:
 active auth mode, required and missing OIDC settings, claim mapping, JWKS
 reachability, and no-live notional posture.
 
+```http
+GET /api/v1/admin/live-enablement
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Expected M8 readiness posture:
+
+```json
+{
+  "type": "admin_live_enablement",
+  "status": "live_disabled",
+  "approved_phase_range": "661-680",
+  "default_live_coinbase_execution": "not_run",
+  "submitted_notional_usdc": "0",
+  "executed_notional_usdc": "0",
+  "quote_currency": "USDC",
+  "product_scope": "cheapest Coinbase USDC spot product available to US customers",
+  "max_submitted_notional_usdc": "3.10",
+  "max_executed_notional_usdc": "1.00",
+  "retain_inventory": true,
+  "reconciliation_required": true,
+  "live_enabled_path_count": 0,
+  "live_eligible_path_count": 0,
+  "paths": [
+    {
+      "path_id": "post.api.v1.orders",
+      "route": "/api/v1/orders",
+      "method": "POST",
+      "module": "spot",
+      "action_class": "live_exchange_place",
+      "required_permission": "order:create",
+      "shared_method": "place_manual_order",
+      "live_enabled": false,
+      "live_eligible": false,
+      "status": "live_disabled",
+      "approval_required": true,
+      "cap_required": true,
+      "guard_required": true,
+      "audit_required": true,
+      "reconciliation_required": true,
+      "product_scope": "cheapest Coinbase USDC spot product available to US customers",
+      "max_submitted_notional_usdc": "3.10",
+      "max_executed_notional_usdc": "1.00",
+      "evidence": [
+        "M4 guard/risk evidence required",
+        "M6 command contract proof required",
+        "M8 explicit live approval required",
+        "post-live reconciliation required"
+      ],
+      "notes": "Current Admin API command contract is live-disabled; this read route is eligibility evidence only."
+    }
+  ],
+  "checks": [
+    {
+      "name": "live_execution_default",
+      "status": "passed",
+      "detail": "Default live Coinbase execution is not_run with submitted/executed notional $0."
+    },
+    {
+      "name": "reconciliation_gate",
+      "status": "blocked",
+      "detail": "No path is live-enabled until post-live reconciliation evidence is wired for that path."
+    }
+  ],
+  "read_only": true,
+  "live_coinbase_orders_ran": false
+}
+```
+
+This route is evidence only. It lists command paths that could later be
+considered for controlled live enablement, but every current path remains
+`live_enabled=false` until explicit live approval, cap, guard, audit, and
+reconciliation gates pass.
+
 ## Cancel By Client Order ID
 
 Current live-disabled command shape:

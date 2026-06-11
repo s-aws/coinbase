@@ -23,6 +23,7 @@ from core.enums import (
     AdminFuturesEvidenceStatus,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminApiLiveExecutionStatus,
     AdminMovementRepricingEvidenceType,
     AdminApiPermission,
     AdminApiRouteAvailability,
@@ -50,6 +51,10 @@ DecimalString = Annotated[
         description="Decimal value serialized as a string; floats are not part of the API contract.",
         examples=["1.00"],
     ),
+]
+FlexibleDict = Annotated[
+    dict[str, Any],
+    Field(json_schema_extra={"additionalProperties": True}),
 ]
 
 
@@ -200,7 +205,7 @@ class AdminApiCommandResponse(BaseModel):
     live_exchange_submitted: bool = False
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
-    guard: dict[str, Any] | None = None
+    guard: FlexibleDict | None = None
     data: Any | None = None
     failure_stage: str | None = None
 
@@ -369,7 +374,7 @@ class AdminOrderListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_order_list"
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: FlexibleDict = Field(default_factory=dict)
     count: int
     pagination: AdminOrderPagination
     items: list[AdminOrderReadItem] = Field(default_factory=list)
@@ -409,20 +414,20 @@ class AdminStealthOrderReadItem(BaseModel):
     target_movement_type: str | None = None
     visibility_score: str | None = None
     reveal_condition_type: str | None = None
-    reveal_condition: dict[str, Any] | None = None
-    sizing_strategy: dict[str, Any] | None = None
-    revealed_orders: list[dict[str, Any]] = Field(default_factory=list)
+    reveal_condition: FlexibleDict | None = None
+    sizing_strategy: FlexibleDict | None = None
+    revealed_orders: list[FlexibleDict] = Field(default_factory=list)
     active_placement_client_order_id: str | None = None
     active_exchange_order_id: str | None = None
     exchange_order_id_evidence_only: bool = True
     last_placement_at: str | None = None
     last_lifecycle_event: str | None = None
     failure_reason: str | None = None
-    cancel_reentry_policy: dict[str, Any] | None = None
-    cancel_reentry_state: dict[str, Any] | None = None
-    post_fill_retreat_policy: dict[str, Any] | None = None
-    anchor_repricing_policy: dict[str, Any] | None = None
-    anchor_repricing_state: dict[str, Any] | None = None
+    cancel_reentry_policy: FlexibleDict | None = None
+    cancel_reentry_state: FlexibleDict | None = None
+    post_fill_retreat_policy: FlexibleDict | None = None
+    anchor_repricing_policy: FlexibleDict | None = None
+    anchor_repricing_state: FlexibleDict | None = None
     created_at: str | None = None
     updated_at: str | None = None
     source: str = "stealth_orders"
@@ -434,7 +439,7 @@ class AdminStealthOrderListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_stealth_order_list"
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: FlexibleDict = Field(default_factory=dict)
     count: int
     pagination: AdminOrderPagination
     items: list[AdminStealthOrderReadItem] = Field(default_factory=list)
@@ -512,8 +517,8 @@ class AdminMovementRepricingEvidenceItem(BaseModel):
     target_movement_type: str | None = None
     replacement_slots: list[AdminReplacementSlotEvidence] = Field(default_factory=list)
     mutation_claims: list[AdminMutationClaimEvidence] = Field(default_factory=list)
-    anchor_repricing_policy: dict[str, Any] | None = None
-    anchor_repricing_state: dict[str, Any] | None = None
+    anchor_repricing_policy: FlexibleDict | None = None
+    anchor_repricing_state: FlexibleDict | None = None
     reprice_history: list[Any] = Field(default_factory=list)
     reprice_reason: str | None = None
     last_reprice_at: str | None = None
@@ -534,7 +539,7 @@ class AdminMovementRepricingListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_movement_repricing_evidence"
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: FlexibleDict = Field(default_factory=dict)
     count: int
     pagination: AdminOrderPagination
     items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
@@ -587,17 +592,17 @@ class AdminFuturesPositionReadItem(BaseModel):
     entry_vwap: str | None = None
     current_price: str | None = None
     margin_type: str | None = None
-    margin_amount: dict[str, Any] | None = None
+    margin_amount: FlexibleDict | None = None
     leverage: str | None = None
     liquidation_buffer_percentage: str | None = None
     open_order_side: OrderSide | None = None
     close_order_side: OrderSide | None = None
     reduce_only_order_side: OrderSide | None = None
     close_only_order_side: OrderSide | None = None
-    position_pnl: dict[str, Any] | None = None
-    product_metadata: dict[str, Any] | None = None
+    position_pnl: FlexibleDict | None = None
+    product_metadata: FlexibleDict | None = None
     mandatory_fee_per_contract: str | None = None
-    raw_position: dict[str, Any] = Field(default_factory=dict)
+    raw_position: FlexibleDict = Field(default_factory=dict)
     source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.RUNTIME_ORDERBOOK
     updated_at: str | None = None
 
@@ -608,7 +613,7 @@ class AdminFuturesPositionListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_futures_positions"
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: FlexibleDict = Field(default_factory=dict)
     count: int
     pagination: AdminOrderPagination
     items: list[AdminFuturesPositionReadItem] = Field(default_factory=list)
@@ -676,7 +681,7 @@ class AdminRiskPolicyRuleItem(BaseModel):
     phases: list[ActionGuardPhase | str] = Field(default_factory=list)
     max_notional: DecimalString | None = None
     max_base_size: DecimalString | None = None
-    raw_rule: dict[str, Any] = Field(default_factory=dict)
+    raw_rule: FlexibleDict = Field(default_factory=dict)
 
 
 class AdminRiskRejectionCategoryItem(BaseModel):
@@ -710,7 +715,7 @@ class AdminRiskPolicyReadResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_guard_risk_policy"
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: FlexibleDict = Field(default_factory=dict)
     action_condition_policy: AdminRiskEvidenceItem
     configured_limit_rules: list[AdminRiskPolicyRuleItem] = Field(default_factory=list)
     live_execution_gate: AdminRiskEvidenceItem
@@ -767,7 +772,7 @@ class AdminAuditWorkbenchEventItem(BaseModel):
     recorded_at: str | None = None
     message: str | None = None
     live_coinbase_orders_ran: bool = False
-    raw_event: dict[str, Any] = Field(default_factory=dict)
+    raw_event: FlexibleDict = Field(default_factory=dict)
 
 
 class AdminAuditWorkbenchReadResponse(BaseModel):
@@ -776,7 +781,7 @@ class AdminAuditWorkbenchReadResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_audit_workbench"
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: FlexibleDict = Field(default_factory=dict)
     module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
     events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)
     pagination: AdminOrderPagination
@@ -815,7 +820,7 @@ class AdminFrontendFixturesResponse(BaseModel):
 
     type: str = "admin_frontend_fixtures"
     schema_version: str
-    fixtures: dict[str, Any] = Field(default_factory=dict)
+    fixtures: FlexibleDict = Field(default_factory=dict)
     live_coinbase_orders_ran: bool = False
 
 
@@ -834,6 +839,58 @@ class AdminCsrfContractResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminLiveEnablementPathItem(BaseModel):
+    """One live-eligible path and the gates required before enablement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path_id: str
+    route: str
+    method: str
+    module: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    live_enabled: bool = False
+    live_eligible: bool = False
+    status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    approval_required: bool = True
+    cap_required: bool = True
+    guard_required: bool = True
+    audit_required: bool = True
+    reconciliation_required: bool = True
+    product_scope: str = "not_selected"
+    max_submitted_notional_usdc: DecimalString | None = None
+    max_executed_notional_usdc: DecimalString | None = None
+    evidence: list[str] = Field(default_factory=list)
+    notes: str
+
+
+class AdminLiveEnablementReadResponse(BaseModel):
+    """Read-only M8 live-enablement readiness and cap evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_live_enablement"
+    status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    approved_phase_range: str
+    default_live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    quote_currency: str = "USDC"
+    product_scope: str
+    max_submitted_notional_usdc: DecimalString
+    max_executed_notional_usdc: DecimalString
+    retain_inventory: bool = True
+    reconciliation_required: bool = True
+    live_enabled_path_count: int = 0
+    live_eligible_path_count: int = 0
+    paths: list[AdminLiveEnablementPathItem] = Field(default_factory=list)
+    checks: list[AdminGateCheck] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminApiReadPayload(BaseModel):
     """Loose typed shell for existing dashboard-shaped read-only payloads."""
 
@@ -845,7 +902,7 @@ class AdminApiReadPayload(BaseModel):
 
 
 class AdminApiFlexibleObject(BaseModel):
-    """Typed object shell that preserves dashboard-owned read payload detail."""
+    """Typed object shell that preserves backend-owned read payload detail."""
 
     model_config = ConfigDict(extra="allow")
 

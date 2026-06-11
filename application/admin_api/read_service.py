@@ -21,6 +21,7 @@ from core.enums import (
     AdminFuturesPositionSide,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminApiLiveExecutionStatus,
     AdminMovementRepricingEvidenceType,
     AdminApiPermission,
     AdminApiRouteAvailability,
@@ -60,6 +61,8 @@ from .models import (
     AdminGateCheck,
     AdminGateReadResponse,
     AdminHealthResponse,
+    AdminLiveEnablementPathItem,
+    AdminLiveEnablementReadResponse,
     AdminMovementRepricingDetailResponse,
     AdminMovementRepricingEvidenceItem,
     AdminMovementRepricingListResponse,
@@ -85,6 +88,13 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "661-680"
+LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
+LIVE_ENABLEMENT_PRODUCT_SCOPE = (
+    "cheapest Coinbase USDC spot product available to US customers"
+)
+LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
+LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
 
 def _string_or_none(value: Any) -> str | None:
@@ -128,6 +138,23 @@ def _frontend_safe(surface: str, action_class: AdminApiActionClass) -> bool:
     if "WebSocket" in surface:
         return False
     return action_class == AdminApiActionClass.READ_ONLY or surface.startswith("POST /api/v1")
+
+
+def _live_enablement_module(path: str) -> str:
+    if path.startswith("/api/v1/spot/") or path == "/api/v1/orders":
+        return "spot"
+    if path.startswith("/api/v1/stealth/"):
+        return "stealth"
+    if path.startswith("/api/v1/movement-repricing/"):
+        return "movement_repricing"
+    if path.startswith("/api/v1/orders/"):
+        return "orders"
+    return "admin"
+
+
+def _path_id(method: str, path: str) -> str:
+    normalized = path.strip("/").replace("/", ".").replace("{", "").replace("}", "")
+    return f"{method.lower()}.{normalized}"
 
 
 def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
@@ -1700,6 +1727,93 @@ class AdminApiReadService:
 
         return AdminCsrfContractResponse(csrf_required=_csrf_required())
 
+    def build_live_enablement(self) -> AdminLiveEnablementReadResponse:
+        """Return read-only M8 live-enablement posture and cap evidence."""
+
+        paths: list[AdminLiveEnablementPathItem] = []
+        for item in ADMIN_API_ROUTE_INVENTORY:
+            method, path = _surface_method_and_path(item.surface)
+            if method != "POST" or not path.startswith("/api/v1/"):
+                continue
+            if item.action_class not in {
+                AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            }:
+                continue
+            paths.append(
+                AdminLiveEnablementPathItem(
+                    path_id=_path_id(method, path),
+                    route=path,
+                    method=method,
+                    module=_live_enablement_module(path),
+                    action_class=item.action_class,
+                    required_permission=item.permission,
+                    shared_method=item.shared_method,
+                    live_enabled=False,
+                    live_eligible=False,
+                    status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+                    approval_required=True,
+                    cap_required=True,
+                    guard_required=True,
+                    audit_required=True,
+                    reconciliation_required=True,
+                    product_scope=LIVE_ENABLEMENT_PRODUCT_SCOPE,
+                    max_submitted_notional_usdc=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
+                    max_executed_notional_usdc=LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC,
+                    evidence=[
+                        "M4 guard/risk evidence required",
+                        "M6 command contract proof required",
+                        "M8 explicit live approval required",
+                        "post-live reconciliation required",
+                    ],
+                    notes=(
+                        "Current Admin API command contract is live-disabled; "
+                        "this read route is eligibility evidence only."
+                    ),
+                )
+            )
+
+        checks = [
+            AdminGateCheck(
+                name="m4_guard_risk_evidence",
+                status=AdminApiGateStatus.PASSED,
+                detail="/api/v1/admin/guard-risk-policy is available as read-only evidence.",
+            ),
+            AdminGateCheck(
+                name="m6_command_contracts",
+                status=AdminApiGateStatus.PASSED,
+                detail="Command contracts exist but remain live-disabled until explicit M8 approval.",
+            ),
+            AdminGateCheck(
+                name="live_execution_default",
+                status=AdminApiGateStatus.PASSED,
+                detail="Default live Coinbase execution is not_run with submitted/executed notional $0.",
+            ),
+            AdminGateCheck(
+                name="reconciliation_gate",
+                status=AdminApiGateStatus.BLOCKED,
+                detail="No path is live-enabled until post-live reconciliation evidence is wired for that path.",
+            ),
+        ]
+
+        return AdminLiveEnablementReadResponse(
+            status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            default_live_coinbase_execution=AdminApiLiveExecutionStatus.NOT_RUN,
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
+            quote_currency=LIVE_ENABLEMENT_QUOTE_CURRENCY,
+            product_scope=LIVE_ENABLEMENT_PRODUCT_SCOPE,
+            max_submitted_notional_usdc=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
+            max_executed_notional_usdc=LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC,
+            retain_inventory=True,
+            reconciliation_required=True,
+            live_enabled_path_count=0,
+            live_eligible_path_count=0,
+            paths=paths,
+            checks=checks,
+        )
+
     def build_audit_workbench(
         self,
         *,
@@ -2418,6 +2532,7 @@ class AdminApiReadService:
                 "admin.health": self.build_admin_health().model_dump(mode="json"),
                 "admin.capabilities": self.build_admin_capabilities().model_dump(mode="json"),
                 "admin.csrf": self.build_csrf_contract().model_dump(mode="json"),
+                "admin.liveEnablement": self.build_live_enablement().model_dump(mode="json"),
                 "orders.list": self.build_order_list().model_dump(mode="json"),
                 "orders.detail.empty": self.build_order_detail(
                     client_order_id="00000000-0000-0000-0000-000000000000"

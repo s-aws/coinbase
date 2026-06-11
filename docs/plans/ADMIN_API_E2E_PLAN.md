@@ -3999,3 +3999,126 @@ The durable completion path now lives in
 [Admin Platform Durable Milestones](ADMIN_PLATFORM_DURABLE_MILESTONES.md).
 Future phase batches should be derived from that milestone plan rather than
 from spot-specific backlog shape.
+
+## Approved Controlled-Live Readiness Batch - Phases 661-680
+
+### Phase 661 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 641-660 to active
+  phases 661-680 while preserving live cap and stop-condition policy.
+
+### Phase 662 - M8 Live Path Inventory
+
+- Define the backend-owned list of command paths that could ever become live
+  through controlled M8 enablement, with every path still live-disabled.
+
+### Phase 663 - Live Enablement Read Contract
+
+- Add a read-only Admin API contract for live path eligibility, cap posture,
+  approval requirements, guard requirements, audit requirements,
+  reconciliation requirements, and no-live evidence.
+
+### Phase 664 - Backend Route Inventory Sync
+
+- Sync route inventory, capabilities, OpenAPI, fixtures, and examples with
+  the live-enablement readiness contract.
+
+### Phase 665 - Backend No-Live Regression
+
+- Add regression coverage proving the live-enablement route is read-only,
+  reports submitted/executed notional `$0`, and does not enable any command
+  path.
+
+### Phase 666 - Frontend Schema And BFF Sync
+
+- Regenerate frontend schema, add canonical client/BFF read coverage, and keep
+  the route out of mutation allowlists.
+
+### Phase 667 - Frontend Live Evidence Surface
+
+- Display live-enablement readiness as operator evidence only, including cap,
+  eligible paths, required gates, and no-live posture.
+
+### Phase 668 - Runtime And Mock Evidence
+
+- Add runtime snapshot and mock-backend support so local, BFF, and backend
+  modes expose the same no-live M8 evidence shape.
+
+### Phase 669 - Release Artifact Live Posture
+
+- Extend release/runtime/deployment artifacts so M8 evidence appears in
+  release proof without approving frontend live execution.
+
+### Phase 670 - Human Operator M8 Runbook
+
+- Document how operators should read M8 live-enablement evidence and why it is
+  not live approval.
+
+### Phase 671 - Capability Matrix M8 Sync
+
+- Update backend/frontend capability matrices so controlled live enablement is
+  a platform primitive, not a spot-only concept.
+
+### Phase 672 - Reconciliation Gate Detail
+
+- Document the per-path reconciliation evidence required before any future
+  live enablement can be marked complete.
+
+### Phase 673 - Live Cap Drift Checks
+
+- Add static/read-only checks that fail if approved cap values drift between
+  queue docs, backend readiness, frontend artifacts, and tests.
+
+### Phase 674 - Contextless M8 Review
+
+- Run blind/contextless review focused on whether a fresh agent can explain
+  the M8 path, no-live posture, cap policy, and reconciliation requirement.
+
+### Phase 675 - Review Remediation
+
+- Resolve any blocker from contextless M8 review before advancing to release
+  candidate work.
+
+### Phase 676 - Focused Backend Verification
+
+- Run focused backend Admin API contract tests and queue validation for the
+  M8 readiness surface.
+
+### Phase 677 - Focused Frontend Verification
+
+- Run focused frontend API, runtime, BFF, artifact, and UI tests for the M8
+  readiness surface.
+
+### Phase 678 - Full Release Gates
+
+- Run full backend regression and frontend release gate after the M8 no-live
+  readiness surface is complete.
+
+### Phase 679 - Milestone Evidence
+
+- Mark M8 readiness prep complete only if gates and reviews pass, while
+  keeping actual controlled live enablement pending until a live phase is
+  explicitly approved.
+
+### Phase 680 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and the next approved phase range.
+
+Completion evidence:
+
+- Phases 661-680 completed M8 live-enablement readiness prep while controlled
+  live execution remains pending.
+- Backend `GET /api/v1/admin/live-enablement` is read-only and reports
+  live-disabled path posture, cap, approval, guard, audit, and reconciliation
+  evidence with submitted/executed notional `$0`.
+- Dynamic backend evidence maps now emit open-object OpenAPI schema while
+  preserving plain dict runtime behavior.
+- Blind/contextless review found no blockers; its two clarity gaps were
+  remediated by showing reconciliation posture in the frontend and expanding
+  the backend example response.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.

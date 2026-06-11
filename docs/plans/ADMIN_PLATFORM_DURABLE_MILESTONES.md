@@ -434,6 +434,18 @@ Rules:
 - No live enablement may skip M4 guard/risk evidence or M6 command contract
   proof for the path.
 
+Current readiness prep:
+
+- `GET /api/v1/admin/live-enablement` exposes read-only M8 evidence for
+  command paths that could later be considered for controlled live enablement.
+- The route reports the active phase range, carried USDC cap, product scope,
+  submitted/executed notional `$0`, required approval, guard, audit, and
+  reconciliation gates, and every current path as `live_enabled=false`.
+- This route is not live approval and does not call Coinbase.
+- Phases 661-680 completed this readiness prep. Backend and frontend gates
+  passed, contextless review found no blockers after remediation, and live
+  Coinbase execution was not run with submitted/executed notional `$0`.
+
 Done when the approved live path has passing focused tests, full regression,
 contextless review, live evidence under cap, and post-live reconciliation.
 

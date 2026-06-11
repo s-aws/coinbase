@@ -198,6 +198,16 @@ class AdminApiCommandRoutesMode(str, Enum):
     EVIDENCE_ONLY = "evidence_only"
 
 
+class AdminApiLiveExecutionStatus(str, Enum):
+    """Live-execution posture exposed by read-only Admin API readiness."""
+
+    NOT_RUN = "not_run"
+    LIVE_DISABLED = "live_disabled"
+    APPROVAL_REQUIRED = "approval_required"
+    RECONCILIATION_REQUIRED = "reconciliation_required"
+    COMPLETED = "completed"
+
+
 class AdminApiSessionStatus(str, Enum):
     """Authenticated Admin API session status."""
 
