@@ -205,6 +205,8 @@ Current modules:
 - `api/v1/routes/movement_repricing.py`: read-only movement/repricing
   evidence routes over `order_moves`, `stealth_order_moves`, stealth repricing
   state, and runtime-safe claim snapshots.
+- `api/v1/routes/futures.py`: read-only futures/perpetual account, risk, and
+  position evidence routes keyed by backend `position_key`.
 - `application/admin_api/command_service.py`: shared command service used by
   HTTP routes and legacy dashboard compatibility adapters.
 - `application/admin_api/auth.py`: fail-closed bearer-token/RBAC bootstrap.
@@ -237,6 +239,11 @@ Current behavior:
   and runtime mutation claim state when safely observable. These routes are
   read-only and do not expose move, premark, reprice-now, or move-revealed
   command authority.
+- Futures/perpetual read routes expose account, margin, collateral, funding,
+  liquidation, close/reduce-side, position, and P/L evidence. `position_key`
+  is the position read identity. Configured product scope and observed
+  position scope are separate. Close/reduce sides are backend-derived from
+  observed position side and are not exchange-observed order flags.
 - Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
   fill-ledger health, and frontend fixture routes are read-only backend
   association surfaces for `C:\coinbase-frontend`.

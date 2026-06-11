@@ -68,8 +68,12 @@ compatibility, and a live-disabled spot campaign execution contract.
 Read-only Admin API routes currently cover backend bootstrap, health,
 session/RBAC evidence, capabilities, release/recovery gates, fill-ledger
 health, frontend fixtures, order list/detail, stealth lifecycle list/detail,
-movement/repricing evidence, spot readiness, sweep status, sweep P/L,
-cost-basis status, campaign status, and direct order audit.
+movement/repricing evidence, futures/perpetual account and position evidence,
+spot readiness, sweep status, sweep P/L, cost-basis status, campaign status,
+and direct order audit.
+Futures/perpetual reads use `position_key` for position identity, separate
+configured product scope from observed position scope, and must not import
+spot wallet, no-shorting, cost-basis, or average-cost authority.
 OIDC/JWT auth mode is implemented as a fail-closed verifier: readiness reports
 required issuer, audience, and JWKS settings, and configured requests validate
 RS256 JWTs before deriving actor/role evidence from claims.

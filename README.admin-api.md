@@ -13,7 +13,8 @@ The repository now contains an Admin API contract, generated OpenAPI artifact,
 fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
 structured error payloads, observability headers, read-only admin diagnostics,
 order read routes, read-only stealth lifecycle routes, read-only
-movement/repricing evidence routes, and read-only spot operator routes.
+movement/repricing evidence routes, read-only futures/perpetual account and
+position routes, and read-only spot operator routes.
 Mutating HTTP routes still return `not_implemented` after
 auth, permission, idempotency, and audit handling; they do not submit orders,
 cancel orders, or call Coinbase.
@@ -53,6 +54,9 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
+- `GET /api/v1/futures/account`
+- `GET /api/v1/futures/positions`
+- `GET /api/v1/futures/positions/{position_key}`
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`
@@ -142,6 +146,10 @@ The platform/module split is documented in
   only when safely observable through the existing manager/engine state; if
   unavailable, the response says so instead of treating the database as proof
   that no runtime claim exists.
+- Futures/perpetual read rows use backend-defined `position_key` identity.
+  Account evidence separates `configured_product_scope` from
+  `observed_position_scope`; close/reduce sides are backend-derived from
+  observed position side and are not exchange-observed order flags.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap
@@ -238,6 +246,7 @@ and rotation policy without disclosing a token value.
 - [Admin Module Capability Matrix](docs/ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Admin API Examples](docs/examples/admin-api.md)
 - [Movement And Repricing Reads](README.movement-repricing.md)
+- [Futures/Perpetuals Admin Reads](README.futures-perpetuals.md)
 - [Frontend Association](docs/FRONTEND_ASSOCIATION.md)
 - [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md)
 - [API Reference](genai_data/API_REFERENCE.md)

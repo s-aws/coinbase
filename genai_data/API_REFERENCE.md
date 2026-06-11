@@ -25,6 +25,9 @@ Current route adapters:
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
+- `GET /api/v1/futures/account`
+- `GET /api/v1/futures/positions`
+- `GET /api/v1/futures/positions/{position_key}`
 - `POST /api/v1/orders/{client_order_id}/cancel`
 - `POST /api/v1/spot/campaign/executions`
 - `GET /api/v1/admin/bootstrap`
@@ -70,6 +73,12 @@ Current behavior:
   runtime claim snapshots when safely observable; no move, premark,
   reprice-now, or move-revealed command route is modeled through the
   enterprise Admin API yet
+- `GET /api/v1/futures/account`, `GET /api/v1/futures/positions`, and
+  `GET /api/v1/futures/positions/{position_key}` expose read-only
+  futures/perpetual account, risk, and position evidence; `position_key` is
+  the read identity, configured product scope is separate from observed
+  position scope, close/reduce sides are backend-derived from observed
+  position side, and no futures/perpetual command route is modeled yet
 - admin bootstrap, health, session, OIDC readiness, capabilities, CSRF,
   release gate, recovery gate, fill-ledger health, and frontend fixture routes
   are read-only and auth/RBAC-gated

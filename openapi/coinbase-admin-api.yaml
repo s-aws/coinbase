@@ -626,6 +626,237 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/account:
+    get:
+      tags:
+      - futures
+      summary: Read futures and perpetual account risk evidence
+      description: Read futures/perpetual account evidence without mutating exchange
+        state.
+      operationId: get_futures_account_api_v1_futures_account_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFuturesAccountReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/positions:
+    get:
+      tags:
+      - futures
+      summary: Read futures and perpetual positions
+      description: Read futures/perpetual positions by position identity.
+      operationId: list_futures_positions_api_v1_futures_positions_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: position_side
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position Side
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFuturesPositionListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/positions/{position_key}:
+    get:
+      tags:
+      - futures
+      summary: Read one futures or perpetual position by position_key
+      description: Read one futures/perpetual position by backend-defined position
+        key.
+      operationId: get_futures_position_by_position_key_api_v1_futures_positions__position_key__get
+      parameters:
+      - name: position_key
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Position Key
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFuturesPositionDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/movement-repricing/evidence:
     get:
       tags:
@@ -2482,6 +2713,307 @@ components:
       - schema_version
       title: AdminFrontendFixturesResponse
       description: Backend-owned fixture examples for frontend mock synchronization.
+    AdminFuturesAccountReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_futures_account
+        configured_product_scope:
+          items:
+            type: string
+          type: array
+          title: Configured Product Scope
+        observed_position_scope:
+          items:
+            type: string
+          type: array
+          title: Observed Position Scope
+        collateral:
+          $ref: '#/components/schemas/AdminFuturesEvidenceItem'
+        margin:
+          $ref: '#/components/schemas/AdminFuturesEvidenceItem'
+        funding:
+          $ref: '#/components/schemas/AdminFuturesEvidenceItem'
+        liquidation:
+          $ref: '#/components/schemas/AdminFuturesEvidenceItem'
+        reduce_only_close_only:
+          $ref: '#/components/schemas/AdminFuturesEvidenceItem'
+        position_pnl:
+          $ref: '#/components/schemas/AdminFuturesEvidenceItem'
+        position_count:
+          type: integer
+          title: Position Count
+          default: 0
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - collateral
+      - margin
+      - funding
+      - liquidation
+      - reduce_only_close_only
+      - position_pnl
+      title: AdminFuturesAccountReadResponse
+      description: Read-only futures/perpetual account, collateral, margin, and risk
+        evidence.
+    AdminFuturesEvidenceItem:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          $ref: '#/components/schemas/AdminFuturesEvidenceStatus'
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+        value:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Value
+        detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - status
+      - source
+      title: AdminFuturesEvidenceItem
+      description: One futures/perpetual evidence cell with explicit availability.
+    AdminFuturesEvidenceSource:
+      type: string
+      enum:
+      - runtime_orderbook
+      - runtime_positions
+      - dashboard_engine_state
+      - fee_manager
+      - position_side_derivation
+      - products_json
+      - backend_contract
+      - runtime_unavailable
+      title: AdminFuturesEvidenceSource
+      description: Source labels for futures/perpetual admin evidence.
+    AdminFuturesEvidenceStatus:
+      type: string
+      enum:
+      - observed
+      - unavailable
+      - not_modeled
+      title: AdminFuturesEvidenceStatus
+      description: Read-only evidence availability for futures/perpetual admin views.
+    AdminFuturesPositionDetailResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_futures_position_detail
+        position_key:
+          type: string
+          title: Position Key
+        found:
+          type: boolean
+          title: Found
+        position:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPositionReadItem'
+          - type: 'null'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - position_key
+      - found
+      title: AdminFuturesPositionDetailResponse
+      description: Read-only futures/perpetual position detail response.
+    AdminFuturesPositionListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_futures_positions
+        filters:
+          type: object
+          title: Filters
+        count:
+          type: integer
+          title: Count
+        pagination:
+          $ref: '#/components/schemas/AdminOrderPagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AdminFuturesPositionReadItem'
+          type: array
+          title: Items
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: not_modeled
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - count
+      - pagination
+      title: AdminFuturesPositionListResponse
+      description: Read-only futures/perpetual position list response.
+    AdminFuturesPositionReadItem:
+      properties:
+        position_key:
+          type: string
+          title: Position Key
+        product_id:
+          type: string
+          title: Product Id
+        product_type:
+          $ref: '#/components/schemas/ProductType'
+          default: FUTURE
+        portfolio_uuid:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Portfolio Uuid
+        position_side:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPositionSide'
+          - type: 'null'
+        number_of_contracts:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Number Of Contracts
+        net_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Net Size
+        entry_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entry Price
+        entry_vwap:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entry Vwap
+        current_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Price
+        margin_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Margin Type
+        margin_amount:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Margin Amount
+        leverage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Leverage
+        liquidation_buffer_percentage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Liquidation Buffer Percentage
+        open_order_side:
+          anyOf:
+          - $ref: '#/components/schemas/OrderSide'
+          - type: 'null'
+        close_order_side:
+          anyOf:
+          - $ref: '#/components/schemas/OrderSide'
+          - type: 'null'
+        reduce_only_order_side:
+          anyOf:
+          - $ref: '#/components/schemas/OrderSide'
+          - type: 'null'
+        close_only_order_side:
+          anyOf:
+          - $ref: '#/components/schemas/OrderSide'
+          - type: 'null'
+        position_pnl:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Position Pnl
+        product_metadata:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Product Metadata
+        mandatory_fee_per_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mandatory Fee Per Contract
+        raw_position:
+          type: object
+          title: Raw Position
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: runtime_orderbook
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - position_key
+      - product_id
+      title: AdminFuturesPositionReadItem
+      description: Read-only futures/perpetual position evidence keyed by position
+        identity.
+    AdminFuturesPositionSide:
+      type: string
+      enum:
+      - LONG
+      - SHORT
+      - FLAT
+      - UNKNOWN
+      title: AdminFuturesPositionSide
+      description: Derived futures/perpetual position direction.
     AdminGateCheck:
       properties:
         name:
@@ -3577,6 +4109,13 @@ components:
 
 
         From Coinbase API: LIMIT, MARKET, STOP_LIMIT'
+    ProductType:
+      type: string
+      enum:
+      - SPOT
+      - FUTURE
+      title: ProductType
+      description: Type of trading product.
     SpotCampaignStatusResponse:
       properties:
         type:

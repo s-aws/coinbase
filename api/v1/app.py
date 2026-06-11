@@ -15,6 +15,7 @@ from application.admin_api.models import AdminApiErrorResponse
 from core.enums import AdminApiErrorCode, AdminApiErrorSeverity
 
 from .routes.admin import router as admin_router
+from .routes.futures import router as futures_router
 from .routes.movement_repricing import router as movement_repricing_router
 from .routes.orders import router as orders_router
 from .routes.spot import router as spot_router
@@ -268,6 +269,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
+    app.include_router(futures_router, prefix="/api/v1", tags=["futures"])
     app.include_router(
         movement_repricing_router,
         prefix="/api/v1",

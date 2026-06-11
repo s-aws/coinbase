@@ -260,6 +260,45 @@ move audit rows from `stealth_order_moves`, repricing state from
 runtime mutation claim evidence when the existing manager state is observable.
 Exchange-native ids are exposed as exchange evidence only.
 
+## Futures/Perpetuals Reads
+
+Futures/perpetual reads expose backend-owned account, risk, and position
+evidence. They are not command routes. They do not place, close, reduce,
+cancel, or liquidate positions.
+
+```http
+GET /api/v1/futures/account
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+```http
+GET /api/v1/futures/positions?product_id=BIP-20DEC30-CDE&position_side=LONG&limit=50&offset=0
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+```http
+GET /api/v1/futures/positions/{position_key}
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Account responses separate configured product metadata from observed runtime
+position coverage:
+
+- `configured_product_scope`
+- `observed_position_scope`
+
+Position rows are keyed by `position_key`. Do not replace that key with spot
+wallet identity, `client_order_id`, or Coinbase `order_id`. Close/reduce sides
+are backend-derived from observed position side and are not exchange-observed
+reduce-only or close-only order flags. Funding-rate evidence is currently
+`not_modeled`.
+
 ## Live Placement Approval
 
 Current live-disabled command shape:
@@ -386,6 +425,9 @@ Current read-only routes:
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
+- `GET /api/v1/futures/account`
+- `GET /api/v1/futures/positions`
+- `GET /api/v1/futures/positions/{position_key}`
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`

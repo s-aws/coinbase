@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 import os
@@ -11,6 +12,9 @@ from typing import Any
 from core.enums import (
     AdminApiActionClass,
     AdminApiAuthMode,
+    AdminFuturesEvidenceSource,
+    AdminFuturesEvidenceStatus,
+    AdminFuturesPositionSide,
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminMovementRepricingEvidenceType,
@@ -18,6 +22,8 @@ from core.enums import (
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
     AdminApiVerifierReadinessStatus,
+    OrderSide,
+    ProductType,
     StealthMutationKind,
 )
 
@@ -33,6 +39,11 @@ from .models import (
     AdminCapabilityRegistryResponse,
     AdminCsrfContractResponse,
     AdminFrontendFixturesResponse,
+    AdminFuturesAccountReadResponse,
+    AdminFuturesEvidenceItem,
+    AdminFuturesPositionDetailResponse,
+    AdminFuturesPositionListResponse,
+    AdminFuturesPositionReadItem,
     AdminGateCheck,
     AdminGateReadResponse,
     AdminHealthResponse,
@@ -238,6 +249,362 @@ def _list_or_empty(value: Any) -> list[Any]:
     if isinstance(value, list):
         return list(value)
     return [value]
+
+
+def _dict_or_empty(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _runtime_order_engine() -> Any | None:
+    bridge = _runtime_bridge()
+    return getattr(bridge, "order_engine", None) if bridge else None
+
+
+def _runtime_orderbook() -> Any | None:
+    engine = _runtime_order_engine()
+    orderbook = getattr(engine, "orderbook", None) if engine else None
+    if orderbook is not None:
+        return orderbook
+    try:
+        import configuration
+
+        orderbook_proxy = getattr(configuration, "ORDERBOOK", None)
+        return getattr(orderbook_proxy, "_real", None)
+    except Exception:
+        return None
+
+
+def _dashboard_state_snapshot() -> dict[str, Any]:
+    try:
+        import dashboard_server
+
+        engine_state = getattr(dashboard_server, "engine_state", None)
+        state_lock = getattr(dashboard_server, "state_lock", None)
+        if not isinstance(engine_state, dict) or state_lock is None:
+            return {}
+        with state_lock:
+            return deepcopy(engine_state)
+    except Exception:
+        return {}
+
+
+def _orderbook_product_metadata(orderbook: Any | None) -> dict[str, dict[str, Any]]:
+    products = getattr(orderbook, "products", None)
+    if products is None:
+        products = getattr(orderbook, "product", None)
+    if not isinstance(products, dict) and not hasattr(products, "items"):
+        return {}
+    metadata: dict[str, dict[str, Any]] = {}
+    try:
+        for product_id, payload in products.items():
+            metadata[str(product_id)] = _dict_or_empty(payload)
+    except Exception:
+        return {}
+    return metadata
+
+
+def _products_json_metadata() -> dict[str, dict[str, Any]]:
+    products_path = ROOT / "products.json"
+    try:
+        payload = json.loads(products_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    items: dict[str, dict[str, Any]] = {}
+    for product_id, product_payload in metadata.items():
+        item = _dict_or_empty(product_payload)
+        if "product_type" not in item and "type" in item:
+            item["product_type"] = item.get("type")
+        item.setdefault("product_id", product_id)
+        items[str(product_id)] = item
+    return items
+
+
+def _normalize_admin_product_type(
+    product_id: str,
+    product_metadata: dict[str, Any] | None,
+) -> str:
+    try:
+        from calculation.resolver import normalize_product_type
+
+        return normalize_product_type(
+            {
+                "product_id": product_id,
+                "product_type": _dict_or_empty(product_metadata).get("product_type")
+                or _dict_or_empty(product_metadata).get("type"),
+            },
+            products={product_id: _dict_or_empty(product_metadata)}
+            if product_metadata
+            else None,
+        )
+    except Exception:
+        return ProductType.FUTURE.value if product_id.endswith("-CDE") else ProductType.SPOT.value
+
+
+def _futures_product_metadata() -> dict[str, dict[str, Any]]:
+    orderbook = _runtime_orderbook()
+    metadata = _products_json_metadata()
+    metadata.update(_orderbook_product_metadata(orderbook))
+    return {
+        product_id: payload
+        for product_id, payload in metadata.items()
+        if _normalize_admin_product_type(product_id, payload) == ProductType.FUTURE.value
+    }
+
+
+def _runtime_fee_info(product_id: str | None = None) -> dict[str, Any]:
+    engine = _runtime_order_engine()
+    fee_manager = getattr(engine, "fee_manager", None) if engine else None
+    if fee_manager is not None:
+        try:
+            return _dict_or_empty(fee_manager.get_fee_info(product_id=product_id))
+        except TypeError:
+            try:
+                return _dict_or_empty(fee_manager.get_fee_info())
+            except Exception:
+                pass
+        except Exception:
+            pass
+    dashboard_snapshot = _dashboard_state_snapshot()
+    engine_status = _dict_or_empty(dashboard_snapshot.get("engine_status"))
+    return {
+        key: engine_status.get(key)
+        for key in (
+            "margin_window_type",
+            "overnight_margin_active",
+            "effective_fee_rate",
+            "target_movement_factor",
+            "fee_regime_factor",
+            "volume_ratio",
+        )
+        if key in engine_status
+    }
+
+
+def _snapshot_future_positions() -> tuple[dict[str, dict[str, Any]], AdminFuturesEvidenceSource]:
+    orderbook = _runtime_orderbook()
+    if orderbook is not None:
+        try:
+            snapshot = orderbook.snapshot_positions()
+            futures_positions = _dict_or_empty(snapshot.get(ProductType.FUTURE.value))
+            return {
+                str(product_id): _dict_or_empty(position)
+                for product_id, position in futures_positions.items()
+            }, AdminFuturesEvidenceSource.RUNTIME_ORDERBOOK
+        except Exception:
+            pass
+        try:
+            items = orderbook.iter_future_positions()
+            return {
+                str(product_id): _dict_or_empty(position)
+                for product_id, position in items
+            }, AdminFuturesEvidenceSource.RUNTIME_ORDERBOOK
+        except Exception:
+            pass
+    dashboard_snapshot = _dashboard_state_snapshot()
+    positions = _dict_or_empty(dashboard_snapshot.get("positions"))
+    if positions:
+        products = _futures_product_metadata()
+        filtered_positions: dict[str, dict[str, Any]] = {}
+        for product_id, position in positions.items():
+            normalized_product_id = str(product_id)
+            normalized_position = _dict_or_empty(position)
+            if normalized_product_id in products or (
+                _normalize_admin_product_type(
+                    normalized_product_id,
+                    normalized_position,
+                )
+                == ProductType.FUTURE.value
+            ):
+                filtered_positions[normalized_product_id] = normalized_position
+        return filtered_positions, AdminFuturesEvidenceSource.DASHBOARD_ENGINE_STATE
+    return {}, AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE
+
+
+def _decimal_string_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def _numeric_float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _derive_position_side(position: dict[str, Any]) -> str | None:
+    for field_name in ("side", "position_side", "position_direction"):
+        value = position.get(field_name)
+        if value:
+            normalized = str(value).upper()
+            if normalized in {
+                AdminFuturesPositionSide.LONG.value,
+                AdminFuturesPositionSide.SHORT.value,
+            }:
+                return normalized
+    net_size = _numeric_float_or_none(position.get("net_size"))
+    if net_size is not None:
+        if net_size > 0:
+            return AdminFuturesPositionSide.LONG.value
+        if net_size < 0:
+            return AdminFuturesPositionSide.SHORT.value
+        return AdminFuturesPositionSide.FLAT.value
+    return None
+
+
+def _derive_number_of_contracts(position: dict[str, Any]) -> str | None:
+    for field_name in ("number_of_contracts", "contracts", "size"):
+        value = position.get(field_name)
+        if value is not None:
+            return str(value)
+    net_size = _numeric_float_or_none(position.get("net_size"))
+    if net_size is not None:
+        return str(abs(net_size))
+    return None
+
+
+def _position_key(product_id: str, position: dict[str, Any]) -> str:
+    portfolio_uuid = _string_or_none(position.get("portfolio_uuid")) or "runtime"
+    return f"futures_position:{portfolio_uuid}:{product_id}"
+
+
+def _futures_position_item_from_raw(
+    *,
+    product_id: str,
+    position: dict[str, Any],
+    product_metadata: dict[str, Any] | None,
+    mandatory_fee_per_contract: str | None,
+    source: AdminFuturesEvidenceSource,
+) -> AdminFuturesPositionReadItem:
+    position_side = _derive_position_side(position)
+    number_of_contracts = _derive_number_of_contracts(position)
+    open_order_side: str | None = None
+    close_order_side: str | None = None
+    if position_side in {
+        AdminFuturesPositionSide.LONG.value,
+        AdminFuturesPositionSide.SHORT.value,
+    }:
+        try:
+            from configuration import determine_open_close_sides
+
+            open_order_side, close_order_side = determine_open_close_sides(
+                ProductType.FUTURE.value,
+                position_side=position_side,
+                position_size=_numeric_float_or_none(number_of_contracts),
+            )
+        except Exception:
+            if position_side == AdminFuturesPositionSide.SHORT.value:
+                open_order_side = OrderSide.SELL.value
+                close_order_side = OrderSide.BUY.value
+            else:
+                open_order_side = OrderSide.BUY.value
+                close_order_side = OrderSide.SELL.value
+
+    position_pnl: dict[str, Any] = {}
+    for field_name in ("unrealized_pnl", "realized_pnl"):
+        if field_name in position:
+            position_pnl[field_name] = position[field_name]
+
+    return AdminFuturesPositionReadItem(
+        position_key=_position_key(product_id, position),
+        product_id=product_id,
+        product_type=ProductType.FUTURE.value,
+        portfolio_uuid=_string_or_none(position.get("portfolio_uuid")),
+        position_side=position_side,
+        number_of_contracts=number_of_contracts,
+        net_size=_decimal_string_or_none(position.get("net_size")),
+        entry_price=_decimal_string_or_none(position.get("entry_price")),
+        entry_vwap=_decimal_string_or_none(position.get("entry_vwap")),
+        current_price=_decimal_string_or_none(position.get("current_price")),
+        margin_type=_string_or_none(position.get("margin_type")),
+        margin_amount=_json_object_or_none(position.get("margin_amt")),
+        leverage=_decimal_string_or_none(position.get("leverage")),
+        liquidation_buffer_percentage=_decimal_string_or_none(
+            position.get("liquidation_buffer_percentage")
+        ),
+        open_order_side=open_order_side,
+        close_order_side=close_order_side,
+        reduce_only_order_side=close_order_side,
+        close_only_order_side=close_order_side,
+        position_pnl=position_pnl or None,
+        product_metadata=_dict_or_empty(product_metadata) or None,
+        mandatory_fee_per_contract=mandatory_fee_per_contract,
+        raw_position=dict(position),
+        source=source,
+        updated_at=_string_or_none(position.get("updated_at")),
+    )
+
+
+def _mandatory_fee_map(orderbook: Any | None) -> dict[str, dict[str, Any]]:
+    fees = getattr(orderbook, "mandatory_fee_per_contract", None)
+    if not isinstance(fees, dict) and not hasattr(fees, "items"):
+        return {}
+    try:
+        return {
+            str(product_id): _dict_or_empty(payload)
+            for product_id, payload in fees.items()
+        }
+    except Exception:
+        return {}
+
+
+def _futures_position_items() -> list[AdminFuturesPositionReadItem]:
+    products = _futures_product_metadata()
+    positions, source = _snapshot_future_positions()
+    orderbook = _runtime_orderbook()
+    mandatory_fees = _mandatory_fee_map(orderbook)
+    items: list[AdminFuturesPositionReadItem] = []
+    for product_id, position in positions.items():
+        product_metadata = products.get(product_id, {})
+        metadata_product_type = _normalize_admin_product_type(
+            product_id,
+            product_metadata,
+        ) if product_metadata else None
+        position_product_type = _normalize_admin_product_type(product_id, position)
+        if metadata_product_type and metadata_product_type != ProductType.FUTURE.value:
+            continue
+        if (
+            not metadata_product_type
+            and source == AdminFuturesEvidenceSource.DASHBOARD_ENGINE_STATE
+            and position_product_type != ProductType.FUTURE.value
+        ):
+            continue
+        fee_payload = mandatory_fees.get(product_id, {})
+        items.append(
+            _futures_position_item_from_raw(
+                product_id=product_id,
+                position=position,
+                product_metadata=product_metadata,
+                mandatory_fee_per_contract=_decimal_string_or_none(
+                    fee_payload.get("mandatory_fee_per_contract")
+                ),
+                source=source,
+            )
+        )
+    return items
+
+
+def _futures_evidence(
+    *,
+    name: str,
+    status: AdminFuturesEvidenceStatus,
+    source: AdminFuturesEvidenceSource,
+    value: Any | None = None,
+    detail: str | None = None,
+) -> AdminFuturesEvidenceItem:
+    return AdminFuturesEvidenceItem(
+        name=name,
+        status=status,
+        source=source,
+        value=value,
+        detail=detail,
+    )
 
 
 def _query_admin_rows(
@@ -940,6 +1307,242 @@ class AdminApiReadService:
             items=evidence.items,
         )
 
+    def build_futures_account(self) -> AdminFuturesAccountReadResponse:
+        """Return read-only futures/perpetual account and risk evidence."""
+
+        products = _futures_product_metadata()
+        positions = _futures_position_items()
+        configured_product_scope = sorted(products.keys())
+        observed_position_scope = sorted({item.product_id for item in positions})
+        fee_info = _runtime_fee_info()
+
+        margin_value = {
+            key: fee_info.get(key)
+            for key in (
+                "margin_window_type",
+                "overnight_margin_active",
+                "profit_validation_fee_rate",
+                "effective_fee_rate",
+                "target_movement_factor",
+                "fee_regime_factor",
+                "volume_ratio",
+            )
+            if key in fee_info
+        }
+        margin = (
+            _futures_evidence(
+                name="margin",
+                status=AdminFuturesEvidenceStatus.OBSERVED,
+                source=AdminFuturesEvidenceSource.FEE_MANAGER,
+                value=margin_value,
+                detail="Margin-window regime is observed from the runtime fee manager.",
+            )
+            if margin_value
+            else _futures_evidence(
+                name="margin",
+                status=AdminFuturesEvidenceStatus.UNAVAILABLE,
+                source=AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE,
+                detail="No runtime fee-manager or margin-window evidence is currently available.",
+            )
+        )
+
+        collateral_keys = (
+            "futures_buying_power",
+            "total_usd_balance",
+            "cfm_usd_balance",
+            "available_margin",
+            "initial_margin",
+            "total_open_orders_hold_amount",
+        )
+        collateral_value = {
+            key: fee_info.get(key)
+            for key in collateral_keys
+            if fee_info.get(key) is not None
+        }
+        collateral = (
+            _futures_evidence(
+                name="collateral",
+                status=AdminFuturesEvidenceStatus.OBSERVED,
+                source=AdminFuturesEvidenceSource.FEE_MANAGER,
+                value=collateral_value,
+                detail="Collateral fields are present in runtime futures balance evidence.",
+            )
+            if collateral_value
+            else _futures_evidence(
+                name="collateral",
+                status=AdminFuturesEvidenceStatus.UNAVAILABLE,
+                source=AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE,
+                detail="The engine does not currently retain a futures balance summary snapshot.",
+            )
+        )
+
+        liquidation_keys = (
+            "liquidation_threshold",
+            "liquidation_buffer_amount",
+            "liquidation_buffer_percentage",
+        )
+        liquidation_value = {
+            key: fee_info.get(key)
+            for key in liquidation_keys
+            if fee_info.get(key) is not None
+        }
+        liquidation = (
+            _futures_evidence(
+                name="liquidation",
+                status=AdminFuturesEvidenceStatus.OBSERVED,
+                source=AdminFuturesEvidenceSource.FEE_MANAGER,
+                value=liquidation_value,
+                detail="Liquidation evidence is present in runtime futures balance evidence.",
+            )
+            if liquidation_value
+            else _futures_evidence(
+                name="liquidation",
+                status=AdminFuturesEvidenceStatus.UNAVAILABLE,
+                source=AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE,
+                detail="Liquidation threshold and buffer are not retained in the current runtime snapshot.",
+            )
+        )
+
+        pnl_items = [
+            {
+                "position_key": item.position_key,
+                "product_id": item.product_id,
+                "position_pnl": item.position_pnl,
+            }
+            for item in positions
+            if item.position_pnl
+        ]
+        position_pnl = (
+            _futures_evidence(
+                name="position_pnl",
+                status=AdminFuturesEvidenceStatus.OBSERVED,
+                source=AdminFuturesEvidenceSource.RUNTIME_POSITIONS,
+                value={"positions": pnl_items},
+                detail="Position P/L is sourced from runtime futures position payloads.",
+            )
+            if pnl_items
+            else _futures_evidence(
+                name="position_pnl",
+                status=AdminFuturesEvidenceStatus.UNAVAILABLE,
+                source=AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE,
+                detail="No runtime futures position P/L is currently available.",
+            )
+        )
+
+        reduce_only_close_only = (
+            _futures_evidence(
+                name="reduce_only_close_only",
+                status=AdminFuturesEvidenceStatus.OBSERVED,
+                source=AdminFuturesEvidenceSource.POSITION_SIDE_DERIVATION,
+                value={
+                    item.position_key: {
+                        "product_id": item.product_id,
+                        "position_side": item.position_side,
+                        "reduce_only_order_side": item.reduce_only_order_side,
+                        "close_only_order_side": item.close_only_order_side,
+                    }
+                    for item in positions
+                },
+                detail=(
+                    "Close/reduce sides are backend-derived from observed futures "
+                    "position side; they are not exchange-observed order flags."
+                ),
+            )
+            if positions
+            else _futures_evidence(
+                name="reduce_only_close_only",
+                status=AdminFuturesEvidenceStatus.UNAVAILABLE,
+                source=AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE,
+                detail="No open futures positions are currently available for close-side derivation.",
+            )
+        )
+
+        funding = _futures_evidence(
+            name="funding",
+            status=AdminFuturesEvidenceStatus.NOT_MODELED,
+            source=AdminFuturesEvidenceSource.BACKEND_CONTRACT,
+            detail="Funding-rate evidence is a named contract gap for M3; no browser or spot fallback is used.",
+        )
+
+        return AdminFuturesAccountReadResponse(
+            configured_product_scope=configured_product_scope,
+            observed_position_scope=observed_position_scope,
+            collateral=collateral,
+            margin=margin,
+            funding=funding,
+            liquidation=liquidation,
+            reduce_only_close_only=reduce_only_close_only,
+            position_pnl=position_pnl,
+            position_count=len(positions),
+        )
+
+    def build_futures_positions(
+        self,
+        *,
+        product_id: str | None = None,
+        position_side: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AdminFuturesPositionListResponse:
+        """Return read-only futures/perpetual positions from runtime evidence."""
+
+        normalized_limit = max(1, min(limit, 500))
+        normalized_offset = max(0, offset)
+        filters: dict[str, Any] = {
+            "product_id": product_id,
+            "position_side": position_side,
+            "limit": normalized_limit,
+            "offset": normalized_offset,
+        }
+        items = _futures_position_items()
+        filtered: list[AdminFuturesPositionReadItem] = []
+        for item in items:
+            if product_id and item.product_id != product_id:
+                continue
+            if (
+                position_side
+                and str(item.position_side or "").upper() != position_side.upper()
+            ):
+                continue
+            filtered.append(item)
+        page_items = filtered[normalized_offset:normalized_offset + normalized_limit]
+        next_offset = normalized_offset + len(page_items)
+        has_more = next_offset < len(filtered)
+        return AdminFuturesPositionListResponse(
+            filters=filters,
+            count=len(page_items),
+            pagination={
+                "limit": normalized_limit,
+                "offset": normalized_offset,
+                "returned_count": len(page_items),
+                "total_matching_count": len(filtered),
+                "next_offset": next_offset if has_more else None,
+                "has_more": has_more,
+            },
+            items=page_items,
+        )
+
+    def build_futures_position_detail(
+        self,
+        *,
+        position_key: str,
+    ) -> AdminFuturesPositionDetailResponse:
+        """Return one read-only futures/perpetual position by ``position_key``."""
+
+        positions = _futures_position_items()
+        for position in positions:
+            if position.position_key == position_key:
+                return AdminFuturesPositionDetailResponse(
+                    position_key=position_key,
+                    found=True,
+                    position=position,
+                )
+        return AdminFuturesPositionDetailResponse(
+            position_key=position_key,
+            found=False,
+            position=None,
+        )
+
     def build_release_gate(self) -> AdminGateReadResponse:
         """Return release-gate evidence without running tests from the browser."""
 
@@ -1041,6 +1644,11 @@ class AdminApiReadService:
                 ).model_dump(mode="json"),
                 "movementRepricing.stealth.empty": self.build_movement_repricing_stealth_detail(
                     stealth_order_id="00000000-0000-0000-0000-000000000000"
+                ).model_dump(mode="json"),
+                "futures.account": self.build_futures_account().model_dump(mode="json"),
+                "futures.positions": self.build_futures_positions().model_dump(mode="json"),
+                "futures.position.empty": self.build_futures_position_detail(
+                    position_key="futures_position:runtime:UNKNOWN"
                 ).model_dump(mode="json"),
                 "release.gate": self.build_release_gate().model_dump(mode="json"),
                 "recovery.gate": self.build_recovery_gate().model_dump(mode="json"),

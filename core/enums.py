@@ -253,6 +253,36 @@ class AdminMovementRepricingEvidenceType(str, Enum):
     STEALTH_REPRICING_STATE = "stealth_repricing_state"
 
 
+class AdminFuturesEvidenceStatus(str, Enum):
+    """Read-only evidence availability for futures/perpetual admin views."""
+
+    OBSERVED = "observed"
+    UNAVAILABLE = "unavailable"
+    NOT_MODELED = "not_modeled"
+
+
+class AdminFuturesEvidenceSource(str, Enum):
+    """Source labels for futures/perpetual admin evidence."""
+
+    RUNTIME_ORDERBOOK = "runtime_orderbook"
+    RUNTIME_POSITIONS = "runtime_positions"
+    DASHBOARD_ENGINE_STATE = "dashboard_engine_state"
+    FEE_MANAGER = "fee_manager"
+    POSITION_SIDE_DERIVATION = "position_side_derivation"
+    PRODUCTS_JSON = "products_json"
+    BACKEND_CONTRACT = "backend_contract"
+    RUNTIME_UNAVAILABLE = "runtime_unavailable"
+
+
+class AdminFuturesPositionSide(str, Enum):
+    """Derived futures/perpetual position direction."""
+
+    LONG = "LONG"
+    SHORT = "SHORT"
+    FLAT = "FLAT"
+    UNKNOWN = "UNKNOWN"
+
+
 class ProductCapability(str, Enum):
     """Feature/action capability controlled by product type policy."""
 

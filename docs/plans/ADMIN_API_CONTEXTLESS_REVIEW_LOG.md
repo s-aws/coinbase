@@ -739,3 +739,65 @@ Status:
 - Frontend `npm run release:gate` passed and reported no live Coinbase
   execution.
 - Live Coinbase execution was not run for M2; notional `$0`.
+
+## M3 Futures/Perpetuals Read Module Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify futures/perpetuals are M3 under the M0 platform pivot baseline, not a
+  spot variant
+- verify futures/perpetual Admin API routes are read-only, backend-owned, and
+  delegated through the single Admin API/read-service path
+- verify wallet/no-shorting, USDC-only, average-cost, cost-basis, and spot
+  inventory authority rules do not leak into futures/perpetuals
+- verify dashboard fallback filtering does not promote unknown/non-futures
+  rows into futures positions
+- verify frontend generated schema, wrappers, BFF allowlist, mocks, runtime,
+  UI, docs, tests, and artifacts are understandable to contextless maintainers
+
+Findings:
+
+- Backend blind review found no blockers. It confirmed the three futures/
+  perpetuals routes are `GET` only, `analytics:read` gated, delegated to
+  `AdminApiReadService`, and represented in route inventory/OpenAPI.
+- Backend blind review confirmed futures/perpetuals use position-domain
+  identity, product type, position side, margin/liquidation/P/L evidence, and
+  no `client_order_id`, `order_id`, or cost-basis schema fields.
+- Backend blind review confirmed dashboard fallback filtering rejects unknown
+  spot-like rows unless metadata or explicit product-type evidence proves the
+  row is futures.
+- Frontend blind review found no blockers. It confirmed generated schema,
+  canonical wrappers, BFF allowlist, mock fixtures, runtime snapshot, read-only
+  UI, route coverage, docs, examples, and tests are aligned.
+- Frontend blind review confirmed account, positions, and selected detail
+  route failures are detected before adapters assume successful response
+  shapes.
+- Both reviews found only the expected closeout drift: M3 still said `Next`
+  before this completion record was written.
+
+Resolution:
+
+- Remediated the earlier backend blocker by filtering dashboard fallback rows
+  to known futures products or explicit futures product-type evidence.
+- Added regression coverage proving an unknown `BTC-USDC` dashboard row is not
+  promoted into futures positions.
+- Remediated the earlier frontend blocker by checking all integrated futures
+  responses for non-2xx status before read-model mapping.
+- Added frontend regression coverage for rejected futures child responses.
+- Recorded M3 as complete in backend and frontend durable milestone docs.
+
+Status:
+
+- Backend focused Admin API contract tests passed with `45 passed, 1 warning`.
+- Backend full regression passed with `780 passed, 1 warning`.
+- Frontend final blind-review focused checks passed with `44` tests.
+- Frontend `npm run release:gate` passed with `153` unit tests and `3`
+  Playwright tests.
+- Blind/contextless backend and frontend reviews found no blockers.
+- Live Coinbase execution was not run for M3; notional `$0`.

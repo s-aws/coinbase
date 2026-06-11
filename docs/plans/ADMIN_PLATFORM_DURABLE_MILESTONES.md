@@ -32,8 +32,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M0 - Platform Pivot Baseline | Complete | Reframe admin as whole-project platform with Spot as first complete module. |
 | M1 - First Non-Spot Read Module | Complete | Add a backend-owned read-only Stealth Orders Admin API/frontend module. |
 | M2 - Movement And Repricing Reads | Complete | Add read-only movement/repricing evidence without command authority. |
-| M3 - Futures/Perpetuals Read Foundation | Next | Add futures/perpetual account, position, funding, and risk read contracts. |
-| M4 - Guard And Risk Policy Evidence | Pending | Expose backend guard/risk decisions as read-only evidence across modules. |
+| M3 - Futures/Perpetuals Read Foundation | Complete | Add futures/perpetual account, position, funding, and risk read contracts. |
+| M4 - Guard And Risk Policy Evidence | Next | Expose backend guard/risk decisions as read-only evidence across modules. |
 | M5 - Cross-Module Audit Workbench | Pending | Unify operator audit, reconciliation, and correlation evidence across modules. |
 | M6 - Non-Spot Command Draft Contracts | Pending | Add disabled drafts/dry-submit contracts only after read contracts are stable. |
 | M7 - Production Auth And Operations Hardening | Pending | Finish enterprise auth, deployment, observability, and operator runbooks. |
@@ -177,6 +177,29 @@ Frontend scope:
 
 Done when a contextless reviewer can explain futures/perpetual-specific risk
 semantics without using spot wallet or cost-basis rules.
+
+Completed evidence:
+
+- Backend read-only futures/perpetual account, position list, and position
+  detail routes are implemented as `GET` Admin API routes delegated to
+  `AdminApiReadService`; no command behavior was added.
+- Futures/perpetual response models use position-domain identity,
+  position-side, margin, liquidation, P/L, reduce-only/close-only, and funding
+  evidence without spot wallet, no-shorting, USDC-only, average-cost, or
+  cost-basis assumptions.
+- Dashboard fallback filtering refuses unknown/non-futures rows unless product
+  metadata or explicit product-type evidence proves the row is futures.
+- OpenAPI, route inventory, capability matrix, feature README, examples,
+  agent contract, expanded local API/architecture docs, ownership metadata,
+  and regression tests are updated.
+- Backend focused Admin API contract tests passed with `45 passed, 1 warning`;
+  backend full regression passed with `780 passed, 1 warning`.
+- Frontend generated schema, canonical wrappers, BFF allowlist, mock/runtime
+  fixtures, read-only UI, docs, and release gate consume the backend contract.
+- Blind/contextless backend and frontend reviews found no blockers after
+  remediation of dashboard fallback filtering and partial-response rejection
+  handling.
+- Live Coinbase execution was not run for M3; notional `$0`.
 
 ## M4 - Guard And Risk Policy Evidence
 

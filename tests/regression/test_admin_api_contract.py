@@ -166,6 +166,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/movement-repricing/evidence" in written["paths"]
     assert "/api/v1/movement-repricing/orders/{client_order_id}" in written["paths"]
     assert "/api/v1/movement-repricing/stealth/{stealth_order_id}" in written["paths"]
+    assert "/api/v1/futures/account" in written["paths"]
+    assert "/api/v1/futures/positions" in written["paths"]
+    assert "/api/v1/futures/positions/{position_key}" in written["paths"]
     assert "/api/v1/spot/campaign/executions" in written["paths"]
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
@@ -239,6 +242,22 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "AdminMovementRepricingListResponse"
     ]
     assert "command_routes_mode" in movement_list_schema["properties"]
+    futures_position_schema = written["components"]["schemas"][
+        "AdminFuturesPositionReadItem"
+    ]
+    assert "position_key" in futures_position_schema["properties"]
+    assert "product_id" in futures_position_schema["properties"]
+    assert "client_order_id" not in futures_position_schema["properties"]
+    assert "order_id" not in futures_position_schema["properties"]
+    assert "cost_basis" not in futures_position_schema["properties"]
+    futures_account_schema = written["components"]["schemas"][
+        "AdminFuturesAccountReadResponse"
+    ]
+    assert "collateral" in futures_account_schema["properties"]
+    assert "margin" in futures_account_schema["properties"]
+    assert "funding" in futures_account_schema["properties"]
+    assert "liquidation" in futures_account_schema["properties"]
+    assert "command_routes_mode" in futures_account_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
     assert "wallet_snapshot" in spot_readiness_schema["properties"]
@@ -1598,6 +1617,279 @@ def test_admin_api_movement_repricing_read_service_maps_durable_and_runtime_evid
 
 
 @pytest.mark.regression
+def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeypatch):
+    from api.v1.routes import futures as futures_routes
+
+    client = _client(monkeypatch)
+    service = SimpleNamespace(
+        build_futures_account=lambda: {
+            "type": "admin_futures_account",
+            "configured_product_scope": ["BIP-20DEC30-CDE"],
+            "observed_position_scope": ["BIP-20DEC30-CDE"],
+            "collateral": {
+                "name": "collateral",
+                "status": "unavailable",
+                "source": "runtime_unavailable",
+                "detail": "No futures balance summary has been observed.",
+            },
+            "margin": {
+                "name": "margin",
+                "status": "observed",
+                "source": "fee_manager",
+                "value": {
+                    "margin_window_type": "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT",
+                    "overnight_margin_active": True,
+                },
+            },
+            "funding": {
+                "name": "funding",
+                "status": "not_modeled",
+                "source": "backend_contract",
+            },
+            "liquidation": {
+                "name": "liquidation",
+                "status": "unavailable",
+                "source": "runtime_unavailable",
+            },
+            "reduce_only_close_only": {
+                "name": "reduce_only_close_only",
+                "status": "observed",
+                "source": "position_side_derivation",
+            },
+            "position_pnl": {
+                "name": "position_pnl",
+                "status": "observed",
+                "source": "runtime_positions",
+            },
+            "position_count": 1,
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+        build_futures_positions=lambda **kwargs: {
+            "type": "admin_futures_positions",
+            "filters": kwargs,
+            "count": 1,
+            "pagination": {
+                "limit": kwargs["limit"],
+                "offset": kwargs["offset"],
+                "returned_count": 1,
+                "total_matching_count": 1,
+                "next_offset": None,
+                "has_more": False,
+            },
+            "items": [
+                {
+                    "position_key": "futures_position:runtime:BIP-20DEC30-CDE",
+                    "product_id": "BIP-20DEC30-CDE",
+                    "product_type": "FUTURE",
+                    "position_side": "LONG",
+                    "number_of_contracts": "2",
+                    "open_order_side": "BUY",
+                    "close_order_side": "SELL",
+                    "reduce_only_order_side": "SELL",
+                    "close_only_order_side": "SELL",
+                    "source": "runtime_orderbook",
+                }
+            ],
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+        build_futures_position_detail=lambda position_key: {
+            "type": "admin_futures_position_detail",
+            "position_key": position_key,
+            "found": True,
+            "position": {
+                "position_key": position_key,
+                "product_id": "BIP-20DEC30-CDE",
+                "product_type": "FUTURE",
+                "position_side": "LONG",
+                "number_of_contracts": "2",
+                "open_order_side": "BUY",
+                "close_order_side": "SELL",
+                "reduce_only_order_side": "SELL",
+                "close_only_order_side": "SELL",
+                "source": "runtime_orderbook",
+            },
+            "read_only": True,
+            "command_routes_mode": "not_modeled",
+            "live_coinbase_orders_ran": False,
+        },
+    )
+    client.app.dependency_overrides[futures_routes.get_read_service] = lambda: service
+
+    account_response = client.get(
+        "/api/v1/futures/account",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    positions_response = client.get(
+        "/api/v1/futures/positions?product_id=BIP-20DEC30-CDE&position_side=LONG&limit=10&offset=0",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    detail_response = client.get(
+        "/api/v1/futures/positions/futures_position%3Aruntime%3ABIP-20DEC30-CDE",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert account_response.status_code == 200
+    assert account_response.json()["command_routes_mode"] == "not_modeled"
+    assert account_response.json()["margin"]["status"] == "observed"
+    assert positions_response.status_code == 200
+    position = positions_response.json()["items"][0]
+    assert position["position_key"] == "futures_position:runtime:BIP-20DEC30-CDE"
+    assert position["close_order_side"] == "SELL"
+    assert "client_order_id" not in position
+    assert "cost_basis" not in position
+    assert detail_response.status_code == 200
+    assert detail_response.json()["position_key"] == (
+        "futures_position:runtime:BIP-20DEC30-CDE"
+    )
+    assert detail_response.json()["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules(
+    monkeypatch,
+):
+    from application.admin_api.read_service import AdminApiReadService
+
+    class FakeOrderBook:
+        products = {
+            "BIP-20DEC30-CDE": {
+                "product_id": "BIP-20DEC30-CDE",
+                "product_type": "FUTURE",
+                "display_name": "BTC PERP",
+                "price_increment": "5",
+                "base_increment": "1",
+                "future_product_details": {"contract_size": "0.01"},
+            },
+            "BTC-USDC": {
+                "product_id": "BTC-USDC",
+                "product_type": "SPOT",
+            },
+        }
+        mandatory_fee_per_contract = {
+            "BIP-20DEC30-CDE": {"mandatory_fee_per_contract": "0.34"}
+        }
+
+        def snapshot_positions(self):
+            return {
+                "FUTURE": {
+                    "BIP-20DEC30-CDE": {
+                        "product_id": "BIP-20DEC30-CDE",
+                        "side": "LONG",
+                        "number_of_contracts": "2",
+                        "entry_price": "100000.00",
+                        "current_price": "100250.00",
+                        "unrealized_pnl": {"value": "5.00", "currency": "USD"},
+                    }
+                }
+            }
+
+    class FakeFeeManager:
+        def get_fee_info(self, product_id=None):
+            return {
+                "margin_window_type": "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT",
+                "overnight_margin_active": True,
+                "profit_validation_fee_rate": 0.001,
+                "target_movement_factor": 0.85,
+            }
+
+    import dashboard_server
+
+    monkeypatch.setattr(
+        dashboard_server,
+        "stealth_order_bridge",
+        SimpleNamespace(
+            order_engine=SimpleNamespace(
+                orderbook=FakeOrderBook(),
+                fee_manager=FakeFeeManager(),
+            )
+        ),
+    )
+
+    service = AdminApiReadService()
+    account = service.build_futures_account()
+    positions = service.build_futures_positions(limit=10, offset=0)
+    detail = service.build_futures_position_detail(
+        position_key="futures_position:runtime:BIP-20DEC30-CDE"
+    )
+
+    assert account.type == "admin_futures_account"
+    assert account.command_routes_mode == "not_modeled"
+    assert "BIP-20DEC30-CDE" in account.configured_product_scope
+    assert "BTC-USDC" not in account.configured_product_scope
+    assert account.observed_position_scope == ["BIP-20DEC30-CDE"]
+    assert account.margin.status.value == "observed"
+    assert account.margin.value["margin_window_type"] == (
+        "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT"
+    )
+    assert account.collateral.status.value == "unavailable"
+    assert account.funding.status.value == "not_modeled"
+    assert account.live_coinbase_orders_ran is False
+
+    assert positions.count == 1
+    item = positions.items[0]
+    assert item.position_key == "futures_position:runtime:BIP-20DEC30-CDE"
+    assert item.product_id == "BIP-20DEC30-CDE"
+    assert item.product_type == "FUTURE"
+    assert item.position_side == "LONG"
+    assert item.open_order_side == "BUY"
+    assert item.close_order_side == "SELL"
+    assert item.reduce_only_order_side == "SELL"
+    assert item.close_only_order_side == "SELL"
+    assert item.position_pnl == {"unrealized_pnl": {"value": "5.00", "currency": "USD"}}
+    dumped = item.model_dump(mode="json")
+    assert "client_order_id" not in dumped
+    assert "cost_basis" not in dumped
+    assert detail.found is True
+    assert detail.position is not None
+    assert detail.position.position_key == item.position_key
+
+
+@pytest.mark.regression
+def test_admin_api_futures_dashboard_fallback_does_not_promote_unknown_spot_rows(
+    monkeypatch,
+):
+    from application.admin_api.read_service import AdminApiReadService
+
+    import dashboard_server
+
+    monkeypatch.setattr(dashboard_server, "stealth_order_bridge", None)
+    with dashboard_server.state_lock:
+        previous_positions = dashboard_server.engine_state.get("positions")
+        dashboard_server.engine_state["positions"] = {
+            "BTC-USDC": {
+                "product_id": "BTC-USDC",
+                "side": "LONG",
+                "number_of_contracts": "2",
+            },
+            "BIP-20DEC30-CDE": {
+                "product_id": "BIP-20DEC30-CDE",
+                "product_type": "FUTURE",
+                "side": "LONG",
+                "number_of_contracts": "1",
+            },
+        }
+
+    try:
+        response = AdminApiReadService().build_futures_positions(limit=10, offset=0)
+    finally:
+        with dashboard_server.state_lock:
+            if previous_positions is None:
+                dashboard_server.engine_state.pop("positions", None)
+            else:
+                dashboard_server.engine_state["positions"] = previous_positions
+
+    assert response.count == 1
+    assert response.items[0].product_id == "BIP-20DEC30-CDE"
+    assert response.items[0].product_type.value == "FUTURE"
+    dumped = response.model_dump(mode="json")
+    assert "BTC-USDC" not in str(dumped)
+
+
+@pytest.mark.regression
 def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     rows = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
     doc = ROUTE_INVENTORY_DOC.read_text(encoding="utf-8")
@@ -1629,6 +1921,15 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "GET /api/v1/movement-repricing/stealth/{stealth_order_id}"
     ].shared_method == "build_movement_repricing_stealth_detail"
+    assert rows["GET /api/v1/futures/account"].shared_method == (
+        "build_futures_account"
+    )
+    assert rows["GET /api/v1/futures/positions"].shared_method == (
+        "build_futures_positions"
+    )
+    assert rows["GET /api/v1/futures/positions/{position_key}"].shared_method == (
+        "build_futures_position_detail"
+    )
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )
@@ -1660,6 +1961,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_movement_repricing_evidence" in doc
     assert "build_movement_repricing_order_detail" in doc
     assert "build_movement_repricing_stealth_detail" in doc
+    assert "build_futures_account" in doc
+    assert "build_futures_positions" in doc
+    assert "build_futures_position_detail" in doc
 
 
 @pytest.mark.regression
@@ -1683,4 +1987,10 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/stealth/orders" in schema_http_surfaces
     assert "GET /api/v1/movement-repricing/evidence" in inventory_http_surfaces
     assert "GET /api/v1/movement-repricing/evidence" in schema_http_surfaces
+    assert "GET /api/v1/futures/account" in inventory_http_surfaces
+    assert "GET /api/v1/futures/account" in schema_http_surfaces
+    assert "GET /api/v1/futures/positions" in inventory_http_surfaces
+    assert "GET /api/v1/futures/positions" in schema_http_surfaces
+    assert "GET /api/v1/futures/positions/{position_key}" in inventory_http_surfaces
+    assert "GET /api/v1/futures/positions/{position_key}" in schema_http_surfaces
     assert schema_http_surfaces == inventory_http_surfaces

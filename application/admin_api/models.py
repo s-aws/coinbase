@@ -16,6 +16,8 @@ from core.enums import (
     AdminApiErrorCode,
     AdminApiErrorSeverity,
     AdminApiAuthMode,
+    AdminFuturesEvidenceSource,
+    AdminFuturesEvidenceStatus,
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminMovementRepricingEvidenceType,
@@ -24,8 +26,10 @@ from core.enums import (
     AdminApiRole,
     AdminApiSessionStatus,
     AdminApiVerifierReadinessStatus,
+    AdminFuturesPositionSide,
     OrderSide,
     OrderType,
+    ProductType,
     StealthMutationKind,
     TimeInForce,
 )
@@ -503,6 +507,98 @@ class AdminMovementRepricingDetailResponse(BaseModel):
     stealth_order_id: str | None = None
     found: bool
     items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminFuturesEvidenceItem(BaseModel):
+    """One futures/perpetual evidence cell with explicit availability."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    status: AdminFuturesEvidenceStatus
+    source: AdminFuturesEvidenceSource
+    value: Any | None = None
+    detail: str | None = None
+
+
+class AdminFuturesPositionReadItem(BaseModel):
+    """Read-only futures/perpetual position evidence keyed by position identity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    position_key: str
+    product_id: str
+    product_type: ProductType = ProductType.FUTURE
+    portfolio_uuid: str | None = None
+    position_side: AdminFuturesPositionSide | None = None
+    number_of_contracts: str | None = None
+    net_size: str | None = None
+    entry_price: str | None = None
+    entry_vwap: str | None = None
+    current_price: str | None = None
+    margin_type: str | None = None
+    margin_amount: dict[str, Any] | None = None
+    leverage: str | None = None
+    liquidation_buffer_percentage: str | None = None
+    open_order_side: OrderSide | None = None
+    close_order_side: OrderSide | None = None
+    reduce_only_order_side: OrderSide | None = None
+    close_only_order_side: OrderSide | None = None
+    position_pnl: dict[str, Any] | None = None
+    product_metadata: dict[str, Any] | None = None
+    mandatory_fee_per_contract: str | None = None
+    raw_position: dict[str, Any] = Field(default_factory=dict)
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.RUNTIME_ORDERBOOK
+    updated_at: str | None = None
+
+
+class AdminFuturesPositionListResponse(BaseModel):
+    """Read-only futures/perpetual position list response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_futures_positions"
+    filters: dict[str, Any] = Field(default_factory=dict)
+    count: int
+    pagination: AdminOrderPagination
+    items: list[AdminFuturesPositionReadItem] = Field(default_factory=list)
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminFuturesPositionDetailResponse(BaseModel):
+    """Read-only futures/perpetual position detail response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_futures_position_detail"
+    position_key: str
+    found: bool
+    position: AdminFuturesPositionReadItem | None = None
+    read_only: bool = True
+    command_routes_mode: str = "not_modeled"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminFuturesAccountReadResponse(BaseModel):
+    """Read-only futures/perpetual account, collateral, margin, and risk evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_futures_account"
+    configured_product_scope: list[str] = Field(default_factory=list)
+    observed_position_scope: list[str] = Field(default_factory=list)
+    collateral: AdminFuturesEvidenceItem
+    margin: AdminFuturesEvidenceItem
+    funding: AdminFuturesEvidenceItem
+    liquidation: AdminFuturesEvidenceItem
+    reduce_only_close_only: AdminFuturesEvidenceItem
+    position_pnl: AdminFuturesEvidenceItem
+    position_count: int = 0
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
     live_coinbase_orders_ran: bool = False
