@@ -3812,3 +3812,7 @@ Progress update:
   into runtime mode, API route inventory, BFF posture, OIDC readiness, release
   evidence, request/correlation ids, backend health, and live-execution header
   evidence from the existing runtime snapshot, including non-ready states.
+- Phase 632 completed on the frontend side: spot route and order read tables
+  now render inside named responsive scroll regions with stable local
+  horizontal scrolling, while Playwright verifies mobile page width remains
+  contained.
