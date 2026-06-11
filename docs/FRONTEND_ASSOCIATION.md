@@ -77,8 +77,22 @@ Any backend API contract change intended for frontend consumption must update:
 - frontend generated client or contract tests
 - backend regression gate when backend files changed
 - frontend quality gate when frontend files changed
-- frontend `npm run release:check` and dry-run smoke checks for release
-  candidates
+- frontend `npm run release:check`, `npm run release:artifact`, and dry-run
+  smoke checks for release candidates
 
 Frontend release checks are dry/no-live checks. They must report live Coinbase
 execution as not run with notional `$0` and do not replace backend regression.
+The frontend release artifact is `C:\coinbase-frontend\artifacts\release-readiness.json`;
+CI uploads it as `frontend-release-readiness` instead of committing it.
+Read-only frontend rollback is a hosting/build rollback. Live-action rollback
+is out of scope until live HTTP command execution is separately approved.
+
+Frontend deployment validation must fail closed when BFF mode is missing
+server-only `ADMIN_API_*` authority, when direct backend mode lacks
+`NEXT_PUBLIC_ADMIN_API_BASE_URL`, or when browser-visible `NEXT_PUBLIC_*`
+configuration contains secret-like keys. The backend remains the only trading
+authority even when frontend deployment validation passes.
+
+BFF response evidence back to browser code is limited to `Content-Type`,
+`X-Correlation-Id`, `X-Request-Id`, `X-Admin-Api-Version`,
+`X-Live-Execution-Enabled`, and `X-Idempotency-Replayed`.

@@ -295,6 +295,7 @@ npm run smoke:read:dry
 npm run smoke:command:dry
 npm run smoke:bff:dry
 npm run release:check
+npm run release:artifact
 ```
 
 Against a local Admin API, configure `ADMIN_API_BASE_URL`,
@@ -320,3 +321,10 @@ npm run smoke:bff
 BFF smoke reads through `/api/admin/api/v1/...` and posts to BFF command
 routes expecting backend `501` live-disabled responses. It must report live
 Coinbase execution as not run with notional `$0`.
+
+The BFF copies only documented response-evidence headers back to browser code:
+`Content-Type`, `X-Correlation-Id`, `X-Request-Id`,
+`X-Admin-Api-Version`, `X-Live-Execution-Enabled`, and
+`X-Idempotency-Replayed`. Missing BFF server authority should be handled as
+`admin_bff_proxy_error`, not as a trading approval or Coinbase execution
+failure.

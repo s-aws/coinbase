@@ -2023,3 +2023,205 @@ Exit criteria:
   command-fetch guard, release-check, `104` unit tests, and `3` Playwright
   tests. Dry read, command, and BFF smokes passed.
 - Live Coinbase execution: not run; test notional `$0`.
+
+## Approved Release Closure Batch - Phases 411-430
+
+These phases are approved as the next aligned completion batch. They do not
+authorize live Coinbase execution. Backend HTTP command routes remain
+live-disabled unless a later named phase explicitly approves live execution
+with a notional cap.
+
+### Phase 411 - Production Auth/OIDC Planning
+
+- Keep backend docs clear that `bootstrap_bearer`/BFF static env authority is
+  current and OIDC/JWT remains a fail-closed future verifier boundary.
+
+Exit criteria:
+
+- Backend docs do not imply browser RBAC or static BFF env is final production
+  auth.
+
+### Phase 412 - Release Artifact Generation
+
+- Document the frontend release evidence artifact as dry/no-live release
+  evidence.
+
+Exit criteria:
+
+- Backend release docs know where frontend release artifacts come from.
+
+### Phase 413 - CI Release Artifact Upload
+
+- Keep backend OpenAPI checkout/freshness as part of frontend CI artifact
+  context.
+
+Exit criteria:
+
+- Artifact upload does not replace backend regression for backend changes.
+
+### Phase 414 - Deployment Environment Validation
+
+- Mirror frontend deployment validation posture in backend association docs.
+
+Exit criteria:
+
+- Backend docs keep bearer tokens and CSRF tokens server-only.
+
+### Phase 415 - BFF Observability Header Contract
+
+- Align backend docs with BFF-forwarded observability headers.
+
+Exit criteria:
+
+- Docs consistently name correlation id, request id, API version, live
+  execution enabled, and idempotency replay evidence.
+
+### Phase 416 - BFF Failure Artifact Evidence
+
+- Document BFF missing-authority failures as transport/session failures, not
+  trading approvals.
+
+Exit criteria:
+
+- Operators can distinguish BFF setup failures from live-action gates.
+
+### Phase 417 - Rollback Drill Documentation
+
+- Keep read-only frontend rollback distinct from future live-action rollback.
+
+Exit criteria:
+
+- Backend docs do not overpromise rollback for disabled live commands.
+
+### Phase 418 - Route-Level Monitoring Plan
+
+- Document Admin API/BFF route monitoring fields from the backend perspective.
+
+Exit criteria:
+
+- Monitoring plan names status, request id, correlation id, route, and live
+  disabled evidence.
+
+### Phase 419 - Release Artifact Test Coverage
+
+- Support frontend artifact test coverage without backend code changes.
+
+Exit criteria:
+
+- Backend regression remains the backend validation gate.
+
+### Phase 420 - Accessibility/Visual Release Evidence Pass
+
+- Preserve backend response fields used by frontend release evidence UI.
+
+Exit criteria:
+
+- Backend route contracts do not require browser-side reinterpretation.
+
+### Phase 421 - Backend Release Association Sync
+
+- Update backend release docs for artifact, deployment validation, and
+  no-live posture.
+
+Exit criteria:
+
+- Backend and frontend docs describe the same release-closure boundary.
+
+### Phase 422 - Admin API Observability Boundary Sync
+
+- Keep Admin API examples and association docs aligned with forwarded
+  observability headers.
+
+Exit criteria:
+
+- No docs omit `X-Live-Execution-Enabled` from command/read evidence.
+
+### Phase 423 - CI/Local Command Parity Review
+
+- Confirm frontend CI parity remains separate from backend regression.
+
+Exit criteria:
+
+- Backend docs state frontend release checks do not replace backend tests.
+
+### Phase 424 - Security Boundary Review
+
+- Re-validate backend docs do not instruct operators to expose backend tokens
+  through `NEXT_PUBLIC_*`.
+
+Exit criteria:
+
+- Backend authority remains server/session boundary only.
+
+### Phase 425 - Contextless Blind Release Closure Review
+
+- Run or consume a blind review focused on release artifact, deployment
+  validation, BFF observability, rollback docs, and no-live posture.
+
+Exit criteria:
+
+- Backend-facing findings are fixed or explicitly deferred before commit.
+
+### Phase 426 - Final Dry Smoke Evidence
+
+- Record frontend dry-smoke no-live evidence.
+
+Exit criteria:
+
+- Dry smokes report live Coinbase execution not run with notional `$0`.
+
+### Phase 427 - Full Frontend Quality Gate
+
+- Record frontend full quality evidence.
+
+Exit criteria:
+
+- Frontend quality passes.
+
+### Phase 428 - Full Backend Regression Gate
+
+- Run backend regression.
+
+Exit criteria:
+
+- Backend regression passes.
+
+### Phase 429 - Release Closure Progress Update
+
+- Record completed scope, verification, review, and no-live posture.
+
+Exit criteria:
+
+- Roadmaps are current for contextless continuation.
+
+### Phase 430 - Commit Both Repos
+
+- Commit the completed release-closure batch in both repositories.
+
+Exit criteria:
+
+- Both repositories are committed with clean working trees.
+
+Progress update:
+
+- Phases 411-414 advanced from the backend association side: backend docs now
+  identify the frontend release artifact command, CI-uploaded artifact path,
+  deployment validation posture, and server-only BFF authority.
+- Phases 415-418 advanced: backend-facing docs mirror the BFF
+  response-evidence headers, distinguish BFF missing-authority failures from
+  trading approval, and state that read-only frontend rollback is a hosting or
+  build rollback while live-action rollback remains out of scope.
+- Phases 419-424 advanced: backend docs state frontend release checks and
+  artifact upload do not replace backend regression, do not approve live
+  Coinbase execution, and must not expose backend tokens through
+  `NEXT_PUBLIC_*`.
+- Phase 425 review: blind contextless release-closure review passed. Its
+  rollback-boundary recommendation was remediated in
+  `docs/FRONTEND_ASSOCIATION.md`.
+- Verification: frontend focused release/BFF tests passed with `16` tests.
+  Frontend `npm run quality` passed with typecheck, lint, API freshness,
+  command-security, release-check, `107` unit tests, and `3` Playwright tests.
+  Dry read, command, and BFF smokes passed and reported live Coinbase
+  execution not run with notional `$0`. Backend regression passed with
+  `758 passed`.
+- Live Coinbase execution: not run; test notional `$0`.

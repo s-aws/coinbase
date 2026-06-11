@@ -63,10 +63,13 @@ HTTP routes, and sweep/campaign execution, see
 [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
 The frontend release-hardening gate is owned by `C:\coinbase-frontend` and
-includes `npm run release:check`, dry-run read smoke, dry-run command smoke,
-and dry-run BFF smoke. Those checks are no-live checks and must report live
-Coinbase execution as not run with notional `$0`. They do not replace this
-repository's required backend regression gate when backend files change.
+includes `npm run release:check`, `npm run release:artifact`, dry-run read
+smoke, dry-run command smoke, and dry-run BFF smoke. Those checks are no-live
+checks and must report live Coinbase execution as not run with notional `$0`.
+The release artifact is written in the frontend repository at
+`artifacts/release-readiness.json` and uploaded by frontend CI; it is not a
+backend approval to trade. These checks do not replace this repository's
+required backend regression gate when backend files change.
 
 ## Direction
 
@@ -117,6 +120,12 @@ the session/BFF bridge headers required by the frontend:
 `X-Request-Id`, `X-Operator-Intent`, `Idempotency-Key`, and `X-CSRF-Token`.
 Bearer tokens still belong on the backend/session boundary; do not expose them
 through `NEXT_PUBLIC_*` frontend variables.
+
+The frontend BFF may copy only documented response-evidence headers back to
+browser code: `Content-Type`, `X-Correlation-Id`, `X-Request-Id`,
+`X-Admin-Api-Version`, `X-Live-Execution-Enabled`, and
+`X-Idempotency-Replayed`. Treat missing BFF authority as a session/transport
+configuration failure, not as a live trading gate result.
 
 CSRF enforcement is opt-in for cookie/session or BFF deployments:
 
