@@ -24,6 +24,8 @@ For account-level stealth planning/reveal guards, see
 [README.action-condition-guards.md](README.action-condition-guards.md).
 For the enterprise admin API boundary, see
 [README.admin-api.md](README.admin-api.md).
+For backend maintainer handoff, see
+[docs/MAINTAINER_HANDOFF.md](docs/MAINTAINER_HANDOFF.md).
 
 ## Setup
 

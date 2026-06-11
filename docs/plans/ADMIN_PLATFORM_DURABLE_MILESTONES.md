@@ -454,14 +454,15 @@ contextless review, live evidence under cap, and post-live reconciliation.
 Purpose: prove the admin platform is complete enough for controlled external
 use.
 
-Current readiness work:
+Completed readiness work:
 
 - Phases 681-700 add `GET /api/v1/admin/enterprise-readiness` as read-only
   M9 evidence for supported modules, unsupported actions, security posture,
   release-check posture, frontend authority, live posture, and no-live
-  notional. The route intentionally reports external release gates as warning
-  evidence until backend regression, frontend release gate, security review,
-  and contextless reviews are run.
+  notional.
+- M9 backend regression, frontend release gate, security/contextless review,
+  and remediation completed with live Coinbase execution not run and notional
+  `$0`.
 
 Done when:
 
@@ -477,6 +478,13 @@ Done when:
 ## M10 - Public Maintainer Handoff
 
 Purpose: make the project sustainable without this chat.
+
+Current handoff work:
+
+- Phases 701-720 add backend and frontend maintainer handoff guides, link them
+  from ordered documentation entry points, validate they remain discoverable,
+  and prove a contextless maintainer can follow the backend/frontend authority
+  split without chat history.
 
 Done when:
 

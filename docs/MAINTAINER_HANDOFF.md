@@ -1,0 +1,102 @@
+# Maintainer Handoff
+
+This guide is the backend entry point for maintainers and contextless agents
+working on the enterprise admin platform.
+
+## Scope
+
+The backend repository owns trading behavior, Coinbase integration, guard
+checks, authorization, audit evidence, OpenAPI schema generation, and all live
+execution authority. The frontend repository at `C:\coinbase-frontend` owns the
+browser application and must consume backend-owned contracts only.
+
+Spot is the first complete product module, not the generic model for futures,
+perpetuals, stealth orders, movement/repricing, or future modules.
+
+## Start Here
+
+1. Read `AGENTS.md`, then `agent.md`.
+2. Read `docs/README.md` for the ordered documentation index.
+3. Read `README.admin-api.md` for the Admin API boundary.
+4. Read `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` before changing module scope.
+5. Read `docs/plans/ADMIN_API_ROUTE_INVENTORY.md` before adding or changing a route.
+6. Read `docs/LIVE_ORDER_SURFACES.md` before any live-order or cancellation work.
+7. Read `docs/plans/ADMIN_API_CONTEXTLESS_REVIEW_LOG.md` before declaring a handoff complete.
+
+## Backend Authority Rules
+
+- Use one code path per behavior.
+- Use `client_order_id` for internal order identity.
+- Coinbase cancellation is the explicit exception: call the project wrapper
+  `cancel_order(client_order_id)` because Coinbase accepts the client id.
+- Do not put trading decisions in browser code or generated frontend clients.
+- Do not import spot no-shorting or wallet-inventory rules into futures or
+  perpetual workflows.
+- Do not mutate stealth local state unless the corresponding live exchange
+  handling has gone through the existing cancel, move, or reconcile path.
+
+## Adding An Admin Module
+
+1. Define the backend read or command contract first.
+2. Add route inventory evidence in `application/admin_api/route_inventory.py`
+   and `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`.
+3. Add typed response/request models in `application/admin_api/models.py`.
+4. Use existing shared services; do not introduce a parallel trading path.
+5. Update `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md`.
+6. Update examples under `docs/examples/`.
+7. Regenerate `openapi/coinbase-admin-api.yaml`.
+8. Add focused regression coverage in `tests/regression/`.
+9. Coordinate frontend generated-client changes from the OpenAPI output.
+10. Run a blind/contextless review for module discoverability and authority boundaries.
+
+## Contextless Task Card
+
+Use this checked-in task shape when asking a fresh agent to prove the handoff
+material is sufficient:
+
+```text
+Without chat history, explain how to add a read-only Admin API module for a
+new backend evidence source. Identify the files you would read first, the
+backend route/model/test/docs files you would change, how the frontend should
+consume the generated OpenAPI contract, and which gates must pass. Do not
+implement trading behavior or live Coinbase execution.
+```
+
+Passing answer requirements:
+
+- names `docs/MAINTAINER_HANDOFF.md`, `README.admin-api.md`,
+  `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`, and
+  `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md`
+- keeps backend authority over trading behavior and live execution
+- sends frontend work through OpenAPI generation and canonical wrappers
+- lists backend regression, frontend release gate, autonomous validation, and
+  blind/contextless review
+- reports live Coinbase execution as not run unless an explicit live phase is
+  approved
+
+## Required Gates
+
+Backend changes must pass:
+
+```powershell
+pytest tests\regression\ -v --tb=short
+python tools\run_autonomous_work_queue_check.py --summary-only
+```
+
+Frontend/API association changes must also pass in `C:\coinbase-frontend`:
+
+```powershell
+npm run release:gate
+```
+
+Live Coinbase execution is not part of normal handoff validation. If a live
+phase is explicitly approved, report product, submitted notional, executed
+notional, retained inventory, reconciliation result, and audit ids.
+
+## Current Handoff State
+
+- M9 enterprise readiness is exposed by `GET /api/v1/admin/enterprise-readiness`.
+- Active autonomous range: `701-720`.
+- Default live Coinbase execution: `not_run`.
+- Submitted notional: `$0`.
+- Executed notional: `$0`.

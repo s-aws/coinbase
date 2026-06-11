@@ -15,9 +15,11 @@ PUBLIC_RELEASE_DOC = PROJECT_ROOT / "docs" / "PUBLIC_RELEASE_READINESS.md"
 FRONTEND_ASSOCIATION_DOC = PROJECT_ROOT / "docs" / "FRONTEND_ASSOCIATION.md"
 ADMIN_API_README = PROJECT_ROOT / "README.admin-api.md"
 ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
+DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
+MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASES = tuple(range(681, 701))
-APPROVED_PHASE_RANGE = "681-700"
+APPROVED_PHASES = tuple(range(701, 721))
+APPROVED_PHASE_RANGE = "701-720"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -61,6 +63,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_stop_conditions(body),
         _check_required_gates(body),
         _check_frontend_release_docs(),
+        _check_maintainer_handoff_docs(),
     ]
     passed = all(check.passed for check in checks)
     return {
@@ -90,7 +93,7 @@ def _check_phase_range(body: str) -> QueueCheck:
         if f"Phase {phase} -" not in body
     ]
     return QueueCheck(
-        name="approved_phase_range_681_700",
+        name="approved_phase_range_701_720",
         passed=f"Approved phase range: **{APPROVED_PHASE_RANGE}**" in body
         and not missing,
         evidence={
@@ -175,6 +178,33 @@ def _check_frontend_release_docs() -> QueueCheck:
             missing[str(path.relative_to(PROJECT_ROOT))] = path_missing
     return QueueCheck(
         name="frontend_release_doc_parity",
+        passed=not missing,
+        evidence={"missing_evidence_text": missing},
+    )
+
+
+def _check_maintainer_handoff_docs() -> QueueCheck:
+    required_by_path = {
+        DOCS_INDEX: ["Maintainer Handoff", "MAINTAINER_HANDOFF.md"],
+        ADMIN_API_README: ["Maintainer Handoff", "docs/MAINTAINER_HANDOFF.md"],
+        MAINTAINER_HANDOFF_DOC: [
+            "Backend Authority Rules",
+            "Adding An Admin Module",
+            "Contextless Task Card",
+            "docs/LIVE_ORDER_SURFACES.md",
+            "pytest tests\\regression\\ -v --tb=short",
+            "npm run release:gate",
+            "Active autonomous range: `701-720`",
+        ],
+    }
+    missing: dict[str, list[str]] = {}
+    for path, required in required_by_path.items():
+        body = path.read_text(encoding="utf-8") if path.exists() else ""
+        path_missing = [text for text in required if text not in body]
+        if path_missing:
+            missing[str(path.relative_to(PROJECT_ROOT))] = path_missing
+    return QueueCheck(
+        name="maintainer_handoff_docs",
         passed=not missing,
         evidence={"missing_evidence_text": missing},
     )

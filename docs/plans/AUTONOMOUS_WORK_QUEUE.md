@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **681-700**.
+- Approved phase range: **701-720**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -307,7 +307,7 @@ Stop advancement to the next phase until fixed when any of these occur:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Phases 681-700
+## Completed Phases 681-700
 
 ### Phase 681 - Advance Active Queue Range
 
@@ -409,6 +409,132 @@ Stop advancement to the next phase until fixed when any of these occur:
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and the next approved phase range.
+
+## Completion Evidence - Phases 681-700
+
+- Phase range 681-700 completed M9 enterprise-readiness prep while keeping
+  live Coinbase execution disabled by default.
+- Backend `GET /api/v1/admin/enterprise-readiness` exposes read-only evidence
+  for supported modules, unsupported actions, identity keys, constraints,
+  security checks, release checks, frontend authority, live posture, and
+  no-live notional.
+- The readiness evidence scopes browser authority to the enterprise admin
+  frontend/Admin HTTP path and references `docs/LIVE_ORDER_SURFACES.md` for
+  compatibility-only legacy live browser surfaces.
+- Frontend operational diagnostics display module status, unsupported
+  actions, identity keys, security checks, and release checks from the
+  backend-owned readiness payload.
+- Blind/contextless M9 review found two blockers; both were remediated and
+  follow-up review found no remaining blockers.
+- Backend focused Admin API contract coverage passed.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Approved Phases 701-720
+
+### Phase 701 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 681-700 to active
+  phases 701-720 while preserving the same live cap and stop-condition policy.
+
+### Phase 702 - M9 Completion Evidence
+
+- Preserve M9 completion evidence in roadmap, review log, and release notes so
+  future agents know enterprise readiness was reviewed and remediated.
+
+### Phase 703 - Ordered Documentation Index
+
+- Verify the root README and `docs/README.md` route maintainers to the current
+  backend handoff, route inventory, capability matrix, examples, and review
+  logs.
+
+### Phase 704 - Maintainer Handoff Guide
+
+- Add or refine backend maintainer handoff guidance for contextless agents,
+  including authority boundaries, live-surface rules, and required gates.
+
+### Phase 705 - Module Onboarding Playbook
+
+- Document the sequence for adding an admin module without creating parallel
+  behavior or importing spot-only rules into non-spot domains.
+
+### Phase 706 - Authority Boundary Handoff
+
+- Ensure handoff docs state that backend services own trading behavior,
+  Coinbase credentials, guard checks, audit persistence, and live authority.
+
+### Phase 707 - Live Surface Handoff
+
+- Keep `docs/LIVE_ORDER_SURFACES.md` linked from handoff material and make the
+  compatibility-only dashboard status explicit.
+
+### Phase 708 - Route Inventory Handoff
+
+- Validate that handoff docs point maintainers to route inventory before any
+  Admin API route change.
+
+### Phase 709 - Generated Contract Handoff
+
+- Document the OpenAPI/frontend generation flow and the rule against hand
+  editing generated API clients.
+
+### Phase 710 - Handoff Validator Coverage
+
+- Extend autonomous queue validation so missing handoff docs or missing index
+  links block the batch.
+
+### Phase 711 - Frontend Association Handoff
+
+- Sync backend handoff language with the frontend association boundary and
+  required frontend release gate.
+
+### Phase 712 - Public Release Artifact Handoff
+
+- Document which release artifacts are frontend-owned no-live evidence and
+  which backend gates remain required.
+
+### Phase 713 - Contextless Task Cards
+
+- Add handoff guidance that lets a fresh agent add a small read-only module
+  slice using only checked-in docs and tests.
+
+### Phase 714 - Stale Roadmap Audit
+
+- Search for current-state contradictions around M9/M10, active phase range,
+  live posture, and frontend/backend authority.
+
+### Phase 715 - Security Boundary Review
+
+- Review handoff docs for browser authority, secret exposure, command bypass,
+  and live execution ambiguity.
+
+### Phase 716 - Contextless M10 Review
+
+- Run a blind/contextless review focused on whether a fresh agent can explain
+  how the backend and frontend fit together without chat history.
+
+### Phase 717 - Review Remediation
+
+- Resolve any blocker or ambiguity from M10 security/contextless review before
+  advancing to release gates.
+
+### Phase 718 - Focused Verification
+
+- Run focused backend autonomous, docs, and Admin API contract checks plus
+  focused frontend autonomous/quality checks for handoff evidence.
+
+### Phase 719 - Full Release Gates
+
+- Run full backend regression and frontend release gate after M10 handoff
+  evidence is complete.
+
+### Phase 720 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and remaining objective scope.
 
 ## Required Final Gates
 

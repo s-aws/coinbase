@@ -25,6 +25,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Audit Workbench Admin Reads](../README.audit-workbench.md)
 - [Admin Platform Architecture](ADMIN_PLATFORM_ARCHITECTURE.md)
 - [Admin Module Capability Matrix](ADMIN_MODULE_CAPABILITY_MATRIX.md)
+- [Maintainer Handoff](MAINTAINER_HANDOFF.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
 - [Frontend Association](FRONTEND_ASSOCIATION.md)
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)

@@ -13,6 +13,10 @@ C:\coinbase
 C:\coinbase-frontend
 ```
 
+Backend maintainer handoff starts at [Maintainer Handoff](MAINTAINER_HANDOFF.md).
+Frontend maintainer handoff lives in
+`C:\coinbase-frontend\docs\MAINTAINER_HANDOFF.md`.
+
 ## Contract Boundary
 
 - Backend owns the Admin API, OpenAPI schema, auth/RBAC enforcement,

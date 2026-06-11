@@ -6,6 +6,8 @@ Spot is the first complete product module consumed by that platform; it is not
 the generic contract shape for every backend feature.
 The repository association is documented in
 [Frontend Association](docs/FRONTEND_ASSOCIATION.md).
+Maintainer handoff for contextless agents starts at
+[Maintainer Handoff](docs/MAINTAINER_HANDOFF.md).
 
 ## Current Status
 
