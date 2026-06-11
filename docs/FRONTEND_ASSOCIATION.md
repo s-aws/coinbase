@@ -68,6 +68,26 @@ Only `NEXT_PUBLIC_ADMIN_API_MODE` is browser-visible in that configuration.
 The `ADMIN_API_*` values are server-only BFF authority and must not be exposed
 through `NEXT_PUBLIC_*`.
 
+## Read Model Interaction Scope
+
+The approved frontend interaction surface is read-only and uses this backend's
+Admin API contract as the source of truth. The frontend may provide local
+display affordances over already-loaded backend-shaped data:
+
+- filter and sort order rows already returned by the read route
+- select order detail evidence keyed by `client_order_id`
+- render audit anchors for `client_order_id`, optional correlation id, and
+  optional audit id
+- switch campaign evidence tabs and filter evidence rows
+- show deterministic empty, loading, auth-blocked, and backend-error states
+- display Settings diagnostics and responsive table scroll regions
+
+These are browser UX behaviors only. They are not wallet authority, guard
+authority, Coinbase execution approval, profitability validation, or cancel
+identity. Future mutations must still come from backend-owned command
+contracts with auth, RBAC, idempotency, approval, cap, guard, and audit
+evidence.
+
 ## Release Rule
 
 Any backend API contract change intended for frontend consumption must update:

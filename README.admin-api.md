@@ -89,6 +89,16 @@ In short: runtime evidence is saved, and these artifacts are not approval for
 live Coinbase execution.
 No-live release artifacts are not approval for live Coinbase execution.
 
+The current frontend read-model interaction batch consumes backend-shaped
+admin, order, spot, campaign, audit, and diagnostics reads as display evidence
+only. The frontend may locally filter/sort already-loaded rows, select
+`client_order_id` details, render audit anchors for client order id,
+correlation id, and audit id, switch campaign evidence tabs, show named
+empty/error states, and keep tables usable on narrow viewports. None of those
+interactions create frontend trading authority, wallet checks, guard
+decisions, order profitability checks, Coinbase calls, or exchange
+`order_id` identity.
+
 ## Direction
 
 - Use FastAPI with backend-owned OpenAPI.

@@ -186,6 +186,13 @@ evidence is known, it appears as `exchange_order_id` with
 metadata: `limit`, `offset`, `returned_count`, `total_matching_count`,
 `next_offset`, and `has_more`.
 
+Frontend read-model interactions over these rows are display-only. Local
+filtering, sorting, selected detail panels, responsive table scrolling, and
+audit anchors must use backend-shaped row data already loaded through the
+Admin API. They must not create a second fetch path, use exchange
+`order_id` as identity, or infer wallet/guard/execution authority in the
+browser.
+
 ## Live Placement Approval
 
 Current skeleton shape:

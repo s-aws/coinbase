@@ -3820,3 +3820,10 @@ Progress update:
   roving keyboard focus with arrow/Home/End keys, responsive table regions are
   keyboard focusable, and shared focus-visible styling plus unit coverage
   protect labels and read-model interaction focus paths.
+- Phase 634 completed: backend Admin API, frontend association, examples, and
+  roadmap docs now mirror the frontend documentation sync by describing the
+  read-model interaction batch as display-only use of backend-shaped data,
+  with `client_order_id` identity, optional audit evidence anchors, campaign
+  evidence tabs, deterministic state semantics, diagnostics, and responsive
+  scrolling explicitly outside wallet, guard, profitability, and Coinbase
+  execution authority.
