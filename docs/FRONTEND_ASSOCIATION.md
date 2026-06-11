@@ -81,7 +81,7 @@ Any backend API contract change intended for frontend consumption must update:
   `npm run release:artifact`, `npm run deployment:package`,
   `npm run observability:drill`, `npm run probe:synthetic`,
   `npm run release:checklist`, `npm run deployment:check`, and dry-run smoke
-  checks for release candidates
+  checks for release candidates, including `npm run smoke:oidc:dry`
 
 Frontend release checks are dry/no-live checks. They must report live Coinbase
 execution as not run with notional `$0` and do not replace backend regression.
@@ -120,6 +120,16 @@ Backend release evidence for this boundary is available at
 `GET /api/v1/admin/oidc-readiness`. It reports the active auth mode,
 required/missing OIDC settings, claim mapping, JWKS reachability, and no-live
 notional posture.
+
+Machine-readable no-live backend smoke evidence is available with:
+
+```powershell
+python tools\run_admin_oidc_readiness_smoke.py --summary-only
+```
+
+The frontend release gate runs the same backend smoke through
+`npm run smoke:oidc:dry` from the sibling checkout. That cross-repo smoke must
+report live Coinbase execution as not run with notional `$0`.
 
 Expected claim mapping is `sub` for subject, `email` for email, `roles` for
 roles, `iss` for issuer, and `aud` for audience. In `backend_oidc_jwt` mode

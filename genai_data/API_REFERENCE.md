@@ -100,6 +100,8 @@ HTTP OIDC/JWT mode:
 - read `GET /api/v1/admin/oidc-readiness` for active auth mode,
   required/missing OIDC env, claim mapping, JWKS reachability, and no-live
   notional evidence
+- prove the no-live OIDC verifier path with
+  `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
 
 Without configured backend auth, routes fail closed with `401`.
 

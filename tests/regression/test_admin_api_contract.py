@@ -37,12 +37,18 @@ from core.enums import (
     AdminApiAuthMode,
     AdminApiCommandStatus,
     AdminApiErrorCode,
+    AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiPermission,
     AdminApiRole,
     AdminApiVerifierReadinessStatus,
 )
 from tools.generate_admin_api_openapi import generate_openapi_schema
+from tools.run_admin_oidc_readiness_smoke import (
+    SUMMARY_PREFIX as ADMIN_OIDC_READINESS_SMOKE_SUMMARY_PREFIX,
+    build_admin_oidc_readiness_smoke_summary,
+    build_parser as build_admin_oidc_readiness_smoke_parser,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -480,6 +486,28 @@ def test_admin_api_oidc_route_fails_closed_when_jwks_fetch_fails(monkeypatch):
     assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
     assert "Unable to fetch Admin API OIDC/JWT JWKS" in response.json()["message"]
     assert response.headers["x-live-execution-enabled"] == "false"
+
+
+@pytest.mark.regression
+def test_admin_api_oidc_readiness_smoke_is_no_live_and_covers_required_steps():
+    args = build_admin_oidc_readiness_smoke_parser().parse_args(["--summary-only"])
+
+    assert args.summary_only is True
+    assert ADMIN_OIDC_READINESS_SMOKE_SUMMARY_PREFIX == (
+        "ADMIN_OIDC_READINESS_SMOKE_SUMMARY "
+    )
+
+    summary = build_admin_oidc_readiness_smoke_summary()
+
+    assert summary["status"] == AdminApiGateStatus.PASSED.value
+    assert summary["live_coinbase_orders_ran"] is False
+    assert summary["live_order_notional_usdc"] == "0"
+    assert {step["name"] for step in summary["steps"]} == {
+        "missing_config_readiness_blocks",
+        "configured_readiness_reports_reachable_jwks",
+        "oidc_session_uses_verified_claim_roles",
+    }
+    assert all(step["passed"] is True for step in summary["steps"])
 
 
 @pytest.mark.regression

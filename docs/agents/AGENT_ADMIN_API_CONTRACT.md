@@ -59,9 +59,12 @@ Read-only Admin API routes currently cover backend bootstrap, health,
 session/RBAC evidence, capabilities, release/recovery gates, fill-ledger
 health, frontend fixtures, order list/detail, spot readiness, sweep status,
 sweep P/L, cost-basis status, campaign status, and direct order audit.
-OIDC/JWT auth mode is represented by a fail-closed readiness contract that
-reports required issuer, audience, and JWKS settings. When configured, the
-verifier validates RS256 JWTs and derives actor/role evidence from claims.
+OIDC/JWT auth mode is implemented as a fail-closed verifier: readiness reports
+required issuer, audience, and JWKS settings, and configured requests validate
+RS256 JWTs before deriving actor/role evidence from claims.
+`tools/run_admin_oidc_readiness_smoke.py --summary-only` proves missing-config
+blocking, JWKS reachability, verified-claim session evidence, and no-live
+Coinbase posture.
 
 ## Must Not Do
 
@@ -88,4 +91,5 @@ Focused tests must cover auth denial, RBAC denial, idempotent retry,
 idempotency conflict, approval/live-disabled gate evidence, no live REST call
 from HTTP command routes, cancel by `client_order_id`, audit creation,
 WebSocket/HTTP shared-service parity, typed OpenAPI routes, and read-only route
-contracts.
+contracts. OIDC verifier changes must also keep the no-live OIDC readiness
+smoke covered by `tests/regression/test_admin_api_contract.py`.

@@ -106,6 +106,44 @@ Status:
 
 - Findings resolved. No live Coinbase execution was run. Notional `$0`.
 
+## OIDC Release Readiness Closure Review - Phases 491-500
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- explain backend OIDC readiness proof and no-live smoke command
+- verify frontend release artifacts include OIDC smoke evidence
+- verify CI uploads release artifacts only after OIDC smoke and e2e pass
+- verify production BFF fails closed without `backend_oidc_jwt` and verifier
+  readiness evidence
+- verify frontend release/smoke gates run no live Coinbase execution
+- confirm the frontend cannot directly create or cancel spot orders
+
+Findings:
+
+- First blind review failed the batch because Node release artifact generation
+  omitted `npm run smoke:oidc:dry`, CI uploaded artifacts before OIDC smoke,
+  and production auth validation was split enough to mislead a contextless
+  maintainer.
+- Remediation centralized release command and CI-step evidence in
+  `src/shared/quality/artifactContract.json`, moved CI artifact upload after
+  OIDC smoke and e2e, and made production BFF config fail closed unless
+  `backend_oidc_jwt`, `ADMIN_API_BACKEND_OIDC_VERIFIER_READY=true`, and an
+  explicit OIDC cookie name are configured.
+- Second blind review passed. It found no blocking documentation, code, or
+  security gaps after remediation.
+
+Status:
+
+- Findings resolved. Backend OIDC readiness smoke and frontend OIDC dry smoke
+  are no-live checks. Live Coinbase execution was not run in this batch;
+  notional `$0`.
+
 ## OIDC Bridge And Live Canary Review - Phases 471-490
 
 Review scope:

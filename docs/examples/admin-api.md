@@ -52,6 +52,21 @@ for audience. In OIDC mode the backend ignores browser-supplied
 `X-Admin-Actor` and `X-Admin-Roles`; those values are derived from verified
 JWT claims.
 
+Run the no-live OIDC readiness smoke before treating production OIDC evidence
+as available to the frontend release gate:
+
+```powershell
+python tools\run_admin_oidc_readiness_smoke.py --summary-only
+```
+
+Expected evidence:
+
+- `ADMIN_OIDC_READINESS_SMOKE_SUMMARY` status `passed`
+- missing OIDC config blocks
+- configured temporary JWKS readiness reports `ready`
+- `oidc_jwt` session claims define actor and roles
+- live Coinbase execution not run; notional `$0`
+
 ```powershell
 Invoke-RestMethod `
   -Uri http://127.0.0.1:8787/api/v1/admin/bootstrap `
@@ -323,6 +338,7 @@ inventory without contacting a live backend:
 npm run smoke:read:dry
 npm run smoke:command:dry
 npm run smoke:bff:dry
+npm run smoke:oidc:dry
 npm run build
 npm run release:check
 npm run release:artifact

@@ -148,6 +148,18 @@ hint; backend RBAC is the enforcement authority.
 release checks, including active auth mode, required/missing environment
 settings, claim mapping, JWKS reachability, and no-live notional posture.
 
+Run the no-live OIDC readiness smoke before treating production OIDC evidence
+as usable by the frontend release gate:
+
+```powershell
+python tools\run_admin_oidc_readiness_smoke.py --summary-only
+```
+
+The smoke uses backend TestClient and temporary JWKS evidence to prove missing
+config blocks, configured JWKS readiness reports ready, and `oidc_jwt`
+session claims override forged browser actor/role headers. It does not contact
+Coinbase and reports live Coinbase execution not run with notional `$0`.
+
 CSRF enforcement is opt-in for cookie/session or BFF deployments:
 
 ```powershell

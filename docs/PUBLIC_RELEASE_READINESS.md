@@ -61,6 +61,7 @@ npm run deployment:check
 npm run smoke:read:dry
 npm run smoke:command:dry
 npm run smoke:bff:dry
+npm run smoke:oidc:dry
 ```
 
 These checks are dry/no-live checks. They must report live Coinbase execution
@@ -84,6 +85,16 @@ they are missing or when JWT verification fails.
 Use `GET /api/v1/admin/oidc-readiness` as backend release evidence for active
 auth mode, missing environment settings, claim mapping, JWKS reachability, and
 no-live notional posture.
+
+Backend no-live OIDC readiness smoke evidence is available with:
+
+```powershell
+python tools\run_admin_oidc_readiness_smoke.py --summary-only
+```
+
+The frontend `npm run smoke:oidc:dry` command runs that backend smoke from the
+sibling checkout and must also report live Coinbase execution as not run with
+notional `$0`.
 
 ## Browser Smoke Gate
 

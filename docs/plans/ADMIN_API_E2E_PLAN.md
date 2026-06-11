@@ -2772,3 +2772,91 @@ Progress update:
   read/command/BFF smokes, and `3` Playwright tests. Frontend artifact writers
   and smokes reported live Coinbase execution not run with notional `$0`.
 - Phase 481 backend full regression passed with `769 passed, 1 warning`.
+
+## Approved OIDC Release Readiness Closure Batch - Phases 491-500
+
+These phases are approved to turn the implemented OIDC verifier and frontend
+BFF bridge into repeatable production onboarding evidence. This batch is
+dry/no-live only; it does not run live Coinbase execution.
+
+### Phase 491 - Production OIDC Configuration Runbook
+
+- Document the production OIDC configuration checklist across backend and
+  frontend release surfaces.
+
+### Phase 492 - Admin API OIDC Readiness Smoke Script
+
+- Add a deterministic backend no-live smoke that proves missing-config
+  blocking, reachable JWKS readiness, verified-claim session evidence, and
+  `$0` live Coinbase notional.
+
+### Phase 493 - Frontend BFF OIDC Cookie Hardening
+
+- Harden BFF OIDC cookie selection/value validation and deployment checks so
+  production OIDC mode cannot carry static bootstrap authority.
+
+### Phase 494 - Staging Integration Script
+
+- Wire a frontend cross-repo smoke command to run the backend OIDC readiness
+  smoke from the sibling checkout.
+
+### Phase 495 - Contextless Blind OIDC Onboarding Review
+
+- Run a blind/contextless review against the production OIDC onboarding path
+  and remediate unclear code or documentation before completion.
+
+### Phase 496 - Release Gate OIDC Smoke Evidence
+
+- Add the cross-repo OIDC smoke to frontend release and CI gates.
+
+### Phase 497 - Operator Auth/Session Failure States
+
+- Surface backend `401` and `403` session evidence in the admin shell without
+  implying frontend-side authorization authority.
+
+### Phase 498 - BFF And Verifier Security Review
+
+- Re-check BFF proxy and backend verifier surfaces for browser-trusted actor
+  drift, unsafe cookie values, and no-live evidence gaps.
+
+### Phase 499 - Final Backend/Frontend Staging Dry Run
+
+- Run focused checks, frontend release gate, backend regression, and dry smoke
+  evidence.
+
+### Phase 500 - Commit And Release Candidate Summary
+
+- Commit both repositories, verify clean trees, and report verification plus
+  live Coinbase execution posture.
+
+Progress update:
+
+- Phases 491-494 completed: backend production OIDC docs now point to
+  `GET /api/v1/admin/oidc-readiness` and
+  `python tools\run_admin_oidc_readiness_smoke.py --summary-only`; the
+  frontend release gate runs that backend smoke through
+  `npm run smoke:oidc:dry`.
+- Phases 493 and 498 completed after remediation: frontend production BFF now
+  fails closed unless `backend_oidc_jwt`,
+  `ADMIN_API_BACKEND_OIDC_VERIFIER_READY=true`, and an explicit OIDC cookie
+  name are configured; OIDC mode also rejects static bearer/actor/role
+  authority.
+- Phase 495 completed with two blind/contextless reviews. The first review
+  found release artifact drift, CI upload ordering drift, and split
+  production-auth validation. After remediation, the second review passed with
+  no blocking findings.
+- Phase 496 completed: release artifact command lists and CI-step evidence are
+  centralized in `src/shared/quality/artifactContract.json`, the Node artifact
+  writer consumes that contract, and CI uploads release artifacts only after
+  OIDC dry smoke and e2e pass.
+- Phase 497 completed: the admin shell surfaces backend `401`/`403` session
+  evidence as auth/RBAC blocked states without mapping error payloads as
+  successful order data.
+- Phase 499 verification passed. Backend OIDC readiness smoke passed with 3
+  no-live steps; focused Admin API contract tests passed with `36 passed, 1
+  warning`; backend full regression passed with `770 passed, 1 warning`.
+  Frontend `npm run release:gate` passed with production build, typecheck,
+  lint, API freshness, command-security, release/deployment checks, artifact
+  generation, `120` unit tests, dry read/command/BFF/OIDC smokes, and `3`
+  Playwright tests.
+- Live Coinbase execution in this batch: not run; test notional `$0`.
