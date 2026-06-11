@@ -423,3 +423,51 @@ Status:
   `npm run release:gate`, `artifacts/runtime-evidence.json`, active phases
   `561-580`, and no-live evidence. Live Coinbase execution was not run in this
   batch; notional `$0`.
+
+## Command Draft UX Review - Phases 581-600
+
+Review scope:
+
+- `C:\coinbase-frontend`
+- Backend queue and Admin API roadmap references in `C:\coinbase`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- explain how a contextless operator drafts manual order, cancel, and campaign
+  commands without frontend trading behavior
+- verify draft validation and payload mapping are discoverable
+- verify dry-submit helpers use canonical `BackendApiClient` wrappers
+- verify BFF/OIDC mode does not rely on browser-supplied actor or role
+  authority
+- verify cancel remains keyed only by `client_order_id`
+- verify live Coinbase execution remains disabled/no-live
+
+Findings:
+
+- First blind review failed the batch because frontend docs overstated UI
+  dry-submit: the shell renders draft/review controls and blocked/submitted
+  evidence, but no UI button calls `drySubmitManualOrder`,
+  `drySubmitCancelOrder`, or `drySubmitSpotCampaign`.
+- The same review found that `time_in_force` existed in the draft model and
+  backend payload mapping but was not exposed in the UI or documented clearly.
+- The same review found bad copy-paste examples in smoke/test payloads:
+  campaign payloads used `dry_run=false`, and one backend wrapper test used
+  `manual_live_acknowledgement=true`.
+
+Resolution:
+
+- Updated frontend command and spot-order-flow docs to state that UI buttons
+  remain disabled and do not call dry-submit helpers today; dry-submit helpers
+  are for tests, smoke scripts, and future explicitly approved UI enablement.
+- Added the manual `time_in_force` select, documented draft fields, and covered
+  its payload mapping with unit and browser-facing tests.
+- Corrected command smoke, BFF smoke, and backend wrapper tests to use
+  `dry_run=true` and `manual_live_acknowledgement=false`.
+- Clamped campaign payload building to `dry_run=true` so direct builder use
+  cannot produce a frontend campaign live-execution payload.
+
+Status:
+
+- Follow-up blind review found no blockers. Live Coinbase execution was not
+  run in this batch; notional `$0`.

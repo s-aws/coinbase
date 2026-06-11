@@ -3382,3 +3382,148 @@ Progress update:
   read/command/BFF/OIDC smokes, and `3` Playwright tests.
 - Phase 576 backend full regression passed with `772 passed, 1 warning`.
 - Live Coinbase execution in this batch: not run; test notional `$0`.
+
+## Approved Command Draft UX Batch - Phases 581-600
+
+These phases are approved as the next 20-phase unattended backend/frontend
+command draft UX batch. Work may continue without another approval while it
+stays inside [Autonomous Work Queue](AUTONOMOUS_WORK_QUEUE.md). Default
+execution is dry/no-live. Any backend live Coinbase work must stay under the
+carried-forward cap: maximum `3.10` USDC submitted, maximum `1.00` USDC
+executed, cheapest Coinbase `USDC` spot product available to US customers,
+retained inventory, and passing reconciliation before the next phase advances.
+
+### Phase 581 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 561-580 to active
+  phases 581-600 while preserving live cap and stop-condition policy.
+
+### Phase 582 - Command Draft Model
+
+- Add a typed frontend command draft model for manual order, cancel by
+  `client_order_id`, and spot campaign execution without adding trading logic.
+
+### Phase 583 - Manual Order Draft UX
+
+- Render operator intent, product, side, order type, notional/size, post-only,
+  and acknowledgement fields for manual order drafts while keeping submit
+  disabled unless backend evidence later enables it.
+
+### Phase 584 - Cancel Draft UX
+
+- Render cancel-by-`client_order_id` draft fields with no exchange `order_id`
+  cancellation path.
+
+### Phase 585 - Campaign Execution Draft UX
+
+- Render campaign execution draft fields for schedule/scope/caps as
+  backend-owned intent evidence only.
+
+### Phase 586 - Draft Validation
+
+- Add frontend-only validation for required draft evidence and unsafe missing
+  acknowledgement states without deciding wallet, guard, or trading authority.
+
+### Phase 587 - Idempotency And Correlation Preview
+
+- Generate deterministic request id, idempotency key, and operator-intent
+  preview evidence from the draft state.
+
+### Phase 588 - Dry-Submit Payload Mapping
+
+- Map validated drafts to the existing canonical dry-submit helpers and
+  generated backend request shapes without feature-local fetch calls.
+
+### Phase 589 - Per-Workflow Evidence Panels
+
+- Render per-workflow backend decision, validation, idempotency, audit, and
+  live-disabled evidence instead of relying only on one shared preview panel.
+
+### Phase 590 - Disabled Submit Semantics
+
+- Keep command submit controls disabled in mock/local and incomplete-auth
+  backend modes, with visible backend-owned enablement requirements.
+
+### Phase 591 - Backend And BFF Consistency
+
+- Verify direct backend and BFF modes use the same command draft mapping,
+  headers, dry-submit helpers, and no-live evidence.
+
+### Phase 592 - Command Documentation Sync
+
+- Update command workflow, spot order flow, runbook, and example docs for the
+  draft UX and disabled dry-submit evidence.
+
+### Phase 593 - Browser And Accessibility Coverage
+
+- Add or update unit and Playwright coverage for command draft fields,
+  disabled buttons, mobile layout, and no exchange-id cancel input.
+
+### Phase 594 - Contextless Command UX Review
+
+- Run a blind/contextless review asking how to draft a spot order/cancel/campaign
+  command without inventing frontend trading behavior.
+
+### Phase 595 - Contextless Remediation
+
+- Fix unclear command UX docs, code organization, tests, or evidence found by
+  the review.
+
+### Phase 596 - Frontend Focused Verification
+
+- Run focused command workflow tests, command dry-submit tests, security guard,
+  and browser tests.
+
+### Phase 597 - Frontend Release Gate
+
+- Run full `npm run release:gate`.
+
+### Phase 598 - Backend Queue And Regression Gate
+
+- Run backend autonomous queue validation and full backend regression after
+  backend queue/doc/checker changes.
+
+### Phase 599 - No-Live Evidence Discipline
+
+- Confirm command UX, dry-submit, release, and regression evidence ran no live
+  Coinbase execution with notional `$0`.
+
+### Phase 600 - Commit And Final Batch Summary
+
+- Commit completed backend and frontend work separately, then summarize
+  implementation, verification, live posture, commits, and next approved phase
+  range.
+
+Progress update:
+
+- Phase 581 completed: active autonomous queue range advanced to `581-600`
+  in backend and frontend queue docs/checkers while preserving the carried
+  live cap and stop conditions.
+- Phases 582-593 are implemented on the frontend side: editable command draft
+  UX, validation, deterministic idempotency evidence, dry-submit payload
+  mapping, BFF mutation evidence handling, docs, component tests, unit tests,
+  and Playwright coverage are in place without enabling live command
+  submission.
+- Phase 594 first blind/contextless review found blockers: docs overstated UI
+  dry-submit behavior, manual `time_in_force` was not exposed/documented, and
+  campaign smoke/test payloads used live-looking `dry_run=false` or
+  `manual_live_acknowledgement=true` examples.
+- Phase 595 remediation completed: docs now distinguish disabled UI draft
+  review from helper/smoke dry-submit, manual `time_in_force` is exposed and
+  tested, campaign payloads use `dry_run=true` and
+  `manual_live_acknowledgement=false`, and campaign request building clamps
+  `dry_run=true`.
+- Phase 594 follow-up blind/contextless review found no blockers.
+- Phase 596 focused frontend verification passed: command draft, command
+  dry-submit, command shell, backend client, BFF proxy, and BFF route unit
+  tests passed with `51 passed`; `npm run typecheck`,
+  `npm run security:commands`, and focused admin-shell Playwright passed.
+- Phase 597 frontend `npm run release:gate` passed with production build,
+  typecheck, lint, generated API freshness plus route coverage, command
+  security, release/deployment/autonomous checks, `129` unit tests, dry
+  read/command/BFF/OIDC smokes, and `3` Playwright tests.
+- Phase 598 backend queue validation passed, focused
+  `test_spot_readiness_gate.py` passed with `8 passed, 1 warning`, and full
+  backend regression passed with `772 passed, 1 warning`.
+- Phase 599 completed: live Coinbase execution was not run; test notional
+  `$0`.

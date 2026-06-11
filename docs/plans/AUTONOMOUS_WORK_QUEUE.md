@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **561-580**.
+- Approved phase range: **581-600**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,104 +46,108 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Approved Phases 561-580
+## Approved Phases 581-600
 
-### Phase 561 - Advance Active Queue Range
+### Phase 581 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 541-560 to active
-  phases 561-580 while preserving the same live cap and stop-condition policy.
+- Move the durable autonomous queue from completed phases 561-580 to active
+  phases 581-600 while preserving the same live cap and stop-condition policy.
 
-### Phase 562 - V1 Release Candidate Gate Parity
+### Phase 582 - Command Draft Model
 
-- Align the frontend V1 release-candidate document with the current canonical
-  release gate, runtime evidence, autonomous queue, and dry-smoke commands.
+- Add a typed frontend command draft model for manual order, cancel by
+  `client_order_id`, and spot campaign execution without adding trading logic.
 
-### Phase 563 - Runtime Evidence Release Candidate Docs
+### Phase 583 - Manual Order Draft UX
 
-- Ensure the V1 release candidate explains `artifacts/runtime-evidence.json`
-  and its no-live `$0` posture.
+- Render operator intent, product, side, order type, notional/size, post-only,
+  and acknowledgement fields for manual order drafts while keeping submit
+  disabled unless backend evidence later enables it.
 
-### Phase 564 - Production Readiness Runtime Evidence
+### Phase 584 - Cancel Draft UX
 
-- Update production-readiness docs so runtime evidence and autonomous queue
-  checks are part of the release evidence set.
+- Render cancel-by-`client_order_id` draft fields with no exchange `order_id`
+  cancellation path.
 
-### Phase 565 - Public Checklist Documentation Parity
+### Phase 585 - Campaign Execution Draft UX
 
-- Confirm public release checklist docs agree with current artifacts and
-  conditional OIDC/JWT production posture.
+- Render campaign execution draft fields for schedule/scope/caps as
+  backend-owned intent evidence only.
 
-### Phase 566 - Release Readiness Doc Sentinel
+### Phase 586 - Draft Validation
 
-- Add no-live release-readiness checks that fail when V1 release-candidate docs
-  omit required scripts, artifacts, runtime evidence, or autonomous queue
-  posture.
+- Add frontend-only validation for required draft evidence and unsafe missing
+  acknowledgement states without deciding wallet, guard, or trading authority.
 
-### Phase 567 - Deployment Readiness Doc Sentinel
+### Phase 587 - Idempotency And Correlation Preview
 
-- Add deployment-readiness checks that fail when production-readiness docs omit
-  runtime evidence, public checklist, OIDC readiness, or no-live posture.
+- Generate deterministic request id, idempotency key, and operator-intent
+  preview evidence from the draft state.
 
-### Phase 568 - Unit Coverage
+### Phase 588 - Dry-Submit Payload Mapping
 
-- Extend focused unit coverage for the release-candidate artifact and queue
-  parity expectations.
+- Map validated drafts to the existing canonical dry-submit helpers and
+  generated backend request shapes without feature-local fetch calls.
 
-### Phase 569 - CI Artifact Parity
+### Phase 589 - Per-Workflow Evidence Panels
 
-- Confirm CI still runs and uploads every release artifact after smoke/browser
-  gates.
+- Render per-workflow backend decision, validation, idempotency, audit, and
+  live-disabled evidence instead of relying only on one shared preview panel.
 
-### Phase 570 - Ordered Documentation Sync
+### Phase 590 - Disabled Submit Semantics
 
-- Keep ordered docs and README surfaces pointing at the current release
-  candidate, production readiness, and runtime evidence docs.
+- Keep command submit controls disabled in mock/local and incomplete-auth
+  backend modes, with visible backend-owned enablement requirements.
 
-### Phase 571 - Contextless Release Candidate Review
+### Phase 591 - Backend And BFF Consistency
 
-- Run a blind/contextless review asking whether the release candidate can be
-  understood without chat history and without inventing frontend trading
-  behavior.
+- Verify direct backend and BFF modes use the same command draft mapping,
+  headers, dry-submit helpers, and no-live evidence.
 
-### Phase 572 - Contextless Remediation
+### Phase 592 - Command Documentation Sync
 
-- Fix unclear release-candidate docs, scripts, checks, or artifact references
-  found by the review.
+- Update command workflow, spot order flow, runbook, and example docs for the
+  draft UX and disabled dry-submit evidence.
 
-### Phase 573 - Frontend Focused Verification
+### Phase 593 - Browser And Accessibility Coverage
 
-- Run focused frontend release/deployment/doc parity checks and tests.
+- Add or update unit and Playwright coverage for command draft fields,
+  disabled buttons, mobile layout, and no exchange-id cancel input.
 
-### Phase 574 - Backend Queue Validation
+### Phase 594 - Contextless Command UX Review
 
-- Run backend autonomous queue validation and focused regression coverage for
-  changed backend files.
+- Run a blind/contextless review asking how to draft a spot order/cancel/campaign
+  command without inventing frontend trading behavior.
 
-### Phase 575 - Frontend Release Gate
+### Phase 595 - Contextless Remediation
+
+- Fix unclear command UX docs, code organization, tests, or evidence found by
+  the review.
+
+### Phase 596 - Frontend Focused Verification
+
+- Run focused command workflow tests, command dry-submit tests, security guard,
+  and browser tests.
+
+### Phase 597 - Frontend Release Gate
 
 - Run full `npm run release:gate`.
 
-### Phase 576 - Backend Regression Gate
+### Phase 598 - Backend Queue And Regression Gate
 
-- Run full backend regression after backend changes.
+- Run backend autonomous queue validation and full backend regression after
+  backend queue/doc/checker changes.
 
-### Phase 577 - No-Live Evidence Discipline
+### Phase 599 - No-Live Evidence Discipline
 
-- Confirm release-candidate parity, runtime evidence, and release artifacts
-  report no live Coinbase execution with `$0` notional.
+- Confirm command UX, dry-submit, release, and regression evidence ran no live
+  Coinbase execution with notional `$0`.
 
-### Phase 578 - Cross-Repo Clean Tree Check
+### Phase 600 - Commit And Final Batch Summary
 
-- Verify both repositories are clean before final summary or next batch.
-
-### Phase 579 - Commit Backend And Frontend
-
-- Commit completed backend and frontend work separately.
-
-### Phase 580 - Final Batch Summary
-
-- Summarize implementation, verification, live posture, commits, and next
-  approved phase range.
+- Commit completed backend and frontend work separately, then summarize
+  implementation, verification, live posture, commits, and next approved phase
+  range.
 
 ## Required Final Gates
 
