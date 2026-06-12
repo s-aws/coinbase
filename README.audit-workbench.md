@@ -27,6 +27,8 @@ The route is authenticated and RBAC-gated with `audit:read`.
 - module route summaries
 - read and command route counts
 - durable command audit events when available
+- persisted command admission decisions on command audit events when available,
+  including backend status, route, identity key, and blockers
 - order, stealth, movement/repricing, futures/perpetual, and guard/risk
   evidence where backend read models already expose it
 - campaign route summaries and command-audit rows; spot campaign-status
@@ -46,6 +48,9 @@ The route is authenticated and RBAC-gated with `audit:read`.
   ids or cancellation keys.
 - Command acceptance, cancellation, movement, repricing, guard evaluation, and
   live approval remain in their real backend command paths.
+- Persisted admission decisions are evidence only. They prove what the backend
+  decided before a command could reach Coinbase; they do not approve live
+  execution or replace cap, guard, exchange, or reconciliation checks.
 
 ## Examples
 

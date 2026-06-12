@@ -36,22 +36,23 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `1181-1200`.
-- Active milestone: M34 - Command Admission Decision Evidence.
-- In-scope files: Admin API command response contracts, admission decision
-  evidence, admin platform docs, frontend association docs,
-  generated OpenAPI/frontend schema, regression tests, frontend dry-submit
-  evidence, and agent context needed for local-agent accuracy.
+- Active autonomous range: `1201-1220`.
+- Active milestone: M35 - Command Admission Audit Persistence.
+- In-scope files: Admin API audit event contracts, admission decision
+  persistence, audit workbench evidence, admin platform docs, frontend
+  association docs, generated OpenAPI/frontend schema, regression tests,
+  frontend audit evidence, and agent context needed for local-agent accuracy.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M34 must use existing live-disabled Admin API command responses and the
-  shared command service only. Do not add a live admission endpoint, approval
-  mutation, guard evaluator, audit storage, approval storage, command route,
-  BFF mutation broadening, direct dashboard WebSocket call, Coinbase call,
-  browser approval workflow, or reconciliation authority.
+- M35 must use the existing append-only Admin API audit log and Audit
+  Workbench read path only. Do not add a live admission endpoint, approval
+  mutation, guard evaluator, new audit endpoint, approval storage, command
+  route, BFF mutation broadening, direct dashboard WebSocket call, Coinbase
+  call, browser approval workflow, browser audit writer, or reconciliation
+  authority.
 
 ## Decisions (Durable)
 
@@ -247,6 +248,17 @@ Keep it short. Keep it factual.
     command-route broadening, Coinbase call, or reconciliation authority is
     allowed.
 
+- [2026-06-12] Decision: M35 command admission audit persistence uses the
+  existing append-only Admin API audit log, not a new audit path.
+  - Reason: Live admission needs durable evidence, but adding a parallel
+    audit endpoint or browser-writable audit path would violate the single
+    behavior path and make future live execution harder to reason about.
+  - Impact: Command admission decisions are persisted on
+    `AdminApiAuditEvent` and surfaced through Audit Workbench read evidence.
+    Live-enablement may count the command-admission-decision audit fact as
+    passed while approval, cap/guard, exchange submission, and reconciliation
+    facts remain blocked.
+
 ## Open Risks
 
 - Risk: Broad all-USDC SELL execution still has many wallet-only or insufficient-known-profitable rows.
@@ -282,46 +294,47 @@ Keep it short. Keep it factual.
 - Result: Passed, 63 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-12
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: Passed for approved range `1181-1200`. Live Coinbase execution
+- Result: Passed for approved range `1201-1220`. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-12
   `python -m pytest tests\regression\ -v --tb=short`
 - Result: Passed, 790 tests, 1 warning.
 - Last frontend focused run: 2026-06-12
-  `npm run typecheck`, `npm run lint`, `npm run api:check`,
-  `npm run release:check`, `npm run deployment:check`,
-  `npm run autonomous:check`, focused Vitest, and `npm run release:gate`.
+  `npm run api:check`, focused Vitest, and `npm run release:gate`.
 - Result: Passed; frontend full `npm run release:gate` passed with `186` unit
-  tests and `3` Playwright tests after the M34 schema, dry-submit evidence,
-  docs, artifacts, and review-log updates.
-- Last blind/contextless M34 review: 2026-06-12
-- Result: Passed for command admission decision evidence. Reviewer found no
-  new command endpoint, live admission endpoint, Coinbase call, guard
-  executor, approval mutation, audit storage, approval storage, BFF mutation
-  broadening, direct dashboard WebSocket path, or browser authority path.
-- Live Coinbase execution for M34: not run. Submitted notional `0` USDC.
+  tests and `3` Playwright tests after the M35 schema, Audit Workbench
+  admission evidence, docs, artifacts, and review-log updates.
+- Last blind/contextless M35 review: 2026-06-12
+- Result: Passed for command admission audit persistence. Reviewer found no
+  duplicate audit path, stale active-range doc, browser authority expansion,
+  BFF mutation broadening, Coinbase execution path, or safety-boundary
+  violation.
+- Live Coinbase execution for M35: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Commit the completed M34 backend and frontend changes separately after the
-   final autonomous checks confirm review-log and handoff updates.
-2. Prepare the next approved 20-phase queue slice before starting additional
-   implementation work.
+1. Advance the next approved admin-platform batch from the roadmap without
+   enabling live HTTP execution.
+2. Preserve the single command/audit behavior path when adding the next
+   approval-store, cap/guard, or live-admission evidence slice.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
 
 ## Handoff Notes
 
-- What is done through M34: backend live-enablement exposes typed, blocked,
+- What is done through M35: backend live-enablement exposes typed, blocked,
   route-specific approval snapshot, approval-store contract,
   live-admission audit trail, and cap/guard requirements per live-shaped
   route. Existing live-disabled command responses now expose typed,
   fail-closed command admission decision evidence bound to route, identity,
-  actor, payload hash, idempotency key, and operator intent. OpenAPI was
-  regenerated; frontend generated schema, mocks, dry-submit evidence rows,
-  quality artifacts, docs, and tests consume the contract.
+  actor, payload hash, idempotency key, and operator intent. The same
+  admission decision is persisted on existing Admin API audit events and
+  surfaced through read-only Audit Workbench evidence. OpenAPI was
+  regenerated; frontend generated schema, mocks, dry-submit and Audit
+  Workbench evidence rows, quality artifacts, docs, and tests consume the
+  contract.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard, and
@@ -329,8 +342,8 @@ Keep it short. Keep it factual.
   controls, guard evaluator, audit storage, approval storage, BFF mutation
   broadening, Coinbase call, browser approval, or reconciliation behavior is
   allowed.
-- What is in progress: M34 is implemented and validated; separate
-  backend/frontend commits remain.
+- What is in progress: Nothing known after M35 validation; next approved
+  roadmap batch should start from this state.
 - What is blocked: Nothing currently known.
-- Exact next command: run backend and frontend autonomous checks after this
-  handoff-state update, then commit the backend and frontend M34 changes.
+- Exact next command: inspect `docs/plans/AUTONOMOUS_WORK_QUEUE.md` and start
+  the next approved admin-platform phase range.

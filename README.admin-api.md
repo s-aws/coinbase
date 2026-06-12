@@ -42,9 +42,11 @@ adapters. New product UI must use the HTTP API contract, not the dashboard
 WebSocket.
 
 Mutating HTTP command responses include the current fail-closed live execution
-gate decision and M34 route-bound admission decision evidence. The admission
-decision binds the route, method, module id, identity key, actor, idempotency
-key, operator intent, and payload hash to the missing approval, cap/guard,
+gate decision and M34 route-bound admission decision evidence. M35 persists
+that same admission decision in the existing append-only Admin API audit log
+and exposes it through the read-only Audit Workbench. The admission decision
+binds the route, method, module id, identity key, actor, idempotency key,
+operator intent, and payload hash to the missing approval, cap/guard,
 admission-audit, and reconciliation blockers before HTTP live execution can be
 enabled.
 
@@ -234,6 +236,10 @@ The platform/module split is documented in
 - M34 command admission decision evidence is emitted on live-disabled HTTP
   command responses. It is route-bound and payload-bound evidence for why the
   command remains blocked; it is not browser approval, guard execution,
+  reconciliation authority, or live Coinbase execution.
+- M35 command admission audit persistence writes the same admission decision
+  to existing Admin API audit events and exposes it through Audit Workbench
+  read evidence. It is not audit mutation, browser approval, guard execution,
   reconciliation authority, or live Coinbase execution.
 - Audit workbench reads normalize route inventory, command audit, order,
   stealth, movement/repricing, futures/perpetual, guard/risk, and campaign

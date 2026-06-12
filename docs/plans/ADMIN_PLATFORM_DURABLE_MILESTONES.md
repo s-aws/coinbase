@@ -63,7 +63,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M31 - Approval Store Contract Evidence | Complete | Make missing durable backend approval-store behavior explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
 | M32 - Live Admission Audit Trail Evidence | Complete | Make missing append-only backend admission audit behavior explicit per live-shaped route without creating audit storage, command authority, or browser approval. |
 | M33 - Route-Specific Cap/Guard Contract Evidence | Complete | Make missing backend cap/guard decision behavior explicit per live-shaped route without creating a browser guard evaluator, command authority, or live execution. |
-| M34 - Command Admission Decision Evidence | Active | Make per-command live admission decisions route-bound, payload-bound, audited, and visible while preserving live-disabled execution. |
+| M34 - Command Admission Decision Evidence | Complete | Make per-command live admission decisions route-bound, payload-bound, audited, and visible while preserving live-disabled execution. |
+| M35 - Command Admission Audit Persistence | Active | Persist command admission decisions in the append-only Admin API audit path and expose them through read-only audit evidence. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1263,7 +1264,7 @@ admission decision that binds route, method, module, identity, actor,
 idempotency key, operator intent, and payload hash before any live execution
 can be considered.
 
-Active scope:
+Completed scope:
 
 - Phases 1181-1200 advance the active unattended range while preserving the
   same no-live frontend posture and carried Coinbase cap policy.
@@ -1289,6 +1290,58 @@ Done when:
   `npm run release:gate` pass.
 - Blind/contextless review confirms the admission evidence is route-bound,
   payload-bound, backend-owned, live-disabled, and not browser authority.
+- Full backend regression passes.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+Completed evidence:
+
+- Backend live-disabled command responses expose route-bound admission
+  decisions through the existing command adapter.
+- OpenAPI was regenerated and the frontend generated schema consumes the
+  command response expansion.
+- Frontend dry-submit evidence renders admission status, allowed flag, route,
+  identity key, and blockers without command authority.
+- Focused backend/frontend checks, full backend regression, frontend
+  `npm run release:gate`, and blind/contextless review passed for M34.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M35 - Command Admission Audit Persistence
+
+Purpose: make command admission decisions durable by writing them to the
+existing append-only Admin API audit log and exposing them through read-only
+Audit Workbench evidence without creating a new audit path or live admission.
+
+Active scope:
+
+- Phases 1201-1220 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Existing Admin API command routes, `FileAdminApiAuditStore`, and the shared
+  command service remain the only command/audit behavior paths.
+- Audit events persist typed admission decision evidence for route, method,
+  module, identity key, action class, permission, service method, actor,
+  idempotency key, operator intent, payload hash, blockers, evidence, and
+  detail.
+- Audit Workbench normalizes persisted admission decisions as backend evidence
+  while remaining read-only.
+- Live-enablement may report the command-admission-decision audit fact as
+  passed, but approval, cap/guard, exchange submission, and reconciliation
+  facts remain blocked.
+- Frontend Audit Workbench may display persisted admission evidence, but must
+  not treat it as browser approval, wallet authority, audit mutation, command
+  authority, or Coinbase execution authority.
+
+Done when:
+
+- Backend focused Admin API/readiness tests and autonomous queue check pass.
+- OpenAPI is regenerated and the frontend generated client consumes the new
+  audit workbench field without hand edits.
+- Frontend focused audit workbench/UI tests, quality checks, and
+  `npm run release:gate` pass.
+- Blind/contextless review confirms persisted admission audit evidence is
+  backend-owned, append-only, read-only in the browser, live-disabled, and not
+  command authority.
 - Full backend regression passes.
 - Live Coinbase execution is not run; submitted and executed notional remain
   `$0`.

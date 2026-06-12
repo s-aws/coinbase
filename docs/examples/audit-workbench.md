@@ -35,6 +35,26 @@ Expected posture:
 }
 ```
 
+Command audit rows may include persisted admission evidence:
+
+```json
+{
+  "module": "orders",
+  "route": "/api/v1/orders/{client_order_id}/cancel",
+  "client_order_id": "client-order-001",
+  "admission_decision": {
+    "status": "blocked",
+    "route": "/api/v1/orders/{client_order_id}/cancel",
+    "identity_key": "client_order_id",
+    "blockers": ["admission_audit_missing", "cap_guard_missing"],
+    "live_exchange_submitted": false
+  }
+}
+```
+
+This evidence is read-only. It does not mean the route is live-enabled, and it
+does not replace approval, cap, guard, exchange, or reconciliation evidence.
+
 ## Read One Order's Audit Evidence
 
 Use `client_order_id` for order-linked evidence:

@@ -2,6 +2,57 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Command Admission Audit Persistence Review - Phases 1201-1220
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify M35 uses the existing append-only Admin API audit path, not a new
+  audit endpoint, store, or browser-writable audit path
+- verify command audit events persist `admission_decision` from existing
+  command responses, including idempotency conflict responses
+- verify Audit Workbench exposes persisted admission decisions as read-only
+  evidence
+- verify live-enablement marks only the command-admission-decision audit fact
+  passed while approval, cap/guard, exchange, and reconciliation facts remain
+  blocked
+- verify frontend Audit Workbench rendering is display-only and does not
+  broaden BFF mutations, submit Coinbase orders, decide approval, evaluate
+  guards, or write audit history
+- verify active range `1201-1220` and no-live posture are coherent
+
+Findings:
+
+- PASS: backend command routes still write through the existing
+  `_record_audit` helper and `FileAdminApiAuditStore.append`.
+- PASS: `AdminApiAuditEvent` persists `admission_decision` from command
+  responses, and normal/idempotency-conflict responses carry the same evidence.
+- PASS: Audit Workbench normalization exposes admission decisions as evidence
+  only.
+- PASS: live-enablement marks `command_admission_decision_recorded` passed but
+  keeps the full live-admission audit trail blocked until approval, cap/guard,
+  exchange submission, and reconciliation facts are linked.
+- PASS: frontend Audit Workbench renders the Admission column from backend
+  `admission_decision` evidence only; no BFF mutation broadening, Coinbase
+  call, browser audit writer, approval path, guard evaluator, or command
+  authority expansion was found.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `63 passed,
+  1 warning`.
+- Backend full regression passed with `790 passed, 1 warning`.
+- Backend autonomous queue validation passed for `1201-1220`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Command Admission Decision Evidence Review - Phases 1181-1200
 
 Review scope:

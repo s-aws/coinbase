@@ -97,7 +97,14 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1181-1200`.
+- Active autonomous range: `1201-1220`.
+- M35 command admission audit persistence is in progress. It must use the
+  existing append-only Admin API audit log and Audit Workbench read path only:
+  persisted admission decisions can describe route, payload hash,
+  idempotency, operator intent, approval, cap/guard, admission-audit, and
+  reconciliation blockers, but they must not become browser approval, browser
+  wallet authority, audit mutation, guard execution, a new command route,
+  Coinbase execution, or reconciliation authority.
 - M34 command admission decision evidence is exposed through existing
   live-disabled Admin API command responses. It must remain evidence-only:
   decisions can describe route, payload hash, idempotency, operator intent,

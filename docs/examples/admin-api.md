@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1181-1200",
+  "approved_phase_range": "1201-1220",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -195,7 +195,7 @@ Expected M8 readiness posture:
   "admission_audit_configured_count": 0,
   "admission_audit_missing_count": 5,
   "admission_audit_fact_count": 50,
-  "admission_audit_missing_fact_count": 50,
+  "admission_audit_missing_fact_count": 45,
   "cap_guard_required_count": 5,
   "cap_guard_configured_count": 0,
   "cap_guard_missing_count": 5,
@@ -498,12 +498,12 @@ Expected M8 readiness posture:
         "status": "blocked",
         "required": true,
         "configured": false,
-        "append_only": false,
+        "append_only": true,
         "backend_owned": true,
         "browser_authority": "display_only",
-        "source": "not_configured",
+        "source": "admin_api_audit_log_partial",
         "fact_count": 10,
-        "missing_fact_count": 10,
+        "missing_fact_count": 9,
         "facts": [
           {
             "fact": "route_admission_requested",
@@ -520,6 +520,14 @@ Expected M8 readiness posture:
             "expected_source": "approval_store",
             "expected_value": null,
             "detail": "Audit trail must link the backend approval-store decision and approving actor."
+          },
+          {
+            "fact": "command_admission_decision_recorded",
+            "status": "passed",
+            "required": true,
+            "expected_source": "admin_api_audit_log",
+            "expected_value": "spot_operations",
+            "detail": "Append-only Admin API audit records now store the backend admission decision before Coinbase submission."
           },
           {
             "fact": "exchange_submission_linked",
@@ -539,11 +547,11 @@ Expected M8 readiness posture:
           }
         ],
         "evidence": [
-          "No durable live-admission audit trail is configured for this route.",
-          "Live admission must be append-only, backend-owned, route-bound, payload-bound, and reconciliation-linked.",
+          "Command admission decisions are recorded in the append-only Admin API audit log.",
+          "Full live admission remains blocked until approval, cap/guard, exchange submission, and reconciliation facts are linked.",
           "Browser evidence remains display-only and cannot write or satisfy admission audit facts."
         ],
-        "detail": "POST /api/v1/orders remains live-disabled until the backend can write and verify an append-only live-admission audit trail."
+        "detail": "POST /api/v1/orders remains live-disabled until the backend can write and verify the full append-only live-admission audit trail."
       },
       "cap_guard_contract": {
         "status": "blocked",
@@ -678,13 +686,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1181-1200",
+  "approved_phase_range": "1201-1220",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

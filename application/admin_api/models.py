@@ -903,6 +903,7 @@ class AdminAuditWorkbenchEventItem(BaseModel):
     exchange_order_id_evidence_only: bool = True
     recorded_at: str | None = None
     message: str | None = None
+    admission_decision: FlexibleDict | None = None
     live_coinbase_orders_ran: bool = False
     raw_event: FlexibleDict = Field(default_factory=dict)
 

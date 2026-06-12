@@ -173,6 +173,7 @@ def _record_audit(
             status=response.status,
             failure_stage=response.failure_stage,
             message=response.message,
+            admission_decision=response.admission_decision,
         )
     )
 

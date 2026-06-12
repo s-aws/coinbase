@@ -107,7 +107,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1181-1200"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1201-1220"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -599,10 +599,11 @@ def _admission_audit_fact(
     expected_source: str,
     detail: str,
     expected_value: str | None = None,
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED,
 ) -> AdminLiveAdmissionAuditFactItem:
     return AdminLiveAdmissionAuditFactItem(
         fact=fact,
-        status=AdminApiGateStatus.BLOCKED,
+        status=status,
         required=True,
         expected_source=expected_source,
         expected_value=expected_value,
@@ -652,9 +653,10 @@ def _live_admission_audit_trail_evidence(
         ),
         _admission_audit_fact(
             fact=AdminApiLiveAdmissionAuditFact.COMMAND_ADMISSION_DECISION_RECORDED,
-            expected_source="live_admission_policy",
+            expected_source="admin_api_audit_log",
             expected_value=module_id,
-            detail="Audit trail must record the backend admission decision before Coinbase submission.",
+            detail="Append-only Admin API audit records now store the backend admission decision before Coinbase submission.",
+            status=AdminApiGateStatus.PASSED,
         ),
         _admission_audit_fact(
             fact=AdminApiLiveAdmissionAuditFact.EXCHANGE_SUBMISSION_LINKED,
@@ -673,25 +675,28 @@ def _live_admission_audit_trail_evidence(
             detail="Audit trail must record that browser acknowledgement is not live authority.",
         ),
     ]
+    missing_fact_count = sum(
+        1 for fact in facts if fact.status != AdminApiGateStatus.PASSED
+    )
     return AdminLiveAdmissionAuditTrailEvidence(
         status=AdminApiGateStatus.BLOCKED,
         required=True,
         configured=False,
-        append_only=False,
+        append_only=True,
         backend_owned=True,
         browser_authority="display_only",
-        source="not_configured",
+        source="admin_api_audit_log_partial",
         fact_count=len(facts),
-        missing_fact_count=len(facts),
+        missing_fact_count=missing_fact_count,
         facts=facts,
         evidence=[
-            "No durable live-admission audit trail is configured for this route.",
-            "Live admission must be append-only, backend-owned, route-bound, payload-bound, and reconciliation-linked.",
+            "Command admission decisions are recorded in the append-only Admin API audit log.",
+            "Full live admission remains blocked until approval, cap/guard, exchange submission, and reconciliation facts are linked.",
             "Browser evidence remains display-only and cannot write or satisfy admission audit facts.",
         ],
         detail=(
             f"{method} {route} remains live-disabled until the backend can "
-            "write and verify an append-only live-admission audit trail."
+            "write and verify the full append-only live-admission audit trail."
         ),
     )
 
@@ -2014,6 +2019,11 @@ def _audit_event_from_command_event(
         exchange_order_id=event.coinbase_order_id,
         recorded_at=event.recorded_at,
         message=event.message,
+        admission_decision=(
+            event.admission_decision.model_dump(mode="json")
+            if event.admission_decision is not None
+            else None
+        ),
         raw_event=raw_event,
     )
 

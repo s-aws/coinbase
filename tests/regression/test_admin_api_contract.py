@@ -30,7 +30,7 @@ from application.admin_api.idempotency import (
     evaluate_idempotency,
     make_payload_hash,
 )
-from application.admin_api.models import AdminApiActor
+from application.admin_api.models import AdminApiActor, AdminLiveAdmissionDecisionEvidence
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
     AdminApiActionClass,
@@ -334,6 +334,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "exchange_order_id" in audit_event_schema["properties"]
     assert "exchange_order_id_evidence_only" in audit_event_schema["properties"]
     assert "operator_intent" in audit_event_schema["properties"]
+    assert "admission_decision" in audit_event_schema["properties"]
     assert "order_id" not in audit_event_schema["properties"]
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
@@ -1103,6 +1104,15 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["client_order_id"] == "client-abc"
     assert audit_rows[-1]["permission"] == AdminApiPermission.ORDER_CANCEL.value
     assert audit_rows[-1]["operator_intent"] == "manual_one_off"
+    assert audit_rows[-1]["admission_decision"]["route"] == (
+        "/api/v1/orders/{client_order_id}/cancel"
+    )
+    assert audit_rows[-1]["admission_decision"]["identity_key"] == "client_order_id"
+    assert audit_rows[-1]["admission_decision"]["idempotency_key"] == "idem-audit"
+    assert audit_rows[-1]["admission_decision"]["operator_intent"] == "manual_one_off"
+    assert len(audit_rows[-1]["admission_decision"]["payload_hash"]) == 64
+    assert audit_rows[-1]["admission_decision"]["live_exchange_submitted"] is False
+    assert "admission_audit_missing" in audit_rows[-1]["admission_decision"]["blockers"]
 
     stealth_response = client.post(
         "/api/v1/stealth/orders/stealth-abc/cancel",
@@ -1123,6 +1133,10 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["client_order_id"] is None
     assert audit_rows[-1]["permission"] == AdminApiPermission.ORDER_CANCEL.value
     assert audit_rows[-1]["operator_intent"] == "manual_one_off"
+    assert audit_rows[-1]["admission_decision"]["route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel"
+    )
+    assert audit_rows[-1]["admission_decision"]["identity_key"] == "stealth_order_id"
     idempotency_rows = [
         json.loads(line)
         for line in (client.admin_api_test_store_dir / "idempotency.jsonl").read_text(
@@ -1154,6 +1168,11 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["client_order_id"] is None
     assert audit_rows[-1]["permission"] == AdminApiPermission.ORDER_CANCEL.value
     assert audit_rows[-1]["operator_intent"] == "manual_one_off"
+    assert audit_rows[-1]["admission_decision"]["route"] == (
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    )
+    assert audit_rows[-1]["admission_decision"]["module_id"] == "movement_repricing"
+    assert audit_rows[-1]["admission_decision"]["identity_key"] == "stealth_order_id"
     idempotency_rows = [
         json.loads(line)
         for line in (client.admin_api_test_store_dir / "idempotency.jsonl").read_text(
@@ -1488,7 +1507,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1181-1200"
+    assert live_payload["approved_phase_range"] == "1201-1220"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1513,7 +1532,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["admission_audit_configured_count"] == 0
     assert live_payload["admission_audit_missing_count"] == 5
     assert live_payload["admission_audit_fact_count"] == 50
-    assert live_payload["admission_audit_missing_fact_count"] == 50
+    assert live_payload["admission_audit_missing_fact_count"] == 45
     assert live_payload["cap_guard_required_count"] == 5
     assert live_payload["cap_guard_configured_count"] == 0
     assert live_payload["cap_guard_missing_count"] == 5
@@ -1631,7 +1650,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
-        item["admission_audit_trail"]["append_only"] is False
+        item["admission_audit_trail"]["append_only"] is True
         for item in live_routes.values()
     )
     assert all(
@@ -1647,7 +1666,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
-        item["admission_audit_trail"]["missing_fact_count"] == 10
+        item["admission_audit_trail"]["missing_fact_count"] == 9
         for item in live_routes.values()
     )
     assert all(
@@ -1769,7 +1788,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for requirement in spot_store_requirements.values()
     )
     spot_admission_audit = live_routes["/api/v1/orders"]["admission_audit_trail"]
-    assert spot_admission_audit["source"] == "not_configured"
+    assert spot_admission_audit["source"] == "admin_api_audit_log_partial"
     assert "live-admission audit trail" in spot_admission_audit["detail"]
     spot_admission_facts = {
         fact["fact"]: fact
@@ -1800,6 +1819,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         spot_admission_facts["command_admission_decision_recorded"]["expected_value"]
         == "spot_operations"
     )
+    assert spot_admission_facts["command_admission_decision_recorded"][
+        "expected_source"
+    ] == "admin_api_audit_log"
+    assert (
+        spot_admission_facts["command_admission_decision_recorded"]["status"]
+        == "passed"
+    )
     assert spot_admission_facts["exchange_submission_linked"]["expected_source"] == (
         "coinbase_adapter"
     )
@@ -1812,7 +1838,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert all(
         fact["status"] == "blocked"
-        for fact in spot_admission_facts.values()
+        for name, fact in spot_admission_facts.items()
+        if name != "command_admission_decision_recorded"
     )
     assert all(
         fact["required"] is True
@@ -1878,7 +1905,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1181-1200"
+    assert enterprise_payload["approved_phase_range"] == "1201-1220"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -3304,6 +3331,25 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
             status=AdminApiCommandStatus.NOT_IMPLEMENTED,
             failure_stage="approval",
             message="cancel live disabled",
+            admission_decision=AdminLiveAdmissionDecisionEvidence(
+                status=AdminApiGateStatus.BLOCKED,
+                allowed=False,
+                route="/api/v1/orders/{client_order_id}/cancel",
+                method="POST",
+                module_id="spot_operations",
+                identity_key="client_order_id",
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="cancel_order_by_client_order_id",
+                actor_id="operator-001",
+                idempotency_key="idem-001",
+                operator_intent="manual_one_off",
+                payload_hash="1" * 64,
+                live_exchange_submitted=False,
+                blockers=["admission_audit_missing"],
+                evidence=["append-only command admission audit"],
+                detail="HTTP live execution is blocked.",
+            ),
         )
     )
     monkeypatch.setenv("COINBASE_ADMIN_API_AUDIT_LOG_PATH", str(audit_path))
@@ -3348,6 +3394,33 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].operator_intent
         == "manual_one_off"
     )
+    assert events_by_source[
+        AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
+    ].admission_decision == {
+        "status": AdminApiGateStatus.BLOCKED.value,
+        "allowed": False,
+        "route": "/api/v1/orders/{client_order_id}/cancel",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value,
+        "required_permission": AdminApiPermission.ORDER_CANCEL.value,
+        "service_method": "cancel_order_by_client_order_id",
+        "actor_id": "operator-001",
+        "idempotency_key": "idem-001",
+        "operator_intent": "manual_one_off",
+        "payload_hash": "1" * 64,
+        "approval_snapshot_required": True,
+        "approval_store_required": True,
+        "admission_audit_required": True,
+        "cap_guard_required": True,
+        "reconciliation_required": True,
+        "browser_authority": "rejected",
+        "live_exchange_submitted": False,
+        "blockers": ["admission_audit_missing"],
+        "evidence": ["append-only command admission audit"],
+        "detail": "HTTP live execution is blocked.",
+    }
     assert events_by_source[AdminAuditEvidenceSource.ORDER_PARENT].client_order_id == (
         "client-abc"
     )

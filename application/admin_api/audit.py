@@ -12,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import AdminApiActionClass, AdminApiCommandStatus, AdminApiPermission
 
+from .models import AdminLiveAdmissionDecisionEvidence
+
 
 class AdminApiAuditEvent(BaseModel):
     """Audit evidence shape for accepted and rejected command attempts."""
@@ -34,6 +36,7 @@ class AdminApiAuditEvent(BaseModel):
     status: AdminApiCommandStatus
     failure_stage: str | None = None
     message: str | None = None
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
 
 
 class FileAdminApiAuditStore:

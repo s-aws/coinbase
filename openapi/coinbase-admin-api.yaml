@@ -3375,6 +3375,12 @@ components:
           - type: string
           - type: 'null'
           title: Message
+        admission_decision:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Admission Decision
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
