@@ -35,6 +35,9 @@ These primitives apply across modules:
   routes to enterprise modules
 - enterprise-readiness action posture evidence derived from route-inventory
   `module_id`, not broad path prefixes
+- live-enablement governance linkage that binds live-shaped command routes to
+  module ownership, identity keys, required gate controls, reconciliation
+  blockers, capability evidence, and no-browser-authority proof
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -122,6 +125,12 @@ The frontend Enterprise Module Capability Linkage surface combines
 per-module capability rows, command contracts, shared methods, permissions,
 and disabled command workflow posture. Do not add a parallel linkage endpoint
 or treat capability rows as browser approval for live execution.
+The frontend Enterprise Live-Action Governance Linkage surface combines
+`GET /api/v1/admin/live-enablement`, `GET /api/v1/admin/capabilities`, and
+`GET /api/v1/admin/enterprise-readiness` to show per-route gate controls,
+module ownership, identity keys, reconciliation blockers, and no-browser
+authority. Do not add a parallel governance endpoint or change live-disabled
+HTTP command behavior from this evidence.
 
 ## Durable Milestones
 

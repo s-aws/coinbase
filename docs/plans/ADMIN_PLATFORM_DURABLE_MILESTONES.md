@@ -56,6 +56,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M24 - Enterprise Module Catalog | Complete | Make enterprise module readiness directly consumable as a read-only admin catalog. |
 | M25 - Enterprise Module Traceability | Complete | Make module routes, command gaps, contracts, docs, identity keys, and spot boundaries traceable from the catalog. |
 | M26 - Enterprise Module Capability Linkage | Complete | Link module readiness to backend capability rows and disabled command workflow posture. |
+| M27 - Enterprise Live-Action Governance Linkage | Complete | Link live-shaped command routes to backend governance gates, blockers, module ownership, and no-browser-authority evidence. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -953,6 +954,53 @@ Completed evidence:
   tests passed.
 - Blind/contextless review initially blocked on path-only mock capability
   evidence. Remediation was reviewed and passed with no remaining blocker.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## M27 - Enterprise Live-Action Governance Linkage
+
+Purpose: make every live-shaped Admin API command route explainable from
+backend-owned live-enablement, capability, and enterprise-readiness evidence
+without enabling live execution or adding a new command path.
+
+Completed scope:
+
+- Phases 1041-1060 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `GET /api/v1/admin/live-enablement` carries module id, module owner,
+  identity key, required governance controls, reconciliation blockers,
+  capability/readiness source refs, and spot-rule boundary evidence per
+  live-shaped HTTP command route.
+- `GET /api/v1/admin/capabilities` and
+  `GET /api/v1/admin/enterprise-readiness` remain the join sources for route
+  capability and module readiness evidence; no parallel governance endpoint is
+  introduced.
+- HTTP command routes remain live-disabled and fail-closed. M27 does not
+  approve live placement, cancellation, repricing, campaign execution, or any
+  Coinbase call.
+- Futures/perpetual commands remain not modeled, stealth and
+  movement/repricing live actions remain exchange-reality blocked, and legacy
+  dashboard WebSocket surfaces remain compatibility-only.
+
+Completed evidence:
+
+- Backend live-enablement path rows expose governance fields for all
+  live-shaped HTTP command routes and are joined to capability/readiness
+  evidence without a parallel endpoint.
+- OpenAPI was regenerated and the frontend generated schema consumed the new
+  fields.
+- Frontend Modules route renders Enterprise Live-Action Governance Linkage as
+  read-only evidence with no command controls.
+- Runtime artifacts, release checks, docs, examples, and maintainer handoff
+  mention the governance linkage boundary.
+- Focused backend gates passed: Admin API contract and spot readiness checks
+  reported `63` passed with `1` warning.
+- Backend autonomous queue check passed for approved range 1041-1060.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M27 review passed with no blockers and confirmed no
+  browser authority or live command enablement was added.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 

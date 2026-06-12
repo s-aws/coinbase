@@ -1422,7 +1422,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1021-1040"
+    assert live_payload["approved_phase_range"] == "1041-1060"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1442,11 +1442,51 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/spot/campaign/executions" in live_routes
     assert all(item["live_enabled"] is False for item in live_routes.values())
     assert all(item["status"] == "live_disabled" for item in live_routes.values())
+    assert all(item["governance_status"] == "blocked" for item in live_routes.values())
+    assert all(item["browser_authority"] == "display_only" for item in live_routes.values())
+    assert all(item["capability_source"] == "GET /api/v1/admin/capabilities" for item in live_routes.values())
+    assert all(item["readiness_source"] == "GET /api/v1/admin/enterprise-readiness" for item in live_routes.values())
+    assert all(item["idempotency_key_required"] is True for item in live_routes.values())
+    assert all(item["operator_intent_required"] is True for item in live_routes.values())
+    assert all(item["payload_hash_required"] is True for item in live_routes.values())
+    assert all(item["request_id_required"] is True for item in live_routes.values())
+    assert all(item["audit_id_required"] is True for item in live_routes.values())
+    assert all(item["reconciliation_blockers"] for item in live_routes.values())
+    assert live_routes["/api/v1/orders"]["module_id"] == "spot_operations"
+    assert live_routes["/api/v1/orders"]["module"] == "Spot Operations"
+    assert live_routes["/api/v1/orders"]["module_owner"] == "strategy"
+    assert live_routes["/api/v1/orders"]["identity_key"] == "client_order_id"
+    assert "Spot-only wallet" in live_routes["/api/v1/orders"]["spot_rule_boundary"]
+    assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["module_id"] == "stealth_orders"
+    assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["identity_key"] == "stealth_order_id"
+    assert (
+        "active exchange placement reality"
+        in " ".join(
+            live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"][
+                "reconciliation_blockers"
+            ]
+        )
+    )
+    assert (
+        live_routes["/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"][
+            "module_id"
+        ]
+        == "movement_repricing"
+    )
+    assert (
+        "cancel/replace"
+        in " ".join(
+            live_routes[
+                "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+            ]["reconciliation_blockers"]
+        )
+    )
+    assert live_routes["/api/v1/spot/campaign/executions"]["identity_key"] == "campaign_id"
     assert enterprise_readiness.status_code == 200
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1021-1040"
+    assert enterprise_payload["approved_phase_range"] == "1041-1060"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

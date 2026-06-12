@@ -37,5 +37,9 @@ implicit platform model.
 - Keep Enterprise Module Capability Linkage aligned with backend capability
   rows and enterprise-readiness command routes. It is read-only evidence for
   command workflow posture, not a separate source of command authority.
+- Keep live-enablement governance linkage aligned with backend capability
+  rows, enterprise-readiness module rows, and route-inventory live-shaped
+  command paths. It is read-only evidence for gate posture and blockers, not
+  approval for live execution.
 - Update route inventory, OpenAPI, examples, frontend association, and
   contextless review prompts when a module changes status.

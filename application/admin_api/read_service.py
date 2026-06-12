@@ -93,7 +93,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1021-1040"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1041-1060"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -155,6 +155,92 @@ def _live_enablement_module(path: str) -> str:
     if path.startswith("/api/v1/orders/"):
         return "orders"
     return "admin"
+
+
+def _enterprise_module_name(module_id: str) -> str:
+    return {
+        "admin_system_health": "Admin / System Health",
+        "spot_operations": "Spot Operations",
+        "futures_perpetuals": "Futures / Perpetuals",
+        "stealth_orders": "Stealth Orders",
+        "movement_repricing": "Order Movement / Repricing",
+        "guard_risk_policy": "Guard / Risk Policy",
+        "audit_workbench": "Audit Workbench",
+        "legacy_dashboard_websocket": "Legacy Dashboard WebSocket",
+    }.get(module_id, module_id)
+
+
+def _enterprise_module_owner(module_id: str) -> str:
+    return {
+        "admin_system_health": "admin_api_contract",
+        "spot_operations": "strategy",
+        "futures_perpetuals": "admin_api_contract",
+        "stealth_orders": "stealth_lifecycle",
+        "movement_repricing": "stealth_lifecycle",
+        "guard_risk_policy": "order_lifecycle",
+        "audit_workbench": "admin_api_contract",
+        "legacy_dashboard_websocket": "dashboard_contract",
+    }.get(module_id, "admin_api_contract")
+
+
+def _enterprise_module_identity_key(module_id: str, route: str) -> str:
+    if module_id == "stealth_orders":
+        return "stealth_order_id"
+    if module_id == "movement_repricing":
+        return "stealth_order_id"
+    if module_id == "futures_perpetuals":
+        return "position_key"
+    if "campaign" in route:
+        return "campaign_id"
+    if module_id == "spot_operations":
+        return "client_order_id"
+    return "request_id"
+
+
+def _enterprise_module_spot_boundary(module_id: str) -> str:
+    if module_id == "spot_operations":
+        return (
+            "Spot-only wallet, USDC, no-shorting, inventory, cost-basis, "
+            "and average-cost rules apply only to spot command authority."
+        )
+    if module_id == "futures_perpetuals":
+        return (
+            "Futures/perpetual authority is position, margin, leverage, "
+            "collateral, liquidation, and reduce-only aware; spot inventory "
+            "rules must not be reused."
+        )
+    if module_id in {"stealth_orders", "movement_repricing"}:
+        return (
+            "Stealth and movement/repricing authority is exchange-reality "
+            "and mutation-claim based; spot wallet rules are not browser "
+            "authority for these workflows."
+        )
+    return "No spot trading rule is generic platform authority."
+
+
+def _live_governance_blockers(module_id: str, route: str) -> list[str]:
+    blockers = [
+        "post-live reconciliation evidence is not wired for this route",
+        "explicit M8 live approval snapshot is not present for this route",
+        "backend cap, guard, idempotency, operator-intent, and audit evidence must be enforced before live enablement",
+    ]
+    if module_id == "spot_operations":
+        blockers.append(
+            "spot wallet, inventory, no-shorting, and cost-basis authority must remain backend-owned"
+        )
+    if module_id == "stealth_orders":
+        blockers.append(
+            "stealth cancellation must account for active exchange placement reality before local state changes"
+        )
+    if module_id == "movement_repricing":
+        blockers.append(
+            "movement/repricing must use backend cancel/replace and mutation-claim handling before live repricing"
+        )
+    if "campaign" in route:
+        blockers.append(
+            "spot campaign execution must retain dry-run and sweep reconciliation evidence until live approval"
+        )
+    return blockers
 
 
 def _path_id(method: str, path: str) -> str:
@@ -2601,18 +2687,34 @@ class AdminApiReadService:
                     path_id=_path_id(method, path),
                     route=path,
                     method=method,
-                    module=_live_enablement_module(path),
+                    module_id=item.module_id,
+                    module=_enterprise_module_name(item.module_id),
+                    module_owner=_enterprise_module_owner(item.module_id),
+                    identity_key=_enterprise_module_identity_key(item.module_id, path),
                     action_class=item.action_class,
                     required_permission=item.permission,
                     shared_method=item.shared_method,
                     live_enabled=False,
                     live_eligible=False,
                     status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+                    governance_status=AdminApiGateStatus.BLOCKED,
                     approval_required=True,
                     cap_required=True,
                     guard_required=True,
                     audit_required=True,
+                    idempotency_key_required=True,
+                    operator_intent_required=True,
+                    payload_hash_required=True,
+                    request_id_required=True,
+                    audit_id_required=True,
                     reconciliation_required=True,
+                    browser_authority="display_only",
+                    reconciliation_blockers=_live_governance_blockers(
+                        item.module_id, path
+                    ),
+                    spot_rule_boundary=_enterprise_module_spot_boundary(
+                        item.module_id
+                    ),
                     product_scope=LIVE_ENABLEMENT_PRODUCT_SCOPE,
                     max_submitted_notional_usdc=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
                     max_executed_notional_usdc=LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC,
@@ -2620,11 +2722,13 @@ class AdminApiReadService:
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
                         "M8 explicit live approval required",
+                        "idempotency, operator intent, payload hash, request id, and audit id required",
                         "post-live reconciliation required",
                     ],
                     notes=(
                         "Current Admin API command contract is live-disabled; "
-                        "this read route is eligibility evidence only."
+                        "this read route is governance evidence only and does "
+                        "not grant browser command authority."
                     ),
                 )
             )

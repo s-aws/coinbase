@@ -97,7 +97,11 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1021-1040`.
+- Active autonomous range: `1041-1060`.
+- M27 live-action governance linkage uses the existing
+  `GET /api/v1/admin/live-enablement`, `GET /api/v1/admin/capabilities`, and
+  `GET /api/v1/admin/enterprise-readiness` reads. It must remain evidence
+  only and must not add a parallel governance endpoint or live command path.
 - The frontend Enterprise Module Catalog consumes the existing readiness
   contract. Do not add a parallel module-catalog endpoint or browser trading
   authority.

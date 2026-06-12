@@ -38,6 +38,140 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Completed Enterprise Live-Action Governance Linkage Batch - Phases 1041-1060
+
+### Phase 1041 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1021-1040 to active
+  phases 1041-1060 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1042 - M27 Enterprise Live-Action Governance Linkage
+
+- Link backend-owned live-enablement, capability, and enterprise-readiness
+  evidence so every live-shaped command route has module ownership, gate
+  posture, reconciliation blockers, and no-browser-authority proof.
+
+### Phase 1043 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1041-1060 phase range.
+
+### Phase 1044 - Existing Contract Reuse Gate
+
+- Reuse `GET /api/v1/admin/live-enablement`,
+  `GET /api/v1/admin/capabilities`, and
+  `GET /api/v1/admin/enterprise-readiness`; do not add a parallel governance
+  endpoint.
+
+### Phase 1045 - Live Path Module Binding
+
+- Bind each live-shaped HTTP command path to route-inventory `module_id`,
+  module owner, identity key, capability row, and shared backend method.
+
+### Phase 1046 - Per-Command Gate Matrix
+
+- Expose approval, cap, guard, audit, idempotency, operator intent, payload
+  hash, request id, audit id, and reconciliation posture per live-shaped route.
+
+### Phase 1047 - Reconciliation Blocker Evidence
+
+- Make current reconciliation blockers explicit per route without changing
+  command status from live-disabled.
+
+### Phase 1048 - Audit And Idempotency Binding Evidence
+
+- Prove `X-Operator-Intent`, payload hash, idempotency key, request id, and
+  audit id are required backend governance evidence before live enablement.
+
+### Phase 1049 - Spot Boundary Confirmation
+
+- Keep USDC, wallet, no-shorting, cost-basis, average-cost, and inventory
+  authority scoped to spot only.
+
+### Phase 1050 - Non-Spot And Legacy Boundary Confirmation
+
+- Keep futures/perpetuals not modeled for commands, stealth and
+  movement/repricing live-disabled, and legacy dashboard WebSocket
+  compatibility-only.
+
+### Phase 1051 - No Browser Authority Scan
+
+- Confirm no command button, BFF shortcut, direct dashboard WebSocket call,
+  Coinbase call, live approval path, or browser-side trading decision is added.
+
+### Phase 1052 - Backend Contract Tests
+
+- Cover route/capability/enterprise/live-enablement joins and no-live posture
+  in focused backend tests.
+
+### Phase 1053 - OpenAPI And Example Sync
+
+- Regenerate OpenAPI and update Admin API examples for governance linkage
+  evidence.
+
+### Phase 1054 - Frontend Schema And BFF Sync
+
+- Consume generated backend evidence in the frontend without broadening BFF
+  mutation allowlists or adding feature-local fetches.
+
+### Phase 1055 - Frontend Governance Evidence Surface
+
+- Render read-only live-action governance linkage under Modules so operators
+  and contextless agents can inspect command gate posture.
+
+### Phase 1056 - Runtime, Mock, And Artifact Alignment
+
+- Align mocks, runtime evidence, release artifacts, visual smoke targets, and
+  quality checks with governance linkage.
+
+### Phase 1057 - Documentation Update
+
+- Update Admin API, platform architecture, capability matrix, maintainer
+  handoff, examples, and review docs.
+
+### Phase 1058 - Drift Scan
+
+- Check stale phase range, cap values, route inventory, generated schema, and
+  browser-authority wording.
+
+### Phase 1059 - Focused Gates And Contextless Review
+
+- Run focused backend checks, frontend focused gates, and blind/contextless
+  review before full gates.
+
+### Phase 1060 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  objective scope.
+
+### Completion Evidence
+
+- `GET /api/v1/admin/live-enablement` path rows expose module id, module
+  owner, identity key, gate requirements, reconciliation blockers,
+  capability/readiness source refs, and spot-rule boundary evidence for all
+  live-shaped HTTP command routes.
+- No parallel governance endpoint or command path was added; M27 reuses
+  `GET /api/v1/admin/live-enablement`, `GET /api/v1/admin/capabilities`, and
+  `GET /api/v1/admin/enterprise-readiness`.
+- HTTP command routes remain live-disabled and fail-closed; futures/perpetual
+  commands remain not modeled; stealth and movement/repricing remain blocked
+  behind exchange-reality evidence.
+- Focused backend gates passed:
+  `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
+  reported `63` passed with `1` warning.
+- Backend autonomous queue check passed:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Full backend regression passed:
+  `python -m pytest tests\regression\ -v --tb=short` reported `790` passed
+  with `1` warning.
+- Frontend `npm run release:gate` passed after consuming the regenerated
+  schema, with `186` unit tests and `3` Playwright tests passed.
+- Blind/contextless M27 review passed with no blockers.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Completed Enterprise Module Capability Linkage Batch - Phases 1021-1040
 
 ### Phase 1021 - Advance Active Queue Range

@@ -942,18 +942,32 @@ class AdminLiveEnablementPathItem(BaseModel):
     path_id: str
     route: str
     method: str
+    module_id: str
     module: str
+    module_owner: str
+    identity_key: str
     action_class: AdminApiActionClass
     required_permission: AdminApiPermission | str
     shared_method: str
     live_enabled: bool = False
     live_eligible: bool = False
     status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    governance_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
     approval_required: bool = True
     cap_required: bool = True
     guard_required: bool = True
     audit_required: bool = True
+    idempotency_key_required: bool = True
+    operator_intent_required: bool = True
+    payload_hash_required: bool = True
+    request_id_required: bool = True
+    audit_id_required: bool = True
     reconciliation_required: bool = True
+    browser_authority: str = "display_only"
+    capability_source: str = "GET /api/v1/admin/capabilities"
+    readiness_source: str = "GET /api/v1/admin/enterprise-readiness"
+    reconciliation_blockers: list[str] = Field(default_factory=list)
+    spot_rule_boundary: str
     product_scope: str = "not_selected"
     max_submitted_notional_usdc: DecimalString | None = None
     max_executed_notional_usdc: DecimalString | None = None

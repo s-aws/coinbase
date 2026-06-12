@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1021-1040",
+  "approved_phase_range": "1041-1060",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -183,18 +183,37 @@ Expected M8 readiness posture:
       "path_id": "post.api.v1.orders",
       "route": "/api/v1/orders",
       "method": "POST",
-      "module": "spot",
+      "module_id": "spot_operations",
+      "module": "Spot Operations",
+      "module_owner": "strategy",
+      "identity_key": "client_order_id",
       "action_class": "live_exchange_place",
       "required_permission": "order:create",
       "shared_method": "place_manual_order",
       "live_enabled": false,
       "live_eligible": false,
       "status": "live_disabled",
+      "governance_status": "blocked",
       "approval_required": true,
       "cap_required": true,
       "guard_required": true,
       "audit_required": true,
+      "idempotency_key_required": true,
+      "operator_intent_required": true,
+      "payload_hash_required": true,
+      "request_id_required": true,
+      "audit_id_required": true,
       "reconciliation_required": true,
+      "browser_authority": "display_only",
+      "capability_source": "GET /api/v1/admin/capabilities",
+      "readiness_source": "GET /api/v1/admin/enterprise-readiness",
+      "reconciliation_blockers": [
+        "post-live reconciliation evidence is not wired for this route",
+        "explicit M8 live approval snapshot is not present for this route",
+        "backend cap, guard, idempotency, operator-intent, and audit evidence must be enforced before live enablement",
+        "spot wallet, inventory, no-shorting, and cost-basis authority must remain backend-owned"
+      ],
+      "spot_rule_boundary": "Spot-only wallet, USDC, no-shorting, inventory, cost-basis, and average-cost rules apply only to spot command authority.",
       "product_scope": "cheapest Coinbase USDC spot product available to US customers",
       "max_submitted_notional_usdc": "3.10",
       "max_executed_notional_usdc": "1.00",
@@ -202,9 +221,10 @@ Expected M8 readiness posture:
         "M4 guard/risk evidence required",
         "M6 command contract proof required",
         "M8 explicit live approval required",
+        "idempotency, operator intent, payload hash, request id, and audit id required",
         "post-live reconciliation required"
       ],
-      "notes": "Current Admin API command contract is live-disabled; this read route is eligibility evidence only."
+      "notes": "Current Admin API command contract is live-disabled; this read route is governance evidence only and does not grant browser command authority."
     }
   ],
   "checks": [
@@ -227,7 +247,8 @@ Expected M8 readiness posture:
 This route is evidence only. It lists command paths that could later be
 considered for controlled live enablement, but every current path remains
 `live_enabled=false` until explicit live approval, cap, guard, audit, and
-reconciliation gates pass.
+reconciliation gates pass. M27 governance fields make that fail-closed posture
+auditable per route; they do not approve live execution.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -236,13 +257,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1021-1040",
+  "approved_phase_range": "1041-1060",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
