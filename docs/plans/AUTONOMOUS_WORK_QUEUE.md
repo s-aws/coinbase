@@ -4,11 +4,11 @@ This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work
 without relying on chat history.
 
-## Latest Completed Approval
+## Active Approval
 
-- Approved phase range: **1281-1300**.
-- Work completed through the approved range without requiring another approval
-  because it stayed inside the phase scope and cap policy below.
+- Approved phase range: **1301-1320**.
+- Work may continue through the approved range without asking for another
+  approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
   remains exceptional. Default work is dry/no-live.
 - If any stop condition occurs, resolve it before advancing to the next phase.
@@ -45,6 +45,122 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Active Phases 1301-1320
+
+### Phase 1301 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1281-1300 to active
+  phases 1301-1320 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1302 - M40 Command Admission Cap/Guard Proof Wiring
+
+- Wire existing Admin API command admission evidence to backend-owned
+  cap/guard decision proof resolution without adding guard mutation, browser
+  approval, BFF guard authority, live admission, or live Coinbase execution.
+
+### Phase 1303 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1301-1320 phase range.
+
+### Phase 1304 - No-Live Cap/Guard Boundary Gate
+
+- Confirm a resolved cap/guard proof can only change admission evidence; it
+  must not remove live-disabled, reconciliation, or browser-authority
+  blockers.
+
+### Phase 1305 - Cap/Guard Decision Proof Contract
+
+- Add backend-owned cap/guard proof evidence fields for decision presence,
+  decision id, source, recorded time, and missing reason.
+
+### Phase 1306 - Cap/Guard Store Resolver Exact Matching
+
+- Resolve cap/guard proof only from exact append-only decision records bound
+  to route, method, module, identity, actor, idempotency key, operator intent,
+  payload hash, service method, approval snapshot id, approval cap/guard
+  decision reference, and admission audit id.
+
+### Phase 1307 - Command Admission Cap/Guard Dependency Injection
+
+- Route all live-shaped Admin API command adapters through the shared durable
+  cap/guard store dependency instead of ad hoc lookup paths.
+
+### Phase 1308 - Snapshot-And-Audit-Bound Cap/Guard Lookup
+
+- Require an exact approval snapshot and exact admission audit proof before
+  cap/guard proof can be resolved so cap/guard evidence cannot bypass earlier
+  gates.
+
+### Phase 1309 - Cap/Guard Present Fail-Closed Proof
+
+- Prove exact cap/guard proof removes only `cap_guard_missing` and still
+  returns a no-live HTTP command response.
+
+### Phase 1310 - Cap/Guard Missing Reason Proof
+
+- Prove missing identity, missing approval snapshot, missing admission audit,
+  missing cap/guard store, and missing cap/guard proof fail closed with
+  explicit admission evidence.
+
+### Phase 1311 - Non-Spot Path Identity Preservation
+
+- Keep stealth and movement/repricing command admission keyed by
+  `stealth_order_id`; do not import spot wallet, cost-basis, no-shorting, or
+  USDC rules into those modules.
+
+### Phase 1312 - OpenAPI Refresh
+
+- Regenerate backend OpenAPI because command admission cap/guard evidence
+  fields changed.
+
+### Phase 1313 - Frontend Schema Generation
+
+- Regenerate the frontend TypeScript schema from backend OpenAPI without hand
+  edits.
+
+### Phase 1314 - Frontend Mock Evidence Sync
+
+- Update frontend mock/runtime evidence for active range 1301-1320 and
+  cap/guard present/missing metadata while keeping default mock
+  live-enablement no-live.
+
+### Phase 1315 - Frontend Dry Submit Evidence Sync
+
+- Keep dry command workflow display-only and show backend cap/guard evidence
+  without adding browser approval, command authority, guard evaluation, or
+  Coinbase calls.
+
+### Phase 1316 - Frontend Audit Workbench Evidence Sync
+
+- Keep Audit Workbench display-only and show persisted admission cap/guard
+  evidence without adding audit mutation or guard authority.
+
+### Phase 1317 - Documentation Update
+
+- Update Admin API, frontend, architecture, capability matrix, examples,
+  maintainer handoff, roadmap, and review docs for resolver-backed cap/guard
+  evidence.
+
+### Phase 1318 - Drift Scan
+
+- Check stale phase ranges, stale M39 active wording, browser-authority
+  wording, guard mutation wording, live-admission wording, and spot-rule
+  leakage.
+
+### Phase 1319 - Focused Gates And Blind Review
+
+- Run backend autonomous, focused Admin API/readiness checks, focused frontend
+  checks, and blind/contextless review.
+
+### Phase 1320 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  phases. Live Coinbase execution remains not run with submitted/executed
+  notional `$0`.
 
 ## Completed Phases 1281-1300
 

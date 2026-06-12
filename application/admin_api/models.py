@@ -121,6 +121,11 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     admission_audit_source: str = "missing"
     admission_audit_recorded_at: str | None = None
     admission_audit_missing_reason: str | None = None
+    cap_guard_present: bool = False
+    cap_guard_decision_id: str | None = None
+    cap_guard_source: str = "missing"
+    cap_guard_recorded_at: str | None = None
+    cap_guard_missing_reason: str | None = None
     browser_authority: str = "rejected"
     live_exchange_submitted: bool = False
     blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)

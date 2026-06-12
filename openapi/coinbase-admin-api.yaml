@@ -4566,6 +4566,29 @@ components:
           - type: string
           - type: 'null'
           title: Admission Audit Missing Reason
+        cap_guard_present:
+          type: boolean
+          title: Cap Guard Present
+          default: false
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        cap_guard_source:
+          type: string
+          title: Cap Guard Source
+          default: missing
+        cap_guard_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Recorded At
+        cap_guard_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Missing Reason
         browser_authority:
           type: string
           title: Browser Authority

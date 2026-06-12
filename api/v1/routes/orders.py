@@ -14,6 +14,7 @@ from application.admin_api.approval import (
     evaluate_command_live_admission,
 )
 from application.admin_api.auth import get_authenticated_actor, require_permission
+from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -106,6 +107,12 @@ def get_approval_store() -> FileAdminApiApprovalStore:
     """Return durable approval storage for command admission evidence."""
 
     return FileAdminApiApprovalStore()
+
+
+def get_cap_guard_store() -> FileAdminApiCapGuardStore:
+    """Return durable cap/guard decision storage for admission evidence."""
+
+    return FileAdminApiCapGuardStore()
 
 
 def get_read_service() -> AdminApiReadService:
@@ -228,6 +235,7 @@ def _execute_idempotent_command(
     idempotency_store: FileIdempotencyStore,
     audit_store: FileAdminApiAuditStore,
     approval_store: FileAdminApiApprovalStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
     command_runner: Callable[[], AdminApiCommandResponse],
     client_order_id: str | None = None,
     stealth_order_id: str | None = None,
@@ -248,6 +256,7 @@ def _execute_idempotent_command(
         payload_hash=payload_hash,
         approval_store=approval_store,
         audit_store=audit_store,
+        cap_guard_store=cap_guard_store,
     )
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
@@ -371,6 +380,7 @@ def create_manual_order(
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
     approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
 ) -> JSONResponse:
     """Route adapter for manual placement.
 
@@ -408,6 +418,7 @@ def create_manual_order(
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
         command_runner=lambda: service.place_manual_order(
             ManualOrderCommand(envelope=envelope, request=body)
         ),
@@ -433,6 +444,7 @@ def cancel_order_by_client_order_id(
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
     approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
 ) -> JSONResponse:
     """Route adapter for cancel-by-client-order-id."""
 
@@ -467,6 +479,7 @@ def cancel_order_by_client_order_id(
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
         client_order_id=client_order_id,
         command_runner=lambda: service.cancel_order_by_client_order_id(
             CancelOrderCommand(
@@ -496,6 +509,7 @@ def execute_spot_campaign(
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
     approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
 ) -> JSONResponse:
     """Route adapter for future campaign execution.
 
@@ -533,6 +547,7 @@ def execute_spot_campaign(
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
         command_runner=lambda: service.execute_spot_campaign(
             CampaignExecutionCommand(envelope=envelope, request=body)
         ),

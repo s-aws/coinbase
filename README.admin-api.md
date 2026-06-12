@@ -273,6 +273,12 @@ The platform/module split is documented in
   only the `admission_audit_missing` blocker; live-disabled, cap/guard,
   reconciliation, and browser-authority blockers still prevent Coinbase
   submission.
+- M40 command admission cap/guard proof wiring lets existing live-disabled
+  command responses report `cap_guard_present`, cap/guard decision ids,
+  cap/guard source, recorded time, and missing-cap/guard reasons. A resolved
+  cap/guard proof removes only the `cap_guard_missing` blocker; live-disabled,
+  reconciliation, and browser-authority blockers still prevent Coinbase
+  submission.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

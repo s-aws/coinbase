@@ -52,6 +52,9 @@ These primitives apply across modules:
 - route-specific cap/guard contract evidence that names missing backend
   cap, guard, payload, approval, admission-audit, and product-scope bindings
   without creating guard execution, command authority, or browser approval
+- resolver-backed command admission cap/guard proof evidence that can report
+  exact backend-owned cap/guard decision presence without creating guard
+  mutation, browser authority, command authority, or live execution
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -176,6 +179,10 @@ Resolver-backed command admission audit evidence may report whether exact
 append-only audit proof was found for a live-disabled command. That evidence
 may remove only the missing-audit blocker; it must not remove live-disabled,
 cap/guard, reconciliation, or browser-authority blockers by itself.
+Resolver-backed command admission cap/guard proof evidence may report whether
+exact append-only cap/guard proof was found for a live-disabled command. That
+evidence may remove only the missing-cap/guard blocker; it must not remove
+live-disabled, reconciliation, or browser-authority blockers by itself.
 Live-admission audit trail evidence is a read-only refinement of the same
 route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser

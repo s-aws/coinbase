@@ -69,6 +69,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M37 - Approval Snapshot Resolver Foundation | Complete | Add backend-owned resolver-only approval snapshot infrastructure without adding approval mutation, browser approval, or live execution. |
 | M38 - Command Admission Snapshot Resolver Wiring | Complete | Wire existing live-disabled command admission evidence to backend snapshot resolver results without adding approval mutation, browser approval, or live execution. |
 | M39 - Command Admission Audit Resolver Wiring | Complete | Wire existing live-disabled command admission evidence to backend audit proof results without adding audit mutation, browser approval, or live execution. |
+| M40 - Command Admission Cap/Guard Proof Wiring | Complete | Wire existing live-disabled command admission evidence to backend cap/guard proof results without adding guard mutation, browser approval, or live execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1567,6 +1568,63 @@ Completed evidence:
   Playwright tests.
 - Blind/contextless review passed after remediation of frontend display
   evidence.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M40 - Command Admission Cap/Guard Proof Wiring
+
+Purpose: let existing live-disabled Admin API command admission decisions
+consult backend-owned append-only cap/guard decision proof while preserving
+the single command behavior path and every non-cap/guard live blocker.
+
+Completed scope:
+
+- Phases 1301-1320 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Command admission evidence may report cap/guard proof present/missing
+  status, decision id, source, recorded time, and missing reason when
+  applicable.
+- Existing command adapters must share the durable cap/guard store dependency
+  and must not create route-local guard lookup paths.
+- Cap/guard proof can resolve only after an exact approval snapshot and exact
+  admission audit proof resolve, so cap/guard evidence cannot bypass earlier
+  gates.
+- A resolved cap/guard proof may remove only `cap_guard_missing`; live
+  execution must remain blocked by live-disabled, reconciliation, and
+  browser-authority blockers.
+- Stealth and movement/repricing admission must stay keyed by
+  `stealth_order_id`; spot wallet, cost-basis, no-shorting, and USDC rules
+  must not leak into non-spot modules.
+- OpenAPI and frontend generated schema must be refreshed because public
+  command models changed.
+- No guard endpoint, guard mutation, BFF guard authority, browser guard
+  writer, Coinbase call, live admission endpoint, or direct dashboard
+  WebSocket guard path is allowed.
+
+Done when:
+
+- Backend focused Admin API/readiness tests and autonomous queue check pass.
+- OpenAPI is regenerated and frontend generated schema consumes the new
+  command admission cap/guard fields without hand edits.
+- Frontend mocks, quality artifacts, docs, and tests align with phase range
+  `1301-1320` without adding browser approval, guard authority, or command
+  authority.
+- Blind/contextless review confirms resolver-backed cap/guard evidence is
+  backend-owned and no browser approval, guard mutation, spot-rule leakage, or
+  live Coinbase path was added.
+- Backend full regression and frontend `npm run release:gate` pass.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+Completion evidence:
+
+- Backend focused Admin API/readiness checks passed with `69 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1301-1320`.
+- Backend full regression passed with `796 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed with no blockers.
 - Live Coinbase execution was not run; submitted and executed notional remain
   `$0`.
 

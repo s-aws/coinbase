@@ -24,6 +24,11 @@ from .audit import (
     FileAdminApiAuditStore,
     resolve_admission_audit_trail,
 )
+from .cap_guard import (
+    CapGuardDecisionRequest,
+    FileAdminApiCapGuardStore,
+    resolve_cap_guard_decision,
+)
 from .models import AdminLiveAdmissionDecisionEvidence
 
 
@@ -324,6 +329,7 @@ def evaluate_command_live_admission(
     payload_hash: str,
     approval_store: FileAdminApiApprovalStore | None = None,
     audit_store: FileAdminApiAuditStore | None = None,
+    cap_guard_store: FileAdminApiCapGuardStore | None = None,
     now: datetime | None = None,
 ) -> AdminLiveAdmissionDecisionEvidence:
     """Return route-bound live admission evidence for one command attempt.
@@ -392,11 +398,44 @@ def evaluate_command_live_admission(
         if admission_audit is None:
             admission_audit_missing_reason = "no_matching_admission_audit"
 
+    cap_guard = None
+    cap_guard_missing_reason = "cap_guard_store_not_checked"
+    if cap_guard_store is None:
+        cap_guard_missing_reason = "cap_guard_store_dependency_missing"
+    elif not identity_value:
+        cap_guard_missing_reason = "identity_value_missing"
+    elif approval_snapshot is None:
+        cap_guard_missing_reason = "approval_snapshot_missing"
+    elif admission_audit is None:
+        cap_guard_missing_reason = "admission_audit_missing"
+    else:
+        cap_guard = resolve_cap_guard_decision(
+            store=cap_guard_store,
+            request=CapGuardDecisionRequest(
+                route=route,
+                method=method,
+                module_id=module_id,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                action_class=action_class,
+                required_permission=required_permission,
+                service_method=service_method,
+                actor_id=actor_id,
+                operator_intent=operator_intent,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                approval_snapshot_id=approval_snapshot.approval_id,
+                approval_cap_guard_decision_ref=(
+                    approval_snapshot.cap_guard_decision_ref
+                ),
+                admission_audit_id=admission_audit.audit_id,
+            ),
+        )
+        if cap_guard is None:
+            cap_guard_missing_reason = "no_matching_cap_guard_decision"
+
     blockers = [
         AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
-        AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
-        AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
-        AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
     ]
     evidence = [
         "existing Admin API command route",
@@ -415,11 +454,7 @@ def evaluate_command_live_admission(
             "route-specific approval snapshot resolved but live execution remains blocked"
         )
     if admission_audit is None:
-        insert_at = 2 if approval_snapshot is None else 1
-        blockers.insert(
-            insert_at,
-            AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
-        )
+        blockers.append(AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING)
         evidence.append(
             f"missing admission audit trail: {admission_audit_missing_reason}"
         )
@@ -427,8 +462,20 @@ def evaluate_command_live_admission(
         evidence.append(
             "route-specific admission audit resolved but live execution remains blocked"
         )
+    if cap_guard is None:
+        blockers.append(AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING)
+        evidence.append(
+            f"missing route-specific cap/guard decision: {cap_guard_missing_reason}"
+        )
+    else:
+        evidence.append(
+            "route-specific cap/guard decision resolved but live execution remains blocked"
+        )
+    blockers.extend([
+        AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+        AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+    ])
     evidence.extend([
-        "missing route-specific cap/guard decision",
         "browser authority rejected",
     ])
 
@@ -489,6 +536,19 @@ def evaluate_command_live_admission(
         ),
         admission_audit_missing_reason=(
             None if admission_audit is not None else admission_audit_missing_reason
+        ),
+        cap_guard_present=cap_guard is not None,
+        cap_guard_decision_id=(
+            cap_guard.decision_id if cap_guard is not None else None
+        ),
+        cap_guard_source=(
+            cap_guard.source if cap_guard is not None else "missing"
+        ),
+        cap_guard_recorded_at=(
+            cap_guard.recorded_at if cap_guard is not None else None
+        ),
+        cap_guard_missing_reason=(
+            None if cap_guard is not None else cap_guard_missing_reason
         ),
         browser_authority="rejected",
         live_exchange_submitted=False,

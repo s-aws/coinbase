@@ -38,6 +38,117 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Active Command Admission Cap/Guard Proof Wiring Batch - Phases 1301-1320
+
+### Phase 1301 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1281-1300 to active
+  phases 1301-1320 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1302 - M40 Command Admission Cap/Guard Proof Wiring
+
+- Wire existing Admin API command admission evidence to backend-owned
+  cap/guard decision proof resolution while keeping HTTP commands
+  live-disabled and preserving the shared command service as the only command
+  behavior path.
+
+### Phase 1303 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1301-1320 phase range.
+
+### Phase 1304 - No-Live Cap/Guard Boundary Gate
+
+- Do not add a guard mutation endpoint, live admission endpoint, browser guard
+  evaluator, Coinbase call, direct dashboard WebSocket path, BFF guard
+  authority, or command authority.
+
+### Phase 1305 - Cap/Guard Decision Proof Contract
+
+- Add command admission evidence for cap/guard proof present/missing status,
+  decision id, source, recorded time, and missing reason.
+
+### Phase 1306 - Cap/Guard Store Resolver Exact Matching
+
+- Resolve cap/guard proof only from exact append-only decision records bound
+  to route, method, module, identity, actor, idempotency key, operator intent,
+  payload hash, service method, approval snapshot id, approval cap/guard
+  decision reference, and admission audit id.
+
+### Phase 1307 - Command Admission Cap/Guard Dependency Injection
+
+- Route all live-shaped Admin API command adapters through the shared durable
+  cap/guard store dependency instead of ad hoc lookup paths.
+
+### Phase 1308 - Snapshot-And-Audit-Bound Cap/Guard Lookup
+
+- Require an exact approval snapshot and exact admission audit proof before
+  cap/guard proof can be resolved.
+
+### Phase 1309 - Cap/Guard Present Fail-Closed Proof
+
+- Prove exact cap/guard proof removes only `cap_guard_missing` and still
+  returns a no-live HTTP command response.
+
+### Phase 1310 - Cap/Guard Missing Reason Proof
+
+- Prove missing identity values, missing snapshots, missing admission audits,
+  missing cap/guard records, and drifted cap/guard records fail closed with
+  explicit admission evidence.
+
+### Phase 1311 - Non-Spot Path Identity Preservation
+
+- Keep stealth and movement/repricing command admission keyed by
+  `stealth_order_id` without importing spot wallet, no-shorting, cost-basis,
+  or USDC rules.
+
+### Phase 1312 - OpenAPI Refresh
+
+- Regenerate backend OpenAPI because command admission cap/guard evidence
+  fields changed.
+
+### Phase 1313 - Frontend Schema Generation
+
+- Regenerate frontend TypeScript schema from backend OpenAPI without hand
+  edits.
+
+### Phase 1314 - Frontend Mock Evidence Sync
+
+- Align frontend mock/runtime evidence with range 1301-1320 and cap/guard
+  present/missing metadata while keeping default mock live-enablement no-live.
+
+### Phase 1315 - Frontend Dry Submit Evidence Sync
+
+- Keep dry command workflow display-only and render backend cap/guard evidence
+  without adding browser approval, command authority, guard evaluation, or
+  Coinbase calls.
+
+### Phase 1316 - Frontend Audit Workbench Evidence Sync
+
+- Keep Audit Workbench display-only and render persisted cap/guard evidence
+  without adding audit mutation or guard authority.
+
+### Phase 1317 - Documentation Update
+
+- Update admin API, architecture, examples, handoff, roadmap, and review docs.
+
+### Phase 1318 - Drift Scan
+
+- Search for stale active range, stale M39 active wording, browser-authority
+  wording, guard mutation wording, live-admission wording, and spot-rule
+  leakage.
+
+### Phase 1319 - Focused Gates And Blind Review
+
+- Run focused backend/frontend gates and blind/contextless review.
+
+### Phase 1320 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  phases.
+
 ## Completed Command Admission Audit Resolver Wiring Batch - Phases 1281-1300
 
 ### Phase 1281 - Advance Active Queue Range

@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1281-1300",
+  "approved_phase_range": "1301-1320",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -711,9 +711,11 @@ snapshots remain absent and live execution remains disabled. M37 adds
 backend-only snapshot resolver infrastructure over exact unexpired approval
 records. M38 wires live-disabled command admission evidence to that resolver
 without adding live admission. M39 wires live-disabled command admission
-evidence to backend-owned audit proof without adding audit mutation. None of
-these milestones adds an approval endpoint, browser approval, or Coinbase
-execution path.
+evidence to backend-owned audit proof without adding audit mutation. M40 wires
+live-disabled command admission evidence to backend-owned cap/guard proof
+without adding guard mutation, browser guard authority, live admission, or
+Coinbase execution. None of these milestones adds an approval endpoint,
+browser approval, or Coinbase execution path.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -722,13 +724,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1281-1300",
+  "approved_phase_range": "1301-1320",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

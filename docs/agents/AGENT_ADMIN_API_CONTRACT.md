@@ -103,6 +103,10 @@ Resolver-backed command admission audit evidence remains fail-closed. A
 resolved audit proof may remove only `admission_audit_missing`; it does not
 authorize live execution while live-disabled, cap/guard, reconciliation, or
 browser-authority blockers remain.
+Resolver-backed command admission cap/guard proof evidence remains
+fail-closed. A resolved cap/guard proof may remove only `cap_guard_missing`;
+it does not authorize live execution while live-disabled, reconciliation, or
+browser-authority blockers remain.
 Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser

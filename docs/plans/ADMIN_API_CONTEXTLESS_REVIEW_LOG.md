@@ -2,6 +2,63 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Command Admission Cap/Guard Proof Wiring Review - Phases 1301-1320
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify backend command admission cap/guard proof remains evidence-only,
+  live-disabled, and fail-closed
+- verify exact cap/guard proof requires exact approval snapshot and exact
+  admission-audit proof first
+- verify a resolved cap/guard proof removes only `cap_guard_missing`
+- verify live-disabled, reconciliation, and browser-authority blockers remain
+  after cap/guard proof resolution
+- verify no guard mutation endpoint, guard evaluator, browser wallet or
+  profitability authority, browser approval, BFF guard authority, direct
+  dashboard WebSocket guard path, live admission endpoint, Coinbase call, or
+  reconciliation authority was added
+- verify existing command adapters use the shared command path
+- verify frontend cap/guard fields are display-only backend evidence
+- verify non-spot identities remain generic and do not inherit spot wallet,
+  no-shorting, USDC, average-cost, or cost-basis rules
+
+Findings:
+
+- PASS: backend admission stays fail-closed and a resolved cap/guard proof is
+  evidence only.
+- PASS: cap/guard proof lookup is exact, backend-owned, approval-snapshot
+  bound, and admission-audit bound.
+- PASS: a resolved cap/guard proof removes only `cap_guard_missing`; live,
+  reconciliation, and browser-authority blockers remain.
+- PASS: no guard mutation path, browser guard authority, BFF guard authority,
+  dashboard guard path, Coinbase call, live admission endpoint, reconciliation
+  authority, or parallel command path was found.
+- PASS: frontend dry-submit rows and Audit Workbench display cap/guard proof
+  fields as read-only backend evidence.
+- PASS: non-spot identity coverage uses generic identity fields and does not
+  import spot-only wallet, no-shorting, USDC, average-cost, or cost-basis
+  rules.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `69 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1301-1320`.
+- Backend full regression passed with `796 passed, 1 warning`.
+- Frontend focused cap/guard display, runtime, and quality checks passed with
+  `74` tests.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed with no blockers.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Command Admission Audit Resolver Wiring Review - Phases 1281-1300
 
 Review scope:

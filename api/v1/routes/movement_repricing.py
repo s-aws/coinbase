@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.approval import FileAdminApiApprovalStore
+from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.idempotency import FileIdempotencyStore
 from application.admin_api.models import (
@@ -38,6 +39,7 @@ from .orders import (
     _idempotency_payload_hash,
     get_audit_store,
     get_approval_store,
+    get_cap_guard_store,
     get_command_service,
     get_idempotency_store,
 )
@@ -163,6 +165,7 @@ def reprice_stealth_order_by_stealth_order_id(
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
     approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
 ) -> JSONResponse:
     """Route adapter for live-disabled movement repricing by ``stealth_order_id``."""
 
@@ -197,6 +200,7 @@ def reprice_stealth_order_by_stealth_order_id(
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reprice_stealth_order_by_stealth_order_id(
             MovementRepriceCommand(

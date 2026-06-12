@@ -36,10 +36,11 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `1281-1300`.
-- Latest completed milestone: M39 - Command Admission Audit Resolver Wiring.
-- Completed files: Admin API command admission audit evidence, audit-store
-  resolver exact matching, audit-store dependency injection, OpenAPI,
+- Latest completed autonomous range: `1301-1320`.
+- Latest completed milestone: M40 - Command Admission Cap/Guard Proof Wiring.
+- Completed files: Admin API command admission cap/guard evidence,
+  cap/guard-store resolver exact matching, cap/guard-store dependency
+  injection for existing command adapters, OpenAPI,
   live-enablement range evidence, admin platform docs, frontend generated
   schema, frontend dry-submit and Audit Workbench display evidence, frontend
   mock/runtime evidence, and agent context needed for local-agent accuracy.
@@ -48,24 +49,22 @@ Keep it short. Keep it factual.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M39 wired existing live-disabled command admission evidence to
-  backend-owned append-only audit proof results. It did not add an audit
-  endpoint, audit mutation, live admission endpoint, guard evaluator,
-  Coinbase call, direct dashboard WebSocket audit path, BFF audit authority,
-  browser audit writer, browser approval workflow, or reconciliation
+- M40 wired existing live-disabled command admission evidence to
+  backend-owned append-only cap/guard proof results. It did not add a guard
+  endpoint, guard mutation, live admission endpoint, guard evaluator,
+  Coinbase call, direct dashboard WebSocket guard path, BFF guard authority,
+  browser guard writer, browser approval workflow, or reconciliation
   authority.
 
 ## Active Scope
 
-- Active autonomous range: none recorded after `1281-1300`.
-- Active milestone: none recorded after M39 completion.
-- Next in-scope work should continue toward backend-owned live admission
-  prerequisites without adding browser authority, audit mutation, approval
-  mutation, guard execution, reconciliation authority, or live Coinbase
-  execution unless explicitly approved.
-- A resolved audit proof may remove only `admission_audit_missing`; it does
-  not authorize live execution while live-disabled, cap/guard, reconciliation,
-  or browser-authority blockers remain.
+- Active autonomous range: none. Introduce the next approved range before
+  beginning new roadmap work.
+- Active milestone: none.
+- Next expected direction: backend-owned reconciliation proof evidence for
+  live-disabled command admission, preserving no browser authority, no
+  reconciliation mutation authority, no Coinbase execution, and no spot-rule
+  leakage into non-spot modules.
 
 ## Decisions (Durable)
 
@@ -353,41 +352,41 @@ Keep it short. Keep it factual.
 
 - Last backend focused Admin API/readiness run: 2026-06-12
   `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
-- Result: Passed, 67 tests, 1 warning.
+- Result: Passed, 69 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-12
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M39 passed for approved range `1281-1300`. Live Coinbase execution
+- Result: M40 passed for approved range `1301-1320`. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-12
   `python -m pytest tests\regression\ -v --tb=short`
-- Result: Passed, 794 tests, 1 warning.
+- Result: Passed, 796 tests, 1 warning.
 - Last frontend focused run: 2026-06-12
   `npm run api:check`, `npm run autonomous:check`, `npm run lint`,
   focused Vitest, and
   `npm run release:gate`.
-- Result: Passed for M39 with `186` unit tests and `3` Playwright tests in
-  the release gate. Focused frontend dry-submit, command-shell, and Audit
-  Workbench checks passed with `29` tests.
-- Last blind/contextless M39 review: 2026-06-12
-- Result: Passed for command admission audit resolver wiring after
-  remediation of frontend `admission_audit_*` display evidence.
-- Live Coinbase execution for M39: not run. Submitted notional `0` USDC.
+- Result: Passed for M40 with `186` unit tests and `3` Playwright tests in
+  the release gate. Focused frontend cap/guard display, runtime, and quality
+  checks passed with `74` tests.
+- Last blind/contextless M40 review: 2026-06-12
+- Result: Passed for command admission cap/guard proof wiring with no
+  blockers.
+- Live Coinbase execution for M40: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Plan the next approved phase range after M39 around the next missing
-   backend-owned live admission prerequisite.
-2. Continue toward backend-owned live admission prerequisites without browser
-   authority, audit mutation, approval mutation, guard execution,
-   reconciliation authority, or live execution.
+1. Introduce the next approved autonomous phase range before beginning new
+   roadmap implementation.
+2. Continue toward backend-owned reconciliation proof without browser
+   authority, audit mutation, approval mutation, guard mutation, guard
+   execution, reconciliation authority, or live execution.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
 
 ## Handoff Notes
 
-- What is done through M39: backend live-enablement exposes typed,
+- What is done through M40: backend live-enablement exposes typed,
   route-specific approval snapshot, approval-store contract,
   live-admission audit trail, and cap/guard requirements per live-shaped
   route. Existing live-disabled command responses now expose typed,
@@ -409,7 +408,12 @@ Keep it short. Keep it factual.
   Admin API audit store so exact approval-snapshot-bound audit proofs can be
   reported on live-disabled command responses. A resolved audit proof removes
   only `admission_audit_missing`; live-disabled, cap/guard, reconciliation,
-  and browser-authority blockers remain.
+  and browser-authority blockers remain. M40 wires existing command admission
+  evidence to backend-owned append-only cap/guard proof so exact
+  approval-snapshot-bound and admission-audit-bound cap/guard decisions can be
+  reported on live-disabled command responses. A resolved cap/guard proof
+  removes only `cap_guard_missing`; live-disabled, reconciliation, and
+  browser-authority blockers remain.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard,
@@ -417,8 +421,8 @@ Keep it short. Keep it factual.
   evidence only. No command controls, guard evaluator, audit storage, approval
   storage, BFF mutation broadening, Coinbase call, browser approval, or
   reconciliation behavior is allowed.
-- What is in progress: no implementation batch is currently in progress after
-  M39 completion.
+- What is in progress: Nothing. Introduce the next approved autonomous range
+  before starting more roadmap work.
 - What is blocked: Nothing currently known.
-- Exact next command: propose or approve the next phase range, then run
+- Exact next command: add the next approved phase range and scope, then run
   focused backend/frontend gates for the selected batch.

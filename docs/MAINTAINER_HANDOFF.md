@@ -97,8 +97,16 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1281-1300` (completed for M39; no later range is
-  recorded yet).
+- Active autonomous range: `1301-1320`.
+- M40 command admission cap/guard proof wiring is complete. Existing Admin
+  API command admission evidence may consult backend-owned append-only
+  cap/guard decision proof and expose whether an exact approval-snapshot-bound
+  and admission-audit-bound decision was found. A resolved cap/guard proof may
+  remove only `cap_guard_missing`; live-disabled, reconciliation, and
+  browser-authority blockers remain. It must not add a guard mutation
+  endpoint, browser approval, BFF guard authority, live admission endpoint,
+  guard evaluator, Coinbase call, direct dashboard WebSocket guard path,
+  browser guard writer, or reconciliation authority.
 - M39 command admission audit resolver wiring is complete. Existing Admin API
   command admission evidence may consult backend-owned append-only audit proof
   and expose whether an exact approval-snapshot-bound audit event was found. A

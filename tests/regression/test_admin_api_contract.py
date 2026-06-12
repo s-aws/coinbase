@@ -30,6 +30,12 @@ from application.admin_api.approval import (
     resolve_approval_snapshot,
 )
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from application.admin_api.cap_guard import (
+    CapGuardDecisionRequest,
+    CapGuardDecisionRecord,
+    FileAdminApiCapGuardStore,
+    resolve_cap_guard_decision,
+)
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -107,15 +113,20 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     idempotency_store = FileIdempotencyStore(store_dir / "idempotency.jsonl")
     audit_store = FileAdminApiAuditStore(store_dir / "audit.jsonl")
     approval_store = FileAdminApiApprovalStore(store_dir / "approvals.jsonl")
+    cap_guard_store = FileAdminApiCapGuardStore(store_dir / "cap_guard.jsonl")
     app.dependency_overrides[order_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
     app.dependency_overrides[order_routes.get_audit_store] = lambda: audit_store
     app.dependency_overrides[order_routes.get_approval_store] = lambda: approval_store
+    app.dependency_overrides[order_routes.get_cap_guard_store] = (
+        lambda: cap_guard_store
+    )
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
     client.admin_api_test_audit_store = audit_store
     client.admin_api_test_approval_store = approval_store
+    client.admin_api_test_cap_guard_store = cap_guard_store
     return client
 
 
@@ -264,6 +275,54 @@ def _append_manual_order_admission_audit(
     )
     store.append(event)
     return event
+
+
+def _append_manual_order_cap_guard_decision(
+    *,
+    store: FileAdminApiCapGuardStore,
+    approval: AdminApiApprovalRecord,
+    audit_event: AdminApiAuditEvent,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+    allowed: bool = True,
+    status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+) -> CapGuardDecisionRecord:
+    record = CapGuardDecisionRecord(
+        decision_id=approval.cap_guard_decision_ref,
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="place_manual_order",
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash
+        or make_payload_hash(
+            _manual_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+                idempotency_key=idempotency_key,
+            )
+        ),
+        approval_snapshot_id=approval.approval_id,
+        admission_audit_id=audit_event.audit_id,
+        allowed=allowed,
+        status=status,
+        cap_policy_ref="submitted_notional_cap:3.10",
+        guard_policy_ref="action_condition_guard:manual_order",
+        product_scope="USDC spot product scope",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+        reason="Exact backend-owned cap/guard proof for no-live admission tests.",
+    )
+    store.append(record)
+    return record
 
 
 def _legacy_manual_order_payload(quote_size: str = "1.00") -> dict:
@@ -987,6 +1046,11 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["admission_audit_source"] == "missing"
     assert admission["admission_audit_recorded_at"] is None
     assert admission["admission_audit_missing_reason"] == "identity_value_missing"
+    assert admission["cap_guard_present"] is False
+    assert admission["cap_guard_decision_id"] is None
+    assert admission["cap_guard_source"] == "missing"
+    assert admission["cap_guard_recorded_at"] is None
+    assert admission["cap_guard_missing_reason"] == "identity_value_missing"
     assert admission["browser_authority"] == "rejected"
     assert admission["live_exchange_submitted"] is False
     assert "approval_store_missing" not in admission["blockers"]
@@ -1037,6 +1101,11 @@ def test_admin_api_approval_snapshot_resolution_is_evidence_only(monkeypatch):
     assert admission["admission_audit_source"] == "missing"
     assert admission["admission_audit_recorded_at"] is None
     assert admission["admission_audit_missing_reason"] == "no_matching_admission_audit"
+    assert admission["cap_guard_present"] is False
+    assert admission["cap_guard_decision_id"] is None
+    assert admission["cap_guard_source"] == "missing"
+    assert admission["cap_guard_recorded_at"] is None
+    assert admission["cap_guard_missing_reason"] == "admission_audit_missing"
     assert "approval_snapshot_missing" not in admission["blockers"]
     assert "live_execution_disabled" in admission["blockers"]
     assert "admission_audit_missing" in admission["blockers"]
@@ -1086,6 +1155,11 @@ def test_admin_api_admission_audit_resolution_is_evidence_only(monkeypatch):
     assert admission["admission_audit_source"] == "admin_api_audit_log"
     assert admission["admission_audit_recorded_at"] == audit_event.recorded_at
     assert admission["admission_audit_missing_reason"] is None
+    assert admission["cap_guard_present"] is False
+    assert admission["cap_guard_decision_id"] is None
+    assert admission["cap_guard_source"] == "missing"
+    assert admission["cap_guard_recorded_at"] is None
+    assert admission["cap_guard_missing_reason"] == "no_matching_cap_guard_decision"
     assert "approval_snapshot_missing" not in admission["blockers"]
     assert "admission_audit_missing" not in admission["blockers"]
     assert "live_execution_disabled" in admission["blockers"]
@@ -1104,6 +1178,75 @@ def test_admin_api_admission_audit_resolution_is_evidence_only(monkeypatch):
     assert audit_rows[-1]["approval_id"] == approval.approval_id
     assert audit_rows[-1]["admission_decision"]["admission_audit_id"] == (
         audit_event.audit_id
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_cap_guard_resolution_is_evidence_only(monkeypatch):
+    client = _client(monkeypatch)
+    now = datetime.now(timezone.utc)
+    client_order_id = "client-cap-guard-approved"
+    idempotency_key = "idem-cap-guard-approved"
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=now,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key=idempotency_key),
+        json=_manual_order_payload(client_order_id=client_order_id),
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    admission = payload["admission_decision"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["client_order_id"] == client_order_id
+    assert payload["failure_stage"] == "approval"
+    assert admission["allowed"] is False
+    assert admission["approval_snapshot_present"] is True
+    assert admission["approval_snapshot_id"] == approval.approval_id
+    assert admission["admission_audit_present"] is True
+    assert admission["admission_audit_id"] == audit_event.audit_id
+    assert admission["cap_guard_present"] is True
+    assert admission["cap_guard_decision_id"] == cap_guard.decision_id
+    assert admission["cap_guard_source"] == "admin_api_cap_guard_log"
+    assert admission["cap_guard_recorded_at"] == cap_guard.recorded_at
+    assert admission["cap_guard_missing_reason"] is None
+    assert "approval_snapshot_missing" not in admission["blockers"]
+    assert "admission_audit_missing" not in admission["blockers"]
+    assert "cap_guard_missing" not in admission["blockers"]
+    assert "live_execution_disabled" in admission["blockers"]
+    assert "reconciliation_plan_missing" in admission["blockers"]
+    assert "browser_authority_rejected" in admission["blockers"]
+    assert payload["guard"]["admission_decision"] == admission
+    assert payload["audit_id"]
+
+    audit_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "audit.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert audit_rows[-1]["approval_id"] == approval.approval_id
+    assert audit_rows[-1]["admission_decision"]["cap_guard_decision_id"] == (
+        cap_guard.decision_id
     )
 
 
@@ -1775,6 +1918,94 @@ def test_admin_api_approval_snapshot_resolver_is_exact_and_identity_generic():
 
 
 @pytest.mark.regression
+def test_admin_api_cap_guard_decision_resolver_is_exact_and_identity_generic():
+    store = FileAdminApiCapGuardStore(_store_dir() / "cap_guard.jsonl")
+    record = CapGuardDecisionRecord(
+        decision_id="cap-guard-futures-001",
+        route="/api/v1/futures/positions/position-001/reduce",
+        method="POST",
+        module_id="futures_perpetuals",
+        identity_key="position_id",
+        identity_value="position-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="reduce_futures_position",
+        actor_id="operator-002",
+        operator_intent="reduce_position",
+        idempotency_key="idem-futures-reduce",
+        payload_hash="c" * 64,
+        approval_snapshot_id="approval-futures-001",
+        admission_audit_id="audit-futures-001",
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        cap_policy_ref="submitted_notional_cap:3.10",
+        guard_policy_ref="futures_margin_guard",
+        product_scope="futures/perpetual configured product scope",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+        reason="Backend-owned futures cap/guard proof.",
+    )
+    store.append(record)
+    store.append(record.model_copy(update={
+        "decision_id": "cap-guard-denied",
+        "allowed": False,
+        "status": AdminApiGateStatus.BLOCKED,
+    }))
+
+    request = CapGuardDecisionRequest(
+        route="/api/v1/futures/positions/position-001/reduce",
+        method="POST",
+        module_id="futures_perpetuals",
+        identity_key="position_id",
+        identity_value="position-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="reduce_futures_position",
+        actor_id="operator-002",
+        operator_intent="reduce_position",
+        idempotency_key="idem-futures-reduce",
+        payload_hash="c" * 64,
+        approval_snapshot_id="approval-futures-001",
+        approval_cap_guard_decision_ref="cap-guard-futures-001",
+        admission_audit_id="audit-futures-001",
+    )
+
+    proof = resolve_cap_guard_decision(store=store, request=request)
+
+    assert proof is not None
+    assert proof.decision_id == "cap-guard-futures-001"
+    assert proof.approval_snapshot_id == "approval-futures-001"
+    assert proof.admission_audit_id == "audit-futures-001"
+    assert proof.product_scope == "futures/perpetual configured product scope"
+
+    drift_updates = [
+        {"route": "/api/v1/futures/positions/position-002/reduce"},
+        {"method": "PUT"},
+        {"module_id": "spot_operations"},
+        {"identity_key": "client_order_id"},
+        {"identity_value": "position-002"},
+        {"action_class": AdminApiActionClass.LIVE_EXCHANGE_CANCEL},
+        {"required_permission": AdminApiPermission.ORDER_CANCEL},
+        {"service_method": "close_futures_position"},
+        {"actor_id": "operator-003"},
+        {"operator_intent": "close_position"},
+        {"idempotency_key": "idem-futures-reduce-2"},
+        {"payload_hash": "d" * 64},
+        {"approval_snapshot_id": "approval-futures-002"},
+        {"approval_cap_guard_decision_ref": "cap-guard-denied"},
+        {"admission_audit_id": "audit-futures-002"},
+    ]
+    for update in drift_updates:
+        assert (
+            resolve_cap_guard_decision(
+                store=store,
+                request=request.model_copy(update=update),
+            )
+            is None
+        )
+
+
+@pytest.mark.regression
 def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates():
     service_source = inspect.getsource(command_service)
     route_source = "\n".join(
@@ -2018,7 +2249,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1281-1300"
+    assert live_payload["approved_phase_range"] == "1301-1320"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -2418,7 +2649,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1281-1300"
+    assert enterprise_payload["approved_phase_range"] == "1301-1320"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -3941,6 +4172,11 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "admission_audit_source": "missing",
         "admission_audit_recorded_at": None,
         "admission_audit_missing_reason": None,
+        "cap_guard_present": False,
+        "cap_guard_decision_id": None,
+        "cap_guard_source": "missing",
+        "cap_guard_recorded_at": None,
+        "cap_guard_missing_reason": None,
         "browser_authority": "rejected",
         "live_exchange_submitted": False,
         "blockers": ["admission_audit_missing"],
