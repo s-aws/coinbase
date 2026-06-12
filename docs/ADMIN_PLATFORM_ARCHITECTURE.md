@@ -113,6 +113,10 @@ specific `module_id` exists.
 The frontend Enterprise Module Catalog is a read-only rendering of the same
 enterprise-readiness payload. Do not add a parallel module-catalog endpoint or
 move module authority into the browser.
+The frontend Enterprise Module Traceability surface also uses that same
+payload for route lists, command gaps, contracts, docs, identity keys, and
+spot boundaries. Do not add a parallel traceability endpoint or infer browser
+command authority from trace evidence.
 
 ## Durable Milestones
 

@@ -54,6 +54,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M22 - Enterprise Route Module Binding | Complete | Bind routes and capabilities to backend-owned enterprise module ids. |
 | M23 - Enterprise Module Action Posture | Complete | Derive per-module route/action posture from backend module ids instead of path prefixes. |
 | M24 - Enterprise Module Catalog | Complete | Make enterprise module readiness directly consumable as a read-only admin catalog. |
+| M25 - Enterprise Module Traceability | Complete | Make module routes, command gaps, contracts, docs, identity keys, and spot boundaries traceable from the catalog. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -857,6 +858,55 @@ Completed evidence:
   tests passed.
 - Blind/contextless M23 review passed with no blockers and found no browser
   authority leakage.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## M25 - Enterprise Module Traceability
+
+Purpose: make each enterprise admin module explainable from the UI by tracing
+backend-owned routes, command gaps, contract refs, docs refs, identity keys,
+no-live posture, and spot/non-spot boundaries from the existing readiness
+payload.
+
+Completed scope:
+
+- Phases 1001-1020 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Backend enterprise-readiness and live-enablement evidence report active
+  phase range 1001-1020.
+- The frontend traceability surface must consume
+  `GET /api/v1/admin/enterprise-readiness`; the backend must not add a
+  parallel traceability endpoint.
+- Traceability rendering remains evidence-only and adds no backend behavior
+  path, Coinbase call, direct dashboard WebSocket call, or browser trading
+  decision.
+- Spot/non-spot boundaries stay backend-owned evidence and must not become
+  generic frontend authority.
+
+Completed evidence:
+
+- Backend and frontend validators use active phase range 1001-1020.
+- The frontend traceability surface consumes
+  `GET /api/v1/admin/enterprise-readiness`; the backend did not add a
+  parallel traceability endpoint.
+- Frontend tests cover route list rendering, command gap detail rendering,
+  contract/docs refs, identity keys, no-live posture, and spot boundary
+  rendering.
+- Runtime quality artifacts require Enterprise Module Traceability UI
+  evidence and visual smoke coverage.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Backend autonomous queue check passed for active phase range 1001-1020.
+- Focused frontend gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and traceability UI/runtime/quality unit
+  tests (`45` focused tests passed).
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M25 review passed with no architecture blockers and
+  confirmed no traceability trading behavior, feature-local fetch path, direct
+  dashboard WebSocket path, Coinbase call, command control, or browser command
+  authority.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
