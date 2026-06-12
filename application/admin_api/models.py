@@ -26,6 +26,7 @@ from core.enums import (
     AdminApiLiveAdmissionAuditFact,
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
+    AdminApiLiveCapGuardRequirement,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminMovementRepricingEvidenceType,
@@ -1054,6 +1055,38 @@ class AdminLiveAdmissionAuditTrailEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveCapGuardRequirementItem(BaseModel):
+    """One binding required by a future live cap/guard decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requirement: AdminApiLiveCapGuardRequirement
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    expected_source: str
+    expected_value: str | None = None
+    detail: str
+
+
+class AdminLiveCapGuardContractEvidence(BaseModel):
+    """Read-only evidence for the missing route-specific cap/guard contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    configured: bool = False
+    route_specific: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    source: str = "not_configured"
+    requirement_count: int = 0
+    missing_requirement_count: int = 0
+    requirements: list[AdminLiveCapGuardRequirementItem] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveEnablementPathItem(BaseModel):
     """One live-eligible path and the gates required before enablement."""
 
@@ -1097,6 +1130,7 @@ class AdminLiveEnablementPathItem(BaseModel):
     approval_snapshot: AdminLiveApprovalSnapshotEvidence
     approval_store_contract: AdminLiveApprovalStoreContractEvidence
     admission_audit_trail: AdminLiveAdmissionAuditTrailEvidence
+    cap_guard_contract: AdminLiveCapGuardContractEvidence
     evidence: list[str] = Field(default_factory=list)
     notes: str
 
@@ -1140,6 +1174,11 @@ class AdminLiveEnablementReadResponse(BaseModel):
     admission_audit_missing_count: int = 0
     admission_audit_fact_count: int = 0
     admission_audit_missing_fact_count: int = 0
+    cap_guard_required_count: int = 0
+    cap_guard_configured_count: int = 0
+    cap_guard_missing_count: int = 0
+    cap_guard_requirement_count: int = 0
+    cap_guard_missing_requirement_count: int = 0
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

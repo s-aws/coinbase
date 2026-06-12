@@ -3081,6 +3081,25 @@ components:
       - browser_authority_rejected
       title: AdminApiLiveApprovalStoreRequirement
       description: Required approval-store behaviors before live route approval.
+    AdminApiLiveCapGuardRequirement:
+      type: string
+      enum:
+      - backend_owned
+      - route_bound
+      - method_bound
+      - module_bound
+      - identity_bound
+      - payload_hash_bound
+      - idempotency_bound
+      - operator_intent_bound
+      - notional_cap_bound
+      - domain_guard_bound
+      - product_scope_bound
+      - approval_snapshot_bound
+      - admission_audit_bound
+      - browser_authority_rejected
+      title: AdminApiLiveCapGuardRequirement
+      description: Required cap/guard bindings before live route admission.
     AdminApiLiveExecutionStatus:
       type: string
       enum:
@@ -4575,6 +4594,92 @@ components:
       - detail
       title: AdminLiveApprovalStoreRequirementItem
       description: One behavior required from a future durable approval store.
+    AdminLiveCapGuardContractEvidence:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        configured:
+          type: boolean
+          title: Configured
+          default: false
+        route_specific:
+          type: boolean
+          title: Route Specific
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        source:
+          type: string
+          title: Source
+          default: not_configured
+        requirement_count:
+          type: integer
+          title: Requirement Count
+          default: 0
+        missing_requirement_count:
+          type: integer
+          title: Missing Requirement Count
+          default: 0
+        requirements:
+          items:
+            $ref: '#/components/schemas/AdminLiveCapGuardRequirementItem'
+          type: array
+          title: Requirements
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - detail
+      title: AdminLiveCapGuardContractEvidence
+      description: Read-only evidence for the missing route-specific cap/guard contract.
+    AdminLiveCapGuardRequirementItem:
+      properties:
+        requirement:
+          $ref: '#/components/schemas/AdminApiLiveCapGuardRequirement'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        expected_source:
+          type: string
+          title: Expected Source
+        expected_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Value
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - requirement
+      - expected_source
+      - detail
+      title: AdminLiveCapGuardRequirementItem
+      description: One binding required by a future live cap/guard decision.
     AdminLiveEnablementPathItem:
       properties:
         path_id:
@@ -4725,6 +4830,8 @@ components:
           $ref: '#/components/schemas/AdminLiveApprovalStoreContractEvidence'
         admission_audit_trail:
           $ref: '#/components/schemas/AdminLiveAdmissionAuditTrailEvidence'
+        cap_guard_contract:
+          $ref: '#/components/schemas/AdminLiveCapGuardContractEvidence'
         evidence:
           items:
             type: string
@@ -4750,6 +4857,7 @@ components:
       - approval_snapshot
       - approval_store_contract
       - admission_audit_trail
+      - cap_guard_contract
       - notes
       title: AdminLiveEnablementPathItem
       description: One live-eligible path and the gates required before enablement.
@@ -4906,6 +5014,26 @@ components:
         admission_audit_missing_fact_count:
           type: integer
           title: Admission Audit Missing Fact Count
+          default: 0
+        cap_guard_required_count:
+          type: integer
+          title: Cap Guard Required Count
+          default: 0
+        cap_guard_configured_count:
+          type: integer
+          title: Cap Guard Configured Count
+          default: 0
+        cap_guard_missing_count:
+          type: integer
+          title: Cap Guard Missing Count
+          default: 0
+        cap_guard_requirement_count:
+          type: integer
+          title: Cap Guard Requirement Count
+          default: 0
+        cap_guard_missing_requirement_count:
+          type: integer
+          title: Cap Guard Missing Requirement Count
           default: 0
         read_only:
           type: boolean

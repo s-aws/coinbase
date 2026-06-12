@@ -95,6 +95,11 @@ Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser
 approval, command authority, Coinbase execution, or reconciliation proof.
+Live-enablement cap/guard contract evidence is read-only missing-guard
+evidence. It may list required backend cap/guard bindings and backend sources,
+but it must not become guard execution, browser wallet or profitability
+authority, browser approval, command authority, Coinbase execution, or
+reconciliation proof.
 Audit workbench reads expose route inventory, command audit, correlation,
 module, and exchange evidence only. They must not become command replay, audit
 mutation, Coinbase read, or frontend approval paths.

@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1141-1160",
+  "approved_phase_range": "1161-1180",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -196,6 +196,11 @@ Expected M8 readiness posture:
   "admission_audit_missing_count": 5,
   "admission_audit_fact_count": 50,
   "admission_audit_missing_fact_count": 50,
+  "cap_guard_required_count": 5,
+  "cap_guard_configured_count": 0,
+  "cap_guard_missing_count": 5,
+  "cap_guard_requirement_count": 70,
+  "cap_guard_missing_requirement_count": 70,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -540,6 +545,65 @@ Expected M8 readiness posture:
         ],
         "detail": "POST /api/v1/orders remains live-disabled until the backend can write and verify an append-only live-admission audit trail."
       },
+      "cap_guard_contract": {
+        "status": "blocked",
+        "required": true,
+        "configured": false,
+        "route_specific": true,
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "source": "not_configured",
+        "requirement_count": 14,
+        "missing_requirement_count": 14,
+        "requirements": [
+          {
+            "requirement": "backend_owned",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "guard_risk_policy",
+            "expected_value": null,
+            "detail": "Cap and guard decisions must be owned and enforced by the backend."
+          },
+          {
+            "requirement": "route_bound",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "/api/v1/orders",
+            "detail": "Cap and guard decisions must bind to the exact Admin API route."
+          },
+          {
+            "requirement": "notional_cap_bound",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "guard_risk_policy",
+            "expected_value": "3.10",
+            "detail": "Cap and guard decisions must enforce approved submitted/executed notional caps."
+          },
+          {
+            "requirement": "domain_guard_bound",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "guard_risk_policy",
+            "expected_value": null,
+            "detail": "Spot order guard must bind notional caps, product capability, wallet budget, no-shorting SELL inventory authority, cost-basis policy, and manual live acknowledgement to the submitted payload."
+          },
+          {
+            "requirement": "browser_authority_rejected",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "frontend_boundary",
+            "expected_value": "display_only",
+            "detail": "Cap and guard decisions must reject browser-computed authority."
+          }
+        ],
+        "evidence": [
+          "No route-specific backend cap/guard decision contract is configured for this route.",
+          "Cap/guard decisions must be backend-owned, route-bound, payload-bound, approval-linked, and admission-audit-linked.",
+          "Browser-side wallet, margin, profitability, or cap calculations cannot satisfy live admission guards."
+        ],
+        "detail": "POST /api/v1/orders remains live-disabled until a route-specific backend cap/guard decision contract is implemented and configured."
+      },
       "browser_authority": "display_only",
       "capability_source": "GET /api/v1/admin/capabilities",
       "readiness_source": "GET /api/v1/admin/enterprise-readiness",
@@ -596,6 +660,10 @@ command authority, Coinbase execution, or reconciliation proof. M32
 admission-audit trail fields make the missing append-only backend admission
 audit facts explicit; they are not audit storage, approval storage, browser
 approval, command authority, Coinbase execution, or reconciliation proof.
+M33 cap/guard contract fields make the missing route-specific backend cap and
+guard decision bindings explicit; they are not guard execution, browser wallet
+or profitability authority, browser approval, command authority, Coinbase
+execution, or reconciliation proof.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -604,13 +672,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1141-1160",
+  "approved_phase_range": "1161-1180",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

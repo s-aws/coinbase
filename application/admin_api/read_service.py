@@ -24,6 +24,7 @@ from core.enums import (
     AdminApiLiveAdmissionAuditFact,
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
+    AdminApiLiveCapGuardRequirement,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminApiModuleSupportStatus,
@@ -65,6 +66,8 @@ from .models import (
     AdminFuturesAccountReadResponse,
     AdminLiveAdmissionAuditFactItem,
     AdminLiveAdmissionAuditTrailEvidence,
+    AdminLiveCapGuardContractEvidence,
+    AdminLiveCapGuardRequirementItem,
     AdminFuturesEvidenceItem,
     AdminFuturesPositionDetailResponse,
     AdminFuturesPositionListResponse,
@@ -104,7 +107,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1141-1160"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1161-1180"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -689,6 +692,169 @@ def _live_admission_audit_trail_evidence(
         detail=(
             f"{method} {route} remains live-disabled until the backend can "
             "write and verify an append-only live-admission audit trail."
+        ),
+    )
+
+
+def _cap_guard_domain_detail(module_id: str, route: str) -> str:
+    if module_id == "spot_operations":
+        if "campaign" in route:
+            return (
+                "Spot campaign guard must bind sweep/campaign caps, dry-run "
+                "policy, product eligibility, wallet authority, SELL inventory "
+                "authority, and reconciliation readiness to the submitted payload."
+            )
+        if route.endswith("/cancel"):
+            return (
+                "Spot cancel guard must bind client_order_id ownership, active "
+                "placement evidence, idempotency, and no order_id substitution "
+                "before a live cancel can be admitted."
+            )
+        return (
+            "Spot order guard must bind notional caps, product capability, "
+            "wallet budget, no-shorting SELL inventory authority, cost-basis "
+            "policy, and manual live acknowledgement to the submitted payload."
+        )
+    if module_id == "stealth_orders":
+        return (
+            "Stealth cancel guard must bind stealth_order_id, active exchange "
+            "placement reality, cancel/re-entry policy, and lifecycle lock "
+            "evidence before a live cancel can be admitted."
+        )
+    if module_id == "movement_repricing":
+        return (
+            "Movement/repricing guard must bind stealth_order_id, mutation "
+            "claim, cancel/replace policy, replacement budget delta, and "
+            "exchange-reality evidence before live repricing can be admitted."
+        )
+    return (
+        "Module-specific guard semantics must be defined by the owning backend "
+        "module before live admission."
+    )
+
+
+def _cap_guard_requirement(
+    *,
+    requirement: AdminApiLiveCapGuardRequirement,
+    expected_source: str,
+    detail: str,
+    expected_value: str | None = None,
+) -> AdminLiveCapGuardRequirementItem:
+    return AdminLiveCapGuardRequirementItem(
+        requirement=requirement,
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        expected_source=expected_source,
+        expected_value=expected_value,
+        detail=detail,
+    )
+
+
+def _live_cap_guard_contract_evidence(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    identity_key: str,
+) -> AdminLiveCapGuardContractEvidence:
+    requirements = [
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.BACKEND_OWNED,
+            expected_source="guard_risk_policy",
+            detail="Cap and guard decisions must be owned and enforced by the backend.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.ROUTE_BOUND,
+            expected_source="route_inventory",
+            expected_value=route,
+            detail="Cap and guard decisions must bind to the exact Admin API route.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.METHOD_BOUND,
+            expected_source="route_inventory",
+            expected_value=method,
+            detail="Cap and guard decisions must bind to the exact HTTP method.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.MODULE_BOUND,
+            expected_source="route_inventory",
+            expected_value=module_id,
+            detail="Cap and guard decisions must bind to the enterprise module id.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.IDENTITY_BOUND,
+            expected_source="route_inventory",
+            expected_value=identity_key,
+            detail="Cap and guard decisions must bind to the module-specific command identity.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.PAYLOAD_HASH_BOUND,
+            expected_source="command_service",
+            detail="Cap and guard decisions must bind to the submitted command payload hash.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.IDEMPOTENCY_BOUND,
+            expected_source="command_headers",
+            detail="Cap and guard decisions must bind to the command idempotency key.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.OPERATOR_INTENT_BOUND,
+            expected_source="command_headers",
+            detail="Cap and guard decisions must bind to backend-captured operator intent.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.NOTIONAL_CAP_BOUND,
+            expected_source="guard_risk_policy",
+            expected_value=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
+            detail="Cap and guard decisions must enforce approved submitted/executed notional caps.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.DOMAIN_GUARD_BOUND,
+            expected_source="guard_risk_policy",
+            detail=_cap_guard_domain_detail(module_id, route),
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.PRODUCT_SCOPE_BOUND,
+            expected_source="route_inventory",
+            expected_value=LIVE_ENABLEMENT_PRODUCT_SCOPE,
+            detail="Cap and guard decisions must bind to the configured product scope for the route.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.APPROVAL_SNAPSHOT_BOUND,
+            expected_source="approval_snapshot",
+            detail="Cap and guard decisions must be referenced by the route-specific approval snapshot.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.ADMISSION_AUDIT_BOUND,
+            expected_source="admission_audit_trail",
+            detail="Cap and guard decisions must be recorded in the append-only admission audit trail.",
+        ),
+        _cap_guard_requirement(
+            requirement=AdminApiLiveCapGuardRequirement.BROWSER_AUTHORITY_REJECTED,
+            expected_source="frontend_boundary",
+            expected_value="display_only",
+            detail="Cap and guard decisions must reject browser-computed authority.",
+        ),
+    ]
+    return AdminLiveCapGuardContractEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        configured=False,
+        route_specific=True,
+        backend_owned=True,
+        browser_authority="display_only",
+        source="not_configured",
+        requirement_count=len(requirements),
+        missing_requirement_count=len(requirements),
+        requirements=requirements,
+        evidence=[
+            "No route-specific backend cap/guard decision contract is configured for this route.",
+            "Cap/guard decisions must be backend-owned, route-bound, payload-bound, approval-linked, and admission-audit-linked.",
+            "Browser-side wallet, margin, profitability, or cap calculations cannot satisfy live admission guards.",
+        ],
+        detail=(
+            f"{method} {route} remains live-disabled until a route-specific "
+            "backend cap/guard decision contract is implemented and configured."
         ),
     )
 
@@ -3157,6 +3323,12 @@ class AdminApiReadService:
                 module_id=item.module_id,
                 identity_key=identity_key,
             )
+            cap_guard_contract = _live_cap_guard_contract_evidence(
+                method=method,
+                route=path,
+                module_id=item.module_id,
+                identity_key=identity_key,
+            )
             paths.append(
                 AdminLiveEnablementPathItem(
                     path_id=_path_id(method, path),
@@ -3207,6 +3379,7 @@ class AdminApiReadService:
                     approval_snapshot=approval_snapshot,
                     approval_store_contract=approval_store_contract,
                     admission_audit_trail=admission_audit_trail,
+                    cap_guard_contract=cap_guard_contract,
                     evidence=[
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
@@ -3233,6 +3406,9 @@ class AdminApiReadService:
         ]
         admission_audit_trails = [
             path.admission_audit_trail for path in paths
+        ]
+        cap_guard_contracts = [
+            path.cap_guard_contract for path in paths
         ]
 
         checks = [
@@ -3353,6 +3529,29 @@ class AdminApiReadService:
             admission_audit_missing_fact_count=sum(
                 trail.missing_fact_count
                 for trail in admission_audit_trails
+            ),
+            cap_guard_required_count=sum(
+                1
+                for contract in cap_guard_contracts
+                if contract.required
+            ),
+            cap_guard_configured_count=sum(
+                1
+                for contract in cap_guard_contracts
+                if contract.configured
+            ),
+            cap_guard_missing_count=sum(
+                1
+                for contract in cap_guard_contracts
+                if not contract.configured
+            ),
+            cap_guard_requirement_count=sum(
+                contract.requirement_count
+                for contract in cap_guard_contracts
+            ),
+            cap_guard_missing_requirement_count=sum(
+                contract.missing_requirement_count
+                for contract in cap_guard_contracts
             ),
         )
 

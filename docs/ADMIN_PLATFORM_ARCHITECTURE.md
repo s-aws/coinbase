@@ -49,6 +49,9 @@ These primitives apply across modules:
 - live-admission audit trail evidence that names missing append-only backend
   audit facts without creating audit storage, command authority, or browser
   approval
+- route-specific cap/guard contract evidence that names missing backend
+  cap, guard, payload, approval, admission-audit, and product-scope bindings
+  without creating guard execution, command authority, or browser approval
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -166,6 +169,11 @@ route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser
 approval workflow, command authority, Coinbase execution, or reconciliation
 authority.
+Route-specific cap/guard contract evidence is a read-only refinement of the
+same route. It may show required backend cap/guard bindings and expected
+authority sources, but it must not become guard execution, browser wallet or
+profitability authority, command authority, Coinbase execution, or
+reconciliation evidence.
 
 ## Durable Milestones
 

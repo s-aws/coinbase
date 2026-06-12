@@ -307,6 +307,25 @@ class AdminApiLiveAdmissionAuditFact(str, Enum):
     BROWSER_AUTHORITY_REJECTION_RECORDED = "browser_authority_rejection_recorded"
 
 
+class AdminApiLiveCapGuardRequirement(str, Enum):
+    """Required cap/guard bindings before live route admission."""
+
+    BACKEND_OWNED = "backend_owned"
+    ROUTE_BOUND = "route_bound"
+    METHOD_BOUND = "method_bound"
+    MODULE_BOUND = "module_bound"
+    IDENTITY_BOUND = "identity_bound"
+    PAYLOAD_HASH_BOUND = "payload_hash_bound"
+    IDEMPOTENCY_BOUND = "idempotency_bound"
+    OPERATOR_INTENT_BOUND = "operator_intent_bound"
+    NOTIONAL_CAP_BOUND = "notional_cap_bound"
+    DOMAIN_GUARD_BOUND = "domain_guard_bound"
+    PRODUCT_SCOPE_BOUND = "product_scope_bound"
+    APPROVAL_SNAPSHOT_BOUND = "approval_snapshot_bound"
+    ADMISSION_AUDIT_BOUND = "admission_audit_bound"
+    BROWSER_AUTHORITY_REJECTED = "browser_authority_rejected"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 

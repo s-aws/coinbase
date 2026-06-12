@@ -221,7 +221,10 @@ The platform/module split is documented in
   explicit per live-shaped path. M31 approval-store contract evidence makes
   the missing durable backend approval store requirements explicit per
   live-shaped path. M32 live-admission audit trail evidence makes the missing
-  append-only backend admission audit facts explicit per live-shaped path. The
+  append-only backend admission audit facts explicit per live-shaped path.
+  M33 route-specific cap/guard contract evidence makes the missing backend
+  cap, guard, payload, approval, admission-audit, and product-scope bindings
+  explicit per live-shaped path. The
   route is read-only, reports
   `default_live_coinbase_execution=not_run`, submitted/executed notional
   `$0`, and does not enable any command path.

@@ -97,7 +97,14 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1141-1160`.
+- Active autonomous range: `1161-1180`.
+- M33 route-specific cap/guard contract evidence is exposed through the
+  existing `GET /api/v1/admin/live-enablement` read. It must remain
+  evidence-only: requirements can describe the backend cap, guard, payload,
+  approval, admission-audit, and product-scope bindings required for live
+  admission, but they must not become guard execution, browser wallet or
+  profitability authority, browser approval, a command route, Coinbase
+  execution, or reconciliation authority.
 - M32 live-admission audit trail evidence is exposed through the existing
   `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
   facts can describe what an append-only backend admission audit trail must
