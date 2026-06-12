@@ -36,36 +36,37 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `1361-1380`.
-- Latest completed milestone: M43 - Disabled Live Execution Service
-  Foundation.
-- Completed files: Admin API disabled live execution service descriptor,
-  command admission dependency injection, OpenAPI, live-enablement range
+- Latest completed autonomous range: `1381-1400`.
+- Latest completed milestone: M44 - Live Execution Adapter Contract Evidence.
+- Completed files: Admin API live execution adapter contract evidence,
+  route-to-shared-command method mapping, OpenAPI, live-enablement range
   evidence, admin platform docs, frontend generated schema, frontend
-  dry-submit and Audit Workbench display evidence, frontend mock/runtime
-  evidence, review logs, and agent context needed for local-agent accuracy.
+  governance display evidence, frontend mock/runtime evidence, review logs,
+  and agent context needed for local-agent accuracy.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M43 made the backend live execution service boundary present as a disabled
-  descriptor consumed by existing live-disabled command admission evidence.
-  It reports `required=true`, `present=true`, `status=live_disabled`,
-  `source=disabled_backend_service`, and
-  `missing_reason=live_execution_disabled`. It did not add create, cancel,
+- M44 made backend live-enablement path rows expose route-bound live execution
+  adapter contract evidence. It maps each live-shaped route to its shared
+  `AdminApiCommandService` method while reporting `configured=false`,
+  `status=live_disabled`, `source=disabled_backend_service`,
+  `missing_reason=live_execution_disabled`, `executable=false`,
+  `browser_authority=display_only`, and
+  `bff_authority=forward_only_no_execution`. It did not add create, cancel,
   submit, execute, Coinbase, route-local execution, browser approval, BFF
   execution authority, a live switch, or a parallel command path.
 
 ## Active Scope
 
-- Active autonomous range: `1361-1380` until the next approved range is
-  advanced in the queue docs and validators.
-- Active milestone: pending next batch after M43 completion.
-- Current direction: continue the enterprise admin frontend/API path for the
-  whole trading engine, building only on backend-owned contracts and keeping
-  command/live execution disabled unless a future approved live phase wires a
-  real backend live execution boundary.
+- Active autonomous range: `1381-1400`.
+- Active milestone: next enterprise admin backend/frontend sync batch not yet
+  opened after M44 completion.
+- Current direction: continue toward a backend-owned enterprise admin live
+  execution boundary without adding executable adapters, browser approval, BFF
+  execution authority, Coinbase calls, route-local execution, or command/live
+  execution enablement until the backend service is explicitly implemented.
 
 ## Decisions (Durable)
 
@@ -434,8 +435,9 @@ Keep it short. Keep it factual.
   command controls, guard evaluator, audit storage, approval storage,
   reconciliation execution, BFF mutation broadening, Coinbase call, browser
   approval, or reconciliation behavior is allowed.
-- What is in progress: M43 disabled live execution service foundation, active
-  approved range `1361-1380`.
+- What is in progress: no post-M44 implementation batch has been opened yet;
+  latest approved range remains `1381-1400`.
 - What is blocked: Nothing currently known.
-- Exact next command: run focused backend/frontend gates for the disabled
-  service descriptor and active range `1361-1380`.
+- Exact next command: open the next enterprise admin backend/frontend sync
+  batch and keep live Coinbase execution disabled unless the batch explicitly
+  authorizes it.

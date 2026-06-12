@@ -293,6 +293,9 @@ The platform/module split is documented in
   boundary present as evidence with source `disabled_backend_service`. The
   descriptor has no create, cancel, submit, execute, browser, BFF, or Coinbase
   authority methods, so command routes remain no-live.
+- M44 live execution adapter contract evidence maps live-shaped routes to
+  shared `AdminApiCommandService` methods on read-only live-enablement path
+  rows. The adapter evidence is disabled, unconfigured, and non-executable.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

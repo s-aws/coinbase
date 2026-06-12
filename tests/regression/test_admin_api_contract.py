@@ -50,6 +50,7 @@ from application.admin_api.idempotency import (
 )
 from application.admin_api.live_execution import (
     DisabledAdminApiLiveExecutionService,
+    build_disabled_live_execution_adapter_contract,
     get_disabled_live_execution_service,
 )
 from application.admin_api.models import (
@@ -2285,6 +2286,13 @@ def test_admin_api_reconciliation_plan_resolver_is_exact_and_identity_generic():
 def test_admin_api_disabled_live_execution_service_is_evidence_only():
     service = get_disabled_live_execution_service()
     state = service.admission_state()
+    adapter = build_disabled_live_execution_adapter_contract(
+        method="POST",
+        route="/api/v1/orders",
+        module_id="spot_operations",
+        service_method="place_manual_order",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+    )
 
     assert isinstance(service, DisabledAdminApiLiveExecutionService)
     assert state.required is True
@@ -2296,6 +2304,24 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only():
     assert not hasattr(service, "cancel_order")
     assert not hasattr(service, "execute")
     assert not hasattr(service, "submit")
+    assert adapter["route"] == "/api/v1/orders"
+    assert adapter["method"] == "POST"
+    assert adapter["module_id"] == "spot_operations"
+    assert adapter["service_method"] == "place_manual_order"
+    assert adapter["adapter_reference"] == "AdminApiCommandService.place_manual_order"
+    assert adapter["status"].value == "live_disabled"
+    assert adapter["source"] == "disabled_backend_service"
+    assert adapter["missing_reason"] == "live_execution_disabled"
+    assert adapter["executable"] is False
+    assert adapter["browser_authority"] == "display_only"
+    assert adapter["bff_authority"] == "forward_only_no_execution"
+    assert adapter["forbidden_methods"] == [
+        "create_order",
+        "cancel_order",
+        "execute",
+        "submit",
+        "coinbase_client",
+    ]
 
 
 @pytest.mark.regression
@@ -2542,7 +2568,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1361-1380"
+    assert live_payload["approved_phase_range"] == "1381-1400"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -2573,6 +2599,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["cap_guard_missing_count"] == 5
     assert live_payload["cap_guard_requirement_count"] == 70
     assert live_payload["cap_guard_missing_requirement_count"] == 70
+    assert live_payload["live_execution_adapter_required_count"] == 5
+    assert live_payload["live_execution_adapter_configured_count"] == 0
+    assert live_payload["live_execution_adapter_missing_count"] == 5
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -2745,6 +2774,51 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
+        item["live_execution_adapter"]["status"] == "live_disabled"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["required"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["configured"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["backend_owned"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["route_bound"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["executable"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["browser_authority"] == "display_only"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["bff_authority"] == "forward_only_no_execution"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["source"] == "disabled_backend_service"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["missing_reason"] == "live_execution_disabled"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["live_execution_adapter"]["forbidden_methods"]
+        == ["create_order", "cancel_order", "execute", "submit", "coinbase_client"]
+        for item in live_routes.values()
+    )
+    assert all(
         item["blocking_preflight_check_count"] == 4
         for item in live_routes.values()
     )
@@ -2757,6 +2831,14 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_routes["/api/v1/orders"]["module_owner"] == "strategy"
     assert live_routes["/api/v1/orders"]["identity_key"] == "client_order_id"
     assert "Spot-only wallet" in live_routes["/api/v1/orders"]["spot_rule_boundary"]
+    spot_adapter = live_routes["/api/v1/orders"]["live_execution_adapter"]
+    assert spot_adapter["route"] == "/api/v1/orders"
+    assert spot_adapter["method"] == "POST"
+    assert spot_adapter["module_id"] == "spot_operations"
+    assert spot_adapter["service_method"] == "place_manual_order"
+    assert spot_adapter["adapter_reference"] == "AdminApiCommandService.place_manual_order"
+    assert spot_adapter["action_class"] == "live_exchange_place"
+    assert "non-executable" in spot_adapter["detail"]
     spot_preflight = {
         check["name"]: check
         for check in live_routes["/api/v1/orders"]["preflight_checks"]
@@ -2942,7 +3024,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1361-1380"
+    assert enterprise_payload["approved_phase_range"] == "1381-1400"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

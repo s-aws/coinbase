@@ -66,6 +66,9 @@ These primitives apply across modules:
   backend-owned service boundary as present but `live_disabled` without
   exposing create, cancel, submit, execute, browser authority, BFF execution
   authority, or Coinbase methods
+- live execution adapter contract evidence that maps each live-shaped route
+  to its shared `AdminApiCommandService` method while reporting the adapter as
+  disabled, unconfigured, non-executable, and display-only
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -208,6 +211,12 @@ The disabled live execution service descriptor is the current backend-owned
 service boundary. It is evidence-only and has no execution methods; command
 routes may consume its state, but they must still return no-live command
 responses until every live gate is explicitly wired.
+Live execution adapter contract evidence is a read-only refinement of
+`GET /api/v1/admin/live-enablement`. It may map a live-shaped route to its
+shared `AdminApiCommandService` method and list forbidden execution methods,
+but it must not become a route-local executor, browser approval workflow, BFF
+execution authority, Coinbase call, live switch, or order/exchange-state
+mutation path.
 Live-admission audit trail evidence is a read-only refinement of the same
 route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser

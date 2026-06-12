@@ -38,7 +38,114 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Disabled Live Execution Service Foundation Batch - Phases 1361-1380
+## Completed Live Execution Adapter Contract Evidence Batch - Phases 1381-1400
+
+### Phase 1381 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1361-1380 to active
+  phases 1381-1400 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1382 - M44 Live Execution Adapter Contract Evidence
+
+- Add backend-owned, read-only live execution adapter contract evidence that
+  maps each live-shaped Admin API route to its shared command service method
+  without adding execution methods, a live switch, browser approval, BFF
+  execution authority, or Coinbase calls.
+
+### Phase 1383 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1381-1400 phase range.
+
+### Phase 1384 - Adapter Evidence Model
+
+- Add a typed adapter contract model for live-enablement path rows that
+  reports required, disabled, backend-owned, route-bound, and non-executable
+  adapter posture.
+
+### Phase 1385 - Live Enablement Path Wiring
+
+- Populate each live-shaped route row from the route inventory and shared
+  command service method. Do not create a route-local executor.
+
+### Phase 1386 - Adapter Aggregate Counts
+
+- Add live-enablement aggregate counts for required, configured, and missing
+  adapter contracts while keeping configured count at zero.
+
+### Phase 1387 - No Executable Method Proof
+
+- Prove the disabled service descriptor and adapter evidence expose no
+  create, cancel, submit, execute, Coinbase, browser, or BFF authority method.
+
+### Phase 1388 - No Route-Local Execution Proof
+
+- Prove command routes still use the shared route adapter, idempotency,
+  audit, admission, and command service path.
+
+### Phase 1389 - OpenAPI Regeneration
+
+- Regenerate OpenAPI after adding adapter evidence fields and verify the
+  generated schema is fresh.
+
+### Phase 1390 - Frontend Range Sync
+
+- Synchronize frontend autonomous, release, deployment, quality, mock, and
+  runtime range evidence to 1381-1400.
+
+### Phase 1391 - Generated Client Sync
+
+- Regenerate the frontend generated client from backend OpenAPI. Do not edit
+  generated files by hand.
+
+### Phase 1392 - Mock Live Enablement Adapter Evidence
+
+- Update frontend mock live-enablement path rows with backend-shaped adapter
+  evidence while keeping commands no-live and display-only.
+
+### Phase 1393 - Frontend Governance UI Adapter Panel
+
+- Render live execution adapter contract evidence in the enterprise admin
+  governance surface without adding command buttons or browser approval.
+
+### Phase 1394 - Runtime, Artifact, And Quality Alignment
+
+- Align runtime evidence, release artifacts, deployment readiness,
+  autonomous queue, and quality gates with M44 adapter evidence posture.
+
+### Phase 1395 - Documentation Update
+
+- Update Admin API/frontend docs, capability matrices, handoffs, examples,
+  and durable milestones for adapter contract evidence.
+
+### Phase 1396 - Drift Scan
+
+- Scan both repos for stale active ranges, stale service-source expectations,
+  route-local execution wording, or frontend command authority drift.
+
+### Phase 1397 - Focused Backend Gates
+
+- Run focused backend Admin API/readiness tests and backend autonomous queue
+  validation for M44.
+
+### Phase 1398 - Focused Frontend Gates
+
+- Run focused frontend API, unit, lint/type, and autonomous checks that cover
+  adapter evidence display and active range.
+
+### Phase 1399 - Blind/Contextless Review
+
+- Run blind/contextless review for live execution adapter contract evidence,
+  shared command path preservation, and no-browser/no-BFF execution authority.
+
+### Phase 1400 - Full Gates And Summary
+
+- Run full backend regression and frontend release gate. Summarize live
+  Coinbase execution status and notional. Default remains no-live with
+  submitted and executed notional `$0`.
+
+## Completed Disabled Live Execution Service Foundation Batch - Phases 1361-1380
 
 ### Phase 1361 - Advance Active Queue Range
 

@@ -97,7 +97,14 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1361-1380`.
+- Active autonomous range: `1381-1400`.
+- M44 live execution adapter contract evidence is complete for phases
+  `1381-1400`. Existing
+  live-enablement path rows may report a backend-owned adapter contract that
+  maps a live-shaped route to its shared `AdminApiCommandService` method, but
+  the adapter remains disabled, unconfigured, non-executable, and display
+  only. Do not add route-local execution, browser approval, BFF execution
+  authority, or Coinbase calls.
 - M43 disabled live execution service foundation is complete for phases
   `1361-1380`. Existing Admin API command admission evidence consumes a
   backend-owned disabled service descriptor reporting the service as present

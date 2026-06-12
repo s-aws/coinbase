@@ -1151,6 +1151,32 @@ class AdminLiveCapGuardContractEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveExecutionAdapterContractEvidence(BaseModel):
+    """Read-only evidence for the missing live execution adapter contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    required: bool = True
+    configured: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    source: str = "disabled_backend_service"
+    missing_reason: str = "live_execution_disabled"
+    module_id: str
+    route: str
+    method: str
+    service_method: str
+    adapter_reference: str
+    action_class: AdminApiActionClass
+    executable: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    forbidden_methods: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveEnablementPathItem(BaseModel):
     """One live-eligible path and the gates required before enablement."""
 
@@ -1195,6 +1221,7 @@ class AdminLiveEnablementPathItem(BaseModel):
     approval_store_contract: AdminLiveApprovalStoreContractEvidence
     admission_audit_trail: AdminLiveAdmissionAuditTrailEvidence
     cap_guard_contract: AdminLiveCapGuardContractEvidence
+    live_execution_adapter: AdminLiveExecutionAdapterContractEvidence
     evidence: list[str] = Field(default_factory=list)
     notes: str
 
@@ -1243,6 +1270,9 @@ class AdminLiveEnablementReadResponse(BaseModel):
     cap_guard_missing_count: int = 0
     cap_guard_requirement_count: int = 0
     cap_guard_missing_requirement_count: int = 0
+    live_execution_adapter_required_count: int = 0
+    live_execution_adapter_configured_count: int = 0
+    live_execution_adapter_missing_count: int = 0
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

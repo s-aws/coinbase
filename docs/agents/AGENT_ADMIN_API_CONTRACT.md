@@ -121,6 +121,11 @@ The disabled live execution service descriptor is evidence-only. It may make
 the backend-owned service boundary visible to admission evidence, but it must
 not expose create, cancel, submit, execute, Coinbase, browser approval, BFF
 execution authority, or route-local execution methods.
+Live execution adapter contract evidence is live-enablement evidence only. It
+may map a live-shaped route to the shared `AdminApiCommandService` method and
+list forbidden execution methods, but it must not become a route-local
+executor, browser approval workflow, BFF execution authority, Coinbase call,
+live switch, or order/exchange-state mutation path.
 Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser

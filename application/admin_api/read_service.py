@@ -49,6 +49,7 @@ from .auth import (
     check_oidc_jwks_reachability,
     configured_auth_mode,
 )
+from .live_execution import build_disabled_live_execution_adapter_contract
 from .models import (
     AdminApiActor,
     AdminAuditModuleSummaryItem,
@@ -107,7 +108,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1361-1380"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1381-1400"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3360,6 +3361,13 @@ class AdminApiReadService:
                 module_id=item.module_id,
                 identity_key=identity_key,
             )
+            live_execution_adapter = build_disabled_live_execution_adapter_contract(
+                method=method,
+                route=path,
+                module_id=item.module_id,
+                service_method=item.shared_method,
+                action_class=item.action_class,
+            )
             paths.append(
                 AdminLiveEnablementPathItem(
                     path_id=_path_id(method, path),
@@ -3411,6 +3419,7 @@ class AdminApiReadService:
                     approval_store_contract=approval_store_contract,
                     admission_audit_trail=admission_audit_trail,
                     cap_guard_contract=cap_guard_contract,
+                    live_execution_adapter=live_execution_adapter,
                     evidence=[
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
@@ -3440,6 +3449,9 @@ class AdminApiReadService:
         ]
         cap_guard_contracts = [
             path.cap_guard_contract for path in paths
+        ]
+        live_execution_adapters = [
+            path.live_execution_adapter for path in paths
         ]
 
         checks = [
@@ -3583,6 +3595,15 @@ class AdminApiReadService:
             cap_guard_missing_requirement_count=sum(
                 contract.missing_requirement_count
                 for contract in cap_guard_contracts
+            ),
+            live_execution_adapter_required_count=sum(
+                1 for contract in live_execution_adapters if contract.required
+            ),
+            live_execution_adapter_configured_count=sum(
+                1 for contract in live_execution_adapters if contract.configured
+            ),
+            live_execution_adapter_missing_count=sum(
+                1 for contract in live_execution_adapters if not contract.configured
             ),
         )
 

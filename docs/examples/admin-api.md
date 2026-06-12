@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1361-1380",
+  "approved_phase_range": "1381-1400",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -201,6 +201,9 @@ Expected M8 readiness posture:
   "cap_guard_missing_count": 5,
   "cap_guard_requirement_count": 70,
   "cap_guard_missing_requirement_count": 70,
+  "live_execution_adapter_required_count": 5,
+  "live_execution_adapter_configured_count": 0,
+  "live_execution_adapter_missing_count": 5,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -628,6 +631,37 @@ Expected M8 readiness posture:
         ],
         "detail": "POST /api/v1/orders remains live-disabled until a route-specific backend cap/guard decision contract is implemented and configured."
       },
+      "live_execution_adapter": {
+        "required": true,
+        "configured": false,
+        "backend_owned": true,
+        "route_bound": true,
+        "status": "live_disabled",
+        "source": "disabled_backend_service",
+        "missing_reason": "live_execution_disabled",
+        "module_id": "spot_operations",
+        "route": "/api/v1/orders",
+        "method": "POST",
+        "service_method": "place_manual_order",
+        "adapter_reference": "AdminApiCommandService.place_manual_order",
+        "action_class": "live_exchange_place",
+        "executable": false,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "forbidden_methods": [
+          "create_order",
+          "cancel_order",
+          "execute",
+          "submit",
+          "coinbase_client"
+        ],
+        "evidence": [
+          "Live-shaped route is mapped to the shared backend command service.",
+          "The disabled live execution service descriptor has no executable adapter.",
+          "Browser and BFF layers cannot create a route-local execution adapter."
+        ],
+        "detail": "POST /api/v1/orders is mapped to AdminApiCommandService.place_manual_order, but the Admin API live execution service remains disabled and non-executable."
+      },
       "browser_authority": "display_only",
       "capability_source": "GET /api/v1/admin/capabilities",
       "readiness_source": "GET /api/v1/admin/enterprise-readiness",
@@ -697,6 +731,10 @@ M33 cap/guard contract fields make the missing route-specific backend cap and
 guard decision bindings explicit; they are not guard execution, browser wallet
 or profitability authority, browser approval, command authority, Coinbase
 execution, or reconciliation proof.
+M44 live execution adapter contract fields make the route-to-shared-command
+service boundary explicit; they are not route-local execution, browser
+approval, BFF execution authority, Coinbase calls, or order/exchange-state
+mutation.
 
 M34 command admission decision fields appear on live-disabled HTTP command
 responses. They bind the command route, module, identity key, actor,
@@ -721,7 +759,9 @@ mutation, or Coinbase execution. M42 makes the disabled backend live
 execution service boundary explicit without adding a live switch, browser
 approval, BFF execution authority, or Coinbase execution. M43 introduces a
 backend-owned disabled service descriptor without adding create, cancel,
-submit, execute, browser, BFF, or Coinbase authority methods. None of these
+submit, execute, browser, BFF, or Coinbase authority methods. M44 adds
+live-enablement adapter evidence without making route-to-service mapping
+executable. None of these
 milestones adds an approval endpoint, browser approval, or Coinbase execution
 path.
 
@@ -732,13 +772,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1361-1380",
+  "approved_phase_range": "1381-1400",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
