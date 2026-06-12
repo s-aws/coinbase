@@ -4652,7 +4652,7 @@ Completion evidence:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Command-Smoke Runtime Parity Batch - Phases 781-800
+## Completed Command-Smoke Runtime Parity Batch - Phases 781-800
 
 ### Phase 781 - Advance Active Queue Range
 
@@ -4666,7 +4666,8 @@ Completion evidence:
 
 ### Phase 783 - Backend Range Evidence
 
-- Update backend no-live readiness evidence to report active range 781-800.
+- Update backend no-live readiness evidence to report the then-active range
+  781-800.
 
 ### Phase 784 - Shared Command Smoke Catalog
 
@@ -4742,3 +4743,122 @@ Completion evidence:
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and next objective scope.
+
+Completion evidence:
+
+- M14 command-smoke runtime parity completed in backend commit `9479f38` and
+  frontend commit `1136548`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M14 re-review passed after remediation.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Completed BFF Command Authority Source Batch - Phases 801-820
+
+### Phase 801 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 781-800 to active
+  phases 801-820 while preserving the same cap and stop-condition policy.
+
+### Phase 802 - M15 BFF Command Authority Source Slice
+
+- Make frontend BFF POST command forwarding derive from the mutation contract
+  catalog, not a parallel hard-coded route list.
+
+### Phase 803 - Backend Range Evidence
+
+- Update backend no-live readiness evidence to report active range 801-820.
+
+### Phase 804 - Mutation Contract Route Helper
+
+- Verify the frontend helper fails closed when a mutation contract lacks a
+  concrete POST `/api/v1` route.
+
+### Phase 805 - BFF POST Allowlist Derivation
+
+- Remove hard-coded BFF POST route objects and derive command routes from
+  `currentMutationContracts`.
+
+### Phase 806 - BFF Route Coverage Checker Parity
+
+- Update route coverage validation so expected BFF command routes come from
+  the mutation contract catalog.
+
+### Phase 807 - Command Fetch Guard Source Sync
+
+- Keep command fetch and route coverage guards aligned against feature-local
+  command transport.
+
+### Phase 808 - BFF Unit Contract Update
+
+- Prove BFF POST command routes match mutation contract routes exactly.
+
+### Phase 809 - Operator Docs Sync
+
+- Document the mutation contract catalog as the BFF POST command route
+  authority source.
+
+### Phase 810 - Stale Range And Duplication Audit
+
+- Search for range and hard-coded BFF POST command route contradictions.
+
+### Phase 811 - Focused Backend Verification
+
+- Run focused backend Admin API and autonomous checks.
+
+### Phase 812 - Focused Frontend Verification
+
+- Run focused frontend BFF, route coverage, release-check, autonomous, and
+  unit checks.
+
+### Phase 813 - Contextless M15 Review
+
+- Run blind/contextless review for BFF command authority-source clarity.
+
+### Phase 814 - Review Remediation
+
+- Resolve blocker or ambiguity before full gates.
+
+### Phase 815 - Full Backend Regression
+
+- Run full backend regression.
+
+### Phase 816 - Full Frontend Release Gate
+
+- Run full frontend release gate.
+
+### Phase 817 - Final Drift Check
+
+- Run diff, generated-file, route-range, duplicate-command-route, and
+  live-notional checks.
+
+### Phase 818 - Milestone Evidence
+
+- Mark M15 complete only if gates and review pass.
+
+### Phase 819 - Next Batch Planning
+
+- Prepare the next roadmap batch only if it aligns with the durable enterprise
+  admin objective.
+
+### Phase 820 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+Completion evidence:
+
+- BFF POST command routes derive from `currentMutationContracts`.
+- Frontend route coverage compares generated backend `post` operations to
+  mutation contracts and rejects hard-coded BFF POST route objects.
+- Backend focused Admin API/autonomous checks passed with `62 passed,
+  1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M15 review and re-review found no blockers after
+  generated POST route coverage hardening.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.

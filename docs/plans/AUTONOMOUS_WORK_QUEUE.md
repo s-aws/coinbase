@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **781-800**.
+- Approved phase range: **801-820**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -888,7 +888,7 @@ Stop advancement to the next phase until fixed when any of these occur:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Phases 781-800
+## Completed Phases 781-800
 
 ### Phase 781 - Advance Active Queue Range
 
@@ -903,7 +903,7 @@ Stop advancement to the next phase until fixed when any of these occur:
 ### Phase 783 - Backend Range Evidence
 
 - Update backend no-live readiness evidence so live-enablement and
-  enterprise-readiness report the active 781-800 phase range.
+  enterprise-readiness reported the then-active 781-800 phase range.
 
 ### Phase 784 - Shared Command Smoke Catalog
 
@@ -983,6 +983,137 @@ Stop advancement to the next phase until fixed when any of these occur:
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and next objective scope.
+
+Completion evidence:
+
+- M14 command-smoke runtime parity completed in backend commit `9479f38` and
+  frontend commit `1136548`.
+- Direct command smoke and BFF command smoke share the frontend command-smoke
+  route catalog.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M14 re-review passed after stale wording and guard-depth
+  remediation.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Completed Phases 801-820
+
+### Phase 801 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 781-800 to active
+  phases 801-820 while preserving the same cap and stop-condition policy.
+
+### Phase 802 - M15 BFF Command Authority Source Slice
+
+- Make the frontend BFF command allowlist derive POST command routes from the
+  mutation contract catalog instead of a separate hard-coded route list.
+
+### Phase 803 - Backend Range Evidence
+
+- Update backend no-live readiness evidence so live-enablement and
+  enterprise-readiness report the active 801-820 phase range.
+
+### Phase 804 - Mutation Contract Route Helper
+
+- Add or verify a frontend helper that converts mutation contracts into BFF
+  command route entries and fails closed when a command lacks a concrete POST
+  `/api/v1` route.
+
+### Phase 805 - BFF POST Allowlist Derivation
+
+- Remove hard-coded BFF POST route objects and build BFF command routes from
+  `currentMutationContracts`.
+
+### Phase 806 - BFF Route Coverage Checker Parity
+
+- Update route coverage checks so expected BFF command routes come from the
+  mutation contract catalog.
+
+### Phase 807 - Command Fetch Guard Source Sync
+
+- Keep command fetch and route coverage guards aligned so feature code cannot
+  add browser-local command transport.
+
+### Phase 808 - BFF Unit Contract Update
+
+- Update unit coverage to prove BFF POST command routes are exactly the
+  mutation contract routes.
+
+### Phase 809 - Operator Docs Sync
+
+- Document that `currentMutationContracts` is the single frontend command
+  route authority source for BFF POST forwarding.
+
+### Phase 810 - Stale Range And Duplication Audit
+
+- Search for current-state contradictions around 781-800 versus 801-820 and
+  around hard-coded BFF POST command routes.
+
+### Phase 811 - Focused Backend Verification
+
+- Run focused backend Admin API/autonomous checks for active range and no-live
+  readiness evidence.
+
+### Phase 812 - Focused Frontend Verification
+
+- Run focused BFF proxy, route coverage, release-check, autonomous, and
+  relevant unit checks.
+
+### Phase 813 - Contextless M15 Review
+
+- Run a blind/contextless review asking whether BFF command forwarding clearly
+  derives from backend-owned mutation contracts and remains no-live.
+
+### Phase 814 - Review Remediation
+
+- Resolve blocker or ambiguity from M15 review before full gates.
+
+### Phase 815 - Full Backend Regression
+
+- Run full backend regression after M15 changes and docs updates.
+
+### Phase 816 - Full Frontend Release Gate
+
+- Run full frontend release gate after BFF command authority changes.
+
+### Phase 817 - Final Drift Check
+
+- Run diff, generated-file, route-range, duplicate-command-route, and
+  live-notional checks.
+
+### Phase 818 - Milestone Evidence
+
+- Mark M15 BFF command authority source complete if gates and review pass.
+
+### Phase 819 - Next Batch Planning
+
+- Prepare the next roadmap batch only if it aligns with the durable enterprise
+  admin objective.
+
+### Phase 820 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+Completion evidence:
+
+- M15 BFF command authority source completed in this batch.
+- BFF POST command routes derive from the frontend mutation contract catalog
+  instead of a parallel hard-coded BFF route list.
+- Frontend route coverage compares generated backend `post` operations to
+  `currentMutationContracts` and rejects hard-coded BFF POST route objects.
+- Backend focused Admin API/autonomous checks passed with `62 passed,
+  1 warning`.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend focused BFF/API/release/autonomous checks passed.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M15 review and re-review found no blockers after
+  generated POST route coverage hardening.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Required Final Gates
 

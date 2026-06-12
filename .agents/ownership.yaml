@@ -11,6 +11,7 @@ owners:
     owns:
       - docs/agents/**
       - docs/README.md
+      - docs/MAINTAINER_HANDOFF.md
       - docs/examples/**
       - docs/plans/**
       - docs/EXTERNAL_TESTING_RUNBOOK.md

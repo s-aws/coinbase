@@ -595,7 +595,7 @@ Purpose: make direct-backend and BFF dry command smoke prove the same
 live-disabled backend command surfaces without creating browser trading
 authority.
 
-Current onboarding work:
+Completed evidence:
 
 - Phases 781-800 define a shared command-smoke catalog for direct backend and
   BFF smoke scripts.
@@ -607,16 +607,55 @@ Current onboarding work:
   `live_exchange_submitted=false`.
 - Release checks fail if the command catalog or smoke scripts drift from the
   expected command surfaces.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless re-review passed after remediation.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
-Done when:
+Completed when:
 
 - Direct command smoke and BFF command smoke use the same shared catalog.
 - Dry smoke output lists the same command surfaces with only the `/api/admin`
   BFF prefix difference.
-- Backend and frontend validators use active phase range 781-800.
+- Backend and frontend validators used the then-active phase range 781-800.
 - Focused and full gates pass.
 - Blind/contextless review confirms command smoke is disabled-command evidence
   and not a live execution or parallel trading path.
+
+## M15 - BFF Command Authority Source
+
+Purpose: make frontend BFF POST command forwarding use the mutation contract
+catalog as its single command route authority source.
+
+Completed evidence:
+
+- Phases 801-820 advance the active unattended range while preserving the same
+  no-live frontend posture and live-cap policy.
+- The frontend BFF read allowlist remains explicit read-route evidence.
+- BFF POST command routes derive from `currentMutationContracts`, not a
+  parallel hard-coded route list.
+- Route coverage checks reject hard-coded BFF POST command routes and use the
+  mutation contract catalog as expected command-route evidence.
+- Route coverage checks compare generated backend `post` operations to the
+  mutation contract catalog.
+- Unit tests prove BFF POST command routes are exactly the mutation contract
+  routes.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M15 review and re-review found no blockers.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+Completed when:
+
+- Backend and frontend validators use active phase range 801-820.
+- BFF command route derivation and coverage checks pass.
+- Focused and full gates pass.
+- Blind/contextless review confirms BFF command forwarding remains
+  backend-owned, no-live, and understandable without chat history.
 
 ## Objective Completion
 
