@@ -3031,6 +3031,21 @@ components:
       - blocked
       title: AdminApiHealthStatus
       description: Admin API health/readiness state.
+    AdminApiLiveAdmissionAuditFact:
+      type: string
+      enum:
+      - route_admission_requested
+      - approval_snapshot_linked
+      - approval_store_decision_linked
+      - cap_guard_decision_linked
+      - payload_hash_linked
+      - identity_key_linked
+      - command_admission_decision_recorded
+      - exchange_submission_linked
+      - reconciliation_result_linked
+      - browser_authority_rejection_recorded
+      title: AdminApiLiveAdmissionAuditFact
+      description: Required facts for a future live-admission audit trail.
     AdminApiLiveApprovalSnapshotField:
       type: string
       enum:
@@ -4298,6 +4313,92 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminLiveAdmissionAuditFactItem:
+      properties:
+        fact:
+          $ref: '#/components/schemas/AdminApiLiveAdmissionAuditFact'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        expected_source:
+          type: string
+          title: Expected Source
+        expected_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Value
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - fact
+      - expected_source
+      - detail
+      title: AdminLiveAdmissionAuditFactItem
+      description: One fact required by a future live-admission audit trail.
+    AdminLiveAdmissionAuditTrailEvidence:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        configured:
+          type: boolean
+          title: Configured
+          default: false
+        append_only:
+          type: boolean
+          title: Append Only
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        source:
+          type: string
+          title: Source
+          default: not_configured
+        fact_count:
+          type: integer
+          title: Fact Count
+          default: 0
+        missing_fact_count:
+          type: integer
+          title: Missing Fact Count
+          default: 0
+        facts:
+          items:
+            $ref: '#/components/schemas/AdminLiveAdmissionAuditFactItem'
+          type: array
+          title: Facts
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - detail
+      title: AdminLiveAdmissionAuditTrailEvidence
+      description: Read-only evidence for the missing live-admission audit trail.
     AdminLiveApprovalSnapshotEvidence:
       properties:
         status:
@@ -4622,6 +4723,8 @@ components:
           $ref: '#/components/schemas/AdminLiveApprovalSnapshotEvidence'
         approval_store_contract:
           $ref: '#/components/schemas/AdminLiveApprovalStoreContractEvidence'
+        admission_audit_trail:
+          $ref: '#/components/schemas/AdminLiveAdmissionAuditTrailEvidence'
         evidence:
           items:
             type: string
@@ -4646,6 +4749,7 @@ components:
       - spot_rule_boundary
       - approval_snapshot
       - approval_store_contract
+      - admission_audit_trail
       - notes
       title: AdminLiveEnablementPathItem
       description: One live-eligible path and the gates required before enablement.
@@ -4782,6 +4886,26 @@ components:
         approval_store_missing_requirement_count:
           type: integer
           title: Approval Store Missing Requirement Count
+          default: 0
+        admission_audit_required_count:
+          type: integer
+          title: Admission Audit Required Count
+          default: 0
+        admission_audit_configured_count:
+          type: integer
+          title: Admission Audit Configured Count
+          default: 0
+        admission_audit_missing_count:
+          type: integer
+          title: Admission Audit Missing Count
+          default: 0
+        admission_audit_fact_count:
+          type: integer
+          title: Admission Audit Fact Count
+          default: 0
+        admission_audit_missing_fact_count:
+          type: integer
+          title: Admission Audit Missing Fact Count
           default: 0
         read_only:
           type: boolean

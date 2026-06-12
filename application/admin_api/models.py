@@ -23,6 +23,7 @@ from core.enums import (
     AdminFuturesEvidenceStatus,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminApiLiveAdmissionAuditFact,
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveExecutionStatus,
@@ -1021,6 +1022,38 @@ class AdminLiveApprovalStoreContractEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveAdmissionAuditFactItem(BaseModel):
+    """One fact required by a future live-admission audit trail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fact: AdminApiLiveAdmissionAuditFact
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    expected_source: str
+    expected_value: str | None = None
+    detail: str
+
+
+class AdminLiveAdmissionAuditTrailEvidence(BaseModel):
+    """Read-only evidence for the missing live-admission audit trail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    configured: bool = False
+    append_only: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    source: str = "not_configured"
+    fact_count: int = 0
+    missing_fact_count: int = 0
+    facts: list[AdminLiveAdmissionAuditFactItem] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveEnablementPathItem(BaseModel):
     """One live-eligible path and the gates required before enablement."""
 
@@ -1063,6 +1096,7 @@ class AdminLiveEnablementPathItem(BaseModel):
     passed_preflight_check_count: int = 0
     approval_snapshot: AdminLiveApprovalSnapshotEvidence
     approval_store_contract: AdminLiveApprovalStoreContractEvidence
+    admission_audit_trail: AdminLiveAdmissionAuditTrailEvidence
     evidence: list[str] = Field(default_factory=list)
     notes: str
 
@@ -1101,6 +1135,11 @@ class AdminLiveEnablementReadResponse(BaseModel):
     approval_store_missing_count: int = 0
     approval_store_requirement_count: int = 0
     approval_store_missing_requirement_count: int = 0
+    admission_audit_required_count: int = 0
+    admission_audit_configured_count: int = 0
+    admission_audit_missing_count: int = 0
+    admission_audit_fact_count: int = 0
+    admission_audit_missing_fact_count: int = 0
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

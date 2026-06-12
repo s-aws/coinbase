@@ -60,7 +60,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M28 - Enterprise Command Gap Triage | Complete | Make unsupported, not-modeled, and live-disabled command gaps triageable across modules without adding command authority. |
 | M29 - Controlled-Live Preflight Evidence Alignment | Complete | Add read-only per-route preflight evidence to live-enablement without creating live approval or browser authority. |
 | M30 - Route-Specific Approval Snapshot Evidence | Complete | Make missing durable approval snapshots explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
-| M31 - Approval Store Contract Evidence | Active | Make missing durable backend approval-store behavior explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
+| M31 - Approval Store Contract Evidence | Complete | Make missing durable backend approval-store behavior explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
+| M32 - Live Admission Audit Trail Evidence | Active | Make missing append-only backend admission audit behavior explicit per live-shaped route without creating audit storage, command authority, or browser approval. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1127,13 +1128,13 @@ Completed evidence:
 Purpose: make the missing durable approval-store contract visible before any
 approval persistence, live authorization, or command admission path is added.
 
-Active scope:
+Completed scope:
 
-- Phases 1121-1140 advance the active unattended range while preserving the
+- Phases 1121-1140 advanced the active unattended range while preserving the
   same no-live frontend posture and carried Coinbase cap policy.
 - `GET /api/v1/admin/live-enablement` remains the only read route for this
   evidence; no parallel approval-store route, approval mutation, command path,
-  Coinbase call, or browser evaluator is added.
+  Coinbase call, or browser evaluator was added.
 - Every live-shaped HTTP command route exposes a blocked approval-store
   contract object with backend-owned, route-bound, method-bound,
   module-bound, actor-bound, idempotency-bound, payload-hash-bound, expiring,
@@ -1146,6 +1147,45 @@ Active scope:
   mutation allowlist expansion, command button, approval storage, or browser
   approval workflow is permitted.
 
+Completed evidence:
+
+- Backend focused Admin API/readiness tests and autonomous queue check passed.
+- OpenAPI was regenerated and the frontend generated client consumes the new
+  fields without hand edits.
+- Frontend focused quality checks, targeted Playwright smoke, and
+  `npm run release:gate` passed after rendering the evidence.
+- Blind/contextless review confirmed the approval-store contract requirements
+  are understandable, backend-owned, and not browser approval.
+- Full backend regression passed.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M32 - Live Admission Audit Trail Evidence
+
+Purpose: make the missing durable live-admission audit trail visible before
+any approval persistence, audit storage, live authorization, or command
+admission path is added.
+
+Active scope:
+
+- Phases 1141-1160 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `GET /api/v1/admin/live-enablement` remains the only read route for this
+  evidence; no parallel admission-audit route, approval mutation, command
+  path, Coinbase call, audit storage, approval storage, or browser evaluator
+  is added.
+- Every live-shaped HTTP command route exposes a blocked admission audit trail
+  object with backend-owned, append-only, route-bound, payload-bound,
+  approval-linked, guard-linked, exchange-submission-linked,
+  reconciliation-linked, and browser-authority-rejected fact requirements.
+- Admission audit facts bind to route inventory, approval snapshot, approval
+  store, guard/risk policy, command service, live admission policy, Coinbase
+  adapter, reconciliation policy, and frontend-boundary evidence sources.
+- Frontend surfaces render the evidence as read-only diagnostics only; no BFF
+  mutation allowlist expansion, command button, approval storage, audit
+  storage, reconciliation authority, or browser approval workflow is
+  permitted.
+
 Done when:
 
 - Backend focused Admin API/readiness tests and autonomous queue check pass.
@@ -1153,8 +1193,8 @@ Done when:
   fields without hand edits.
 - Frontend focused quality checks, targeted Playwright smoke, and
   `npm run release:gate` pass after rendering the evidence.
-- Blind/contextless review confirms the approval-store contract requirements
-  are understandable, backend-owned, and not browser approval.
+- Blind/contextless review confirms the admission audit trail requirements are
+  understandable, backend-owned, append-only, and not browser approval.
 - Full backend regression passes.
 - Live Coinbase execution is not run; submitted and executed notional remain
   `$0`.

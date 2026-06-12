@@ -97,7 +97,12 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1121-1140`.
+- Active autonomous range: `1141-1160`.
+- M32 live-admission audit trail evidence is exposed through the existing
+  `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
+  facts can describe what an append-only backend admission audit trail must
+  prove, but they must not become audit storage, approval storage, browser
+  approval, a command route, Coinbase execution, or reconciliation authority.
 - M31 approval-store contract evidence is exposed through the existing
   `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
   requirements can describe what a durable backend approval store must prove,

@@ -46,6 +46,9 @@ These primitives apply across modules:
 - approval-store contract evidence that names missing durable backend store
   behavior without creating approval storage, command authority, or browser
   approval
+- live-admission audit trail evidence that names missing append-only backend
+  audit facts without creating audit storage, command authority, or browser
+  approval
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -158,6 +161,11 @@ Approval-store contract evidence is the next read-only refinement of the same
 route. It may show backend store requirements and expected authority sources,
 but it must not become an approval database, browser approval workflow,
 command authority, Coinbase execution, or reconciliation evidence.
+Live-admission audit trail evidence is a read-only refinement of the same
+route. It may show required append-only admission facts and expected backend
+sources, but it must not become audit storage, approval storage, browser
+approval workflow, command authority, Coinbase execution, or reconciliation
+authority.
 
 ## Durable Milestones
 

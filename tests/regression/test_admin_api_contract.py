@@ -300,6 +300,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "profitability_policy" in risk_policy_schema["properties"]
     assert "authority_sources" in risk_policy_schema["properties"]
     assert "rejection_categories" in risk_policy_schema["properties"]
+    live_path_schema = written["components"]["schemas"][
+        "AdminLiveEnablementPathItem"
+    ]
+    assert "approval_snapshot" in live_path_schema["properties"]
+    assert "approval_store_contract" in live_path_schema["properties"]
+    assert "admission_audit_trail" in live_path_schema["properties"]
+    live_response_schema = written["components"]["schemas"][
+        "AdminLiveEnablementReadResponse"
+    ]
+    assert "admission_audit_required_count" in live_response_schema["properties"]
+    assert "admission_audit_configured_count" in live_response_schema["properties"]
+    assert "admission_audit_missing_count" in live_response_schema["properties"]
+    assert "admission_audit_fact_count" in live_response_schema["properties"]
+    assert "admission_audit_missing_fact_count" in live_response_schema["properties"]
     audit_workbench_schema = written["components"]["schemas"][
         "AdminAuditWorkbenchReadResponse"
     ]
@@ -1422,7 +1436,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1121-1140"
+    assert live_payload["approved_phase_range"] == "1141-1160"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1443,6 +1457,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["approval_store_missing_count"] == 5
     assert live_payload["approval_store_requirement_count"] == 60
     assert live_payload["approval_store_missing_requirement_count"] == 60
+    assert live_payload["admission_audit_required_count"] == 5
+    assert live_payload["admission_audit_configured_count"] == 0
+    assert live_payload["admission_audit_missing_count"] == 5
+    assert live_payload["admission_audit_fact_count"] == 50
+    assert live_payload["admission_audit_missing_fact_count"] == 50
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -1543,6 +1562,42 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
+        item["admission_audit_trail"]["status"] == "blocked"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["admission_audit_trail"]["required"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["admission_audit_trail"]["configured"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["admission_audit_trail"]["append_only"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["admission_audit_trail"]["backend_owned"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["admission_audit_trail"]["browser_authority"] == "display_only"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["admission_audit_trail"]["fact_count"] == 10
+        for item in live_routes.values()
+    )
+    assert all(
+        item["admission_audit_trail"]["missing_fact_count"] == 10
+        for item in live_routes.values()
+    )
+    assert all(
+        len(item["admission_audit_trail"]["facts"]) == 10
+        for item in live_routes.values()
+    )
+    assert all(
         item["blocking_preflight_check_count"] == 4
         for item in live_routes.values()
     )
@@ -1620,6 +1675,56 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         requirement["required"] is True
         for requirement in spot_store_requirements.values()
     )
+    spot_admission_audit = live_routes["/api/v1/orders"]["admission_audit_trail"]
+    assert spot_admission_audit["source"] == "not_configured"
+    assert "live-admission audit trail" in spot_admission_audit["detail"]
+    spot_admission_facts = {
+        fact["fact"]: fact
+        for fact in spot_admission_audit["facts"]
+    }
+    assert spot_admission_facts["route_admission_requested"]["expected_source"] == (
+        "route_inventory"
+    )
+    assert spot_admission_facts["route_admission_requested"]["expected_value"] == (
+        "POST /api/v1/orders"
+    )
+    assert spot_admission_facts["approval_snapshot_linked"]["expected_source"] == (
+        "approval_snapshot"
+    )
+    assert spot_admission_facts["approval_store_decision_linked"]["expected_source"] == (
+        "approval_store"
+    )
+    assert spot_admission_facts["cap_guard_decision_linked"]["expected_source"] == (
+        "guard_risk_policy"
+    )
+    assert spot_admission_facts["payload_hash_linked"]["expected_source"] == (
+        "command_service"
+    )
+    assert spot_admission_facts["identity_key_linked"]["expected_value"] == (
+        "client_order_id"
+    )
+    assert (
+        spot_admission_facts["command_admission_decision_recorded"]["expected_value"]
+        == "spot_operations"
+    )
+    assert spot_admission_facts["exchange_submission_linked"]["expected_source"] == (
+        "coinbase_adapter"
+    )
+    assert spot_admission_facts["reconciliation_result_linked"]["expected_source"] == (
+        "reconciliation_policy"
+    )
+    assert (
+        spot_admission_facts["browser_authority_rejection_recorded"]["expected_value"]
+        == "display_only"
+    )
+    assert all(
+        fact["status"] == "blocked"
+        for fact in spot_admission_facts.values()
+    )
+    assert all(
+        fact["required"] is True
+        for fact in spot_admission_facts.values()
+    )
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["module_id"] == "stealth_orders"
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["identity_key"] == "stealth_order_id"
     assert (
@@ -1649,7 +1754,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1121-1140"
+    assert enterprise_payload["approved_phase_range"] == "1141-1160"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

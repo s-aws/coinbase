@@ -21,6 +21,7 @@ from core.enums import (
     AdminFuturesPositionSide,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminApiLiveAdmissionAuditFact,
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveExecutionStatus,
@@ -62,6 +63,8 @@ from .models import (
     AdminEnterpriseReadinessResponse,
     AdminFrontendFixturesResponse,
     AdminFuturesAccountReadResponse,
+    AdminLiveAdmissionAuditFactItem,
+    AdminLiveAdmissionAuditTrailEvidence,
     AdminFuturesEvidenceItem,
     AdminFuturesPositionDetailResponse,
     AdminFuturesPositionListResponse,
@@ -101,7 +104,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1121-1140"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1141-1160"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -583,6 +586,109 @@ def _live_approval_store_contract_evidence(
         detail=(
             f"{method} {route} remains live-disabled until a backend approval "
             "store contract is implemented and configured."
+        ),
+    )
+
+
+def _admission_audit_fact(
+    *,
+    fact: AdminApiLiveAdmissionAuditFact,
+    expected_source: str,
+    detail: str,
+    expected_value: str | None = None,
+) -> AdminLiveAdmissionAuditFactItem:
+    return AdminLiveAdmissionAuditFactItem(
+        fact=fact,
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        expected_source=expected_source,
+        expected_value=expected_value,
+        detail=detail,
+    )
+
+
+def _live_admission_audit_trail_evidence(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    identity_key: str,
+) -> AdminLiveAdmissionAuditTrailEvidence:
+    facts = [
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.ROUTE_ADMISSION_REQUESTED,
+            expected_source="route_inventory",
+            expected_value=f"{method} {route}",
+            detail="Audit trail must record the exact route admission request.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.APPROVAL_SNAPSHOT_LINKED,
+            expected_source="approval_snapshot",
+            detail="Audit trail must link the route-specific approval snapshot used for admission.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.APPROVAL_STORE_DECISION_LINKED,
+            expected_source="approval_store",
+            detail="Audit trail must link the backend approval-store decision and approving actor.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.CAP_GUARD_DECISION_LINKED,
+            expected_source="guard_risk_policy",
+            detail="Audit trail must link backend cap, wallet, position, and domain guard decisions.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.PAYLOAD_HASH_LINKED,
+            expected_source="command_service",
+            detail="Audit trail must bind the admitted command to the submitted payload hash.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.IDENTITY_KEY_LINKED,
+            expected_source="route_inventory",
+            expected_value=identity_key,
+            detail="Audit trail must bind the command to the module-specific identity key.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.COMMAND_ADMISSION_DECISION_RECORDED,
+            expected_source="live_admission_policy",
+            expected_value=module_id,
+            detail="Audit trail must record the backend admission decision before Coinbase submission.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.EXCHANGE_SUBMISSION_LINKED,
+            expected_source="coinbase_adapter",
+            detail="Audit trail must link the exchange submission result when live execution is admitted.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.RECONCILIATION_RESULT_LINKED,
+            expected_source="reconciliation_policy",
+            detail="Audit trail must link post-live reconciliation evidence for the admitted route.",
+        ),
+        _admission_audit_fact(
+            fact=AdminApiLiveAdmissionAuditFact.BROWSER_AUTHORITY_REJECTION_RECORDED,
+            expected_source="frontend_boundary",
+            expected_value="display_only",
+            detail="Audit trail must record that browser acknowledgement is not live authority.",
+        ),
+    ]
+    return AdminLiveAdmissionAuditTrailEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        configured=False,
+        append_only=False,
+        backend_owned=True,
+        browser_authority="display_only",
+        source="not_configured",
+        fact_count=len(facts),
+        missing_fact_count=len(facts),
+        facts=facts,
+        evidence=[
+            "No durable live-admission audit trail is configured for this route.",
+            "Live admission must be append-only, backend-owned, route-bound, payload-bound, and reconciliation-linked.",
+            "Browser evidence remains display-only and cannot write or satisfy admission audit facts.",
+        ],
+        detail=(
+            f"{method} {route} remains live-disabled until the backend can "
+            "write and verify an append-only live-admission audit trail."
         ),
     )
 
@@ -3045,6 +3151,12 @@ class AdminApiReadService:
                 route=path,
                 module_id=item.module_id,
             )
+            admission_audit_trail = _live_admission_audit_trail_evidence(
+                method=method,
+                route=path,
+                module_id=item.module_id,
+                identity_key=identity_key,
+            )
             paths.append(
                 AdminLiveEnablementPathItem(
                     path_id=_path_id(method, path),
@@ -3094,6 +3206,7 @@ class AdminApiReadService:
                     ),
                     approval_snapshot=approval_snapshot,
                     approval_store_contract=approval_store_contract,
+                    admission_audit_trail=admission_audit_trail,
                     evidence=[
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
@@ -3117,6 +3230,9 @@ class AdminApiReadService:
         approval_snapshots = [path.approval_snapshot for path in paths]
         approval_store_contracts = [
             path.approval_store_contract for path in paths
+        ]
+        admission_audit_trails = [
+            path.admission_audit_trail for path in paths
         ]
 
         checks = [
@@ -3214,6 +3330,29 @@ class AdminApiReadService:
             approval_store_missing_requirement_count=sum(
                 contract.missing_requirement_count
                 for contract in approval_store_contracts
+            ),
+            admission_audit_required_count=sum(
+                1
+                for trail in admission_audit_trails
+                if trail.required
+            ),
+            admission_audit_configured_count=sum(
+                1
+                for trail in admission_audit_trails
+                if trail.configured
+            ),
+            admission_audit_missing_count=sum(
+                1
+                for trail in admission_audit_trails
+                if not trail.configured
+            ),
+            admission_audit_fact_count=sum(
+                trail.fact_count
+                for trail in admission_audit_trails
+            ),
+            admission_audit_missing_fact_count=sum(
+                trail.missing_fact_count
+                for trail in admission_audit_trails
             ),
         )
 

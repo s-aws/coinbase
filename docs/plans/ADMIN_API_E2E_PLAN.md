@@ -38,108 +38,114 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Approval Store Contract Evidence Batch - Phases 1121-1140
+## Active Live Admission Audit Trail Evidence Batch - Phases 1141-1160
 
-### Phase 1121 - Advance Active Queue Range
+### Phase 1141 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1101-1120 to active
-  phases 1121-1140 while preserving the same no-live frontend posture and
+- Move the durable autonomous queue from completed phases 1121-1140 to active
+  phases 1141-1160 while preserving the same no-live frontend posture and
   carried Coinbase cap policy.
 
-### Phase 1122 - M31 Approval Store Contract Evidence
+### Phase 1142 - M32 Live Admission Audit Trail Evidence
 
 - Expand existing `GET /api/v1/admin/live-enablement` evidence with typed
-  approval-store contract requirements while keeping every HTTP command route
-  live-disabled and without adding approval storage.
+  live-admission audit trail requirements while keeping every HTTP command
+  route live-disabled and without adding audit storage or approval storage.
 
-### Phase 1123 - Backend Range Evidence
+### Phase 1143 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
-  checks reporting the active 1121-1140 phase range.
+  checks reporting the active 1141-1160 phase range.
 
-### Phase 1124 - Existing Contract Reuse Gate
+### Phase 1144 - Existing Contract Reuse Gate
 
-- Do not add an approval-store-specific endpoint, approval mutation, command
-  path, Coinbase call, or browser evaluator.
+- Do not add an admission-audit-specific endpoint, approval mutation, command
+  path, Coinbase call, audit storage, approval storage, or browser evaluator.
 
-### Phase 1125 - Approval Store Model Contract
+### Phase 1145 - Admission Audit Model Contract
 
-- Add typed fields for store status, required/configured/durable flags,
-  backend ownership, browser authority, source, requirements, missing
-  requirements, evidence, and detail.
+- Add typed fields for admission-audit status, required/configured/
+  append-only flags, backend ownership, browser authority, source, facts,
+  missing facts, evidence, and detail.
 
-### Phase 1126 - Per-Route Store Requirement Matrix
+### Phase 1146 - Per-Route Admission Fact Matrix
 
-- Attach the approval-store requirement checklist to each live-shaped Admin
-  API command path.
+- Attach the live-admission audit fact checklist to each live-shaped Admin API
+  command path.
 
-### Phase 1127 - Store Source Binding
+### Phase 1147 - Admission Fact Source Binding
 
-- Bind required store behavior to approval-store, route-inventory, command
-  headers, command service, guard/risk policy, reconciliation policy, audit
-  store, and frontend-boundary sources.
+- Bind required facts to route inventory, approval snapshot, approval store,
+  guard/risk policy, command service, live admission policy, Coinbase adapter,
+  reconciliation policy, and frontend-boundary sources.
 
-### Phase 1128 - Missing Store Blocker Evidence
+### Phase 1148 - Missing Append-Only Audit Blocker Evidence
 
-- Report the missing durable backend approval store as blocked evidence until
-  backend-owned, route-bound, expiring, payload-bound, audit-backed approval
+- Report the missing durable backend admission audit trail as blocked evidence
+  until append-only, route-bound, payload-bound, reconciliation-linked audit
   storage exists.
 
-### Phase 1129 - No Browser Approval Boundary
+### Phase 1149 - No Browser Admission Boundary
 
-- Keep approval-store evidence read-only and forbid use as browser approval,
-  command submission, cancellation, repricing, reconciliation, or Coinbase
-  execution authority.
+- Keep admission audit evidence read-only and forbid use as browser approval,
+  command submission, cancellation, repricing, reconciliation, audit storage,
+  approval storage, or Coinbase execution authority.
 
-### Phase 1130 - Spot And Non-Spot Boundary Confirmation
+### Phase 1150 - Spot And Non-Spot Boundary Confirmation
 
 - Keep spot-only wallet/inventory/no-shorting/cost-basis/USDC rules out of
   futures/perpetual, stealth, movement, and campaign command authority.
 
-### Phase 1131 - OpenAPI Regeneration
+### Phase 1151 - OpenAPI Regeneration
 
 - Regenerate backend OpenAPI after the response model expands.
 
-### Phase 1132 - Frontend Schema Sync Coordination
+### Phase 1152 - Frontend Schema Sync Coordination
 
 - Coordinate frontend generated-schema consumption from the backend schema.
 
-### Phase 1133 - Frontend Approval Store Evidence Surface
+### Phase 1153 - Frontend Admission Audit Evidence Surface
 
 - Render the frontend evidence from backend-owned live-enablement
-  approval-store requirements only.
+  admission-audit requirements only.
 
-### Phase 1134 - Runtime Mock Artifact Alignment
+### Phase 1154 - Runtime Mock Artifact Alignment
 
 - Align mocks, runtime evidence, visual targets, release checks, deployment
   checks, and autonomous validators.
 
-### Phase 1135 - Documentation Update
+### Phase 1155 - Documentation Update
 
 - Update admin API, architecture, examples, handoff, roadmap, and review docs.
 
-### Phase 1136 - Drift Scan
+### Phase 1156 - Drift Scan
 
-- Search for stale active range, M30 active wording, browser-authority
+- Search for stale active range, M31 active wording, browser-authority
   wording, and spot-rule leakage.
 
-### Phase 1137 - Focused Backend Gates
+### Phase 1157 - Focused Backend Gates
 
 - Run backend autonomous and focused Admin API/readiness checks.
 
-### Phase 1138 - Focused Frontend Gates
+### Phase 1158 - Focused Frontend Gates
 
 - Run focused frontend quality and UI checks.
 
-### Phase 1139 - Blind/Contextless Review
+### Phase 1159 - Blind/Contextless Review
 
-- Run blind/contextless review for backend authority, approval-store contract
+- Run blind/contextless review for backend authority, admission audit trail
   clarity, and no-browser-command posture.
 
-### Phase 1140 - Full Gates And Summary
+### Phase 1160 - Full Gates And Summary
 
 - Run backend full regression and frontend `npm run release:gate`, then
   summarize verification and live posture.
+
+## Completed Approval Store Contract Evidence Batch - Phases 1121-1140
+
+- M31 added blocked approval-store contract requirements to the existing
+  `GET /api/v1/admin/live-enablement` read route. It did not add approval
+  storage, command authority, browser approval, or live Coinbase execution.
 
 ## Completed Route-Specific Approval Snapshot Evidence Batch - Phases 1101-1120
 

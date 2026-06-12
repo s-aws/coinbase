@@ -292,6 +292,21 @@ class AdminApiLiveApprovalStoreRequirement(str, Enum):
     BROWSER_AUTHORITY_REJECTED = "browser_authority_rejected"
 
 
+class AdminApiLiveAdmissionAuditFact(str, Enum):
+    """Required facts for a future live-admission audit trail."""
+
+    ROUTE_ADMISSION_REQUESTED = "route_admission_requested"
+    APPROVAL_SNAPSHOT_LINKED = "approval_snapshot_linked"
+    APPROVAL_STORE_DECISION_LINKED = "approval_store_decision_linked"
+    CAP_GUARD_DECISION_LINKED = "cap_guard_decision_linked"
+    PAYLOAD_HASH_LINKED = "payload_hash_linked"
+    IDENTITY_KEY_LINKED = "identity_key_linked"
+    COMMAND_ADMISSION_DECISION_RECORDED = "command_admission_decision_recorded"
+    EXCHANGE_SUBMISSION_LINKED = "exchange_submission_linked"
+    RECONCILIATION_RESULT_LINKED = "reconciliation_result_linked"
+    BROWSER_AUTHORITY_REJECTION_RECORDED = "browser_authority_rejection_recorded"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 

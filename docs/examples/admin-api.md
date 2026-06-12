@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1121-1140",
+  "approved_phase_range": "1141-1160",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -191,6 +191,11 @@ Expected M8 readiness posture:
   "approval_store_missing_count": 5,
   "approval_store_requirement_count": 60,
   "approval_store_missing_requirement_count": 60,
+  "admission_audit_required_count": 5,
+  "admission_audit_configured_count": 0,
+  "admission_audit_missing_count": 5,
+  "admission_audit_fact_count": 50,
+  "admission_audit_missing_fact_count": 50,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -484,6 +489,57 @@ Expected M8 readiness posture:
         ],
         "detail": "POST /api/v1/orders remains live-disabled until a backend approval store contract is implemented and configured."
       },
+      "admission_audit_trail": {
+        "status": "blocked",
+        "required": true,
+        "configured": false,
+        "append_only": false,
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "source": "not_configured",
+        "fact_count": 10,
+        "missing_fact_count": 10,
+        "facts": [
+          {
+            "fact": "route_admission_requested",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "POST /api/v1/orders",
+            "detail": "Audit trail must record the exact route admission request."
+          },
+          {
+            "fact": "approval_store_decision_linked",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "approval_store",
+            "expected_value": null,
+            "detail": "Audit trail must link the backend approval-store decision and approving actor."
+          },
+          {
+            "fact": "exchange_submission_linked",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "coinbase_adapter",
+            "expected_value": null,
+            "detail": "Audit trail must link the exchange submission result when live execution is admitted."
+          },
+          {
+            "fact": "browser_authority_rejection_recorded",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "frontend_boundary",
+            "expected_value": "display_only",
+            "detail": "Audit trail must record that browser acknowledgement is not live authority."
+          }
+        ],
+        "evidence": [
+          "No durable live-admission audit trail is configured for this route.",
+          "Live admission must be append-only, backend-owned, route-bound, payload-bound, and reconciliation-linked.",
+          "Browser evidence remains display-only and cannot write or satisfy admission audit facts."
+        ],
+        "detail": "POST /api/v1/orders remains live-disabled until the backend can write and verify an append-only live-admission audit trail."
+      },
       "browser_authority": "display_only",
       "capability_source": "GET /api/v1/admin/capabilities",
       "readiness_source": "GET /api/v1/admin/enterprise-readiness",
@@ -536,7 +592,10 @@ durable, route-specific, backend-owned, expiring, payload-bound approval
 record explicit; they are not approval storage or browser approval. M31
 approval-store contract fields make the missing durable backend approval store
 requirements explicit; they are not approval storage, browser approval,
-command authority, Coinbase execution, or reconciliation proof.
+command authority, Coinbase execution, or reconciliation proof. M32
+admission-audit trail fields make the missing append-only backend admission
+audit facts explicit; they are not audit storage, approval storage, browser
+approval, command authority, Coinbase execution, or reconciliation proof.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -545,13 +604,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1121-1140",
+  "approved_phase_range": "1141-1160",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
