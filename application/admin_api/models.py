@@ -23,6 +23,7 @@ from core.enums import (
     AdminFuturesEvidenceStatus,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminApiLiveApprovalSnapshotField,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminMovementRepricingEvidenceType,
@@ -950,6 +951,41 @@ class AdminLivePreflightCheckItem(BaseModel):
     detail: str
 
 
+class AdminLiveApprovalSnapshotRequiredFieldItem(BaseModel):
+    """One field required by a future route-specific live approval snapshot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: AdminApiLiveApprovalSnapshotField
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    expected_source: str
+    expected_value: str | None = None
+    detail: str
+
+
+class AdminLiveApprovalSnapshotEvidence(BaseModel):
+    """Read-only evidence for a route's missing live approval snapshot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    present: bool = False
+    durable: bool = False
+    route_specific: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    source: str = "not_configured"
+    required_field_count: int = 0
+    missing_required_field_count: int = 0
+    required_fields: list[AdminLiveApprovalSnapshotRequiredFieldItem] = Field(
+        default_factory=list
+    )
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveEnablementPathItem(BaseModel):
     """One live-eligible path and the gates required before enablement."""
 
@@ -990,6 +1026,7 @@ class AdminLiveEnablementPathItem(BaseModel):
     preflight_checks: list[AdminLivePreflightCheckItem] = Field(default_factory=list)
     blocking_preflight_check_count: int = 0
     passed_preflight_check_count: int = 0
+    approval_snapshot: AdminLiveApprovalSnapshotEvidence
     evidence: list[str] = Field(default_factory=list)
     notes: str
 
@@ -1018,6 +1055,11 @@ class AdminLiveEnablementReadResponse(BaseModel):
     preflight_check_count: int = 0
     blocking_preflight_check_count: int = 0
     passed_preflight_check_count: int = 0
+    approval_snapshot_required_count: int = 0
+    approval_snapshot_present_count: int = 0
+    approval_snapshot_missing_count: int = 0
+    approval_snapshot_required_field_count: int = 0
+    approval_snapshot_missing_field_count: int = 0
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

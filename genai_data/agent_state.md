@@ -5,7 +5,7 @@ Keep it short. Keep it factual.
 
 ## Metadata
 
-- Last updated (ET): 2026-06-11
+- Last updated (ET): 2026-06-12
 - Updated by: Codex
 - Branch: main
 - Commit (optional):
@@ -36,14 +36,21 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- In-scope files: Admin API contracts, admin platform docs, command/auth
-  boundaries, frontend association docs, regression tests, and agent context
+- Active autonomous range: `1101-1120`.
+- Active milestone: M30 - Route-Specific Approval Snapshot Evidence.
+- In-scope files: Admin API live-enablement contracts, route-specific
+  approval snapshot evidence, admin platform docs, frontend association docs,
+  generated OpenAPI/frontend schema, regression tests, and agent context
   needed for local-agent accuracy.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
+- M30 must use existing `GET /api/v1/admin/live-enablement` evidence only.
+  Do not add an approval snapshot endpoint, approval storage, command route,
+  BFF mutation, direct dashboard WebSocket call, Coinbase call, browser
+  approval workflow, or reconciliation authority.
 
 ## Decisions (Durable)
 
@@ -181,6 +188,17 @@ Keep it short. Keep it factual.
   - Impact: M8 controlled live enablement remains pending and still requires
     explicit live approval, caps, audit, and reconciliation evidence.
 
+- [2026-06-12] Decision: M30 route-specific approval snapshot evidence is an
+  explicit missing-approval contract, not approval implementation.
+  - Reason: Contextless maintainers need to see exactly which durable
+    backend-owned approval fields are missing before any live HTTP command can
+    be admitted.
+  - Impact: `GET /api/v1/admin/live-enablement` exposes blocked
+    route-specific approval snapshot requirements. Frontend surfaces may
+    render those requirements only as display evidence; no browser approval,
+    approval storage, BFF mutation broadening, command route, Coinbase call,
+    or reconciliation authority is allowed.
+
 ## Open Risks
 
 - Risk: Broad all-USDC SELL execution still has many wallet-only or insufficient-known-profitable rows.
@@ -211,86 +229,53 @@ Keep it short. Keep it factual.
 
 ## Validation Status
 
-- Last focused Admin API/exchange run: 2026-06-10
-  `python tools\generate_admin_api_openapi.py; pytest tests\regression\test_admin_api_contract.py tests\regression\test_dashboard_action_condition_guard.py tests\regression\test_list_fills_param_mapping.py -v --tb=short`
-- Result: Passed, 44 tests.
-- Last frontend quality run: 2026-06-10 `npm run quality`
-- Result: Passed; typecheck, lint, generated API schema freshness,
-  command-fetch guard, 103 unit tests, and 3 Playwright tests.
-- Last contextless Admin API/frontend review: 2026-06-10
-- Result: Passed after legacy WebSocket docs were clarified for enterprise
-  frontend work and HTTP cancel approval inventory wording was aligned with
-  the current fail-closed gate.
-- Last regression run: 2026-06-10 `pytest tests\regression\ -v --tb=short`
-- Result: Passed, 758 tests.
-- Spot readiness regression: passed, 223 tests.
-- Spot release gate: passed; no live Coinbase orders run, submitted/executed
-  notional `0` USDC.
-- Last contextless spot order review: 2026-06-10
-- Result: Passed after live SELL sweep was hardened to require
-  `--require-known-profitable-inventory`, direct audit fields were clarified,
-  and the contextless checklist was updated.
-- Browser smoke: passed,
-  `tests\e2e\test_direct_order_ui_smoke.py` and
-  `tests\e2e\test_spot_readiness_ui_smoke.py`.
-- Ownership check passed.
-- Backend and frontend `git diff --check` passed with CRLF warnings only.
-- Failing tests (if any): None.
+- Last backend focused Admin API/readiness run: 2026-06-12
+  `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
+- Result: Passed, 63 tests, 1 warning.
+- Last backend autonomous queue check: 2026-06-12
+  `python tools\run_autonomous_work_queue_check.py --summary-only`
+- Result: Passed for approved range `1101-1120`; live Coinbase execution
+  `not_run`, submitted/executed notional `0` USDC.
+- Last backend full regression: 2026-06-12
+  `python -m pytest tests\regression\ -v --tb=short`
+- Result: Passed, 790 tests, 1 warning.
+- Last frontend focused run: 2026-06-12
+  `npm run typecheck`, `npm run lint`, `npm run api:check`,
+  `npm run release:check`, `npm run deployment:check`,
+  `npm run autonomous:check`, focused Vitest, and targeted Playwright.
+- Result: Passed; targeted Playwright reported 3 tests passed. Frontend full
+  `npm run release:gate` still needs to be rerun after this agent-state
+  update.
+- Last blind/contextless M30 review: 2026-06-12
+- Result: Initially failed on stale entry-point docs only
+  (`README.admin-frontend.md` and this file). Code/tests were reported clean
+  for no-live/read-only boundaries. These docs were updated after the review.
+- Live Coinbase execution for M30: not run. Submitted notional `0` USDC.
+  Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Continue the approved enterprise API/frontend phase work without enabling
-   live HTTP execution.
-2. Keep broad SELL blocked. The current Phase 184/195 `PERP-USDC` canary packet
-   is documentation only; its allowlist is expired and must be regenerated
-   immediately before any later live approval.
-3. For any later live USDC sweep SELL, require
-   `--require-known-profitable-inventory`; the runner now rejects approved live
-   SELL without that policy.
+1. Rerun blind/contextless M30 review or equivalent doc drift check after this
+   file and `README.admin-frontend.md` are updated.
+2. Run frontend `npm run release:gate` after the M30 frontend/docs changes.
+3. Commit backend and frontend M30 changes separately if full gates pass.
 4. Keep contextless blind-review in the release loop for new spot order,
-   campaign, or live-action UI behavior.
+   campaign, live-action, or approval-snapshot behavior.
 
 ## Handoff Notes
 
-- What is done: SELL authority allowlist generation, Phase 125 live SELL
-  canary, reconciliation, lot-consumption fix, allowlist freshness enforcement,
-  imported baseline freshness audit, average-cost authority gate, Phase 134
-  strict SELL preflight, Phase 136 blind-agent review, Phase 138 live strict
-  SELL canary for `ALT-USDC` / `B3-USDC` / `BLEND-USDC`, post-live strict
-  allowlist consumption check, average-cost allowlist gate fix, blind-agent
-  rerun with direct-order docs clarified, direct-order audit tooling, strict
-  reconciliation ownership regression, Phase 153 live strict SELL canary for
-  `AERGO-USDC` / `AI-USDC` / `ALLO-USDC` with `3.026224` USDC submitted and
-  `3.021097` USDC executed, post-canary reconciliation, stealth reveal payload
-  readability helper, public release gate, feature intake gate, Phase 160
-  broad/narrow decision gate, direct spot manual acknowledgement/UI smoke,
-  broad BUY/SELL read-only snapshots, USDC campaign design lock, automation
-  rehearsal, Phase 170 live strict SELL canary for `1INCH-USDC` /
-  `AAVE-USDC` / `ACH-USDC` with `3.0216716` USDC submitted and
-  `3.022123640498578` USDC executed, post-canary reconciliation/P&L, and
-  Phase 172 blind-agent/full validation, and Phase 173-184 read-only campaign
-  operator reports/dashboard audit/contextless harness/strict SELL proposal,
-  and Phase 185-196 dashboard direct-audit UI, campaign cleanup apply gate,
-  retry fixture, direct spot gate hardening, mandatory live SELL sweep
-  known-profit policy, contextless blind-review pass, and release gates.
-- Phase 173-196 live execution: none. Submitted notional `0` USDC. Executed
-  notional `0` USDC.
-- Phase 184/195 current proposal: strict allowlist generated
-  `2026-06-10T14:32:37Z`, one eligible product `PERP-USDC`, validator passed
-  with `max_products=1`, `max_total_notional_per_run=1`,
-  `max_notional_per_order=1`, and `max_planned_orders=1`; the allowlist is now
-  expired and must be regenerated immediately before any later live approval.
-- Admin API/frontend status: backend Admin API mutating routes are
-  auth/RBAC-gated, idempotent, audited, and still HTTP-live-disabled with
-  OpenAPI documenting `501` rather than `200`; read-only spot operator routes
-  are auth/RBAC-gated and document `401`/`403`; auth mode evidence and
-  read-only CSRF contract evidence are exposed for BFF/session deployments;
-  dashboard `place_order`/`cancel_order` delegates to the shared command
-  service but remains legacy compatibility for frontend product flows; the
-  Coinbase single-order cancel wrapper remains `client_order_id` keyed and
-  rejects non-explicit-success cancel payloads; frontend generated schema and
-  read-only spot operator views are current. No live Coinbase execution was run.
-- What is in progress: approved Admin API/frontend roadmap work continues after
-  this backend/frontend contract hardening batch is committed and pushed.
+- What is done in M30 so far: backend live-enablement now exposes typed,
+  blocked, route-specific approval snapshot requirements per live-shaped
+  route; OpenAPI was regenerated; frontend generated schema, mocks, AdminShell
+  evidence surface, quality artifacts, docs, and tests consume the contract.
+- Admin API/frontend status: backend Admin API mutating routes remain
+  auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
+  renders approval snapshot evidence through the runtime snapshot and existing
+  `GET /api/v1/admin/live-enablement`; no command controls, approval storage,
+  BFF mutation broadening, Coinbase call, browser approval, or reconciliation
+  behavior was added.
+- What is in progress: final M30 contextless review rerun, frontend
+  `npm run release:gate`, and separate backend/frontend commits.
 - What is blocked: Nothing currently known.
-- Exact next command: `pytest tests\regression\ -v --tb=short` for the next non-agent-file change.
+- Exact next command: rerun blind/contextless M30 review or run frontend
+  `npm run release:gate` if review is already clean.

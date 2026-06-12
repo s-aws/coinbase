@@ -257,6 +257,24 @@ class AdminApiLivePreflightCategory(str, Enum):
     BROWSER_AUTHORITY = "browser_authority"
 
 
+class AdminApiLiveApprovalSnapshotField(str, Enum):
+    """Required fields for future route-specific live approval snapshots."""
+
+    ROUTE = "route"
+    METHOD = "method"
+    MODULE_ID = "module_id"
+    IDENTITY_KEY = "identity_key"
+    ACTION_CLASS = "action_class"
+    REQUIRED_PERMISSION = "required_permission"
+    OPERATOR_INTENT = "operator_intent"
+    IDEMPOTENCY_KEY = "idempotency_key"
+    PAYLOAD_HASH = "payload_hash"
+    APPROVED_BY_ACTOR_ID = "approved_by_actor_id"
+    EXPIRES_AT = "expires_at"
+    CAP_GUARD_DECISION_REF = "cap_guard_decision_ref"
+    RECONCILIATION_PLAN_REF = "reconciliation_plan_ref"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 

@@ -1147,7 +1147,7 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
 def test_admin_api_examples_keep_operator_intent_in_headers():
     doc = (ROOT / "docs" / "examples" / "admin-api.md").read_text(encoding="utf-8")
     assert "X-Operator-Intent: manual_one_off" in doc
-    assert '"operator_intent"' not in doc
+    assert '"operator_intent":' not in doc
 
 
 @pytest.mark.regression
@@ -1422,7 +1422,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1081-1100"
+    assert live_payload["approved_phase_range"] == "1101-1120"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1433,6 +1433,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["preflight_check_count"] == 40
     assert live_payload["blocking_preflight_check_count"] == 20
     assert live_payload["passed_preflight_check_count"] == 20
+    assert live_payload["approval_snapshot_required_count"] == 5
+    assert live_payload["approval_snapshot_present_count"] == 0
+    assert live_payload["approval_snapshot_missing_count"] == 5
+    assert live_payload["approval_snapshot_required_field_count"] == 65
+    assert live_payload["approval_snapshot_missing_field_count"] == 65
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -1456,6 +1461,46 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert all(item["audit_id_required"] is True for item in live_routes.values())
     assert all(item["reconciliation_blockers"] for item in live_routes.values())
     assert all(len(item["preflight_checks"]) == 8 for item in live_routes.values())
+    assert all(
+        item["approval_snapshot"]["status"] == "blocked"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["required"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["present"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["durable"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["route_specific"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["backend_owned"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["browser_authority"] == "display_only"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["required_field_count"] == 13
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_snapshot"]["missing_required_field_count"] == 13
+        for item in live_routes.values()
+    )
+    assert all(
+        len(item["approval_snapshot"]["required_fields"]) == 13
+        for item in live_routes.values()
+    )
     assert all(
         item["blocking_preflight_check_count"] == 4
         for item in live_routes.values()
@@ -1487,6 +1532,25 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         check["blocking"] is (check["status"] == "blocked")
         for check in spot_preflight.values()
     )
+    spot_approval = live_routes["/api/v1/orders"]["approval_snapshot"]
+    assert spot_approval["source"] == "not_configured"
+    assert "route-specific approval snapshot" in spot_approval["detail"]
+    spot_approval_fields = {
+        field["field"]: field for field in spot_approval["required_fields"]
+    }
+    assert spot_approval_fields["route"]["expected_value"] == "/api/v1/orders"
+    assert spot_approval_fields["route"]["expected_source"] == "route_inventory"
+    assert spot_approval_fields["method"]["expected_value"] == "POST"
+    assert spot_approval_fields["module_id"]["expected_value"] == "spot_operations"
+    assert spot_approval_fields["identity_key"]["expected_value"] == "client_order_id"
+    assert spot_approval_fields["action_class"]["expected_value"] == "live_exchange_place"
+    assert spot_approval_fields["required_permission"]["expected_value"] == "order:create"
+    assert spot_approval_fields["approved_by_actor_id"]["expected_source"] == "approval_store"
+    assert spot_approval_fields["expires_at"]["expected_source"] == "approval_store"
+    assert spot_approval_fields["cap_guard_decision_ref"]["expected_source"] == "guard_risk_policy"
+    assert spot_approval_fields["reconciliation_plan_ref"]["expected_source"] == "reconciliation_policy"
+    assert all(field["status"] == "blocked" for field in spot_approval_fields.values())
+    assert all(field["required"] is True for field in spot_approval_fields.values())
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["module_id"] == "stealth_orders"
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["identity_key"] == "stealth_order_id"
     assert (
@@ -1516,7 +1580,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1081-1100"
+    assert enterprise_payload["approved_phase_range"] == "1101-1120"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

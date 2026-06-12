@@ -38,7 +38,108 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Controlled-Live Preflight Evidence Batch - Phases 1081-1100
+## Active Route-Specific Approval Snapshot Evidence Batch - Phases 1101-1120
+
+### Phase 1101 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1081-1100 to active
+  phases 1101-1120 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1102 - M30 Route-Specific Approval Snapshot Evidence
+
+- Expand existing `GET /api/v1/admin/live-enablement` evidence with typed
+  route-specific approval snapshot requirements while keeping every HTTP
+  command route live-disabled.
+
+### Phase 1103 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1101-1120 phase range.
+
+### Phase 1104 - Existing Contract Reuse Gate
+
+- Do not add an approval-snapshot-specific endpoint, approval endpoint,
+  command path, Coinbase call, or browser evaluator.
+
+### Phase 1105 - Approval Snapshot Model Contract
+
+- Add typed fields for snapshot status, required/present/durable flags, route
+  specificity, backend ownership, browser authority, source, required fields,
+  missing fields, evidence, and detail.
+
+### Phase 1106 - Per-Route Snapshot Requirement Matrix
+
+- Attach the approval snapshot requirement checklist to each live-shaped Admin
+  API command path.
+
+### Phase 1107 - Snapshot Field Source Binding
+
+- Bind required fields to route inventory, command headers, command service,
+  approval store, guard/risk policy, and reconciliation policy sources.
+
+### Phase 1108 - Missing Snapshot Blocker Evidence
+
+- Report the missing route-specific approval snapshot as blocked evidence
+  until durable, expiring, payload-bound backend approval exists.
+
+### Phase 1109 - No Browser Approval Boundary
+
+- Keep approval snapshot evidence read-only and forbid use as browser
+  approval, command submission, cancellation, repricing, reconciliation, or
+  Coinbase execution authority.
+
+### Phase 1110 - Spot And Non-Spot Boundary Confirmation
+
+- Keep spot-only wallet/inventory/no-shorting/cost-basis/USDC rules out of
+  futures/perpetual, stealth, movement, and campaign command authority.
+
+### Phase 1111 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI after the response model expands.
+
+### Phase 1112 - Frontend Schema Sync Coordination
+
+- Coordinate frontend generated-schema consumption from the backend schema.
+
+### Phase 1113 - Frontend Approval Snapshot Evidence Surface
+
+- Render the frontend evidence from backend-owned live-enablement approval
+  snapshot requirements only.
+
+### Phase 1114 - Runtime Mock Artifact Alignment
+
+- Align mocks, runtime evidence, visual targets, release checks, deployment
+  checks, and autonomous validators.
+
+### Phase 1115 - Documentation Update
+
+- Update admin API, architecture, examples, handoff, roadmap, and review docs.
+
+### Phase 1116 - Drift Scan
+
+- Search for stale active range, M29 active wording, browser-authority
+  wording, and spot-rule leakage.
+
+### Phase 1117 - Focused Backend Gates
+
+- Run backend autonomous and focused Admin API/readiness checks.
+
+### Phase 1118 - Focused Frontend Gates
+
+- Run focused frontend quality and UI checks.
+
+### Phase 1119 - Blind/Contextless Review
+
+- Run blind/contextless review for backend authority, approval snapshot
+  clarity, and no-browser-command posture.
+
+### Phase 1120 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize verification and live posture.
+
+## Completed Controlled-Live Preflight Evidence Batch - Phases 1081-1100
 
 ### Phase 1081 - Advance Active Queue Range
 
@@ -55,7 +156,7 @@ dashboard WebSocket message
 ### Phase 1083 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
-  checks reporting the active 1081-1100 phase range.
+  checks reporting the then-active 1081-1100 phase range.
 
 ### Phase 1084 - Existing Contract Reuse Gate
 

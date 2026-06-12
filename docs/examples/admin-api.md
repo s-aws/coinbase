@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1081-1100",
+  "approved_phase_range": "1101-1120",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -181,6 +181,11 @@ Expected M8 readiness posture:
   "preflight_check_count": 40,
   "blocking_preflight_check_count": 20,
   "passed_preflight_check_count": 20,
+  "approval_snapshot_required_count": 5,
+  "approval_snapshot_present_count": 0,
+  "approval_snapshot_missing_count": 5,
+  "approval_snapshot_required_field_count": 65,
+  "approval_snapshot_missing_field_count": 65,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -291,6 +296,130 @@ Expected M8 readiness posture:
       ],
       "blocking_preflight_check_count": 4,
       "passed_preflight_check_count": 4,
+      "approval_snapshot": {
+        "status": "blocked",
+        "required": true,
+        "present": false,
+        "durable": false,
+        "route_specific": true,
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "source": "not_configured",
+        "required_field_count": 13,
+        "missing_required_field_count": 13,
+        "required_fields": [
+          {
+            "field": "route",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "/api/v1/orders",
+            "detail": "Approval must bind to the exact Admin API route."
+          },
+          {
+            "field": "method",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "POST",
+            "detail": "Approval must bind to the exact HTTP method."
+          },
+          {
+            "field": "module_id",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "spot_operations",
+            "detail": "Approval must bind to the backend-owned enterprise module id."
+          },
+          {
+            "field": "identity_key",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "client_order_id",
+            "detail": "Approval must bind to the module-specific command identity key."
+          },
+          {
+            "field": "action_class",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "live_exchange_place",
+            "detail": "Approval must bind to the live action class being requested."
+          },
+          {
+            "field": "required_permission",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "order:create",
+            "detail": "Approval must name the backend permission required for the route."
+          },
+          {
+            "field": "operator_intent",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "command_headers",
+            "expected_value": null,
+            "detail": "Approval must bind to durable operator intent, not browser-only acknowledgement."
+          },
+          {
+            "field": "idempotency_key",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "command_headers",
+            "expected_value": null,
+            "detail": "Approval must bind to the idempotency key for the submitted command."
+          },
+          {
+            "field": "payload_hash",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "command_service",
+            "expected_value": null,
+            "detail": "Approval must bind to the command payload hash so payload drift is not approved."
+          },
+          {
+            "field": "approved_by_actor_id",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "approval_store",
+            "expected_value": null,
+            "detail": "Approval must identify the backend-authenticated approver."
+          },
+          {
+            "field": "expires_at",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "approval_store",
+            "expected_value": null,
+            "detail": "Approval must expire and must not be treated as an evergreen browser switch."
+          },
+          {
+            "field": "cap_guard_decision_ref",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "guard_risk_policy",
+            "expected_value": null,
+            "detail": "Approval must bind to backend cap and guard decision evidence."
+          },
+          {
+            "field": "reconciliation_plan_ref",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "reconciliation_policy",
+            "expected_value": null,
+            "detail": "Approval must bind to post-live reconciliation evidence for the route."
+          }
+        ],
+        "evidence": [
+          "No durable route-specific approval snapshot is present.",
+          "Approval must be backend-owned, route-specific, expiring, and payload-bound.",
+          "Browser acknowledgement is not sufficient live execution approval."
+        ],
+        "detail": "POST /api/v1/orders remains live-disabled until a durable route-specific approval snapshot is present."
+      },
       "browser_authority": "display_only",
       "capability_source": "GET /api/v1/admin/capabilities",
       "readiness_source": "GET /api/v1/admin/enterprise-readiness",
@@ -338,7 +467,9 @@ reconciliation gates pass. M27 governance fields make that fail-closed posture
 auditable per route; they do not approve live execution. M29 preflight fields
 make passed and blocking prerequisites visible per route; they are not a
 browser approval workflow, live switch, command route, Coinbase call, or
-reconciliation substitute.
+reconciliation substitute. M30 approval snapshot fields make the missing
+durable, route-specific, backend-owned, expiring, payload-bound approval
+record explicit; they are not approval storage or browser approval.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -347,13 +478,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1081-1100",
+  "approved_phase_range": "1101-1120",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

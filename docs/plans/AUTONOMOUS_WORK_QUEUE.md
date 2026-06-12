@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1081-1100**.
+- Approved phase range: **1101-1120**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,7 +46,118 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1081-1100
+## Active Phases 1101-1120
+
+### Phase 1101 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1081-1100 to active
+  phases 1101-1120 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1102 - M30 Route-Specific Approval Snapshot Evidence
+
+- Add structured read-only route-specific approval snapshot requirements to
+  the existing `GET /api/v1/admin/live-enablement` contract without enabling
+  live execution or adding a command route.
+
+### Phase 1103 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1101-1120 phase range.
+
+### Phase 1104 - Existing Contract Reuse Gate
+
+- Reuse `GET /api/v1/admin/live-enablement`; do not add a parallel approval
+  snapshot endpoint, approval endpoint, command endpoint, or browser-owned
+  evaluator.
+
+### Phase 1105 - Approval Snapshot Model Contract
+
+- Add typed approval snapshot evidence for status, required/present/durable
+  flags, route specificity, backend ownership, browser authority, source,
+  required fields, missing fields, evidence, and detail.
+
+### Phase 1106 - Per-Route Snapshot Requirement Matrix
+
+- Attach the same explicit approval snapshot requirement shape to every
+  live-shaped HTTP command path in live-enablement evidence.
+
+### Phase 1107 - Snapshot Field Source Binding
+
+- Bind required fields to backend-owned route inventory, command headers,
+  command service payload hashing, approval store, guard/risk policy, and
+  reconciliation policy sources.
+
+### Phase 1108 - Missing Snapshot Blocker Evidence
+
+- Keep every route-specific approval snapshot blocked until a durable,
+  backend-owned, expiring, payload-bound approval record exists.
+
+### Phase 1109 - No Browser Approval Boundary
+
+- Confirm approval snapshot evidence remains display-only and cannot become
+  browser approval, command submission, cancellation, repricing,
+  reconciliation, or Coinbase execution authority.
+
+### Phase 1110 - Spot And Non-Spot Boundary Confirmation
+
+- Keep spot wallet, inventory, no-shorting, cost-basis, and USDC rules scoped
+  to spot command authority while futures/perpetual, stealth, movement, and
+  campaign commands keep their own blockers.
+
+### Phase 1111 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI after the live-enablement contract expands.
+
+### Phase 1112 - Frontend Schema Sync Coordination
+
+- Coordinate frontend generated-schema consumption from the backend OpenAPI
+  without hand-editing generated TypeScript.
+
+### Phase 1113 - Frontend Approval Snapshot Evidence Surface
+
+- Render route-specific approval snapshot requirements as read-only frontend
+  evidence under Modules, with no command controls or BFF mutation broadening.
+
+### Phase 1114 - Runtime Mock Artifact Alignment
+
+- Align mock/runtime evidence, release artifacts, deployment checks,
+  autonomous checks, and visual smoke targets with the approval snapshot
+  evidence surface.
+
+### Phase 1115 - Documentation Update
+
+- Update Admin API, frontend, architecture, capability matrix, examples,
+  maintainer handoff, roadmap, and review docs for route-specific approval
+  snapshot evidence.
+
+### Phase 1116 - Drift Scan
+
+- Check stale phase ranges, stale M29 active wording, route inventory
+  assumptions, browser-authority wording, and spot-rule leakage.
+
+### Phase 1117 - Focused Backend Gates
+
+- Run backend autonomous and focused Admin API/readiness checks.
+
+### Phase 1118 - Focused Frontend Gates
+
+- Run frontend typecheck, lint, API, release-readiness, deployment,
+  autonomous, focused UI/runtime/mock/quality, and targeted Playwright checks.
+
+### Phase 1119 - Blind/Contextless Review
+
+- Run a contextless review verifying the approval snapshot evidence is
+  understandable, read-only, backend-sourced, and not live approval or browser
+  authority.
+
+### Phase 1120 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  objective scope.
+
+## Completed Phases 1081-1100
 
 ### Phase 1081 - Advance Active Queue Range
 
@@ -63,7 +174,7 @@ Stop advancement to the next phase until fixed when any of these occur:
 ### Phase 1083 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
-  checks reporting the active 1081-1100 phase range.
+  checks reporting the then-active 1081-1100 phase range.
 
 ### Phase 1084 - Existing Contract Reuse Gate
 
@@ -155,7 +266,7 @@ Stop advancement to the next phase until fixed when any of these occur:
 
 ## Completion Evidence - Phases 1081-1100
 
-- Backend active range evidence now reports `1081-1100` from
+- Backend then-active range evidence reported `1081-1100` from
   live-enablement, enterprise-readiness, and autonomous queue checks.
 - `GET /api/v1/admin/live-enablement` exposes controlled-live preflight
   evidence on the existing read route. No parallel preflight endpoint,

@@ -40,6 +40,9 @@ These primitives apply across modules:
   blockers, capability evidence, and no-browser-authority proof
 - controlled-live preflight evidence that names passed and blocking
   prerequisites per live-shaped command route without approving execution
+- route-specific approval snapshot evidence that names missing durable,
+  backend-owned, expiring, payload-bound approval fields without creating
+  approval storage or browser approval
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -144,6 +147,10 @@ The controlled-live preflight matrix is a read-only refinement of
 passed or blocking, but it must not become a separate preflight endpoint,
 browser approval workflow, live switch, Coinbase call, or reconciliation
 path.
+Route-specific approval snapshot evidence is another read-only refinement of
+the same route. It may show required approval fields and their expected
+backend sources, but it must not become approval storage, a browser approval
+workflow, command authority, Coinbase execution, or reconciliation evidence.
 
 ## Durable Milestones
 

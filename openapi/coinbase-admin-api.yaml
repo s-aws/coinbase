@@ -3031,6 +3031,24 @@ components:
       - blocked
       title: AdminApiHealthStatus
       description: Admin API health/readiness state.
+    AdminApiLiveApprovalSnapshotField:
+      type: string
+      enum:
+      - route
+      - method
+      - module_id
+      - identity_key
+      - action_class
+      - required_permission
+      - operator_intent
+      - idempotency_key
+      - payload_hash
+      - approved_by_actor_id
+      - expires_at
+      - cap_guard_decision_ref
+      - reconciliation_plan_ref
+      title: AdminApiLiveApprovalSnapshotField
+      description: Required fields for future route-specific live approval snapshots.
     AdminApiLiveExecutionStatus:
       type: string
       enum:
@@ -4263,6 +4281,96 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminLiveApprovalSnapshotEvidence:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        present:
+          type: boolean
+          title: Present
+          default: false
+        durable:
+          type: boolean
+          title: Durable
+          default: false
+        route_specific:
+          type: boolean
+          title: Route Specific
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        source:
+          type: string
+          title: Source
+          default: not_configured
+        required_field_count:
+          type: integer
+          title: Required Field Count
+          default: 0
+        missing_required_field_count:
+          type: integer
+          title: Missing Required Field Count
+          default: 0
+        required_fields:
+          items:
+            $ref: '#/components/schemas/AdminLiveApprovalSnapshotRequiredFieldItem'
+          type: array
+          title: Required Fields
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - detail
+      title: AdminLiveApprovalSnapshotEvidence
+      description: Read-only evidence for a route's missing live approval snapshot.
+    AdminLiveApprovalSnapshotRequiredFieldItem:
+      properties:
+        field:
+          $ref: '#/components/schemas/AdminApiLiveApprovalSnapshotField'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        expected_source:
+          type: string
+          title: Expected Source
+        expected_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Value
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - expected_source
+      - detail
+      title: AdminLiveApprovalSnapshotRequiredFieldItem
+      description: One field required by a future route-specific live approval snapshot.
     AdminLiveEnablementPathItem:
       properties:
         path_id:
@@ -4407,6 +4515,8 @@ components:
           type: integer
           title: Passed Preflight Check Count
           default: 0
+        approval_snapshot:
+          $ref: '#/components/schemas/AdminLiveApprovalSnapshotEvidence'
         evidence:
           items:
             type: string
@@ -4429,6 +4539,7 @@ components:
       - required_permission
       - shared_method
       - spot_rule_boundary
+      - approval_snapshot
       - notes
       title: AdminLiveEnablementPathItem
       description: One live-eligible path and the gates required before enablement.
@@ -4525,6 +4636,26 @@ components:
         passed_preflight_check_count:
           type: integer
           title: Passed Preflight Check Count
+          default: 0
+        approval_snapshot_required_count:
+          type: integer
+          title: Approval Snapshot Required Count
+          default: 0
+        approval_snapshot_present_count:
+          type: integer
+          title: Approval Snapshot Present Count
+          default: 0
+        approval_snapshot_missing_count:
+          type: integer
+          title: Approval Snapshot Missing Count
+          default: 0
+        approval_snapshot_required_field_count:
+          type: integer
+          title: Approval Snapshot Required Field Count
+          default: 0
+        approval_snapshot_missing_field_count:
+          type: integer
+          title: Approval Snapshot Missing Field Count
           default: 0
         read_only:
           type: boolean

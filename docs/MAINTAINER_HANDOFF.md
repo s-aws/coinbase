@@ -97,7 +97,12 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1081-1100`.
+- Active autonomous range: `1101-1120`.
+- M30 route-specific approval snapshot evidence is exposed through the
+  existing `GET /api/v1/admin/live-enablement` read. It must remain
+  evidence-only: required fields can describe what a durable backend approval
+  snapshot must contain, but they must not become approval storage, browser
+  approval, a command route, Coinbase execution, or reconciliation authority.
 - M29 controlled-live preflight evidence is exposed through the existing
   `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
   passed and blocked checks can describe readiness, but they must not become a

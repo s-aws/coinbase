@@ -21,6 +21,7 @@ from core.enums import (
     AdminFuturesPositionSide,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminApiLiveApprovalSnapshotField,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminApiModuleSupportStatus,
@@ -67,6 +68,8 @@ from .models import (
     AdminGateCheck,
     AdminGateReadResponse,
     AdminHealthResponse,
+    AdminLiveApprovalSnapshotEvidence,
+    AdminLiveApprovalSnapshotRequiredFieldItem,
     AdminLiveEnablementPathItem,
     AdminLivePreflightCheckItem,
     AdminLiveEnablementReadResponse,
@@ -95,7 +98,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1081-1100"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1101-1120"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -339,6 +342,134 @@ def _live_preflight_checks(
             detail="A live path cannot be enabled until the exact route reports post-submit reconciliation evidence under cap.",
         ),
     ]
+
+
+def _approval_snapshot_field(
+    *,
+    field: AdminApiLiveApprovalSnapshotField,
+    expected_source: str,
+    detail: str,
+    expected_value: str | None = None,
+) -> AdminLiveApprovalSnapshotRequiredFieldItem:
+    return AdminLiveApprovalSnapshotRequiredFieldItem(
+        field=field,
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        expected_source=expected_source,
+        expected_value=expected_value,
+        detail=detail,
+    )
+
+
+def _live_approval_snapshot_evidence(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    identity_key: str,
+    action_class: AdminApiActionClass,
+    required_permission: AdminApiPermission | str,
+) -> AdminLiveApprovalSnapshotEvidence:
+    permission_value = (
+        required_permission.value
+        if isinstance(required_permission, AdminApiPermission)
+        else str(required_permission)
+    )
+    fields = [
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.ROUTE,
+            expected_source="route_inventory",
+            expected_value=route,
+            detail="Approval must bind to the exact Admin API route.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.METHOD,
+            expected_source="route_inventory",
+            expected_value=method,
+            detail="Approval must bind to the exact HTTP method.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.MODULE_ID,
+            expected_source="route_inventory",
+            expected_value=module_id,
+            detail="Approval must bind to the backend-owned enterprise module id.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.IDENTITY_KEY,
+            expected_source="route_inventory",
+            expected_value=identity_key,
+            detail="Approval must bind to the module-specific command identity key.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.ACTION_CLASS,
+            expected_source="route_inventory",
+            expected_value=action_class.value,
+            detail="Approval must bind to the live action class being requested.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.REQUIRED_PERMISSION,
+            expected_source="route_inventory",
+            expected_value=permission_value,
+            detail="Approval must name the backend permission required for the route.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.OPERATOR_INTENT,
+            expected_source="command_headers",
+            detail="Approval must bind to durable operator intent, not browser-only acknowledgement.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.IDEMPOTENCY_KEY,
+            expected_source="command_headers",
+            detail="Approval must bind to the idempotency key for the submitted command.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.PAYLOAD_HASH,
+            expected_source="command_service",
+            detail="Approval must bind to the command payload hash so payload drift is not approved.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.APPROVED_BY_ACTOR_ID,
+            expected_source="approval_store",
+            detail="Approval must identify the backend-authenticated approver.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.EXPIRES_AT,
+            expected_source="approval_store",
+            detail="Approval must expire and must not be treated as an evergreen browser switch.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.CAP_GUARD_DECISION_REF,
+            expected_source="guard_risk_policy",
+            detail="Approval must bind to backend cap and guard decision evidence.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.RECONCILIATION_PLAN_REF,
+            expected_source="reconciliation_policy",
+            detail="Approval must bind to post-live reconciliation evidence for the route.",
+        ),
+    ]
+    return AdminLiveApprovalSnapshotEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        present=False,
+        durable=False,
+        route_specific=True,
+        backend_owned=True,
+        browser_authority="display_only",
+        source="not_configured",
+        required_field_count=len(fields),
+        missing_required_field_count=len(fields),
+        required_fields=fields,
+        evidence=[
+            "No durable route-specific approval snapshot is present.",
+            "Approval must be backend-owned, route-specific, expiring, and payload-bound.",
+            "Browser acknowledgement is not sufficient live execution approval.",
+        ],
+        detail=(
+            f"{method} {route} remains live-disabled until a durable "
+            "route-specific approval snapshot is present."
+        ),
+    )
 
 
 def _path_id(method: str, path: str) -> str:
@@ -2785,6 +2916,15 @@ class AdminApiReadService:
                 route=path,
                 shared_method=item.shared_method,
             )
+            identity_key = _enterprise_module_identity_key(item.module_id, path)
+            approval_snapshot = _live_approval_snapshot_evidence(
+                method=method,
+                route=path,
+                module_id=item.module_id,
+                identity_key=identity_key,
+                action_class=item.action_class,
+                required_permission=item.permission,
+            )
             paths.append(
                 AdminLiveEnablementPathItem(
                     path_id=_path_id(method, path),
@@ -2793,7 +2933,7 @@ class AdminApiReadService:
                     module_id=item.module_id,
                     module=_enterprise_module_name(item.module_id),
                     module_owner=_enterprise_module_owner(item.module_id),
-                    identity_key=_enterprise_module_identity_key(item.module_id, path),
+                    identity_key=identity_key,
                     action_class=item.action_class,
                     required_permission=item.permission,
                     shared_method=item.shared_method,
@@ -2832,6 +2972,7 @@ class AdminApiReadService:
                         for check in preflight_checks
                         if check.status == AdminApiGateStatus.PASSED
                     ),
+                    approval_snapshot=approval_snapshot,
                     evidence=[
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
@@ -2852,6 +2993,7 @@ class AdminApiReadService:
             for path in paths
             for check in path.preflight_checks
         ]
+        approval_snapshots = [path.approval_snapshot for path in paths]
 
         checks = [
             AdminGateCheck(
@@ -2902,6 +3044,29 @@ class AdminApiReadService:
                 1
                 for check in preflight_checks
                 if check.status == AdminApiGateStatus.PASSED
+            ),
+            approval_snapshot_required_count=sum(
+                1
+                for snapshot in approval_snapshots
+                if snapshot.required
+            ),
+            approval_snapshot_present_count=sum(
+                1
+                for snapshot in approval_snapshots
+                if snapshot.present
+            ),
+            approval_snapshot_missing_count=sum(
+                1
+                for snapshot in approval_snapshots
+                if not snapshot.present
+            ),
+            approval_snapshot_required_field_count=sum(
+                snapshot.required_field_count
+                for snapshot in approval_snapshots
+            ),
+            approval_snapshot_missing_field_count=sum(
+                snapshot.missing_required_field_count
+                for snapshot in approval_snapshots
             ),
         )
 

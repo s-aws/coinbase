@@ -18,8 +18,8 @@ ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASES = tuple(range(1081, 1101))
-APPROVED_PHASE_RANGE = "1081-1100"
+APPROVED_PHASES = tuple(range(1101, 1121))
+APPROVED_PHASE_RANGE = "1101-1120"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -93,7 +93,7 @@ def _check_phase_range(body: str) -> QueueCheck:
         if f"Phase {phase} -" not in body
     ]
     return QueueCheck(
-        name="approved_phase_range_1081_1100",
+        name="approved_phase_range_1101_1120",
         passed=f"Approved phase range: **{APPROVED_PHASE_RANGE}**" in body
         and not missing,
         evidence={

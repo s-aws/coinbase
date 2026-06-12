@@ -83,6 +83,10 @@ reconciliation path is explicitly wired.
 Guard/risk policy reads expose existing backend policy and authority sources as
 evidence only. They must not become browser preflight approval or a second
 guard engine.
+Live-enablement approval snapshot evidence is read-only missing-approval
+evidence. It may list required durable approval fields and backend sources,
+but it must not become approval storage, browser approval, command authority,
+Coinbase execution, or reconciliation proof.
 Audit workbench reads expose route inventory, command audit, correlation,
 module, and exchange evidence only. They must not become command replay, audit
 mutation, Coinbase read, or frontend approval paths.
