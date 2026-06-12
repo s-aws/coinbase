@@ -664,7 +664,7 @@ the frontend mutation catalog must match.
 
 Completed evidence:
 
-- Phases 821-840 advance and complete the active unattended range while
+- Phases 821-840 advance and complete the then-active unattended range while
   preserving the same no-live frontend posture and live-cap policy.
 - `/api/v1/admin/capabilities` exposes command contract metadata derived from
   `ADMIN_API_ROUTE_INVENTORY`.
@@ -691,11 +691,47 @@ Completed evidence:
 
 Completed when:
 
-- Backend and frontend validators use active phase range 821-840.
+- Backend and frontend validators use then-active phase range 821-840.
 - OpenAPI and frontend generated schema are fresh.
 - Focused and full gates pass.
 - Blind/contextless review confirms backend command metadata authority is
   clear and no-live.
+
+## M17 - Runtime Command Capability Binding
+
+Purpose: make command workflow UI consume backend capability evidence at
+runtime so static mutation contracts cannot become the only displayed command
+authority.
+
+Completed evidence:
+
+- Phases 841-860 advance the active unattended range while preserving the same
+  no-live frontend posture and live-cap policy.
+- Backend `/api/v1/admin/capabilities` remains the authority for command
+  availability, action class, permission, shared method, approval, caps, audit,
+  compatibility, and parity evidence.
+- Frontend command workflows resolve backend capability rows by method/path and
+  show that evidence beside static mutation review.
+- Missing capability evidence is fail-closed UI evidence and does not enable a
+  command button.
+- No command path becomes live-enabled through runtime capability binding.
+- Route/release/API guards, focused unit coverage, and command workflow docs
+  now describe and enforce the runtime capability binding.
+- Focused backend checks passed with `63` tests and `1` warning; full backend
+  regression passed with `790` tests and `1` warning.
+- Frontend release gate passed with `182` unit tests and `3` Playwright tests.
+- Blind/contextless review passed with no blockers.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+Completed when:
+
+- Backend and frontend validators use active phase range 841-860.
+- Command workflow cards display backend capability evidence in mock/runtime
+  paths.
+- Focused and full gates pass.
+- Blind/contextless review confirms runtime capability binding is clear,
+  backend-owned, and no-live.
 
 ## Objective Completion
 

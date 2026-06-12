@@ -4867,7 +4867,7 @@ Completion evidence:
 
 ### Phase 821 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 801-820 to active
+- Move the durable autonomous queue from completed phases 801-820 to then-active
   phases 821-840 while preserving the same cap and stop-condition policy.
 
 ### Phase 822 - M16 Backend Command Metadata Authority Slice
@@ -4877,7 +4877,7 @@ Completion evidence:
 
 ### Phase 823 - Backend Range Evidence
 
-- Update backend no-live readiness evidence to report active range 821-840.
+- Update backend no-live readiness evidence to report then-active range 821-840.
 
 ### Phase 824 - Capability Contract Expansion
 
@@ -4976,5 +4976,123 @@ Completion evidence:
   tests.
 - Blind/contextless review passed after remediation of the route-inventory
   artifact and `frontend_safe` wording risks.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Completed Runtime Command Capability Binding Batch - Phases 841-860
+
+### Phase 841 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 821-840 to active
+  phases 841-860 while preserving the same cap and stop-condition policy.
+
+### Phase 842 - M17 Runtime Command Capability Binding Slice
+
+- Bind command workflow evidence to backend capability registry data without
+  creating frontend trading authority.
+
+### Phase 843 - Backend Range Evidence
+
+- Update backend no-live readiness evidence to report active range 841-860.
+
+### Phase 844 - Capability Contract Stability Check
+
+- Keep `/api/v1/admin/capabilities` and the route-inventory export as the
+  backend-owned command metadata source.
+
+### Phase 845 - Frontend Capability Resolver
+
+- Add a frontend helper that resolves command capability rows by method/path
+  from the backend capability registry.
+
+### Phase 846 - Command Shell Runtime Input
+
+- Pass the admin capability registry from the integrated runtime snapshot into
+  command workflow UI.
+
+### Phase 847 - Command Evidence Rows
+
+- Show backend-reported availability, live-enabled status, shared method,
+  permission, approval, caps, audit, and parity evidence on command cards.
+
+### Phase 848 - Missing Capability Fail-Closed UI
+
+- Render missing capability rows as backend evidence unavailable and keep
+  command buttons disabled.
+
+### Phase 849 - Mock Capability Coverage
+
+- Ensure local/mock capability fixtures exercise the runtime capability binding
+  path for every command workflow.
+
+### Phase 850 - Frontend Unit Coverage
+
+- Add focused tests for capability resolver behavior and command workflow
+  runtime capability evidence.
+
+### Phase 851 - Route Coverage Guard
+
+- Extend frontend route coverage/release checks so command workflow capability
+  binding cannot drift from mutation contracts and backend inventory.
+
+### Phase 852 - Documentation Update
+
+- Update API contract, command workflow, and testing docs for runtime
+  capability binding.
+
+### Phase 853 - Stale Range And Drift Scan
+
+- Search for current-state contradictions around 821-840 versus 841-860 and
+  around static-only command capability evidence.
+
+### Phase 854 - Backend Focused Gates
+
+- Run backend autonomous queue and focused Admin API/spot readiness checks.
+
+### Phase 855 - Frontend Focused Gates
+
+- Run frontend API, release-readiness, autonomous, typecheck, and focused unit
+  checks.
+
+### Phase 856 - Contextless M17 Review
+
+- Run blind/contextless review for runtime command capability binding.
+
+### Phase 857 - Review Remediation
+
+- Resolve any blocker or ambiguity before full gates.
+
+### Phase 858 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short`.
+
+### Phase 859 - Full Frontend Release Gate
+
+- Run `npm run release:gate`.
+
+### Phase 860 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+Completion evidence:
+
+- Active autonomous range advanced to 841-860 across backend and frontend
+  validators/readiness evidence.
+- Command workflow UI consumes backend capability registry evidence by
+  method/path and keeps command execution no-live.
+- Missing or unavailable capability evidence renders fail-closed and leaves
+  command buttons disabled.
+- Frontend route, release, and API checks guard the runtime capability binding
+  against mutation contract and backend inventory drift.
+- Focused backend checks passed: autonomous queue plus Admin API/spot
+  readiness regression coverage, `63` tests passed with `1` warning.
+- Focused frontend checks passed: typecheck, API route coverage, API contract,
+  release-readiness, autonomous queue, and command capability unit coverage,
+  `62` focused unit assertions passed.
+- Blind/contextless M17 review passed with no blockers.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `182` unit tests and `3` Playwright
+  tests passed.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
