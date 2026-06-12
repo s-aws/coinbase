@@ -9,6 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from application.admin_api.approval import evaluate_command_live_admission
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.idempotency import (
@@ -205,6 +206,9 @@ def _execute_idempotent_command(
     permission: AdminApiPermission,
     action_class: AdminApiActionClass,
     service_method: str,
+    route_template: str,
+    module_id: str,
+    identity_key: str,
     idempotency_store: FileIdempotencyStore,
     audit_store: FileAdminApiAuditStore,
     command_runner: Callable[[], AdminApiCommandResponse],
@@ -212,6 +216,19 @@ def _execute_idempotent_command(
     stealth_order_id: str | None = None,
 ) -> JSONResponse:
     require_permission(actor, permission)
+    admission_decision = evaluate_command_live_admission(
+        route=route_template,
+        method=endpoint.split(" ", 1)[0],
+        module_id=module_id,
+        identity_key=identity_key,
+        action_class=action_class,
+        required_permission=permission,
+        service_method=service_method,
+        actor_id=actor.actor_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -231,6 +248,7 @@ def _execute_idempotent_command(
             idempotency_key=idempotency_key,
             client_order_id=client_order_id,
             stealth_order_id=stealth_order_id,
+            admission_decision=admission_decision,
             failure_stage="idempotency",
         )
         response.audit_id = _record_audit(
@@ -244,6 +262,10 @@ def _execute_idempotent_command(
         return _command_response(response)
 
     response = command_runner()
+    response.admission_decision = admission_decision
+    if response.guard is None:
+        response.guard = {}
+    response.guard["admission_decision"] = admission_decision.model_dump(mode="json")
     response.audit_id = _record_audit(
         audit_store=audit_store,
         actor=actor,
@@ -358,6 +380,9 @@ def create_manual_order(
         permission=AdminApiPermission.ORDER_CREATE,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         service_method="place_manual_order",
+        route_template="/api/v1/orders",
+        module_id="spot_operations",
+        identity_key="client_order_id",
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         command_runner=lambda: service.place_manual_order(
@@ -411,6 +436,9 @@ def cancel_order_by_client_order_id(
         permission=AdminApiPermission.ORDER_CANCEL,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         service_method="cancel_order_by_client_order_id",
+        route_template="/api/v1/orders/{client_order_id}/cancel",
+        module_id="spot_operations",
+        identity_key="client_order_id",
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         client_order_id=client_order_id,
@@ -471,6 +499,9 @@ def execute_spot_campaign(
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         service_method="execute_spot_campaign",
+        route_template="/api/v1/spot/campaign/executions",
+        module_id="spot_operations",
+        identity_key="campaign_id",
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         command_runner=lambda: service.execute_spot_campaign(

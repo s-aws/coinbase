@@ -24,6 +24,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiLiveAdmissionAuditFact,
+    AdminApiLiveAdmissionBlocker,
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveCapGuardRequirement,
@@ -82,6 +83,36 @@ class AdminApiCommandEnvelope(BaseModel):
     correlation_id: str = Field(min_length=1)
     operator_intent: str = Field(min_length=1)
     actor: AdminApiActor
+
+
+class AdminLiveAdmissionDecisionEvidence(BaseModel):
+    """Route-bound live admission decision for a command attempt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    allowed: bool = False
+    route: str
+    method: str
+    module_id: str
+    identity_key: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    idempotency_key: str
+    operator_intent: str
+    payload_hash: str
+    approval_snapshot_required: bool = True
+    approval_store_required: bool = True
+    admission_audit_required: bool = True
+    cap_guard_required: bool = True
+    reconciliation_required: bool = True
+    browser_authority: str = "rejected"
+    live_exchange_submitted: bool = False
+    blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
 
 
 class ManualOrderRequest(BaseModel):
@@ -211,6 +242,7 @@ class AdminApiCommandResponse(BaseModel):
     live_exchange_submitted: bool = False
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     guard: FlexibleDict | None = None
     data: Any | None = None
     failure_stage: str | None = None

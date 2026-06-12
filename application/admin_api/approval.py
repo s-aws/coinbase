@@ -6,7 +6,15 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiGateStatus,
+    AdminApiLiveAdmissionBlocker,
+    AdminApiPermission,
+)
+
 from .idempotency import make_payload_hash
+from .models import AdminLiveAdmissionDecisionEvidence
 
 
 class ApprovalSnapshot(BaseModel):
@@ -75,4 +83,75 @@ def evaluate_live_execution_gate(
         approval_snapshot_required=True,
         cap_evaluation_required=cap_evaluation_required,
         durable_audit_required=True,
+    )
+
+
+def evaluate_command_live_admission(
+    *,
+    route: str,
+    method: str,
+    module_id: str,
+    identity_key: str,
+    action_class: AdminApiActionClass,
+    required_permission: AdminApiPermission | str,
+    service_method: str,
+    actor_id: str,
+    idempotency_key: str,
+    operator_intent: str,
+    payload_hash: str,
+) -> AdminLiveAdmissionDecisionEvidence:
+    """Return route-bound live admission evidence for one command attempt.
+
+    This is decision evidence only. The function does not call Coinbase and
+    does not mutate command state. Current HTTP command routes remain blocked
+    until approval store, admission audit, cap/guard, and reconciliation
+    contracts are implemented end to end.
+    """
+
+    return AdminLiveAdmissionDecisionEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        allowed=False,
+        route=route,
+        method=method,
+        module_id=module_id,
+        identity_key=identity_key,
+        action_class=action_class,
+        required_permission=required_permission,
+        service_method=service_method,
+        actor_id=actor_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_required=True,
+        approval_store_required=True,
+        admission_audit_required=True,
+        cap_guard_required=True,
+        reconciliation_required=True,
+        browser_authority="rejected",
+        live_exchange_submitted=False,
+        blockers=[
+            AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+            AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING,
+            AdminApiLiveAdmissionBlocker.APPROVAL_STORE_MISSING,
+            AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
+            AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
+            AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+            AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+        ],
+        evidence=[
+            "existing Admin API command route",
+            "durable idempotency payload hash",
+            "operator intent header",
+            "shared command service boundary",
+            "missing durable approval store",
+            "missing admission audit trail",
+            "missing route-specific cap/guard decision",
+            "browser authority rejected",
+        ],
+        detail=(
+            "HTTP live execution is blocked until backend-owned approval, "
+            "cap/guard, admission-audit, and reconciliation gates admit this "
+            "exact route, identity, payload hash, idempotency key, and operator "
+            "intent."
+        ),
     )

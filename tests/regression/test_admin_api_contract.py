@@ -254,6 +254,8 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "order_id" not in stealth_item_schema["properties"]
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
+    assert "admission_decision" in command_response_schema["properties"]
+    assert "AdminLiveAdmissionDecisionEvidence" in written["components"]["schemas"]
     stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
     assert "pagination" in stealth_list_schema["properties"]
     assert "command_routes_mode" in stealth_list_schema["properties"]
@@ -794,6 +796,28 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert payload["guard"]["approval_snapshot_required"] is True
     assert payload["guard"]["cap_evaluation_required"] is True
     assert payload["guard"]["live_execution_enabled"] is False
+    admission = payload["admission_decision"]
+    assert admission["status"] == AdminApiGateStatus.BLOCKED.value
+    assert admission["allowed"] is False
+    assert admission["route"] == "/api/v1/orders"
+    assert admission["method"] == "POST"
+    assert admission["module_id"] == "spot_operations"
+    assert admission["identity_key"] == "client_order_id"
+    assert admission["service_method"] == "place_manual_order"
+    assert admission["actor_id"] == "operator-001"
+    assert admission["idempotency_key"] == "idem-001"
+    assert admission["operator_intent"] == "manual_one_off"
+    assert len(admission["payload_hash"]) == 64
+    assert admission["approval_snapshot_required"] is True
+    assert admission["approval_store_required"] is True
+    assert admission["admission_audit_required"] is True
+    assert admission["cap_guard_required"] is True
+    assert admission["reconciliation_required"] is True
+    assert admission["browser_authority"] == "rejected"
+    assert admission["live_exchange_submitted"] is False
+    assert "approval_store_missing" in admission["blockers"]
+    assert "cap_guard_missing" in admission["blockers"]
+    assert payload["guard"]["admission_decision"] == admission
     assert payload["audit_id"]
     assert response.headers["x-correlation-id"] == "corr-001"
 
@@ -819,6 +843,13 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
     assert payload["failure_stage"] == "approval"
     assert payload["guard"]["approval_snapshot_required"] is True
     assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["admission_decision"]["route"] == (
+        "/api/v1/orders/{client_order_id}/cancel"
+    )
+    assert payload["admission_decision"]["identity_key"] == "client_order_id"
+    assert payload["admission_decision"]["service_method"] == (
+        "cancel_order_by_client_order_id"
+    )
 
 
 @pytest.mark.regression
@@ -844,6 +875,11 @@ def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypa
     assert payload["failure_stage"] == "approval"
     assert payload["guard"]["approval_snapshot_required"] is True
     assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["admission_decision"]["route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel"
+    )
+    assert payload["admission_decision"]["module_id"] == "stealth_orders"
+    assert payload["admission_decision"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["active_placement_client_order_id"] is None
     assert payload["data"]["exchange_order_id_evidence_only"] is True
@@ -872,6 +908,11 @@ def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkey
     assert payload["failure_stage"] == "approval"
     assert payload["guard"]["approval_snapshot_required"] is True
     assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["admission_decision"]["route"] == (
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    )
+    assert payload["admission_decision"]["module_id"] == "movement_repricing"
+    assert payload["admission_decision"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["identity_key"] == "stealth_order_id"
     assert payload["data"]["mutation_kind"] == "reprice"
     assert payload["data"]["active_placement_client_order_id"] is None
@@ -906,6 +947,11 @@ def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
     assert payload["service_method"] == "execute_spot_campaign"
     assert payload["live_exchange_submitted"] is False
     assert payload["failure_stage"] == "approval"
+    assert payload["admission_decision"]["route"] == "/api/v1/spot/campaign/executions"
+    assert payload["admission_decision"]["identity_key"] == "campaign_id"
+    assert payload["admission_decision"]["required_permission"] == (
+        AdminApiPermission.CAMPAIGN_EXECUTE.value
+    )
     assert payload["data"]["campaign_id"] == "usdc-sweep-001"
     assert payload["data"]["product_count"] == 2
     assert payload["audit_id"]
@@ -1442,7 +1488,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1161-1180"
+    assert live_payload["approved_phase_range"] == "1181-1200"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1832,7 +1878,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1161-1180"
+    assert enterprise_payload["approved_phase_range"] == "1181-1200"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

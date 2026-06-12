@@ -2900,6 +2900,10 @@ components:
           - type: string
           - type: 'null'
           title: Audit Command
+        admission_decision:
+          anyOf:
+          - $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
+          - type: 'null'
         guard:
           anyOf:
           - additionalProperties: true
@@ -3046,6 +3050,18 @@ components:
       - browser_authority_rejection_recorded
       title: AdminApiLiveAdmissionAuditFact
       description: Required facts for a future live-admission audit trail.
+    AdminApiLiveAdmissionBlocker:
+      type: string
+      enum:
+      - live_execution_disabled
+      - approval_snapshot_missing
+      - approval_store_missing
+      - admission_audit_missing
+      - cap_guard_missing
+      - reconciliation_plan_missing
+      - browser_authority_rejected
+      title: AdminApiLiveAdmissionBlocker
+      description: Blocking reasons before an Admin API command may reach live execution.
     AdminApiLiveApprovalSnapshotField:
       type: string
       enum:
@@ -4418,6 +4434,107 @@ components:
       - detail
       title: AdminLiveAdmissionAuditTrailEvidence
       description: Read-only evidence for the missing live-admission audit trail.
+    AdminLiveAdmissionDecisionEvidence:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        allowed:
+          type: boolean
+          title: Allowed
+          default: false
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+        identity_key:
+          type: string
+          title: Identity Key
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        operator_intent:
+          type: string
+          title: Operator Intent
+        payload_hash:
+          type: string
+          title: Payload Hash
+        approval_snapshot_required:
+          type: boolean
+          title: Approval Snapshot Required
+          default: true
+        approval_store_required:
+          type: boolean
+          title: Approval Store Required
+          default: true
+        admission_audit_required:
+          type: boolean
+          title: Admission Audit Required
+          default: true
+        cap_guard_required:
+          type: boolean
+          title: Cap Guard Required
+          default: true
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: rejected
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        blockers:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveAdmissionBlocker'
+          type: array
+          title: Blockers
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - route
+      - method
+      - module_id
+      - identity_key
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - idempotency_key
+      - operator_intent
+      - payload_hash
+      - detail
+      title: AdminLiveAdmissionDecisionEvidence
+      description: Route-bound live admission decision for a command attempt.
     AdminLiveApprovalSnapshotEvidence:
       properties:
         status:

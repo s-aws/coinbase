@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1161-1180**.
+- Approved phase range: **1181-1200**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,118 +46,123 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1161-1180
+## Active Phases 1181-1200
 
-### Phase 1161 - Advance Active Queue Range
+### Phase 1181 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1141-1160 to active
-  phases 1161-1180 while preserving the same no-live frontend posture and
+- Move the durable autonomous queue from completed phases 1161-1180 to active
+  phases 1181-1200 while preserving the same no-live frontend posture and
   carried Coinbase cap policy.
 
-### Phase 1162 - M33 Route-Specific Cap/Guard Contract Evidence
+### Phase 1182 - M34 Command Admission Decision Evidence
 
-- Add structured read-only route-specific cap/guard contract requirements to
-  the existing `GET /api/v1/admin/live-enablement` contract without
-  implementing guard execution, approval storage, live execution, or a command
-  route.
+- Add explicit backend-owned live admission decision evidence to every
+  existing live-disabled Admin API HTTP command response without enabling live
+  execution or adding a parallel command path.
 
-### Phase 1163 - Backend Range Evidence
+### Phase 1183 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
-  checks reporting the active 1161-1180 phase range.
+  checks reporting the active 1181-1200 phase range.
 
-### Phase 1164 - Existing Contract Reuse Gate
+### Phase 1184 - Existing Route And Command Reuse Gate
 
-- Reuse `GET /api/v1/admin/live-enablement`; do not add a parallel cap/guard
-  endpoint, approval mutation, command endpoint, guard evaluator, or
-  browser-owned evaluator.
+- Reuse the existing Admin API command routes and shared command service; do
+  not add a live admission endpoint, approval mutation, guard evaluator,
+  Coinbase call, direct dashboard WebSocket path, or browser-owned evaluator.
 
-### Phase 1165 - Cap/Guard Model Contract
+### Phase 1185 - Admission Decision Model Contract
 
-- Add typed cap/guard contract evidence for status, required/configured/
-  route-specific flags, backend ownership, browser authority, source,
-  requirements, missing requirements, evidence, and detail.
+- Add typed admission decision evidence for status, allowed flag, route,
+  method, module id, identity key, action class, permission, service method,
+  actor, idempotency key, operator intent, payload hash, blockers, evidence,
+  and detail.
 
-### Phase 1166 - Per-Route Cap/Guard Requirement Matrix
+### Phase 1186 - Shared Command Adapter Binding
 
-- Attach the same explicit cap/guard requirement shape to every live-shaped
-  HTTP command path in live-enablement evidence.
+- Attach admission decision evidence inside the existing idempotent command
+  adapter before command responses are audited and stored.
 
-### Phase 1167 - Cap/Guard Requirement Source Binding
+### Phase 1187 - Route Metadata Binding
 
-- Bind required cap/guard decisions to route inventory, command headers,
-  command service, guard/risk policy, approval snapshot, admission audit
-  trail, product scope, and frontend-boundary sources.
+- Bind admission decisions to each command route's template, method, module id,
+  identity key, action class, required permission, and shared service method.
 
-### Phase 1168 - Missing Route-Specific Guard Blocker Evidence
+### Phase 1188 - Payload Intent Idempotency Binding
 
-- Keep every cap/guard contract blocked until a route-specific backend
-  decision exists for caps, domain guard semantics, payload binding, approval
-  binding, and admission-audit binding.
+- Bind admission decisions to the durable idempotency payload hash,
+  idempotency key, actor id, and operator intent.
 
-### Phase 1169 - No Browser Guard Boundary
+### Phase 1189 - Missing Gate Blocker Binding
 
-- Confirm cap/guard evidence remains display-only and cannot become browser
-  wallet, margin, profitability, cap, approval, command submission,
-  cancellation, repricing, reconciliation, or Coinbase execution authority.
+- Report missing approval snapshot, approval store, admission audit,
+  cap/guard, reconciliation, and no-browser-authority blockers in command
+  responses.
 
-### Phase 1170 - Spot And Non-Spot Boundary Confirmation
+### Phase 1190 - No Browser Admission Boundary
 
-- Keep spot wallet, inventory, no-shorting, cost-basis, and USDC rules scoped
-  to spot command authority while futures/perpetual, stealth, movement, and
-  campaign commands keep their own blockers.
+- Confirm admission evidence cannot become browser approval, browser wallet
+  authority, guard execution, command submission, cancellation, repricing,
+  reconciliation, or Coinbase execution authority.
 
-### Phase 1171 - OpenAPI Regeneration
+### Phase 1191 - OpenAPI Regeneration
 
-- Regenerate backend OpenAPI after the live-enablement contract expands.
+- Regenerate backend OpenAPI after the command response model expands.
 
-### Phase 1172 - Frontend Schema Sync Coordination
+### Phase 1192 - Frontend Schema Sync Coordination
 
 - Coordinate frontend generated-schema consumption from the backend OpenAPI
   without hand-editing generated TypeScript.
 
-### Phase 1173 - Frontend Cap/Guard Evidence Surface
+### Phase 1193 - Frontend Command Admission Evidence Rows
 
-- Render cap/guard requirements as read-only frontend evidence under Modules,
-  with no command controls, browser guard evaluator, approval storage, audit
-  storage, or BFF mutation broadening.
+- Render admission status, allowed flag, route, identity key, and blockers as
+  dry-submit evidence rows without adding command controls or interpreting the
+  decision in the browser.
 
-### Phase 1174 - Runtime Mock Artifact Alignment
+### Phase 1194 - Runtime Mock Artifact Alignment
 
 - Align mock/runtime evidence, release artifacts, deployment checks,
-  autonomous checks, and visual smoke targets with cap/guard evidence.
+  autonomous checks, and visual smoke targets with admission decision evidence.
 
-### Phase 1175 - Documentation Update
+### Phase 1195 - Documentation Update
 
 - Update Admin API, frontend, architecture, capability matrix, examples,
-  maintainer handoff, roadmap, and review docs for cap/guard contract
+  maintainer handoff, roadmap, and review docs for command admission decision
   evidence.
 
-### Phase 1176 - Drift Scan
+### Phase 1196 - Drift Scan
 
-- Check stale phase ranges, stale M32 active wording, route inventory
+- Check stale phase ranges, stale M33 active wording, route inventory
   assumptions, browser-authority wording, and spot-rule leakage.
 
-### Phase 1177 - Focused Backend Gates
+### Phase 1197 - Focused Backend Gates
 
 - Run backend autonomous and focused Admin API/readiness checks.
 
-### Phase 1178 - Focused Frontend Gates
+### Phase 1198 - Focused Frontend Gates
 
 - Run frontend typecheck, lint, API, release-readiness, deployment,
   autonomous, focused UI/runtime/mock/quality, and targeted Playwright checks.
 
-### Phase 1179 - Blind/Contextless Review
+### Phase 1199 - Blind/Contextless Review
 
-- Run a contextless review verifying the cap/guard evidence is understandable,
-  read-only, backend-sourced, route-specific, and not a browser guard
-  evaluator, live approval, command authority, or browser authority.
+- Run a contextless review verifying admission decisions are understandable,
+  backend-owned, route-bound, payload-bound, live-disabled, and not browser
+  approval, browser guard execution, command authority, or Coinbase execution.
 
-### Phase 1180 - Full Gates And Summary
+### Phase 1200 - Full Gates And Summary
 
 - Run backend full regression and frontend `npm run release:gate`, then
   summarize implementation, verification, live posture, commits, and next
   objective scope.
+
+## Completed Phases 1161-1180
+
+- M33 added blocked route-specific cap/guard contract requirements to the
+  existing `GET /api/v1/admin/live-enablement` read route. It did not add
+  guard execution, approval storage, audit storage, command authority,
+  browser approval, reconciliation authority, or live Coinbase execution.
 
 ## Completed Phases 1141-1160
 

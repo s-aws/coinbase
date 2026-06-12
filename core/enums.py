@@ -326,6 +326,18 @@ class AdminApiLiveCapGuardRequirement(str, Enum):
     BROWSER_AUTHORITY_REJECTED = "browser_authority_rejected"
 
 
+class AdminApiLiveAdmissionBlocker(str, Enum):
+    """Blocking reasons before an Admin API command may reach live execution."""
+
+    LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+    APPROVAL_SNAPSHOT_MISSING = "approval_snapshot_missing"
+    APPROVAL_STORE_MISSING = "approval_store_missing"
+    ADMISSION_AUDIT_MISSING = "admission_audit_missing"
+    CAP_GUARD_MISSING = "cap_guard_missing"
+    RECONCILIATION_PLAN_MISSING = "reconciliation_plan_missing"
+    BROWSER_AUTHORITY_REJECTED = "browser_authority_rejected"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 

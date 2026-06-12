@@ -42,8 +42,11 @@ adapters. New product UI must use the HTTP API contract, not the dashboard
 WebSocket.
 
 Mutating HTTP command responses include the current fail-closed live execution
-gate decision. The gate reports that approval snapshots, cap evaluation, and
-durable audit are required before HTTP live execution can be enabled.
+gate decision and M34 route-bound admission decision evidence. The admission
+decision binds the route, method, module id, identity key, actor, idempotency
+key, operator intent, and payload hash to the missing approval, cap/guard,
+admission-audit, and reconciliation blockers before HTTP live execution can be
+enabled.
 
 Current read-only HTTP surfaces include:
 
@@ -228,6 +231,10 @@ The platform/module split is documented in
   route is read-only, reports
   `default_live_coinbase_execution=not_run`, submitted/executed notional
   `$0`, and does not enable any command path.
+- M34 command admission decision evidence is emitted on live-disabled HTTP
+  command responses. It is route-bound and payload-bound evidence for why the
+  command remains blocked; it is not browser approval, guard execution,
+  reconciliation authority, or live Coinbase execution.
 - Audit workbench reads normalize route inventory, command audit, order,
   stealth, movement/repricing, futures/perpetual, guard/risk, and campaign
   evidence into one read-only surface. They do not mutate audit history, read

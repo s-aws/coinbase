@@ -62,7 +62,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M30 - Route-Specific Approval Snapshot Evidence | Complete | Make missing durable approval snapshots explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
 | M31 - Approval Store Contract Evidence | Complete | Make missing durable backend approval-store behavior explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
 | M32 - Live Admission Audit Trail Evidence | Complete | Make missing append-only backend admission audit behavior explicit per live-shaped route without creating audit storage, command authority, or browser approval. |
-| M33 - Route-Specific Cap/Guard Contract Evidence | Active | Make missing backend cap/guard decision behavior explicit per live-shaped route without creating a browser guard evaluator, command authority, or live execution. |
+| M33 - Route-Specific Cap/Guard Contract Evidence | Complete | Make missing backend cap/guard decision behavior explicit per live-shaped route without creating a browser guard evaluator, command authority, or live execution. |
+| M34 - Command Admission Decision Evidence | Active | Make per-command live admission decisions route-bound, payload-bound, audited, and visible while preserving live-disabled execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1206,7 +1207,7 @@ Purpose: make the missing route-specific backend cap/guard decision contract
 visible before any guard execution, approval persistence, live authorization,
 or command admission path is added.
 
-Active scope:
+Completed scope:
 
 - Phases 1161-1180 advance the active unattended range while preserving the
   same no-live frontend posture and carried Coinbase cap policy.
@@ -1238,6 +1239,56 @@ Done when:
 - Blind/contextless review confirms the cap/guard contract requirements are
   understandable, route-specific, backend-owned, and not browser guard
   authority.
+- Full backend regression passes.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+Completed evidence:
+
+- Backend live-enablement exposes blocked cap/guard contract evidence for each
+  live-shaped command route.
+- OpenAPI was regenerated and the frontend generated schema consumes the
+  cap/guard contract response expansion.
+- Frontend Modules rendering displays cap/guard requirements as read-only
+  evidence without command controls.
+- Focused backend/frontend checks, full backend regression, frontend
+  `npm run release:gate`, and blind/contextless review passed for M33.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M34 - Command Admission Decision Evidence
+
+Purpose: make every Admin API HTTP command attempt carry a backend-owned live
+admission decision that binds route, method, module, identity, actor,
+idempotency key, operator intent, and payload hash before any live execution
+can be considered.
+
+Active scope:
+
+- Phases 1181-1200 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Existing Admin API command routes and the shared command service remain the
+  only command behavior path.
+- Command responses expose admission status, allowed flag, route, method,
+  module id, identity key, action class, permission, service method, actor,
+  idempotency key, operator intent, payload hash, blockers, evidence, and
+  detail.
+- Admission decisions report missing approval snapshot, approval store,
+  admission audit, cap/guard, reconciliation, and no-browser-authority
+  blockers while preserving `501` live-disabled responses.
+- Frontend dry-submit evidence may display admission decisions, but must not
+  treat them as browser approval, wallet authority, guard execution, command
+  authority, or Coinbase execution authority.
+
+Done when:
+
+- Backend focused Admin API/readiness tests and autonomous queue check pass.
+- OpenAPI is regenerated and the frontend generated client consumes the new
+  command response field without hand edits.
+- Frontend focused command dry-submit/UI tests, quality checks, and
+  `npm run release:gate` pass.
+- Blind/contextless review confirms the admission evidence is route-bound,
+  payload-bound, backend-owned, live-disabled, and not browser authority.
 - Full backend regression passes.
 - Live Coinbase execution is not run; submitted and executed notional remain
   `$0`.

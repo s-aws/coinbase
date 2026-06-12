@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1161-1180",
+  "approved_phase_range": "1181-1200",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -665,6 +665,12 @@ guard decision bindings explicit; they are not guard execution, browser wallet
 or profitability authority, browser approval, command authority, Coinbase
 execution, or reconciliation proof.
 
+M34 command admission decision fields appear on live-disabled HTTP command
+responses. They bind the command route, module, identity key, actor,
+idempotency key, operator intent, and payload hash to the current blockers.
+They are not browser approval, command authority, guard execution,
+reconciliation authority, or live Coinbase execution.
+
 ```http
 GET /api/v1/admin/enterprise-readiness
 Authorization: Bearer <backend-verifiable-token>
@@ -672,13 +678,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1161-1180",
+  "approved_phase_range": "1181-1200",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
