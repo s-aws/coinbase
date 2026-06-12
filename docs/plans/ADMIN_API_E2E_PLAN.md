@@ -38,111 +38,121 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Durable Approval Store Foundation Batch - Phases 1221-1240
+## Active Approval Snapshot Resolver Foundation Batch - Phases 1241-1260
 
-### Phase 1221 - Advance Active Queue Range
+### Phase 1241 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1201-1220 to active
-  phases 1221-1240 while preserving the same no-live frontend posture and
+- Move the durable autonomous queue from completed phases 1221-1240 to active
+  phases 1241-1260 while preserving the same no-live frontend posture and
   carried Coinbase cap policy.
 
-### Phase 1222 - M36 Durable Approval Store Foundation
+### Phase 1242 - M37 Approval Snapshot Resolver Foundation
 
-- Implement the backend-owned append-only approval store foundation while
-  keeping HTTP commands live-disabled and preserving the shared command
-  service as the only command behavior path.
+- Implement backend-owned approval snapshot resolver infrastructure over the
+  durable approval store while keeping HTTP commands live-disabled and
+  preserving the shared command service as the only command behavior path.
 
-### Phase 1223 - Backend Range Evidence
+### Phase 1243 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
-  checks reporting the active 1221-1240 phase range.
+  checks reporting the active 1241-1260 phase range.
 
-### Phase 1224 - No-Live Approval Boundary Gate
+### Phase 1244 - No-Live Resolver Boundary Gate
 
 - Do not add an approval endpoint, approval mutation, live admission endpoint,
-  guard evaluator, Coinbase call, direct dashboard WebSocket path, or
-  browser-owned approval writer.
+  guard evaluator, Coinbase call, direct dashboard WebSocket path,
+  browser-owned approval writer, or command authority.
 
-### Phase 1225 - Approval Record Schema Contract
+### Phase 1245 - Approval Snapshot Request Contract
 
-- Define strict approval records with route, method, module, identity,
-  approving actor, operator intent, idempotency key, payload hash, expiry,
-  cap/guard reference, and reconciliation reference.
+- Define a strict internal approval snapshot request contract with route,
+  method, module, identity, action class, permission, requesting actor,
+  operator intent, idempotency key, and payload hash.
 
-### Phase 1226 - Append-Only Approval Store
+### Phase 1246 - Snapshot Evidence Generalization
 
-- Add durable append-only JSONL approval-store persistence and recent-read
-  support under backend ownership.
+- Generalize internal approval snapshot evidence away from spot-only
+  `client_order_id` identity while preserving compatibility for routes that
+  still use `client_order_id`.
 
-### Phase 1227 - Exact Match And Expiry Gate
+### Phase 1247 - Action And Permission Bound Lookup
 
-- Prove approval lookup is exact-match, payload-bound, idempotency-bound,
-  route-bound, identity-bound, and expiration-aware.
+- Extend approval-store matching so approvals are bound to action class and
+  required permission in addition to route, method, identity, requesting
+  actor, operator intent, idempotency, payload hash, and expiry.
 
-### Phase 1228 - Admission Blocker Realignment
+### Phase 1248 - Snapshot Resolver
 
-- Remove the approval-store-missing blocker from command admission evidence
-  once the durable store contract exists while keeping approval snapshot,
+- Add a backend-only resolver that converts an exact unexpired approval record
+  into immutable approval snapshot evidence without approving, auditing,
+  reconciling, or executing a command.
+
+### Phase 1249 - Non-Spot Identity Proof
+
+- Prove the resolver works with non-spot identities such as `position_id` and
+  does not depend on spot wallet, cost-basis, no-shorting, or USDC rules.
+
+### Phase 1250 - Admission Blocker Preservation
+
+- Keep command admission blocked on missing route-specific approval snapshot,
   admission audit, cap/guard, reconciliation, live-disabled, and browser
-  rejection blockers.
+  rejection blockers. The resolver alone is not live approval.
 
-### Phase 1229 - Live-Enablement Store Evidence
-
-- Report the approval-store contract as configured and durable while keeping
-  route-specific approval snapshots absent and live execution disabled.
-
-### Phase 1230 - No Browser Approval Boundary
-
-- Keep approval-store evidence read-only and forbid browser approval,
-  browser wallet authority, audit mutation, command submission,
-  reconciliation, or Coinbase execution authority.
-
-### Phase 1231 - OpenAPI Stability Check
+### Phase 1251 - OpenAPI Stability Check
 
 - Confirm no generated OpenAPI schema drift is introduced unless a public
   response model changes.
 
-### Phase 1232 - Frontend Range Sync Coordination
+### Phase 1252 - Frontend Range Sync Coordination
 
 - Coordinate frontend quality artifacts, autonomous checks, release checks,
-  and deployment checks with active range 1221-1240.
+  and deployment checks with active range 1241-1260.
 
-### Phase 1233 - Frontend Mock Evidence Alignment
+### Phase 1253 - Frontend Contract Stability
 
-- Align mock/backend runtime live-enablement evidence with configured
-  approval-store counts and zero missing store requirements.
+- Confirm frontend generated schema remains fresh and no browser-facing
+  approval snapshot mutation or resolver authority is introduced.
 
-### Phase 1234 - Frontend Command Blocker Alignment
+### Phase 1254 - Frontend No-Live Evidence Preservation
 
-- Align dry-submit command evidence with the backend admission blocker set
-  after approval-store foundation exists.
+- Keep frontend dry-submit, live-enablement, release, deployment, and smoke
+  evidence no-live with submitted/executed notional `$0`.
 
-### Phase 1235 - Documentation Update
+### Phase 1255 - Documentation Update
 
 - Update admin API, architecture, examples, handoff, roadmap, and review docs.
 
-### Phase 1236 - Drift Scan
+### Phase 1256 - Drift Scan
 
-- Search for stale active range, M35 active wording, browser-authority
-  wording, approval mutation wording, and spot-rule leakage.
+- Search for stale active range, stale M36 active wording, browser-authority
+  wording, approval mutation wording, resolver-as-approval wording, and
+  spot-rule leakage.
 
-### Phase 1237 - Focused Backend Gates
+### Phase 1257 - Focused Backend Gates
 
 - Run backend autonomous and focused Admin API/readiness checks.
 
-### Phase 1238 - Focused Frontend Gates
+### Phase 1258 - Focused Frontend Gates
 
 - Run focused frontend quality and UI checks.
 
-### Phase 1239 - Blind Review
+### Phase 1259 - Blind Review
 
-- Run blind/contextless review for backend-owned approval storage,
-  no-browser approval, no approval mutation, and no live Coinbase execution.
+- Run blind/contextless review for backend-owned resolver-only approval
+  snapshot infrastructure, no-browser approval, no approval mutation, no
+  spot-rule leakage, and no live Coinbase execution.
 
-### Phase 1240 - Full Gates And Summary
+### Phase 1260 - Full Gates And Summary
 
 - Run backend full regression and frontend `npm run release:gate`, then
   summarize verification and live posture.
+
+## Completed Durable Approval Store Foundation Batch - Phases 1221-1240
+
+- M36 added backend-owned append-only approval-store infrastructure and
+  configured approval-store contract evidence while keeping approval snapshots
+  absent, command admission blocked, browser approval absent, and live
+  Coinbase execution disabled.
 
 ## Completed Command Admission Audit Persistence Batch - Phases 1201-1220
 

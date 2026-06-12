@@ -65,7 +65,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M33 - Route-Specific Cap/Guard Contract Evidence | Complete | Make missing backend cap/guard decision behavior explicit per live-shaped route without creating a browser guard evaluator, command authority, or live execution. |
 | M34 - Command Admission Decision Evidence | Complete | Make per-command live admission decisions route-bound, payload-bound, audited, and visible while preserving live-disabled execution. |
 | M35 - Command Admission Audit Persistence | Complete | Persist command admission decisions in the append-only Admin API audit path and expose them through read-only audit evidence. |
-| M36 - Durable Approval Store Foundation | Active | Add backend-owned append-only approval-store infrastructure without adding approval mutation, browser approval, or live execution. |
+| M36 - Durable Approval Store Foundation | Complete | Add backend-owned append-only approval-store infrastructure without adding approval mutation, browser approval, or live execution. |
+| M37 - Approval Snapshot Resolver Foundation | Complete | Add backend-owned resolver-only approval snapshot infrastructure without adding approval mutation, browser approval, or live execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1367,9 +1368,9 @@ Purpose: add the backend-owned durable approval-store primitive required for
 future live HTTP admission while keeping approval snapshots absent, HTTP
 commands live-disabled, and the browser read-only.
 
-Active scope:
+Completed scope:
 
-- Phases 1221-1240 advance the active unattended range while preserving the
+- Phases 1221-1240 advanced the then-active unattended range while preserving the
   same no-live frontend posture and carried Coinbase cap policy.
 - `application/admin_api/approval.py` owns strict approval records and the
   append-only file store.
@@ -1387,7 +1388,7 @@ Active scope:
   approval writer, Coinbase call, guard evaluator, live admission endpoint, or
   direct dashboard WebSocket approval path is allowed.
 
-Done when:
+Completed evidence:
 
 - Backend approval-store regression proves append-only durability, exact
   matching, payload binding, idempotency binding, and expiry rejection.
@@ -1395,11 +1396,62 @@ Done when:
   contracts while preserving zero live-enabled paths and missing approval
   snapshots.
 - Frontend mocks, quality artifacts, docs, and tests align with the new store
-  evidence and active range.
-- Blind/contextless review confirms the store is backend-owned and no browser
+  evidence and phase range `1221-1240`.
+- Blind/contextless review confirmed the store is backend-owned and no browser
   approval or live Coinbase path was added.
-- Backend full regression and frontend `npm run release:gate` pass.
-- Live Coinbase execution is not run; submitted and executed notional remain
+- Backend full regression passed with `791 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M37 - Approval Snapshot Resolver Foundation
+
+Purpose: add the backend-owned resolver primitive that can derive immutable
+approval snapshot evidence from a durable approval-store record while keeping
+route-specific snapshots absent from command admission, HTTP commands
+live-disabled, and the browser read-only.
+
+Completed scope:
+
+- Phases 1241-1260 advanced the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `application/admin_api/approval.py` owns the internal approval snapshot
+  request contract, generic approval snapshot evidence, and exact resolver.
+- Approval snapshot requests are route-bound, method-bound, module-bound,
+  identity-bound, action-class-bound, permission-bound,
+  requesting-actor-bound, operator-intent-bound, idempotency-bound, and
+  payload-hash-bound.
+- Approval-store lookup must reject action-class drift, permission drift,
+  requesting-actor drift, payload drift, identity drift, idempotency drift,
+  operator-intent drift, and expired records.
+- Older approval-store JSONL rows without `requested_by_actor_id` must fail
+  closed during strict reads and must not satisfy resolver lookup.
+- The resolver may return immutable backend evidence only. It must not approve
+  commands, write audit records, evaluate caps/guards, reconcile, call
+  Coinbase, or mutate live-enablement state.
+- Command admission must remain blocked on missing route-specific approval
+  snapshot, admission audit, cap/guard, reconciliation, live-disabled, and
+  browser rejection blockers.
+- No approval endpoint, approval mutation, BFF mutation broadening, browser
+  approval writer, Coinbase call, guard evaluator, live admission endpoint, or
+  direct dashboard WebSocket approval path is allowed.
+
+Completed evidence:
+
+- Backend regression proves exact resolver behavior, generic non-spot identity
+  support, action/permission binding, payload binding, and expiry rejection.
+- Backend live-enablement and command admission still report zero live-enabled
+  paths and missing route-specific approval snapshots.
+- Frontend quality artifacts, docs, and validators align with phase range
+  `1241-1260` without adding browser approval or command authority.
+- Blind/contextless review confirms the resolver is backend-owned
+  infrastructure only and no browser approval, spot-rule leakage, or live
+  Coinbase path was added.
+- Backend full regression passed with `792 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted and executed notional remain
   `$0`.
 
 ## M24 - Enterprise Module Catalog

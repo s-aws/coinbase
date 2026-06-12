@@ -46,11 +46,13 @@ gate decision and M34 route-bound admission decision evidence. M35 persists
 that same admission decision in the existing append-only Admin API audit log
 and exposes it through the read-only Audit Workbench. M36 adds the
 backend-owned append-only approval-store foundation while approval snapshots
-remain absent and HTTP live execution remains disabled. The admission decision
-binds the route, method, module id, identity key, actor, idempotency key,
-operator intent, and payload hash to the missing approval snapshot, cap/guard,
-admission-audit, and reconciliation blockers before HTTP live execution can be
-enabled.
+remain absent and HTTP live execution remains disabled. M37 adds backend-only
+approval snapshot resolver infrastructure over that store without making the
+resolver an approval endpoint, browser approval, command authority, or live
+execution path. The admission decision binds the route, method, module id,
+identity key, actor, idempotency key, operator intent, and payload hash to the
+missing approval snapshot, cap/guard, admission-audit, and reconciliation
+blockers before HTTP live execution can be enabled.
 
 Current read-only HTTP surfaces include:
 
@@ -227,7 +229,10 @@ The platform/module split is documented in
   missing durable, backend-owned, expiring, payload-bound approval record
   explicit per live-shaped path. M36 approval-store foundation evidence makes
   configured durable backend approval-store infrastructure explicit per
-  live-shaped path without creating approval snapshots. M32 live-admission audit trail evidence makes the missing
+  live-shaped path without creating approval snapshots. M37 approval snapshot
+  resolver foundation is internal backend infrastructure for exact unexpired
+  store records; it does not prove a route-specific approval snapshot is
+  present. M32 live-admission audit trail evidence makes the missing
   append-only backend admission audit facts explicit per live-shaped path.
   M33 route-specific cap/guard contract evidence makes the missing backend
   cap, guard, payload, approval, admission-audit, and product-scope bindings
@@ -247,6 +252,13 @@ The platform/module split is documented in
   approval record storage and exact-match lookup semantics. It is not an
   approval endpoint, browser approval, BFF mutation, live admission, Coinbase
   execution, or proof that a route-specific approval snapshot exists.
+- M37 approval snapshot resolver foundation can derive immutable backend
+  snapshot evidence from an exact unexpired approval-store record. It is not
+  an approval endpoint, browser approval, BFF mutation, live admission,
+  Coinbase execution, or proof that command admission may proceed.
+- Approval-store rows created before M37 that lack `requested_by_actor_id`
+  fail closed during strict JSONL reads. They are ignored by resolver lookup
+  rather than treated as reusable approval authority.
 - Audit workbench reads normalize route inventory, command audit, order,
   stealth, movement/repricing, futures/perpetual, guard/risk, and campaign
   evidence into one read-only surface. They do not mutate audit history, read

@@ -22,15 +22,60 @@ from .idempotency import make_payload_hash
 from .models import AdminLiveAdmissionDecisionEvidence
 
 
+class ApprovalSnapshotRequest(BaseModel):
+    """Route-bound command shape a future approval snapshot must match."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    requested_by_actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+
+
 class ApprovalSnapshot(BaseModel):
-    """Immutable command evidence an execution request must match."""
+    """Immutable backend approval evidence an execution request must match."""
 
     model_config = ConfigDict(extra="forbid")
 
     approval_id: str = Field(min_length=1)
+    created_at: datetime
+    expires_at: datetime
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    requested_by_actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
     payload_hash: str = Field(min_length=64, max_length=64)
-    actor_id: str = Field(min_length=1)
-    client_order_id: str = Field(min_length=1)
+    approved_by_actor_id: str = Field(min_length=1)
+    cap_guard_decision_ref: str = Field(min_length=1)
+    reconciliation_plan_ref: str = Field(min_length=1)
+
+    @property
+    def actor_id(self) -> str:
+        """Compatibility alias for older internal approval checks."""
+
+        return self.approved_by_actor_id
+
+    @property
+    def client_order_id(self) -> str | None:
+        """Return the client order id only when that is the route identity."""
+
+        if self.identity_key == "client_order_id":
+            return self.identity_value
+        return None
 
 
 class AdminApiApprovalRecord(BaseModel):
@@ -42,6 +87,7 @@ class AdminApiApprovalRecord(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime
     approved_by_actor_id: str = Field(min_length=1)
+    requested_by_actor_id: str = Field(min_length=1)
     route: str = Field(min_length=1)
     method: str = Field(min_length=1)
     module_id: str = Field(min_length=1)
@@ -109,6 +155,9 @@ class FileAdminApiApprovalStore:
         module_id: str,
         identity_key: str,
         identity_value: str,
+        action_class: AdminApiActionClass,
+        required_permission: AdminApiPermission | str,
+        requested_by_actor_id: str,
         operator_intent: str,
         idempotency_key: str,
         payload_hash: str,
@@ -123,6 +172,10 @@ class FileAdminApiApprovalStore:
                 and record.module_id == module_id
                 and record.identity_key == identity_key
                 and record.identity_value == identity_value
+                and _enum_value(record.action_class) == _enum_value(action_class)
+                and _enum_value(record.required_permission)
+                == _enum_value(required_permission)
+                and record.requested_by_actor_id == requested_by_actor_id
                 and record.operator_intent == operator_intent
                 and record.idempotency_key == idempotency_key
                 and record.payload_hash == payload_hash
@@ -154,6 +207,67 @@ def approval_matches_payload(snapshot: ApprovalSnapshot, payload: Any) -> bool:
     """Return whether a command still matches its approved snapshot."""
 
     return snapshot.payload_hash == make_approval_snapshot_hash(payload)
+
+
+def _enum_value(value: AdminApiActionClass | AdminApiPermission | str) -> str:
+    if hasattr(value, "value"):
+        return str(value.value)
+    return value
+
+
+def approval_snapshot_from_record(record: AdminApiApprovalRecord) -> ApprovalSnapshot:
+    """Build immutable approval snapshot evidence from a durable record."""
+
+    return ApprovalSnapshot(
+        approval_id=record.approval_id,
+        created_at=record.created_at,
+        expires_at=record.expires_at,
+        route=record.route,
+        method=record.method,
+        module_id=record.module_id,
+        identity_key=record.identity_key,
+        identity_value=record.identity_value,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        requested_by_actor_id=record.requested_by_actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        payload_hash=record.payload_hash,
+        approved_by_actor_id=record.approved_by_actor_id,
+        cap_guard_decision_ref=record.cap_guard_decision_ref,
+        reconciliation_plan_ref=record.reconciliation_plan_ref,
+    )
+
+
+def resolve_approval_snapshot(
+    *,
+    store: FileAdminApiApprovalStore,
+    request: ApprovalSnapshotRequest,
+    now: datetime | None = None,
+) -> ApprovalSnapshot | None:
+    """Resolve an exact, unexpired backend approval snapshot if one exists.
+
+    This helper is infrastructure only. It does not approve commands, call
+    Coinbase, write audit records, or alter command admission state.
+    """
+
+    record = store.find_matching(
+        route=request.route,
+        method=request.method,
+        module_id=request.module_id,
+        identity_key=request.identity_key,
+        identity_value=request.identity_value,
+        action_class=request.action_class,
+        required_permission=request.required_permission,
+        requested_by_actor_id=request.requested_by_actor_id,
+        operator_intent=request.operator_intent,
+        idempotency_key=request.idempotency_key,
+        payload_hash=request.payload_hash,
+        now=now,
+    )
+    if record is None:
+        return None
+    return approval_snapshot_from_record(record)
 
 
 def evaluate_live_execution_gate(

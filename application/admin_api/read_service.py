@@ -107,7 +107,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1221-1240"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1241-1260"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -532,7 +532,10 @@ def _live_approval_store_contract_evidence(
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.ACTOR_BOUND,
             expected_source="admin_api_approval_store",
-            detail="Approval records store the backend-authenticated approving actor.",
+            detail=(
+                "Approval records store the backend-authenticated approving "
+                "actor and bind the requesting actor for resolver checks."
+            ),
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.IDEMPOTENCY_BOUND,
@@ -638,7 +641,10 @@ def _live_admission_audit_trail_evidence(
         _admission_audit_fact(
             fact=AdminApiLiveAdmissionAuditFact.APPROVAL_STORE_DECISION_LINKED,
             expected_source="approval_store",
-            detail="Audit trail must link the backend approval-store decision and approving actor.",
+            detail=(
+                "Audit trail must link the backend approval-store decision, "
+                "approving actor, and requesting actor."
+            ),
         ),
         _admission_audit_fact(
             fact=AdminApiLiveAdmissionAuditFact.CAP_GUARD_DECISION_LINKED,

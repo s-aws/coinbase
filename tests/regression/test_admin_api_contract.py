@@ -23,7 +23,12 @@ from application.admin_api.auth import (
     verify_oidc_jwt,
 )
 from application.admin_api import command_service
-from application.admin_api.approval import AdminApiApprovalRecord, FileAdminApiApprovalStore
+from application.admin_api.approval import (
+    AdminApiApprovalRecord,
+    ApprovalSnapshotRequest,
+    FileAdminApiApprovalStore,
+    resolve_approval_snapshot,
+)
 from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -1272,6 +1277,7 @@ def test_admin_api_approval_store_is_append_only_expiring_and_payload_bound():
     record = AdminApiApprovalRecord(
         expires_at=now + timedelta(minutes=5),
         approved_by_actor_id="approver-001",
+        requested_by_actor_id="operator-001",
         route="/api/v1/orders",
         method="POST",
         module_id="spot_operations",
@@ -1301,6 +1307,9 @@ def test_admin_api_approval_store_is_append_only_expiring_and_payload_bound():
         module_id="spot_operations",
         identity_key="client_order_id",
         identity_value="client-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        requested_by_actor_id="operator-001",
         operator_intent="manual_one_off",
         idempotency_key="idem-approval",
         payload_hash="a" * 64,
@@ -1315,6 +1324,9 @@ def test_admin_api_approval_store_is_append_only_expiring_and_payload_bound():
         module_id="spot_operations",
         identity_key="client_order_id",
         identity_value="client-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        requested_by_actor_id="operator-001",
         operator_intent="manual_one_off",
         idempotency_key="idem-approval",
         payload_hash="b" * 64,
@@ -1326,9 +1338,156 @@ def test_admin_api_approval_store_is_append_only_expiring_and_payload_bound():
         module_id="spot_operations",
         identity_key="client_order_id",
         identity_value="client-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        requested_by_actor_id="operator-001",
         operator_intent="manual_one_off",
         idempotency_key="idem-approval",
         payload_hash="a" * 64,
+        now=now,
+    ) is None
+    assert store.find_matching(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
+        requested_by_actor_id="operator-001",
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approval",
+        payload_hash="a" * 64,
+        now=now,
+    ) is None
+    assert store.find_matching(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        requested_by_actor_id="operator-002",
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approval",
+        payload_hash="a" * 64,
+        now=now,
+    ) is None
+    assert store.find_matching(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        requested_by_actor_id="operator-001",
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approval",
+        payload_hash="a" * 64,
+        now=now + timedelta(minutes=10),
+    ) is None
+
+    legacy_store = FileAdminApiApprovalStore(_store_dir() / "legacy_approvals.jsonl")
+    legacy_payload = json.loads(record.model_dump_json())
+    legacy_payload.pop("requested_by_actor_id")
+    legacy_store.path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_store.path.write_text(json.dumps(legacy_payload) + "\n", encoding="utf-8")
+    assert legacy_store.read_recent() == []
+    assert (
+        legacy_store.find_matching(
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-001",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            requested_by_actor_id="operator-001",
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approval",
+            payload_hash="a" * 64,
+            now=now,
+        )
+        is None
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_approval_snapshot_resolver_is_exact_and_identity_generic():
+    store = FileAdminApiApprovalStore(_store_dir() / "approval_snapshots.jsonl")
+    now = datetime(2026, 6, 12, tzinfo=timezone.utc)
+    store.append(
+        AdminApiApprovalRecord(
+            expires_at=now + timedelta(minutes=5),
+            approved_by_actor_id="approver-002",
+            requested_by_actor_id="operator-002",
+            route="/api/v1/futures/positions/position-001/reduce",
+            method="POST",
+            module_id="futures_perpetuals",
+            identity_key="position_id",
+            identity_value="position-001",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            operator_intent="reduce_position",
+            idempotency_key="idem-futures-reduce",
+            payload_hash="c" * 64,
+            cap_guard_decision_ref="cap-guard-futures-001",
+            reconciliation_plan_ref="reconciliation-futures-001",
+        )
+    )
+
+    request = ApprovalSnapshotRequest(
+        route="/api/v1/futures/positions/position-001/reduce",
+        method="POST",
+        module_id="futures_perpetuals",
+        identity_key="position_id",
+        identity_value="position-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        requested_by_actor_id="operator-002",
+        operator_intent="reduce_position",
+        idempotency_key="idem-futures-reduce",
+        payload_hash="c" * 64,
+    )
+
+    snapshot = resolve_approval_snapshot(store=store, request=request, now=now)
+
+    assert snapshot is not None
+    assert snapshot.identity_key == "position_id"
+    assert snapshot.identity_value == "position-001"
+    assert snapshot.client_order_id is None
+    assert snapshot.actor_id == "approver-002"
+    assert snapshot.requested_by_actor_id == "operator-002"
+    assert snapshot.cap_guard_decision_ref == "cap-guard-futures-001"
+    assert snapshot.reconciliation_plan_ref == "reconciliation-futures-001"
+
+    drift_updates = [
+        {"route": "/api/v1/futures/positions/position-002/reduce"},
+        {"method": "PUT"},
+        {"module_id": "spot_operations"},
+        {"identity_key": "client_order_id"},
+        {"identity_value": "position-002"},
+        {"action_class": AdminApiActionClass.LIVE_EXCHANGE_CANCEL},
+        {"required_permission": AdminApiPermission.ORDER_CANCEL},
+        {"requested_by_actor_id": "operator-003"},
+        {"operator_intent": "close_position"},
+        {"idempotency_key": "idem-futures-reduce-2"},
+        {"payload_hash": "d" * 64},
+    ]
+    for update in drift_updates:
+        assert (
+            resolve_approval_snapshot(
+                store=store,
+                request=request.model_copy(update=update),
+                now=now,
+            )
+            is None
+        )
+    assert resolve_approval_snapshot(
+        store=store,
+        request=request,
         now=now + timedelta(minutes=10),
     ) is None
 
@@ -1577,7 +1736,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1221-1240"
+    assert live_payload["approved_phase_range"] == "1241-1260"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1975,7 +2134,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1221-1240"
+    assert enterprise_payload["approved_phase_range"] == "1241-1260"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

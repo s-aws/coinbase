@@ -97,13 +97,19 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1221-1240`.
-- M36 durable approval-store foundation is in progress. It may add backend
-  append-only approval-store infrastructure and evidence only. It must not
+- Active autonomous range: `1241-1260`.
+- M37 approval snapshot resolver foundation is in progress. It may add
+  backend-only resolver infrastructure that derives immutable approval
+  snapshot evidence from an exact unexpired approval-store record. It must not
   add an approval endpoint, approval mutation, live admission endpoint, guard
   evaluator, Coinbase call, direct dashboard WebSocket approval path, BFF
   mutation broadening, browser approval workflow, browser approval writer, or
   reconciliation authority.
+- Approval-store JSONL rows without M37 `requested_by_actor_id` fail closed
+  during strict reads and are ignored by resolver lookup.
+- M36 durable approval-store foundation added backend append-only
+  approval-store infrastructure and evidence only. It did not add approval
+  mutation, browser approval, live admission, or live Coinbase execution.
 - M35 command admission audit persistence writes admission decisions through
   the existing append-only Admin API audit log and Audit Workbench read path
   only. Persisted admission decisions can describe route, payload hash,

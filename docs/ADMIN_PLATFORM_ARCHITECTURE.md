@@ -164,6 +164,10 @@ Approval-store contract evidence is the next read-only refinement of the same
 route. It may show backend store requirements and expected authority sources,
 but it must not become an approval database, browser approval workflow,
 command authority, Coinbase execution, or reconciliation evidence.
+Approval snapshot resolver infrastructure is backend-only. It may derive
+immutable snapshot evidence from an exact unexpired approval-store record, but
+it must not become an approval endpoint, browser approval workflow, command
+authority, Coinbase execution, or reconciliation evidence.
 Live-admission audit trail evidence is a read-only refinement of the same
 route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser

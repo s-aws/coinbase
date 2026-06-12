@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1221-1240",
+  "approved_phase_range": "1241-1260",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -519,7 +519,7 @@ Expected M8 readiness posture:
             "required": true,
             "expected_source": "approval_store",
             "expected_value": null,
-            "detail": "Audit trail must link the backend approval-store decision and approving actor."
+            "detail": "Audit trail must link the backend approval-store decision, approving actor, and requesting actor."
           },
           {
             "fact": "command_admission_decision_recorded",
@@ -664,7 +664,10 @@ durable, route-specific, backend-owned, expiring, payload-bound approval
 record explicit; they are not approval storage or browser approval. M36
 approval-store foundation fields make configured durable backend
 approval-store infrastructure explicit; they are not approval mutation,
-browser approval, command authority, Coinbase execution, or reconciliation proof. M32
+browser approval, command authority, Coinbase execution, or reconciliation proof.
+M37 approval snapshot resolver infrastructure is backend-only and can derive
+immutable evidence from exact unexpired store records; it is not proof that
+command admission may proceed. M32
 admission-audit trail fields make the missing append-only backend admission
 audit facts explicit; they are not audit storage, approval storage, browser
 approval, command authority, Coinbase execution, or reconciliation proof.
@@ -682,8 +685,10 @@ reconciliation authority, or live Coinbase execution.
 M35 persists command admission decisions to the existing append-only Admin API
 audit log. M36 adds backend-owned append-only approval-store infrastructure,
 so approval-store contract evidence may pass while route-specific approval
-snapshots remain absent and live execution remains disabled. Neither milestone
-adds an approval endpoint, browser approval, or Coinbase execution path.
+snapshots remain absent and live execution remains disabled. M37 adds
+backend-only snapshot resolver infrastructure over exact unexpired approval
+records. None of these milestones adds an approval endpoint, browser approval,
+or Coinbase execution path.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -692,13 +697,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1221-1240",
+  "approved_phase_range": "1241-1260",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

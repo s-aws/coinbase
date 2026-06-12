@@ -2,6 +2,65 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Approval Snapshot Resolver Foundation Review - Phases 1241-1260
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify M37 adds backend-owned resolver-only approval snapshot infrastructure
+  over durable approval-store records
+- verify no approval mutation endpoint, browser approval authority, frontend
+  or BFF resolver authority, live admission, guard evaluator, reconciliation
+  authority, direct dashboard WebSocket approval path, Coinbase call, or
+  parallel command path was added
+- verify resolver matching is route-bound, method-bound, module-bound,
+  identity-bound, action-class-bound, permission-bound,
+  requesting-actor-bound, operator-intent-bound, idempotency-bound,
+  payload-bound, and expiry-aware
+- verify non-spot identity such as `position_id` is supported without
+  importing spot wallet, cost-basis, no-shorting, or USDC rules
+- verify command admission and frontend evidence remain live-disabled/no-live
+
+Findings:
+
+- PASS: `ApprovalSnapshotRequest`, generic `ApprovalSnapshot`,
+  `FileAdminApiApprovalStore.find_matching`, and
+  `resolve_approval_snapshot` are backend-only infrastructure in
+  `application/admin_api/approval.py`.
+- PASS: no route integration, approval mutation, browser approval, BFF
+  resolver authority, guard execution, reconciliation authority, Coinbase
+  call, direct dashboard approval path, or parallel command path was found.
+- PASS: resolver matching is exact, unexpired, and bound to route, method,
+  module, identity key/value, action class, permission, requesting actor,
+  operator intent, idempotency key, and payload hash.
+- PASS: regression covers non-spot `position_id` identity and confirms
+  `client_order_id` is only a compatibility alias when the identity key is
+  actually `client_order_id`.
+- PASS: command admission remains blocked on live-disabled, approval snapshot,
+  admission audit, cap/guard, reconciliation, and browser-authority blockers.
+- PASS: frontend changes are range, docs, mock evidence, and quality-artifact
+  alignment only; no frontend resolver authority was added.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `65 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1241-1260`.
+- Backend full regression passed with `792 passed, 1 warning`.
+- Frontend focused unit slice passed with `71` tests.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed. Hygiene notes were remediated by adding
+  explicit requester binding, full drift coverage, this review log, and
+  fail-closed old-row documentation.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Durable Approval Store Foundation Review - Phases 1221-1240
 
 Review scope:
