@@ -29,5 +29,7 @@ implicit platform model.
 - Keep enterprise-readiness module registry fields aligned with this matrix:
   `module_id`, `primary_owner`, contract refs, docs, identity keys, and
   spot-rule boundary must change with module ownership or scope.
+- Keep route inventory and capability `module_id` evidence aligned with this
+  matrix whenever routes move between modules.
 - Update route inventory, OpenAPI, examples, frontend association, and
   contextless review prompts when a module changes status.

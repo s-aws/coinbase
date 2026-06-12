@@ -13,6 +13,7 @@ from .models import AdminApiRouteInventoryItem
 
 ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/orders",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,
@@ -24,6 +25,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="HTTP vs place_order guard/result parity",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/orders",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -35,6 +37,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no Coinbase REST placement",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/orders/{client_order_id}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -46,6 +49,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="client_order_id identity only",
     ),
     AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -57,6 +61,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="read-only stealth lifecycle evidence; no exchange mutation",
     ),
     AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders/{stealth_order_id}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -68,6 +73,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="stealth_order_id identity with exchange ids as evidence only",
     ),
     AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
@@ -79,6 +85,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="stealth_order_id identity; no active placement mutation until exchange handling is complete",
     ),
     AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
         surface="GET /api/v1/movement-repricing/evidence",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -90,6 +97,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="read-only move/reprice evidence; no exchange mutation",
     ),
     AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
         surface="GET /api/v1/movement-repricing/orders/{client_order_id}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -101,6 +109,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="client_order_id identity with exchange ids as evidence only",
     ),
     AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
         surface="GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -112,6 +121,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="stealth_order_id identity with runtime claims as evidence only",
     ),
     AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
         surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
@@ -123,6 +133,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="stealth_order_id identity; no cooldown clearing or live repricing until exchange handling is complete",
     ),
     AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="GET /api/v1/futures/account",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -134,6 +145,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="read-only futures account, margin, collateral, liquidation, funding, and P/L evidence",
     ),
     AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="GET /api/v1/futures/positions",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -145,6 +157,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="position_key identity and futures close-side semantics; no spot inventory rules",
     ),
     AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="GET /api/v1/futures/positions/{position_key}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -156,6 +169,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend-defined position identity with no order placement or cancellation",
     ),
     AdminApiRouteInventoryItem(
+        module_id="guard_risk_policy",
         surface="GET /api/v1/admin/guard-risk-policy",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -167,6 +181,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="read-only guard/risk policy evidence; no browser authority or Coinbase read",
     ),
     AdminApiRouteInventoryItem(
+        module_id="audit_workbench",
         surface="GET /api/v1/admin/audit-workbench",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -178,6 +193,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="cross-module audit evidence only; no Coinbase read or mutation",
     ),
     AdminApiRouteInventoryItem(
+        module_id="legacy_dashboard_websocket",
         surface="place_order WebSocket",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission="compatibility policy",
@@ -190,6 +206,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         compatibility_mode=AdminApiCompatibilityMode.COMPATIBILITY_ONLY.value,
     ),
     AdminApiRouteInventoryItem(
+        module_id="legacy_dashboard_websocket",
         surface="place_hotpoint_test_order WebSocket",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission="compatibility policy",
@@ -202,6 +219,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         compatibility_mode=AdminApiCompatibilityMode.COMPATIBILITY_ONLY.value,
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/orders/{client_order_id}/cancel",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
@@ -213,6 +231,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="HTTP vs cancel_order parity",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/spot/campaign/executions",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,
@@ -224,6 +243,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="campaign execution remains fail-closed until live gates pass",
     ),
     AdminApiRouteInventoryItem(
+        module_id="legacy_dashboard_websocket",
         surface="cancel_order WebSocket",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission="compatibility policy",
@@ -236,6 +256,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         compatibility_mode=AdminApiCompatibilityMode.COMPATIBILITY_ONLY.value,
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/bootstrap",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -247,6 +268,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend association and live-disabled posture",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/health",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -258,6 +280,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no Coinbase REST placement",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/session",
         action_class=AdminApiActionClass.READ_ONLY,
         permission="authenticated actor",
@@ -269,6 +292,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend RBAC evidence only",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/oidc-readiness",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -280,6 +304,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend OIDC verifier readiness evidence only",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/capabilities",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -288,9 +313,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="optional read audit",
         shared_method="build_admin_capabilities",
-        parity_test="route inventory derived registry",
+        parity_test="route inventory derived registry with module_id evidence",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/csrf",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -302,6 +328,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="does not disclose token value",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/live-enablement",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -313,6 +340,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="read-only M8 live-enablement readiness; no Coinbase execution",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/enterprise-readiness",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -327,6 +355,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/release-gate",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -338,6 +367,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="browser does not run pytest",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/recovery-gate",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -349,6 +379,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="read-only recovery evidence",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/fill-ledger-health",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -360,6 +391,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no ledger repair mutation",
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/frontend-fixtures",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -371,6 +403,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="backend-owned mock fixture examples",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/readiness",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -382,6 +415,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no Coinbase REST placement",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/sweep/status",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -393,6 +427,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no Coinbase REST placement",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/sweep/pnl",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -404,6 +439,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no Coinbase REST placement",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/cost-basis/status",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -415,6 +451,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no Coinbase REST placement",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/campaign/status",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.CAMPAIGN_READ,
@@ -426,6 +463,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="no Coinbase REST placement",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/direct-orders/{client_order_id}/audit",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,

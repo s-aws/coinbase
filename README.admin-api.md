@@ -124,6 +124,11 @@ frontend contract refs, documentation refs, identity keys, and a
 `spot_rule_boundary` so future non-spot work does not copy spot wallet,
 USDC, cost-basis, or no-shorting assumptions by accident.
 
+Route and capability evidence is module-bound too. Every route inventory row
+has a backend-owned `module_id`, and `GET /api/v1/admin/capabilities` exposes
+that id so the frontend can prove route ownership without deriving trading
+authority in the browser.
+
 The current frontend read-model interaction batch consumes backend-shaped
 admin, order, spot, campaign, audit, and diagnostics reads as display evidence
 only. The frontend may locally filter/sort already-loaded rows, select

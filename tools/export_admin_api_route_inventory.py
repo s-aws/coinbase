@@ -41,6 +41,7 @@ def build_admin_api_route_inventory_export() -> dict[str, Any]:
         action_class = _value(item.action_class)
         routes.append(
             {
+                "module_id": item.module_id,
                 "surface": item.surface,
                 "method": method,
                 "path": path,

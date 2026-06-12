@@ -31,6 +31,8 @@ These primitives apply across modules:
   live-disabled command paths
 - enterprise-readiness module registry evidence for module ids, owners,
   contract refs, docs, identity keys, and spot-rule boundaries
+- route inventory and capability `module_id` evidence that binds Admin API
+  routes to enterprise modules
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -85,6 +87,7 @@ A reviewer with no chat history should be able to answer:
 
 - Is this behavior a platform primitive or domain module?
 - Which backend route and service own it?
+- Which enterprise `module_id` owns the route?
 - Which fields are identity and which are exchange evidence?
 - Which product-specific rules apply?
 - Which spot-only rules must not be copied?

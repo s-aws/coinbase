@@ -150,6 +150,8 @@ is safe or approved for live trading.
 The checked-in export
 `openapi/coinbase-admin-api-route-inventory.json` is generated from the same
 inventory and is the artifact consumed by frontend route-coverage checks.
+Each route inventory artifact row includes `module_id`; frontend checks use it
+to prove route ownership, not to authorize browser-side trading behavior.
 
 ```http
 GET /api/v1/admin/live-enablement
@@ -164,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "921-940",
+  "approved_phase_range": "941-960",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -240,7 +242,7 @@ Expected M9/M21 enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "921-940",
+  "approved_phase_range": "941-960",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

@@ -3,15 +3,19 @@
 This inventory must be updated before implementation adds, removes, or changes
 an enterprise Admin API route or legacy dashboard compatibility message.
 
-Every row names the action class, permission, idempotency requirement, approval
-requirement, cap policy, audit requirement, shared command-service method, and
-parity test target.
+Every row names the enterprise `module_id`, action class, permission,
+idempotency requirement, approval requirement, cap policy, audit requirement,
+shared command-service method, and parity test target. The Markdown table below
+keeps the human-readable route summary compact; the generated JSON artifact is
+the machine-readable source for per-row `module_id`.
 
 Run `python tools\export_admin_api_route_inventory.py` after changing this
 inventory. The generated
 `openapi/coinbase-admin-api-route-inventory.json` artifact is consumed by the
 enterprise frontend route checker so the frontend compares against
 backend-owned metadata without parsing Python source.
+The frontend route checker fails if a generated route lacks `module_id`
+evidence or maps to the wrong enterprise module.
 
 | Surface | Action class | Permission | Idempotency | Approval | Caps | Audit | Shared method | Parity test | Compatibility mode |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

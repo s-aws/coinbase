@@ -3,6 +3,7 @@
   "schema_version": "0.1.0",
   "routes": [
     {
+      "module_id": "spot_operations",
       "surface": "POST /api/v1/orders",
       "method": "POST",
       "path": "/api/v1/orders",
@@ -18,6 +19,7 @@
       "command_contract": true
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/orders",
       "method": "GET",
       "path": "/api/v1/orders",
@@ -33,6 +35,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/orders/{client_order_id}",
       "method": "GET",
       "path": "/api/v1/orders/{client_order_id}",
@@ -48,6 +51,7 @@
       "command_contract": false
     },
     {
+      "module_id": "stealth_orders",
       "surface": "GET /api/v1/stealth/orders",
       "method": "GET",
       "path": "/api/v1/stealth/orders",
@@ -63,6 +67,7 @@
       "command_contract": false
     },
     {
+      "module_id": "stealth_orders",
       "surface": "GET /api/v1/stealth/orders/{stealth_order_id}",
       "method": "GET",
       "path": "/api/v1/stealth/orders/{stealth_order_id}",
@@ -78,6 +83,7 @@
       "command_contract": false
     },
     {
+      "module_id": "stealth_orders",
       "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
       "method": "POST",
       "path": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
@@ -93,6 +99,7 @@
       "command_contract": true
     },
     {
+      "module_id": "movement_repricing",
       "surface": "GET /api/v1/movement-repricing/evidence",
       "method": "GET",
       "path": "/api/v1/movement-repricing/evidence",
@@ -108,6 +115,7 @@
       "command_contract": false
     },
     {
+      "module_id": "movement_repricing",
       "surface": "GET /api/v1/movement-repricing/orders/{client_order_id}",
       "method": "GET",
       "path": "/api/v1/movement-repricing/orders/{client_order_id}",
@@ -123,6 +131,7 @@
       "command_contract": false
     },
     {
+      "module_id": "movement_repricing",
       "surface": "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
       "method": "GET",
       "path": "/api/v1/movement-repricing/stealth/{stealth_order_id}",
@@ -138,6 +147,7 @@
       "command_contract": false
     },
     {
+      "module_id": "movement_repricing",
       "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
       "method": "POST",
       "path": "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
@@ -153,6 +163,7 @@
       "command_contract": true
     },
     {
+      "module_id": "futures_perpetuals",
       "surface": "GET /api/v1/futures/account",
       "method": "GET",
       "path": "/api/v1/futures/account",
@@ -168,6 +179,7 @@
       "command_contract": false
     },
     {
+      "module_id": "futures_perpetuals",
       "surface": "GET /api/v1/futures/positions",
       "method": "GET",
       "path": "/api/v1/futures/positions",
@@ -183,6 +195,7 @@
       "command_contract": false
     },
     {
+      "module_id": "futures_perpetuals",
       "surface": "GET /api/v1/futures/positions/{position_key}",
       "method": "GET",
       "path": "/api/v1/futures/positions/{position_key}",
@@ -198,6 +211,7 @@
       "command_contract": false
     },
     {
+      "module_id": "guard_risk_policy",
       "surface": "GET /api/v1/admin/guard-risk-policy",
       "method": "GET",
       "path": "/api/v1/admin/guard-risk-policy",
@@ -213,6 +227,7 @@
       "command_contract": false
     },
     {
+      "module_id": "audit_workbench",
       "surface": "GET /api/v1/admin/audit-workbench",
       "method": "GET",
       "path": "/api/v1/admin/audit-workbench",
@@ -228,6 +243,7 @@
       "command_contract": false
     },
     {
+      "module_id": "legacy_dashboard_websocket",
       "surface": "place_order WebSocket",
       "method": null,
       "path": null,
@@ -243,6 +259,7 @@
       "command_contract": false
     },
     {
+      "module_id": "legacy_dashboard_websocket",
       "surface": "place_hotpoint_test_order WebSocket",
       "method": null,
       "path": null,
@@ -258,6 +275,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "POST /api/v1/orders/{client_order_id}/cancel",
       "method": "POST",
       "path": "/api/v1/orders/{client_order_id}/cancel",
@@ -273,6 +291,7 @@
       "command_contract": true
     },
     {
+      "module_id": "spot_operations",
       "surface": "POST /api/v1/spot/campaign/executions",
       "method": "POST",
       "path": "/api/v1/spot/campaign/executions",
@@ -288,6 +307,7 @@
       "command_contract": true
     },
     {
+      "module_id": "legacy_dashboard_websocket",
       "surface": "cancel_order WebSocket",
       "method": null,
       "path": null,
@@ -303,6 +323,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/bootstrap",
       "method": "GET",
       "path": "/api/v1/admin/bootstrap",
@@ -318,6 +339,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/health",
       "method": "GET",
       "path": "/api/v1/admin/health",
@@ -333,6 +355,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/session",
       "method": "GET",
       "path": "/api/v1/admin/session",
@@ -348,6 +371,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/oidc-readiness",
       "method": "GET",
       "path": "/api/v1/admin/oidc-readiness",
@@ -363,6 +387,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/capabilities",
       "method": "GET",
       "path": "/api/v1/admin/capabilities",
@@ -373,11 +398,12 @@
       "caps": "not applicable",
       "audit": "optional read audit",
       "shared_method": "build_admin_capabilities",
-      "parity_test": "route inventory derived registry",
+      "parity_test": "route inventory derived registry with module_id evidence",
       "compatibility_mode": null,
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/csrf",
       "method": "GET",
       "path": "/api/v1/admin/csrf",
@@ -393,6 +419,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/live-enablement",
       "method": "GET",
       "path": "/api/v1/admin/live-enablement",
@@ -408,6 +435,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/enterprise-readiness",
       "method": "GET",
       "path": "/api/v1/admin/enterprise-readiness",
@@ -423,6 +451,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/release-gate",
       "method": "GET",
       "path": "/api/v1/admin/release-gate",
@@ -438,6 +467,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/recovery-gate",
       "method": "GET",
       "path": "/api/v1/admin/recovery-gate",
@@ -453,6 +483,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/fill-ledger-health",
       "method": "GET",
       "path": "/api/v1/admin/fill-ledger-health",
@@ -468,6 +499,7 @@
       "command_contract": false
     },
     {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/frontend-fixtures",
       "method": "GET",
       "path": "/api/v1/admin/frontend-fixtures",
@@ -483,6 +515,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/readiness",
       "method": "GET",
       "path": "/api/v1/spot/readiness",
@@ -498,6 +531,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/sweep/status",
       "method": "GET",
       "path": "/api/v1/spot/sweep/status",
@@ -513,6 +547,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/sweep/pnl",
       "method": "GET",
       "path": "/api/v1/spot/sweep/pnl",
@@ -528,6 +563,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/cost-basis/status",
       "method": "GET",
       "path": "/api/v1/spot/cost-basis/status",
@@ -543,6 +579,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/campaign/status",
       "method": "GET",
       "path": "/api/v1/spot/campaign/status",
@@ -558,6 +595,7 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
       "method": "GET",
       "path": "/api/v1/spot/direct-orders/{client_order_id}/audit",

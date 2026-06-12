@@ -92,7 +92,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "921-940"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "941-960"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1530,6 +1530,7 @@ class AdminApiReadService:
             availability = _route_availability(item.surface, item.action_class)
             capabilities.append(
                 AdminCapabilityItem(
+                    module_id=item.module_id,
                     route=path,
                     method=method,
                     action_class=item.action_class,

@@ -209,6 +209,7 @@ owners:
       - application/__init__.py
       - application/admin_api/**
       - openapi/**
+      - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
       - tools/generate_admin_api_openapi.py

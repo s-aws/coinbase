@@ -51,6 +51,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M19 - Command Dry-Submit Audit Traceability | Complete | Link dry-submit command evidence to existing read-only audit workbench anchors. |
 | M20 - Enterprise Module Command-Gap Evidence | Complete | Make unsupported and not-modeled command paths structured backend-owned evidence. |
 | M21 - Enterprise Module Registry Evidence | Complete | Make every admin module's owner, contracts, docs, and spot-rule boundary backend-owned evidence. |
+| M22 - Enterprise Route Module Binding | Complete | Bind routes and capabilities to backend-owned enterprise module ids. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -816,16 +817,45 @@ Completed evidence:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-Completed when:
+## M22 - Enterprise Route Module Binding
 
-- Backend and frontend validators use active phase range 881-900.
-- Command workflow submitted dry-submit evidence renders audit workbench links
-  for available backend identities and omits links for blocked states.
-- Tests cover manual order trace links, blocked-state absence, and anchor href
-  conventions.
-- Focused and full gates pass.
-- Blind/contextless review confirms traceability is backend-owned, no-live,
-  and understandable without chat history.
+Purpose: make every Admin API route and capability mechanically joinable to
+the enterprise module registry.
+
+Completed scope:
+
+- Phases 941-960 advance the active unattended range while preserving the same
+  no-live frontend posture and carried Coinbase cap policy.
+- `application/admin_api/route_inventory.py` must provide a backend-owned
+  `module_id` for every HTTP Admin API route and legacy WebSocket
+  compatibility surface.
+- `GET /api/v1/admin/capabilities` must expose route `module_id` evidence
+  without changing command availability, live execution, or frontend safety
+  posture.
+- Generated OpenAPI, route-inventory JSON, frontend schema, frontend mock
+  fixtures, quality gates, docs, and diagnostics must agree on module ids.
+- Route binding is evidence only. It must not create route-derived browser
+  authority or a parallel trading behavior path.
+
+Completed evidence:
+
+- Backend and frontend validators use active phase range 941-960.
+- Route inventory, capability registry, generated OpenAPI, route-inventory
+  export, frontend schema, and mock capabilities all expose module ids.
+- Frontend route coverage fails on missing or mismatched route module ids.
+- Admin diagnostics render route-module coverage as read-only evidence only.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Focused frontend gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and route-module UI/runtime/quality unit
+  tests (`65` focused tests passed).
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M22 review passed after remediation of stale milestone
+  text.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## M20 - Enterprise Module Command-Gap Evidence
 

@@ -3418,6 +3418,9 @@ components:
       description: Frontend bootstrap payload for backend association and safety posture.
     AdminCapabilityItem:
       properties:
+        module_id:
+          type: string
+          title: Module Id
         route:
           type: string
           title: Route
@@ -3472,6 +3475,7 @@ components:
       additionalProperties: false
       type: object
       required:
+      - module_id
       - route
       - method
       - action_class

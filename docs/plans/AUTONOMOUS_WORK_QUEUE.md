@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **921-940**.
+- Approved phase range: **941-960**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -45,6 +45,130 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Completed Phases 941-960
+
+### Phase 941 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 921-940 to active
+  phases 941-960 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 942 - M22 Enterprise Route Module Binding
+
+- Bind every Admin API route-inventory row to a backend-owned enterprise
+  `module_id` so modules, routes, capability evidence, and docs can be joined
+  without chat history.
+
+### Phase 943 - Route Inventory Contract Expansion
+
+- Add required route-inventory `module_id` evidence for HTTP routes and legacy
+  WebSocket compatibility surfaces.
+
+### Phase 944 - Capability Registry Module Evidence
+
+- Expose route `module_id` through `GET /api/v1/admin/capabilities` without
+  changing live execution posture or command availability.
+
+### Phase 945 - Backend Artifact Regeneration
+
+- Regenerate OpenAPI and route-inventory JSON so downstream frontend checks
+  consume the new module binding contract.
+
+### Phase 946 - Frontend Generated Schema Sync
+
+- Regenerate the frontend TypeScript schema from backend OpenAPI.
+
+### Phase 947 - Frontend Mock Capability Parity
+
+- Update mock capability fixtures so local mode includes the same route
+  module ids as backend capabilities.
+
+### Phase 948 - Cross-Repo Route Coverage Guard
+
+- Extend frontend route coverage checks to fail when generated routes lack
+  backend route module evidence or map to the wrong module.
+
+### Phase 949 - Admin Diagnostics Route-Module Evidence
+
+- Render route-module coverage as read-only diagnostics without adding
+  command buttons, route-derived authority, or browser trading behavior.
+
+### Phase 950 - Quality Artifact Route-Module Checks
+
+- Extend release/deployment/autonomous artifacts and tests so required route
+  module ids cannot drift.
+
+### Phase 951 - Documentation Update
+
+- Update API, architecture, capability matrix, examples, testing, and
+  maintainer docs for route-module binding.
+
+### Phase 952 - Stale Range And Module-Binding Drift Scan
+
+- Search for current-state contradictions around 921-940 versus 941-960 and
+  for routes or capabilities without module-binding evidence.
+
+### Phase 953 - Focused Backend Gates
+
+- Run backend autonomous queue check and focused Admin API/spot readiness
+  regression checks.
+
+### Phase 954 - Focused Frontend Gates
+
+- Run frontend typecheck, API route coverage, release readiness, autonomous
+  queue, and focused route-module UI/runtime/quality tests.
+
+### Phase 955 - Blind/Contextless Review
+
+- Run blind/contextless review focused on whether a fresh agent can explain
+  module route ownership and why route binding is evidence-only.
+
+### Phase 956 - Review Remediation
+
+- Fix any review blocker before advancing.
+
+### Phase 957 - Full Backend Regression
+
+- Run the full backend regression suite.
+
+### Phase 958 - Full Frontend Release Gate
+
+- Run frontend `npm run release:gate`.
+
+### Phase 959 - Milestone Evidence
+
+- Mark M22 complete only after source, OpenAPI, route inventory, frontend
+  schema, mock runtime, docs, quality checks, and review evidence all agree.
+
+### Phase 960 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 941-960
+
+- Backend and frontend validators use active phase range 941-960.
+- Backend route inventory, capability registry, generated OpenAPI, generated
+  route-inventory JSON, frontend schema, and mock capabilities all expose
+  enterprise route module ids.
+- Frontend route coverage fails on missing or mismatched backend route module
+  ids.
+- Admin diagnostics render route-module coverage as read-only evidence only;
+  route binding does not create browser command authority or a parallel trading
+  path.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Focused frontend gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and route-module UI/runtime/quality unit
+  tests (`65` focused tests passed).
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M22 review passed after remediation of stale milestone
+  text.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 641-660
 

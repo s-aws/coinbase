@@ -313,6 +313,7 @@ class AdminCapabilityItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    module_id: str
     route: str
     method: str
     action_class: AdminApiActionClass
@@ -1036,6 +1037,7 @@ class AdminApiRouteInventoryItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    module_id: str
     surface: str
     action_class: AdminApiActionClass
     permission: AdminApiPermission | str
