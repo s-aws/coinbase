@@ -168,6 +168,10 @@ Approval snapshot resolver infrastructure is backend-only. It may derive
 immutable snapshot evidence from an exact unexpired approval-store record, but
 it must not become an approval endpoint, browser approval workflow, command
 authority, Coinbase execution, or reconciliation evidence.
+Resolver-backed command admission evidence may report whether a snapshot was
+found for a live-disabled command. That evidence may remove only the
+missing-snapshot blocker; it must not remove live-disabled, admission-audit,
+cap/guard, reconciliation, or browser-authority blockers by itself.
 Live-admission audit trail evidence is a read-only refinement of the same
 route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser

@@ -97,14 +97,20 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1241-1260`.
-- M37 approval snapshot resolver foundation is in progress. It may add
-  backend-only resolver infrastructure that derives immutable approval
-  snapshot evidence from an exact unexpired approval-store record. It must not
-  add an approval endpoint, approval mutation, live admission endpoint, guard
-  evaluator, Coinbase call, direct dashboard WebSocket approval path, BFF
-  mutation broadening, browser approval workflow, browser approval writer, or
-  reconciliation authority.
+- Active autonomous range: `1261-1280`.
+- M38 command admission snapshot resolver wiring is complete. Existing Admin
+  API command admission evidence can consult the backend-owned approval
+  snapshot resolver and expose whether an exact unexpired snapshot was found.
+  A resolved snapshot removes only `approval_snapshot_missing`; live-disabled,
+  admission-audit, cap/guard, reconciliation, and browser-authority blockers
+  remain. It did not add an approval endpoint, approval mutation, live
+  admission endpoint, guard evaluator, Coinbase call, direct dashboard
+  WebSocket approval path, BFF resolver authority, browser approval workflow,
+  browser approval writer, or reconciliation authority.
+- M37 approval snapshot resolver foundation added backend-only resolver
+  infrastructure that derives immutable approval snapshot evidence from an
+  exact unexpired approval-store record without approving or executing
+  commands.
 - Approval-store JSONL rows without M37 `requested_by_actor_id` fail closed
   during strict reads and are ignored by resolver lookup.
 - M36 durable approval-store foundation added backend append-only

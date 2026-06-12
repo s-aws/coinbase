@@ -36,22 +36,33 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `1241-1260`.
-- Latest completed milestone: M37 - Approval Snapshot Resolver Foundation.
-- Completed files: Admin API approval snapshot resolver contracts,
-  approval-store matching, live-enablement range evidence, admin platform
-  docs, frontend association docs, regression tests, frontend mock/runtime
-  evidence, and agent context needed for local-agent accuracy.
+- Latest completed autonomous range: `1261-1280`.
+- Latest completed milestone: M38 - Command Admission Snapshot Resolver
+  Wiring.
+- Completed files: Admin API command admission snapshot evidence,
+  approval-store dependency injection, manual order identity contract,
+  OpenAPI, live-enablement range evidence, admin platform docs, frontend
+  generated schema, frontend mock/runtime evidence, and agent context needed
+  for local-agent accuracy.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M37 added backend-owned approval snapshot resolver infrastructure and
-  evidence only. It did not add an approval endpoint, approval mutation, live
-  admission endpoint, guard evaluator, Coinbase call, direct dashboard
-  WebSocket approval path, BFF mutation broadening, browser approval workflow,
-  browser approval writer, or reconciliation authority.
+- M38 wired existing live-disabled command admission evidence to
+  backend-owned approval snapshot resolver results. It did not add an approval
+  endpoint, approval mutation, live admission endpoint, guard evaluator,
+  Coinbase call, direct dashboard WebSocket approval path, BFF mutation
+  broadening, browser approval workflow, browser approval writer, or
+  reconciliation authority.
+
+## Active Scope
+
+- Active autonomous range: `1261-1280`.
+- Active milestone: none after M38 completion.
+- No implementation batch is currently in progress after M38 completion.
+- Do not advance beyond `1261-1280` without a new approved batch unless the
+  user explicitly extends the autonomous range.
 
 ## Decisions (Durable)
 
@@ -285,6 +296,17 @@ Keep it short. Keep it factual.
     without `requested_by_actor_id` fail closed and are ignored by resolver
     lookup.
 
+- [2026-06-12] Decision: M38 resolver-backed command admission evidence is
+  evidence only until all live gates are wired.
+  - Reason: A matching approval snapshot is necessary for future live HTTP
+    admission but is not sufficient without admission audit, cap/guard,
+    reconciliation, live enablement, and browser-authority rejection evidence.
+  - Impact: Existing Admin API command responses may report snapshot-present
+    metadata and remove `approval_snapshot_missing`, but they must still
+    return no-live responses while any other blocker remains. Frontend code may
+    display the backend evidence but must not resolve approvals or treat it as
+    command authority.
+
 ## Open Risks
 
 - Risk: Broad all-USDC SELL execution still has many wallet-only or insufficient-known-profitable rows.
@@ -317,39 +339,39 @@ Keep it short. Keep it factual.
 
 - Last backend focused Admin API/readiness run: 2026-06-12
   `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
-- Result: Passed, 65 tests, 1 warning.
+- Result: Passed, 66 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-12
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M37 passed for approved range `1241-1260`. Live Coinbase execution
+- Result: M38 passed for approved range `1261-1280`. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-12
   `python -m pytest tests\regression\ -v --tb=short`
-- Result: Passed, 792 tests, 1 warning.
+- Result: Passed, 793 tests, 1 warning.
 - Last frontend focused run: 2026-06-12
   `npm run api:check`, focused Vitest, `npm run autonomous:check`, and
   `npm run release:gate`.
-- Result: Passed for M37 with `186` unit tests and `3` Playwright tests in
+- Result: Passed for M38 with `186` unit tests and `3` Playwright tests in
   the release gate.
-- Last blind/contextless M37 review: 2026-06-12
-- Result: Passed for approval snapshot resolver foundation after remediation
-  of requester binding, drift coverage, review logs, and fail-closed old-row
-  documentation.
-- Live Coinbase execution for M37: not run. Submitted notional `0` USDC.
+- Last blind/contextless M38 review: 2026-06-12
+- Result: Passed for command admission snapshot resolver wiring after
+  remediation of `ManualOrderRequest.client_order_id` documentation and stale
+  phase-range failure text.
+- Live Coinbase execution for M38: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Activate the next approved admin-platform batch after `1241-1260` while
-   preserving M37's resolver-only and no-live posture.
-2. Continue toward backend-owned approval snapshot admission prerequisites
-   without browser authority or live execution.
+1. Define and approve the next admin-platform batch after `1261-1280` while
+   preserving M38's evidence-only and no-live posture.
+2. Continue toward backend-owned live admission prerequisites without browser
+   authority or live execution.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
 
 ## Handoff Notes
 
-- What is done through M37: backend live-enablement exposes typed,
+- What is done through M38: backend live-enablement exposes typed,
   route-specific approval snapshot, approval-store contract,
   live-admission audit trail, and cap/guard requirements per live-shaped
   route. Existing live-disabled command responses now expose typed,
@@ -363,8 +385,11 @@ Keep it short. Keep it factual.
   M37 adds backend-only approval snapshot resolver infrastructure that can
   derive immutable evidence from exact unexpired approval-store records bound
   to route, method, module, identity, action class, permission, requesting
-  actor, operator intent, idempotency key, and payload hash. The resolver is
-  not wired into routes and does not approve commands.
+  actor, operator intent, idempotency key, and payload hash. M38 wires
+  existing command admission evidence to that resolver so exact unexpired
+  snapshots can be reported on live-disabled command responses. A resolved
+  snapshot removes only `approval_snapshot_missing`; every other live blocker
+  remains.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard, and
@@ -373,7 +398,7 @@ Keep it short. Keep it factual.
   broadening, Coinbase call, browser approval, or reconciliation behavior is
   allowed.
 - What is in progress: no implementation batch is currently in progress after
-  M37 completion.
+  M38 completion.
 - What is blocked: Nothing currently known.
-- Exact next command: activate the next approved phase range, then run focused
-  backend/frontend gates for the selected batch.
+- Exact next command: propose or approve the next phase range, then run
+  focused backend/frontend gates for the selected batch.

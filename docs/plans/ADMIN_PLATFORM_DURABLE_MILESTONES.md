@@ -67,6 +67,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M35 - Command Admission Audit Persistence | Complete | Persist command admission decisions in the append-only Admin API audit path and expose them through read-only audit evidence. |
 | M36 - Durable Approval Store Foundation | Complete | Add backend-owned append-only approval-store infrastructure without adding approval mutation, browser approval, or live execution. |
 | M37 - Approval Snapshot Resolver Foundation | Complete | Add backend-owned resolver-only approval snapshot infrastructure without adding approval mutation, browser approval, or live execution. |
+| M38 - Command Admission Snapshot Resolver Wiring | Complete | Wire existing live-disabled command admission evidence to backend snapshot resolver results without adding approval mutation, browser approval, or live execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1449,6 +1450,54 @@ Completed evidence:
   infrastructure only and no browser approval, spot-rule leakage, or live
   Coinbase path was added.
 - Backend full regression passed with `792 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M38 - Command Admission Snapshot Resolver Wiring
+
+Purpose: let existing live-disabled Admin API command admission decisions
+consult backend-owned approval snapshot resolver evidence while preserving the
+single command behavior path and every non-snapshot live blocker.
+
+Completed scope:
+
+- Phases 1261-1280 advanced the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `POST /api/v1/orders` may accept an optional `client_order_id` so manual
+  placement approval snapshots can bind to the identity key advertised by the
+  route.
+- Command admission evidence must report the concrete identity value,
+  snapshot present/missing status, snapshot id, approver, requesting actor,
+  expiry, and missing reason when applicable.
+- Existing command adapters must share the durable approval store dependency
+  and must not create route-local resolver paths.
+- A resolved snapshot may remove only `approval_snapshot_missing`; live
+  execution must remain blocked by live-disabled, admission-audit, cap/guard,
+  reconciliation, and browser-authority blockers.
+- Stealth and movement/repricing admission must stay keyed by
+  `stealth_order_id`; spot wallet, cost-basis, no-shorting, and USDC rules
+  must not leak into non-spot modules.
+- OpenAPI and frontend generated schema must be refreshed because public
+  command models changed.
+- No approval endpoint, approval mutation, BFF resolver authority, browser
+  approval writer, Coinbase call, guard evaluator, live admission endpoint, or
+  direct dashboard WebSocket approval path is allowed.
+
+Completed evidence:
+
+- Backend focused Admin API/readiness checks passed with `66 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1261-1280`.
+- OpenAPI was regenerated and frontend generated schema consumes the new
+  command admission and manual-order request fields without hand edits.
+- Frontend mocks, quality artifacts, docs, and tests align with phase range
+  `1261-1280` without adding browser approval or command authority.
+- Blind/contextless review confirmed resolver-backed admission evidence is
+  backend-owned and no browser approval, spot-rule leakage, or live Coinbase
+  path was added; non-blocking hygiene notes were remediated.
+- Backend full regression passed with `793 passed, 1 warning`.
 - Frontend `npm run release:gate` passed with `186` unit tests and `3`
   Playwright tests.
 - Live Coinbase execution was not run; submitted and executed notional remain

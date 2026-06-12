@@ -49,10 +49,13 @@ backend-owned append-only approval-store foundation while approval snapshots
 remain absent and HTTP live execution remains disabled. M37 adds backend-only
 approval snapshot resolver infrastructure over that store without making the
 resolver an approval endpoint, browser approval, command authority, or live
-execution path. The admission decision binds the route, method, module id,
-identity key, actor, idempotency key, operator intent, and payload hash to the
-missing approval snapshot, cap/guard, admission-audit, and reconciliation
-blockers before HTTP live execution can be enabled.
+execution path. M38 wires existing command admission evidence to that resolver
+so a command response can report whether an exact unexpired snapshot was found
+without enabling live execution. The admission decision binds the route,
+method, module id, identity key, identity value, requesting actor,
+idempotency key, operator intent, and payload hash to the approval snapshot,
+cap/guard, admission-audit, and reconciliation blockers before HTTP live
+execution can be enabled.
 
 Current read-only HTTP surfaces include:
 
@@ -256,6 +259,12 @@ The platform/module split is documented in
   snapshot evidence from an exact unexpired approval-store record. It is not
   an approval endpoint, browser approval, BFF mutation, live admission,
   Coinbase execution, or proof that command admission may proceed.
+- M38 command admission snapshot resolver wiring lets existing live-disabled
+  command responses report `approval_snapshot_present`, snapshot ids, actor
+  binding, expiry, identity value, and missing-snapshot reasons. A resolved
+  snapshot removes only the `approval_snapshot_missing` blocker; live-disabled,
+  admission-audit, cap/guard, reconciliation, and browser-authority blockers
+  still prevent Coinbase submission.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

@@ -36,7 +36,11 @@ from application.admin_api.idempotency import (
     evaluate_idempotency,
     make_payload_hash,
 )
-from application.admin_api.models import AdminApiActor, AdminLiveAdmissionDecisionEvidence
+from application.admin_api.models import (
+    AdminApiActor,
+    AdminLiveAdmissionDecisionEvidence,
+    ManualOrderRequest,
+)
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
     AdminApiActionClass,
@@ -101,16 +105,94 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     store_dir = _store_dir()
     idempotency_store = FileIdempotencyStore(store_dir / "idempotency.jsonl")
     audit_store = FileAdminApiAuditStore(store_dir / "audit.jsonl")
+    approval_store = FileAdminApiApprovalStore(store_dir / "approvals.jsonl")
     app.dependency_overrides[order_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
     app.dependency_overrides[order_routes.get_audit_store] = lambda: audit_store
+    app.dependency_overrides[order_routes.get_approval_store] = lambda: approval_store
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
+    client.admin_api_test_approval_store = approval_store
     return client
 
 
-def _manual_order_payload(quote_size: str = "1.00") -> dict:
+def _manual_order_payload(
+    quote_size: str = "1.00",
+    client_order_id: str | None = None,
+) -> dict:
+    payload = {
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "quote_size": quote_size,
+        "limit_price": "65000.00",
+        "manual_live_acknowledgement": True,
+    }
+    if client_order_id is not None:
+        payload["client_order_id"] = client_order_id
+    return payload
+
+
+def _manual_order_approval_payload(
+    *,
+    actor_id: str = "operator-001",
+    roles: list[str] | None = None,
+    operator_intent: str = "manual_one_off",
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+) -> dict:
+    return {
+        "endpoint": "POST /api/v1/orders",
+        "actor_id": actor_id,
+        "roles": roles or [AdminApiRole.TRADER.value],
+        "operator_intent": operator_intent,
+        "body": ManualOrderRequest.model_validate(
+            _manual_order_payload(client_order_id=client_order_id)
+        ).model_dump(mode="json"),
+        "path_params": {},
+    }
+
+
+def _append_manual_order_approval(
+    *,
+    store: FileAdminApiApprovalStore,
+    now: datetime,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    requested_by_actor_id: str = "operator-001",
+    payload_hash: str | None = None,
+) -> AdminApiApprovalRecord:
+    record = AdminApiApprovalRecord(
+        expires_at=now + timedelta(minutes=5),
+        approved_by_actor_id="approver-001",
+        requested_by_actor_id=requested_by_actor_id,
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash
+        or make_payload_hash(
+            _manual_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+                idempotency_key=idempotency_key,
+            )
+        ),
+        cap_guard_decision_ref="cap-guard-approval-001",
+        reconciliation_plan_ref="reconciliation-approval-001",
+    )
+    store.append(record)
+    return record
+
+
+def _legacy_manual_order_payload(quote_size: str = "1.00") -> dict:
     return {
         "product_id": "BTC-USDC",
         "side": "BUY",
@@ -798,6 +880,7 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert payload["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
     assert payload["required_permission"] == AdminApiPermission.ORDER_CREATE.value
     assert payload["service_method"] == "place_manual_order"
+    assert payload["client_order_id"] is None
     assert payload["live_exchange_submitted"] is False
     assert payload["failure_stage"] == "approval"
     assert payload["guard"]["approval_snapshot_required"] is True
@@ -810,6 +893,7 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["method"] == "POST"
     assert admission["module_id"] == "spot_operations"
     assert admission["identity_key"] == "client_order_id"
+    assert admission["identity_value"] is None
     assert admission["service_method"] == "place_manual_order"
     assert admission["actor_id"] == "operator-001"
     assert admission["idempotency_key"] == "idem-001"
@@ -820,6 +904,10 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["admission_audit_required"] is True
     assert admission["cap_guard_required"] is True
     assert admission["reconciliation_required"] is True
+    assert admission["approval_snapshot_present"] is False
+    assert admission["approval_snapshot_id"] is None
+    assert admission["approval_snapshot_source"] == "missing"
+    assert admission["approval_snapshot_missing_reason"] == "identity_value_missing"
     assert admission["browser_authority"] == "rejected"
     assert admission["live_exchange_submitted"] is False
     assert "approval_store_missing" not in admission["blockers"]
@@ -828,6 +916,51 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert payload["guard"]["admission_decision"] == admission
     assert payload["audit_id"]
     assert response.headers["x-correlation-id"] == "corr-001"
+
+
+@pytest.mark.regression
+def test_admin_api_approval_snapshot_resolution_is_evidence_only(monkeypatch):
+    client = _client(monkeypatch)
+    now = datetime.now(timezone.utc)
+    client_order_id = "client-approved"
+    idempotency_key = "idem-approved"
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=now,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key=idempotency_key),
+        json=_manual_order_payload(client_order_id=client_order_id),
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    admission = payload["admission_decision"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["client_order_id"] == client_order_id
+    assert payload["failure_stage"] == "approval"
+    assert admission["allowed"] is False
+    assert admission["identity_key"] == "client_order_id"
+    assert admission["identity_value"] == client_order_id
+    assert admission["approval_snapshot_present"] is True
+    assert admission["approval_snapshot_id"] == approval.approval_id
+    assert admission["approval_snapshot_source"] == "approval_store"
+    assert admission["approval_snapshot_approved_by_actor_id"] == "approver-001"
+    assert admission["approval_snapshot_requested_by_actor_id"] == "operator-001"
+    assert admission["approval_snapshot_expires_at"] == approval.expires_at.isoformat()
+    assert admission["approval_snapshot_missing_reason"] is None
+    assert "approval_snapshot_missing" not in admission["blockers"]
+    assert "live_execution_disabled" in admission["blockers"]
+    assert "admission_audit_missing" in admission["blockers"]
+    assert "cap_guard_missing" in admission["blockers"]
+    assert "reconciliation_plan_missing" in admission["blockers"]
+    assert "browser_authority_rejected" in admission["blockers"]
+    assert payload["guard"]["admission_decision"] == admission
+    assert payload["audit_id"]
 
 
 @pytest.mark.regression
@@ -855,6 +988,11 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
         "/api/v1/orders/{client_order_id}/cancel"
     )
     assert payload["admission_decision"]["identity_key"] == "client_order_id"
+    assert payload["admission_decision"]["identity_value"] == "client-abc"
+    assert payload["admission_decision"]["approval_snapshot_present"] is False
+    assert payload["admission_decision"]["approval_snapshot_missing_reason"] == (
+        "no_matching_unexpired_snapshot"
+    )
     assert payload["admission_decision"]["service_method"] == (
         "cancel_order_by_client_order_id"
     )
@@ -1736,7 +1874,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1241-1260"
+    assert live_payload["approved_phase_range"] == "1261-1280"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1750,8 +1888,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["approval_snapshot_required_count"] == 5
     assert live_payload["approval_snapshot_present_count"] == 0
     assert live_payload["approval_snapshot_missing_count"] == 5
-    assert live_payload["approval_snapshot_required_field_count"] == 65
-    assert live_payload["approval_snapshot_missing_field_count"] == 65
+    assert live_payload["approval_snapshot_required_field_count"] == 75
+    assert live_payload["approval_snapshot_missing_field_count"] == 75
     assert live_payload["approval_store_required_count"] == 5
     assert live_payload["approval_store_configured_count"] == 5
     assert live_payload["approval_store_missing_count"] == 0
@@ -1819,15 +1957,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
-        item["approval_snapshot"]["required_field_count"] == 13
+        item["approval_snapshot"]["required_field_count"] == 15
         for item in live_routes.values()
     )
     assert all(
-        item["approval_snapshot"]["missing_required_field_count"] == 13
+        item["approval_snapshot"]["missing_required_field_count"] == 15
         for item in live_routes.values()
     )
     assert all(
-        len(item["approval_snapshot"]["required_fields"]) == 13
+        len(item["approval_snapshot"]["required_fields"]) == 15
         for item in live_routes.values()
     )
     assert all(
@@ -1980,8 +2118,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_approval_fields["method"]["expected_value"] == "POST"
     assert spot_approval_fields["module_id"]["expected_value"] == "spot_operations"
     assert spot_approval_fields["identity_key"]["expected_value"] == "client_order_id"
+    assert spot_approval_fields["identity_value"]["expected_source"] == "command_identity"
     assert spot_approval_fields["action_class"]["expected_value"] == "live_exchange_place"
     assert spot_approval_fields["required_permission"]["expected_value"] == "order:create"
+    assert spot_approval_fields["requested_by_actor_id"]["expected_source"] == "authenticated_actor"
     assert spot_approval_fields["approved_by_actor_id"]["expected_source"] == "approval_store"
     assert spot_approval_fields["expires_at"]["expected_source"] == "approval_store"
     assert spot_approval_fields["cap_guard_decision_ref"]["expected_source"] == "guard_risk_policy"
@@ -2134,7 +2274,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1241-1260"
+    assert enterprise_payload["approved_phase_range"] == "1261-1280"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -3632,6 +3772,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "method": "POST",
         "module_id": "spot_operations",
         "identity_key": "client_order_id",
+        "identity_value": None,
         "action_class": AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value,
         "required_permission": AdminApiPermission.ORDER_CANCEL.value,
         "service_method": "cancel_order_by_client_order_id",
@@ -3644,6 +3785,13 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "admission_audit_required": True,
         "cap_guard_required": True,
         "reconciliation_required": True,
+        "approval_snapshot_present": False,
+        "approval_snapshot_id": None,
+        "approval_snapshot_source": "missing",
+        "approval_snapshot_approved_by_actor_id": None,
+        "approval_snapshot_requested_by_actor_id": None,
+        "approval_snapshot_expires_at": None,
+        "approval_snapshot_missing_reason": None,
         "browser_authority": "rejected",
         "live_exchange_submitted": False,
         "blockers": ["admission_audit_missing"],

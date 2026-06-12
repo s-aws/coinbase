@@ -305,6 +305,7 @@ class AdminApiCommandService:
                     "Manual order placement requires enterprise auth, "
                     "idempotency, approval, and cap gates before live execution."
                 ),
+                client_order_id=command.request.client_order_id,
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 guard=gate.model_dump(),
@@ -312,7 +313,7 @@ class AdminApiCommandService:
             )
 
         deps = self.dependencies
-        client_order_id = deps.uuid_factory()
+        client_order_id = command.request.client_order_id or deps.uuid_factory()
         order_params, order_configuration = self._manual_order_payload(command)
 
         if not deps.rest_client_available:

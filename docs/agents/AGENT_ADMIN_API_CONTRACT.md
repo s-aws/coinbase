@@ -95,6 +95,10 @@ Approval snapshot resolver infrastructure is backend-only. It may resolve an
 exact unexpired approval-store record into immutable evidence, but it must not
 become approval mutation, browser approval, command authority, Coinbase
 execution, or reconciliation proof.
+Resolver-backed command admission evidence remains fail-closed. A resolved
+snapshot may remove only `approval_snapshot_missing`; it does not authorize
+live execution while live-disabled, admission-audit, cap/guard,
+reconciliation, or browser-authority blockers remain.
 Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser

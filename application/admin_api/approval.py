@@ -309,6 +309,7 @@ def evaluate_command_live_admission(
     method: str,
     module_id: str,
     identity_key: str,
+    identity_value: str | None,
     action_class: AdminApiActionClass,
     required_permission: AdminApiPermission | str,
     service_method: str,
@@ -316,6 +317,8 @@ def evaluate_command_live_admission(
     idempotency_key: str,
     operator_intent: str,
     payload_hash: str,
+    approval_store: FileAdminApiApprovalStore | None = None,
+    now: datetime | None = None,
 ) -> AdminLiveAdmissionDecisionEvidence:
     """Return route-bound live admission evidence for one command attempt.
 
@@ -325,6 +328,63 @@ def evaluate_command_live_admission(
     contracts are implemented end to end.
     """
 
+    approval_snapshot = None
+    approval_snapshot_missing_reason = "approval_store_not_checked"
+    if approval_store is None:
+        approval_snapshot_missing_reason = "approval_store_dependency_missing"
+    elif not identity_value:
+        approval_snapshot_missing_reason = "identity_value_missing"
+    else:
+        request = ApprovalSnapshotRequest(
+            route=route,
+            method=method,
+            module_id=module_id,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            action_class=action_class,
+            required_permission=required_permission,
+            requested_by_actor_id=actor_id,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+        )
+        approval_snapshot = resolve_approval_snapshot(
+            store=approval_store,
+            request=request,
+            now=now,
+        )
+        if approval_snapshot is None:
+            approval_snapshot_missing_reason = "no_matching_unexpired_snapshot"
+
+    blockers = [
+        AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+        AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
+        AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
+        AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+        AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+    ]
+    evidence = [
+        "existing Admin API command route",
+        "durable idempotency payload hash",
+        "operator intent header",
+        "shared command service boundary",
+        "durable approval store contract",
+    ]
+    if approval_snapshot is None:
+        blockers.insert(1, AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING)
+        evidence.append(
+            f"missing route-specific approval snapshot: {approval_snapshot_missing_reason}"
+        )
+    else:
+        evidence.append(
+            "route-specific approval snapshot resolved but live execution remains blocked"
+        )
+    evidence.extend([
+        "missing admission audit trail",
+        "missing route-specific cap/guard decision",
+        "browser authority rejected",
+    ])
+
     return AdminLiveAdmissionDecisionEvidence(
         status=AdminApiGateStatus.BLOCKED,
         allowed=False,
@@ -332,6 +392,7 @@ def evaluate_command_live_admission(
         method=method,
         module_id=module_id,
         identity_key=identity_key,
+        identity_value=identity_value,
         action_class=action_class,
         required_permission=required_permission,
         service_method=service_method,
@@ -344,27 +405,35 @@ def evaluate_command_live_admission(
         admission_audit_required=True,
         cap_guard_required=True,
         reconciliation_required=True,
+        approval_snapshot_present=approval_snapshot is not None,
+        approval_snapshot_id=(
+            approval_snapshot.approval_id if approval_snapshot is not None else None
+        ),
+        approval_snapshot_source=(
+            "approval_store" if approval_snapshot is not None else "missing"
+        ),
+        approval_snapshot_approved_by_actor_id=(
+            approval_snapshot.approved_by_actor_id
+            if approval_snapshot is not None
+            else None
+        ),
+        approval_snapshot_requested_by_actor_id=(
+            approval_snapshot.requested_by_actor_id
+            if approval_snapshot is not None
+            else None
+        ),
+        approval_snapshot_expires_at=(
+            approval_snapshot.expires_at.isoformat()
+            if approval_snapshot is not None
+            else None
+        ),
+        approval_snapshot_missing_reason=(
+            None if approval_snapshot is not None else approval_snapshot_missing_reason
+        ),
         browser_authority="rejected",
         live_exchange_submitted=False,
-        blockers=[
-            AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
-            AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING,
-            AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
-            AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
-            AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
-            AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
-        ],
-        evidence=[
-            "existing Admin API command route",
-            "durable idempotency payload hash",
-            "operator intent header",
-            "shared command service boundary",
-            "durable approval store contract",
-            "missing route-specific approval snapshot",
-            "missing admission audit trail",
-            "missing route-specific cap/guard decision",
-            "browser authority rejected",
-        ],
+        blockers=blockers,
+        evidence=evidence,
         detail=(
             "HTTP live execution is blocked until a backend-owned approval "
             "snapshot, cap/guard, admission-audit, and reconciliation gates "

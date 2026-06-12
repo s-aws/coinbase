@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1241-1260",
+  "approved_phase_range": "1261-1280",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -184,8 +184,8 @@ Expected M8 readiness posture:
   "approval_snapshot_required_count": 5,
   "approval_snapshot_present_count": 0,
   "approval_snapshot_missing_count": 5,
-  "approval_snapshot_required_field_count": 65,
-  "approval_snapshot_missing_field_count": 65,
+  "approval_snapshot_required_field_count": 75,
+  "approval_snapshot_missing_field_count": 75,
   "approval_store_required_count": 5,
   "approval_store_configured_count": 5,
   "approval_store_missing_count": 0,
@@ -320,8 +320,8 @@ Expected M8 readiness posture:
         "backend_owned": true,
         "browser_authority": "display_only",
         "source": "not_configured",
-        "required_field_count": 13,
-        "missing_required_field_count": 13,
+        "required_field_count": 15,
+        "missing_required_field_count": 15,
         "required_fields": [
           {
             "field": "route",
@@ -356,6 +356,14 @@ Expected M8 readiness posture:
             "detail": "Approval must bind to the module-specific command identity key."
           },
           {
+            "field": "identity_value",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "command_identity",
+            "expected_value": null,
+            "detail": "Approval must bind to the exact route or request identity value."
+          },
+          {
             "field": "action_class",
             "status": "blocked",
             "required": true,
@@ -370,6 +378,14 @@ Expected M8 readiness posture:
             "expected_source": "route_inventory",
             "expected_value": "order:create",
             "detail": "Approval must name the backend permission required for the route."
+          },
+          {
+            "field": "requested_by_actor_id",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "authenticated_actor",
+            "expected_value": null,
+            "detail": "Approval must bind to the backend-authenticated requesting actor."
           },
           {
             "field": "operator_intent",
@@ -667,7 +683,10 @@ approval-store infrastructure explicit; they are not approval mutation,
 browser approval, command authority, Coinbase execution, or reconciliation proof.
 M37 approval snapshot resolver infrastructure is backend-only and can derive
 immutable evidence from exact unexpired store records; it is not proof that
-command admission may proceed. M32
+command admission may proceed. M38 command admission wiring can report whether
+that resolver found a snapshot, but a found snapshot only changes evidence and
+does not remove live-disabled, admission-audit, cap/guard, reconciliation, or
+browser-authority blockers. M32
 admission-audit trail fields make the missing append-only backend admission
 audit facts explicit; they are not audit storage, approval storage, browser
 approval, command authority, Coinbase execution, or reconciliation proof.
@@ -687,8 +706,9 @@ audit log. M36 adds backend-owned append-only approval-store infrastructure,
 so approval-store contract evidence may pass while route-specific approval
 snapshots remain absent and live execution remains disabled. M37 adds
 backend-only snapshot resolver infrastructure over exact unexpired approval
-records. None of these milestones adds an approval endpoint, browser approval,
-or Coinbase execution path.
+records. M38 wires live-disabled command admission evidence to that resolver
+without adding live admission. None of these milestones adds an approval
+endpoint, browser approval, or Coinbase execution path.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -697,13 +717,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1241-1260",
+  "approved_phase_range": "1261-1280",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

@@ -3069,8 +3069,10 @@ components:
       - method
       - module_id
       - identity_key
+      - identity_value
       - action_class
       - required_permission
+      - requested_by_actor_id
       - operator_intent
       - idempotency_key
       - payload_hash
@@ -4461,6 +4463,11 @@ components:
         identity_key:
           type: string
           title: Identity Key
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
         action_class:
           $ref: '#/components/schemas/AdminApiActionClass'
         required_permission:
@@ -4503,6 +4510,39 @@ components:
           type: boolean
           title: Reconciliation Required
           default: true
+        approval_snapshot_present:
+          type: boolean
+          title: Approval Snapshot Present
+          default: false
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Id
+        approval_snapshot_source:
+          type: string
+          title: Approval Snapshot Source
+          default: missing
+        approval_snapshot_approved_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Approved By Actor Id
+        approval_snapshot_requested_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Requested By Actor Id
+        approval_snapshot_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Expires At
+        approval_snapshot_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Missing Reason
         browser_authority:
           type: string
           title: Browser Authority
@@ -6391,6 +6431,12 @@ components:
       title: HTTPValidationError
     ManualOrderRequest:
       properties:
+        client_order_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Client Order Id
         product_id:
           type: string
           minLength: 1

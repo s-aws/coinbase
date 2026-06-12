@@ -107,7 +107,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1241-1260"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1261-1280"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -410,6 +410,11 @@ def _live_approval_snapshot_evidence(
             detail="Approval must bind to the module-specific command identity key.",
         ),
         _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.IDENTITY_VALUE,
+            expected_source="command_identity",
+            detail="Approval must bind to the exact route or request identity value.",
+        ),
+        _approval_snapshot_field(
             field=AdminApiLiveApprovalSnapshotField.ACTION_CLASS,
             expected_source="route_inventory",
             expected_value=action_class.value,
@@ -420,6 +425,11 @@ def _live_approval_snapshot_evidence(
             expected_source="route_inventory",
             expected_value=permission_value,
             detail="Approval must name the backend permission required for the route.",
+        ),
+        _approval_snapshot_field(
+            field=AdminApiLiveApprovalSnapshotField.REQUESTED_BY_ACTOR_ID,
+            expected_source="authenticated_actor",
+            detail="Approval must bind to the backend-authenticated requesting actor.",
         ),
         _approval_snapshot_field(
             field=AdminApiLiveApprovalSnapshotField.OPERATOR_INTENT,

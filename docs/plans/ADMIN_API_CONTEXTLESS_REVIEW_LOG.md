@@ -2,6 +2,59 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Command Admission Snapshot Resolver Wiring Review - Phases 1261-1280
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify existing live-disabled command admission evidence can consume
+  backend-owned approval snapshot resolver results
+- verify exact unexpired snapshots remove only `approval_snapshot_missing`
+  and do not remove live-disabled, admission-audit, cap/guard,
+  reconciliation, or browser-authority blockers
+- verify no approval endpoint, approval mutation, browser resolver authority,
+  direct dashboard WebSocket approval path, route-level Coinbase call, or
+  parallel command path was added
+- verify non-spot identities remain generic and do not inherit spot wallet,
+  no-shorting, USDC, average-cost, or cost-basis rules
+- verify frontend consumption is generated schema, mock evidence, tests, and
+  docs only
+
+Findings:
+
+- PASS: backend admission stays fail-closed and a resolved snapshot is
+  evidence only.
+- PASS: no approval endpoint, browser resolver, dashboard approval path,
+  Coinbase call, or parallel command path was found.
+- PASS: resolver lookup remains exact and expiry-aware over backend-owned
+  approval-store records.
+- PASS: stealth and movement/repricing admission identities stay keyed by
+  `stealth_order_id`; non-spot evidence does not become `client_order_id` or
+  spot wallet authority.
+- PASS: frontend generated schema and mocks expose the new fields as
+  display evidence while command capabilities remain `live_enabled=false`.
+- PASS: blind-review hygiene notes were remediated by correcting the
+  `ManualOrderRequest.client_order_id` documentation and stale phase-range
+  failure text.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `66 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1261-1280`.
+- Backend full regression passed with `793 passed, 1 warning`.
+- Frontend focused unit slice passed with `71` tests.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Approval Snapshot Resolver Foundation Review - Phases 1241-1260
 
 Review scope:

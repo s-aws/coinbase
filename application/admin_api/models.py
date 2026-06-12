@@ -96,6 +96,7 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     method: str
     module_id: str
     identity_key: str
+    identity_value: str | None = None
     action_class: AdminApiActionClass
     required_permission: AdminApiPermission | str
     service_method: str
@@ -108,6 +109,13 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     admission_audit_required: bool = True
     cap_guard_required: bool = True
     reconciliation_required: bool = True
+    approval_snapshot_present: bool = False
+    approval_snapshot_id: str | None = None
+    approval_snapshot_source: str = "missing"
+    approval_snapshot_approved_by_actor_id: str | None = None
+    approval_snapshot_requested_by_actor_id: str | None = None
+    approval_snapshot_expires_at: str | None = None
+    approval_snapshot_missing_reason: str | None = None
     browser_authority: str = "rejected"
     live_exchange_submitted: bool = False
     blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)
@@ -120,6 +128,7 @@ class ManualOrderRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    client_order_id: str | None = Field(default=None, min_length=1)
     product_id: str = Field(min_length=1, examples=["BTC-USDC"])
     side: OrderSide
     order_type: OrderType

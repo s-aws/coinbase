@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from application.admin_api.auth import get_authenticated_actor, require_permission
+from application.admin_api.approval import FileAdminApiApprovalStore
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.idempotency import FileIdempotencyStore
 from application.admin_api.audit import FileAdminApiAuditStore
@@ -29,6 +30,7 @@ from core.enums import AdminApiActionClass, AdminApiPermission
 from .orders import (
     COMMAND_ROUTE_RESPONSES,
     get_audit_store,
+    get_approval_store,
     get_command_service,
     get_idempotency_store,
     _build_envelope,
@@ -130,6 +132,7 @@ def cancel_stealth_order_by_stealth_order_id(
     service: Annotated[AdminApiCommandService, Depends(get_command_service)],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
 ) -> JSONResponse:
     """Route adapter for live-disabled stealth cancel by ``stealth_order_id``."""
 
@@ -160,8 +163,10 @@ def cancel_stealth_order_by_stealth_order_id(
         route_template="/api/v1/stealth/orders/{stealth_order_id}/cancel",
         module_id="stealth_orders",
         identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
         idempotency_store=idempotency_store,
         audit_store=audit_store,
+        approval_store=approval_store,
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.cancel_stealth_order_by_stealth_order_id(
             StealthCancelCommand(
