@@ -5096,3 +5096,133 @@ Completion evidence:
   tests passed.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
+
+## Completed No-Live Command Dry-Submit Harness Batch - Phases 861-880
+
+### Phase 861 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 841-860 to active
+  phases 861-880 while preserving the same cap and stop-condition policy.
+
+### Phase 862 - M18 No-Live Command Dry-Submit Harness
+
+- Add a frontend command workflow harness that can submit to backend/BFF
+  command routes only for no-live review evidence.
+
+### Phase 863 - Backend Range Evidence
+
+- Update backend no-live readiness evidence to report active range 861-880.
+
+### Phase 864 - Dry-Submit Capability Gate
+
+- Require matched backend capability evidence with `live_enabled=false` before
+  frontend dry-submit controls can send a backend/BFF command request.
+
+### Phase 865 - Mutation Evidence Header Binding
+
+- Build idempotency, correlation, and operator-intent headers from displayed
+  command draft evidence instead of hidden browser authority.
+
+### Phase 866 - Manual Order Dry-Submit UI
+
+- Wire manual order review to the canonical dry-submit helper and preserve
+  backend `501` live-disabled evidence.
+
+### Phase 867 - Cancel Dry-Submit UI
+
+- Keep cancel review keyed only by `client_order_id` and route through the
+  canonical cancel dry-submit helper.
+
+### Phase 868 - Stealth Cancel Dry-Submit UI
+
+- Keep stealth cancel review keyed only by `stealth_order_id` and avoid active
+  placement or exchange-id cancellation inputs.
+
+### Phase 869 - Movement Reprice Dry-Submit UI
+
+- Keep movement reprice review keyed by `stealth_order_id` and avoid cooldown,
+  active-placement, or live repricer mutation.
+
+### Phase 870 - Campaign Dry-Submit UI
+
+- Keep campaign review `dry_run=true`, USDC-scoped, and live-disabled through
+  the canonical campaign dry-submit helper.
+
+### Phase 871 - Submitted Evidence Rendering
+
+- Render backend status, decision, idempotency key, audit id, correlation id,
+  identity evidence, and live-execution evidence from the dry-submit response.
+
+### Phase 872 - Fail-Closed Button States
+
+- Keep dry-submit disabled in mock mode, backend mode without session headers,
+  incomplete draft state, missing capability state, mismatched capability
+  state, or any backend capability state that is live-enabled.
+
+### Phase 873 - Frontend Focused Tests
+
+- Add focused command workflow tests for enabled BFF dry-submit and
+  live-enabled capability disablement.
+
+### Phase 874 - Route And Security Guard Update
+
+- Extend route/release/security checks if needed so the UI continues to call
+  only the canonical dry-submit helpers and cannot hand-roll command fetches.
+
+### Phase 875 - Documentation Update
+
+- Update command workflow, API contract, testing, and examples docs for the
+  no-live dry-submit harness.
+
+### Phase 876 - Stale Range And Drift Scan
+
+- Search for current-state contradictions around 841-860 versus 861-880 and
+  around "no UI button calls dry-submit" wording.
+
+### Phase 877 - Backend Focused Gates
+
+- Run backend autonomous queue and focused Admin API/spot readiness checks.
+
+### Phase 878 - Frontend Focused Gates And Contextless Review
+
+- Run frontend focused checks and blind/contextless review for no-live
+  command dry-submit UI behavior.
+
+### Phase 879 - Full Gates
+
+- Run full backend regression and frontend `npm run release:gate`.
+
+### Phase 880 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+Completion evidence:
+
+- Backend and frontend readiness evidence now report active approved range
+  `861-880`.
+- Command workflow dry-submit controls use the canonical backend/BFF helpers
+  only under matched capability evidence with `frontend_safe=true` and
+  `live_enabled=false`.
+- Mock mode, backend mode without read headers, incomplete drafts, missing
+  capabilities, mismatched capabilities, and live-enabled capabilities fail
+  closed before any command request.
+- Manual order, cancel, stealth cancel, movement reprice, and campaign review
+  render submitted backend evidence without creating a live execution path.
+- Cancel remains keyed by `client_order_id`; stealth cancel and movement
+  reprice remain keyed by `stealth_order_id`; exchange-native `order_id`
+  remains evidence only.
+- Capability matrices and historical contextless review logs were remediated
+  after blind review found stale pre-M18 wording.
+- Focused backend gates passed: autonomous queue check and focused Admin
+  API/spot readiness regression checks (`63` tests passed with `1` warning).
+- Focused frontend gates passed: typecheck, route/security/release checks,
+  autonomous queue check, focused command/backend/runtime unit tests, and
+  Playwright E2E.
+- Blind/contextless M18 re-review passed after the stale documentation
+  remediation.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `184` unit tests and `3` Playwright
+  tests passed.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.

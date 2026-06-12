@@ -733,6 +733,47 @@ Completed when:
 - Blind/contextless review confirms runtime capability binding is clear,
   backend-owned, and no-live.
 
+## M18 - No-Live Command Dry-Submit Harness
+
+Purpose: allow the enterprise command workflow UI to send backend/BFF
+dry-submit review requests while the backend command routes remain live-disabled
+and backend capability evidence remains the authority.
+
+Completed evidence:
+
+- Phases 861-880 advance the active unattended range while preserving the same
+  no-live frontend posture and live-cap policy.
+- Dry-submit controls are enabled only when draft evidence is complete,
+  backend capability evidence is matched, `frontend_safe=true`, and
+  `live_enabled=false`.
+- Mutation evidence headers come from the displayed idempotency/correlation
+  preview and operator intent, not hidden browser authority.
+- Manual order, cancel, stealth cancel, movement reprice, and campaign review
+  use the canonical frontend dry-submit helpers and backend/BFF command routes.
+- Missing, mismatched, live-enabled, mock, or missing-session states fail
+  closed before request.
+- The harness is no-live evidence only; it does not approve Coinbase
+  execution.
+- Capability matrices and historical contextless review logs were remediated
+  after blind review found stale pre-M18 wording.
+- Focused backend and frontend gates passed, including route/security/release
+  checks and focused Admin API/spot readiness coverage.
+- Blind/contextless M18 re-review passed after documentation remediation.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `184` unit tests and `3` Playwright
+  tests passed.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+Completed when:
+
+- Backend and frontend validators use active phase range 861-880.
+- Command workflow cards can dry-submit to backend/BFF only under no-live
+  capability evidence and render backend result evidence.
+- Focused and full gates pass.
+- Blind/contextless review confirms the dry-submit harness is backend-owned,
+  no-live, and understandable without chat history.
+
 ## Objective Completion
 
 The durable objective is complete only when the enterprise admin frontend/API

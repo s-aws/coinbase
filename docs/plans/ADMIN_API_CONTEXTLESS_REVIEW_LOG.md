@@ -493,11 +493,11 @@ Reviewer tasks:
 - verify cancel remains keyed only by `client_order_id`
 - verify live Coinbase execution remains disabled/no-live
 
-Findings:
+Historical findings before M18 no-live dry-submit UI:
 
 - First blind review failed the batch because frontend docs overstated UI
-  dry-submit: the shell renders draft/review controls and blocked/submitted
-  evidence, but no UI button calls `drySubmitManualOrder`,
+  dry-submit: the then-current shell rendered draft/review controls and
+  blocked/submitted evidence, but no UI button called `drySubmitManualOrder`,
   `drySubmitCancelOrder`, or `drySubmitSpotCampaign`.
 - The same review found that `time_in_force` existed in the draft model and
   backend payload mapping but was not exposed in the UI or documented clearly.
@@ -505,11 +505,11 @@ Findings:
   campaign payloads used `dry_run=false`, and one backend wrapper test used
   `manual_live_acknowledgement=true`.
 
-Resolution:
+Historical resolution:
 
-- Updated frontend command and spot-order-flow docs to state that UI buttons
-  remain disabled and do not call dry-submit helpers today; dry-submit helpers
-  are for tests, smoke scripts, and future explicitly approved UI enablement.
+- Updated frontend command and spot-order-flow docs at that time to state that
+  UI buttons remained disabled and did not call dry-submit helpers; M18 later
+  superseded that posture with gated no-live dry-submit review controls.
 - Added the manual `time_in_force` select, documented draft fields, and covered
   its payload mapping with unit and browser-facing tests.
 - Corrected command smoke, BFF smoke, and backend wrapper tests to use
