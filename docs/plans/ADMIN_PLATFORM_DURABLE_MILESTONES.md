@@ -68,6 +68,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M36 - Durable Approval Store Foundation | Complete | Add backend-owned append-only approval-store infrastructure without adding approval mutation, browser approval, or live execution. |
 | M37 - Approval Snapshot Resolver Foundation | Complete | Add backend-owned resolver-only approval snapshot infrastructure without adding approval mutation, browser approval, or live execution. |
 | M38 - Command Admission Snapshot Resolver Wiring | Complete | Wire existing live-disabled command admission evidence to backend snapshot resolver results without adding approval mutation, browser approval, or live execution. |
+| M39 - Command Admission Audit Resolver Wiring | Complete | Wire existing live-disabled command admission evidence to backend audit proof results without adding audit mutation, browser approval, or live execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1500,6 +1501,72 @@ Completed evidence:
 - Backend full regression passed with `793 passed, 1 warning`.
 - Frontend `npm run release:gate` passed with `186` unit tests and `3`
   Playwright tests.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M39 - Command Admission Audit Resolver Wiring
+
+Purpose: let existing live-disabled Admin API command admission decisions
+consult backend-owned append-only admission audit evidence while preserving the
+single command behavior path and every non-audit live blocker.
+
+Completed scope:
+
+- Phases 1281-1300 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Command admission evidence may report audit proof present/missing status,
+  audit id, source, recorded time, and missing reason when applicable.
+- Existing command adapters must share the durable audit store dependency and
+  must not create route-local audit lookup paths.
+- An audit proof can resolve only after an exact approval snapshot resolves,
+  so audit evidence cannot bypass approval evidence.
+- A resolved audit proof may remove only `admission_audit_missing`; live
+  execution must remain blocked by live-disabled, cap/guard, reconciliation,
+  and browser-authority blockers.
+- Stealth and movement/repricing admission must stay keyed by
+  `stealth_order_id`; spot wallet, cost-basis, no-shorting, and USDC rules
+  must not leak into non-spot modules.
+- OpenAPI and frontend generated schema must be refreshed because public
+  command models changed.
+- No audit endpoint, audit mutation, BFF audit authority, browser audit
+  writer, Coinbase call, guard evaluator, live admission endpoint, or direct
+  dashboard WebSocket audit path is allowed.
+
+Done when:
+
+- Backend focused Admin API/readiness tests and autonomous queue check pass.
+- OpenAPI is regenerated and frontend generated schema consumes the new
+  command admission audit fields without hand edits.
+- Frontend mocks, quality artifacts, docs, and tests align with phase range
+  `1281-1300` without adding browser approval or command authority.
+- Blind/contextless review confirms resolver-backed audit evidence is
+  backend-owned and no browser approval, audit mutation, spot-rule leakage, or
+  live Coinbase path was added.
+- Backend full regression and frontend `npm run release:gate` pass.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+Completed evidence:
+
+- Backend command admission can resolve exact, approval-snapshot-bound
+  admission audit proof from the append-only Admin API audit store.
+- A resolved audit proof removes only `admission_audit_missing`; live
+  execution remains blocked by live-disabled, cap/guard, reconciliation, and
+  browser-authority blockers.
+- OpenAPI was regenerated and frontend generated schema consumes the new
+  command admission audit fields without hand edits.
+- Frontend dry-submit rows and Audit Workbench render approval snapshot and
+  admission audit evidence as display-only backend evidence.
+- Backend focused Admin API/readiness checks passed with `67 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1281-1300`.
+- Backend full regression passed with `794 passed, 1 warning`.
+- Frontend focused dry-submit, command-shell, and Audit Workbench checks
+  passed with `29` tests.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed after remediation of frontend display
+  evidence.
 - Live Coinbase execution was not run; submitted and executed notional remain
   `$0`.
 

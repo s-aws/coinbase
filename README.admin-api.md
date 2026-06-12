@@ -51,10 +51,12 @@ approval snapshot resolver infrastructure over that store without making the
 resolver an approval endpoint, browser approval, command authority, or live
 execution path. M38 wires existing command admission evidence to that resolver
 so a command response can report whether an exact unexpired snapshot was found
-without enabling live execution. The admission decision binds the route,
-method, module id, identity key, identity value, requesting actor,
+without enabling live execution. M39 wires existing command admission evidence
+to backend-owned append-only admission audit proof so a command response can
+report whether an exact audit event was found. The admission decision binds
+the route, method, module id, identity key, identity value, requesting actor,
 idempotency key, operator intent, and payload hash to the approval snapshot,
-cap/guard, admission-audit, and reconciliation blockers before HTTP live
+admission audit, cap/guard, and reconciliation blockers before HTTP live
 execution can be enabled.
 
 Current read-only HTTP surfaces include:
@@ -265,6 +267,12 @@ The platform/module split is documented in
   snapshot removes only the `approval_snapshot_missing` blocker; live-disabled,
   admission-audit, cap/guard, reconciliation, and browser-authority blockers
   still prevent Coinbase submission.
+- M39 command admission audit resolver wiring lets existing live-disabled
+  command responses report `admission_audit_present`, audit ids, audit source,
+  recorded time, and missing-audit reasons. A resolved audit proof removes
+  only the `admission_audit_missing` blocker; live-disabled, cap/guard,
+  reconciliation, and browser-authority blockers still prevent Coinbase
+  submission.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

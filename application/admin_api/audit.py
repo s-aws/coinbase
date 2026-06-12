@@ -39,6 +39,37 @@ class AdminApiAuditEvent(BaseModel):
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
 
 
+class AdmissionAuditTrailRequest(BaseModel):
+    """Exact command shape a live-admission audit proof must match."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    approval_snapshot_id: str = Field(min_length=1)
+
+
+class AdmissionAuditProof(BaseModel):
+    """Immutable evidence that an append-only audit row matches admission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    audit_id: str = Field(min_length=1)
+    recorded_at: str = Field(min_length=1)
+    source: str = "admin_api_audit_log"
+    approval_snapshot_id: str = Field(min_length=1)
+
+
 class FileAdminApiAuditStore:
     """Append-only JSONL audit store for Admin API command attempts."""
 
@@ -77,3 +108,62 @@ class FileAdminApiAuditStore:
             if len(events) >= normalized_limit:
                 break
         return events
+
+    def find_matching_admission_audit(
+        self,
+        *,
+        request: AdmissionAuditTrailRequest,
+    ) -> AdminApiAuditEvent | None:
+        """Return an exact prior admission audit event if one exists."""
+
+        for event in self.read_recent(limit=500):
+            decision = event.admission_decision
+            if decision is None:
+                continue
+            if decision.approval_snapshot_id != request.approval_snapshot_id:
+                continue
+            if (
+                decision.route == request.route
+                and decision.method == request.method
+                and decision.module_id == request.module_id
+                and decision.identity_key == request.identity_key
+                and decision.identity_value == request.identity_value
+                and _enum_value(decision.action_class)
+                == _enum_value(request.action_class)
+                and _enum_value(decision.required_permission)
+                == _enum_value(request.required_permission)
+                and decision.service_method == request.service_method
+                and decision.actor_id == request.actor_id
+                and decision.operator_intent == request.operator_intent
+                and decision.idempotency_key == request.idempotency_key
+                and decision.payload_hash == request.payload_hash
+            ):
+                return event
+        return None
+
+
+def resolve_admission_audit_trail(
+    *,
+    store: FileAdminApiAuditStore,
+    request: AdmissionAuditTrailRequest,
+) -> AdmissionAuditProof | None:
+    """Resolve exact backend-owned audit evidence for command admission.
+
+    This does not write audit records, admit live execution, call Coinbase, or
+    make browser evidence authoritative.
+    """
+
+    event = store.find_matching_admission_audit(request=request)
+    if event is None:
+        return None
+    return AdmissionAuditProof(
+        audit_id=event.audit_id,
+        recorded_at=event.recorded_at,
+        approval_snapshot_id=request.approval_snapshot_id,
+    )
+
+
+def _enum_value(value: AdminApiActionClass | AdminApiPermission | str) -> str:
+    if hasattr(value, "value"):
+        return str(value.value)
+    return value

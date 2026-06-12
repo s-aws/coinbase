@@ -19,6 +19,11 @@ from core.enums import (
 )
 
 from .idempotency import make_payload_hash
+from .audit import (
+    AdmissionAuditTrailRequest,
+    FileAdminApiAuditStore,
+    resolve_admission_audit_trail,
+)
 from .models import AdminLiveAdmissionDecisionEvidence
 
 
@@ -318,6 +323,7 @@ def evaluate_command_live_admission(
     operator_intent: str,
     payload_hash: str,
     approval_store: FileAdminApiApprovalStore | None = None,
+    audit_store: FileAdminApiAuditStore | None = None,
     now: datetime | None = None,
 ) -> AdminLiveAdmissionDecisionEvidence:
     """Return route-bound live admission evidence for one command attempt.
@@ -356,9 +362,38 @@ def evaluate_command_live_admission(
         if approval_snapshot is None:
             approval_snapshot_missing_reason = "no_matching_unexpired_snapshot"
 
+    admission_audit = None
+    admission_audit_missing_reason = "audit_store_not_checked"
+    if audit_store is None:
+        admission_audit_missing_reason = "audit_store_dependency_missing"
+    elif not identity_value:
+        admission_audit_missing_reason = "identity_value_missing"
+    elif approval_snapshot is None:
+        admission_audit_missing_reason = "approval_snapshot_missing"
+    else:
+        admission_audit = resolve_admission_audit_trail(
+            store=audit_store,
+            request=AdmissionAuditTrailRequest(
+                route=route,
+                method=method,
+                module_id=module_id,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                action_class=action_class,
+                required_permission=required_permission,
+                service_method=service_method,
+                actor_id=actor_id,
+                operator_intent=operator_intent,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                approval_snapshot_id=approval_snapshot.approval_id,
+            ),
+        )
+        if admission_audit is None:
+            admission_audit_missing_reason = "no_matching_admission_audit"
+
     blockers = [
         AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
-        AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
         AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
         AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
         AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
@@ -379,8 +414,20 @@ def evaluate_command_live_admission(
         evidence.append(
             "route-specific approval snapshot resolved but live execution remains blocked"
         )
+    if admission_audit is None:
+        insert_at = 2 if approval_snapshot is None else 1
+        blockers.insert(
+            insert_at,
+            AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
+        )
+        evidence.append(
+            f"missing admission audit trail: {admission_audit_missing_reason}"
+        )
+    else:
+        evidence.append(
+            "route-specific admission audit resolved but live execution remains blocked"
+        )
     evidence.extend([
-        "missing admission audit trail",
         "missing route-specific cap/guard decision",
         "browser authority rejected",
     ])
@@ -429,6 +476,19 @@ def evaluate_command_live_admission(
         ),
         approval_snapshot_missing_reason=(
             None if approval_snapshot is not None else approval_snapshot_missing_reason
+        ),
+        admission_audit_present=admission_audit is not None,
+        admission_audit_id=(
+            admission_audit.audit_id if admission_audit is not None else None
+        ),
+        admission_audit_source=(
+            admission_audit.source if admission_audit is not None else "missing"
+        ),
+        admission_audit_recorded_at=(
+            admission_audit.recorded_at if admission_audit is not None else None
+        ),
+        admission_audit_missing_reason=(
+            None if admission_audit is not None else admission_audit_missing_reason
         ),
         browser_authority="rejected",
         live_exchange_submitted=False,

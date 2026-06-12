@@ -29,7 +29,7 @@ from application.admin_api.approval import (
     FileAdminApiApprovalStore,
     resolve_approval_snapshot,
 )
-from application.admin_api.audit import FileAdminApiAuditStore
+from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -52,6 +52,7 @@ from core.enums import (
     AdminApiErrorCode,
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
+    AdminApiLiveAdmissionBlocker,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
     AdminApiRole,
@@ -113,6 +114,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[order_routes.get_approval_store] = lambda: approval_store
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
+    client.admin_api_test_audit_store = audit_store
     client.admin_api_test_approval_store = approval_store
     return client
 
@@ -190,6 +192,78 @@ def _append_manual_order_approval(
     )
     store.append(record)
     return record
+
+
+def _append_manual_order_admission_audit(
+    *,
+    store: FileAdminApiAuditStore,
+    approval: AdminApiApprovalRecord,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+) -> AdminApiAuditEvent:
+    resolved_payload_hash = payload_hash or make_payload_hash(
+        _manual_order_approval_payload(
+            operator_intent=operator_intent,
+            client_order_id=client_order_id,
+            idempotency_key=idempotency_key,
+        )
+    )
+    event = AdminApiAuditEvent(
+        actor_id="operator-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        endpoint="POST /api/v1/orders",
+        request_id="corr-audit-proof",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        approval_id=approval.approval_id,
+        client_order_id=client_order_id,
+        status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+        failure_stage="approval",
+        message="Prior route-bound command admission audit proof.",
+        admission_decision=AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.BLOCKED,
+            allowed=False,
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value=client_order_id,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="place_manual_order",
+            actor_id="operator-001",
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=resolved_payload_hash,
+            approval_snapshot_required=True,
+            approval_store_required=True,
+            admission_audit_required=True,
+            cap_guard_required=True,
+            reconciliation_required=True,
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval.approval_id,
+            approval_snapshot_source="approval_store",
+            approval_snapshot_approved_by_actor_id=approval.approved_by_actor_id,
+            approval_snapshot_requested_by_actor_id=approval.requested_by_actor_id,
+            approval_snapshot_expires_at=approval.expires_at.isoformat(),
+            browser_authority="rejected",
+            live_exchange_submitted=False,
+            blockers=[
+                AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+                AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
+                AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
+                AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+                AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+            ],
+            evidence=["prior append-only command admission audit"],
+            detail="Prior backend-owned admission audit proof.",
+        ),
+    )
+    store.append(event)
+    return event
 
 
 def _legacy_manual_order_payload(quote_size: str = "1.00") -> dict:
@@ -908,6 +982,11 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["approval_snapshot_id"] is None
     assert admission["approval_snapshot_source"] == "missing"
     assert admission["approval_snapshot_missing_reason"] == "identity_value_missing"
+    assert admission["admission_audit_present"] is False
+    assert admission["admission_audit_id"] is None
+    assert admission["admission_audit_source"] == "missing"
+    assert admission["admission_audit_recorded_at"] is None
+    assert admission["admission_audit_missing_reason"] == "identity_value_missing"
     assert admission["browser_authority"] == "rejected"
     assert admission["live_exchange_submitted"] is False
     assert "approval_store_missing" not in admission["blockers"]
@@ -953,6 +1032,11 @@ def test_admin_api_approval_snapshot_resolution_is_evidence_only(monkeypatch):
     assert admission["approval_snapshot_requested_by_actor_id"] == "operator-001"
     assert admission["approval_snapshot_expires_at"] == approval.expires_at.isoformat()
     assert admission["approval_snapshot_missing_reason"] is None
+    assert admission["admission_audit_present"] is False
+    assert admission["admission_audit_id"] is None
+    assert admission["admission_audit_source"] == "missing"
+    assert admission["admission_audit_recorded_at"] is None
+    assert admission["admission_audit_missing_reason"] == "no_matching_admission_audit"
     assert "approval_snapshot_missing" not in admission["blockers"]
     assert "live_execution_disabled" in admission["blockers"]
     assert "admission_audit_missing" in admission["blockers"]
@@ -961,6 +1045,66 @@ def test_admin_api_approval_snapshot_resolution_is_evidence_only(monkeypatch):
     assert "browser_authority_rejected" in admission["blockers"]
     assert payload["guard"]["admission_decision"] == admission
     assert payload["audit_id"]
+
+
+@pytest.mark.regression
+def test_admin_api_admission_audit_resolution_is_evidence_only(monkeypatch):
+    client = _client(monkeypatch)
+    now = datetime.now(timezone.utc)
+    client_order_id = "client-audit-approved"
+    idempotency_key = "idem-audit-approved"
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=now,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key=idempotency_key),
+        json=_manual_order_payload(client_order_id=client_order_id),
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    admission = payload["admission_decision"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["client_order_id"] == client_order_id
+    assert payload["failure_stage"] == "approval"
+    assert admission["allowed"] is False
+    assert admission["approval_snapshot_present"] is True
+    assert admission["approval_snapshot_id"] == approval.approval_id
+    assert admission["admission_audit_present"] is True
+    assert admission["admission_audit_id"] == audit_event.audit_id
+    assert admission["admission_audit_source"] == "admin_api_audit_log"
+    assert admission["admission_audit_recorded_at"] == audit_event.recorded_at
+    assert admission["admission_audit_missing_reason"] is None
+    assert "approval_snapshot_missing" not in admission["blockers"]
+    assert "admission_audit_missing" not in admission["blockers"]
+    assert "live_execution_disabled" in admission["blockers"]
+    assert "cap_guard_missing" in admission["blockers"]
+    assert "reconciliation_plan_missing" in admission["blockers"]
+    assert "browser_authority_rejected" in admission["blockers"]
+    assert payload["guard"]["admission_decision"] == admission
+    assert payload["audit_id"]
+
+    audit_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "audit.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert audit_rows[-1]["approval_id"] == approval.approval_id
+    assert audit_rows[-1]["admission_decision"]["admission_audit_id"] == (
+        audit_event.audit_id
+    )
 
 
 @pytest.mark.regression
@@ -1874,7 +2018,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1261-1280"
+    assert live_payload["approved_phase_range"] == "1281-1300"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -2274,7 +2418,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1261-1280"
+    assert enterprise_payload["approved_phase_range"] == "1281-1300"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -3792,6 +3936,11 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "approval_snapshot_requested_by_actor_id": None,
         "approval_snapshot_expires_at": None,
         "approval_snapshot_missing_reason": None,
+        "admission_audit_present": False,
+        "admission_audit_id": None,
+        "admission_audit_source": "missing",
+        "admission_audit_recorded_at": None,
+        "admission_audit_missing_reason": None,
         "browser_authority": "rejected",
         "live_exchange_submitted": False,
         "blockers": ["admission_audit_missing"],

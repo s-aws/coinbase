@@ -4543,6 +4543,29 @@ components:
           - type: string
           - type: 'null'
           title: Approval Snapshot Missing Reason
+        admission_audit_present:
+          type: boolean
+          title: Admission Audit Present
+          default: false
+        admission_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Id
+        admission_audit_source:
+          type: string
+          title: Admission Audit Source
+          default: missing
+        admission_audit_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Recorded At
+        admission_audit_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Missing Reason
         browser_authority:
           type: string
           title: Browser Authority

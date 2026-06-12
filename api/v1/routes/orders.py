@@ -176,6 +176,11 @@ def _record_audit(
             request_id=request_id,
             operator_intent=operator_intent,
             idempotency_key=response.idempotency_key,
+            approval_id=(
+                response.admission_decision.approval_snapshot_id
+                if response.admission_decision is not None
+                else None
+            ),
             client_order_id=response.client_order_id,
             stealth_order_id=response.stealth_order_id,
             coinbase_order_id=response.coinbase_order_id,
@@ -242,6 +247,7 @@ def _execute_idempotent_command(
         operator_intent=operator_intent,
         payload_hash=payload_hash,
         approval_store=approval_store,
+        audit_store=audit_store,
     )
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,

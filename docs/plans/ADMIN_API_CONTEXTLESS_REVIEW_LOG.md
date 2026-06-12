@@ -2,6 +2,60 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Command Admission Audit Resolver Wiring Review - Phases 1281-1300
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify existing live-disabled command admission evidence can consume
+  backend-owned append-only audit proof results
+- verify an exact audit proof requires approval snapshot evidence first and
+  removes only `admission_audit_missing`
+- verify live-disabled, cap/guard, reconciliation, and browser-authority
+  blockers remain after audit proof resolution
+- verify no audit endpoint, audit mutation, browser audit writer, BFF audit
+  authority, direct dashboard WebSocket audit path, Coinbase call, or
+  parallel command path was added
+- verify frontend dry-submit and Audit Workbench surfaces display the new
+  audit proof fields as evidence only
+- verify non-spot identities remain generic and do not inherit spot wallet,
+  no-shorting, USDC, average-cost, or cost-basis rules
+
+Findings:
+
+- PASS: backend admission stays fail-closed and a resolved audit proof is
+  evidence only.
+- PASS: audit proof lookup is exact, backend-owned, and approval-snapshot
+  bound before it can resolve.
+- PASS: a resolved audit proof removes only `admission_audit_missing`; live,
+  cap/guard, reconciliation, and browser-authority blockers remain.
+- PASS: no audit mutation path, browser audit writer, BFF audit authority,
+  dashboard audit path, Coinbase call, or parallel command path was found.
+- PASS: frontend dry-submit rows and Audit Workbench display approval snapshot
+  and admission audit proof fields as read-only backend evidence.
+- PASS: initial frontend display blocker was remediated; follow-up blind
+  review found no blockers.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `67 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1281-1300`.
+- Backend full regression passed with `794 passed, 1 warning`.
+- Frontend focused dry-submit, command-shell, and Audit Workbench checks
+  passed with `29` tests.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed after remediation of frontend display
+  evidence.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Command Admission Snapshot Resolver Wiring Review - Phases 1261-1280
 
 Review scope:

@@ -38,110 +38,111 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Command Admission Snapshot Resolver Wiring Batch - Phases 1261-1280
+## Completed Command Admission Audit Resolver Wiring Batch - Phases 1281-1300
 
-### Phase 1261 - Advance Active Queue Range
+### Phase 1281 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1241-1260 to active
-  phases 1261-1280 while preserving the same no-live frontend posture and
+- Move the durable autonomous queue from completed phases 1261-1280 to
+  phases 1281-1300 while preserving the same no-live frontend posture and
   carried Coinbase cap policy.
 
-### Phase 1262 - M38 Command Admission Snapshot Resolver Wiring
+### Phase 1282 - M39 Command Admission Audit Resolver Wiring
 
 - Wire existing Admin API command admission evidence to the backend-owned
-  approval snapshot resolver while keeping HTTP commands live-disabled and
+  admission audit resolver while keeping HTTP commands live-disabled and
   preserving the shared command service as the only command behavior path.
 
-### Phase 1263 - Backend Range Evidence
+### Phase 1283 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
-  checks reporting the active 1261-1280 phase range.
+  checks reporting the 1281-1300 phase range.
 
-### Phase 1264 - No-Live Admission Boundary Gate
+### Phase 1284 - No-Live Audit Boundary Gate
 
-- Do not add an approval endpoint, approval mutation, live admission endpoint,
+- Do not add an audit endpoint, audit mutation, live admission endpoint,
   guard evaluator, Coinbase call, direct dashboard WebSocket path,
-  browser-owned approval writer, BFF resolver authority, or command authority.
+  browser-owned audit writer, BFF audit authority, or command authority.
 
-### Phase 1265 - Manual Order Identity Contract
+### Phase 1285 - Admission Audit Proof Contract
 
-- Add an optional `client_order_id` to manual order requests so manual
-  placement approvals can bind to the route's advertised identity key.
+- Add command admission evidence for audit proof present/missing status,
+  audit id, source, recorded time, and missing reason.
 
-### Phase 1266 - Admission Identity Value Evidence
+### Phase 1286 - Audit Store Resolver Exact Matching
 
-- Add command admission evidence for the concrete identity value used for
-  snapshot lookup while preserving generic non-spot identity handling.
+- Resolve audit proof only from exact append-only audit events bound to route,
+  method, module, identity, actor, idempotency key, operator intent, payload
+  hash, service method, and approval snapshot id.
 
-### Phase 1267 - Approval Store Dependency Injection
+### Phase 1287 - Command Admission Audit Dependency Injection
 
 - Route all live-shaped Admin API command adapters through the shared durable
-  approval store dependency instead of ad hoc lookup paths.
+  audit store dependency instead of ad hoc lookup paths.
 
-### Phase 1268 - Resolver-Backed Admission Decision
+### Phase 1288 - Snapshot-Bound Audit Lookup
 
-- Build approval snapshot requests from route, method, module, identity,
-  action class, permission, requesting actor, operator intent, idempotency key,
-  and payload hash inside the existing command admission helper.
+- Require an exact approval snapshot before audit proof can be resolved so
+  audit evidence cannot bypass approval evidence.
 
-### Phase 1269 - Snapshot Present Fail-Closed Proof
+### Phase 1289 - Audit Present Fail-Closed Proof
 
-- Prove an exact unexpired snapshot removes only the missing-snapshot blocker
-  and still returns a no-live HTTP command response.
+- Prove exact audit proof removes only `admission_audit_missing` and still
+  returns a no-live HTTP command response.
 
-### Phase 1270 - Snapshot Missing Reason Proof
+### Phase 1290 - Audit Missing Reason Proof
 
-- Prove missing identity values and missing/drifted approval records fail
-  closed with explicit admission evidence.
+- Prove missing identity values, missing snapshots, missing audit events, and
+  drifted audit records fail closed with explicit admission evidence.
 
-### Phase 1271 - Non-Spot Path Identity Preservation
+### Phase 1291 - Non-Spot Path Identity Preservation
 
 - Keep stealth and movement/repricing command admission keyed by
   `stealth_order_id` without importing spot wallet, no-shorting, cost-basis,
   or USDC rules.
 
-### Phase 1272 - OpenAPI Refresh
+### Phase 1292 - OpenAPI Refresh
 
-- Regenerate backend OpenAPI because command admission and manual order
-  request models changed.
+- Regenerate backend OpenAPI because command admission audit evidence fields
+  changed.
 
-### Phase 1273 - Frontend Schema Generation
+### Phase 1293 - Frontend Schema Generation
 
 - Regenerate frontend TypeScript schema from backend OpenAPI without hand
   edits.
 
-### Phase 1274 - Frontend Mock Evidence Sync
+### Phase 1294 - Frontend Mock Evidence Sync
 
-- Align frontend mock/runtime evidence with active range 1261-1280, stricter
-  approval snapshot fields, and admission snapshot-present metadata while
-  keeping default mock live-enablement no-live.
+- Align frontend mock/runtime evidence with range 1281-1300 and
+  admission audit present/missing metadata while keeping default mock
+  live-enablement no-live.
 
-### Phase 1275 - Frontend Dry Submit Evidence Sync
+### Phase 1295 - Frontend Dry Submit Evidence Sync
 
-- Keep dry command workflow display-only and render backend admission evidence
-  without adding browser approval, command authority, or Coinbase calls.
+- Keep dry command workflow display-only and render backend admission audit
+  evidence without adding browser approval, command authority, or Coinbase
+  calls.
 
-### Phase 1276 - Documentation Update
+### Phase 1296 - Documentation Update
 
 - Update admin API, architecture, examples, handoff, roadmap, and review docs.
 
-### Phase 1277 - Drift Scan
+### Phase 1297 - Drift Scan
 
-- Search for stale active range, stale M37 active wording, browser-authority
-  wording, approval mutation wording, live-admission wording, and spot-rule
+- Search for stale active range, stale M38 active wording, browser-authority
+  wording, audit mutation wording, live-admission wording, and spot-rule
   leakage.
 
-### Phase 1278 - Focused Backend Gates
+### Phase 1298 - Focused Backend Gates
 
 - Run backend autonomous and focused Admin API/readiness checks.
 
-### Phase 1279 - Focused Frontend Gates And Blind Review
+### Phase 1299 - Focused Frontend Gates And Blind Review
 
 - Run focused frontend quality checks and blind/contextless review for
-  resolver-backed admission evidence, no-browser approval, no approval
+  resolver-backed admission audit evidence, no-browser approval, no audit
   mutation, no spot-rule leakage, and no live Coinbase execution.
 
-### Phase 1280 - Full Gates And Summary
+### Phase 1300 - Full Gates And Summary
 
 - Run backend full regression and frontend `npm run release:gate`, then
   summarize verification and live posture.

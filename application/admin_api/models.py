@@ -116,6 +116,11 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     approval_snapshot_requested_by_actor_id: str | None = None
     approval_snapshot_expires_at: str | None = None
     approval_snapshot_missing_reason: str | None = None
+    admission_audit_present: bool = False
+    admission_audit_id: str | None = None
+    admission_audit_source: str = "missing"
+    admission_audit_recorded_at: str | None = None
+    admission_audit_missing_reason: str | None = None
     browser_authority: str = "rejected"
     live_exchange_submitted: bool = False
     blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)

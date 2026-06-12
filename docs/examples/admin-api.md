@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1261-1280",
+  "approved_phase_range": "1281-1300",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -686,7 +686,10 @@ immutable evidence from exact unexpired store records; it is not proof that
 command admission may proceed. M38 command admission wiring can report whether
 that resolver found a snapshot, but a found snapshot only changes evidence and
 does not remove live-disabled, admission-audit, cap/guard, reconciliation, or
-browser-authority blockers. M32
+browser-authority blockers. M39 command admission audit wiring can report
+whether exact append-only admission audit proof was found, but a found audit
+proof only changes evidence and does not remove live-disabled, cap/guard,
+reconciliation, or browser-authority blockers. M32
 admission-audit trail fields make the missing append-only backend admission
 audit facts explicit; they are not audit storage, approval storage, browser
 approval, command authority, Coinbase execution, or reconciliation proof.
@@ -707,8 +710,10 @@ so approval-store contract evidence may pass while route-specific approval
 snapshots remain absent and live execution remains disabled. M37 adds
 backend-only snapshot resolver infrastructure over exact unexpired approval
 records. M38 wires live-disabled command admission evidence to that resolver
-without adding live admission. None of these milestones adds an approval
-endpoint, browser approval, or Coinbase execution path.
+without adding live admission. M39 wires live-disabled command admission
+evidence to backend-owned audit proof without adding audit mutation. None of
+these milestones adds an approval endpoint, browser approval, or Coinbase
+execution path.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -717,13 +722,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1261-1280",
+  "approved_phase_range": "1281-1300",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
