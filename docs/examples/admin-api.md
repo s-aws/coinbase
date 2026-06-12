@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1101-1120",
+  "approved_phase_range": "1121-1140",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -186,6 +186,11 @@ Expected M8 readiness posture:
   "approval_snapshot_missing_count": 5,
   "approval_snapshot_required_field_count": 65,
   "approval_snapshot_missing_field_count": 65,
+  "approval_store_required_count": 5,
+  "approval_store_configured_count": 0,
+  "approval_store_missing_count": 5,
+  "approval_store_requirement_count": 60,
+  "approval_store_missing_requirement_count": 60,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -420,6 +425,65 @@ Expected M8 readiness posture:
         ],
         "detail": "POST /api/v1/orders remains live-disabled until a durable route-specific approval snapshot is present."
       },
+      "approval_store_contract": {
+        "status": "blocked",
+        "required": true,
+        "configured": false,
+        "durable": false,
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "source": "not_configured",
+        "requirement_count": 12,
+        "missing_requirement_count": 12,
+        "requirements": [
+          {
+            "requirement": "backend_owned",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "approval_store",
+            "expected_value": null,
+            "detail": "Approval storage must be owned and enforced by the backend."
+          },
+          {
+            "requirement": "route_bound",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "route_inventory",
+            "expected_value": "/api/v1/orders",
+            "detail": "Approval storage must bind approval to the exact route."
+          },
+          {
+            "requirement": "payload_hash_bound",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "command_service",
+            "expected_value": null,
+            "detail": "Approval storage must bind to the submitted command payload hash."
+          },
+          {
+            "requirement": "append_only_audit",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "audit_store",
+            "expected_value": null,
+            "detail": "Approval storage must write append-only audit evidence for approval decisions."
+          },
+          {
+            "requirement": "browser_authority_rejected",
+            "status": "blocked",
+            "required": true,
+            "expected_source": "frontend_boundary",
+            "expected_value": "display_only",
+            "detail": "Approval storage must reject browser-only acknowledgement as live authority."
+          }
+        ],
+        "evidence": [
+          "No durable backend approval store is configured for this route.",
+          "Approval records must be backend-owned, route-bound, expiring, payload-bound, and audited.",
+          "Browser acknowledgement is display-only and cannot satisfy approval-store requirements."
+        ],
+        "detail": "POST /api/v1/orders remains live-disabled until a backend approval store contract is implemented and configured."
+      },
       "browser_authority": "display_only",
       "capability_source": "GET /api/v1/admin/capabilities",
       "readiness_source": "GET /api/v1/admin/enterprise-readiness",
@@ -469,7 +533,10 @@ make passed and blocking prerequisites visible per route; they are not a
 browser approval workflow, live switch, command route, Coinbase call, or
 reconciliation substitute. M30 approval snapshot fields make the missing
 durable, route-specific, backend-owned, expiring, payload-bound approval
-record explicit; they are not approval storage or browser approval.
+record explicit; they are not approval storage or browser approval. M31
+approval-store contract fields make the missing durable backend approval store
+requirements explicit; they are not approval storage, browser approval,
+command authority, Coinbase execution, or reconciliation proof.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -478,13 +545,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1101-1120",
+  "approved_phase_range": "1121-1140",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

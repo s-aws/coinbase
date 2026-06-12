@@ -59,7 +59,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M27 - Enterprise Live-Action Governance Linkage | Complete | Link live-shaped command routes to backend governance gates, blockers, module ownership, and no-browser-authority evidence. |
 | M28 - Enterprise Command Gap Triage | Complete | Make unsupported, not-modeled, and live-disabled command gaps triageable across modules without adding command authority. |
 | M29 - Controlled-Live Preflight Evidence Alignment | Complete | Add read-only per-route preflight evidence to live-enablement without creating live approval or browser authority. |
-| M30 - Route-Specific Approval Snapshot Evidence | Active | Make missing durable approval snapshots explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
+| M30 - Route-Specific Approval Snapshot Evidence | Complete | Make missing durable approval snapshots explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
+| M31 - Approval Store Contract Evidence | Active | Make missing durable backend approval-store behavior explicit per live-shaped route without creating approval storage, command authority, or browser approval. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1091,7 +1092,7 @@ Purpose: turn the current `approval_snapshot` live preflight blocker into a
 route-specific, field-level backend contract that contextless agents can
 understand before any real approval storage or live execution path is added.
 
-Active scope:
+Completed scope:
 
 - Phases 1101-1120 advance the active unattended range while preserving the
   same no-live frontend posture and carried Coinbase cap policy.
@@ -1106,6 +1107,45 @@ Active scope:
 - Frontend surfaces render the evidence as read-only diagnostics only; no BFF
   mutation allowlist expansion or command button is permitted.
 
+Completed evidence:
+
+- Backend models, OpenAPI, examples, autonomous checks, and regression tests
+  agree on the route-specific approval snapshot evidence contract.
+- Frontend generated schema, mock runtime, UI, quality artifacts, docs, and
+  release checks consume the contract without adding command authority.
+- Blind/contextless review confirmed the approval snapshot requirements are
+  understandable, backend-owned, and not browser approval after stale docs were
+  remediated.
+- Full backend regression passed with `790` tests passed and `1` warning.
+- Frontend release gate passed with `186` unit tests and `3` Playwright tests
+  passed.
+- Live Coinbase execution was not run for this batch; submitted notional `$0`,
+  executed notional `$0`.
+
+## M31 - Approval Store Contract Evidence
+
+Purpose: make the missing durable approval-store contract visible before any
+approval persistence, live authorization, or command admission path is added.
+
+Active scope:
+
+- Phases 1121-1140 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `GET /api/v1/admin/live-enablement` remains the only read route for this
+  evidence; no parallel approval-store route, approval mutation, command path,
+  Coinbase call, or browser evaluator is added.
+- Every live-shaped HTTP command route exposes a blocked approval-store
+  contract object with backend-owned, route-bound, method-bound,
+  module-bound, actor-bound, idempotency-bound, payload-hash-bound, expiring,
+  cap-guard-bound, reconciliation-bound, append-only-audit, and
+  browser-authority-rejected requirements.
+- Store requirements bind to backend approval store, route inventory, command
+  headers, command service, guard/risk policy, reconciliation policy, audit
+  store, and frontend-boundary evidence sources.
+- Frontend surfaces render the evidence as read-only diagnostics only; no BFF
+  mutation allowlist expansion, command button, approval storage, or browser
+  approval workflow is permitted.
+
 Done when:
 
 - Backend focused Admin API/readiness tests and autonomous queue check pass.
@@ -1113,8 +1153,8 @@ Done when:
   fields without hand edits.
 - Frontend focused quality checks, targeted Playwright smoke, and
   `npm run release:gate` pass after rendering the evidence.
-- Blind/contextless review confirms the approval snapshot requirements are
-  understandable, backend-owned, and not browser approval.
+- Blind/contextless review confirms the approval-store contract requirements
+  are understandable, backend-owned, and not browser approval.
 - Full backend regression passes.
 - Live Coinbase execution is not run; submitted and executed notional remain
   `$0`.

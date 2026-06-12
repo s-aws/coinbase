@@ -43,6 +43,9 @@ These primitives apply across modules:
 - route-specific approval snapshot evidence that names missing durable,
   backend-owned, expiring, payload-bound approval fields without creating
   approval storage or browser approval
+- approval-store contract evidence that names missing durable backend store
+  behavior without creating approval storage, command authority, or browser
+  approval
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -151,6 +154,10 @@ Route-specific approval snapshot evidence is another read-only refinement of
 the same route. It may show required approval fields and their expected
 backend sources, but it must not become approval storage, a browser approval
 workflow, command authority, Coinbase execution, or reconciliation evidence.
+Approval-store contract evidence is the next read-only refinement of the same
+route. It may show backend store requirements and expected authority sources,
+but it must not become an approval database, browser approval workflow,
+command authority, Coinbase execution, or reconciliation evidence.
 
 ## Durable Milestones
 

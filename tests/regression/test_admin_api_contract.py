@@ -1422,7 +1422,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1101-1120"
+    assert live_payload["approved_phase_range"] == "1121-1140"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1438,6 +1438,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["approval_snapshot_missing_count"] == 5
     assert live_payload["approval_snapshot_required_field_count"] == 65
     assert live_payload["approval_snapshot_missing_field_count"] == 65
+    assert live_payload["approval_store_required_count"] == 5
+    assert live_payload["approval_store_configured_count"] == 0
+    assert live_payload["approval_store_missing_count"] == 5
+    assert live_payload["approval_store_requirement_count"] == 60
+    assert live_payload["approval_store_missing_requirement_count"] == 60
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -1502,6 +1507,42 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
+        item["approval_store_contract"]["status"] == "blocked"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_store_contract"]["required"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_store_contract"]["configured"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_store_contract"]["durable"] is False
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_store_contract"]["backend_owned"] is True
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_store_contract"]["browser_authority"] == "display_only"
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_store_contract"]["requirement_count"] == 12
+        for item in live_routes.values()
+    )
+    assert all(
+        item["approval_store_contract"]["missing_requirement_count"] == 12
+        for item in live_routes.values()
+    )
+    assert all(
+        len(item["approval_store_contract"]["requirements"]) == 12
+        for item in live_routes.values()
+    )
+    assert all(
         item["blocking_preflight_check_count"] == 4
         for item in live_routes.values()
     )
@@ -1551,6 +1592,34 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_approval_fields["reconciliation_plan_ref"]["expected_source"] == "reconciliation_policy"
     assert all(field["status"] == "blocked" for field in spot_approval_fields.values())
     assert all(field["required"] is True for field in spot_approval_fields.values())
+    spot_store = live_routes["/api/v1/orders"]["approval_store_contract"]
+    assert spot_store["source"] == "not_configured"
+    assert "approval store" in spot_store["detail"]
+    spot_store_requirements = {
+        requirement["requirement"]: requirement
+        for requirement in spot_store["requirements"]
+    }
+    assert spot_store_requirements["backend_owned"]["expected_source"] == "approval_store"
+    assert spot_store_requirements["route_bound"]["expected_source"] == "route_inventory"
+    assert spot_store_requirements["route_bound"]["expected_value"] == "/api/v1/orders"
+    assert spot_store_requirements["method_bound"]["expected_value"] == "POST"
+    assert spot_store_requirements["module_bound"]["expected_value"] == "spot_operations"
+    assert spot_store_requirements["actor_bound"]["expected_source"] == "approval_store"
+    assert spot_store_requirements["idempotency_bound"]["expected_source"] == "command_headers"
+    assert spot_store_requirements["payload_hash_bound"]["expected_source"] == "command_service"
+    assert spot_store_requirements["expiring"]["expected_source"] == "approval_store"
+    assert spot_store_requirements["cap_guard_bound"]["expected_source"] == "guard_risk_policy"
+    assert spot_store_requirements["reconciliation_bound"]["expected_source"] == "reconciliation_policy"
+    assert spot_store_requirements["append_only_audit"]["expected_source"] == "audit_store"
+    assert spot_store_requirements["browser_authority_rejected"]["expected_value"] == "display_only"
+    assert all(
+        requirement["status"] == "blocked"
+        for requirement in spot_store_requirements.values()
+    )
+    assert all(
+        requirement["required"] is True
+        for requirement in spot_store_requirements.values()
+    )
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["module_id"] == "stealth_orders"
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["identity_key"] == "stealth_order_id"
     assert (
@@ -1580,7 +1649,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1101-1120"
+    assert enterprise_payload["approved_phase_range"] == "1121-1140"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

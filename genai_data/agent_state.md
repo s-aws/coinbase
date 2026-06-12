@@ -36,10 +36,10 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `1101-1120`.
-- Active milestone: M30 - Route-Specific Approval Snapshot Evidence.
-- In-scope files: Admin API live-enablement contracts, route-specific
-  approval snapshot evidence, admin platform docs, frontend association docs,
+- Active autonomous range: `1121-1140`.
+- Active milestone: M31 - Approval Store Contract Evidence.
+- In-scope files: Admin API live-enablement contracts, approval-store
+  contract evidence, admin platform docs, frontend association docs,
   generated OpenAPI/frontend schema, regression tests, and agent context
   needed for local-agent accuracy.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
@@ -47,10 +47,10 @@ Keep it short. Keep it factual.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M30 must use existing `GET /api/v1/admin/live-enablement` evidence only.
-  Do not add an approval snapshot endpoint, approval storage, command route,
-  BFF mutation, direct dashboard WebSocket call, Coinbase call, browser
-  approval workflow, or reconciliation authority.
+- M31 must use existing `GET /api/v1/admin/live-enablement` evidence only.
+  Do not add an approval-store endpoint, approval mutation, approval storage,
+  command route, BFF mutation, direct dashboard WebSocket call, Coinbase call,
+  browser approval workflow, or reconciliation authority.
 
 ## Decisions (Durable)
 
@@ -199,6 +199,16 @@ Keep it short. Keep it factual.
     approval storage, BFF mutation broadening, command route, Coinbase call,
     or reconciliation authority is allowed.
 
+- [2026-06-12] Decision: M31 approval-store contract evidence is an explicit
+  missing-store contract, not approval storage.
+  - Reason: Contextless maintainers need to see which durable backend store
+    behaviors are required before any live HTTP command can be admitted.
+  - Impact: `GET /api/v1/admin/live-enablement` exposes blocked per-route
+    approval-store requirements. Frontend surfaces may render those
+    requirements only as display evidence; no browser approval, approval
+    storage, BFF mutation broadening, command route, Coinbase call, or
+    reconciliation authority is allowed.
+
 ## Open Risks
 
 - Risk: Broad all-USDC SELL execution still has many wallet-only or insufficient-known-profitable rows.
@@ -234,8 +244,8 @@ Keep it short. Keep it factual.
 - Result: Passed, 63 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-12
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: Passed for approved range `1101-1120`; live Coinbase execution
-  `not_run`, submitted/executed notional `0` USDC.
+- Result: Pending for approved range `1121-1140`; live Coinbase execution
+  `not_run`, submitted/executed notional `0` USDC so far.
 - Last backend full regression: 2026-06-12
   `python -m pytest tests\regression\ -v --tb=short`
 - Result: Passed, 790 tests, 1 warning.
@@ -255,27 +265,31 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Rerun blind/contextless M30 review or equivalent doc drift check after this
-   file and `README.admin-frontend.md` are updated.
-2. Run frontend `npm run release:gate` after the M30 frontend/docs changes.
-3. Commit backend and frontend M30 changes separately if full gates pass.
+1. Finish M31 backend approval-store contract evidence, regenerate OpenAPI,
+   and run focused backend/Admin API/autonomous checks.
+2. Sync the frontend generated schema, mock runtime, UI evidence surface,
+   quality artifacts, docs, and focused frontend checks for M31.
+3. Run blind/contextless M31 review, backend full regression, frontend
+   `npm run release:gate`, then commit backend and frontend separately.
 4. Keep contextless blind-review in the release loop for new spot order,
-   campaign, live-action, or approval-snapshot behavior.
+   campaign, live-action, approval-snapshot, or approval-store behavior.
 
 ## Handoff Notes
 
-- What is done in M30 so far: backend live-enablement now exposes typed,
+- What is done in M30: backend live-enablement now exposes typed,
   blocked, route-specific approval snapshot requirements per live-shaped
   route; OpenAPI was regenerated; frontend generated schema, mocks, AdminShell
   evidence surface, quality artifacts, docs, and tests consume the contract.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot evidence through the runtime snapshot and existing
-  `GET /api/v1/admin/live-enablement`; no command controls, approval storage,
-  BFF mutation broadening, Coinbase call, browser approval, or reconciliation
-  behavior was added.
-- What is in progress: final M30 contextless review rerun, frontend
-  `npm run release:gate`, and separate backend/frontend commits.
+  `GET /api/v1/admin/live-enablement`; M31 is adding approval-store contract
+  evidence to the same read path. No command controls, approval storage, BFF
+  mutation broadening, Coinbase call, browser approval, or reconciliation
+  behavior is allowed.
+- What is in progress: M31 backend approval-store evidence, OpenAPI/frontend
+  schema sync, frontend read-only evidence rendering, gates, blind review, and
+  separate backend/frontend commits.
 - What is blocked: Nothing currently known.
-- Exact next command: rerun blind/contextless M30 review or run frontend
-  `npm run release:gate` if review is already clean.
+- Exact next command: regenerate backend OpenAPI after M31 backend docs and
+  focused backend checks are clean.

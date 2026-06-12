@@ -218,7 +218,9 @@ The platform/module split is documented in
   blocking approval, cap/guard, live-execution-service, and reconciliation
   prerequisites. M30 route-specific approval snapshot evidence makes the
   missing durable, backend-owned, expiring, payload-bound approval record
-  explicit per live-shaped path. The route is read-only, reports
+  explicit per live-shaped path. M31 approval-store contract evidence makes
+  the missing durable backend approval store requirements explicit per
+  live-shaped path. The route is read-only, reports
   `default_live_coinbase_execution=not_run`, submitted/executed notional
   `$0`, and does not enable any command path.
 - Audit workbench reads normalize route inventory, command audit, order,

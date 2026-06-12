@@ -38,7 +38,110 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Route-Specific Approval Snapshot Evidence Batch - Phases 1101-1120
+## Active Approval Store Contract Evidence Batch - Phases 1121-1140
+
+### Phase 1121 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1101-1120 to active
+  phases 1121-1140 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1122 - M31 Approval Store Contract Evidence
+
+- Expand existing `GET /api/v1/admin/live-enablement` evidence with typed
+  approval-store contract requirements while keeping every HTTP command route
+  live-disabled and without adding approval storage.
+
+### Phase 1123 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1121-1140 phase range.
+
+### Phase 1124 - Existing Contract Reuse Gate
+
+- Do not add an approval-store-specific endpoint, approval mutation, command
+  path, Coinbase call, or browser evaluator.
+
+### Phase 1125 - Approval Store Model Contract
+
+- Add typed fields for store status, required/configured/durable flags,
+  backend ownership, browser authority, source, requirements, missing
+  requirements, evidence, and detail.
+
+### Phase 1126 - Per-Route Store Requirement Matrix
+
+- Attach the approval-store requirement checklist to each live-shaped Admin
+  API command path.
+
+### Phase 1127 - Store Source Binding
+
+- Bind required store behavior to approval-store, route-inventory, command
+  headers, command service, guard/risk policy, reconciliation policy, audit
+  store, and frontend-boundary sources.
+
+### Phase 1128 - Missing Store Blocker Evidence
+
+- Report the missing durable backend approval store as blocked evidence until
+  backend-owned, route-bound, expiring, payload-bound, audit-backed approval
+  storage exists.
+
+### Phase 1129 - No Browser Approval Boundary
+
+- Keep approval-store evidence read-only and forbid use as browser approval,
+  command submission, cancellation, repricing, reconciliation, or Coinbase
+  execution authority.
+
+### Phase 1130 - Spot And Non-Spot Boundary Confirmation
+
+- Keep spot-only wallet/inventory/no-shorting/cost-basis/USDC rules out of
+  futures/perpetual, stealth, movement, and campaign command authority.
+
+### Phase 1131 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI after the response model expands.
+
+### Phase 1132 - Frontend Schema Sync Coordination
+
+- Coordinate frontend generated-schema consumption from the backend schema.
+
+### Phase 1133 - Frontend Approval Store Evidence Surface
+
+- Render the frontend evidence from backend-owned live-enablement
+  approval-store requirements only.
+
+### Phase 1134 - Runtime Mock Artifact Alignment
+
+- Align mocks, runtime evidence, visual targets, release checks, deployment
+  checks, and autonomous validators.
+
+### Phase 1135 - Documentation Update
+
+- Update admin API, architecture, examples, handoff, roadmap, and review docs.
+
+### Phase 1136 - Drift Scan
+
+- Search for stale active range, M30 active wording, browser-authority
+  wording, and spot-rule leakage.
+
+### Phase 1137 - Focused Backend Gates
+
+- Run backend autonomous and focused Admin API/readiness checks.
+
+### Phase 1138 - Focused Frontend Gates
+
+- Run focused frontend quality and UI checks.
+
+### Phase 1139 - Blind/Contextless Review
+
+- Run blind/contextless review for backend authority, approval-store contract
+  clarity, and no-browser-command posture.
+
+### Phase 1140 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize verification and live posture.
+
+## Completed Route-Specific Approval Snapshot Evidence Batch - Phases 1101-1120
 
 ### Phase 1101 - Advance Active Queue Range
 
@@ -138,6 +241,24 @@ dashboard WebSocket message
 
 - Run backend full regression and frontend `npm run release:gate`, then
   summarize verification and live posture.
+
+## Completion Evidence - Phases 1101-1120
+
+- Backend active range evidence reported `1101-1120`; live-enablement exposed
+  route-specific approval snapshot evidence on the existing read route only.
+- No parallel endpoint, mutation, command route, Coinbase call, browser
+  evaluator, approval storage, or reconciliation authority was added.
+- Each live-shaped route exposed a blocked approval snapshot with `13`
+  missing required fields tied to backend-owned sources.
+- Focused backend gates passed with `63` tests passed and `1` warning;
+  backend autonomous validation passed for range `1101-1120`.
+- Full backend regression passed with `790` tests passed and `1` warning.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review initially found stale entry-point docs; remediation
+  updated the stale docs and the rerun passed.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Controlled-Live Preflight Evidence Batch - Phases 1081-1100
 

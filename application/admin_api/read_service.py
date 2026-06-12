@@ -21,6 +21,7 @@ from core.enums import (
     AdminFuturesPositionSide,
     AdminApiGateStatus,
     AdminApiHealthStatus,
+    AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
@@ -68,6 +69,8 @@ from .models import (
     AdminGateCheck,
     AdminGateReadResponse,
     AdminHealthResponse,
+    AdminLiveApprovalStoreContractEvidence,
+    AdminLiveApprovalStoreRequirementItem,
     AdminLiveApprovalSnapshotEvidence,
     AdminLiveApprovalSnapshotRequiredFieldItem,
     AdminLiveEnablementPathItem,
@@ -98,7 +101,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1101-1120"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1121-1140"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -468,6 +471,118 @@ def _live_approval_snapshot_evidence(
         detail=(
             f"{method} {route} remains live-disabled until a durable "
             "route-specific approval snapshot is present."
+        ),
+    )
+
+
+def _approval_store_requirement(
+    *,
+    requirement: AdminApiLiveApprovalStoreRequirement,
+    expected_source: str,
+    detail: str,
+    expected_value: str | None = None,
+) -> AdminLiveApprovalStoreRequirementItem:
+    return AdminLiveApprovalStoreRequirementItem(
+        requirement=requirement,
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        expected_source=expected_source,
+        expected_value=expected_value,
+        detail=detail,
+    )
+
+
+def _live_approval_store_contract_evidence(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+) -> AdminLiveApprovalStoreContractEvidence:
+    requirements = [
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.BACKEND_OWNED,
+            expected_source="approval_store",
+            detail="Approval storage must be owned and enforced by the backend.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.ROUTE_BOUND,
+            expected_source="route_inventory",
+            expected_value=route,
+            detail="Approval storage must bind approval to the exact route.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.METHOD_BOUND,
+            expected_source="route_inventory",
+            expected_value=method,
+            detail="Approval storage must bind approval to the exact HTTP method.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.MODULE_BOUND,
+            expected_source="route_inventory",
+            expected_value=module_id,
+            detail="Approval storage must bind approval to the enterprise module id.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.ACTOR_BOUND,
+            expected_source="approval_store",
+            detail="Approval storage must record the backend-authenticated approving actor.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.IDEMPOTENCY_BOUND,
+            expected_source="command_headers",
+            detail="Approval storage must bind to the command idempotency key.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.PAYLOAD_HASH_BOUND,
+            expected_source="command_service",
+            detail="Approval storage must bind to the submitted command payload hash.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.EXPIRING,
+            expected_source="approval_store",
+            detail="Approval storage must enforce expiry and reject evergreen approval.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.CAP_GUARD_BOUND,
+            expected_source="guard_risk_policy",
+            detail="Approval storage must bind to backend cap and guard decision evidence.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.RECONCILIATION_BOUND,
+            expected_source="reconciliation_policy",
+            detail="Approval storage must bind to the planned post-live reconciliation evidence.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.APPEND_ONLY_AUDIT,
+            expected_source="audit_store",
+            detail="Approval storage must write append-only audit evidence for approval decisions.",
+        ),
+        _approval_store_requirement(
+            requirement=AdminApiLiveApprovalStoreRequirement.BROWSER_AUTHORITY_REJECTED,
+            expected_source="frontend_boundary",
+            expected_value="display_only",
+            detail="Approval storage must reject browser-only acknowledgement as live authority.",
+        ),
+    ]
+    return AdminLiveApprovalStoreContractEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        required=True,
+        configured=False,
+        durable=False,
+        backend_owned=True,
+        browser_authority="display_only",
+        source="not_configured",
+        requirement_count=len(requirements),
+        missing_requirement_count=len(requirements),
+        requirements=requirements,
+        evidence=[
+            "No durable backend approval store is configured for this route.",
+            "Approval records must be backend-owned, route-bound, expiring, payload-bound, and audited.",
+            "Browser acknowledgement is display-only and cannot satisfy approval-store requirements.",
+        ],
+        detail=(
+            f"{method} {route} remains live-disabled until a backend approval "
+            "store contract is implemented and configured."
         ),
     )
 
@@ -2925,6 +3040,11 @@ class AdminApiReadService:
                 action_class=item.action_class,
                 required_permission=item.permission,
             )
+            approval_store_contract = _live_approval_store_contract_evidence(
+                method=method,
+                route=path,
+                module_id=item.module_id,
+            )
             paths.append(
                 AdminLiveEnablementPathItem(
                     path_id=_path_id(method, path),
@@ -2973,6 +3093,7 @@ class AdminApiReadService:
                         if check.status == AdminApiGateStatus.PASSED
                     ),
                     approval_snapshot=approval_snapshot,
+                    approval_store_contract=approval_store_contract,
                     evidence=[
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
@@ -2994,6 +3115,9 @@ class AdminApiReadService:
             for check in path.preflight_checks
         ]
         approval_snapshots = [path.approval_snapshot for path in paths]
+        approval_store_contracts = [
+            path.approval_store_contract for path in paths
+        ]
 
         checks = [
             AdminGateCheck(
@@ -3067,6 +3191,29 @@ class AdminApiReadService:
             approval_snapshot_missing_field_count=sum(
                 snapshot.missing_required_field_count
                 for snapshot in approval_snapshots
+            ),
+            approval_store_required_count=sum(
+                1
+                for contract in approval_store_contracts
+                if contract.required
+            ),
+            approval_store_configured_count=sum(
+                1
+                for contract in approval_store_contracts
+                if contract.configured
+            ),
+            approval_store_missing_count=sum(
+                1
+                for contract in approval_store_contracts
+                if not contract.configured
+            ),
+            approval_store_requirement_count=sum(
+                contract.requirement_count
+                for contract in approval_store_contracts
+            ),
+            approval_store_missing_requirement_count=sum(
+                contract.missing_requirement_count
+                for contract in approval_store_contracts
             ),
         )
 

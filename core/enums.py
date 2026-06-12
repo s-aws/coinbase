@@ -275,6 +275,23 @@ class AdminApiLiveApprovalSnapshotField(str, Enum):
     RECONCILIATION_PLAN_REF = "reconciliation_plan_ref"
 
 
+class AdminApiLiveApprovalStoreRequirement(str, Enum):
+    """Required approval-store behaviors before live route approval."""
+
+    BACKEND_OWNED = "backend_owned"
+    ROUTE_BOUND = "route_bound"
+    METHOD_BOUND = "method_bound"
+    MODULE_BOUND = "module_bound"
+    ACTOR_BOUND = "actor_bound"
+    IDEMPOTENCY_BOUND = "idempotency_bound"
+    PAYLOAD_HASH_BOUND = "payload_hash_bound"
+    EXPIRING = "expiring"
+    CAP_GUARD_BOUND = "cap_guard_bound"
+    RECONCILIATION_BOUND = "reconciliation_bound"
+    APPEND_ONLY_AUDIT = "append_only_audit"
+    BROWSER_AUTHORITY_REJECTED = "browser_authority_rejected"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 
