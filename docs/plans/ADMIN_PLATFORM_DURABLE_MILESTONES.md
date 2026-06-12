@@ -533,7 +533,7 @@ Purpose: promote the existing backend-owned frontend-fixtures route from
 contract-only coverage to runtime-loaded admin evidence without making it a
 browser-side source of trading behavior.
 
-Current onboarding work:
+Completion evidence:
 
 - Phases 741-760 load `GET /api/v1/admin/frontend-fixtures` through the
   frontend runtime snapshot and display fixture bundle diagnostics.
@@ -541,16 +541,47 @@ Current onboarding work:
   no-live posture.
 - Mock fixtures, route coverage, quality artifacts, and docs stay aligned with
   the backend route.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review blockers were remediated before commit.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 Done when:
 
 - Frontend runtime snapshot includes frontend-fixtures.
 - Operator diagnostics display fixture count, gate fixture keys, schema
   version, and no-live evidence.
-- Backend and frontend validators use active phase range 741-760.
+- Backend and frontend validators used active phase range 741-760.
 - Focused and full gates pass.
 - Blind/contextless review confirms frontend-fixtures are clearly read-only
   evidence and not a parallel trading authority.
+
+## M13 - Read-Smoke Runtime Parity
+
+Purpose: make direct-backend and BFF dry read smoke prove the same backend
+evidence routes the enterprise admin runtime snapshot consumes.
+
+Current onboarding work:
+
+- Phases 761-780 define a shared read-smoke route catalog for direct backend
+  and BFF smoke scripts.
+- The catalog covers admin evidence routes, runtime read-model routes, and
+  representative detail reads without live Coinbase execution.
+- Release checks fail if the catalog or smoke scripts drift from runtime
+  evidence expectations.
+
+Done when:
+
+- Direct read smoke and BFF read smoke use the same shared catalog.
+- Dry smoke output includes OIDC readiness, live-enablement,
+  enterprise-readiness, operational gates, frontend-fixtures, read-model list
+  routes, and representative detail routes.
+- Backend and frontend validators use active phase range 761-780.
+- Focused and full gates pass.
+- Blind/contextless review confirms smoke parity is read-only evidence and not
+  a live execution path.
 
 ## Objective Completion
 

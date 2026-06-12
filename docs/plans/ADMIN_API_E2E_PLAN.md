@@ -4445,7 +4445,7 @@ Completion evidence:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Frontend-Fixtures Runtime Evidence Batch - Phases 741-760
+## Completed Frontend-Fixtures Runtime Evidence Batch - Phases 741-760
 
 ### Phase 741 - Advance Active Queue Range
 
@@ -4532,6 +4532,106 @@ Completion evidence:
   admin objective.
 
 ### Phase 760 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 741-760
+
+- Phase range 741-760 completed M12 frontend-fixtures runtime evidence.
+- Frontend runtime snapshot loads `GET /api/v1/admin/frontend-fixtures`; UI
+  diagnostics display fixture count, gate fixture keys, schema version, and
+  no-live posture.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M12 review blockers were remediated before commit.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Approved Read-Smoke Runtime Parity Batch - Phases 761-780
+
+### Phase 761 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 741-760 to active
+  phases 761-780 while preserving the same cap and stop-condition policy.
+
+### Phase 762 - M13 Read-Smoke Runtime Parity Slice
+
+- Align direct-backend and BFF read smoke route coverage with the integrated
+  admin runtime snapshot.
+
+### Phase 763 - Backend Range Evidence
+
+- Update backend no-live readiness evidence to report active range 761-780.
+
+### Phase 764 - Shared Read Smoke Catalog
+
+- Add a single frontend smoke-route catalog for direct backend and BFF read
+  smoke scripts.
+
+### Phase 765 - Admin Evidence Route Coverage
+
+- Include newer admin evidence routes in dry read/BFF smoke output.
+
+### Phase 766 - Read-Model Detail Route Coverage
+
+- Include representative detail and read-model routes in smoke output.
+
+### Phase 767 - BFF Route Parity
+
+- Generate BFF read smoke paths from the shared direct-backend read catalog.
+
+### Phase 768 - Release Checker Guard
+
+- Make release checks fail if smoke-route coverage drifts.
+
+### Phase 769 - Operator Docs Sync
+
+- Document read/BFF smoke runtime parity and no-live posture.
+
+### Phase 770 - Stale Range And Route Audit
+
+- Search for range and smoke/runtime contradictions.
+
+### Phase 771 - Focused Backend Verification
+
+- Run focused backend Admin API and autonomous checks.
+
+### Phase 772 - Focused Frontend Verification
+
+- Run focused frontend smoke, release-check, autonomous, and unit checks.
+
+### Phase 773 - Contextless M13 Review
+
+- Run blind/contextless review for smoke-route runtime parity.
+
+### Phase 774 - Review Remediation
+
+- Resolve blocker or ambiguity before full gates.
+
+### Phase 775 - Full Backend Regression
+
+- Run full backend regression.
+
+### Phase 776 - Full Frontend Release Gate
+
+- Run full frontend release gate.
+
+### Phase 777 - Final Drift Check
+
+- Run diff, generated-file, route-range, and live-notional checks.
+
+### Phase 778 - Milestone Evidence
+
+- Mark M13 complete only if gates and review pass.
+
+### Phase 779 - Next Batch Planning
+
+- Prepare the next roadmap batch only if it aligns with the durable enterprise
+  admin objective.
+
+### Phase 780 - Commit And Final Batch Summary
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and next objective scope.
