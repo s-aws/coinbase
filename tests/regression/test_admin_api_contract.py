@@ -48,6 +48,11 @@ from core.enums import (
     AdminApiVerifierReadinessStatus,
 )
 from tools.generate_admin_api_openapi import generate_openapi_schema
+from tools.export_admin_api_route_inventory import (
+    ROUTE_INVENTORY_EXPORT_PATH,
+    build_admin_api_route_inventory_export,
+    write_admin_api_route_inventory_export,
+)
 from tools.run_admin_oidc_readiness_smoke import (
     SUMMARY_PREFIX as ADMIN_OIDC_READINESS_SMOKE_SUMMARY_PREFIX,
     build_admin_oidc_readiness_smoke_summary,
@@ -317,6 +322,41 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         enum_values = component_schema.get("enum")
         if enum_values is not None:
             assert len(enum_values) == len(set(enum_values)), schema_name
+
+
+@pytest.mark.regression
+def test_admin_api_route_inventory_export_file_matches_generated_contract():
+    generated = write_admin_api_route_inventory_export(ROUTE_INVENTORY_EXPORT_PATH)
+    written = json.loads(ROUTE_INVENTORY_EXPORT_PATH.read_text(encoding="utf-8"))
+
+    assert written == generated
+    assert generated == build_admin_api_route_inventory_export()
+    command_routes = {
+        (item["method"], item["path"]): item
+        for item in written["routes"]
+        if item["command_contract"]
+    }
+    assert command_routes[("POST", "/api/v1/orders")] == {
+        "surface": "POST /api/v1/orders",
+        "method": "POST",
+        "path": "/api/v1/orders",
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "permission": AdminApiPermission.ORDER_CREATE.value,
+        "idempotency": "required",
+        "approval": "required",
+        "caps": "required",
+        "audit": "required",
+        "shared_method": "place_manual_order",
+        "parity_test": "HTTP vs place_order guard/result parity",
+        "compatibility_mode": None,
+        "command_contract": True,
+    }
+    assert command_routes[
+        ("POST", "/api/v1/orders/{client_order_id}/cancel")
+    ]["shared_method"] == "cancel_order_by_client_order_id"
+    assert command_routes[
+        ("POST", "/api/v1/spot/campaign/executions")
+    ]["permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
 
 
 @pytest.mark.regression
@@ -1295,6 +1335,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/admin/csrf" in routes
     assert "/api/v1/admin/live-enablement" in routes
     assert "/api/v1/admin/enterprise-readiness" in routes
+    command_capabilities = {
+        (item["method"], item["route"]): item
+        for item in capabilities.json()["capabilities"]
+        if item["command_contract"]
+    }
+    assert command_capabilities[("POST", "/api/v1/orders")] == {
+        "route": "/api/v1/orders",
+        "method": "POST",
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "permission": AdminApiPermission.ORDER_CREATE.value,
+        "availability": "live_disabled",
+        "live_enabled": False,
+        "frontend_safe": True,
+        "shared_method": "place_manual_order",
+        "idempotency": "required",
+        "approval": "required",
+        "caps": "required",
+        "audit": "required",
+        "command_contract": True,
+        "compatibility_mode": None,
+        "parity_test": "HTTP vs place_order guard/result parity",
+        "notes": "Backend-owned Admin API route",
+    }
+    assert command_capabilities[
+        ("POST", "/api/v1/orders/{client_order_id}/cancel")
+    ]["shared_method"] == "cancel_order_by_client_order_id"
+    assert command_capabilities[
+        ("POST", "/api/v1/spot/campaign/executions")
+    ]["permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
     assert csrf.status_code == 200
     assert csrf.json() == {
         "type": "admin_csrf_contract",
@@ -1310,7 +1379,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "801-820"
+    assert live_payload["approved_phase_range"] == "821-840"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1334,7 +1403,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "801-820"
+    assert enterprise_payload["approved_phase_range"] == "821-840"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

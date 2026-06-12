@@ -133,6 +133,25 @@ active auth mode, required and missing OIDC settings, claim mapping, JWKS
 reachability, and no-live notional posture.
 
 ```http
+GET /api/v1/admin/capabilities
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Command capability rows are derived from `ADMIN_API_ROUTE_INVENTORY` and
+include `action_class`, `permission`, `shared_method`, `idempotency`,
+`approval`, `caps`, `audit`, `command_contract`, and `parity_test`. They are
+metadata for frontend validation and diagnostics only; they do not enable live
+Coinbase execution. `frontend_safe=true` means the row is safe for Admin
+frontend/BFF contract exposure under backend authority, not that the command
+is safe or approved for live trading.
+
+The checked-in export
+`openapi/coinbase-admin-api-route-inventory.json` is generated from the same
+inventory and is the artifact consumed by frontend route-coverage checks.
+
+```http
 GET /api/v1/admin/live-enablement
 Authorization: Bearer <backend-verifiable-token>
 X-Admin-Actor: viewer-001
@@ -145,7 +164,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "801-820",
+  "approved_phase_range": "821-840",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -221,7 +240,7 @@ Expected M9 enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "801-820",
+  "approved_phase_range": "821-840",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

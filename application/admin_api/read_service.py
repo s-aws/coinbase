@@ -91,7 +91,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "801-820"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "821-840"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1537,6 +1537,14 @@ class AdminApiReadService:
                     live_enabled=False,
                     frontend_safe=_frontend_safe(item.surface, item.action_class),
                     shared_method=item.shared_method,
+                    idempotency=item.idempotency,
+                    approval=item.approval,
+                    caps=item.caps,
+                    audit=item.audit,
+                    command_contract=method == "POST"
+                    and item.action_class != AdminApiActionClass.READ_ONLY,
+                    compatibility_mode=item.compatibility_mode,
+                    parity_test=item.parity_test,
                     notes=(
                         "Compatibility-only legacy dashboard surface"
                         if "WebSocket" in item.surface

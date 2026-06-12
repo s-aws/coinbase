@@ -321,6 +321,13 @@ class AdminCapabilityItem(BaseModel):
     live_enabled: bool
     frontend_safe: bool
     shared_method: str
+    idempotency: str
+    approval: str
+    caps: str
+    audit: str
+    command_contract: bool = False
+    compatibility_mode: str | None = None
+    parity_test: str
     notes: str
 
 

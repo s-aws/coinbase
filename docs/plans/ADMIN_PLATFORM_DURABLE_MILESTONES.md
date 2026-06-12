@@ -651,11 +651,51 @@ Completed evidence:
 
 Completed when:
 
-- Backend and frontend validators use active phase range 801-820.
+- Backend and frontend validators use then-active phase range 801-820.
 - BFF command route derivation and coverage checks pass.
 - Focused and full gates pass.
 - Blind/contextless review confirms BFF command forwarding remains
   backend-owned, no-live, and understandable without chat history.
+
+## M16 - Backend Command Metadata Authority
+
+Purpose: make backend route inventory the authority for command metadata that
+the frontend mutation catalog must match.
+
+Completed evidence:
+
+- Phases 821-840 advance and complete the active unattended range while
+  preserving the same no-live frontend posture and live-cap policy.
+- `/api/v1/admin/capabilities` exposes command contract metadata derived from
+  `ADMIN_API_ROUTE_INVENTORY`.
+- `openapi/coinbase-admin-api-route-inventory.json` is exported from backend
+  route inventory and consumed by frontend route coverage; the frontend no
+  longer scrapes backend Python source for command metadata.
+- Frontend mutation contracts carry action class, required permission, and
+  shared service method metadata for each command.
+- Frontend route coverage compares mutation metadata to backend route
+  inventory artifact metadata and generated backend `post` operations.
+- Docs clarify that `frontend_safe=true` means safe for Admin frontend/BFF
+  contract exposure under backend authority, not approval for live Coinbase
+  execution.
+- Backend focused Admin API/spot readiness checks passed with `63 passed,
+  1 warning`; backend full regression passed with `790 passed, 1 warning`.
+- Frontend focused command/API/runtime checks passed with `68` tests; frontend
+  `npm run release:gate` passed with `178` unit tests and `3` Playwright
+  tests.
+- Blind/contextless review passed after remediation of the route-inventory
+  artifact and `frontend_safe` wording risks.
+- No command path becomes live-enabled through this metadata work.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+Completed when:
+
+- Backend and frontend validators use active phase range 821-840.
+- OpenAPI and frontend generated schema are fresh.
+- Focused and full gates pass.
+- Blind/contextless review confirms backend command metadata authority is
+  clear and no-live.
 
 ## Objective Completion
 

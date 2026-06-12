@@ -11,10 +11,11 @@ Maintainer handoff for contextless agents starts at
 
 ## Current Status
 
-The repository now contains an Admin API contract, generated OpenAPI artifact,
-fail-closed auth/RBAC bootstrap, durable JSONL idempotency/audit stores,
-structured error payloads, observability headers, read-only admin diagnostics,
-order read routes, read-only stealth lifecycle routes, a live-disabled
+The repository now contains an Admin API contract, generated OpenAPI and
+route-inventory artifacts, fail-closed auth/RBAC bootstrap, durable JSONL
+idempotency/audit stores, structured error payloads, observability headers,
+read-only admin diagnostics, order read routes, read-only stealth lifecycle
+routes, a live-disabled
 stealth cancel command contract, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
 account and position routes, read-only guard/risk policy evidence, read-only
@@ -132,6 +133,9 @@ The platform/module split is documented in
 ## Direction
 
 - Use FastAPI with backend-owned OpenAPI.
+- Keep `openapi/coinbase-admin-api-route-inventory.json` generated from
+  `ADMIN_API_ROUTE_INVENTORY`; frontend route checks consume this artifact
+  instead of scraping backend Python source.
 - Keep the backend as the only authority for trading behavior.
 - Keep HTTP live-order execution disabled until approval/cap gates are complete.
 - Keep legacy dashboard WebSocket handlers as compatibility adapters.
@@ -178,6 +182,13 @@ The platform/module split is documented in
   profitability-validator posture, authority sources, and rejection categories
   as evidence only. They do not fetch Coinbase wallets and do not approve live
   execution.
+- Capability reads expose backend route-inventory metadata, including command
+  action class, permission, shared service method, idempotency, approval,
+  caps, audit, compatibility, and parity evidence. This metadata is a
+  frontend validation source only; it does not make command routes live.
+  `frontend_safe=true` means safe for Admin frontend/BFF contract exposure
+  under backend authority; it is not permission to submit, cancel, reprice, or
+  execute live Coinbase orders.
 - Live-enablement reads expose controlled M8 live path readiness, cap
   posture, approval requirements, guard requirements, audit requirements, and
   reconciliation requirements. The route is read-only, reports

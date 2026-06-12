@@ -3442,6 +3442,30 @@ components:
         shared_method:
           type: string
           title: Shared Method
+        idempotency:
+          type: string
+          title: Idempotency
+        approval:
+          type: string
+          title: Approval
+        caps:
+          type: string
+          title: Caps
+        audit:
+          type: string
+          title: Audit
+        command_contract:
+          type: boolean
+          title: Command Contract
+          default: false
+        compatibility_mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Compatibility Mode
+        parity_test:
+          type: string
+          title: Parity Test
         notes:
           type: string
           title: Notes
@@ -3456,6 +3480,11 @@ components:
       - live_enabled
       - frontend_safe
       - shared_method
+      - idempotency
+      - approval
+      - caps
+      - audit
+      - parity_test
       - notes
       title: AdminCapabilityItem
       description: One backend-owned capability advertised to the frontend.

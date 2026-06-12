@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **801-820**.
+- Approved phase range: **821-840**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -1013,7 +1013,7 @@ Completion evidence:
 ### Phase 803 - Backend Range Evidence
 
 - Update backend no-live readiness evidence so live-enablement and
-  enterprise-readiness report the active 801-820 phase range.
+  enterprise-readiness report the then-active 801-820 phase range.
 
 ### Phase 804 - Mutation Contract Route Helper
 
@@ -1112,6 +1112,126 @@ Completion evidence:
   Playwright tests.
 - Blind/contextless M15 review and re-review found no blockers after
   generated POST route coverage hardening.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Completed Phases 821-840
+
+### Phase 821 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 801-820 to active
+  phases 821-840 while preserving the same cap and stop-condition policy.
+
+### Phase 822 - M16 Backend Command Metadata Authority Slice
+
+- Expose command contract metadata from backend route inventory through the
+  existing capabilities read contract.
+
+### Phase 823 - Backend Range Evidence
+
+- Update backend no-live readiness evidence so live-enablement and
+  enterprise-readiness report the active 821-840 phase range.
+
+### Phase 824 - Capability Contract Expansion
+
+- Add idempotency, approval, cap, audit, compatibility, parity, and command
+  contract metadata to capability items.
+
+### Phase 825 - Backend Capability Tests
+
+- Prove command capabilities advertise backend action class, permission,
+  shared service method, and no-live posture.
+
+### Phase 826 - OpenAPI Regeneration
+
+- Regenerate the backend OpenAPI schema after capability contract changes.
+
+### Phase 827 - Frontend Generated Schema Sync
+
+- Regenerate the frontend OpenAPI TypeScript schema from the backend schema.
+
+### Phase 828 - Mutation Metadata Fields
+
+- Add action class, required permission, and shared service method fields to
+  frontend mutation contracts.
+
+### Phase 829 - Backend Inventory Parity Guard
+
+- Make frontend route coverage compare mutation metadata to backend route
+  inventory command metadata.
+
+### Phase 830 - Mock Capability Sync
+
+- Update frontend mock capabilities to include the expanded backend metadata
+  fields.
+
+### Phase 831 - Operator Docs Sync
+
+- Document that command metadata parity comes from backend inventory and not
+  browser-side authority.
+
+### Phase 832 - Stale Range And Metadata Audit
+
+- Search for current-state contradictions around 801-820 versus 821-840 and
+  around command metadata drift.
+
+### Phase 833 - Focused Backend Verification
+
+- Run focused backend Admin API/autonomous checks for capability metadata and
+  no-live readiness evidence.
+
+### Phase 834 - Focused Frontend Verification
+
+- Run focused frontend route coverage, mutation contract, mock backend,
+  release-check, autonomous, and type checks.
+
+### Phase 835 - Contextless M16 Review
+
+- Run a blind/contextless review asking whether backend command metadata
+  authority is clear and no-live.
+
+### Phase 836 - Review Remediation
+
+- Resolve blocker or ambiguity from M16 review before full gates.
+
+### Phase 837 - Full Backend Regression
+
+- Run full backend regression after M16 changes and docs updates.
+
+### Phase 838 - Full Frontend Release Gate
+
+- Run full frontend release gate after command metadata parity changes.
+
+### Phase 839 - Milestone Evidence And Drift Check
+
+- Record M16 evidence after diff, generated-file, route-range, metadata, and
+  live-notional checks pass.
+
+### Phase 840 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+Completion evidence:
+
+- Backend capabilities expose command contract metadata derived from
+  `ADMIN_API_ROUTE_INVENTORY`.
+- Backend route inventory exports
+  `openapi/coinbase-admin-api-route-inventory.json`; frontend route coverage
+  consumes that artifact instead of scraping Python source.
+- Frontend mutation contracts carry action class, required permission, and
+  shared service method metadata, and route coverage compares that metadata to
+  backend-generated inventory and OpenAPI `post` operations.
+- Docs clarify that `frontend_safe=true` means safe for Admin frontend/BFF
+  contract exposure under backend authority, not approval for live Coinbase
+  execution.
+- Backend focused Admin API/spot readiness checks passed with `63 passed,
+  1 warning`; backend full regression passed with `790 passed, 1 warning`.
+- Frontend focused command/API/runtime checks passed with `68` tests; frontend
+  `npm run release:gate` passed with `178` unit tests and `3` Playwright
+  tests.
+- Blind/contextless review passed after remediation of the route-inventory
+  artifact and `frontend_safe` wording risks.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 

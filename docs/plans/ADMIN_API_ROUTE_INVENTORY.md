@@ -7,6 +7,12 @@ Every row names the action class, permission, idempotency requirement, approval
 requirement, cap policy, audit requirement, shared command-service method, and
 parity test target.
 
+Run `python tools\export_admin_api_route_inventory.py` after changing this
+inventory. The generated
+`openapi/coinbase-admin-api-route-inventory.json` artifact is consumed by the
+enterprise frontend route checker so the frontend compares against
+backend-owned metadata without parsing Python source.
+
 | Surface | Action class | Permission | Idempotency | Approval | Caps | Audit | Shared method | Parity test | Compatibility mode |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `POST /api/v1/orders` | `live_exchange_place` | `order:create` | required | required | required | required | `place_manual_order` | HTTP vs `place_order` guard/result parity | |
