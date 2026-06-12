@@ -24,6 +24,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiLiveExecutionStatus,
+    AdminApiLivePreflightCategory,
     AdminMovementRepricingEvidenceType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
@@ -934,6 +935,21 @@ class AdminCsrfContractResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminLivePreflightCheckItem(BaseModel):
+    """One controlled-live preflight check for a live-shaped route."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    category: AdminApiLivePreflightCategory
+    status: AdminApiGateStatus
+    required: bool = True
+    blocking: bool = True
+    owner: str
+    evidence: str
+    detail: str
+
+
 class AdminLiveEnablementPathItem(BaseModel):
     """One live-eligible path and the gates required before enablement."""
 
@@ -971,6 +987,9 @@ class AdminLiveEnablementPathItem(BaseModel):
     product_scope: str = "not_selected"
     max_submitted_notional_usdc: DecimalString | None = None
     max_executed_notional_usdc: DecimalString | None = None
+    preflight_checks: list[AdminLivePreflightCheckItem] = Field(default_factory=list)
+    blocking_preflight_check_count: int = 0
+    passed_preflight_check_count: int = 0
     evidence: list[str] = Field(default_factory=list)
     notes: str
 
@@ -996,6 +1015,9 @@ class AdminLiveEnablementReadResponse(BaseModel):
     live_eligible_path_count: int = 0
     paths: list[AdminLiveEnablementPathItem] = Field(default_factory=list)
     checks: list[AdminGateCheck] = Field(default_factory=list)
+    preflight_check_count: int = 0
+    blocking_preflight_check_count: int = 0
+    passed_preflight_check_count: int = 0
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

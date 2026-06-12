@@ -2,6 +2,48 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Controlled-Live Preflight Evidence Review - Phases 1081-1100
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify M29 reuses `GET /api/v1/admin/live-enablement`
+- verify no parallel preflight endpoint, approval endpoint, command path,
+  Coinbase call, direct dashboard WebSocket path, BFF mutation broadening, or
+  browser approval path was added
+- verify live-shaped routes remain live-disabled and expose preflight checks
+  with passed and blocked counts
+- verify the frontend renders Enterprise Controlled Live Preflight Matrix as
+  read-only evidence
+- verify spot-only rules stay scoped to spot evidence
+
+Findings:
+
+- PASS: backend uses the existing live-enablement read route and expanded the
+  typed response contract instead of adding a parallel endpoint.
+- PASS: each live-shaped route exposes `8` preflight checks with `4` passed
+  prerequisites and `4` blockers while HTTP command routes remain
+  live-disabled.
+- PASS: frontend consumes generated/backend-shaped evidence through canonical
+  runtime/client paths and renders Enterprise Controlled Live Preflight Matrix
+  with no command controls.
+- PASS: BFF POST routes remain sourced from existing mutation contracts; no
+  preflight mutation route was added.
+- PASS: no Coinbase call, direct dashboard WebSocket path, reconciliation
+  behavior, browser approval logic, or spot-rule leakage was found.
+
+Status:
+
+- Full backend regression and frontend release gate passed before M29
+  completion.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Enterprise Command Gap Triage Review - Phases 1061-1080
 
 Review scope:

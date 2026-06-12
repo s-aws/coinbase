@@ -3041,6 +3041,19 @@ components:
       - completed
       title: AdminApiLiveExecutionStatus
       description: Live-execution posture exposed by read-only Admin API readiness.
+    AdminApiLivePreflightCategory:
+      type: string
+      enum:
+      - authorization
+      - idempotency
+      - approval
+      - cap_guard
+      - audit
+      - reconciliation
+      - live_execution_service
+      - browser_authority
+      title: AdminApiLivePreflightCategory
+      description: Controlled-live preflight evidence categories for Admin API routes.
     AdminApiModuleSupportStatus:
       type: string
       enum:
@@ -4381,6 +4394,19 @@ components:
             - '1.00'
           - type: 'null'
           title: Max Executed Notional Usdc
+        preflight_checks:
+          items:
+            $ref: '#/components/schemas/AdminLivePreflightCheckItem'
+          type: array
+          title: Preflight Checks
+        blocking_preflight_check_count:
+          type: integer
+          title: Blocking Preflight Check Count
+          default: 0
+        passed_preflight_check_count:
+          type: integer
+          title: Passed Preflight Check Count
+          default: 0
         evidence:
           items:
             type: string
@@ -4488,6 +4514,18 @@ components:
             $ref: '#/components/schemas/AdminGateCheck'
           type: array
           title: Checks
+        preflight_check_count:
+          type: integer
+          title: Preflight Check Count
+          default: 0
+        blocking_preflight_check_count:
+          type: integer
+          title: Blocking Preflight Check Count
+          default: 0
+        passed_preflight_check_count:
+          type: integer
+          title: Passed Preflight Check Count
+          default: 0
         read_only:
           type: boolean
           title: Read Only
@@ -4505,6 +4543,43 @@ components:
       - max_executed_notional_usdc
       title: AdminLiveEnablementReadResponse
       description: Read-only M8 live-enablement readiness and cap evidence.
+    AdminLivePreflightCheckItem:
+      properties:
+        name:
+          type: string
+          title: Name
+        category:
+          $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        owner:
+          type: string
+          title: Owner
+        evidence:
+          type: string
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - category
+      - status
+      - owner
+      - evidence
+      - detail
+      title: AdminLivePreflightCheckItem
+      description: One controlled-live preflight check for a live-shaped route.
     AdminMovementRepricingDetailResponse:
       properties:
         type:

@@ -22,6 +22,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiLiveExecutionStatus,
+    AdminApiLivePreflightCategory,
     AdminApiModuleSupportStatus,
     AdminMovementRepricingEvidenceType,
     AdminApiPermission,
@@ -67,6 +68,7 @@ from .models import (
     AdminGateReadResponse,
     AdminHealthResponse,
     AdminLiveEnablementPathItem,
+    AdminLivePreflightCheckItem,
     AdminLiveEnablementReadResponse,
     AdminMovementRepricingDetailResponse,
     AdminMovementRepricingEvidenceItem,
@@ -93,7 +95,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1061-1080"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1081-1100"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -241,6 +243,102 @@ def _live_governance_blockers(module_id: str, route: str) -> list[str]:
             "spot campaign execution must retain dry-run and sweep reconciliation evidence until live approval"
         )
     return blockers
+
+
+def _preflight_check(
+    *,
+    name: str,
+    category: AdminApiLivePreflightCategory,
+    status: AdminApiGateStatus,
+    owner: str,
+    evidence: str,
+    detail: str,
+) -> AdminLivePreflightCheckItem:
+    return AdminLivePreflightCheckItem(
+        name=name,
+        category=category,
+        status=status,
+        required=True,
+        blocking=status == AdminApiGateStatus.BLOCKED,
+        owner=owner,
+        evidence=evidence,
+        detail=detail,
+    )
+
+
+def _live_preflight_checks(
+    *,
+    module_id: str,
+    route: str,
+    shared_method: str,
+) -> list[AdminLivePreflightCheckItem]:
+    module_owner = _enterprise_module_owner(module_id)
+    return [
+        _preflight_check(
+            name="auth_rbac",
+            category=AdminApiLivePreflightCategory.AUTHORIZATION,
+            status=AdminApiGateStatus.PASSED,
+            owner="admin_api_contract",
+            evidence="FastAPI route requires authenticated Admin API actor and backend RBAC.",
+            detail="Live-shaped HTTP routes already fail closed without auth and permission evidence.",
+        ),
+        _preflight_check(
+            name="idempotency_operator_intent",
+            category=AdminApiLivePreflightCategory.IDEMPOTENCY,
+            status=AdminApiGateStatus.PASSED,
+            owner="admin_api_contract",
+            evidence="Idempotency-Key, X-Operator-Intent, payload hash, and request id are captured before command service delegation.",
+            detail="Current dry command contracts preserve replay/conflict evidence without placing Coinbase orders.",
+        ),
+        _preflight_check(
+            name="durable_audit",
+            category=AdminApiLivePreflightCategory.AUDIT,
+            status=AdminApiGateStatus.PASSED,
+            owner="admin_api_contract",
+            evidence="Command audit events are written before live-disabled responses are returned.",
+            detail="Audit id and correlation id are available as operator evidence for dry-submit review.",
+        ),
+        _preflight_check(
+            name="browser_authority",
+            category=AdminApiLivePreflightCategory.BROWSER_AUTHORITY,
+            status=AdminApiGateStatus.PASSED,
+            owner="admin_api_contract",
+            evidence="Frontend authority is display_only and command workflows require backend capability evidence.",
+            detail="The browser may show preflight evidence but must not approve, place, cancel, or reconcile live orders.",
+        ),
+        _preflight_check(
+            name="approval_snapshot",
+            category=AdminApiLivePreflightCategory.APPROVAL,
+            status=AdminApiGateStatus.BLOCKED,
+            owner="admin_api_contract",
+            evidence="No explicit M8 live approval snapshot is present for this route.",
+            detail=f"{route} remains live-disabled until route-specific approval evidence is durable.",
+        ),
+        _preflight_check(
+            name="cap_guard_policy",
+            category=AdminApiLivePreflightCategory.CAP_GUARD,
+            status=AdminApiGateStatus.BLOCKED,
+            owner=module_owner,
+            evidence="Live cap and action-condition guard decisions are not yet wired as route-specific admission evidence.",
+            detail="Guard, cap, wallet, position, and domain risk semantics must remain backend-owned before live enablement.",
+        ),
+        _preflight_check(
+            name="live_execution_service",
+            category=AdminApiLivePreflightCategory.LIVE_EXECUTION_SERVICE,
+            status=AdminApiGateStatus.BLOCKED,
+            owner=module_owner,
+            evidence=f"{shared_method} is exposed only through the current live-disabled Admin API contract.",
+            detail="No HTTP command route is admitted to live Coinbase execution in the enterprise Admin API path.",
+        ),
+        _preflight_check(
+            name="post_live_reconciliation",
+            category=AdminApiLivePreflightCategory.RECONCILIATION,
+            status=AdminApiGateStatus.BLOCKED,
+            owner=module_owner,
+            evidence="Post-live reconciliation evidence is not wired for this route.",
+            detail="A live path cannot be enabled until the exact route reports post-submit reconciliation evidence under cap.",
+        ),
+    ]
 
 
 def _path_id(method: str, path: str) -> str:
@@ -2682,6 +2780,11 @@ class AdminApiReadService:
                 AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
             }:
                 continue
+            preflight_checks = _live_preflight_checks(
+                module_id=item.module_id,
+                route=path,
+                shared_method=item.shared_method,
+            )
             paths.append(
                 AdminLiveEnablementPathItem(
                     path_id=_path_id(method, path),
@@ -2718,6 +2821,17 @@ class AdminApiReadService:
                     product_scope=LIVE_ENABLEMENT_PRODUCT_SCOPE,
                     max_submitted_notional_usdc=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
                     max_executed_notional_usdc=LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC,
+                    preflight_checks=preflight_checks,
+                    blocking_preflight_check_count=sum(
+                        1
+                        for check in preflight_checks
+                        if check.status == AdminApiGateStatus.BLOCKED
+                    ),
+                    passed_preflight_check_count=sum(
+                        1
+                        for check in preflight_checks
+                        if check.status == AdminApiGateStatus.PASSED
+                    ),
                     evidence=[
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
@@ -2732,6 +2846,12 @@ class AdminApiReadService:
                     ),
                 )
             )
+
+        preflight_checks = [
+            check
+            for path in paths
+            for check in path.preflight_checks
+        ]
 
         checks = [
             AdminGateCheck(
@@ -2772,6 +2892,17 @@ class AdminApiReadService:
             live_eligible_path_count=0,
             paths=paths,
             checks=checks,
+            preflight_check_count=len(preflight_checks),
+            blocking_preflight_check_count=sum(
+                1
+                for check in preflight_checks
+                if check.status == AdminApiGateStatus.BLOCKED
+            ),
+            passed_preflight_check_count=sum(
+                1
+                for check in preflight_checks
+                if check.status == AdminApiGateStatus.PASSED
+            ),
         )
 
     def build_audit_workbench(

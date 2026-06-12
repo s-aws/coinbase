@@ -1422,7 +1422,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1061-1080"
+    assert live_payload["approved_phase_range"] == "1081-1100"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1430,6 +1430,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["max_executed_notional_usdc"] == "1.00"
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
+    assert live_payload["preflight_check_count"] == 40
+    assert live_payload["blocking_preflight_check_count"] == 20
+    assert live_payload["passed_preflight_check_count"] == 20
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -1452,11 +1455,38 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert all(item["request_id_required"] is True for item in live_routes.values())
     assert all(item["audit_id_required"] is True for item in live_routes.values())
     assert all(item["reconciliation_blockers"] for item in live_routes.values())
+    assert all(len(item["preflight_checks"]) == 8 for item in live_routes.values())
+    assert all(
+        item["blocking_preflight_check_count"] == 4
+        for item in live_routes.values()
+    )
+    assert all(
+        item["passed_preflight_check_count"] == 4
+        for item in live_routes.values()
+    )
     assert live_routes["/api/v1/orders"]["module_id"] == "spot_operations"
     assert live_routes["/api/v1/orders"]["module"] == "Spot Operations"
     assert live_routes["/api/v1/orders"]["module_owner"] == "strategy"
     assert live_routes["/api/v1/orders"]["identity_key"] == "client_order_id"
     assert "Spot-only wallet" in live_routes["/api/v1/orders"]["spot_rule_boundary"]
+    spot_preflight = {
+        check["name"]: check
+        for check in live_routes["/api/v1/orders"]["preflight_checks"]
+    }
+    assert spot_preflight["auth_rbac"]["category"] == "authorization"
+    assert spot_preflight["auth_rbac"]["status"] == "passed"
+    assert spot_preflight["idempotency_operator_intent"]["status"] == "passed"
+    assert spot_preflight["durable_audit"]["status"] == "passed"
+    assert spot_preflight["browser_authority"]["status"] == "passed"
+    assert spot_preflight["approval_snapshot"]["status"] == "blocked"
+    assert spot_preflight["cap_guard_policy"]["status"] == "blocked"
+    assert spot_preflight["live_execution_service"]["status"] == "blocked"
+    assert spot_preflight["post_live_reconciliation"]["status"] == "blocked"
+    assert all(check["required"] is True for check in spot_preflight.values())
+    assert all(
+        check["blocking"] is (check["status"] == "blocked")
+        for check in spot_preflight.values()
+    )
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["module_id"] == "stealth_orders"
     assert live_routes["/api/v1/stealth/orders/{stealth_order_id}/cancel"]["identity_key"] == "stealth_order_id"
     assert (
@@ -1486,7 +1516,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1061-1080"
+    assert enterprise_payload["approved_phase_range"] == "1081-1100"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

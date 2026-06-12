@@ -97,7 +97,12 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1061-1080`.
+- Active autonomous range: `1081-1100`.
+- M29 controlled-live preflight evidence is exposed through the existing
+  `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
+  passed and blocked checks can describe readiness, but they must not become a
+  browser preflight approval path, live switch, command route, Coinbase call,
+  or reconciliation path.
 - M28 enterprise command gap triage uses existing
   `GET /api/v1/admin/enterprise-readiness` and
   `GET /api/v1/admin/capabilities` evidence. It must remain a read-only

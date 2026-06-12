@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1061-1080**.
+- Approved phase range: **1081-1100**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -45,6 +45,149 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Active Phases 1081-1100
+
+### Phase 1081 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1061-1080 to active
+  phases 1081-1100 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1082 - M29 Controlled-Live Preflight Evidence Alignment
+
+- Add structured read-only controlled-live preflight evidence to the existing
+  `GET /api/v1/admin/live-enablement` contract without enabling live
+  execution or adding a command route.
+
+### Phase 1083 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1081-1100 phase range.
+
+### Phase 1084 - Existing Contract Reuse Gate
+
+- Reuse `GET /api/v1/admin/live-enablement`; do not add a parallel preflight
+  endpoint, approval endpoint, command endpoint, or browser-owned evaluator.
+
+### Phase 1085 - Preflight Check Model Contract
+
+- Add typed live preflight check evidence for name, category, status,
+  required flag, blocking flag, owner, evidence, and detail.
+
+### Phase 1086 - Per-Route Preflight Matrix
+
+- Attach the same explicit preflight checklist shape to every live-shaped HTTP
+  command path in live-enablement evidence.
+
+### Phase 1087 - Passing Backend-Owned Prerequisites
+
+- Mark currently satisfied prerequisites such as auth/RBAC, idempotency and
+  operator-intent shape, durable audit shape, and browser display-only
+  authority as passed evidence.
+
+### Phase 1088 - Blocking Live-Approval Prerequisites
+
+- Keep explicit live approval snapshots, cap/guard policy wiring, live
+  execution service wiring, and post-live reconciliation as blocking evidence.
+
+### Phase 1089 - No Browser Approval Boundary
+
+- Confirm preflight evidence remains display-only and cannot become browser
+  approval, command submission, cancellation, repricing, reconciliation, or
+  Coinbase execution authority.
+
+### Phase 1090 - Spot And Non-Spot Boundary Confirmation
+
+- Keep spot wallet, inventory, no-shorting, cost-basis, and USDC rules scoped
+  to spot command authority while futures/perpetual, stealth, movement, and
+  campaign commands keep their own blockers.
+
+### Phase 1091 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI after the live-enablement contract expands.
+
+### Phase 1092 - Frontend Schema Sync Coordination
+
+- Coordinate frontend generated-schema consumption from the backend OpenAPI
+  without hand-editing generated TypeScript.
+
+### Phase 1093 - Frontend Preflight Matrix Surface
+
+- Render the controlled-live preflight matrix as read-only frontend evidence
+  under Modules, with no command controls or BFF mutation broadening.
+
+### Phase 1094 - Runtime Mock Artifact Alignment
+
+- Align mock/runtime evidence, release artifacts, deployment checks,
+  autonomous checks, and visual smoke targets with the preflight matrix.
+
+### Phase 1095 - Documentation Update
+
+- Update Admin API, frontend, architecture, capability matrix, examples,
+  maintainer handoff, roadmap, and review docs for controlled-live preflight
+  evidence.
+
+### Phase 1096 - Drift Scan
+
+- Check stale phase ranges, stale M28 active wording, route inventory
+  assumptions, browser-authority wording, and spot-rule leakage.
+
+### Phase 1097 - Focused Backend Gates
+
+- Run backend autonomous and focused Admin API/readiness checks.
+
+### Phase 1098 - Focused Frontend Gates
+
+- Run frontend typecheck, lint, API, release-readiness, deployment,
+  autonomous, focused UI/runtime/mock/quality, and targeted Playwright checks.
+
+### Phase 1099 - Blind/Contextless Review
+
+- Run a contextless review verifying the preflight matrix is understandable,
+  read-only, backend-sourced, and not live approval or browser authority.
+
+### Phase 1100 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  objective scope.
+
+## Completion Evidence - Phases 1081-1100
+
+- Backend active range evidence now reports `1081-1100` from
+  live-enablement, enterprise-readiness, and autonomous queue checks.
+- `GET /api/v1/admin/live-enablement` exposes controlled-live preflight
+  evidence on the existing read route. No parallel preflight endpoint,
+  approval endpoint, command route, Coinbase call, or browser evaluator was
+  added.
+- Each live-shaped HTTP command route reports `8` preflight checks: `4`
+  passed backend-owned prerequisites and `4` blocking live-approval
+  prerequisites.
+- The frontend Modules route renders Enterprise Controlled Live Preflight
+  Matrix as read-only evidence with no command controls, BFF mutation
+  broadening, direct dashboard WebSocket calls, Coinbase calls, reconciliation
+  behavior, or browser approval logic.
+- Focused backend gates passed:
+  `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
+  reported `63` passed with `1` warning.
+- Backend autonomous queue check passed:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Focused frontend gates passed: typecheck, lint, API route coverage, command
+  fetch guard, release readiness, deployment readiness, autonomous queue,
+  focused UI/runtime/mock/quality tests (`45` focused tests passed), and
+  targeted Playwright smoke (`3` tests passed).
+- Full backend regression passed:
+  `python -m pytest tests\regression\ -v --tb=short` reported `790` passed
+  with `1` warning.
+- Full frontend release gate passed: `npm run release:gate` reported `186`
+  unit tests passed and `3` Playwright tests passed.
+- Blind/contextless M29 review passed with no blockers. It confirmed the
+  preflight matrix is backend-sourced, read-only, reuses the existing
+  live-enablement route, adds no command authority, and preserves spot/non-spot
+  boundaries.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 1061-1080
 

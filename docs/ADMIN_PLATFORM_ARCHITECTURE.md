@@ -38,6 +38,8 @@ These primitives apply across modules:
 - live-enablement governance linkage that binds live-shaped command routes to
   module ownership, identity keys, required gate controls, reconciliation
   blockers, capability evidence, and no-browser-authority proof
+- controlled-live preflight evidence that names passed and blocking
+  prerequisites per live-shaped command route without approving execution
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -137,6 +139,11 @@ The frontend Enterprise Live-Action Governance Linkage surface combines
 module ownership, identity keys, reconciliation blockers, and no-browser
 authority. Do not add a parallel governance endpoint or change live-disabled
 HTTP command behavior from this evidence.
+The controlled-live preflight matrix is a read-only refinement of
+`GET /api/v1/admin/live-enablement`. It may show which prerequisites are
+passed or blocking, but it must not become a separate preflight endpoint,
+browser approval workflow, live switch, Coinbase call, or reconciliation
+path.
 
 ## Durable Milestones
 

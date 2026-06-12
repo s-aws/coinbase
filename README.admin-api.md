@@ -213,7 +213,10 @@ The platform/module split is documented in
   execute live Coinbase orders.
 - Live-enablement reads expose controlled M8 live path readiness, cap
   posture, approval requirements, guard requirements, audit requirements, and
-  reconciliation requirements. The route is read-only, reports
+  reconciliation requirements. They also expose per-route controlled-live
+  preflight checks that separate passed backend-owned prerequisites from
+  blocking approval, cap/guard, live-execution-service, and reconciliation
+  prerequisites. The route is read-only, reports
   `default_live_coinbase_execution=not_run`, submitted/executed notional
   `$0`, and does not enable any command path.
 - Audit workbench reads normalize route inventory, command audit, order,

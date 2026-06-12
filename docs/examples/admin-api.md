@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1061-1080",
+  "approved_phase_range": "1081-1100",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -178,6 +178,9 @@ Expected M8 readiness posture:
   "reconciliation_required": true,
   "live_enabled_path_count": 0,
   "live_eligible_path_count": 0,
+  "preflight_check_count": 40,
+  "blocking_preflight_check_count": 20,
+  "passed_preflight_check_count": 20,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -204,6 +207,90 @@ Expected M8 readiness posture:
       "request_id_required": true,
       "audit_id_required": true,
       "reconciliation_required": true,
+      "preflight_checks": [
+        {
+          "name": "auth_rbac",
+          "category": "authorization",
+          "status": "passed",
+          "required": true,
+          "blocking": false,
+          "owner": "admin_api_contract",
+          "evidence": "FastAPI route requires authenticated Admin API actor and backend RBAC.",
+          "detail": "Live-shaped HTTP routes already fail closed without auth and permission evidence."
+        },
+        {
+          "name": "idempotency_operator_intent",
+          "category": "idempotency",
+          "status": "passed",
+          "required": true,
+          "blocking": false,
+          "owner": "admin_api_contract",
+          "evidence": "Idempotency-Key, X-Operator-Intent, payload hash, and request id are captured before command service delegation.",
+          "detail": "Current dry command contracts preserve replay/conflict evidence without placing Coinbase orders."
+        },
+        {
+          "name": "durable_audit",
+          "category": "audit",
+          "status": "passed",
+          "required": true,
+          "blocking": false,
+          "owner": "admin_api_contract",
+          "evidence": "Command audit events are written before live-disabled responses are returned.",
+          "detail": "Audit id and correlation id are available as operator evidence for dry-submit review."
+        },
+        {
+          "name": "browser_authority",
+          "category": "browser_authority",
+          "status": "passed",
+          "required": true,
+          "blocking": false,
+          "owner": "admin_api_contract",
+          "evidence": "Frontend authority is display_only and command workflows require backend capability evidence.",
+          "detail": "The browser may show preflight evidence but must not approve, place, cancel, or reconcile live orders."
+        },
+        {
+          "name": "approval_snapshot",
+          "category": "approval",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "owner": "admin_api_contract",
+          "evidence": "No explicit M8 live approval snapshot is attached to this route.",
+          "detail": "The route remains live-disabled until approval evidence is durable and route-specific."
+        },
+        {
+          "name": "cap_guard_policy",
+          "category": "cap_guard",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "owner": "strategy",
+          "evidence": "Live cap and action-condition guard decisions are not yet wired as route-specific admission evidence.",
+          "detail": "Guard, cap, wallet, position, and domain risk semantics must remain backend-owned before live enablement."
+        },
+        {
+          "name": "live_execution_service",
+          "category": "live_execution_service",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "owner": "strategy",
+          "evidence": "place_manual_order is exposed only through the current live-disabled Admin API contract.",
+          "detail": "No HTTP command route is admitted to live Coinbase execution in the enterprise Admin API path."
+        },
+        {
+          "name": "post_live_reconciliation",
+          "category": "reconciliation",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "owner": "strategy",
+          "evidence": "Post-live reconciliation evidence is not wired for this route.",
+          "detail": "A live path cannot be enabled until the exact route reports post-submit reconciliation evidence under cap."
+        }
+      ],
+      "blocking_preflight_check_count": 4,
+      "passed_preflight_check_count": 4,
       "browser_authority": "display_only",
       "capability_source": "GET /api/v1/admin/capabilities",
       "readiness_source": "GET /api/v1/admin/enterprise-readiness",
@@ -248,7 +335,10 @@ This route is evidence only. It lists command paths that could later be
 considered for controlled live enablement, but every current path remains
 `live_enabled=false` until explicit live approval, cap, guard, audit, and
 reconciliation gates pass. M27 governance fields make that fail-closed posture
-auditable per route; they do not approve live execution.
+auditable per route; they do not approve live execution. M29 preflight fields
+make passed and blocking prerequisites visible per route; they are not a
+browser approval workflow, live switch, command route, Coinbase call, or
+reconciliation substitute.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -257,13 +347,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1061-1080",
+  "approved_phase_range": "1081-1100",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

@@ -38,6 +38,123 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Active Controlled-Live Preflight Evidence Batch - Phases 1081-1100
+
+### Phase 1081 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1061-1080 to active
+  phases 1081-1100 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1082 - M29 Controlled-Live Preflight Evidence Alignment
+
+- Expand existing `GET /api/v1/admin/live-enablement` evidence with typed
+  controlled-live preflight checks while keeping every HTTP command route
+  live-disabled.
+
+### Phase 1083 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1081-1100 phase range.
+
+### Phase 1084 - Existing Contract Reuse Gate
+
+- Do not add a preflight-specific endpoint, approval endpoint, command path,
+  Coinbase call, or browser evaluator.
+
+### Phase 1085 - Preflight Check Model Contract
+
+- Add typed check fields for category, status, required/blocking flags,
+  ownership, evidence, and detail.
+
+### Phase 1086 - Per-Route Preflight Matrix
+
+- Attach the checklist to each live-shaped Admin API command path.
+
+### Phase 1087 - Passing Backend-Owned Prerequisites
+
+- Report passed evidence for auth/RBAC, idempotency/operator-intent shape,
+  durable audit shape, and browser display-only boundary.
+
+### Phase 1088 - Blocking Live-Approval Prerequisites
+
+- Report blocked evidence for approval snapshots, cap/guard wiring, live
+  execution service wiring, and post-live reconciliation.
+
+### Phase 1089 - No Browser Approval Boundary
+
+- Keep preflight evidence read-only and forbid use as browser approval,
+  command submission, cancellation, repricing, reconciliation, or Coinbase
+  execution authority.
+
+### Phase 1090 - Spot And Non-Spot Boundary Confirmation
+
+- Keep spot-only wallet/inventory/no-shorting/cost-basis/USDC rules out of
+  futures/perpetual, stealth, movement, and campaign command authority.
+
+### Phase 1091 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI after the response model expands.
+
+### Phase 1092 - Frontend Schema Sync Coordination
+
+- Coordinate frontend generated-schema consumption from the backend schema.
+
+### Phase 1093 - Frontend Preflight Matrix Surface
+
+- Render the frontend matrix from backend-owned live-enablement evidence only.
+
+### Phase 1094 - Runtime Mock Artifact Alignment
+
+- Align mocks, runtime evidence, visual targets, release checks, deployment
+  checks, and autonomous validators.
+
+### Phase 1095 - Documentation Update
+
+- Update admin API, architecture, examples, handoff, roadmap, and review docs.
+
+### Phase 1096 - Drift Scan
+
+- Search for stale active range, browser-authority wording, and spot-rule
+  leakage.
+
+### Phase 1097 - Focused Backend Gates
+
+- Run backend autonomous and focused Admin API/readiness checks.
+
+### Phase 1098 - Focused Frontend Gates
+
+- Run focused frontend quality and UI checks.
+
+### Phase 1099 - Blind/Contextless Review
+
+- Run blind/contextless review for backend authority, preflight clarity, and
+  no-browser-command posture.
+
+### Phase 1100 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize verification and live posture.
+
+### Completion Evidence
+
+- `GET /api/v1/admin/live-enablement` now exposes typed controlled-live
+  preflight evidence on the existing read route.
+- No parallel preflight endpoint, approval endpoint, command path, Coinbase
+  call, or browser evaluator was added.
+- Each live-shaped HTTP command path reports `8` checks: auth/RBAC,
+  idempotency/operator-intent, durable audit, and browser display-only
+  boundary passed; approval snapshot, cap/guard policy, live execution
+  service, and post-live reconciliation blocked.
+- OpenAPI was regenerated and the frontend generated schema consumed the new
+  fields.
+- Full backend regression passed with `790` tests passed and `1` warning.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests passed.
+- Blind/contextless review passed with no blockers.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Completed Enterprise Command Gap Triage Batch - Phases 1061-1080
 
 ### Phase 1061 - Advance Active Queue Range

@@ -58,6 +58,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M26 - Enterprise Module Capability Linkage | Complete | Link module readiness to backend capability rows and disabled command workflow posture. |
 | M27 - Enterprise Live-Action Governance Linkage | Complete | Link live-shaped command routes to backend governance gates, blockers, module ownership, and no-browser-authority evidence. |
 | M28 - Enterprise Command Gap Triage | Complete | Make unsupported, not-modeled, and live-disabled command gaps triageable across modules without adding command authority. |
+| M29 - Controlled-Live Preflight Evidence Alignment | Complete | Add read-only per-route preflight evidence to live-enablement without creating live approval or browser authority. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1044,6 +1045,44 @@ Completed evidence:
   endpoint, command path, browser authority, or spot-rule leakage was added.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
+
+## M29 - Controlled-Live Preflight Evidence Alignment
+
+Purpose: make the next M8 controlled-live prerequisites explicit without
+turning preflight evidence into approval, command execution, or browser
+authority.
+
+Completed scope:
+
+- Phases 1081-1100 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `GET /api/v1/admin/live-enablement` remains the single read contract for
+  controlled-live readiness; the backend must not add a parallel preflight
+  endpoint or command path.
+- Each live-shaped HTTP command route should expose typed preflight checks for
+  passed prerequisites and blocking prerequisites.
+- Passing evidence may identify already implemented backend-owned posture such
+  as auth/RBAC, idempotency/operator-intent shape, durable audit shape, and
+  browser display-only authority.
+- Blocking evidence must keep approval snapshots, cap/guard policy wiring,
+  live execution service wiring, and post-live reconciliation as blockers.
+- The frontend may render this evidence as a matrix, but it must not add
+  command controls, BFF mutation broadening, direct dashboard WebSocket calls,
+  Coinbase calls, reconciliation behavior, or browser approval logic.
+
+Completed evidence:
+
+- Backend models, OpenAPI, examples, autonomous checks, and regression tests
+  agree on the preflight evidence contract.
+- Frontend generated schema, mock runtime, UI, quality artifacts, docs, and
+  release checks consume the contract without adding command authority.
+- Blind/contextless review confirmed a fresh agent can explain the preflight
+  matrix as read-only backend evidence and not a live switch.
+- Full backend regression passed with `790` tests passed and `1` warning.
+- Frontend release gate passed with `186` unit tests and `3` Playwright tests
+  passed.
+- Live Coinbase execution was not run for this batch; submitted notional `$0`,
+  executed notional `$0`.
 
 ## M24 - Enterprise Module Catalog
 

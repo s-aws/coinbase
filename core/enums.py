@@ -244,6 +244,19 @@ class AdminApiGateStatus(str, Enum):
     NOT_APPLICABLE = "not_applicable"
 
 
+class AdminApiLivePreflightCategory(str, Enum):
+    """Controlled-live preflight evidence categories for Admin API routes."""
+
+    AUTHORIZATION = "authorization"
+    IDEMPOTENCY = "idempotency"
+    APPROVAL = "approval"
+    CAP_GUARD = "cap_guard"
+    AUDIT = "audit"
+    RECONCILIATION = "reconciliation"
+    LIVE_EXECUTION_SERVICE = "live_execution_service"
+    BROWSER_AUTHORITY = "browser_authority"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 
