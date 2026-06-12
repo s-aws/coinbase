@@ -322,7 +322,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="optional read audit",
         shared_method="build_enterprise_readiness",
         parity_test=(
-            "read-only M9/M20 module support, unsupported action, "
+            "read-only M9/M20/M21 module support, registry, unsupported action, "
             "structured command-gap, security, and release evidence"
         ),
     ),

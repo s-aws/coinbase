@@ -1379,7 +1379,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "901-920"
+    assert live_payload["approved_phase_range"] == "921-940"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1403,7 +1403,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "901-920"
+    assert enterprise_payload["approved_phase_range"] == "921-940"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -1413,6 +1413,26 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert enterprise_payload["read_only"] is True
     assert enterprise_payload["live_coinbase_orders_ran"] is False
     assert enterprise_payload["command_gap_count"] >= 10
+    assert enterprise_payload["module_registry_count"] == enterprise_payload["module_count"]
+    registry_by_id = {
+        item["module_id"]: item for item in enterprise_payload["modules"]
+    }
+    assert set(registry_by_id) == {
+        "admin_system_health",
+        "spot_operations",
+        "futures_perpetuals",
+        "stealth_orders",
+        "movement_repricing",
+        "guard_risk_policy",
+        "audit_workbench",
+        "legacy_dashboard_websocket",
+    }
+    for module in enterprise_payload["modules"]:
+        assert module["primary_owner"]
+        assert module["backend_contract_refs"]
+        assert module["frontend_contract_refs"]
+        assert module["documentation_refs"]
+        assert module["spot_rule_boundary"]
     module_statuses = {
         item["module"]: item["support_status"]
         for item in enterprise_payload["modules"]
@@ -1444,6 +1464,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in enterprise_payload["modules"]
         if item["module"] == "Futures / Perpetuals"
     )
+    assert futures_module["module_id"] == "futures_perpetuals"
+    assert futures_module["primary_owner"] == "admin_api_contract"
+    assert "forbidden" in futures_module["spot_rule_boundary"]
+    assert "margin" in futures_module["spot_rule_boundary"]
+    assert "README.futures-perpetuals.md" in futures_module["documentation_refs"]
     futures_gaps = {
         item["action"]: item for item in futures_module["command_gaps"]
     }

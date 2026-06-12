@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **901-920**.
+- Approved phase range: **921-940**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -1729,6 +1729,132 @@ Completion evidence:
 - Frontend route association passed: generated API schema was fresh and route
   coverage passed.
 - Blind/contextless M20 re-review passed with no blockers.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Completed Phases 921-940
+
+### Phase 921 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 901-920 to active
+  phases 921-940 while preserving the same no-live frontend posture and
+  live-cap policy.
+
+### Phase 922 - M21 Enterprise Module Registry Evidence
+
+- Make the existing enterprise-readiness module list a backend-owned module
+  registry with stable module ids, owners, docs, contracts, and spot-rule
+  boundaries.
+
+### Phase 923 - Backend Range Evidence
+
+- Update backend no-live readiness evidence so live-enablement and
+  enterprise-readiness report the active 921-940 phase range.
+
+### Phase 924 - Registry Contract Expansion
+
+- Add `module_id`, `primary_owner`, backend contract refs, frontend contract
+  refs, documentation refs, `spot_rule_boundary`, and top-level
+  `module_registry_count`.
+
+### Phase 925 - Non-Spot Boundary Evidence
+
+- Ensure futures/perpetuals, stealth, movement/repricing, guard/risk, and
+  audit modules state why spot-only rules do not generalize.
+
+### Phase 926 - Legacy Dashboard Registry Evidence
+
+- Keep the legacy dashboard WebSocket registered as unsupported and
+  compatibility-only rather than an enterprise command plane.
+
+### Phase 927 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI after the enterprise-readiness contract expands.
+
+### Phase 928 - Frontend Generated Schema Sync
+
+- Regenerate frontend OpenAPI TypeScript schema from the backend schema.
+
+### Phase 929 - Frontend Mock Runtime Sync
+
+- Update frontend mock enterprise-readiness evidence to include module
+  registry fields.
+
+### Phase 930 - Operator UI Registry Evidence
+
+- Render module registry count and key owner/contract/boundary details in the
+  admin evidence surface without adding command buttons or frontend authority.
+
+### Phase 931 - Quality Gate Drift Checks
+
+- Extend frontend release/deployment/autonomous checks so module registry
+  evidence cannot disappear from runtime artifacts or diagnostics.
+
+### Phase 932 - Documentation Update
+
+- Update backend and frontend API, architecture, capability matrix, testing,
+  examples, and maintainer docs for module registry evidence.
+
+### Phase 933 - Contextless Task Card Alignment
+
+- Make sure future contextless module work can find the owner, route,
+  frontend wrapper, docs, and spot-rule boundary from backend evidence.
+
+### Phase 934 - Stale Range And Drift Scan
+
+- Search for current-state contradictions around 901-920 versus 921-940 and
+  around command-gap-only wording.
+
+### Phase 935 - Focused Backend Gates
+
+- Run backend autonomous queue check and focused Admin API/spot readiness
+  regression checks.
+
+### Phase 936 - Focused Frontend Gates
+
+- Run frontend typecheck, API route coverage, release readiness, autonomous
+  queue, and focused registry UI/quality tests.
+
+### Phase 937 - Blind/Contextless Review
+
+- Run blind/contextless review focused on whether a fresh agent can explain
+  every module's owner, contract refs, docs, identity keys, and spot-rule
+  boundary without chat history.
+
+### Phase 938 - Full Gates
+
+- Run full backend regression and frontend `npm run release:gate`.
+
+### Phase 939 - Milestone Evidence
+
+- Mark M21 complete only after source, OpenAPI, frontend schema, mock runtime,
+  docs, quality checks, and review evidence all agree.
+
+### Phase 940 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+### Completion Evidence
+
+- Backend `GET /api/v1/admin/enterprise-readiness` now exposes module
+  registry evidence for every module: stable `module_id`, `primary_owner`,
+  backend contract refs, frontend contract refs, docs, `spot_rule_boundary`,
+  and top-level `module_registry_count`.
+- Futures/perpetuals and other non-spot modules explicitly state why spot
+  wallet, USDC, cost-basis, average-cost, and no-shorting rules do not
+  generalize.
+- Route inventory, OpenAPI, frontend generated schema, mock runtime, admin
+  diagnostics, quality contracts, and docs are synced.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Focused frontend gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and registry UI/runtime/quality unit tests
+  (`45` focused tests passed).
+- Blind/contextless M21 review passed with no blockers.
 - Full backend regression passed: `790` tests passed with `1` warning.
 - Full frontend release gate passed: `186` unit tests and `3` Playwright
   tests passed.

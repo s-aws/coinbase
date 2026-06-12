@@ -29,6 +29,8 @@ These primitives apply across modules:
   non-spot module behavior
 - enterprise-readiness command-gap evidence for unsupported, not modeled, and
   live-disabled command paths
+- enterprise-readiness module registry evidence for module ids, owners,
+  contract refs, docs, identity keys, and spot-rule boundaries
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -94,6 +96,9 @@ adding UI behavior.
 For command paths that are not implemented, start with structured
 `command_gaps` evidence from `GET /api/v1/admin/enterprise-readiness`; do not
 infer support from absent buttons or historical chat context.
+For module ownership and extension work, start with the same route's registry
+fields. A fresh maintainer should not need chat history to find the owner,
+backend contract refs, frontend contract refs, docs, or spot-rule boundary.
 
 ## Durable Milestones
 

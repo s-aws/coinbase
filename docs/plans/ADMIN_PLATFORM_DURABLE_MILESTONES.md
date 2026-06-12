@@ -50,6 +50,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M18 - No-Live Command Dry-Submit Harness | Complete | Allow no-live backend/BFF command dry-submit review under fail-closed gates. |
 | M19 - Command Dry-Submit Audit Traceability | Complete | Link dry-submit command evidence to existing read-only audit workbench anchors. |
 | M20 - Enterprise Module Command-Gap Evidence | Complete | Make unsupported and not-modeled command paths structured backend-owned evidence. |
+| M21 - Enterprise Module Registry Evidence | Complete | Make every admin module's owner, contracts, docs, and spot-rule boundary backend-owned evidence. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -859,6 +860,45 @@ Completed evidence:
   tests passed.
 - Blind/contextless re-review passed after the route-inventory parity wording
   was synced across source, JSON export, Markdown docs, and regression tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## M21 - Enterprise Module Registry Evidence
+
+Purpose: make every admin module discoverable from backend-owned evidence so a
+contextless maintainer can find the module id, owner, routes, contract refs,
+docs, identity keys, and spot-rule boundary before broadening behavior.
+
+Completed evidence:
+
+- Phases 921-940 advance the active unattended range while preserving the same
+  no-live frontend posture and live-cap policy.
+- `GET /api/v1/admin/enterprise-readiness` exposes stable `module_id`,
+  `primary_owner`, backend contract refs, frontend contract refs,
+  documentation refs, `spot_rule_boundary`, and `module_registry_count`.
+- Futures/perpetuals, stealth, movement/repricing, guard/risk, audit, and
+  legacy dashboard modules explicitly state why spot-only rules cannot be
+  copied into their workflows.
+- OpenAPI and frontend generated clients are synced after the backend
+  contract change.
+- Frontend UI, mock backend, quality gates, docs, and tests consume module
+  registry evidence without creating new command routes or browser authority.
+- Backend and frontend validators use active phase range 921-940.
+- Backend contract tests prove every enterprise-readiness module has registry
+  fields and non-spot spot-rule boundaries.
+- Frontend diagnostics render module registry evidence and release checks
+  reject missing module ids.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Focused frontend gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and registry UI/runtime/quality unit tests
+  (`45` focused tests passed).
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M21 review passed with no blockers and confirmed the
+  registry evidence is backend-owned, no-live, and understandable without chat
+  history.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 

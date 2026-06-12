@@ -360,7 +360,9 @@ class AdminEnterpriseReadinessModuleItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    module_id: str
     module: str
+    primary_owner: str
     support_status: AdminApiModuleSupportStatus
     read_routes: list[str] = Field(default_factory=list)
     command_routes: list[str] = Field(default_factory=list)
@@ -371,6 +373,10 @@ class AdminEnterpriseReadinessModuleItem(BaseModel):
     constraints: list[str] = Field(default_factory=list)
     evidence_routes: list[str] = Field(default_factory=list)
     verification: list[str] = Field(default_factory=list)
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    spot_rule_boundary: str
 
 
 class AdminEnterpriseReadinessResponse(BaseModel):
@@ -386,6 +392,7 @@ class AdminEnterpriseReadinessResponse(BaseModel):
     supported_module_count: int = 0
     unsupported_module_count: int = 0
     command_gap_count: int = 0
+    module_registry_count: int = 0
     modules: list[AdminEnterpriseReadinessModuleItem] = Field(default_factory=list)
     security_checks: list[AdminGateCheck] = Field(default_factory=list)
     release_checks: list[AdminGateCheck] = Field(default_factory=list)

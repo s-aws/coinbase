@@ -3586,9 +3586,15 @@ components:
       description: Structured evidence for a command path that is blocked or not modeled.
     AdminEnterpriseReadinessModuleItem:
       properties:
+        module_id:
+          type: string
+          title: Module Id
         module:
           type: string
           title: Module
+        primary_owner:
+          type: string
+          title: Primary Owner
         support_status:
           $ref: '#/components/schemas/AdminApiModuleSupportStatus'
         read_routes:
@@ -3636,11 +3642,32 @@ components:
             type: string
           type: array
           title: Verification
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
       additionalProperties: false
       type: object
       required:
+      - module_id
       - module
+      - primary_owner
       - support_status
+      - spot_rule_boundary
       title: AdminEnterpriseReadinessModuleItem
       description: One module's enterprise admin readiness posture.
     AdminEnterpriseReadinessResponse:
@@ -3673,6 +3700,10 @@ components:
         command_gap_count:
           type: integer
           title: Command Gap Count
+          default: 0
+        module_registry_count:
+          type: integer
+          title: Module Registry Count
           default: 0
         modules:
           items:

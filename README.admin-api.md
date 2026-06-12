@@ -118,6 +118,12 @@ In short: runtime evidence is saved, and these artifacts are not approval for
 live Coinbase execution.
 No-live release artifacts are not approval for live Coinbase execution.
 
+Enterprise readiness also acts as the backend-owned module registry. Each
+module row exposes a stable `module_id`, primary owner, backend contract refs,
+frontend contract refs, documentation refs, identity keys, and a
+`spot_rule_boundary` so future non-spot work does not copy spot wallet,
+USDC, cost-basis, or no-shorting assumptions by accident.
+
 The current frontend read-model interaction batch consumes backend-shaped
 admin, order, spot, campaign, audit, and diagnostics reads as display evidence
 only. The frontend may locally filter/sort already-loaded rows, select

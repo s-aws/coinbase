@@ -164,7 +164,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "901-920",
+  "approved_phase_range": "921-940",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -234,20 +234,23 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9 enterprise readiness posture:
+Expected M9/M21 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "901-920",
+  "approved_phase_range": "921-940",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
+  "module_registry_count": 8,
   "modules": [
     {
+      "module_id": "spot_operations",
       "module": "Spot Operations",
+      "primary_owner": "strategy",
       "support_status": "command_draft_live_disabled",
       "unsupported_actions": [
         "spot short selling",
@@ -265,10 +268,30 @@ Expected M9 enterprise readiness posture:
           "notional_usdc": "0"
         }
       ],
-      "identity_keys": ["client_order_id"]
+      "identity_keys": ["client_order_id"],
+      "backend_contract_refs": [
+        "business/spot_portfolio_sweep.py",
+        "business/spot_inventory_authority.py",
+        "application/admin_api/command_service.py",
+        "api/v1/routes/spot.py"
+      ],
+      "frontend_contract_refs": [
+        "src/shared/api/contracts/backendApiClient.ts::getSpotReadiness",
+        "src/shared/api/contracts/backendApiClient.ts::executeSpotCampaign",
+        "src/features/spot-ops/spotBackendAdapters.ts"
+      ],
+      "documentation_refs": [
+        "README.spot-trading.md",
+        "README.spot-portfolio-sweep.md",
+        "README.spot-campaign.md",
+        "docs/examples/admin-api.md"
+      ],
+      "spot_rule_boundary": "Spot rules apply here only: no short selling, USDC spot scope, inventory authority, cost basis, and average-cost evidence must not be copied into non-spot modules."
     },
     {
+      "module_id": "futures_perpetuals",
       "module": "Futures / Perpetuals",
+      "primary_owner": "admin_api_contract",
       "support_status": "read_only_ready",
       "unsupported_actions": [
         "frontend futures placement",
@@ -286,10 +309,28 @@ Expected M9 enterprise readiness posture:
           "notional_usdc": "0"
         }
       ],
-      "identity_keys": ["position_key"]
+      "identity_keys": ["position_key"],
+      "backend_contract_refs": [
+        "application/admin_api/read_service.py::build_futures_account",
+        "application/admin_api/read_service.py::build_futures_positions",
+        "api/v1/routes/futures.py"
+      ],
+      "frontend_contract_refs": [
+        "src/shared/api/contracts/backendApiClient.ts::getFuturesAccount",
+        "src/shared/api/contracts/backendRuntime.ts::loadFuturesPerpetualsReadSnapshot",
+        "src/features/admin-shell/AdminShell.tsx"
+      ],
+      "documentation_refs": [
+        "README.futures-perpetuals.md",
+        "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+        "docs/examples/admin-api.md"
+      ],
+      "spot_rule_boundary": "Spot inventory, USDC, no-shorting, cost-basis, and average-cost rules are forbidden as futures/perpetual authority. Futures require position, margin, leverage, collateral, liquidation, and reduce-only backend contracts."
     },
     {
+      "module_id": "legacy_dashboard_websocket",
       "module": "Legacy Dashboard WebSocket",
+      "primary_owner": "dashboard_contract",
       "support_status": "unsupported",
       "unsupported_actions": [
         "enterprise frontend direct WebSocket command execution",
@@ -305,7 +346,24 @@ Expected M9 enterprise readiness posture:
           "live_coinbase_execution": "not_run",
           "notional_usdc": "0"
         }
-      ]
+      ],
+      "identity_keys": ["client_order_id"],
+      "backend_contract_refs": [
+        "dashboard_server.py",
+        "docs/LIVE_ORDER_SURFACES.md",
+        "application/admin_api/command_service.py"
+      ],
+      "frontend_contract_refs": [
+        "src/shared/api/contracts/adminBffProxy.ts",
+        "src/shared/api/contracts/mutationContracts.ts",
+        "src/features/command-workflows"
+      ],
+      "documentation_refs": [
+        "docs/ADMIN_PLATFORM_ARCHITECTURE.md",
+        "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+        "docs/examples/admin-api.md"
+      ],
+      "spot_rule_boundary": "Legacy dashboard behavior is compatibility-only. Spot rules exposed there are not reusable enterprise frontend authority and must be reintroduced only through Admin API contracts."
     }
   ],
   "security_checks": [

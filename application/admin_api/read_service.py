@@ -92,7 +92,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "901-920"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "921-940"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1584,20 +1584,28 @@ class AdminApiReadService:
 
         def module_item(
             *,
+            module_id: str,
             module: str,
+            primary_owner: str,
             support_status: AdminApiModuleSupportStatus,
+            spot_rule_boundary: str,
             prefixes: tuple[str, ...] = (),
             unsupported_actions: list[str] | None = None,
             command_gaps: list[AdminEnterpriseCommandGapItem] | None = None,
             identity_keys: list[str] | None = None,
             constraints: list[str] | None = None,
             verification: list[str] | None = None,
+            backend_contract_refs: list[str] | None = None,
+            frontend_contract_refs: list[str] | None = None,
+            documentation_refs: list[str] | None = None,
         ) -> AdminEnterpriseReadinessModuleItem:
             read_routes, command_routes, live_routes, evidence_routes = route_groups(
                 *prefixes
             )
             return AdminEnterpriseReadinessModuleItem(
+                module_id=module_id,
                 module=module,
+                primary_owner=primary_owner,
                 support_status=support_status,
                 read_routes=read_routes,
                 command_routes=command_routes,
@@ -1608,6 +1616,10 @@ class AdminApiReadService:
                 constraints=constraints or [],
                 evidence_routes=evidence_routes,
                 verification=verification or [],
+                backend_contract_refs=backend_contract_refs or [],
+                frontend_contract_refs=frontend_contract_refs or [],
+                documentation_refs=documentation_refs or [],
+                spot_rule_boundary=spot_rule_boundary,
             )
 
         def command_gap(
@@ -1628,7 +1640,9 @@ class AdminApiReadService:
 
         modules = [
             module_item(
+                module_id="admin_system_health",
                 module="Admin / System Health",
+                primary_owner="admin_api_contract",
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 prefixes=("/api/v1/admin/",),
                 unsupported_actions=[
@@ -1669,9 +1683,31 @@ class AdminApiReadService:
                     "frontend release gate",
                     "contextless platform review",
                 ],
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_enterprise_readiness",
+                    "application/admin_api/route_inventory.py::ADMIN_API_ROUTE_INVENTORY",
+                    "api/v1/routes/admin.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getAdminEnterpriseReadiness",
+                    "src/shared/api/contracts/backendRuntime.ts::loadAdminRuntimeSnapshot",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/ADMIN_PLATFORM_ARCHITECTURE.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Platform primitive. Spot wallet, USDC, cost-basis, and "
+                    "no-shorting rules are not generic admin-system rules."
+                ),
             ),
             module_item(
+                module_id="spot_operations",
                 module="Spot Operations",
+                primary_owner="strategy",
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 prefixes=("/api/v1/spot/", "/api/v1/orders"),
                 unsupported_actions=[
@@ -1722,9 +1758,33 @@ class AdminApiReadService:
                     "Admin API contract regression",
                     "contextless spot order review",
                 ],
+                backend_contract_refs=[
+                    "business/spot_portfolio_sweep.py",
+                    "business/spot_inventory_authority.py",
+                    "application/admin_api/command_service.py",
+                    "api/v1/routes/spot.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getSpotReadiness",
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotCampaign",
+                    "src/features/spot-ops/spotBackendAdapters.ts",
+                ],
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "README.spot-portfolio-sweep.md",
+                    "README.spot-campaign.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Spot rules apply here only: no short selling, USDC spot "
+                    "scope, inventory authority, cost basis, and average-cost "
+                    "evidence must not be copied into non-spot modules."
+                ),
             ),
             module_item(
+                module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
+                primary_owner="admin_api_contract",
                 support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
                 prefixes=("/api/v1/futures/",),
                 unsupported_actions=[
@@ -1798,9 +1858,32 @@ class AdminApiReadService:
                     "frontend route coverage",
                     "contextless non-spot review",
                 ],
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_futures_account",
+                    "application/admin_api/read_service.py::build_futures_positions",
+                    "api/v1/routes/futures.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getFuturesAccount",
+                    "src/shared/api/contracts/backendRuntime.ts::loadFuturesPerpetualsReadSnapshot",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.futures-perpetuals.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Spot inventory, USDC, no-shorting, cost-basis, and "
+                    "average-cost rules are forbidden as futures/perpetual "
+                    "authority. Futures require position, margin, leverage, "
+                    "collateral, liquidation, and reduce-only backend contracts."
+                ),
             ),
             module_item(
+                module_id="stealth_orders",
                 module="Stealth Orders",
+                primary_owner="stealth_lifecycle",
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 prefixes=("/api/v1/stealth/",),
                 unsupported_actions=[
@@ -1853,9 +1936,31 @@ class AdminApiReadService:
                     "Admin API contract regression",
                     "contextless module review",
                 ],
+                backend_contract_refs=[
+                    "core/stealth_order_manager.py",
+                    "bridges/stealth_order_bridge.py",
+                    "api/v1/routes/stealth.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::listStealthOrders",
+                    "src/shared/api/contracts/backendApiClient.ts::cancelStealthOrderByStealthOrderId",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Stealth identity and exchange-truth rules are module-owned. "
+                    "Spot wallet rules apply only through backend guard/product "
+                    "capability when the stealth plan is a spot order."
+                ),
             ),
             module_item(
+                module_id="movement_repricing",
                 module="Order Movement / Repricing",
+                primary_owner="stealth_lifecycle",
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 prefixes=("/api/v1/movement-repricing/",),
                 unsupported_actions=[
@@ -1922,9 +2027,31 @@ class AdminApiReadService:
                     "Admin API contract regression",
                     "contextless module review",
                 ],
+                backend_contract_refs=[
+                    "core/stealth_order_manager.py",
+                    "business/move_manager.py",
+                    "api/v1/routes/movement_repricing.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::listMovementRepricingEvidence",
+                    "src/shared/api/contracts/backendApiClient.ts::repriceStealthOrderByStealthOrderId",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.movement-repricing.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Movement/repricing must preserve exchange reality first. "
+                    "Spot wallet replacement deltas are backend guard evidence "
+                    "only and must not become browser authority."
+                ),
             ),
             module_item(
+                module_id="guard_risk_policy",
                 module="Guard / Risk Policy",
+                primary_owner="order_lifecycle",
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 prefixes=("/api/v1/admin/guard-risk-policy",),
                 unsupported_actions=[
@@ -1972,9 +2099,31 @@ class AdminApiReadService:
                     "Admin API contract regression",
                     "contextless guard/risk review",
                 ],
+                backend_contract_refs=[
+                    "core/action_condition_guard.py",
+                    "core/product_capability.py",
+                    "api/v1/routes/admin.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getGuardRiskPolicy",
+                    "src/shared/api/contracts/backendRuntime.ts::loadGuardRiskPolicyReadSnapshot",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.guard-risk-policy.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Guard/risk may report spot-specific policy evidence for "
+                    "spot products, but the browser must not generalize those "
+                    "rules to futures, stealth, movement, or audit workflows."
+                ),
             ),
             module_item(
+                module_id="audit_workbench",
                 module="Audit Workbench",
+                primary_owner="admin_api_contract",
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 prefixes=("/api/v1/admin/audit-workbench",),
                 unsupported_actions=[
@@ -2032,9 +2181,30 @@ class AdminApiReadService:
                     "frontend audit workbench tests",
                     "contextless audit review",
                 ],
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_audit_workbench",
+                    "application/admin_api/audit.py",
+                    "api/v1/routes/admin.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getAdminAuditWorkbench",
+                    "src/shared/api/contracts/backendRuntime.ts::loadAuditWorkbenchReadSnapshot",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.audit-workbench.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Audit can display spot evidence but cannot mutate, replay, "
+                    "or promote spot identities into non-spot command authority."
+                ),
             ),
             AdminEnterpriseReadinessModuleItem(
+                module_id="legacy_dashboard_websocket",
                 module="Legacy Dashboard WebSocket",
+                primary_owner="dashboard_contract",
                 support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
                 unsupported_actions=[
                     "enterprise frontend direct WebSocket command execution",
@@ -2083,6 +2253,26 @@ class AdminApiReadService:
                     "BFF command boundary tests",
                     "contextless enterprise boundary review",
                 ],
+                backend_contract_refs=[
+                    "dashboard_server.py",
+                    "docs/LIVE_ORDER_SURFACES.md",
+                    "application/admin_api/command_service.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/adminBffProxy.ts",
+                    "src/shared/api/contracts/mutationContracts.ts",
+                    "src/features/command-workflows",
+                ],
+                documentation_refs=[
+                    "docs/ADMIN_PLATFORM_ARCHITECTURE.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/examples/admin-api.md",
+                ],
+                spot_rule_boundary=(
+                    "Legacy dashboard behavior is compatibility-only. Spot "
+                    "rules exposed there are not reusable enterprise frontend "
+                    "authority and must be reintroduced only through Admin API contracts."
+                ),
             ),
         ]
         unsupported_statuses = {
@@ -2158,6 +2348,7 @@ class AdminApiReadService:
             supported_module_count=supported_module_count,
             unsupported_module_count=unsupported_module_count,
             command_gap_count=command_gap_count,
+            module_registry_count=len(modules),
             modules=modules,
             security_checks=security_checks,
             release_checks=release_checks,
