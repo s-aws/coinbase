@@ -112,6 +112,11 @@ fail-closed. A resolved reconciliation plan proof may remove only
 `reconciliation_plan_missing`; it does not authorize live execution while
 live-disabled or browser-authority blockers remain, and it must not execute
 reconciliation or mutate exchange/order state.
+Command admission live execution service boundary evidence remains
+fail-closed. It may report that the backend live execution service is
+required but disabled/unconfigured; it must not remove
+`live_execution_disabled`, authorize browser evidence, call Coinbase, or
+create a second command path.
 Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser

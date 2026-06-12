@@ -15,6 +15,7 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiGateStatus,
     AdminApiLiveAdmissionBlocker,
+    AdminApiLiveExecutionStatus,
     AdminApiPermission,
 )
 
@@ -529,6 +530,7 @@ def evaluate_command_live_admission(
         )
     blockers.append(AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED)
     evidence.extend([
+        "live execution service disabled",
         "browser authority rejected",
     ])
 
@@ -620,6 +622,11 @@ def evaluate_command_live_admission(
             if reconciliation_plan is not None
             else reconciliation_plan_missing_reason
         ),
+        live_execution_service_required=True,
+        live_execution_service_present=False,
+        live_execution_service_status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+        live_execution_service_source="not_configured",
+        live_execution_service_missing_reason="live_execution_disabled",
         browser_authority="rejected",
         live_exchange_submitted=False,
         blockers=blockers,

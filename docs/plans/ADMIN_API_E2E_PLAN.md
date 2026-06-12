@@ -38,7 +38,115 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Command Admission Reconciliation Plan Proof Wiring Batch - Phases 1321-1340
+## Active Command Admission Live Execution Service Boundary Evidence Batch - Phases 1341-1360
+
+### Phase 1341 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1321-1340 to active
+  phases 1341-1360 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1342 - M42 Command Admission Live Execution Service Boundary Evidence
+
+- Add explicit backend-owned command admission evidence that the live
+  execution service remains disabled/unconfigured while preserving the shared
+  command service as the only command behavior path.
+
+### Phase 1343 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1341-1360 phase range.
+
+### Phase 1344 - No-Live Execution Service Boundary Gate
+
+- Do not add a live switch, live admission endpoint, browser executor,
+  Coinbase call, direct dashboard WebSocket path, BFF execution authority, or
+  command authority.
+
+### Phase 1345 - Live Execution Service Admission Contract
+
+- Add command admission evidence for live execution service required/present
+  status, service status, source, and missing reason.
+
+### Phase 1346 - Shared Command Service Boundary Preservation
+
+- Keep all live-shaped command routes flowing through existing route adapter,
+  idempotency, audit, admission, and shared command service behavior.
+
+### Phase 1347 - Prior Proof Dependency Preservation
+
+- Preserve approval snapshot, admission audit, cap/guard, and reconciliation
+  proof behavior before live execution service boundary evidence is reported.
+
+### Phase 1348 - Final Blocker Ordering
+
+- Prove resolved prior proofs leave only live-disabled and browser-authority
+  blockers.
+
+### Phase 1349 - Execution Service Missing Reason Proof
+
+- Prove the live execution service boundary reports disabled/unconfigured
+  reason evidence without implying live readiness.
+
+### Phase 1350 - No Coinbase Submission Proof
+
+- Prove command responses still return no-live status, do not submit to
+  Coinbase, and keep `live_exchange_submitted=false`.
+
+### Phase 1351 - Non-Spot Path Identity Preservation
+
+- Keep stealth and movement/repricing command admission keyed by
+  `stealth_order_id` and futures/perpetual proof examples generic without
+  importing spot wallet, no-shorting, cost-basis, or USDC rules.
+
+### Phase 1352 - OpenAPI Refresh
+
+- Regenerate backend OpenAPI because command admission live execution service
+  boundary fields changed.
+
+### Phase 1353 - Frontend Schema Generation
+
+- Regenerate frontend TypeScript schema from backend OpenAPI without hand
+  edits.
+
+### Phase 1354 - Frontend Mock Evidence Sync
+
+- Align frontend mock/runtime evidence with range 1341-1360 and live
+  execution service boundary metadata while keeping default mock no-live.
+
+### Phase 1355 - Frontend Dry Submit Evidence Sync
+
+- Keep dry command workflow display-only and render backend live execution
+  service boundary evidence without adding browser approval, command
+  authority, live enablement, or Coinbase calls.
+
+### Phase 1356 - Frontend Audit Workbench Evidence Sync
+
+- Keep Audit Workbench display-only and render persisted live execution
+  service boundary evidence without adding audit mutation or command
+  authority.
+
+### Phase 1357 - Documentation Update
+
+- Update admin API, architecture, examples, handoff, roadmap, and review docs.
+
+### Phase 1358 - Drift Scan
+
+- Search for stale active range, stale M41 active wording, browser-authority
+  wording, live switch wording, Coinbase submission wording, and spot-rule
+  leakage.
+
+### Phase 1359 - Focused Gates And Blind Review
+
+- Run focused backend/frontend gates and blind/contextless review.
+
+### Phase 1360 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  phases.
+
+## Completed Command Admission Reconciliation Plan Proof Wiring Batch - Phases 1321-1340
 
 ### Phase 1321 - Advance Active Queue Range
 

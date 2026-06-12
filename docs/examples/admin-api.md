@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1321-1340",
+  "approved_phase_range": "1341-1360",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -717,8 +717,11 @@ without adding guard mutation, browser guard authority, live admission, or
 Coinbase execution. M41 wires live-disabled command admission evidence to
 backend-owned reconciliation plan proof without adding reconciliation
 execution, browser reconciliation authority, live admission, order-state
-mutation, or Coinbase execution. None of these milestones adds an approval
-endpoint, browser approval, or Coinbase execution path.
+mutation, or Coinbase execution. M42 makes the disabled backend live
+execution service boundary explicit without adding a live switch, browser
+approval, BFF execution authority, or Coinbase execution. None of these
+milestones adds an approval endpoint, browser approval, or Coinbase execution
+path.
 
 ```http
 GET /api/v1/admin/enterprise-readiness
@@ -727,13 +730,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1321-1340",
+  "approved_phase_range": "1341-1360",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

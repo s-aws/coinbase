@@ -285,6 +285,10 @@ The platform/module split is documented in
   reasons. A resolved reconciliation plan proof removes only the
   `reconciliation_plan_missing` blocker; live-disabled and browser-authority
   blockers still prevent Coinbase submission.
+- M42 command admission live execution service boundary evidence lets
+  existing live-disabled command responses report that the backend live
+  execution service is required but absent/disabled. It does not remove
+  `live_execution_disabled`, authorize the browser, or submit to Coinbase.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1321-1340**.
+- Approved phase range: **1341-1360**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,7 +46,119 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1321-1340
+## Active Phases 1341-1360
+
+### Phase 1341 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1321-1340 to active
+  phases 1341-1360 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1342 - M42 Command Admission Live Execution Service Boundary Evidence
+
+- Make the final live-execution service boundary explicit on existing Admin
+  API command admission evidence without adding live execution, a live switch,
+  browser approval, BFF execution authority, or Coinbase calls.
+
+### Phase 1343 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1341-1360 phase range.
+
+### Phase 1344 - No-Live Execution Service Boundary Gate
+
+- Confirm live execution service evidence can only describe the backend
+  disabled/unconfigured boundary; it must not remove `live_execution_disabled`
+  or `browser_authority_rejected`.
+
+### Phase 1345 - Live Execution Service Admission Contract
+
+- Add backend-owned command admission evidence fields for live execution
+  service required/present status, service status, source, and missing reason.
+
+### Phase 1346 - Shared Command Service Boundary Preservation
+
+- Keep all live-shaped Admin API command adapters on the existing shared
+  command service path; do not add a route-local executor or Coinbase adapter.
+
+### Phase 1347 - Prior Proof Dependency Preservation
+
+- Preserve exact approval snapshot, admission audit, cap/guard, and
+  reconciliation proof behavior before the live execution service boundary is
+  evaluated.
+
+### Phase 1348 - Final Blocker Ordering
+
+- Prove that even when all prior proofs resolve, admission remains blocked by
+  `live_execution_disabled` and `browser_authority_rejected`.
+
+### Phase 1349 - Execution Service Missing Reason Proof
+
+- Prove the disabled live execution service reports an explicit missing
+  reason without implying browser approval or live readiness.
+
+### Phase 1350 - No Coinbase Submission Proof
+
+- Prove command responses still return no-live HTTP status, do not submit to
+  Coinbase, and keep `live_exchange_submitted=false`.
+
+### Phase 1351 - Non-Spot Path Identity Preservation
+
+- Keep futures/perpetual, stealth, and movement/repricing command admission
+  identities generic; do not import spot wallet, cost-basis, no-shorting, or
+  USDC rules into those modules.
+
+### Phase 1352 - OpenAPI Refresh
+
+- Regenerate backend OpenAPI because command admission live execution service
+  boundary fields changed.
+
+### Phase 1353 - Frontend Schema Generation
+
+- Regenerate the frontend TypeScript schema from backend OpenAPI without hand
+  edits.
+
+### Phase 1354 - Frontend Mock Evidence Sync
+
+- Update frontend mock/runtime evidence for active range 1341-1360 and live
+  execution service boundary metadata while keeping default mock no-live.
+
+### Phase 1355 - Frontend Dry Submit Evidence Sync
+
+- Keep dry command workflow display-only and show backend live execution
+  service boundary evidence without adding browser approval, command
+  authority, live enablement, or Coinbase calls.
+
+### Phase 1356 - Frontend Audit Workbench Evidence Sync
+
+- Keep Audit Workbench display-only and show persisted admission live
+  execution service boundary evidence without adding audit mutation or command
+  authority.
+
+### Phase 1357 - Documentation Update
+
+- Update Admin API, frontend, architecture, capability matrix, examples,
+  maintainer handoff, roadmap, and review docs for command admission live
+  execution service boundary evidence.
+
+### Phase 1358 - Drift Scan
+
+- Check stale phase ranges, stale M41 active wording, browser-authority
+  wording, live switch wording, Coinbase submission wording, and spot-rule
+  leakage.
+
+### Phase 1359 - Focused Gates And Blind Review
+
+- Run backend autonomous, focused Admin API/readiness checks, focused
+  frontend checks, and blind/contextless review.
+
+### Phase 1360 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  phases.
+
+## Completed Phases 1321-1340
 
 ### Phase 1321 - Advance Active Queue Range
 

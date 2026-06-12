@@ -4612,6 +4612,27 @@ components:
           - type: string
           - type: 'null'
           title: Reconciliation Plan Missing Reason
+        live_execution_service_required:
+          type: boolean
+          title: Live Execution Service Required
+          default: true
+        live_execution_service_present:
+          type: boolean
+          title: Live Execution Service Present
+          default: false
+        live_execution_service_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        live_execution_service_source:
+          type: string
+          title: Live Execution Service Source
+          default: not_configured
+        live_execution_service_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Execution Service Missing Reason
+          default: live_execution_disabled
         browser_authority:
           type: string
           title: Browser Authority

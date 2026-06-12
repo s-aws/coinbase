@@ -59,6 +59,9 @@ These primitives apply across modules:
   can report exact backend-owned reconciliation plan presence without
   executing reconciliation, making browser evidence authoritative, or enabling
   live execution
+- command admission live execution service boundary evidence that can report
+  the backend live execution service as required but disabled/unconfigured
+  without adding a live switch, browser authority, or Coinbase calls
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -192,6 +195,11 @@ report whether exact append-only reconciliation plan proof was found for a
 live-disabled command. That evidence may remove only the
 missing-reconciliation blocker; it must not remove live-disabled or
 browser-authority blockers by itself, and it must not execute reconciliation.
+Command admission live execution service boundary evidence may report whether
+the backend live execution service is required, present, and enabled for a
+live-shaped command. In the current contract it remains disabled and may not
+remove `live_execution_disabled`, bypass browser-authority rejection, or
+submit to Coinbase.
 Live-admission audit trail evidence is a read-only refinement of the same
 route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser

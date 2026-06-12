@@ -131,6 +131,13 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     reconciliation_plan_source: str = "missing"
     reconciliation_plan_recorded_at: str | None = None
     reconciliation_plan_missing_reason: str | None = None
+    live_execution_service_required: bool = True
+    live_execution_service_present: bool = False
+    live_execution_service_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    live_execution_service_source: str = "not_configured"
+    live_execution_service_missing_reason: str | None = "live_execution_disabled"
     browser_authority: str = "rejected"
     live_exchange_submitted: bool = False
     blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)

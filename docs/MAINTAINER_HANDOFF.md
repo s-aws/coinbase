@@ -97,7 +97,14 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1321-1340`.
+- Active autonomous range: `1341-1360`.
+- M42 command admission live execution service boundary evidence is complete
+  for phases `1341-1360`. Existing Admin API command admission evidence may
+  report that the
+  backend live execution service is required but disabled/unconfigured. It
+  must not remove `live_execution_disabled`, add a live switch, authorize
+  browser evidence, broaden BFF mutation authority, call Coinbase, or create
+  a second command path.
 - M41 command admission reconciliation plan proof wiring is complete for
   phases `1321-1340`. Existing Admin API command admission evidence may
   consult backend-owned append-only reconciliation plan proof after exact

@@ -71,6 +71,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M39 - Command Admission Audit Resolver Wiring | Complete | Wire existing live-disabled command admission evidence to backend audit proof results without adding audit mutation, browser approval, or live execution. |
 | M40 - Command Admission Cap/Guard Proof Wiring | Complete | Wire existing live-disabled command admission evidence to backend cap/guard proof results without adding guard mutation, browser approval, or live execution. |
 | M41 - Command Admission Reconciliation Plan Proof Wiring | Complete | Wire existing live-disabled command admission evidence to backend reconciliation plan proof results without adding reconciliation execution, browser approval, or live execution. |
+| M42 - Command Admission Live Execution Service Boundary Evidence | Complete | Make the disabled backend live execution service boundary explicit on command admission evidence without adding a live switch, browser approval, or Coinbase execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1649,7 +1650,7 @@ Purpose: let existing live-disabled Admin API command admission decisions
 consult backend-owned append-only reconciliation plan proof while preserving
 the single command behavior path and every non-reconciliation live blocker.
 
-In-progress scope:
+Completed scope:
 
 - Phases 1321-1340 advance the active unattended range while preserving the
   same no-live frontend posture and carried Coinbase cap policy.
@@ -1688,6 +1689,74 @@ Done when:
   leakage, or live Coinbase path was added.
 - Backend full regression and frontend `npm run release:gate` pass.
 - Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+Completion evidence:
+
+- Backend focused Admin API/readiness checks passed with `71 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1321-1340`.
+- Backend full regression passed with `798 passed, 1 warning`.
+- Frontend focused reconciliation display, runtime, and quality checks passed
+  with `74` tests.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed with no blockers.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M42 - Command Admission Live Execution Service Boundary Evidence
+
+Purpose: make the remaining backend live execution service boundary explicit
+on existing live-disabled Admin API command admission decisions.
+
+Completed scope:
+
+- Phases 1341-1360 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Command admission evidence may report live execution service required,
+  present, status, source, and missing reason fields.
+- The evidence must preserve the existing shared command service path and must
+  not add a route-local executor, live switch, live admission endpoint, direct
+  Coinbase adapter, BFF execution authority, or browser command authority.
+- A resolved approval snapshot, admission audit, cap/guard proof, and
+  reconciliation proof must still leave `live_execution_disabled` and
+  `browser_authority_rejected` blockers.
+- OpenAPI and frontend generated schema must be refreshed because public
+  command models changed.
+- No live Coinbase execution is allowed in this batch; submitted and executed
+  notional remain `$0`.
+
+Done when:
+
+- Backend focused Admin API/readiness tests and autonomous queue check pass.
+- OpenAPI is regenerated and frontend generated schema consumes the new
+  command admission live execution service fields without hand edits.
+- Frontend mocks, quality artifacts, docs, and tests align with phase range
+  `1341-1360` without adding browser approval, live execution authority, or
+  command authority.
+- Blind/contextless review confirms live execution service boundary evidence
+  is backend-owned and no browser approval, BFF execution authority,
+  spot-rule leakage, or live Coinbase path was added.
+- Backend full regression and frontend `npm run release:gate` pass.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+Completion evidence:
+
+- Backend focused Admin API/readiness checks passed with `71 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1341-1360`.
+- Backend full regression passed with `798 passed, 1 warning`.
+- Frontend focused live-execution-boundary display, runtime, and quality
+  checks passed with `74` tests.
+- Frontend `npm run api:check`, `npm run lint`, and
+  `npm run autonomous:check` passed.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed with no blockers after the stale agent-state
+  next-command sentence was remediated.
+- Live Coinbase execution was not run; submitted and executed notional remain
   `$0`.
 
 ## M24 - Enterprise Module Catalog
