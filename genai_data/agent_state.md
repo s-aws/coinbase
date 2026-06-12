@@ -61,13 +61,14 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `1401-1420`.
-- Active milestone: next enterprise admin backend/frontend sync batch not yet
-  opened after M45 completion.
-- Current direction: continue toward a backend-owned enterprise admin live
-  execution boundary without adding executable adapters, browser approval, BFF
-  execution authority, Coinbase calls, route-local execution, or command/live
-  execution enablement until the backend service is explicitly implemented.
+- Active autonomous range: `1421-1440`.
+- Active milestone: M46 - Live Readiness Preconditions Evidence.
+- Current direction: add backend-owned, read-only live readiness precondition
+  checklist evidence to `GET /api/v1/admin/live-enablement` and consume it in
+  the frontend as display-only governance evidence. Do not add executable
+  adapters, browser approval, BFF execution authority, Coinbase calls,
+  route-local execution, command-admission broadening, or command/live
+  execution enablement.
 
 ## Decisions (Durable)
 
@@ -436,9 +437,8 @@ Keep it short. Keep it factual.
   command controls, guard evaluator, audit storage, approval storage,
   reconciliation execution, BFF mutation broadening, Coinbase call, browser
   approval, or reconciliation behavior is allowed.
-- What is in progress: no post-M45 implementation batch has been opened yet;
-  latest approved range remains `1401-1420`.
+- What is in progress: M46 live readiness precondition evidence for active
+  approved range `1421-1440`.
 - What is blocked: Nothing currently known.
-- Exact next command: open the next enterprise admin backend/frontend sync
-  batch and keep live Coinbase execution disabled unless the batch explicitly
-  authorizes it.
+- Exact next command: finish M46 backend/frontend contract sync and keep live
+  Coinbase execution disabled unless a later batch explicitly authorizes it.

@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1401-1420",
+  "approved_phase_range": "1421-1440",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -204,6 +204,9 @@ Expected M8 readiness posture:
   "live_execution_adapter_required_count": 5,
   "live_execution_adapter_configured_count": 0,
   "live_execution_adapter_missing_count": 5,
+  "readiness_precondition_count": 45,
+  "blocking_readiness_precondition_count": 30,
+  "passed_readiness_precondition_count": 15,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -314,6 +317,41 @@ Expected M8 readiness posture:
       ],
       "blocking_preflight_check_count": 4,
       "passed_preflight_check_count": 4,
+      "readiness_precondition_count": 9,
+      "blocking_readiness_precondition_count": 6,
+      "passed_readiness_precondition_count": 3,
+      "readiness_preconditions": [
+        {
+          "precondition": "approval_snapshot",
+          "status": "blocked",
+          "required": true,
+          "configured": false,
+          "blocking": true,
+          "backend_owned": true,
+          "route_bound": true,
+          "source": "not_configured",
+          "expected_source": "approval_snapshot",
+          "blocker": "approval_snapshot_missing",
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "detail": "POST /api/v1/orders remains live-disabled until a durable route-specific approval snapshot is present."
+        },
+        {
+          "precondition": "execution_intent_envelope",
+          "status": "passed",
+          "required": true,
+          "configured": true,
+          "blocking": false,
+          "backend_owned": true,
+          "route_bound": true,
+          "source": "command_admission",
+          "expected_source": "AdminApiCommandService.place_manual_order",
+          "blocker": null,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "detail": "POST /api/v1/orders command admissions expose backend-owned execution intent evidence, but the intent remains non-executable while live execution is disabled."
+        }
+      ],
       "approval_snapshot": {
         "status": "blocked",
         "required": true,
@@ -739,6 +777,13 @@ M45 live execution intent fields make the command-to-live-execution intent
 explicit under command admission decisions; they are not an executable
 adapter, browser approval, BFF execution authority, Coinbase call, or
 order/exchange-state mutation.
+M46 live readiness precondition fields normalize the route's existing
+approval-store, approval-snapshot, admission-audit, cap/guard,
+reconciliation, adapter, intent, browser/BFF, and disabled live-service
+evidence into a checklist. They are derived from `GET
+/api/v1/admin/live-enablement`; they are not a new endpoint, command
+admission call, browser approval workflow, BFF execution authority, live
+switch, Coinbase call, or route-local executor.
 
 M34 command admission decision fields appear on live-disabled HTTP command
 responses. They bind the command route, module, identity key, actor,
@@ -795,7 +840,9 @@ backend-owned disabled service descriptor without adding create, cancel,
 submit, execute, browser, BFF, or Coinbase authority methods. M44 adds
 live-enablement adapter evidence without making route-to-service mapping
 executable. M45 adds command admission execution-intent evidence without
-making command-to-service intent executable. None of these
+making command-to-service intent executable. M46 adds normalized
+live-readiness checklist evidence without making any prerequisite executable
+or admissive. None of these
 milestones adds an approval endpoint, browser approval, or Coinbase execution
 path.
 
@@ -806,13 +853,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1401-1420",
+  "approved_phase_range": "1421-1440",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

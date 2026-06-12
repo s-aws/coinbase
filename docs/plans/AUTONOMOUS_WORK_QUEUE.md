@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1401-1420**.
+- Approved phase range: **1421-1440**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -45,6 +45,115 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Active Phases 1421-1440
+
+### Phase 1421 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1401-1420 to active
+  phases 1421-1440 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1422 - M46 Live Readiness Preconditions Evidence
+
+- Add backend-owned, read-only live readiness precondition evidence that
+  normalizes approval store, approval snapshot, admission audit, cap/guard,
+  reconciliation, adapter, intent, browser/BFF, and live service blockers
+  without adding approval mutation, route-local execution, browser authority,
+  BFF execution authority, or Coinbase calls.
+
+### Phase 1423 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1421-1440 phase range.
+
+### Phase 1424 - Readiness Precondition Model
+
+- Add a typed live readiness precondition model with required, configured,
+  blocking, backend-owned, route-bound, source, browser-authority, BFF
+  authority, and blocker evidence.
+
+### Phase 1425 - Live Enablement Checklist Wiring
+
+- Derive each readiness precondition from the existing live-enablement
+  evidence objects so the checklist does not become a second source of truth.
+
+### Phase 1426 - Aggregate Readiness Counts
+
+- Add route-level and response-level readiness precondition counts for total,
+  blocking, and passed prerequisites.
+
+### Phase 1427 - No Command Admission Broadening Proof
+
+- Prove the checklist does not remove admission blockers, mark live-enabled
+  paths eligible, or make command responses executable.
+
+### Phase 1428 - No Route-Local Execution Proof
+
+- Prove command routes still use the shared route adapter, idempotency,
+  audit, admission, and command service path.
+
+### Phase 1429 - OpenAPI Regeneration
+
+- Regenerate OpenAPI after adding readiness precondition fields and verify
+  the generated schema is fresh.
+
+### Phase 1430 - Frontend Range Sync
+
+- Synchronize frontend autonomous, release, deployment, quality, mock, and
+  runtime range evidence to 1421-1440.
+
+### Phase 1431 - Generated Client Sync
+
+- Regenerate the frontend generated client from backend OpenAPI. Do not edit
+  generated files by hand.
+
+### Phase 1432 - Mock Readiness Preconditions
+
+- Update frontend mock live-enablement evidence with backend-shaped
+  readiness preconditions while keeping commands no-live and display-only.
+
+### Phase 1433 - Governance Checklist Display
+
+- Render route readiness preconditions in the enterprise governance surface
+  without adding approval controls, command buttons, or browser authority.
+
+### Phase 1434 - Runtime, Artifact, And Quality Alignment
+
+- Align runtime evidence, release artifacts, deployment readiness,
+  autonomous queue, and quality gates with M46 readiness evidence posture.
+
+### Phase 1435 - Documentation Update
+
+- Update Admin API/frontend docs, capability matrices, handoffs, examples,
+  and durable milestones for live readiness precondition evidence.
+
+### Phase 1436 - Drift Scan
+
+- Scan both repos for stale active ranges, route-local execution wording,
+  frontend command authority drift, accidental live enablement, or stale M45
+  active wording.
+
+### Phase 1437 - Focused Backend Gates
+
+- Run focused backend Admin API/readiness tests and backend autonomous queue
+  validation for M46.
+
+### Phase 1438 - Focused Frontend Gates
+
+- Run focused frontend API, unit, lint/type, and autonomous checks that cover
+  readiness precondition display and active range.
+
+### Phase 1439 - Blind/Contextless Review
+
+- Run blind/contextless review for live readiness precondition evidence,
+  shared command path preservation, and no-browser/no-BFF execution authority.
+
+### Phase 1440 - Full Gates And Summary
+
+- Run full backend regression and frontend release gate. Summarize live
+  Coinbase execution status and notional. Default remains no-live with
+  submitted and executed notional `$0`.
 
 ## Completed Phases 1401-1420
 

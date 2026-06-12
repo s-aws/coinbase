@@ -634,6 +634,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "approval_store_contract" in live_path_schema["properties"]
     assert "admission_audit_trail" in live_path_schema["properties"]
     assert "cap_guard_contract" in live_path_schema["properties"]
+    assert "readiness_preconditions" in live_path_schema["properties"]
+    assert "readiness_precondition_count" in live_path_schema["properties"]
+    assert "blocking_readiness_precondition_count" in live_path_schema["properties"]
+    assert "passed_readiness_precondition_count" in live_path_schema["properties"]
     live_response_schema = written["components"]["schemas"][
         "AdminLiveEnablementReadResponse"
     ]
@@ -647,6 +651,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "cap_guard_missing_count" in live_response_schema["properties"]
     assert "cap_guard_requirement_count" in live_response_schema["properties"]
     assert "cap_guard_missing_requirement_count" in live_response_schema["properties"]
+    assert "readiness_precondition_count" in live_response_schema["properties"]
+    assert "blocking_readiness_precondition_count" in live_response_schema["properties"]
+    assert "passed_readiness_precondition_count" in live_response_schema["properties"]
     audit_workbench_schema = written["components"]["schemas"][
         "AdminAuditWorkbenchReadResponse"
     ]
@@ -2654,7 +2661,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1401-1420"
+    assert live_payload["approved_phase_range"] == "1421-1440"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -2688,6 +2695,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["live_execution_adapter_required_count"] == 5
     assert live_payload["live_execution_adapter_configured_count"] == 0
     assert live_payload["live_execution_adapter_missing_count"] == 5
+    assert live_payload["readiness_precondition_count"] == 45
+    assert live_payload["blocking_readiness_precondition_count"] == 30
+    assert live_payload["passed_readiness_precondition_count"] == 15
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -2905,6 +2915,32 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
+        len(item["readiness_preconditions"]) == 9
+        for item in live_routes.values()
+    )
+    assert all(
+        item["readiness_precondition_count"] == 9
+        for item in live_routes.values()
+    )
+    assert all(
+        item["blocking_readiness_precondition_count"] == 6
+        for item in live_routes.values()
+    )
+    assert all(
+        item["passed_readiness_precondition_count"] == 3
+        for item in live_routes.values()
+    )
+    assert all(
+        precondition["browser_authority"] == "display_only"
+        for item in live_routes.values()
+        for precondition in item["readiness_preconditions"]
+    )
+    assert all(
+        precondition["bff_authority"] == "forward_only_no_execution"
+        for item in live_routes.values()
+        for precondition in item["readiness_preconditions"]
+    )
+    assert all(
         item["blocking_preflight_check_count"] == 4
         for item in live_routes.values()
     )
@@ -2925,6 +2961,45 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_adapter["adapter_reference"] == "AdminApiCommandService.place_manual_order"
     assert spot_adapter["action_class"] == "live_exchange_place"
     assert "non-executable" in spot_adapter["detail"]
+    spot_readiness = {
+        precondition["precondition"]: precondition
+        for precondition in live_routes["/api/v1/orders"]["readiness_preconditions"]
+    }
+    assert set(spot_readiness) == {
+        "approval_store_contract",
+        "approval_snapshot",
+        "admission_audit_trail",
+        "cap_guard_contract",
+        "reconciliation_plan",
+        "live_execution_adapter",
+        "execution_intent_envelope",
+        "browser_bff_boundary",
+        "live_execution_service",
+    }
+    assert spot_readiness["approval_store_contract"]["status"] == "passed"
+    assert spot_readiness["approval_store_contract"]["configured"] is True
+    assert spot_readiness["approval_store_contract"]["blocking"] is False
+    assert spot_readiness["approval_store_contract"]["blocker"] is None
+    assert spot_readiness["approval_snapshot"]["status"] == "blocked"
+    assert spot_readiness["approval_snapshot"]["configured"] is False
+    assert spot_readiness["approval_snapshot"]["blocking"] is True
+    assert spot_readiness["approval_snapshot"]["blocker"] == "approval_snapshot_missing"
+    assert spot_readiness["admission_audit_trail"]["blocker"] == "admission_audit_missing"
+    assert spot_readiness["cap_guard_contract"]["blocker"] == "cap_guard_missing"
+    assert spot_readiness["reconciliation_plan"]["blocker"] == "reconciliation_plan_missing"
+    assert spot_readiness["live_execution_adapter"]["blocker"] == "live_execution_disabled"
+    assert spot_readiness["live_execution_adapter"]["expected_source"] == (
+        "AdminApiCommandService.place_manual_order"
+    )
+    assert spot_readiness["execution_intent_envelope"]["status"] == "passed"
+    assert spot_readiness["execution_intent_envelope"]["configured"] is True
+    assert spot_readiness["execution_intent_envelope"]["blocking"] is False
+    assert spot_readiness["execution_intent_envelope"]["blocker"] is None
+    assert spot_readiness["browser_bff_boundary"]["status"] == "passed"
+    assert spot_readiness["browser_bff_boundary"]["configured"] is True
+    assert spot_readiness["browser_bff_boundary"]["blocking"] is False
+    assert spot_readiness["live_execution_service"]["blocker"] == "live_execution_disabled"
+    assert spot_readiness["live_execution_service"]["source"] == "disabled_backend_service"
     spot_preflight = {
         check["name"]: check
         for check in live_routes["/api/v1/orders"]["preflight_checks"]
@@ -3110,7 +3185,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1401-1420"
+    assert enterprise_payload["approved_phase_range"] == "1421-1440"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

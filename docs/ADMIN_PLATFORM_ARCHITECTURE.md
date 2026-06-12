@@ -73,6 +73,12 @@ These primitives apply across modules:
   payload hash, idempotency key, actor, operator intent, and shared service
   method while reporting the intent as disabled, not prepared,
   non-executable, and display-only
+- live readiness precondition evidence that normalizes approval store,
+  approval snapshot, admission audit, cap/guard, reconciliation, adapter,
+  intent, browser/BFF boundary, and disabled live service prerequisites on
+  `GET /api/v1/admin/live-enablement` without adding a new preflight
+  endpoint, command authority, browser approval, BFF execution authority, or
+  Coinbase calls
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -221,6 +227,12 @@ shared `AdminApiCommandService` method and list forbidden execution methods,
 but it must not become a route-local executor, browser approval workflow, BFF
 execution authority, Coinbase call, live switch, or order/exchange-state
 mutation path.
+Live readiness precondition evidence is a normalized checklist on the same
+route. It may summarize whether each backend-owned prerequisite is passed or
+blocking, but it must be derived from existing live-enablement evidence and
+must not call command admission with synthetic identities, re-resolve stores,
+remove command blockers, create a new endpoint, mark paths live eligible, or
+authorize browser/BFF execution.
 Live-admission audit trail evidence is a read-only refinement of the same
 route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser

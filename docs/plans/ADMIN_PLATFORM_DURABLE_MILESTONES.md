@@ -25,6 +25,38 @@ A milestone is complete only when all of these are true:
 Do not mark a milestone complete because the docs exist. Completion requires
 working contract, test, gate, and review evidence for the claimed scope.
 
+## End-State Functionality Commitment
+
+The enterprise admin platform is not complete at read-only visibility. The
+completed read/evidence milestones are foundation work: they make backend
+ownership, module boundaries, auth, audit, approval, cap/guard, reconciliation,
+and live execution prerequisites inspectable before write behavior is exposed.
+
+The target end state is full administration of backend-supported behavior
+through backend-owned contracts. That includes safe command execution,
+operator approvals, cap/guard execution, reconciliation, recovery actions,
+module-specific write workflows, and controlled live Coinbase execution where
+the underlying backend feature actually exists and passes its gates.
+
+Any future milestone that exposes mutation or live execution must still follow
+the single behavior path:
+
+```text
+frontend request
+-> FastAPI route
+-> auth/RBAC
+-> idempotency and approval gate
+-> shared command service
+-> existing domain/bridge/exchange path
+-> durable audit
+-> typed response
+```
+
+Do not implement missing backend behavior in the browser, BFF, or route-local
+FastAPI handlers. When a backend feature is not implemented, the admin platform
+should expose that as `not_modeled` or `unsupported` until a backend-owned
+module contract exists.
+
 ## Milestone Status
 
 | Milestone | Status | Purpose |
@@ -75,6 +107,21 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M43 - Disabled Live Execution Service Foundation | Complete | Add a backend-owned disabled service descriptor for command admission without adding execution methods, browser approval, or Coinbase execution. |
 | M44 - Live Execution Adapter Contract Evidence | Complete | Expose backend-owned route-to-shared-command live execution adapter evidence without adding executable adapters, browser approval, or Coinbase execution. |
 | M45 - Live Execution Intent Envelope Evidence | Complete | Expose backend-owned command admission execution-intent evidence without adding executable adapters, browser approval, BFF execution authority, or Coinbase execution. |
+| M46 - Live Readiness Preconditions Evidence | Active | Normalize live-enablement prerequisites into backend-owned read-only checklist evidence without adding approval mutation, command authority, or Coinbase execution. |
+| M47 - Full Backend Functionality Inventory | Planned | Inventory all backend-supported read, write, recovery, automation, and live workflows and classify what enterprise admin must expose. |
+| M48 - Approval Mutation Contract | Planned | Add backend-owned approval request/record mutation contracts without making browser approval sufficient for live execution. |
+| M49 - Cap/Guard Execution Contract | Planned | Wire route-specific backend cap/guard decision execution into command admission without browser guard authority. |
+| M50 - Admission Audit Writer Completion | Planned | Complete append-only live admission audit writing and linking before any live adapter can run. |
+| M51 - Reconciliation Execution Contract | Planned | Add backend-owned reconciliation plan execution/proof contracts for admitted commands without browser reconciliation authority. |
+| M52 - Controlled Live Execution Adapter Implementation | Planned | Implement executable backend live adapters only after approval, cap/guard, audit, and reconciliation gates pass. |
+| M53 - Spot Full Admin Operations | Planned | Bring spot read, dry-run, approval, execution, reconciliation, recovery, campaign, and sweep workflows to full gated admin functionality. |
+| M54 - Stealth Full Admin Operations | Planned | Bring stealth create/cancel/move/reprice/recovery workflows to full gated admin functionality while preserving exchange-reality invariants. |
+| M55 - Movement/Repricing Full Admin Operations | Planned | Bring movement/repricing write workflows to full gated admin functionality through existing mutation claims and exchange handling. |
+| M56 - Futures/Perpetuals Full Admin Operations | Planned | Add futures/perpetual command and risk workflows only after backend-owned position, margin, liquidation, reduce-only, close-only, and funding contracts exist. |
+| M57 - Campaign/Sweep Full Admin Operations | Planned | Bring automation, scheduling, execution, reconciliation, retry, and recovery workflows to full gated admin functionality. |
+| M58 - Audit, Recovery, And Repair Operations | Planned | Add non-trading administrative write workflows for audit, ledger repair, recovery gates, and operator runbooks through backend-owned contracts. |
+| M59 - Production Operations Administration | Planned | Add role, policy, configuration, deployment, and observability administration without exposing secrets or browser-held backend authority. |
+| M60 - Full Functionality Release Candidate | Planned | Prove all supported backend functionality through release, security, regression, live-cap, and contextless review gates. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1890,6 +1937,42 @@ Completed evidence:
 - Backend full regression passed with `799 passed, 1 warning`.
 - Frontend `npm run release:gate` passed with `186` unit tests and `3`
   Playwright tests.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+## M46 - Live Readiness Preconditions Evidence
+
+Purpose: make the live-enablement route show a normalized backend-owned
+checklist of prerequisites before any live-shaped command can ever become
+executable.
+
+Active scope:
+
+- Phases 1421-1440 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `GET /api/v1/admin/live-enablement` may expose per-route
+  `readiness_preconditions` derived from existing live-enablement evidence:
+  approval store, approval snapshot, admission audit, cap/guard,
+  reconciliation, live execution adapter, execution intent envelope,
+  browser/BFF boundary, and disabled live execution service.
+- The checklist is read-only evidence. It must not call command admission with
+  synthetic identities, re-resolve stores, create a separate preflight
+  endpoint, remove command blockers, mark paths live eligible, or create any
+  route-local executor.
+- Browser authority remains `display_only`, BFF authority remains
+  `forward_only_no_execution`, and live Coinbase execution remains not run.
+
+Done when:
+
+- Backend models, OpenAPI, live-enablement response, tests, docs, examples,
+  and autonomous validator report phase range `1421-1440` and the normalized
+  readiness precondition evidence.
+- Frontend generated schema, mocks, governance UI, runtime/quality artifacts,
+  docs, and tests consume the backend checklist as display-only evidence.
+- Blind/contextless review confirms no browser approval, BFF execution
+  authority, route-local execution, command-admission broadening, live switch,
+  Coinbase call, or order/exchange-state mutation was added.
+- Backend full regression and frontend `npm run release:gate` pass.
 - Live Coinbase execution is not run; submitted and executed notional remain
   `$0`.
 

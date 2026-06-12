@@ -22,11 +22,13 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiHealthStatus,
     AdminApiLiveAdmissionAuditFact,
+    AdminApiLiveAdmissionBlocker,
     AdminApiLiveApprovalStoreRequirement,
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveCapGuardRequirement,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
+    AdminApiLiveReadinessPrecondition,
     AdminApiModuleSupportStatus,
     AdminMovementRepricingEvidenceType,
     AdminApiPermission,
@@ -49,7 +51,10 @@ from .auth import (
     check_oidc_jwks_reachability,
     configured_auth_mode,
 )
-from .live_execution import build_disabled_live_execution_adapter_contract
+from .live_execution import (
+    DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+    build_disabled_live_execution_adapter_contract,
+)
 from .models import (
     AdminApiActor,
     AdminAuditModuleSummaryItem,
@@ -82,6 +87,7 @@ from .models import (
     AdminLiveApprovalSnapshotRequiredFieldItem,
     AdminLiveEnablementPathItem,
     AdminLivePreflightCheckItem,
+    AdminLiveReadinessPreconditionItem,
     AdminLiveEnablementReadResponse,
     AdminMovementRepricingDetailResponse,
     AdminMovementRepricingEvidenceItem,
@@ -108,7 +114,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1401-1420"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1421-1440"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -884,6 +890,179 @@ def _live_cap_guard_contract_evidence(
             "backend cap/guard decision contract is implemented and configured."
         ),
     )
+
+
+def _live_readiness_precondition(
+    *,
+    precondition: AdminApiLiveReadinessPrecondition,
+    status: AdminApiGateStatus,
+    configured: bool,
+    source: str,
+    expected_source: str,
+    detail: str,
+    blocker: AdminApiLiveAdmissionBlocker | None = None,
+    evidence: list[str] | None = None,
+) -> AdminLiveReadinessPreconditionItem:
+    blocking = status == AdminApiGateStatus.BLOCKED
+    return AdminLiveReadinessPreconditionItem(
+        precondition=precondition,
+        status=status,
+        required=True,
+        configured=configured,
+        blocking=blocking,
+        backend_owned=True,
+        route_bound=True,
+        source=source,
+        expected_source=expected_source,
+        blocker=blocker if blocking else None,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        evidence=list(evidence or []),
+        detail=detail,
+    )
+
+
+def _live_readiness_preconditions(
+    *,
+    method: str,
+    route: str,
+    shared_method: str,
+    approval_snapshot: AdminLiveApprovalSnapshotEvidence,
+    approval_store_contract: AdminLiveApprovalStoreContractEvidence,
+    admission_audit_trail: AdminLiveAdmissionAuditTrailEvidence,
+    cap_guard_contract: AdminLiveCapGuardContractEvidence,
+    live_execution_adapter: dict[str, Any],
+) -> list[AdminLiveReadinessPreconditionItem]:
+    adapter_configured = bool(live_execution_adapter.get("configured"))
+    adapter_source = str(live_execution_adapter.get("source") or "not_configured")
+    adapter_status = AdminApiGateStatus.PASSED if adapter_configured else AdminApiGateStatus.BLOCKED
+    return [
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.APPROVAL_STORE_CONTRACT,
+            status=approval_store_contract.status,
+            configured=approval_store_contract.configured,
+            source=approval_store_contract.source,
+            expected_source="admin_api_approval_store",
+            detail=approval_store_contract.detail,
+            blocker=(
+                None
+                if approval_store_contract.configured
+                else AdminApiLiveAdmissionBlocker.APPROVAL_STORE_MISSING
+            ),
+            evidence=approval_store_contract.evidence,
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.APPROVAL_SNAPSHOT,
+            status=approval_snapshot.status,
+            configured=approval_snapshot.present,
+            source=approval_snapshot.source,
+            expected_source="approval_snapshot",
+            detail=approval_snapshot.detail,
+            blocker=AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING,
+            evidence=approval_snapshot.evidence,
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.ADMISSION_AUDIT_TRAIL,
+            status=admission_audit_trail.status,
+            configured=admission_audit_trail.configured,
+            source=admission_audit_trail.source,
+            expected_source="admin_api_audit_log",
+            detail=admission_audit_trail.detail,
+            blocker=AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
+            evidence=admission_audit_trail.evidence,
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.CAP_GUARD_CONTRACT,
+            status=cap_guard_contract.status,
+            configured=cap_guard_contract.configured,
+            source=cap_guard_contract.source,
+            expected_source="guard_risk_policy",
+            detail=cap_guard_contract.detail,
+            blocker=AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
+            evidence=cap_guard_contract.evidence,
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.RECONCILIATION_PLAN,
+            status=AdminApiGateStatus.BLOCKED,
+            configured=False,
+            source="not_configured",
+            expected_source="reconciliation_policy",
+            detail=(
+                f"{method} {route} remains live-disabled until a route-specific "
+                "post-live reconciliation plan is linked to approval, audit, "
+                "and cap/guard evidence."
+            ),
+            blocker=AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+            evidence=[
+                "Reconciliation plan proof is required before live execution.",
+                "The plan must be route-bound and payload-bound through backend evidence.",
+            ],
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_ADAPTER,
+            status=adapter_status,
+            configured=adapter_configured,
+            source=adapter_source,
+            expected_source=f"AdminApiCommandService.{shared_method}",
+            detail=str(live_execution_adapter.get("detail") or ""),
+            blocker=(
+                None
+                if adapter_configured
+                else AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED
+            ),
+            evidence=[
+                str(item)
+                for item in live_execution_adapter.get("evidence", [])
+            ],
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.EXECUTION_INTENT_ENVELOPE,
+            status=AdminApiGateStatus.PASSED,
+            configured=True,
+            source="command_admission",
+            expected_source=f"AdminApiCommandService.{shared_method}",
+            detail=(
+                f"{method} {route} command admissions expose backend-owned "
+                "execution intent evidence, but the intent remains "
+                "non-executable while live execution is disabled."
+            ),
+            evidence=[
+                "Execution intent binds route, actor, idempotency key, operator intent, and payload hash.",
+                "Intent evidence is display-only and cannot be used by the browser or BFF as execution authority.",
+            ],
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.BROWSER_BFF_BOUNDARY,
+            status=AdminApiGateStatus.PASSED,
+            configured=True,
+            source="frontend_boundary",
+            expected_source="backend_contract",
+            detail=(
+                "Browser and BFF authority is display-only/forward-only and "
+                "cannot satisfy live admission or execute Coinbase orders."
+            ),
+            evidence=[
+                "Browser authority remains display_only.",
+                "BFF command forwarding remains forward_only_no_execution.",
+            ],
+        ),
+        _live_readiness_precondition(
+            precondition=AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE,
+            status=AdminApiGateStatus.BLOCKED,
+            configured=False,
+            source=DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
+            expected_source="admin_api_live_execution_service",
+            detail=(
+                f"{method} {route} is still bound to the disabled backend "
+                "live execution service; no Coinbase adapter may run."
+            ),
+            blocker=AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+            evidence=[
+                "The backend live execution service is intentionally disabled.",
+                "No create, cancel, submit, execute, or Coinbase client method is exposed.",
+            ],
+        ),
+    ]
 
 
 def _path_id(method: str, path: str) -> str:
@@ -3368,6 +3547,16 @@ class AdminApiReadService:
                 service_method=item.shared_method,
                 action_class=item.action_class,
             )
+            readiness_preconditions = _live_readiness_preconditions(
+                method=method,
+                route=path,
+                shared_method=item.shared_method,
+                approval_snapshot=approval_snapshot,
+                approval_store_contract=approval_store_contract,
+                admission_audit_trail=admission_audit_trail,
+                cap_guard_contract=cap_guard_contract,
+                live_execution_adapter=live_execution_adapter,
+            )
             paths.append(
                 AdminLiveEnablementPathItem(
                     path_id=_path_id(method, path),
@@ -3420,6 +3609,18 @@ class AdminApiReadService:
                     admission_audit_trail=admission_audit_trail,
                     cap_guard_contract=cap_guard_contract,
                     live_execution_adapter=live_execution_adapter,
+                    readiness_preconditions=readiness_preconditions,
+                    readiness_precondition_count=len(readiness_preconditions),
+                    blocking_readiness_precondition_count=sum(
+                        1
+                        for precondition in readiness_preconditions
+                        if precondition.blocking
+                    ),
+                    passed_readiness_precondition_count=sum(
+                        1
+                        for precondition in readiness_preconditions
+                        if precondition.status == AdminApiGateStatus.PASSED
+                    ),
                     evidence=[
                         "M4 guard/risk evidence required",
                         "M6 command contract proof required",
@@ -3452,6 +3653,11 @@ class AdminApiReadService:
         ]
         live_execution_adapters = [
             path.live_execution_adapter for path in paths
+        ]
+        readiness_preconditions = [
+            precondition
+            for path in paths
+            for precondition in path.readiness_preconditions
         ]
 
         checks = [
@@ -3604,6 +3810,17 @@ class AdminApiReadService:
             ),
             live_execution_adapter_missing_count=sum(
                 1 for contract in live_execution_adapters if not contract.configured
+            ),
+            readiness_precondition_count=len(readiness_preconditions),
+            blocking_readiness_precondition_count=sum(
+                1
+                for precondition in readiness_preconditions
+                if precondition.blocking
+            ),
+            passed_readiness_precondition_count=sum(
+                1
+                for precondition in readiness_preconditions
+                if precondition.status == AdminApiGateStatus.PASSED
             ),
         )
 

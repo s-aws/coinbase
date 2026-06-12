@@ -340,6 +340,20 @@ class AdminApiLiveAdmissionBlocker(str, Enum):
     BROWSER_AUTHORITY_REJECTED = "browser_authority_rejected"
 
 
+class AdminApiLiveReadinessPrecondition(str, Enum):
+    """Backend-owned preconditions before Admin API live execution."""
+
+    APPROVAL_STORE_CONTRACT = "approval_store_contract"
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    ADMISSION_AUDIT_TRAIL = "admission_audit_trail"
+    CAP_GUARD_CONTRACT = "cap_guard_contract"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
+    EXECUTION_INTENT_ENVELOPE = "execution_intent_envelope"
+    BROWSER_BFF_BOUNDARY = "browser_bff_boundary"
+    LIVE_EXECUTION_SERVICE = "live_execution_service"
+
+
 class AdminApiIdempotencyDecision(str, Enum):
     """Result of comparing a command with existing idempotency evidence."""
 

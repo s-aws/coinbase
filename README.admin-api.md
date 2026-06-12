@@ -300,6 +300,12 @@ The platform/module split is documented in
   report the route, identity, payload hash, idempotency key, actor, operator
   intent, service method, and disabled blockers for a command-to-live-execution
   attempt. The intent is not prepared, not executable, and display-only.
+- M46 live readiness precondition evidence lets
+  `GET /api/v1/admin/live-enablement` report a normalized backend-owned
+  checklist for approval store, approval snapshot, admission audit, cap/guard,
+  reconciliation, adapter, intent, browser/BFF, and disabled live service
+  prerequisites. It is read-only evidence and does not broaden command
+  admission, browser approval, BFF execution authority, or Coinbase execution.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

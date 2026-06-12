@@ -131,6 +131,13 @@ may map a live-shaped route to the shared `AdminApiCommandService` method and
 list forbidden execution methods, but it must not become a route-local
 executor, browser approval workflow, BFF execution authority, Coinbase call,
 live switch, or order/exchange-state mutation path.
+Live readiness precondition evidence is live-enablement evidence only. It may
+normalize approval store, approval snapshot, admission audit, cap/guard,
+reconciliation, adapter, intent, browser/BFF, and disabled live service
+prerequisites, but it must be derived from existing read-only live-enablement
+evidence. It must not call command admission with synthetic values, create a
+new preflight endpoint, remove blockers, mark paths live eligible, authorize
+browser/BFF execution, call Coinbase, or create route-local execution.
 Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser

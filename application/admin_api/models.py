@@ -30,6 +30,7 @@ from core.enums import (
     AdminApiLiveCapGuardRequirement,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
+    AdminApiLiveReadinessPrecondition,
     AdminMovementRepricingEvidenceType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
@@ -1214,6 +1215,27 @@ class AdminLiveExecutionAdapterContractEvidence(BaseModel):
     detail: str
 
 
+class AdminLiveReadinessPreconditionItem(BaseModel):
+    """One normalized backend-owned live-readiness precondition."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    precondition: AdminApiLiveReadinessPrecondition
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    configured: bool = False
+    blocking: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    source: str
+    expected_source: str
+    blocker: AdminApiLiveAdmissionBlocker | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveEnablementPathItem(BaseModel):
     """One live-eligible path and the gates required before enablement."""
 
@@ -1259,6 +1281,12 @@ class AdminLiveEnablementPathItem(BaseModel):
     admission_audit_trail: AdminLiveAdmissionAuditTrailEvidence
     cap_guard_contract: AdminLiveCapGuardContractEvidence
     live_execution_adapter: AdminLiveExecutionAdapterContractEvidence
+    readiness_preconditions: list[AdminLiveReadinessPreconditionItem] = Field(
+        default_factory=list
+    )
+    readiness_precondition_count: int = 0
+    blocking_readiness_precondition_count: int = 0
+    passed_readiness_precondition_count: int = 0
     evidence: list[str] = Field(default_factory=list)
     notes: str
 
@@ -1310,6 +1338,9 @@ class AdminLiveEnablementReadResponse(BaseModel):
     live_execution_adapter_required_count: int = 0
     live_execution_adapter_configured_count: int = 0
     live_execution_adapter_missing_count: int = 0
+    readiness_precondition_count: int = 0
+    blocking_readiness_precondition_count: int = 0
+    passed_readiness_precondition_count: int = 0
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

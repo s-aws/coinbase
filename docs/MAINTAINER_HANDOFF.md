@@ -97,7 +97,16 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1401-1420`.
+- Active autonomous range: `1421-1440`.
+- M46 live readiness precondition evidence is active for phases `1421-1440`.
+  `GET /api/v1/admin/live-enablement` may report a normalized backend-owned
+  checklist for approval store, approval snapshot, admission audit, cap/guard,
+  reconciliation, live execution adapter, execution intent envelope,
+  browser/BFF boundary, and disabled live execution service prerequisites.
+  The checklist is read-only evidence. Do not call command admission with
+  synthetic values, create a new preflight endpoint, remove command blockers,
+  mark paths live eligible, add browser approval, broaden BFF execution
+  authority, or call Coinbase from this evidence.
 - M45 live execution intent envelope evidence is complete for phases
   `1401-1420`. Existing command
   admission decisions may report a backend-owned execution intent that binds

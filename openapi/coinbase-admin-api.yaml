@@ -3141,6 +3141,20 @@ components:
       - browser_authority
       title: AdminApiLivePreflightCategory
       description: Controlled-live preflight evidence categories for Admin API routes.
+    AdminApiLiveReadinessPrecondition:
+      type: string
+      enum:
+      - approval_store_contract
+      - approval_snapshot
+      - admission_audit_trail
+      - cap_guard_contract
+      - reconciliation_plan
+      - live_execution_adapter
+      - execution_intent_envelope
+      - browser_bff_boundary
+      - live_execution_service
+      title: AdminApiLiveReadinessPrecondition
+      description: Backend-owned preconditions before Admin API live execution.
     AdminApiModuleSupportStatus:
       type: string
       enum:
@@ -5091,6 +5105,23 @@ components:
           $ref: '#/components/schemas/AdminLiveCapGuardContractEvidence'
         live_execution_adapter:
           $ref: '#/components/schemas/AdminLiveExecutionAdapterContractEvidence'
+        readiness_preconditions:
+          items:
+            $ref: '#/components/schemas/AdminLiveReadinessPreconditionItem'
+          type: array
+          title: Readiness Preconditions
+        readiness_precondition_count:
+          type: integer
+          title: Readiness Precondition Count
+          default: 0
+        blocking_readiness_precondition_count:
+          type: integer
+          title: Blocking Readiness Precondition Count
+          default: 0
+        passed_readiness_precondition_count:
+          type: integer
+          title: Passed Readiness Precondition Count
+          default: 0
         evidence:
           items:
             type: string
@@ -5306,6 +5337,18 @@ components:
         live_execution_adapter_missing_count:
           type: integer
           title: Live Execution Adapter Missing Count
+          default: 0
+        readiness_precondition_count:
+          type: integer
+          title: Readiness Precondition Count
+          default: 0
+        blocking_readiness_precondition_count:
+          type: integer
+          title: Blocking Readiness Precondition Count
+          default: 0
+        passed_readiness_precondition_count:
+          type: integer
+          title: Passed Readiness Precondition Count
           default: 0
         read_only:
           type: boolean
@@ -5572,6 +5615,68 @@ components:
       - detail
       title: AdminLivePreflightCheckItem
       description: One controlled-live preflight check for a live-shaped route.
+    AdminLiveReadinessPreconditionItem:
+      properties:
+        precondition:
+          $ref: '#/components/schemas/AdminApiLiveReadinessPrecondition'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        configured:
+          type: boolean
+          title: Configured
+          default: false
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        source:
+          type: string
+          title: Source
+        expected_source:
+          type: string
+          title: Expected Source
+        blocker:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiLiveAdmissionBlocker'
+          - type: 'null'
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - precondition
+      - source
+      - expected_source
+      - detail
+      title: AdminLiveReadinessPreconditionItem
+      description: One normalized backend-owned live-readiness precondition.
     AdminMovementRepricingDetailResponse:
       properties:
         type:
