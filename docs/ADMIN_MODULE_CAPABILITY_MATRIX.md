@@ -23,5 +23,8 @@ implicit platform model.
 - Keep spot-only rules in the Spot Operations row or spot-specific docs.
 - Add backend contracts before frontend read models, drafts, dry-submit, or
   live UI.
+- Keep `GET /api/v1/admin/enterprise-readiness` command-gap evidence aligned
+  with this matrix when a module moves between unsupported, not modeled,
+  live-disabled draft, or live-approved status.
 - Update route inventory, OpenAPI, examples, frontend association, and
   contextless review prompts when a module changes status.

@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **881-900**.
+- Approved phase range: **901-920**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -1608,6 +1608,127 @@ Completion evidence:
   autonomous queue check, and command/audit/mutation/runtime unit tests
   (`87` focused assertions passed).
 - Blind/contextless M19 review passed with no blockers.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Completed Phases 901-920
+
+### Phase 901 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 881-900 to active
+  phases 901-920 while preserving the same no-live frontend posture and
+  live-cap policy.
+
+### Phase 902 - M20 Enterprise Module Command-Gap Evidence
+
+- Add backend-owned structured evidence for command paths that are unsupported,
+  not modeled, or live-disabled pending backend approval.
+
+### Phase 903 - Backend Range Evidence
+
+- Update backend no-live readiness evidence so live-enablement and
+  enterprise-readiness report the approved/completed 901-920 phase range.
+
+### Phase 904 - Enterprise Readiness Contract Expansion
+
+- Add `command_gaps` per enterprise module and top-level `command_gap_count`
+  without removing existing unsupported-action strings.
+
+### Phase 905 - Futures/Perpetual Gap Evidence
+
+- Make futures/perpetual placement, cancel/close/reduce, and spot-rule reuse
+  explicitly blocked until backend-owned contracts exist.
+
+### Phase 906 - Spot Gap Evidence
+
+- Preserve spot no-shorting and live-placement-without-M8-approval boundaries
+  as structured evidence.
+
+### Phase 907 - Stealth Gap Evidence
+
+- Preserve `stealth_order_id` identity and block exchange-id cancellation,
+  hide-again, and active-placement browser mutation assumptions.
+
+### Phase 908 - Movement/Repricing Gap Evidence
+
+- Preserve live-disabled repricing and block cooldown-clearing or revealed
+  placement mutation without exchange handling.
+
+### Phase 909 - Guard/Risk And Audit Gap Evidence
+
+- Preserve browser-side guard/risk authority, audit mutation, and command
+  replay as unsupported command gaps.
+
+### Phase 910 - Legacy Dashboard Gap Evidence
+
+- Preserve the legacy dashboard WebSocket as compatibility-only, not the
+  enterprise frontend command plane.
+
+### Phase 911 - OpenAPI Regeneration
+
+- Regenerate backend OpenAPI after the enterprise-readiness contract expands.
+
+### Phase 912 - Frontend Generated Schema Sync
+
+- Regenerate frontend OpenAPI TypeScript schema from the backend schema.
+
+### Phase 913 - Frontend Mock Runtime Sync
+
+- Update frontend mock enterprise-readiness evidence to include command gaps.
+
+### Phase 914 - Operator UI Evidence
+
+- Render command-gap count and key command-gap details in the admin evidence
+  surface without adding command buttons or frontend authority.
+
+### Phase 915 - Quality Gate Drift Checks
+
+- Extend frontend release/deployment/autonomous checks so command-gap evidence
+  cannot disappear from runtime artifacts or diagnostics.
+
+### Phase 916 - Documentation Update
+
+- Update backend and frontend API, architecture, capability matrix, testing,
+  examples, and maintainer docs for structured command-gap evidence.
+
+### Phase 917 - Stale Range And Drift Scan
+
+- Search for current-state contradictions around 881-900 versus 901-920 and
+  around unsupported-action-only wording.
+
+### Phase 918 - Focused Gates And Contextless Review
+
+- Run focused backend/frontend gates and blind/contextless review for
+  command-gap evidence and no-live posture.
+
+### Phase 919 - Full Gates
+
+- Run full backend regression and frontend `npm run release:gate`.
+
+### Phase 920 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+### Completion Evidence
+
+- Backend `GET /api/v1/admin/enterprise-readiness` exposes structured
+  `command_gaps` and top-level `command_gap_count` evidence for unsupported,
+  not-modeled, and live-disabled command paths.
+- Route-inventory parity wording for enterprise-readiness includes structured
+  command-gap evidence in source, generated JSON, Markdown docs, and
+  regression assertions.
+- Frontend generated schema, mock backend, admin diagnostics, quality
+  contracts, and docs consume command-gap evidence without adding command
+  buttons, BFF mutation routes, or browser authority.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Frontend route association passed: generated API schema was fresh and route
+  coverage passed.
+- Blind/contextless M20 re-review passed with no blockers.
 - Full backend regression passed: `790` tests passed with `1` warning.
 - Full frontend release gate passed: `186` unit tests and `3` Playwright
   tests passed.

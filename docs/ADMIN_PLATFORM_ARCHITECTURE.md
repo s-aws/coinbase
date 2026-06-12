@@ -27,6 +27,8 @@ These primitives apply across modules:
 - route inventory, release evidence, regression gates, and no-live proof
 - contextless review before broadening order, campaign, live-action, or
   non-spot module behavior
+- enterprise-readiness command-gap evidence for unsupported, not modeled, and
+  live-disabled command paths
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -89,6 +91,9 @@ A reviewer with no chat history should be able to answer:
 
 If any answer is unclear, update contracts, route inventory, or docs before
 adding UI behavior.
+For command paths that are not implemented, start with structured
+`command_gaps` evidence from `GET /api/v1/admin/enterprise-readiness`; do not
+infer support from absent buttons or historical chat context.
 
 ## Durable Milestones
 

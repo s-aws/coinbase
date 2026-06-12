@@ -96,7 +96,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 ## Current Handoff State
 
 - M9 enterprise readiness is exposed by `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `881-900`.
+- Active autonomous range: `901-920`.
 - Default live Coinbase execution: `not_run`.
 - Submitted notional: `$0`.
 - Executed notional: `$0`.

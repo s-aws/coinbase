@@ -164,7 +164,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "881-900",
+  "approved_phase_range": "901-920",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -240,10 +240,11 @@ Expected M9 enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "881-900",
+  "approved_phase_range": "901-920",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
+  "command_gap_count": 17,
   "modules": [
     {
       "module": "Spot Operations",
@@ -253,7 +254,39 @@ Expected M9 enterprise readiness posture:
         "browser-side wallet or cost-basis authority",
         "frontend live order placement without backend M8 approval"
       ],
+      "command_gaps": [
+        {
+          "action": "spot short selling",
+          "status": "unsupported",
+          "reason": "Spot accounts cannot sell assets the account does not hold.",
+          "required_backend_contract": "No backend contract should enable spot short selling; spot sell authority remains inventory-backed.",
+          "frontend_boundary": "Do not model a spot short draft or bypass backend wallet and inventory authority.",
+          "live_coinbase_execution": "not_run",
+          "notional_usdc": "0"
+        }
+      ],
       "identity_keys": ["client_order_id"]
+    },
+    {
+      "module": "Futures / Perpetuals",
+      "support_status": "read_only_ready",
+      "unsupported_actions": [
+        "frontend futures placement",
+        "frontend futures cancel/close/reduce",
+        "spot inventory rules in futures workflows"
+      ],
+      "command_gaps": [
+        {
+          "action": "frontend futures placement",
+          "status": "not_modeled",
+          "reason": "Futures/perpetual placement needs backend-owned margin, leverage, liquidation, reduce-only, collateral, and approval contracts before UI drafting.",
+          "required_backend_contract": "POST futures/perpetual placement contract with margin, leverage, liquidation, reduce-only, cap, approval, audit, and reconciliation evidence.",
+          "frontend_boundary": "Do not add a futures/perpetual placement draft, dry-submit, or BFF route until the backend contract and capability row exist.",
+          "live_coinbase_execution": "not_run",
+          "notional_usdc": "0"
+        }
+      ],
+      "identity_keys": ["position_key"]
     },
     {
       "module": "Legacy Dashboard WebSocket",
@@ -261,6 +294,17 @@ Expected M9 enterprise readiness posture:
       "unsupported_actions": [
         "enterprise frontend direct WebSocket command execution",
         "new admin module implementation through dashboard.py"
+      ],
+      "command_gaps": [
+        {
+          "action": "enterprise frontend direct WebSocket command execution",
+          "status": "unsupported",
+          "reason": "The legacy dashboard WebSocket is compatibility-only and is not the enterprise admin command plane.",
+          "required_backend_contract": "Backend-owned Admin API route through auth, RBAC, idempotency, approval, caps, audit, and the shared command service.",
+          "frontend_boundary": "Do not call dashboard.py or legacy dashboard WebSocket handlers from enterprise frontend product UI.",
+          "live_coinbase_execution": "not_run",
+          "notional_usdc": "0"
+        }
       ]
     }
   ],

@@ -341,6 +341,20 @@ class AdminCapabilityRegistryResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminEnterpriseCommandGapItem(BaseModel):
+    """Structured evidence for a command path that is blocked or not modeled."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    status: AdminApiModuleSupportStatus
+    reason: str
+    required_backend_contract: str
+    frontend_boundary: str
+    live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    notional_usdc: DecimalString = "0"
+
+
 class AdminEnterpriseReadinessModuleItem(BaseModel):
     """One module's enterprise admin readiness posture."""
 
@@ -352,6 +366,7 @@ class AdminEnterpriseReadinessModuleItem(BaseModel):
     command_routes: list[str] = Field(default_factory=list)
     live_routes: list[str] = Field(default_factory=list)
     unsupported_actions: list[str] = Field(default_factory=list)
+    command_gaps: list[AdminEnterpriseCommandGapItem] = Field(default_factory=list)
     identity_keys: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
     evidence_routes: list[str] = Field(default_factory=list)
@@ -370,6 +385,7 @@ class AdminEnterpriseReadinessResponse(BaseModel):
     module_count: int = 0
     supported_module_count: int = 0
     unsupported_module_count: int = 0
+    command_gap_count: int = 0
     modules: list[AdminEnterpriseReadinessModuleItem] = Field(default_factory=list)
     security_checks: list[AdminGateCheck] = Field(default_factory=list)
     release_checks: list[AdminGateCheck] = Field(default_factory=list)

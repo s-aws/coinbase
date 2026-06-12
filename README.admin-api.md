@@ -30,6 +30,10 @@ The current runtime still returns `501` for create, order cancel, stealth
 cancel, movement reprice, and campaign execution commands because HTTP live
 execution is not approved. Read routes document typed `200` payloads plus
 structured `401` and `403` errors.
+Enterprise-readiness evidence also includes structured per-module
+`command_gaps` and a top-level `command_gap_count` so unsupported, not
+modeled, and live-disabled command paths are visible without relying on
+free-form unsupported-action strings.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -198,6 +202,10 @@ The platform/module split is documented in
   stealth, movement/repricing, futures/perpetual, guard/risk, and campaign
   evidence into one read-only surface. They do not mutate audit history, read
   Coinbase, or create a second command path.
+- Enterprise-readiness command-gap evidence is read-only. It records action,
+  status, reason, required backend contract, frontend boundary, live Coinbase
+  posture, and notional for command paths that must not be implemented from
+  the browser. It is not a command route registry or live approval source.
 - Configure `COINBASE_ADMIN_API_BEARER_TOKEN` before exercising HTTP routes.
   Without it, routes fail closed with `401`.
 - `COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer` is the local/bootstrap

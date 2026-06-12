@@ -53,6 +53,7 @@ from .models import (
     AdminCapabilityItem,
     AdminCapabilityRegistryResponse,
     AdminCsrfContractResponse,
+    AdminEnterpriseCommandGapItem,
     AdminEnterpriseReadinessModuleItem,
     AdminEnterpriseReadinessResponse,
     AdminFrontendFixturesResponse,
@@ -91,7 +92,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "881-900"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "901-920"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1587,6 +1588,7 @@ class AdminApiReadService:
             support_status: AdminApiModuleSupportStatus,
             prefixes: tuple[str, ...] = (),
             unsupported_actions: list[str] | None = None,
+            command_gaps: list[AdminEnterpriseCommandGapItem] | None = None,
             identity_keys: list[str] | None = None,
             constraints: list[str] | None = None,
             verification: list[str] | None = None,
@@ -1601,10 +1603,27 @@ class AdminApiReadService:
                 command_routes=command_routes,
                 live_routes=live_routes,
                 unsupported_actions=unsupported_actions or [],
+                command_gaps=command_gaps or [],
                 identity_keys=identity_keys or [],
                 constraints=constraints or [],
                 evidence_routes=evidence_routes,
                 verification=verification or [],
+            )
+
+        def command_gap(
+            *,
+            action: str,
+            status: AdminApiModuleSupportStatus,
+            reason: str,
+            required_backend_contract: str,
+            frontend_boundary: str,
+        ) -> AdminEnterpriseCommandGapItem:
+            return AdminEnterpriseCommandGapItem(
+                action=action,
+                status=status,
+                reason=reason,
+                required_backend_contract=required_backend_contract,
+                frontend_boundary=frontend_boundary,
             )
 
         modules = [
@@ -1616,6 +1635,24 @@ class AdminApiReadService:
                     "browser-run backend tests",
                     "browser-held backend secrets",
                     "browser-side live execution authority",
+                ],
+                command_gaps=[
+                    command_gap(
+                        action="browser-side live execution authority",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "Live execution authority belongs to backend approval, "
+                            "cap, guard, audit, and reconciliation gates."
+                        ),
+                        required_backend_contract=(
+                            "Approved backend live command contract with cap, guard, "
+                            "audit, and reconciliation evidence."
+                        ),
+                        frontend_boundary=(
+                            "The browser may display readiness evidence but must not "
+                            "be the source of live-execution approval."
+                        ),
+                    ),
                 ],
                 identity_keys=[
                     "request_id",
@@ -1642,6 +1679,39 @@ class AdminApiReadService:
                     "browser-side wallet or cost-basis authority",
                     "frontend live order placement without backend M8 approval",
                 ],
+                command_gaps=[
+                    command_gap(
+                        action="spot short selling",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason="Spot accounts cannot sell assets the account does not hold.",
+                        required_backend_contract=(
+                            "No backend contract should enable spot short selling; "
+                            "spot sell authority remains inventory-backed."
+                        ),
+                        frontend_boundary=(
+                            "Do not model a spot short draft or bypass backend wallet "
+                            "and inventory authority."
+                        ),
+                    ),
+                    command_gap(
+                        action="frontend live order placement without backend M8 approval",
+                        status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                        reason=(
+                            "Current spot command contracts are authenticated, "
+                            "idempotent, audited, and live-disabled until backend "
+                            "approval, cap, guard, and reconciliation gates admit them."
+                        ),
+                        required_backend_contract=(
+                            "M8-approved live placement contract with durable approval "
+                            "snapshot, cap evidence, guard decision, audit id, and "
+                            "post-live reconciliation requirement."
+                        ),
+                        frontend_boundary=(
+                            "Keep spot command UI in no-live dry-submit mode unless "
+                            "backend capability evidence explicitly enables a live path."
+                        ),
+                    ),
+                ],
                 identity_keys=["client_order_id"],
                 constraints=[
                     "USDC spot scope and no-shorting rules are spot-only.",
@@ -1661,6 +1731,62 @@ class AdminApiReadService:
                     "frontend futures placement",
                     "frontend futures cancel/close/reduce",
                     "spot inventory rules in futures workflows",
+                ],
+                command_gaps=[
+                    command_gap(
+                        action="frontend futures placement",
+                        status=AdminApiModuleSupportStatus.NOT_MODELED,
+                        reason=(
+                            "Futures/perpetual placement needs backend-owned margin, "
+                            "leverage, liquidation, reduce-only, collateral, and "
+                            "approval contracts before UI drafting."
+                        ),
+                        required_backend_contract=(
+                            "POST futures/perpetual placement contract with margin, "
+                            "leverage, liquidation, reduce-only, cap, approval, audit, "
+                            "and reconciliation evidence."
+                        ),
+                        frontend_boundary=(
+                            "Do not add a futures/perpetual placement draft, "
+                            "dry-submit, or BFF route until the backend contract and "
+                            "capability row exist."
+                        ),
+                    ),
+                    command_gap(
+                        action="frontend futures cancel/close/reduce",
+                        status=AdminApiModuleSupportStatus.NOT_MODELED,
+                        reason=(
+                            "Futures close/reduce behavior must be derived from backend "
+                            "position side, margin, liquidation, and exchange contract "
+                            "semantics before a command route exists."
+                        ),
+                        required_backend_contract=(
+                            "POST futures/perpetual close or reduce contract keyed by "
+                            "position identity with reduce-only, close-only, margin, "
+                            "approval, cap, audit, and reconciliation evidence."
+                        ),
+                        frontend_boundary=(
+                            "Do not add futures cancel, close, or reduce controls from "
+                            "spot cancel patterns or exchange order id evidence."
+                        ),
+                    ),
+                    command_gap(
+                        action="spot inventory rules in futures workflows",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "Futures/perpetual authority is position, margin, leverage, "
+                            "collateral, and liquidation aware; spot inventory is not "
+                            "a futures command source."
+                        ),
+                        required_backend_contract=(
+                            "Futures/perpetual risk authority contract over position, "
+                            "margin, collateral, funding, and liquidation evidence."
+                        ),
+                        frontend_boundary=(
+                            "Do not copy spot inventory, no-shorting, USDC, average-cost, "
+                            "or cost-basis rules into futures/perpetual workflows."
+                        ),
+                    ),
                 ],
                 identity_keys=["position_key"],
                 constraints=[
@@ -1682,6 +1808,41 @@ class AdminApiReadService:
                     "hide-again mutation for live revealed placements",
                     "browser-side active placement mutation",
                 ],
+                command_gaps=[
+                    command_gap(
+                        action="cancel by exchange order id",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "Stealth cancellation is keyed by stealth_order_id in the "
+                            "Admin API; active placement ids and exchange ids are evidence only."
+                        ),
+                        required_backend_contract=(
+                            "Existing live-disabled stealth cancel contract keyed by "
+                            "stealth_order_id, with exchange handling and reconciliation "
+                            "before any live enablement."
+                        ),
+                        frontend_boundary=(
+                            "Do not expose active placement client ids or exchange order "
+                            "ids as cancellation inputs."
+                        ),
+                    ),
+                    command_gap(
+                        action="hide-again mutation for live revealed placements",
+                        status=AdminApiModuleSupportStatus.NOT_MODELED,
+                        reason=(
+                            "A revealed stealth placement can become hidden only after "
+                            "the active exchange placement is cancelled or reconciled."
+                        ),
+                        required_backend_contract=(
+                            "Backend exchange-cancel and reconciliation contract that "
+                            "proves live placement state before local stealth state changes."
+                        ),
+                        frontend_boundary=(
+                            "Do not add a hide-again control or local stealth state "
+                            "mutation path in the browser."
+                        ),
+                    ),
+                ],
                 identity_keys=["stealth_order_id", "client_order_id"],
                 constraints=[
                     "Local state must reflect live exchange reality.",
@@ -1701,6 +1862,55 @@ class AdminApiReadService:
                     "frontend live repricing",
                     "cooldown clearing from command draft",
                     "revealed placement mutation without exchange handling",
+                ],
+                command_gaps=[
+                    command_gap(
+                        action="frontend live repricing",
+                        status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                        reason=(
+                            "Movement reprice is currently a live-disabled Admin API "
+                            "draft keyed by stealth_order_id; approved live repricing "
+                            "would be cancel/replace-shaped."
+                        ),
+                        required_backend_contract=(
+                            "Backend live reprice contract with cancel/replace exchange "
+                            "handling, mutation claims, cooldown policy, approval, cap, "
+                            "audit, and reconciliation evidence."
+                        ),
+                        frontend_boundary=(
+                            "Keep reprice in dry-submit review and do not call the legacy "
+                            "dashboard repricer from the enterprise frontend."
+                        ),
+                    ),
+                    command_gap(
+                        action="cooldown clearing from command draft",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason="A command draft cannot clear backend repricing cooldowns.",
+                        required_backend_contract=(
+                            "Backend policy-controlled cooldown mutation contract, if such "
+                            "behavior is ever approved."
+                        ),
+                        frontend_boundary=(
+                            "Do not expose cooldown-clearing inputs or local cooldown "
+                            "mutation in command drafts."
+                        ),
+                    ),
+                    command_gap(
+                        action="revealed placement mutation without exchange handling",
+                        status=AdminApiModuleSupportStatus.NOT_MODELED,
+                        reason=(
+                            "Revealed placements require existing exchange cancel/move/"
+                            "reconcile handling before local state can change."
+                        ),
+                        required_backend_contract=(
+                            "Backend exchange-reality path that claims, cancels or replaces, "
+                            "audits, and reconciles active placements."
+                        ),
+                        frontend_boundary=(
+                            "Do not mutate revealed placement state or anchor state from "
+                            "browser code."
+                        ),
+                    ),
                 ],
                 identity_keys=["stealth_order_id", "client_order_id"],
                 constraints=[
@@ -1722,6 +1932,37 @@ class AdminApiReadService:
                     "browser-side profitability authority",
                     "browser-side wallet or margin authority",
                 ],
+                command_gaps=[
+                    command_gap(
+                        action="browser-side guard calculation",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason="Guard calculations are backend authority and policy evidence.",
+                        required_backend_contract=(
+                            "Backend guard/risk read or command contract that returns "
+                            "policy decisions and audit evidence."
+                        ),
+                        frontend_boundary=(
+                            "Do not turn guard/risk UI evidence into a browser approval "
+                            "or preflight evaluator."
+                        ),
+                    ),
+                    command_gap(
+                        action="browser-side wallet or margin authority",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "Wallet, inventory, margin, and position authority must be "
+                            "checked at backend command/reveal/execution boundaries."
+                        ),
+                        required_backend_contract=(
+                            "Backend authority contract over wallet, inventory, margin, "
+                            "position, cap, and product capability evidence."
+                        ),
+                        frontend_boundary=(
+                            "Do not make browser balances, margins, or cached read models "
+                            "decide command eligibility."
+                        ),
+                    ),
+                ],
                 identity_keys=["policy_id", "product_id", "correlation_id"],
                 constraints=[
                     "The browser may display guard evidence but must not decide authority.",
@@ -1740,6 +1981,41 @@ class AdminApiReadService:
                     "audit mutation",
                     "command replay",
                     "exchange-id cancellation or tracking authority",
+                ],
+                command_gaps=[
+                    command_gap(
+                        action="audit mutation",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "Audit workbench is a read-only evidence surface and must not "
+                            "rewrite audit history."
+                        ),
+                        required_backend_contract=(
+                            "No frontend audit mutation contract is planned; backend audit "
+                            "stores are command-side evidence."
+                        ),
+                        frontend_boundary=(
+                            "Do not add audit mutation controls, command replay controls, "
+                            "or feature-local audit fetch paths."
+                        ),
+                    ),
+                    command_gap(
+                        action="command replay",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "Replaying a command from audit evidence would create a second "
+                            "command path outside draft, idempotency, approval, and audit gates."
+                        ),
+                        required_backend_contract=(
+                            "Any replay-like behavior would need a first-class backend "
+                            "command contract with fresh operator intent, idempotency, "
+                            "approval, cap, guard, and audit evidence."
+                        ),
+                        frontend_boundary=(
+                            "Audit links may navigate to evidence only; they must not "
+                            "submit or re-submit commands."
+                        ),
+                    ),
                 ],
                 identity_keys=[
                     "client_order_id",
@@ -1763,6 +2039,40 @@ class AdminApiReadService:
                 unsupported_actions=[
                     "enterprise frontend direct WebSocket command execution",
                     "new admin module implementation through dashboard.py",
+                ],
+                command_gaps=[
+                    command_gap(
+                        action="enterprise frontend direct WebSocket command execution",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "The legacy dashboard WebSocket is compatibility-only and is "
+                            "not the enterprise admin command plane."
+                        ),
+                        required_backend_contract=(
+                            "Backend-owned Admin API route through auth, RBAC, idempotency, "
+                            "approval, caps, audit, and the shared command service."
+                        ),
+                        frontend_boundary=(
+                            "Do not call dashboard.py or legacy dashboard WebSocket handlers "
+                            "from enterprise frontend product UI."
+                        ),
+                    ),
+                    command_gap(
+                        action="new admin module implementation through dashboard.py",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                        reason=(
+                            "New admin modules must start from backend-owned OpenAPI "
+                            "contracts, not proof-of-concept dashboard handlers."
+                        ),
+                        required_backend_contract=(
+                            "Backend-owned Admin API route, OpenAPI schema, route inventory, "
+                            "tests, docs, and frontend generated-client sync."
+                        ),
+                        frontend_boundary=(
+                            "Do not use dashboard.py as the implementation path for new "
+                            "enterprise admin modules."
+                        ),
+                    ),
                 ],
                 identity_keys=["client_order_id"],
                 constraints=[
@@ -1832,6 +2142,7 @@ class AdminApiReadService:
             1 for module in modules if module.support_status not in unsupported_statuses
         )
         unsupported_module_count = len(modules) - supported_module_count
+        command_gap_count = sum(len(module.command_gaps) for module in modules)
         status = (
             AdminApiGateStatus.BLOCKED
             if any(
@@ -1846,6 +2157,7 @@ class AdminApiReadService:
             module_count=len(modules),
             supported_module_count=supported_module_count,
             unsupported_module_count=unsupported_module_count,
+            command_gap_count=command_gap_count,
             modules=modules,
             security_checks=security_checks,
             release_checks=release_checks,

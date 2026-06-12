@@ -3546,6 +3546,44 @@ components:
       - csrf_required
       title: AdminCsrfContractResponse
       description: Read-only CSRF contract for BFF/session deployments.
+    AdminEnterpriseCommandGapItem:
+      properties:
+        action:
+          type: string
+          title: Action
+        status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        reason:
+          type: string
+          title: Reason
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        frontend_boundary:
+          type: string
+          title: Frontend Boundary
+        live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - status
+      - reason
+      - required_backend_contract
+      - frontend_boundary
+      title: AdminEnterpriseCommandGapItem
+      description: Structured evidence for a command path that is blocked or not modeled.
     AdminEnterpriseReadinessModuleItem:
       properties:
         module:
@@ -3573,6 +3611,11 @@ components:
             type: string
           type: array
           title: Unsupported Actions
+        command_gaps:
+          items:
+            $ref: '#/components/schemas/AdminEnterpriseCommandGapItem'
+          type: array
+          title: Command Gaps
         identity_keys:
           items:
             type: string
@@ -3626,6 +3669,10 @@ components:
         unsupported_module_count:
           type: integer
           title: Unsupported Module Count
+          default: 0
+        command_gap_count:
+          type: integer
+          title: Command Gap Count
           default: 0
         modules:
           items:

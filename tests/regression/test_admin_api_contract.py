@@ -1379,7 +1379,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "881-900"
+    assert live_payload["approved_phase_range"] == "901-920"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1403,7 +1403,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "881-900"
+    assert enterprise_payload["approved_phase_range"] == "901-920"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -1412,6 +1412,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert enterprise_payload["executed_notional_usdc"] == "0"
     assert enterprise_payload["read_only"] is True
     assert enterprise_payload["live_coinbase_orders_ran"] is False
+    assert enterprise_payload["command_gap_count"] >= 10
     module_statuses = {
         item["module"]: item["support_status"]
         for item in enterprise_payload["modules"]
@@ -1438,6 +1439,30 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "spot short selling" in spot_module["unsupported_actions"]
     assert "client_order_id" in spot_module["identity_keys"]
     assert "POST /api/v1/orders" in spot_module["command_routes"]
+    futures_module = next(
+        item
+        for item in enterprise_payload["modules"]
+        if item["module"] == "Futures / Perpetuals"
+    )
+    futures_gaps = {
+        item["action"]: item for item in futures_module["command_gaps"]
+    }
+    assert futures_gaps["frontend futures placement"] == {
+        "action": "frontend futures placement",
+        "status": AdminApiModuleSupportStatus.NOT_MODELED.value,
+        "reason": "Futures/perpetual placement needs backend-owned margin, leverage, liquidation, reduce-only, collateral, and approval contracts before UI drafting.",
+        "required_backend_contract": "POST futures/perpetual placement contract with margin, leverage, liquidation, reduce-only, cap, approval, audit, and reconciliation evidence.",
+        "frontend_boundary": "Do not add a futures/perpetual placement draft, dry-submit, or BFF route until the backend contract and capability row exist.",
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0",
+    }
+    assert futures_gaps["frontend futures cancel/close/reduce"]["status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert futures_gaps["frontend futures cancel/close/reduce"]["notional_usdc"] == "0"
+    assert "spot inventory" in futures_gaps["spot inventory rules in futures workflows"][
+        "frontend_boundary"
+    ]
     assert all(check["status"] == "passed" for check in enterprise_payload["security_checks"])
     browser_boundary = next(
         check
@@ -2916,9 +2941,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/admin/live-enablement"].shared_method == (
         "build_live_enablement"
     )
-    assert rows["GET /api/v1/admin/enterprise-readiness"].shared_method == (
-        "build_enterprise_readiness"
-    )
+    enterprise_readiness_route = rows["GET /api/v1/admin/enterprise-readiness"]
+    assert enterprise_readiness_route.shared_method == "build_enterprise_readiness"
+    assert "structured command-gap" in enterprise_readiness_route.parity_test
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -2935,6 +2960,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_csrf_contract" in doc
     assert "build_live_enablement" in doc
     assert "build_enterprise_readiness" in doc
+    assert "structured command-gap" in doc
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc

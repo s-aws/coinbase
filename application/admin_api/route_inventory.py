@@ -321,7 +321,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="read-only release evidence only",
         audit="optional read audit",
         shared_method="build_enterprise_readiness",
-        parity_test="read-only M9 module support, unsupported action, security, and release evidence",
+        parity_test=(
+            "read-only M9/M20 module support, unsupported action, "
+            "structured command-gap, security, and release evidence"
+        ),
     ),
     AdminApiRouteInventoryItem(
         surface="GET /api/v1/admin/release-gate",

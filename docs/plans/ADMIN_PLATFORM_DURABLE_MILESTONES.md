@@ -49,6 +49,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M17 - Runtime Command Capability Binding | Complete | Bind command workflow UI to backend capability evidence. |
 | M18 - No-Live Command Dry-Submit Harness | Complete | Allow no-live backend/BFF command dry-submit review under fail-closed gates. |
 | M19 - Command Dry-Submit Audit Traceability | Complete | Link dry-submit command evidence to existing read-only audit workbench anchors. |
+| M20 - Enterprise Module Command-Gap Evidence | Complete | Make unsupported and not-modeled command paths structured backend-owned evidence. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -824,6 +825,42 @@ Completed when:
 - Focused and full gates pass.
 - Blind/contextless review confirms traceability is backend-owned, no-live,
   and understandable without chat history.
+
+## M20 - Enterprise Module Command-Gap Evidence
+
+Purpose: make unsupported and not-modeled command paths explicit, structured,
+and backend-owned before the enterprise frontend broadens non-spot workflows.
+
+Completed evidence:
+
+- Phases 901-920 advanced the then-active unattended range while preserving the same
+  no-live frontend posture and live-cap policy.
+- `GET /api/v1/admin/enterprise-readiness` exposes per-module
+  `command_gaps` and top-level `command_gap_count` evidence.
+- Each command gap states action, status, reason, required backend contract,
+  frontend boundary, `live_coinbase_execution=not_run`, and notional `0`.
+- Futures/perpetual gaps explicitly block placement, cancel/close/reduce, and
+  spot inventory rule reuse until backend-owned contracts exist.
+- Existing unsupported-action strings remain available for backward
+  compatibility and contextless readers.
+- OpenAPI and frontend generated clients are synced after the backend
+  contract change.
+- Backend and frontend validators use approved/completed phase range 901-920.
+- Backend contract tests prove structured command-gap evidence for
+  futures/perpetuals and no-live posture.
+- Frontend UI, mock backend, quality gates, docs, and tests consume command
+  gaps without creating new command routes or browser authority.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Frontend route association passed: generated API schema was fresh, route
+  coverage passed, and no-live posture reported `$0` notional.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless re-review passed after the route-inventory parity wording
+  was synced across source, JSON export, Markdown docs, and regression tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Objective Completion
 
