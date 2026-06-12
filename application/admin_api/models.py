@@ -85,6 +85,42 @@ class AdminApiCommandEnvelope(BaseModel):
     actor: AdminApiActor
 
 
+class AdminLiveExecutionIntentEvidence(BaseModel):
+    """Evidence-only command-to-live-execution intent envelope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    required: bool = True
+    prepared: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    payload_bound: bool = True
+    idempotency_bound: bool = True
+    executable: bool = False
+    status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    source: str = "disabled_backend_service"
+    missing_reason: str | None = "live_execution_disabled"
+    module_id: str
+    route: str
+    method: str
+    identity_key: str
+    identity_value: str | None = None
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    adapter_reference: str
+    actor_id: str
+    idempotency_key: str
+    operator_intent: str
+    payload_hash: str
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class AdminLiveAdmissionDecisionEvidence(BaseModel):
     """Route-bound live admission decision for a command attempt."""
 
@@ -140,6 +176,7 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     live_execution_service_missing_reason: str | None = "live_execution_disabled"
     browser_authority: str = "rejected"
     live_exchange_submitted: bool = False
+    live_execution_intent: AdminLiveExecutionIntentEvidence | None = None
     blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     detail: str

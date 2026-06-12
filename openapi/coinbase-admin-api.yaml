@@ -4641,6 +4641,10 @@ components:
           type: boolean
           title: Live Exchange Submitted
           default: false
+        live_execution_intent:
+          anyOf:
+          - $ref: '#/components/schemas/AdminLiveExecutionIntentEvidence'
+          - type: 'null'
         blockers:
           items:
             $ref: '#/components/schemas/AdminApiLiveAdmissionBlocker'
@@ -5403,6 +5407,134 @@ components:
       - detail
       title: AdminLiveExecutionAdapterContractEvidence
       description: Read-only evidence for the missing live execution adapter contract.
+    AdminLiveExecutionIntentEvidence:
+      properties:
+        required:
+          type: boolean
+          title: Required
+          default: true
+        prepared:
+          type: boolean
+          title: Prepared
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        payload_bound:
+          type: boolean
+          title: Payload Bound
+          default: true
+        idempotency_bound:
+          type: boolean
+          title: Idempotency Bound
+          default: true
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        source:
+          type: string
+          title: Source
+          default: disabled_backend_service
+        missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Missing Reason
+          default: live_execution_disabled
+        module_id:
+          type: string
+          title: Module Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+        identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        adapter_reference:
+          type: string
+          title: Adapter Reference
+        actor_id:
+          type: string
+          title: Actor Id
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        operator_intent:
+          type: string
+          title: Operator Intent
+        payload_hash:
+          type: string
+          title: Payload Hash
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        blockers:
+          items:
+            $ref: '#/components/schemas/AdminApiLiveAdmissionBlocker'
+          type: array
+          title: Blockers
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - module_id
+      - route
+      - method
+      - identity_key
+      - action_class
+      - required_permission
+      - service_method
+      - adapter_reference
+      - actor_id
+      - idempotency_key
+      - operator_intent
+      - payload_hash
+      - detail
+      title: AdminLiveExecutionIntentEvidence
+      description: Evidence-only command-to-live-execution intent envelope.
     AdminLivePreflightCheckItem:
       properties:
         name:

@@ -37,6 +37,7 @@ from .reconciliation import (
 from .live_execution import (
     AdminApiLiveExecutionService,
     AdminApiLiveExecutionServiceState,
+    build_disabled_live_execution_intent,
 )
 from .models import AdminLiveAdmissionDecisionEvidence
 
@@ -542,6 +543,22 @@ def evaluate_command_live_admission(
         f"live execution service {live_execution_state.source} disabled",
         "browser authority rejected",
     ])
+    live_execution_intent = build_disabled_live_execution_intent(
+        method=method,
+        route=route,
+        module_id=module_id,
+        identity_key=identity_key,
+        identity_value=identity_value,
+        action_class=action_class,
+        required_permission=required_permission,
+        service_method=service_method,
+        actor_id=actor_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        blockers=blockers,
+        live_execution_state=live_execution_state,
+    )
 
     return AdminLiveAdmissionDecisionEvidence(
         status=AdminApiGateStatus.BLOCKED,
@@ -638,6 +655,7 @@ def evaluate_command_live_admission(
         live_execution_service_missing_reason=live_execution_state.missing_reason,
         browser_authority="rejected",
         live_exchange_submitted=False,
+        live_execution_intent=live_execution_intent,
         blockers=blockers,
         evidence=evidence,
         detail=(

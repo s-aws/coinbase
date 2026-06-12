@@ -296,6 +296,10 @@ The platform/module split is documented in
 - M44 live execution adapter contract evidence maps live-shaped routes to
   shared `AdminApiCommandService` methods on read-only live-enablement path
   rows. The adapter evidence is disabled, unconfigured, and non-executable.
+- M45 live execution intent envelope evidence lets command admission decisions
+  report the route, identity, payload hash, idempotency key, actor, operator
+  intent, service method, and disabled blockers for a command-to-live-execution
+  attempt. The intent is not prepared, not executable, and display-only.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

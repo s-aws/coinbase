@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1381-1400**.
+- Approved phase range: **1401-1420**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -45,6 +45,116 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Completed Phases 1401-1420
+
+### Phase 1401 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1381-1400 to active
+  phases 1401-1420 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1402 - M45 Live Execution Intent Envelope Evidence
+
+- Add backend-owned, read-only command admission live execution intent
+  evidence that describes the exact route, identity, payload hash,
+  idempotency key, actor, operator intent, service method, and disabled
+  execution blockers without adding execution methods, a live switch, browser
+  approval, BFF execution authority, or Coinbase calls.
+
+### Phase 1403 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1401-1420 phase range.
+
+### Phase 1404 - Intent Evidence Model
+
+- Add a typed command admission intent model that reports required, not
+  prepared, backend-owned, route-bound, payload-bound, idempotency-bound,
+  non-executable, display-only, and forward-only posture.
+
+### Phase 1405 - Command Admission Wiring
+
+- Populate live execution intent evidence from the existing command admission
+  evaluator. Do not create route-local execution or a second admission path.
+
+### Phase 1406 - Audit Persistence Proof
+
+- Prove command audit rows persist the intent envelope as evidence while
+  keeping legacy audit rows readable when the field is absent or null.
+
+### Phase 1407 - No Executable Intent Proof
+
+- Prove the intent envelope exposes no create, cancel, submit, execute,
+  Coinbase, browser, or BFF authority method.
+
+### Phase 1408 - No Route-Local Execution Proof
+
+- Prove command routes still use the shared route adapter, idempotency,
+  audit, admission, and command service path.
+
+### Phase 1409 - OpenAPI Regeneration
+
+- Regenerate OpenAPI after adding intent evidence fields and verify the
+  generated schema is fresh.
+
+### Phase 1410 - Frontend Range Sync
+
+- Synchronize frontend autonomous, release, deployment, quality, mock, and
+  runtime range evidence to 1401-1420.
+
+### Phase 1411 - Generated Client Sync
+
+- Regenerate the frontend generated client from backend OpenAPI. Do not edit
+  generated files by hand.
+
+### Phase 1412 - Mock Command Intent Evidence
+
+- Update frontend mock command and Audit Workbench evidence with
+  backend-shaped live execution intent data while keeping commands no-live
+  and display-only.
+
+### Phase 1413 - Dry-Submit Intent Evidence Display
+
+- Render live execution intent evidence in command dry-submit details without
+  adding command buttons, approval controls, or browser authority.
+
+### Phase 1414 - Audit Workbench Intent Evidence Display
+
+- Render persisted live execution intent evidence in the Audit Workbench as
+  read-only admission evidence.
+
+### Phase 1415 - Runtime, Artifact, And Quality Alignment
+
+- Align runtime evidence, release artifacts, deployment readiness,
+  autonomous queue, and quality gates with M45 intent evidence posture.
+
+### Phase 1416 - Documentation Update
+
+- Update Admin API/frontend docs, capability matrices, handoffs, examples,
+  and durable milestones for live execution intent evidence.
+
+### Phase 1417 - Drift Scan
+
+- Scan both repos for stale active ranges, route-local execution wording,
+  frontend command authority drift, or accidental live enablement.
+
+### Phase 1418 - Focused Gates
+
+- Run focused backend Admin API/readiness tests and focused frontend API,
+  unit, lint/type, and autonomous checks that cover intent evidence display
+  and active range.
+
+### Phase 1419 - Blind/Contextless Review
+
+- Run blind/contextless review for live execution intent evidence, shared
+  command path preservation, and no-browser/no-BFF execution authority.
+
+### Phase 1420 - Full Gates And Summary
+
+- Run full backend regression and frontend release gate. Summarize live
+  Coinbase execution status and notional. Default remains no-live with
+  submitted and executed notional `$0`.
 
 ## Completed Phases 1381-1400
 

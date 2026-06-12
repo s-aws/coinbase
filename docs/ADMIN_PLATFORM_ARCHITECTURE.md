@@ -69,6 +69,10 @@ These primitives apply across modules:
 - live execution adapter contract evidence that maps each live-shaped route
   to its shared `AdminApiCommandService` method while reporting the adapter as
   disabled, unconfigured, non-executable, and display-only
+- command admission live execution intent evidence that binds route, identity,
+  payload hash, idempotency key, actor, operator intent, and shared service
+  method while reporting the intent as disabled, not prepared,
+  non-executable, and display-only
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.

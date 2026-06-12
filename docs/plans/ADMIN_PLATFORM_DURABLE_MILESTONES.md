@@ -74,6 +74,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M42 - Command Admission Live Execution Service Boundary Evidence | Complete | Make the disabled backend live execution service boundary explicit on command admission evidence without adding a live switch, browser approval, or Coinbase execution. |
 | M43 - Disabled Live Execution Service Foundation | Complete | Add a backend-owned disabled service descriptor for command admission without adding execution methods, browser approval, or Coinbase execution. |
 | M44 - Live Execution Adapter Contract Evidence | Complete | Expose backend-owned route-to-shared-command live execution adapter evidence without adding executable adapters, browser approval, or Coinbase execution. |
+| M45 - Live Execution Intent Envelope Evidence | Complete | Expose backend-owned command admission execution-intent evidence without adding executable adapters, browser approval, BFF execution authority, or Coinbase execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1840,6 +1841,50 @@ Completed evidence:
   with phase range `1381-1400` and adapter evidence without adding browser
   approval, live execution authority, or command authority.
 - Blind/contextless review confirmed adapter evidence is understandable as a
+  backend-owned disabled boundary and no browser approval, BFF execution
+  authority, route-local executor, or live Coinbase path was added.
+- Backend full regression passed with `799 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+## M45 - Live Execution Intent Envelope Evidence
+
+Purpose: make the command-to-live-execution intent envelope explicit on
+command admission evidence before any executable live adapter exists.
+
+Completed scope:
+
+- Phases 1401-1420 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Command admission may report a backend-owned execution intent with route,
+  method, module id, identity, action class, required permission, shared
+  service method, actor, idempotency key, operator intent, payload hash,
+  service status, blockers, browser authority, and BFF authority.
+- Intent envelopes must remain required but not prepared, disabled,
+  route-bound, payload-bound, idempotency-bound, backend-owned,
+  non-executable, and display-only.
+- Existing command adapters must continue through the shared route adapter,
+  idempotency, audit, admission, and command service path.
+- No route-local executor, browser approval, BFF execution authority,
+  Coinbase call, live switch, order/exchange-state mutation, or parallel
+  command path is allowed.
+- No live Coinbase execution is allowed in this batch; submitted and executed
+  notional remain `$0`.
+
+Completed evidence:
+
+- Backend focused Admin API/readiness tests and autonomous queue check passed.
+- Tests prove command admission intent evidence is route-bound,
+  payload-bound, idempotency-bound, and remains not prepared/non-executable.
+- OpenAPI and frontend generated client were regenerated from backend
+  contracts.
+- Frontend mocks, dry-submit details, Audit Workbench, quality artifacts,
+  docs, and tests align with phase range `1401-1420` and intent evidence
+  without adding browser approval, live execution authority, or command
+  authority.
+- Blind/contextless review confirmed intent evidence is understandable as a
   backend-owned disabled boundary and no browser approval, BFF execution
   authority, route-local executor, or live Coinbase path was added.
 - Backend full regression passed with `799 passed, 1 warning`.

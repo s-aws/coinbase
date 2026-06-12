@@ -7,9 +7,14 @@ place, cancel, move, reconcile, or submit Coinbase orders.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, Sequence
 
-from core.enums import AdminApiActionClass, AdminApiLiveExecutionStatus
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiLiveAdmissionBlocker,
+    AdminApiLiveExecutionStatus,
+    AdminApiPermission,
+)
 
 
 DISABLED_LIVE_EXECUTION_SERVICE_SOURCE = "disabled_backend_service"
@@ -109,5 +114,72 @@ def build_disabled_live_execution_adapter_contract(
             f"{method} {route} is mapped to {adapter_reference}, but the "
             "Admin API live execution service remains disabled and "
             "non-executable."
+        ),
+    }
+
+
+def build_disabled_live_execution_intent(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    identity_key: str,
+    identity_value: str | None,
+    action_class: AdminApiActionClass,
+    required_permission: AdminApiPermission | str,
+    service_method: str,
+    actor_id: str,
+    idempotency_key: str,
+    operator_intent: str,
+    payload_hash: str,
+    blockers: Sequence[AdminApiLiveAdmissionBlocker],
+    live_execution_state: AdminApiLiveExecutionServiceState,
+) -> dict[str, Any]:
+    """Return the disabled command-to-execution intent evidence.
+
+    This envelope describes the backend-owned execution intent that must be
+    admitted before a future live adapter may submit anything. It is evidence
+    only; it does not expose create, cancel, submit, or execute behavior.
+    """
+
+    adapter_reference = f"AdminApiCommandService.{service_method}"
+    return {
+        "required": True,
+        "prepared": False,
+        "backend_owned": True,
+        "route_bound": True,
+        "payload_bound": True,
+        "idempotency_bound": True,
+        "executable": False,
+        "status": live_execution_state.status,
+        "source": live_execution_state.source,
+        "missing_reason": live_execution_state.missing_reason,
+        "module_id": module_id,
+        "route": route,
+        "method": method,
+        "identity_key": identity_key,
+        "identity_value": identity_value,
+        "action_class": action_class,
+        "required_permission": required_permission,
+        "service_method": service_method,
+        "adapter_reference": adapter_reference,
+        "actor_id": actor_id,
+        "idempotency_key": idempotency_key,
+        "operator_intent": operator_intent,
+        "payload_hash": payload_hash,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "live_exchange_submitted": False,
+        "blockers": list(blockers),
+        "evidence": [
+            "Execution intent is owned by backend command admission.",
+            "Payload hash, idempotency key, actor, and operator intent are bound.",
+            "Live execution service remains disabled before adapter invocation.",
+        ],
+        "detail": (
+            f"{method} {route} produced a disabled execution intent for "
+            f"{adapter_reference}; no live adapter may execute while "
+            f"{live_execution_state.missing_reason or LIVE_EXECUTION_DISABLED_REASON} "
+            "is present."
         ),
     }

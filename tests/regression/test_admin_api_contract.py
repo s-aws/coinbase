@@ -51,6 +51,7 @@ from application.admin_api.idempotency import (
 from application.admin_api.live_execution import (
     DisabledAdminApiLiveExecutionService,
     build_disabled_live_execution_adapter_contract,
+    build_disabled_live_execution_intent,
     get_disabled_live_execution_service,
 )
 from application.admin_api.models import (
@@ -163,6 +164,42 @@ def _manual_order_payload(
     if client_order_id is not None:
         payload["client_order_id"] = client_order_id
     return payload
+
+
+def _assert_disabled_live_execution_intent(
+    intent: dict,
+    *,
+    route: str,
+    method: str,
+    module_id: str,
+    service_method: str,
+    identity_key: str,
+    identity_value: str | None,
+) -> None:
+    assert intent["required"] is True
+    assert intent["prepared"] is False
+    assert intent["backend_owned"] is True
+    assert intent["route_bound"] is True
+    assert intent["payload_bound"] is True
+    assert intent["idempotency_bound"] is True
+    assert intent["executable"] is False
+    assert intent["status"] == "live_disabled"
+    assert intent["source"] == "disabled_backend_service"
+    assert intent["missing_reason"] == "live_execution_disabled"
+    assert intent["route"] == route
+    assert intent["method"] == method
+    assert intent["module_id"] == module_id
+    assert intent["service_method"] == service_method
+    assert intent["adapter_reference"] == f"AdminApiCommandService.{service_method}"
+    assert intent["identity_key"] == identity_key
+    assert intent["identity_value"] == identity_value
+    assert intent["browser_authority"] == "display_only"
+    assert intent["bff_authority"] == "forward_only_no_execution"
+    assert intent["live_exchange_submitted"] is False
+    assert "live_execution_disabled" in intent["blockers"]
+    assert "browser_authority_rejected" in intent["blockers"]
+    assert len(intent["payload_hash"]) == 64
+    assert "disabled execution intent" in intent["detail"]
 
 
 def _manual_order_approval_payload(
@@ -1132,6 +1169,15 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     )
     assert admission["browser_authority"] == "rejected"
     assert admission["live_exchange_submitted"] is False
+    _assert_disabled_live_execution_intent(
+        admission["live_execution_intent"],
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        service_method="place_manual_order",
+        identity_key="client_order_id",
+        identity_value=None,
+    )
     assert "approval_store_missing" not in admission["blockers"]
     assert "approval_snapshot_missing" in admission["blockers"]
     assert "cap_guard_missing" in admission["blockers"]
@@ -1730,6 +1776,15 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["admission_decision"]["operator_intent"] == "manual_one_off"
     assert len(audit_rows[-1]["admission_decision"]["payload_hash"]) == 64
     assert audit_rows[-1]["admission_decision"]["live_exchange_submitted"] is False
+    _assert_disabled_live_execution_intent(
+        audit_rows[-1]["admission_decision"]["live_execution_intent"],
+        route="/api/v1/orders/{client_order_id}/cancel",
+        method="POST",
+        module_id="spot_operations",
+        service_method="cancel_order_by_client_order_id",
+        identity_key="client_order_id",
+        identity_value="client-abc",
+    )
     assert "admission_audit_missing" in audit_rows[-1]["admission_decision"]["blockers"]
 
     stealth_response = client.post(
@@ -2293,6 +2348,25 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only():
         service_method="place_manual_order",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
     )
+    intent = build_disabled_live_execution_intent(
+        method="POST",
+        route="/api/v1/orders",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-abc",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="place_manual_order",
+        actor_id="operator-001",
+        idempotency_key="idem-001",
+        operator_intent="manual_one_off",
+        payload_hash="a" * 64,
+        blockers=[
+            AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+            AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+        ],
+        live_execution_state=state,
+    )
 
     assert isinstance(service, DisabledAdminApiLiveExecutionService)
     assert state.required is True
@@ -2322,6 +2396,18 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only():
         "submit",
         "coinbase_client",
     ]
+    assert intent["route"] == "/api/v1/orders"
+    assert intent["method"] == "POST"
+    assert intent["service_method"] == "place_manual_order"
+    assert intent["adapter_reference"] == "AdminApiCommandService.place_manual_order"
+    assert intent["prepared"] is False
+    assert intent["executable"] is False
+    assert intent["status"].value == "live_disabled"
+    assert intent["source"] == "disabled_backend_service"
+    assert intent["missing_reason"] == "live_execution_disabled"
+    assert intent["browser_authority"] == "display_only"
+    assert intent["bff_authority"] == "forward_only_no_execution"
+    assert intent["live_exchange_submitted"] is False
 
 
 @pytest.mark.regression
@@ -2568,7 +2654,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1381-1400"
+    assert live_payload["approved_phase_range"] == "1401-1420"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -3024,7 +3110,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1381-1400"
+    assert enterprise_payload["approved_phase_range"] == "1401-1420"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -4566,6 +4652,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "live_execution_service_missing_reason": "live_execution_disabled",
         "browser_authority": "rejected",
         "live_exchange_submitted": False,
+        "live_execution_intent": None,
         "blockers": ["admission_audit_missing"],
         "evidence": ["append-only command admission audit"],
         "detail": "HTTP live execution is blocked.",

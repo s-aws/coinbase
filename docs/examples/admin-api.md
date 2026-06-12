@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1381-1400",
+  "approved_phase_range": "1401-1420",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -735,12 +735,45 @@ M44 live execution adapter contract fields make the route-to-shared-command
 service boundary explicit; they are not route-local execution, browser
 approval, BFF execution authority, Coinbase calls, or order/exchange-state
 mutation.
+M45 live execution intent fields make the command-to-live-execution intent
+explicit under command admission decisions; they are not an executable
+adapter, browser approval, BFF execution authority, Coinbase call, or
+order/exchange-state mutation.
 
 M34 command admission decision fields appear on live-disabled HTTP command
 responses. They bind the command route, module, identity key, actor,
 idempotency key, operator intent, and payload hash to the current blockers.
 They are not browser approval, command authority, guard execution,
 reconciliation authority, or live Coinbase execution.
+
+Example command admission intent fragment:
+
+```json
+{
+  "admission_decision": {
+    "live_execution_intent": {
+      "required": true,
+      "prepared": false,
+      "executable": false,
+      "status": "live_disabled",
+      "source": "disabled_backend_service",
+      "missing_reason": "live_execution_disabled",
+      "route": "/api/v1/orders",
+      "method": "POST",
+      "identity_key": "client_order_id",
+      "service_method": "place_manual_order",
+      "adapter_reference": "AdminApiCommandService.place_manual_order",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "live_exchange_submitted": false,
+      "blockers": [
+        "live_execution_disabled",
+        "browser_authority_rejected"
+      ]
+    }
+  }
+}
+```
 
 M35 persists command admission decisions to the existing append-only Admin API
 audit log. M36 adds backend-owned append-only approval-store infrastructure,
@@ -761,7 +794,8 @@ approval, BFF execution authority, or Coinbase execution. M43 introduces a
 backend-owned disabled service descriptor without adding create, cancel,
 submit, execute, browser, BFF, or Coinbase authority methods. M44 adds
 live-enablement adapter evidence without making route-to-service mapping
-executable. None of these
+executable. M45 adds command admission execution-intent evidence without
+making command-to-service intent executable. None of these
 milestones adds an approval endpoint, browser approval, or Coinbase execution
 path.
 
@@ -772,13 +806,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1381-1400",
+  "approved_phase_range": "1401-1420",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

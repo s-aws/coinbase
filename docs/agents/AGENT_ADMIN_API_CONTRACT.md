@@ -99,6 +99,11 @@ Resolver-backed command admission evidence remains fail-closed. A resolved
 snapshot may remove only `approval_snapshot_missing`; it does not authorize
 live execution while live-disabled, admission-audit, cap/guard,
 reconciliation, or browser-authority blockers remain.
+Command admission live execution intent evidence remains fail-closed. It may
+bind route, identity, payload hash, idempotency key, actor, operator intent,
+and shared service method for review, but it must not create an executable
+adapter, browser approval, BFF execution authority, Coinbase call, or parallel
+command path.
 Resolver-backed command admission audit evidence remains fail-closed. A
 resolved audit proof may remove only `admission_audit_missing`; it does not
 authorize live execution while live-disabled, cap/guard, reconciliation, or
