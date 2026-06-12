@@ -40,7 +40,15 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M8 - Controlled Live Enablement | Readiness prep complete; live execution pending | Enable live execution only per approved backend path, cap, and reconciliation gate. |
 | M9 - Enterprise Release Candidate | Evidence complete | Prove the whole admin platform with release, security, contextless, and regression gates. |
 | M10 - Public Maintainer Handoff | Complete | Make onboarding, contribution, and contextless-agent operation durable. |
-| M11 - Read-Only Module Onboarding Proof | Active | Prove the handoff playbook with release, spot/direct-order recovery, and fill-ledger health reads. |
+| M11 - Read-Only Module Onboarding Proof | Complete | Prove the handoff playbook with release, spot/direct-order recovery, and fill-ledger health reads. |
+| M12 - Frontend-Fixtures Runtime Evidence | Complete | Promote backend-owned frontend fixtures from static mock to runtime evidence. |
+| M13 - Read-Smoke Runtime Parity | Complete | Prove direct-backend and BFF dry read smokes cover the same backend route set. |
+| M14 - Command-Smoke Runtime Parity | Complete | Prove direct-backend and BFF dry command smokes cover the same command route set. |
+| M15 - BFF Command Authority Source | Complete | Make BFF command forwarding consume mutation contract route metadata. |
+| M16 - Backend Command Metadata Authority | Complete | Make backend route inventory the authority for command metadata. |
+| M17 - Runtime Command Capability Binding | Complete | Bind command workflow UI to backend capability evidence. |
+| M18 - No-Live Command Dry-Submit Harness | Complete | Allow no-live backend/BFF command dry-submit review under fail-closed gates. |
+| M19 - Command Dry-Submit Audit Traceability | Complete | Link dry-submit command evidence to existing read-only audit workbench anchors. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -773,6 +781,49 @@ Completed when:
 - Focused and full gates pass.
 - Blind/contextless review confirms the dry-submit harness is backend-owned,
   no-live, and understandable without chat history.
+
+## M19 - Command Dry-Submit Audit Traceability
+
+Purpose: make no-live command dry-submit results traceable to the existing
+read-only audit workbench without adding a new audit route, browser-owned
+authority, or exchange-id identity.
+
+Completed evidence:
+
+- Phases 881-900 advance the active unattended range while preserving the same
+  no-live frontend posture and live-cap policy.
+- Command dry-submit evidence links submitted results to audit workbench
+  anchors by `client_order_id`, `stealth_order_id`, correlation id, and audit
+  id when those values are present.
+- Blocked preview states do not expose audit trace links because no backend
+  audit event has been attempted.
+- Traceability reuses the existing read-only audit workbench route and
+  anchor convention; it does not add a new fetch path, audit mutation, or frontend
+  command authority.
+- Exchange-native `order_id` remains evidence only and must not become a trace
+  or cancellation key.
+- The milestone is no-live evidence only; it does not approve Coinbase
+  execution.
+- Focused backend and frontend gates passed, including autonomous checks,
+  command/audit trace tests, route/security/release checks, and Admin API/spot
+  readiness coverage.
+- Blind/contextless M19 review passed with no blockers.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+Completed when:
+
+- Backend and frontend validators use active phase range 881-900.
+- Command workflow submitted dry-submit evidence renders audit workbench links
+  for available backend identities and omits links for blocked states.
+- Tests cover manual order trace links, blocked-state absence, and anchor href
+  conventions.
+- Focused and full gates pass.
+- Blind/contextless review confirms traceability is backend-owned, no-live,
+  and understandable without chat history.
 
 ## Objective Completion
 
