@@ -1266,6 +1266,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         headers=headers,
     )
     release_gate = client.get("/api/v1/admin/release-gate", headers=headers)
+    recovery_gate = client.get("/api/v1/admin/recovery-gate", headers=headers)
+    fill_ledger_health = client.get(
+        "/api/v1/admin/fill-ledger-health",
+        headers=headers,
+    )
+    frontend_fixtures = client.get(
+        "/api/v1/admin/frontend-fixtures",
+        headers=headers,
+    )
 
     assert bootstrap.status_code == 200
     assert bootstrap.json()["backend_repository"] == "s-aws/coinbase"
@@ -1301,7 +1310,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "701-720"
+    assert live_payload["approved_phase_range"] == "721-740"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1325,7 +1334,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "701-720"
+    assert enterprise_payload["approved_phase_range"] == "721-740"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -1378,7 +1387,52 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "contextless_review_gate",
     }
     assert release_gate.status_code == 200
-    assert release_gate.json()["live_coinbase_orders_ran"] is False
+    release_payload = release_gate.json()
+    assert release_payload["type"] == "admin_release_gate"
+    assert release_payload["status"] == AdminApiGateStatus.PASSED.value
+    assert release_payload["read_only"] is True
+    assert release_payload["live_coinbase_orders_ran"] is False
+    assert {check["name"] for check in release_payload["checks"]} >= {
+        "openapi_schema_artifact",
+        "backend_regression_gate",
+        "live_coinbase_execution",
+    }
+    assert recovery_gate.status_code == 200
+    recovery_payload = recovery_gate.json()
+    assert recovery_payload["type"] == "admin_recovery_gate"
+    assert recovery_payload["status"] == AdminApiGateStatus.PASSED.value
+    assert recovery_payload["read_only"] is True
+    assert recovery_payload["live_coinbase_orders_ran"] is False
+    recovery_checks = {check["name"]: check for check in recovery_payload["checks"]}
+    assert "spot_direct_order_audit_route" in recovery_checks
+    assert "non_spot_recovery_scope" in recovery_checks
+    assert recovery_checks["non_spot_recovery_scope"]["status"] == (
+        AdminApiGateStatus.NOT_APPLICABLE.value
+    )
+    assert "spot/direct-order recovery readiness only" in (
+        recovery_checks["non_spot_recovery_scope"]["detail"]
+    )
+    assert fill_ledger_health.status_code == 200
+    fill_ledger_payload = fill_ledger_health.json()
+    assert fill_ledger_payload["type"] == "admin_fill_ledger_health"
+    assert fill_ledger_payload["status"] == AdminApiGateStatus.PASSED.value
+    assert fill_ledger_payload["read_only"] is True
+    assert fill_ledger_payload["live_coinbase_orders_ran"] is False
+    assert {check["name"] for check in fill_ledger_payload["checks"]} >= {
+        "read_surface",
+        "repair_surface",
+        "observed_at",
+    }
+    assert frontend_fixtures.status_code == 200
+    fixture_keys = set(frontend_fixtures.json()["fixtures"])
+    assert {
+        "admin.releaseGate",
+        "admin.recoveryGate",
+        "admin.fillLedgerHealth",
+    } <= fixture_keys
+    assert "release.gate" not in fixture_keys
+    assert "recovery.gate" not in fixture_keys
+    assert "fillLedger.health" not in fixture_keys
 
 
 @pytest.mark.regression

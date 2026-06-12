@@ -71,7 +71,7 @@ live-disabled spot campaign execution contract.
 
 Read-only Admin API routes currently cover backend bootstrap, health,
 session/RBAC evidence, capabilities, guard/risk policy evidence, audit
-workbench evidence, release/recovery gates, fill-ledger health, frontend
+workbench evidence, release/spot-direct-order recovery gates, fill-ledger health, frontend
 fixtures, order list/detail, stealth lifecycle list/detail,
 movement/repricing evidence, futures/perpetual account and position evidence,
 spot readiness, sweep status, sweep P/L, cost-basis status, campaign status,

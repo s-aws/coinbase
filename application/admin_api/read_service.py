@@ -91,7 +91,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "701-720"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "721-740"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -2778,16 +2778,25 @@ class AdminApiReadService:
         )
 
     def build_recovery_gate(self) -> AdminGateReadResponse:
-        """Return recovery-readiness route evidence."""
+        """Return spot/direct-order recovery-readiness route evidence."""
 
         return AdminGateReadResponse(
             type="admin_recovery_gate",
             status=AdminApiGateStatus.PASSED,
             checks=[
                 AdminGateCheck(
-                    name="direct_order_audit_route",
+                    name="spot_direct_order_audit_route",
                     status=AdminApiGateStatus.PASSED,
                     detail="/api/v1/spot/direct-orders/{client_order_id}/audit is read-only.",
+                ),
+                AdminGateCheck(
+                    name="non_spot_recovery_scope",
+                    status=AdminApiGateStatus.NOT_APPLICABLE,
+                    detail=(
+                        "Non-spot recovery gates require module-specific backend "
+                        "contracts; this route reports spot/direct-order recovery "
+                        "readiness only."
+                    ),
                 ),
                 AdminGateCheck(
                     name="repair_mutations",
@@ -2852,9 +2861,9 @@ class AdminApiReadService:
                 ).model_dump(mode="json"),
                 "admin.guardRiskPolicy": self.build_guard_risk_policy().model_dump(mode="json"),
                 "admin.auditWorkbench": self.build_audit_workbench().model_dump(mode="json"),
-                "release.gate": self.build_release_gate().model_dump(mode="json"),
-                "recovery.gate": self.build_recovery_gate().model_dump(mode="json"),
-                "fillLedger.health": self.build_fill_ledger_health().model_dump(mode="json"),
+                "admin.releaseGate": self.build_release_gate().model_dump(mode="json"),
+                "admin.recoveryGate": self.build_recovery_gate().model_dump(mode="json"),
+                "admin.fillLedgerHealth": self.build_fill_ledger_health().model_dump(mode="json"),
             },
         )
 

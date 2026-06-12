@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **701-720**.
+- Approved phase range: **721-740**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -433,7 +433,7 @@ Stop advancement to the next phase until fixed when any of these occur:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Phases 701-720
+## Completed Phases 701-720
 
 ### Phase 701 - Advance Active Queue Range
 
@@ -535,6 +535,119 @@ Stop advancement to the next phase until fixed when any of these occur:
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and remaining objective scope.
+
+## Completion Evidence - Phases 701-720
+
+- Phase range 701-720 completed M10 public maintainer handoff evidence.
+- Backend and frontend maintainer handoff guides are linked from root READMEs,
+  ordered documentation indexes, and cross-repo association docs.
+- Autonomous validators now fail when handoff docs or index links are missing.
+- Contextless M10 review found the handoff material understandable after the
+  new docs were staged and a duplicate stale frontend queue section was
+  removed.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Approved Phases 721-740
+
+### Phase 721 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 701-720 to active
+  phases 721-740 while preserving the same live cap and stop-condition policy.
+
+### Phase 722 - M11 Operational Gates Slice
+
+- Use the handoff playbook to onboard existing backend release,
+  spot/direct-order recovery, and fill-ledger health reads as a narrow
+  read-only admin module slice.
+
+### Phase 723 - Backend Range Evidence
+
+- Update backend no-live readiness evidence so live-enablement and
+  enterprise-readiness report the active 721-740 phase range.
+
+### Phase 724 - Backend Route Contract Recheck
+
+- Re-verify release-gate, recovery-gate, and fill-ledger-health route
+  inventory and Admin API contract coverage remain read-only and no-live.
+
+### Phase 725 - Frontend Runtime Gate Snapshot
+
+- Load release-gate, recovery-gate, and fill-ledger-health reads through the
+  canonical runtime snapshot.
+
+### Phase 726 - Frontend Gate Evidence UI
+
+- Display operational gate status, checks, read-only posture, and no-live
+  evidence in the existing operator/readiness surfaces.
+
+### Phase 727 - Mock And BFF Gate Parity
+
+- Keep mock fixtures, BFF allowlist, and route coverage aligned with the gate
+  reads.
+
+### Phase 728 - Quality Artifact Range Sync
+
+- Update frontend release/deployment/autonomous artifacts and tests to the
+  721-740 active range.
+
+### Phase 729 - Handoff Proof Documentation
+
+- Document that this batch is the first small read-only module slice completed
+  by following the M10 handoff playbook.
+
+### Phase 730 - Operator Docs Sync
+
+- Update operator read-model, backend association, and admin examples so gate
+  evidence is described as backend-owned and no-live.
+
+### Phase 731 - Stale Range Audit
+
+- Search for current-state contradictions around 701-720 versus 721-740 and
+  around static versus backend-loaded gate evidence.
+
+### Phase 732 - Focused Backend Verification
+
+- Run focused Admin API contract and autonomous queue checks for the active
+  range and gate-route posture.
+
+### Phase 733 - Focused Frontend Verification
+
+- Run focused runtime, mock, Admin shell, BFF, and quality tests for gate
+  evidence consumption.
+
+### Phase 734 - Contextless M11 Review
+
+- Run a blind/contextless review asking whether the operational-gates slice
+  proves the handoff playbook without chat history.
+
+### Phase 735 - Review Remediation
+
+- Resolve blocker or ambiguity from M11 review before full gates.
+
+### Phase 736 - Full Backend Regression
+
+- Run full backend regression after the M11 slice and roadmap updates.
+
+### Phase 737 - Full Frontend Release Gate
+
+- Run full frontend release gate after gate evidence is rendered.
+
+### Phase 738 - Final Drift Check
+
+- Run diff, generated-file, route-range, and live-notional checks.
+
+### Phase 739 - Milestone Evidence
+
+- Mark M11 operational-gates onboarding proof complete if gates and review pass.
+
+### Phase 740 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
 
 ## Required Final Gates
 

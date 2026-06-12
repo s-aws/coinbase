@@ -36,11 +36,25 @@ from __future__ import annotations
 import pytest
 
 from configuration import OrderBook
-from core.enums import FollowUpKind
+from core.enums import FollowUpKind, ProductType
 
 
 @pytest.fixture
-def orderbook() -> OrderBook:
+def orderbook(monkeypatch: pytest.MonkeyPatch) -> OrderBook:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USDC": {
+                "product_id": "BTC-USDC",
+                "product_type": ProductType.SPOT.value,
+                "future_product_details": {},
+            }
+        },
+    )
+    monkeypatch.setattr(configuration, "get_futures_positions", lambda: {})
     return OrderBook()
 
 

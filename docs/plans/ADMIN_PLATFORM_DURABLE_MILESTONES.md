@@ -37,9 +37,10 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M5 - Cross-Module Audit Workbench | Complete | Unify operator audit, reconciliation, and correlation evidence across modules. |
 | M6 - Non-Spot Command Draft Contracts | Complete | Add disabled drafts/dry-submit contracts only after read contracts are stable. |
 | M7 - Production Auth And Operations Hardening | Complete | Finish enterprise auth, deployment, observability, and operator runbooks. |
-| M8 - Controlled Live Enablement | Pending | Enable live execution only per approved backend path, cap, and reconciliation gate. |
-| M9 - Enterprise Release Candidate | Pending | Prove the whole admin platform with release, security, contextless, and regression gates. |
-| M10 - Public Maintainer Handoff | Pending | Make onboarding, contribution, and contextless-agent operation durable. |
+| M8 - Controlled Live Enablement | Readiness prep complete; live execution pending | Enable live execution only per approved backend path, cap, and reconciliation gate. |
+| M9 - Enterprise Release Candidate | Evidence complete | Prove the whole admin platform with release, security, contextless, and regression gates. |
+| M10 - Public Maintainer Handoff | Complete | Make onboarding, contribution, and contextless-agent operation durable. |
+| M11 - Read-Only Module Onboarding Proof | Active | Prove the handoff playbook with release, spot/direct-order recovery, and fill-ledger health reads. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -479,12 +480,15 @@ Done when:
 
 Purpose: make the project sustainable without this chat.
 
-Current handoff work:
+Completed handoff work:
 
 - Phases 701-720 add backend and frontend maintainer handoff guides, link them
   from ordered documentation entry points, validate they remain discoverable,
   and prove a contextless maintainer can follow the backend/frontend authority
   split without chat history.
+- M10 backend regression, frontend release gate, autonomous validators, and
+  contextless review completed with live Coinbase execution not run and
+  notional `$0`.
 
 Done when:
 
@@ -494,6 +498,27 @@ Done when:
 - A fresh agent can add a small read-only module slice by following docs and
   passing gates without asking for hidden context.
 - Historical roadmap notes do not contradict the current platform state.
+
+## M11 - Read-Only Module Onboarding Proof
+
+Purpose: prove the M10 handoff playbook by onboarding a small backend-owned
+read-only module slice end to end.
+
+Current onboarding work:
+
+- Phases 721-740 load existing backend release-gate, recovery-gate, and
+  fill-ledger-health reads through the frontend runtime snapshot and display
+  them as backend-owned operational gate evidence.
+
+Done when:
+
+- Frontend runtime snapshot includes all three gate reads.
+- Operator UI displays gate status, checks, read-only posture, and no-live
+  evidence without creating browser authority.
+- Backend and frontend validators use active phase range 721-740.
+- Focused and full gates pass.
+- Blind/contextless review confirms the module slice can be understood from
+  checked-in docs and tests.
 
 ## Objective Completion
 

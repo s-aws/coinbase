@@ -411,8 +411,8 @@ Exit criteria:
 
 ### Phase 248 - Recovery And Readiness Read Routes
 
-- Expose release gate, recovery gate, and fill-ledger health read routes for
-  frontend recovery/readiness panels.
+- Expose release gate, spot/direct-order recovery gate, and fill-ledger
+  health read routes for frontend recovery/readiness panels.
 
 Exit criteria:
 
@@ -529,8 +529,8 @@ Exit criteria:
 
 ### Phase 261 - Release/Recovery/Health Read Models
 
-- Backend endpoints for release gate, recovery gate, fill-ledger health, and
-  repairable-state summaries.
+- Backend endpoints for release gate, spot/direct-order recovery gate,
+  fill-ledger health, and repairable-state summaries.
 
 Exit criteria:
 
@@ -687,8 +687,8 @@ Exit criteria:
 
 ### Phase 277 - Recovery And Gate Read Integration
 
-- Wire release gate, recovery gate, and fill-ledger health panels to backend
-  read routes.
+- Wire release gate, spot/direct-order recovery gate, and fill-ledger health
+  panels to backend read routes.
 
 Exit criteria:
 
@@ -4246,7 +4246,7 @@ Completion evidence:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Maintainer Handoff Batch - Phases 701-720
+## M10 Maintainer Handoff Phase Plan - Phases 701-720
 
 ### Phase 701 - Advance Active Queue Range
 
@@ -4331,3 +4331,103 @@ Completion evidence:
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and remaining objective scope.
+
+## Completed Maintainer Handoff Batch - Phases 701-720
+
+- Phases 701-720 completed M10 public maintainer handoff evidence.
+- Backend and frontend handoff guides are linked from root READMEs, docs
+  indexes, and cross-repo association docs.
+- Autonomous validators fail when handoff docs or index links are missing.
+- Contextless M10 review found no blockers after the handoff docs were staged
+  and stale duplicate queue wording was removed.
+- Backend regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `177` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Approved Operational Gates Onboarding Batch - Phases 721-740
+
+### Phase 721 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 701-720 to active
+  phases 721-740 while preserving the same live cap and stop-condition policy.
+
+### Phase 722 - M11 Operational Gates Slice
+
+- Use the handoff playbook to onboard existing release, spot/direct-order
+  recovery, and fill-ledger health reads as a narrow read-only module slice.
+
+### Phase 723 - Backend Range Evidence
+
+- Update backend no-live readiness evidence to report active range 721-740.
+
+### Phase 724 - Backend Route Contract Recheck
+
+- Re-verify gate-route inventory and contract coverage are read-only/no-live.
+
+### Phase 725 - Frontend Runtime Gate Snapshot
+
+- Load release, spot/direct-order recovery, and fill-ledger health reads
+  through the frontend runtime snapshot.
+
+### Phase 726 - Frontend Gate Evidence UI
+
+- Display gate status, checks, read-only posture, and no-live evidence.
+
+### Phase 727 - Mock And BFF Gate Parity
+
+- Keep mock fixtures, BFF allowlist, and route coverage aligned with gate reads.
+
+### Phase 728 - Quality Artifact Range Sync
+
+- Update frontend release/deployment/autonomous artifacts and tests to 721-740.
+
+### Phase 729 - Handoff Proof Documentation
+
+- Document this batch as the first small read-only module slice using M10 docs.
+
+### Phase 730 - Operator Docs Sync
+
+- Update operator/admin examples for backend-owned gate evidence.
+
+### Phase 731 - Stale Range Audit
+
+- Search for active-range and gate-evidence contradictions.
+
+### Phase 732 - Focused Backend Verification
+
+- Run focused backend Admin API and autonomous checks.
+
+### Phase 733 - Focused Frontend Verification
+
+- Run focused frontend runtime, mock, shell, BFF, and quality checks.
+
+### Phase 734 - Contextless M11 Review
+
+- Run blind/contextless review for the operational-gates slice.
+
+### Phase 735 - Review Remediation
+
+- Resolve blocker or ambiguity before full gates.
+
+### Phase 736 - Full Backend Regression
+
+- Run full backend regression.
+
+### Phase 737 - Full Frontend Release Gate
+
+- Run full frontend release gate.
+
+### Phase 738 - Final Drift Check
+
+- Run diff, generated-file, route-range, and live-notional checks.
+
+### Phase 739 - Milestone Evidence
+
+- Mark M11 complete only if gates and review pass.
+
+### Phase 740 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
