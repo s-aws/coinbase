@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **761-780**.
+- Approved phase range: **781-800**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -776,12 +776,12 @@ Stop advancement to the next phase until fixed when any of these occur:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Phases 761-780
+## Completed Phases 761-780
 
 ### Phase 761 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 741-760 to active
-  phases 761-780 while preserving the same cap and stop-condition policy.
+- Moved the durable autonomous queue from completed phases 741-760 to the
+  M13 phases 761-780 while preserving the same cap and stop-condition policy.
 
 ### Phase 762 - M13 Read-Smoke Runtime Parity Slice
 
@@ -790,8 +790,8 @@ Stop advancement to the next phase until fixed when any of these occur:
 
 ### Phase 763 - Backend Range Evidence
 
-- Update backend no-live readiness evidence so live-enablement and
-  enterprise-readiness report the active 761-780 phase range.
+- Updated backend no-live readiness evidence so live-enablement and
+  enterprise-readiness reported the M13 761-780 phase range.
 
 ### Phase 764 - Shared Read Smoke Catalog
 
@@ -824,13 +824,13 @@ Stop advancement to the next phase until fixed when any of these occur:
 
 ### Phase 770 - Stale Range And Route Audit
 
-- Search for current-state contradictions around 741-760 versus 761-780 and
+- Searched for stale range contradictions around 741-760 versus 761-780 and
   around smoke coverage versus runtime snapshot coverage.
 
 ### Phase 771 - Focused Backend Verification
 
-- Run focused backend Admin API/autonomous checks for active range and no-live
-  readiness evidence.
+- Ran focused backend Admin API/autonomous checks for the M13 range and
+  no-live readiness evidence.
 
 ### Phase 772 - Focused Frontend Verification
 
@@ -868,6 +868,118 @@ Stop advancement to the next phase until fixed when any of these occur:
   admin objective.
 
 ### Phase 780 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 761-780
+
+- Phase range 761-780 completed M13 read-smoke runtime parity.
+- Direct read smoke and BFF read smoke now share
+  `C:\coinbase-frontend\scripts\admin-read-smoke-routes.mjs`.
+- The shared catalog covers admin runtime evidence, operational gates,
+  frontend-fixtures, read-model list routes, and representative detail routes.
+- Frontend release checks fail if read smoke route catalogs drift from runtime
+  evidence expectations.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M13 review blockers were remediated before commit.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Approved Phases 781-800
+
+### Phase 781 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 761-780 to active
+  phases 781-800 while preserving the same cap and stop-condition policy.
+
+### Phase 782 - M14 Command-Smoke Runtime Parity Slice
+
+- Align direct-backend and BFF command dry-smoke coverage around a shared
+  command catalog while preserving backend `501` live-disabled behavior.
+
+### Phase 783 - Backend Range Evidence
+
+- Update backend no-live readiness evidence so live-enablement and
+  enterprise-readiness report the active 781-800 phase range.
+
+### Phase 784 - Shared Command Smoke Catalog
+
+- Add a single frontend command-smoke catalog for command routes, request
+  bodies, idempotency-key prefixes, and expected live-disabled status.
+
+### Phase 785 - Direct Command Dry Smoke Catalog Use
+
+- Make direct backend command dry smoke consume the shared command catalog.
+
+### Phase 786 - BFF Command Route Parity
+
+- Generate BFF command smoke paths from the shared direct-backend command
+  catalog using the `/api/admin` prefix.
+
+### Phase 787 - Live-Disabled Response Guard
+
+- Keep command smoke assertions on backend `501`,
+  `x-live-execution-enabled=false`, and `live_exchange_submitted=false`.
+
+### Phase 788 - Release Checker Command Guard
+
+- Make release checks fail if the shared command catalog, direct command
+  smoke, or BFF command smoke drift away from expected command routes.
+
+### Phase 789 - Operator Docs Sync
+
+- Document that command smoke is disabled-command evidence only and is not
+  live Coinbase execution approval.
+
+### Phase 790 - Stale Range And Route Audit
+
+- Search for current-state contradictions around 761-780 versus 781-800 and
+  around command smoke coverage versus backend command route inventory.
+
+### Phase 791 - Focused Backend Verification
+
+- Run focused backend Admin API/autonomous checks for active range and no-live
+  readiness evidence.
+
+### Phase 792 - Focused Frontend Verification
+
+- Run focused command smoke, BFF smoke, release-check, autonomous, and
+  relevant unit tests.
+
+### Phase 793 - Contextless M14 Review
+
+- Run a blind/contextless review asking whether command smoke is clearly
+  live-disabled evidence and not a parallel trading authority.
+
+### Phase 794 - Review Remediation
+
+- Resolve blocker or ambiguity from M14 review before full gates.
+
+### Phase 795 - Full Backend Regression
+
+- Run full backend regression after M14 changes and docs updates.
+
+### Phase 796 - Full Frontend Release Gate
+
+- Run full frontend release gate after command smoke parity changes.
+
+### Phase 797 - Final Drift Check
+
+- Run diff, stale-range, route catalog, and live-notional checks.
+
+### Phase 798 - Milestone Evidence
+
+- Mark M14 command-smoke runtime parity complete if gates and review pass.
+
+### Phase 799 - Next Batch Planning
+
+- Prepare the next roadmap batch only if it aligns with the durable enterprise
+  admin objective.
+
+### Phase 800 - Commit And Final Batch Summary
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and next objective scope.

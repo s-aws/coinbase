@@ -4549,12 +4549,12 @@ Completion evidence:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Read-Smoke Runtime Parity Batch - Phases 761-780
+## Completed Read-Smoke Runtime Parity Batch - Phases 761-780
 
 ### Phase 761 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 741-760 to active
-  phases 761-780 while preserving the same cap and stop-condition policy.
+- Moved the durable autonomous queue from completed phases 741-760 to the
+  M13 phases 761-780 while preserving the same cap and stop-condition policy.
 
 ### Phase 762 - M13 Read-Smoke Runtime Parity Slice
 
@@ -4563,7 +4563,7 @@ Completion evidence:
 
 ### Phase 763 - Backend Range Evidence
 
-- Update backend no-live readiness evidence to report active range 761-780.
+- Updated backend no-live readiness evidence to report the M13 761-780 range.
 
 ### Phase 764 - Shared Read Smoke Catalog
 
@@ -4592,46 +4592,153 @@ Completion evidence:
 
 ### Phase 770 - Stale Range And Route Audit
 
-- Search for range and smoke/runtime contradictions.
+- Searched for range and smoke/runtime contradictions.
 
 ### Phase 771 - Focused Backend Verification
 
-- Run focused backend Admin API and autonomous checks.
+- Ran focused backend Admin API and autonomous checks.
 
 ### Phase 772 - Focused Frontend Verification
 
-- Run focused frontend smoke, release-check, autonomous, and unit checks.
+- Ran focused frontend smoke, release-check, autonomous, and unit checks.
 
 ### Phase 773 - Contextless M13 Review
 
-- Run blind/contextless review for smoke-route runtime parity.
+- Ran blind/contextless review for smoke-route runtime parity.
 
 ### Phase 774 - Review Remediation
 
-- Resolve blocker or ambiguity before full gates.
+- Resolved blocker or ambiguity before full gates.
 
 ### Phase 775 - Full Backend Regression
 
-- Run full backend regression.
+- Ran full backend regression.
 
 ### Phase 776 - Full Frontend Release Gate
 
-- Run full frontend release gate.
+- Ran full frontend release gate.
 
 ### Phase 777 - Final Drift Check
 
-- Run diff, generated-file, route-range, and live-notional checks.
+- Ran diff, generated-file, route-range, and live-notional checks.
 
 ### Phase 778 - Milestone Evidence
 
-- Mark M13 complete only if gates and review pass.
+- Marked M13 complete after gates and review passed.
 
 ### Phase 779 - Next Batch Planning
+
+- Prepared the next roadmap batch only if it aligns with the durable enterprise
+  admin objective.
+
+### Phase 780 - Commit And Final Batch Summary
+
+- Committed backend and frontend work separately, then summarized implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 761-780
+
+- Phase range 761-780 completed M13 read-smoke runtime parity.
+- Direct read smoke and BFF read smoke now share
+  `C:\coinbase-frontend\scripts\admin-read-smoke-routes.mjs`.
+- The shared catalog covers admin runtime evidence, operational gates,
+  frontend-fixtures, read-model list routes, and representative detail routes.
+- Frontend release checks fail if read smoke route catalogs drift from runtime
+  evidence expectations.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M13 review blockers were remediated before commit.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Approved Command-Smoke Runtime Parity Batch - Phases 781-800
+
+### Phase 781 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 761-780 to active
+  phases 781-800 while preserving the same cap and stop-condition policy.
+
+### Phase 782 - M14 Command-Smoke Runtime Parity Slice
+
+- Align direct-backend and BFF command dry-smoke coverage around a shared
+  command catalog while preserving backend `501` live-disabled behavior.
+
+### Phase 783 - Backend Range Evidence
+
+- Update backend no-live readiness evidence to report active range 781-800.
+
+### Phase 784 - Shared Command Smoke Catalog
+
+- Add a single frontend command-smoke catalog for command routes, request
+  bodies, idempotency-key prefixes, and expected live-disabled status.
+
+### Phase 785 - Direct Command Dry Smoke Catalog Use
+
+- Make direct backend command dry smoke consume the shared command catalog.
+
+### Phase 786 - BFF Command Route Parity
+
+- Generate BFF command smoke paths from the shared direct-backend command
+  catalog using the `/api/admin` prefix.
+
+### Phase 787 - Live-Disabled Response Guard
+
+- Keep command smoke assertions on backend `501`,
+  `x-live-execution-enabled=false`, and `live_exchange_submitted=false`.
+
+### Phase 788 - Release Checker Command Guard
+
+- Make release checks fail if the shared command catalog, direct command
+  smoke, or BFF command smoke drift away from expected command routes.
+
+### Phase 789 - Operator Docs Sync
+
+- Document command smoke parity and no-live posture.
+
+### Phase 790 - Stale Range And Route Audit
+
+- Search for range and command smoke/runtime contradictions.
+
+### Phase 791 - Focused Backend Verification
+
+- Run focused backend Admin API and autonomous checks.
+
+### Phase 792 - Focused Frontend Verification
+
+- Run focused frontend command smoke, BFF smoke, release-check, autonomous,
+  and unit checks.
+
+### Phase 793 - Contextless M14 Review
+
+- Run blind/contextless review for command smoke runtime parity.
+
+### Phase 794 - Review Remediation
+
+- Resolve blocker or ambiguity before full gates.
+
+### Phase 795 - Full Backend Regression
+
+- Run full backend regression.
+
+### Phase 796 - Full Frontend Release Gate
+
+- Run full frontend release gate.
+
+### Phase 797 - Final Drift Check
+
+- Run diff, generated-file, route-range, and live-notional checks.
+
+### Phase 798 - Milestone Evidence
+
+- Mark M14 complete only if gates and review pass.
+
+### Phase 799 - Next Batch Planning
 
 - Prepare the next roadmap batch only if it aligns with the durable enterprise
   admin objective.
 
-### Phase 780 - Commit And Final Batch Summary
+### Phase 800 - Commit And Final Batch Summary
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and next objective scope.

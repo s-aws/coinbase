@@ -563,7 +563,7 @@ Done when:
 Purpose: make direct-backend and BFF dry read smoke prove the same backend
 evidence routes the enterprise admin runtime snapshot consumes.
 
-Current onboarding work:
+Completion evidence:
 
 - Phases 761-780 define a shared read-smoke route catalog for direct backend
   and BFF smoke scripts.
@@ -571,6 +571,12 @@ Current onboarding work:
   representative detail reads without live Coinbase execution.
 - Release checks fail if the catalog or smoke scripts drift from runtime
   evidence expectations.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M13 review blockers were remediated before commit.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 Done when:
 
@@ -578,10 +584,39 @@ Done when:
 - Dry smoke output includes OIDC readiness, live-enablement,
   enterprise-readiness, operational gates, frontend-fixtures, read-model list
   routes, and representative detail routes.
-- Backend and frontend validators use active phase range 761-780.
+- Backend and frontend validators used the M13 phase range 761-780.
 - Focused and full gates pass.
 - Blind/contextless review confirms smoke parity is read-only evidence and not
   a live execution path.
+
+## M14 - Command-Smoke Runtime Parity
+
+Purpose: make direct-backend and BFF dry command smoke prove the same
+live-disabled backend command surfaces without creating browser trading
+authority.
+
+Current onboarding work:
+
+- Phases 781-800 define a shared command-smoke catalog for direct backend and
+  BFF smoke scripts.
+- The catalog covers manual order create, order cancel by `client_order_id`,
+  stealth cancel by `stealth_order_id`, movement/repricing reprice by
+  `stealth_order_id`, and spot campaign execution.
+- Direct and BFF command smoke continue to expect backend `501`
+  live-disabled responses, `x-live-execution-enabled=false`, and
+  `live_exchange_submitted=false`.
+- Release checks fail if the command catalog or smoke scripts drift from the
+  expected command surfaces.
+
+Done when:
+
+- Direct command smoke and BFF command smoke use the same shared catalog.
+- Dry smoke output lists the same command surfaces with only the `/api/admin`
+  BFF prefix difference.
+- Backend and frontend validators use active phase range 781-800.
+- Focused and full gates pass.
+- Blind/contextless review confirms command smoke is disabled-command evidence
+  and not a live execution or parallel trading path.
 
 ## Objective Completion
 
