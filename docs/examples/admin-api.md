@@ -854,7 +854,7 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50 enterprise readiness posture:
 
 ```json
 {
@@ -867,16 +867,16 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
-  "functionality_inventory_count": 14,
-  "backend_supported_workflow_count": 13,
-  "admin_exposed_workflow_count": 11,
-  "command_workflow_count": 6,
+  "functionality_inventory_count": 16,
+  "backend_supported_workflow_count": 15,
+  "admin_exposed_workflow_count": 13,
+  "command_workflow_count": 8,
   "live_designated_workflow_count": 5,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 10,
-  "route_bound_mutation_taxonomy_count": 8,
+  "mutation_taxonomy_count": 12,
+  "route_bound_mutation_taxonomy_count": 10,
   "live_disabled_mutation_count": 5,
   "backend_contract_required_mutation_count": 2,
   "compatibility_mutation_count": 3,
@@ -1592,6 +1592,8 @@ Current read-only routes:
 - `GET /api/v1/admin/frontend-fixtures`
 - `GET /api/v1/admin/approvals`
 - `GET /api/v1/admin/approvals/requests/{approval_request_id}`
+- `GET /api/v1/admin/cap-guard/decisions`
+- `GET /api/v1/admin/cap-guard/decisions/{decision_id}`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
@@ -1680,6 +1682,73 @@ Content-Type: application/json
   "revoke_reason": "operator cancelled the approval"
 }
 ```
+
+## Cap/Guard Decision Records
+
+Cap/guard decision routes persist backend-owned admission evidence only. They
+do not submit orders, call Coinbase, or let the browser/BFF evaluate wallet,
+margin, profitability, inventory, account-limit, or spot-specific guard rules.
+
+List recorded decisions:
+
+```http
+GET /api/v1/admin/cap-guard/decisions?decision_status=passed&limit=10
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Read one decision:
+
+```http
+GET /api/v1/admin/cap-guard/decisions/cap-guard-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Record one backend cap/guard decision:
+
+```http
+POST /api/v1/admin/cap-guard/decisions
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: cap-guard-record-001
+X-Correlation-Id: corr-cap-guard-001
+X-Operator-Intent: record_manual_order_cap_guard
+Content-Type: application/json
+
+{
+  "route": "/api/v1/orders",
+  "method": "POST",
+  "module_id": "spot_operations",
+  "identity_key": "client_order_id",
+  "identity_value": "client-approved-001",
+  "action_class": "live_exchange_place",
+  "required_permission": "order:create",
+  "service_method": "place_manual_order",
+  "actor_id": "admin-001",
+  "operator_intent": "manual_one_off",
+  "command_idempotency_key": "manual-order-idem-001",
+  "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "approval_snapshot_id": "approval-snapshot-001",
+  "approval_cap_guard_decision_ref": "cap-guard-001",
+  "admission_audit_id": "audit-admission-001",
+  "allowed": true,
+  "status": "passed",
+  "cap_policy_ref": "submitted_notional_cap:3.10",
+  "guard_policy_ref": "action_condition_guard:manual_order",
+  "product_scope": "BTC-USDC",
+  "max_submitted_notional_usdc": "3.10",
+  "max_executed_notional_usdc": "1.00",
+  "reason": "backend cap and guard inputs accepted the route-bound envelope"
+}
+```
+
+Only `allowed=true` with `status=passed` is resolver-eligible. Any mismatch,
+blocked status, warning status, route mismatch, permission mismatch, or
+duplicate decision id fails closed as evidence only.
 
 Revoked and expired snapshots fail closed in the existing approval resolver.
 An approved snapshot still does not make a command executable while cap/guard,

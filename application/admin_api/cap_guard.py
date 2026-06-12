@@ -119,6 +119,14 @@ class FileAdminApiCapGuardStore:
                 break
         return records
 
+    def find_by_decision_id(self, decision_id: str) -> CapGuardDecisionRecord | None:
+        """Return the latest record with the given decision id, if present."""
+
+        for record in self.read_recent(limit=500):
+            if record.decision_id == decision_id:
+                return record
+        return None
+
     def find_matching_decision(
         self,
         *,

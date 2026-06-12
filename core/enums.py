@@ -131,6 +131,8 @@ class AdminApiPermission(str, Enum):
     APPROVAL_READ = "approval:read"
     APPROVAL_REQUEST = "approval:request"
     APPROVAL_MANAGE = "approval:manage"
+    CAP_GUARD_READ = "cap_guard:read"
+    CAP_GUARD_RECORD = "cap_guard:record"
     ORDER_CREATE = "order:create"
     ORDER_CANCEL = "order:cancel"
     CAMPAIGN_READ = "campaign:read"
@@ -230,6 +232,7 @@ class AdminApiMutationFamilyType(str, Enum):
     """Enterprise admin mutation family classification."""
 
     ADMIN_APPROVAL_LIFECYCLE = "admin_approval_lifecycle"
+    ADMIN_CAP_GUARD_DECISION = "admin_cap_guard_decision"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"

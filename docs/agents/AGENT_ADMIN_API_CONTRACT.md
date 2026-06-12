@@ -100,6 +100,12 @@ request, approve/reject, revoke, and expose expiring approval snapshot
 evidence through `application/admin_api/approval_service.py`, but they must not
 call Coinbase, call command execution adapters, run guard decisions, execute
 reconciliation, or make browser approval sufficient for live execution.
+Cap/guard decision routes are backend-owned local-state mutations and reads.
+They may persist and expose route-bound cap/guard decision evidence through
+`application/admin_api/cap_guard_service.py`, but they must not call Coinbase,
+call command execution adapters, evaluate wallet, margin, profitability,
+inventory, account-limit, or spot-specific guards in the browser/BFF, execute
+reconciliation, or make a cap/guard record sufficient for live execution.
 Resolver-backed command admission evidence remains fail-closed. A resolved
 snapshot may remove only `approval_snapshot_missing`; it does not authorize
 live execution while live-disabled, admission-audit, cap/guard,

@@ -126,6 +126,7 @@ def _store_dir() -> Path:
 
 def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import approvals as approval_routes
+    from api.v1.routes import cap_guard as cap_guard_routes
     from api.v1.routes import orders as order_routes
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
@@ -154,6 +155,13 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     app.dependency_overrides[approval_routes.get_audit_store] = lambda: audit_store
     app.dependency_overrides[approval_routes.get_approval_store] = lambda: approval_store
+    app.dependency_overrides[cap_guard_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[cap_guard_routes.get_audit_store] = lambda: audit_store
+    app.dependency_overrides[cap_guard_routes.get_cap_guard_store] = (
+        lambda: cap_guard_store
+    )
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
     client.admin_api_test_audit_store = audit_store
@@ -421,6 +429,51 @@ def _append_manual_order_cap_guard_decision(
     )
     store.append(record)
     return record
+
+
+def _cap_guard_decision_payload(
+    *,
+    approval: AdminApiApprovalRecord,
+    audit_event: AdminApiAuditEvent,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+    allowed: bool = True,
+    status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+) -> dict:
+    return {
+        "route": "/api/v1/orders",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": client_order_id,
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "required_permission": AdminApiPermission.ORDER_CREATE.value,
+        "service_method": "place_manual_order",
+        "actor_id": "operator-001",
+        "operator_intent": operator_intent,
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash
+        or make_payload_hash(
+            _manual_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+                idempotency_key=idempotency_key,
+            )
+        ),
+        "approval_snapshot_id": approval.approval_id,
+        "approval_cap_guard_decision_ref": approval.cap_guard_decision_ref,
+        "admission_audit_id": audit_event.audit_id,
+        "allowed": allowed,
+        "status": status.value,
+        "cap_policy_ref": "submitted_notional_cap:3.10",
+        "guard_policy_ref": "action_condition_guard:manual_order",
+        "product_scope": "USDC spot product scope",
+        "max_submitted_notional_usdc": "3.10",
+        "max_executed_notional_usdc": "1.00",
+        "reason": "Exact backend-owned cap/guard decision for route tests.",
+    }
 
 
 def _append_manual_order_reconciliation_plan(
@@ -2539,6 +2592,228 @@ def test_admin_api_approval_snapshot_resolver_is_exact_and_identity_generic():
 
 
 @pytest.mark.regression
+def test_admin_api_cap_guard_decision_routes_record_replay_and_resolve(monkeypatch):
+    client = _client(monkeypatch)
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id="client-cap-guard-route",
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id="client-cap-guard-route",
+    )
+    body = _cap_guard_decision_payload(
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id="client-cap-guard-route",
+    )
+    headers = _headers(
+        idempotency_key="cap-guard-record-idem",
+        operator_intent="record_manual_order_cap_guard",
+        roles=AdminApiRole.ADMIN.value,
+    )
+
+    created = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=headers,
+        json=body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "accepted"
+    assert created_payload["required_permission"] == "cap_guard:record"
+    assert created_payload["service_method"] == "record_cap_guard_decision"
+    assert created_payload["live_exchange_submitted"] is False
+    assert created_payload["live_coinbase_orders_ran"] is False
+    decision = created_payload["decision"]
+    assert decision["decision_id"] == approval.cap_guard_decision_ref
+    assert decision["approval_snapshot_id"] == approval.approval_id
+    assert decision["admission_audit_id"] == audit_event.audit_id
+    assert decision["resolver_eligible"] is True
+    assert decision["browser_authority"] == "display_only"
+    assert decision["bff_authority"] == "forward_only_no_execution"
+
+    listed = client.get(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed.status_code == 200
+    list_payload = listed.json()
+    assert list_payload["returned_count"] == 1
+    assert list_payload["total_count"] == 1
+    assert list_payload["passed_count"] == 1
+    assert list_payload["blocked_count"] == 0
+    assert list_payload["warning_count"] == 0
+    assert list_payload["resolver_eligible_count"] == 1
+    assert list_payload["live_coinbase_orders_ran"] is False
+
+    detail = client.get(
+        f"/api/v1/admin/cap-guard/decisions/{approval.cap_guard_decision_ref}",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+    assert detail.status_code == 200
+    assert detail.json()["decision"]["decision_id"] == approval.cap_guard_decision_ref
+
+    proof = resolve_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        request=CapGuardDecisionRequest(
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-cap-guard-route",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="place_manual_order",
+            actor_id="operator-001",
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approved",
+            payload_hash=body["payload_hash"],
+            approval_snapshot_id=approval.approval_id,
+            approval_cap_guard_decision_ref=approval.cap_guard_decision_ref,
+            admission_audit_id=audit_event.audit_id,
+        ),
+    )
+    assert proof is not None
+    assert proof.decision_id == approval.cap_guard_decision_ref
+    assert proof.source == "admin_api_cap_guard_log"
+
+    replayed = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=headers,
+        json=body,
+    )
+    assert replayed.status_code == 200
+    assert replayed.headers["X-Idempotency-Replayed"] == "true"
+    assert replayed.json()["decision"]["decision_id"] == approval.cap_guard_decision_ref
+
+    conflict_body = dict(body)
+    conflict_body["reason"] = "changed reason"
+    conflict = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=headers,
+        json=conflict_body,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == "conflict"
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=20)
+    assert any(row.permission == AdminApiPermission.CAP_GUARD_RECORD for row in audit_rows)
+
+
+@pytest.mark.regression
+def test_admin_api_cap_guard_decision_routes_fail_closed(monkeypatch):
+    client = _client(monkeypatch)
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id="client-cap-guard-denied",
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id="client-cap-guard-denied",
+    )
+    body = _cap_guard_decision_payload(
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id="client-cap-guard-denied",
+    )
+
+    denied = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="cap-guard-record-denied-idem",
+            operator_intent="unauthorized_cap_guard_record",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=body,
+    )
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "permission_denied"
+
+    inconsistent = dict(body)
+    inconsistent["status"] = AdminApiGateStatus.BLOCKED.value
+    rejected = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="cap-guard-record-inconsistent-idem",
+            operator_intent="record_inconsistent_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=inconsistent,
+    )
+    assert rejected.status_code == 400
+    assert rejected.json()["status"] == "rejected"
+    assert "allowed must be true only for passed" in rejected.json()["message"]
+    assert client.admin_api_test_cap_guard_store.read_recent() == []
+
+    blocked = _cap_guard_decision_payload(
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id="client-cap-guard-denied",
+        allowed=False,
+        status=AdminApiGateStatus.BLOCKED,
+    )
+    recorded_block = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="cap-guard-record-blocked-idem",
+            operator_intent="record_blocked_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=blocked,
+    )
+    assert recorded_block.status_code == 200
+    assert recorded_block.json()["decision"]["resolver_eligible"] is False
+    assert (
+        resolve_cap_guard_decision(
+            store=client.admin_api_test_cap_guard_store,
+            request=CapGuardDecisionRequest(
+                route="/api/v1/orders",
+                method="POST",
+                module_id="spot_operations",
+                identity_key="client_order_id",
+                identity_value="client-cap-guard-denied",
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                service_method="place_manual_order",
+                actor_id="operator-001",
+                operator_intent="manual_one_off",
+                idempotency_key="idem-approved",
+                payload_hash=blocked["payload_hash"],
+                approval_snapshot_id=approval.approval_id,
+                approval_cap_guard_decision_ref=approval.cap_guard_decision_ref,
+                admission_audit_id=audit_event.audit_id,
+            ),
+        )
+        is None
+    )
+
+    mismatch = _cap_guard_decision_payload(
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id="client-cap-guard-other",
+    )
+    mismatch["module_id"] = "futures_perpetuals"
+    rejected_mismatch = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="cap-guard-record-mismatch-idem",
+            operator_intent="record_mismatched_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=mismatch,
+    )
+    assert rejected_mismatch.status_code == 400
+    assert rejected_mismatch.json()["status"] == "rejected"
+    assert "module_id does not match" in rejected_mismatch.json()["message"]
+
+
+@pytest.mark.regression
 def test_admin_api_cap_guard_decision_resolver_is_exact_and_identity_generic():
     store = FileAdminApiCapGuardStore(_store_dir() / "cap_guard.jsonl")
     record = CapGuardDecisionRecord(
@@ -3598,6 +3873,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     }
     assert {
         "admin.approval_lifecycle",
+        "admin.cap_guard_decisions",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.campaign_execution",
@@ -3624,6 +3900,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert {
         "admin.platform_evidence",
         "admin.approval_lifecycle",
+        "admin.cap_guard_decisions",
         "spot.read_models",
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
@@ -3667,6 +3944,19 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         approval_inventory["command_routes"]
     )
     assert "browser may request" in approval_inventory["frontend_boundary"]
+    cap_guard_inventory = inventory_by_id["admin.cap_guard_decisions"]
+    assert cap_guard_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert cap_guard_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert cap_guard_inventory["command_capable"] is True
+    assert cap_guard_inventory["live_designated"] is False
+    assert "POST /api/v1/admin/cap-guard/decisions" in (
+        cap_guard_inventory["command_routes"]
+    )
+    assert "must not evaluate wallet" in cap_guard_inventory["frontend_boundary"]
     futures_command_inventory = inventory_by_id["futures.commands_not_modeled"]
     assert futures_command_inventory["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -3739,6 +4029,20 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "must not become approval authority" in approval_taxonomy[
         "frontend_boundary"
     ]
+    cap_guard_taxonomy = taxonomy_by_id["admin.cap_guard_decisions"]
+    assert cap_guard_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_CAP_GUARD_DECISION.value
+    )
+    assert cap_guard_taxonomy["workflow_id"] == "admin.cap_guard_decisions"
+    assert cap_guard_taxonomy["command_surfaces"] == [
+        "POST /api/v1/admin/cap-guard/decisions",
+    ]
+    assert cap_guard_taxonomy["action_classes"] == ["local_state_mutation"]
+    assert cap_guard_taxonomy["required_permissions"] == ["cap_guard:record"]
+    assert cap_guard_taxonomy["live_adapter_required"] is False
+    assert cap_guard_taxonomy["route_local_execution_allowed"] is False
+    assert "must not evaluate or override" in cap_guard_taxonomy["bff_boundary"]
+    assert "Spot wallet" in cap_guard_taxonomy["spot_rule_boundary"]
     futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
     assert futures_taxonomy["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -3834,8 +4138,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 14
-    assert admin_module["action_posture"]["command_route_count"] == 3
+    assert admin_module["action_posture"]["read_route_count"] == 16
+    assert admin_module["action_posture"]["command_route_count"] == 4
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]
@@ -5438,6 +5742,21 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     enterprise_readiness_route = rows["GET /api/v1/admin/enterprise-readiness"]
     assert enterprise_readiness_route.shared_method == "build_enterprise_readiness"
     assert "structured command-gap" in enterprise_readiness_route.parity_test
+    assert rows["GET /api/v1/admin/cap-guard/decisions"].shared_method == (
+        "list_cap_guard_decisions"
+    )
+    assert rows["GET /api/v1/admin/cap-guard/decisions"].permission == (
+        AdminApiPermission.CAP_GUARD_READ
+    )
+    assert rows[
+        "GET /api/v1/admin/cap-guard/decisions/{decision_id}"
+    ].shared_method == "get_cap_guard_decision"
+    assert rows["POST /api/v1/admin/cap-guard/decisions"].shared_method == (
+        "record_cap_guard_decision"
+    )
+    assert rows["POST /api/v1/admin/cap-guard/decisions"].permission == (
+        AdminApiPermission.CAP_GUARD_RECORD
+    )
     assert rows["place_hotpoint_test_order WebSocket"].shared_method == (
         "place_hotpoint_test_order"
     )
@@ -5454,6 +5773,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_csrf_contract" in doc
     assert "build_live_enablement" in doc
     assert "build_enterprise_readiness" in doc
+    assert "list_cap_guard_decisions" in doc
+    assert "record_cap_guard_decision" in doc
     assert "structured command-gap" in doc
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc
@@ -5511,4 +5832,16 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/admin/audit-workbench" in schema_http_surfaces
     assert "GET /api/v1/admin/enterprise-readiness" in inventory_http_surfaces
     assert "GET /api/v1/admin/enterprise-readiness" in schema_http_surfaces
+    assert "GET /api/v1/admin/cap-guard/decisions" in inventory_http_surfaces
+    assert "GET /api/v1/admin/cap-guard/decisions" in schema_http_surfaces
+    assert (
+        "GET /api/v1/admin/cap-guard/decisions/{decision_id}"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/admin/cap-guard/decisions/{decision_id}"
+        in schema_http_surfaces
+    )
+    assert "POST /api/v1/admin/cap-guard/decisions" in inventory_http_surfaces
+    assert "POST /api/v1/admin/cap-guard/decisions" in schema_http_surfaces
     assert schema_http_surfaces == inventory_http_surfaces

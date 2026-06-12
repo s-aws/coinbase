@@ -98,15 +98,17 @@ notional, retained inventory, reconciliation result, and audit ids.
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
 - Active autonomous range: `1481-1500`.
-- M49 approval request and decision lifecycle is active for phases
-  `1481-1500`. The backend now owns approval request, approve/reject, revoke,
-  expiry, and snapshot-linking contracts through the existing approval store
-  path. Approval lifecycle routes are local-state mutations only: they may
-  write approval evidence and link resolver-compatible snapshots, but browser
-  approval, BFF forwarding, or a linked snapshot is not sufficient live
-  execution authority. Do not call Coinbase, run command adapters, evaluate
-  guards, execute reconciliation, or create route-local trading behavior from
-  approval lifecycle routes.
+- M49 approval request/decision lifecycle and M50 cap/guard decision records
+  are complete inside active range `1481-1500`. The backend now owns approval
+  request, approve/reject, revoke, expiry, snapshot-linking, and cap/guard
+  decision-record contracts through append-only Admin API local-state paths.
+  These routes may write evidence and link resolver-compatible snapshots or
+  cap/guard records, but browser approval, BFF forwarding, a linked snapshot,
+  or browser-computed guard evidence is not sufficient live execution
+  authority. Do not call Coinbase, run command adapters, evaluate wallet,
+  margin, profitability, inventory, account-limit, or spot-specific guards in
+  browser/BFF code, execute reconciliation, or create route-local trading
+  behavior from approval or cap/guard routes.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

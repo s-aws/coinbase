@@ -136,8 +136,8 @@ path.
 | M46 - Live Readiness Preconditions Evidence | Complete | Normalize live-enablement prerequisites into backend-owned read-only checklist evidence without adding approval mutation, command authority, or Coinbase execution. |
 | M47 - Backend Functionality Inventory And Gap Ledger | Complete | Produce the current authoritative backend-owned workflow inventory for read, command, live, recovery, repair, automation, and legacy surfaces, with explicit admin exposure status and missing-contract blockers. |
 | M48 - Mutation Taxonomy And Authority Map | Complete | Define every admin mutation family, identity key, RBAC permission, idempotency rule, audit requirement, and owning backend service before adding new write routes. |
-| M49 - Approval Request And Decision Lifecycle | Active | Add backend-owned approval request, review, revoke, expiry, and snapshot-linking contracts without making browser approval sufficient for live execution. |
-| M50 - Cap/Guard Decision Execution Records | Planned | Persist route-specific backend cap/guard decisions and link them to command admission without browser guard, wallet, margin, or profitability authority. |
+| M49 - Approval Request And Decision Lifecycle | Complete | Add backend-owned approval request, review, revoke, expiry, and snapshot-linking contracts without making browser approval sufficient for live execution. |
+| M50 - Cap/Guard Decision Execution Records | Complete | Persist route-specific backend cap/guard decisions and link them to command admission without browser guard, wallet, margin, or profitability authority. |
 | M51 - Admission Audit Writer And Linkage | Planned | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
 | M52 - Reconciliation Plan And Proof Runner | Planned | Add backend-owned reconciliation plan creation, execution, and proof contracts for admitted commands without browser reconciliation authority. |
 | M53 - Controlled Execution Adapter Pilot | Planned | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
@@ -2075,7 +2075,7 @@ Completed evidence:
 Purpose: define mutation authority before adding any new write route, approval
 mutation, live adapter, or frontend command UI.
 
-Active scope:
+Completed scope:
 
 - Phases 1461-1480 advance the unattended range while preserving the same
   no-live posture and carried Coinbase cap policy.
@@ -2148,16 +2148,60 @@ Current backend evidence:
   approve, replay, idempotency conflict, revoke, expiry, RBAC, resolver
   fail-closed behavior, route inventory, OpenAPI, and mutation taxonomy.
 
-Remaining proof before completion:
+Completed evidence:
 
-- Frontend generated schema, canonical wrappers, BFF allowlist, UI, mocks,
-  docs, and release gate must consume the lifecycle contracts.
-- Blind/contextless review must confirm a fresh agent does not treat browser
-  approval, BFF forwarding, or a linked snapshot as live execution authority.
-- Backend full regression and frontend `npm run release:gate` must pass.
-- Live Coinbase execution must remain not run unless a later explicitly
-  approved phase says otherwise; submitted and executed notional remain `$0`
-  for M49.
+- Frontend generated schema, canonical wrappers, BFF allowlist, UI, mocks, and
+  docs consume the lifecycle contracts.
+- Backend and frontend tests prove approval lifecycle routes are local-state
+  evidence only and do not create browser approval or BFF execution authority.
+- Live Coinbase execution remains not run unless a later explicitly approved
+  phase says otherwise; submitted and executed notional remain `$0` for M49.
+
+## M50 - Cap/Guard Decision Execution Records
+
+Purpose: make cap/guard decisions durable backend-owned evidence linked to
+route, payload, actor, approval snapshot, admission audit, and policy refs
+without making the browser or BFF a guard evaluator.
+
+Completed scope:
+
+- Cap/guard read routes are
+  `GET /api/v1/admin/cap-guard/decisions` and
+  `GET /api/v1/admin/cap-guard/decisions/{decision_id}`.
+- Cap/guard recording is
+  `POST /api/v1/admin/cap-guard/decisions`.
+- Records bind route inventory shape, identity, actor, operator intent,
+  command idempotency, payload hash, approval snapshot id, admission audit id,
+  cap policy ref, guard policy ref, product scope, and submitted/executed cap
+  values.
+- Only `allowed=true` and `status=passed` is resolver-eligible. Blocked or
+  warning records remain durable fail-closed evidence.
+- The `admin.cap_guard_decisions` functionality inventory and mutation
+  taxonomy rows classify the read and local-state mutation surfaces.
+
+Current backend evidence:
+
+- `core/enums.py` defines `cap_guard:read`, `cap_guard:record`, and the
+  `admin_cap_guard_decision` mutation family enum value.
+- `application/admin_api/cap_guard.py` persists and resolves backend-owned
+  cap/guard decision records.
+- `application/admin_api/cap_guard_service.py` validates records against
+  `ADMIN_API_ROUTE_INVENTORY`, rejects inconsistent allowed/status pairs, and
+  rejects route drift.
+- `api/v1/routes/cap_guard.py` provides authenticated, RBAC-gated,
+  idempotent, audited cap/guard decision routes without Coinbase calls.
+- OpenAPI and route-inventory artifacts include the cap/guard decision
+  schemas and surfaces.
+
+Remaining blockers before live execution:
+
+- M51 must complete append-only admission audit writer/linkage.
+- M52 must complete reconciliation plan and proof contracts.
+- M53 remains the first possible controlled live adapter pilot and still
+  requires explicit live evidence, cap proof, regression, release gate, and
+  contextless review.
+- Live Coinbase execution remains not run for M50; submitted and executed
+  notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
 

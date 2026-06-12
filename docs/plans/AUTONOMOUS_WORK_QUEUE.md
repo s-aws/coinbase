@@ -152,6 +152,22 @@ Stop advancement to the next phase until fixed when any of these occur:
   Coinbase execution status and notional. Default remains no-live with
   submitted and executed notional `$0`.
 
+## M50 Closure Inside Active Range
+
+The 1481-1500 range also closes M50 after the M49 approval foundation:
+
+- Backend cap/guard decision records are persisted through
+  `GET /api/v1/admin/cap-guard/decisions`,
+  `GET /api/v1/admin/cap-guard/decisions/{decision_id}`, and
+  `POST /api/v1/admin/cap-guard/decisions`.
+- The paired website repository at `C:\coinbase-frontend` consumes those
+  routes through generated types, canonical wrappers, BFF allowlist, mocks,
+  quality artifacts, and the Cap/Guard Decisions workbench; verify that claim
+  with `npm run release:gate` in the website repo.
+- The feature remains no-live: no Coinbase calls, no browser guard evaluator,
+  no BFF wallet/margin/profitability/inventory/account-limit authority, and no
+  futures use of spot guard rules.
+
 ## Completed Phases 1461-1480
 
 ### Phase 1461 - Advance Active Queue Range

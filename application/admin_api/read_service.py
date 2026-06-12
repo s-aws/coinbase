@@ -3484,6 +3484,8 @@ class AdminApiReadService:
                     "GET /api/v1/admin/frontend-fixtures",
                     "GET /api/v1/admin/approvals",
                     "GET /api/v1/admin/approvals/requests/{approval_request_id}",
+                    "GET /api/v1/admin/cap-guard/decisions",
+                    "GET /api/v1/admin/cap-guard/decisions/{decision_id}",
                 ],
                 identity_keys=["request_id", "correlation_id", "actor_id"],
                 backend_contract_refs=[
@@ -3569,6 +3571,70 @@ class AdminApiReadService:
                     "Approval lifecycle is a platform primitive. Spot wallet, "
                     "USDC, cost-basis, and no-shorting rules are not generic "
                     "approval rules."
+                ),
+            ),
+            functionality_item(
+                workflow_id="admin.cap_guard_decisions",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned cap/guard decision records that bind route, "
+                    "payload, actor, approval snapshot, admission audit, and "
+                    "policy references for future live admission."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                read_routes=[
+                    "GET /api/v1/admin/cap-guard/decisions",
+                    "GET /api/v1/admin/cap-guard/decisions/{decision_id}",
+                ],
+                command_routes=["POST /api/v1/admin/cap-guard/decisions"],
+                identity_keys=[
+                    "decision_id",
+                    "approval_cap_guard_decision_ref",
+                    "approval_snapshot_id",
+                    "admission_audit_id",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                backend_contract_refs=[
+                    "application/admin_api/cap_guard.py",
+                    "application/admin_api/cap_guard_service.py",
+                    "api/v1/routes/cap_guard.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Admission audit writer and reconciliation plan linkage must "
+                    "complete before live command admission can proceed."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may display and forward cap/guard decision "
+                    "records only; it must not evaluate wallet, margin, "
+                    "profitability, inventory, or account-limit rules."
+                ),
+                spot_rule_boundary=(
+                    "Cap/guard decision records are platform evidence. Spot "
+                    "wallet, USDC, cost-basis, and no-shorting rules stay in "
+                    "spot route-specific guard inputs."
                 ),
             ),
             functionality_item(
@@ -4114,6 +4180,13 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in approval_lifecycle_surfaces
         ]
+        cap_guard_decision_surfaces = [
+            "POST /api/v1/admin/cap-guard/decisions",
+        ]
+        cap_guard_decision_rows = [
+            route_inventory_item(surface)
+            for surface in cap_guard_decision_surfaces
+        ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
                 mutation_id="admin.approval_lifecycle",
@@ -4218,6 +4291,126 @@ class AdminApiReadService:
                     "USDC, cost-basis, and no-shorting rules are not generic "
                     "approval rules."
                 ),
+                cap_guard_required=True,
+                reconciliation_required=True,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="admin.cap_guard_decisions",
+                mutation_family=AdminApiMutationFamilyType.ADMIN_CAP_GUARD_DECISION,
+                workflow_id="admin.cap_guard_decisions",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Cap/guard decisions are backend-owned append-only local-state "
+                    "records that link route, payload, actor, approval snapshot, "
+                    "and admission audit evidence before command admission can "
+                    "consider cap/guard proof present."
+                ),
+                command_surfaces=cap_guard_decision_surfaces,
+                action_classes=[
+                    row.action_class for row in cap_guard_decision_rows
+                ],
+                required_permissions=[
+                    row.permission for row in cap_guard_decision_rows
+                ],
+                identity_keys=[
+                    "decision_id",
+                    "approval_cap_guard_decision_ref",
+                    "approval_snapshot_id",
+                    "admission_audit_id",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "method",
+                    "module_id",
+                    "identity_key",
+                    "identity_value",
+                    "action_class",
+                    "required_permission",
+                    "service_method",
+                    "actor_id",
+                    "operator_intent",
+                    "command_idempotency_key",
+                    "payload_hash",
+                    "approval_snapshot_id",
+                    "approval_cap_guard_decision_ref",
+                    "admission_audit_id",
+                    "allowed",
+                    "status",
+                    "cap_policy_ref",
+                    "guard_policy_ref",
+                    "product_scope",
+                ],
+                idempotency_contract="required",
+                approval_contract=(
+                    "records must reference a backend approval snapshot id; "
+                    "they do not create or approve snapshots"
+                ),
+                cap_guard_contract=(
+                    "only allowed=true plus status=passed is resolver-eligible; "
+                    "blocked or warning records remain durable fail-closed evidence"
+                ),
+                admission_audit_contract=(
+                    "records must bind to an append-only admission audit id and "
+                    "also append an Admin API audit event for the record mutation"
+                ),
+                reconciliation_contract=(
+                    "cap/guard decisions do not create reconciliation plans; "
+                    "future command admission must resolve reconciliation separately"
+                ),
+                owning_backend_service="application/admin_api/cap_guard_service.py",
+                shared_command_service_method=None,
+                route_inventory_refs=cap_guard_decision_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/cap_guard.py",
+                    "application/admin_api/cap_guard_service.py",
+                    "api/v1/routes/cap_guard.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Admission audit writer and reconciliation plan linkage must "
+                    "complete before live command admission can advance."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "The frontend may record and display backend cap/guard "
+                    "decision records through generated contracts only; it must "
+                    "not evaluate wallet, margin, profitability, inventory, or "
+                    "account-limit rules in the browser."
+                ),
+                bff_boundary=(
+                    "BFF may forward only to backend cap/guard decision routes "
+                    "with required mutation evidence; it must not evaluate or "
+                    "override guard decisions."
+                ),
+                route_local_boundary=(
+                    "Cap/guard routes append evidence through the cap_guard "
+                    "service only; they must not call Coinbase, evaluate trading "
+                    "guards, or execute commands."
+                ),
+                spot_rule_boundary=(
+                    "Cap/guard decision records are platform evidence. Spot "
+                    "wallet, USDC, cost-basis, and no-shorting rules remain "
+                    "route-specific guard inputs, not generic admin rules."
+                ),
+                approval_required=True,
                 cap_guard_required=True,
                 reconciliation_required=True,
                 live_adapter_required=False,

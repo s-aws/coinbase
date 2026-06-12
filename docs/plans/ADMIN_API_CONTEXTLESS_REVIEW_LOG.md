@@ -2235,3 +2235,48 @@ Status:
   Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M50 Cap/Guard Decision Records Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify backend cap/guard decision records are backend-owned evidence only
+- verify the feature does not create browser/BFF guard authority, Coinbase
+  execution, futures use of spot rules, or a second trading path
+- verify the website consumes the routes through generated contracts,
+  canonical wrappers, BFF allowlists, mocks, and evidence-only UI
+
+Findings:
+
+- Frontend blind review passed with no blockers and confirmed the Cap/Guard
+  Decisions workbench only displays/forwards backend evidence.
+- Backend blind review found two blockers: `README.cap-guard-decisions.md` was
+  missing ownership metadata, and backend roadmap notes referenced frontend
+  completion without making the paired `C:\coinbase-frontend` proof explicit.
+
+Resolution:
+
+- Added `README.cap-guard-decisions.md` to `.agents/ownership.yaml`.
+- Reworded backend roadmap notes to reference the paired website repository
+  and `npm run release:gate` as the proof for generated types, BFF allowlist,
+  mocks, quality artifacts, and workbench consumption.
+- Ownership check now passes.
+
+Status:
+
+- Backend ownership check passed.
+- Backend focused Admin API contract checks passed with `69 passed,
+  1 warning`.
+- Backend full regression passed with `804 passed, 1 warning`.
+- Frontend focused cap/guard/API/runtime/mock/AdminShell/quality checks passed
+  with `77 passed`.
+- Frontend `npm run release:gate` passed with `188` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

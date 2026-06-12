@@ -411,6 +411,111 @@ class AdminApprovalLifecycleResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminCapGuardDecisionCreateRequest(BaseModel):
+    """Append one backend-owned cap/guard decision for command admission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    approval_snapshot_id: str = Field(min_length=1)
+    approval_cap_guard_decision_ref: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    allowed: bool
+    status: AdminApiGateStatus
+    cap_policy_ref: str = Field(min_length=1)
+    guard_policy_ref: str = Field(min_length=1)
+    product_scope: str = Field(min_length=1)
+    max_submitted_notional_usdc: DecimalString
+    max_executed_notional_usdc: DecimalString
+    reason: str = Field(min_length=1)
+
+
+class AdminCapGuardDecisionItem(BaseModel):
+    """Operator-visible backend cap/guard decision evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision_id: str
+    recorded_at: str
+    route: str
+    method: str
+    module_id: str
+    identity_key: str
+    identity_value: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    command_idempotency_key: str
+    payload_hash: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    allowed: bool
+    status: AdminApiGateStatus
+    source: str = "admin_api_cap_guard_log"
+    cap_policy_ref: str
+    guard_policy_ref: str
+    product_scope: str
+    max_submitted_notional_usdc: DecimalString
+    max_executed_notional_usdc: DecimalString
+    reason: str
+    resolver_eligible: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    detail: str
+
+
+class AdminCapGuardDecisionListResponse(BaseModel):
+    """List backend-owned cap/guard decision records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_cap_guard_decision_list"
+    decisions: list[AdminCapGuardDecisionItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    warning_count: int = Field(ge=0)
+    resolver_eligible_count: int = Field(ge=0)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminCapGuardDecisionResponse(BaseModel):
+    """Response for cap/guard decision mutations and detail reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_cap_guard_decision"
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    decision: AdminCapGuardDecisionItem | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminApiCommandResponse(BaseModel):
     """Typed response returned by Admin API command adapters."""
 

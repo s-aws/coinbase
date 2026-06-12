@@ -144,6 +144,22 @@ dashboard WebSocket message
   Coinbase execution status and notional. Default remains no-live with
   submitted and executed notional `$0`.
 
+## M50 Closure Inside Active Range
+
+After the M49 approval lifecycle foundation, this active range also closes the
+M50 cap/guard decision execution-record milestone:
+
+- Backend persists cap/guard decisions through read/list and record routes.
+- Records bind route inventory, identity, actor, operator intent, payload
+  hash, approval snapshot, admission audit, cap policy, and guard policy
+  evidence.
+- The paired website repository at `C:\coinbase-frontend` displays the
+  records and route contract through generated types, canonical wrappers,
+  mocks, BFF allowlist, and release quality artifacts; verify that claim with
+  `npm run release:gate` in the website repo.
+- The milestone is no-live and adds no Coinbase call, browser guard evaluator,
+  BFF execution authority, or spot-rule leakage into futures/perpetuals.
+
 ## Completed Mutation Taxonomy Batch - Phases 1461-1480
 
 ### Phase 1461 - Advance Active Queue Range

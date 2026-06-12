@@ -48,6 +48,12 @@ contracts. Approved decisions link the existing resolver-compatible approval
 snapshot record, but browser approval remains insufficient for live execution:
 cap/guard, admission audit, reconciliation, disabled live service, and live
 adapter gates still fail closed.
+M50 adds backend-owned cap/guard decision execution records. These records
+persist the backend decision envelope that binds route, method, module,
+identity, actor, operator intent, payload hash, approval snapshot, admission
+audit id, and cap/guard policy refs. They are evidence and resolver input
+only; the browser and BFF do not evaluate wallet, margin, profitability,
+inventory, account-limit, or spot-specific guard rules.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -96,6 +102,8 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/frontend-fixtures`
 - `GET /api/v1/admin/approvals`
 - `GET /api/v1/admin/approvals/requests/{approval_request_id}`
+- `GET /api/v1/admin/cap-guard/decisions`
+- `GET /api/v1/admin/cap-guard/decisions/{decision_id}`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
@@ -128,6 +136,10 @@ command surface in `ADMIN_API_ROUTE_INVENTORY` must appear in exactly one
 taxonomy row.
 M49 adds the `admin.approval_lifecycle` taxonomy row for approval request,
 decision, and revoke local-state mutation routes.
+M50 adds the `admin.cap_guard_decisions` taxonomy row for backend-owned
+cap/guard decision record routes. Only records with `allowed=true` and
+`status=passed` can become resolver-eligible for exact backend admission
+matching; blocked and warning records remain durable fail-closed evidence.
 
 Current mutating HTTP command surfaces are:
 
@@ -142,11 +154,16 @@ Current local-state approval lifecycle mutation surfaces are:
 - `POST /api/v1/admin/approvals/requests`
 - `POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions`
 - `POST /api/v1/admin/approvals/{approval_id}/revoke`
+- `POST /api/v1/admin/cap-guard/decisions`
 
-These approval lifecycle routes are authenticated, authorized, idempotent, and
-audited. They write backend-owned approval lifecycle evidence only; they do not
-submit orders, cancel orders, run guards, execute reconciliation, or call
-Coinbase.
+These local-state routes are authenticated, authorized, idempotent, and
+audited. They write backend-owned approval lifecycle or cap/guard decision
+evidence only; they do not submit orders, cancel orders, evaluate browser
+guards, execute reconciliation, or call Coinbase.
+
+See [Cap/Guard Decision Records](README.cap-guard-decisions.md) for the
+record contract and [Admin API Examples](docs/examples/admin-api.md) for
+payload examples.
 
 The current operational dashboard is still the proof-of-concept WebSocket and
 HTML surface documented in `agent.md` and `genai_data/API_REFERENCE.md`.
