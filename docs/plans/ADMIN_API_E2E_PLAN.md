@@ -38,6 +38,127 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Completed Enterprise Module Action Posture Batch - Phases 961-980
+
+### Phase 961 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 941-960 to active
+  phases 961-980 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 962 - M23 Enterprise Module Action Posture
+
+- Add backend-owned per-module action posture evidence so each enterprise
+  module reports read, command, live-disabled, unsupported, and command-gap
+  counts without frontend inference.
+
+### Phase 963 - Module-ID Route Grouping Closure
+
+- Make enterprise readiness route lists derive from route-inventory
+  `module_id` instead of path prefixes.
+
+### Phase 964 - Backend Contract Expansion
+
+- Add typed action-posture models and top-level posture count evidence to the
+  enterprise-readiness response.
+
+### Phase 965 - Backend Artifact Regeneration
+
+- Regenerate OpenAPI and route-inventory artifacts after the contract change.
+
+### Phase 966 - Frontend Generated Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI.
+
+### Phase 967 - Frontend Mock Runtime Parity
+
+- Update mock enterprise-readiness fixtures so action posture mirrors the
+  backend contract and no-live evidence.
+
+### Phase 968 - Admin Diagnostics Action-Posture Evidence
+
+- Render module action posture as read-only diagnostics without adding command
+  buttons, route-derived authority, or browser trading behavior.
+
+### Phase 969 - Quality Artifact Posture Checks
+
+- Extend release/deployment/autonomous artifacts and tests so required module
+  action posture cannot drift.
+
+### Phase 970 - Route Coverage And Contract Drift Checks
+
+- Extend route coverage or release checks to catch missing action posture and
+  module-route mismatch regressions.
+
+### Phase 971 - Documentation Update
+
+- Update API, architecture, capability matrix, examples, testing, and
+  maintainer docs for module-id-derived action posture.
+
+### Phase 972 - Stale Range And Prefix-Grouping Drift Scan
+
+- Search for current-state contradictions around 941-960 versus 961-980 and
+  for enterprise-readiness route grouping that still depends on broad prefixes.
+
+### Phase 973 - Focused Backend Gates
+
+- Run backend autonomous queue check and focused Admin API/spot readiness
+  regression checks.
+
+### Phase 974 - Focused Frontend Gates
+
+- Run frontend typecheck, API route coverage, release readiness, autonomous
+  queue, and focused action-posture UI/runtime/quality tests.
+
+### Phase 975 - Blind/Contextless Review
+
+- Run blind/contextless review focused on whether a fresh agent can explain
+  module action posture, module-id route grouping, and evidence-only authority.
+
+### Phase 976 - Review Remediation
+
+- Fix any review blocker before advancing.
+
+### Phase 977 - Full Backend Regression
+
+- Run the full backend regression suite.
+
+### Phase 978 - Full Frontend Release Gate
+
+- Run frontend `npm run release:gate`.
+
+### Phase 979 - Milestone Evidence
+
+- Mark M23 complete only after source, OpenAPI, frontend schema, mock runtime,
+  docs, quality checks, and review evidence all agree.
+
+### Phase 980 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 961-980
+
+- Backend and frontend validators use active phase range 961-980.
+- Enterprise readiness exposes `module_action_posture_count` and per-module
+  `action_posture` evidence.
+- Enterprise-readiness route lists are derived from route-inventory
+  `module_id`, not broad path prefixes.
+- Frontend generated schema, mock runtime, diagnostics, quality artifacts,
+  docs, and tests consume action posture as read-only evidence.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Focused frontend gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and action-posture UI/runtime/quality unit
+  tests (`45` focused tests passed).
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M23 review passed with no blockers and found no browser
+  authority leakage.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Completed Enterprise Route Module Binding Batch - Phases 941-960
 
 ### Phase 941 - Advance Active Queue Range

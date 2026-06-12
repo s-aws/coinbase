@@ -356,6 +356,26 @@ class AdminEnterpriseCommandGapItem(BaseModel):
     notional_usdc: DecimalString = "0"
 
 
+class AdminEnterpriseModuleActionPosture(BaseModel):
+    """Backend-derived action posture for one enterprise admin module."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    module_id: str
+    support_status: AdminApiModuleSupportStatus
+    read_route_count: int = Field(ge=0)
+    command_route_count: int = Field(ge=0)
+    live_route_count: int = Field(ge=0)
+    evidence_route_count: int = Field(ge=0)
+    unsupported_action_count: int = Field(ge=0)
+    command_gap_count: int = Field(ge=0)
+    route_module_id_status: AdminApiGateStatus
+    route_module_id_detail: str
+    frontend_authority: str = "backend_contract_only"
+    live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    notional_usdc: DecimalString = "0"
+
+
 class AdminEnterpriseReadinessModuleItem(BaseModel):
     """One module's enterprise admin readiness posture."""
 
@@ -378,6 +398,7 @@ class AdminEnterpriseReadinessModuleItem(BaseModel):
     frontend_contract_refs: list[str] = Field(default_factory=list)
     documentation_refs: list[str] = Field(default_factory=list)
     spot_rule_boundary: str
+    action_posture: AdminEnterpriseModuleActionPosture
 
 
 class AdminEnterpriseReadinessResponse(BaseModel):
@@ -394,6 +415,7 @@ class AdminEnterpriseReadinessResponse(BaseModel):
     unsupported_module_count: int = 0
     command_gap_count: int = 0
     module_registry_count: int = 0
+    module_action_posture_count: int = 0
     modules: list[AdminEnterpriseReadinessModuleItem] = Field(default_factory=list)
     security_checks: list[AdminGateCheck] = Field(default_factory=list)
     release_checks: list[AdminGateCheck] = Field(default_factory=list)

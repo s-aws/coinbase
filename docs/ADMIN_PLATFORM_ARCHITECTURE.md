@@ -33,6 +33,8 @@ These primitives apply across modules:
   contract refs, docs, identity keys, and spot-rule boundaries
 - route inventory and capability `module_id` evidence that binds Admin API
   routes to enterprise modules
+- enterprise-readiness action posture evidence derived from route-inventory
+  `module_id`, not broad path prefixes
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -88,6 +90,8 @@ A reviewer with no chat history should be able to answer:
 - Is this behavior a platform primitive or domain module?
 - Which backend route and service own it?
 - Which enterprise `module_id` owns the route?
+- Does module action posture come from backend `module_id` evidence rather
+  than frontend path inference?
 - Which fields are identity and which are exchange evidence?
 - Which product-specific rules apply?
 - Which spot-only rules must not be copied?
@@ -102,6 +106,10 @@ infer support from absent buttons or historical chat context.
 For module ownership and extension work, start with the same route's registry
 fields. A fresh maintainer should not need chat history to find the owner,
 backend contract refs, frontend contract refs, docs, or spot-rule boundary.
+For module action posture, use the backend `action_posture` object from
+`GET /api/v1/admin/enterprise-readiness`. Do not infer command authority from
+route counts, and do not group `/api/v1/admin/*` paths by prefix when a
+specific `module_id` exists.
 
 ## Durable Milestones
 

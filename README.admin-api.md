@@ -78,6 +78,13 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/spot/campaign/status`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
 
+`GET /api/v1/admin/enterprise-readiness` also exposes per-module
+`action_posture` evidence. The posture counts read routes, command routes,
+live-disabled/live-eligible routes, unsupported actions, and command gaps from
+backend route-inventory `module_id` ownership. It is display evidence only; it
+does not authorize browser-side commands or replace backend guard, wallet,
+margin, approval, audit, cap, or reconciliation gates.
+
 Current mutating HTTP command surfaces are:
 
 - `POST /api/v1/orders`

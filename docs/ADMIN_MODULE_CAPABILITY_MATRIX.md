@@ -31,5 +31,8 @@ implicit platform model.
   spot-rule boundary must change with module ownership or scope.
 - Keep route inventory and capability `module_id` evidence aligned with this
   matrix whenever routes move between modules.
+- Keep enterprise-readiness `action_posture` counts aligned with backend
+  route-inventory `module_id` ownership; do not use path-prefix grouping as
+  module authority.
 - Update route inventory, OpenAPI, examples, frontend association, and
   contextless review prompts when a module changes status.

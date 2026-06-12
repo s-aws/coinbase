@@ -16,6 +16,10 @@ enterprise frontend route checker so the frontend compares against
 backend-owned metadata without parsing Python source.
 The frontend route checker fails if a generated route lacks `module_id`
 evidence or maps to the wrong enterprise module.
+`GET /api/v1/admin/enterprise-readiness` also derives per-module
+`action_posture` route counts from these `module_id` rows. Do not replace that
+with broad prefix grouping; admin submodules such as guard/risk and audit have
+their own module ids even though their paths live under `/api/v1/admin/*`.
 
 | Surface | Action class | Permission | Idempotency | Approval | Caps | Audit | Shared method | Parity test | Compatibility mode |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

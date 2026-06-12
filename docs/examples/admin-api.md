@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "941-960",
+  "approved_phase_range": "961-980",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -236,18 +236,19 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21 enterprise readiness posture:
+Expected M9/M21/M23 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "941-960",
+  "approved_phase_range": "961-980",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
   "module_registry_count": 8,
+  "module_action_posture_count": 8,
   "modules": [
     {
       "module_id": "spot_operations",
@@ -288,7 +289,22 @@ Expected M9/M21 enterprise readiness posture:
         "README.spot-campaign.md",
         "docs/examples/admin-api.md"
       ],
-      "spot_rule_boundary": "Spot rules apply here only: no short selling, USDC spot scope, inventory authority, cost basis, and average-cost evidence must not be copied into non-spot modules."
+      "spot_rule_boundary": "Spot rules apply here only: no short selling, USDC spot scope, inventory authority, cost basis, and average-cost evidence must not be copied into non-spot modules.",
+      "action_posture": {
+        "module_id": "spot_operations",
+        "support_status": "command_draft_live_disabled",
+        "read_route_count": 8,
+        "command_route_count": 3,
+        "live_route_count": 3,
+        "evidence_route_count": 8,
+        "unsupported_action_count": 3,
+        "command_gap_count": 2,
+        "route_module_id_status": "passed",
+        "route_module_id_detail": "11 route inventory rows are bound to module_id=spot_operations; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "frontend_authority": "backend_contract_only",
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0"
+      }
     },
     {
       "module_id": "futures_perpetuals",
@@ -327,7 +343,22 @@ Expected M9/M21 enterprise readiness posture:
         "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
         "docs/examples/admin-api.md"
       ],
-      "spot_rule_boundary": "Spot inventory, USDC, no-shorting, cost-basis, and average-cost rules are forbidden as futures/perpetual authority. Futures require position, margin, leverage, collateral, liquidation, and reduce-only backend contracts."
+      "spot_rule_boundary": "Spot inventory, USDC, no-shorting, cost-basis, and average-cost rules are forbidden as futures/perpetual authority. Futures require position, margin, leverage, collateral, liquidation, and reduce-only backend contracts.",
+      "action_posture": {
+        "module_id": "futures_perpetuals",
+        "support_status": "read_only_ready",
+        "read_route_count": 3,
+        "command_route_count": 0,
+        "live_route_count": 0,
+        "evidence_route_count": 3,
+        "unsupported_action_count": 3,
+        "command_gap_count": 3,
+        "route_module_id_status": "passed",
+        "route_module_id_detail": "3 route inventory rows are bound to module_id=futures_perpetuals; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "frontend_authority": "backend_contract_only",
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0"
+      }
     },
     {
       "module_id": "legacy_dashboard_websocket",
@@ -365,7 +396,22 @@ Expected M9/M21 enterprise readiness posture:
         "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
         "docs/examples/admin-api.md"
       ],
-      "spot_rule_boundary": "Legacy dashboard behavior is compatibility-only. Spot rules exposed there are not reusable enterprise frontend authority and must be reintroduced only through Admin API contracts."
+      "spot_rule_boundary": "Legacy dashboard behavior is compatibility-only. Spot rules exposed there are not reusable enterprise frontend authority and must be reintroduced only through Admin API contracts.",
+      "action_posture": {
+        "module_id": "legacy_dashboard_websocket",
+        "support_status": "unsupported",
+        "read_route_count": 0,
+        "command_route_count": 3,
+        "live_route_count": 3,
+        "evidence_route_count": 0,
+        "unsupported_action_count": 2,
+        "command_gap_count": 2,
+        "route_module_id_status": "passed",
+        "route_module_id_detail": "3 route inventory rows are bound to module_id=legacy_dashboard_websocket; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "frontend_authority": "backend_contract_only",
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0"
+      }
     }
   ],
   "security_checks": [

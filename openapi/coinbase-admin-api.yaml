@@ -3588,6 +3588,73 @@ components:
       - frontend_boundary
       title: AdminEnterpriseCommandGapItem
       description: Structured evidence for a command path that is blocked or not modeled.
+    AdminEnterpriseModuleActionPosture:
+      properties:
+        module_id:
+          type: string
+          title: Module Id
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        read_route_count:
+          type: integer
+          minimum: 0.0
+          title: Read Route Count
+        command_route_count:
+          type: integer
+          minimum: 0.0
+          title: Command Route Count
+        live_route_count:
+          type: integer
+          minimum: 0.0
+          title: Live Route Count
+        evidence_route_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Route Count
+        unsupported_action_count:
+          type: integer
+          minimum: 0.0
+          title: Unsupported Action Count
+        command_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Command Gap Count
+        route_module_id_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        route_module_id_detail:
+          type: string
+          title: Route Module Id Detail
+        frontend_authority:
+          type: string
+          title: Frontend Authority
+          default: backend_contract_only
+        live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - module_id
+      - support_status
+      - read_route_count
+      - command_route_count
+      - live_route_count
+      - evidence_route_count
+      - unsupported_action_count
+      - command_gap_count
+      - route_module_id_status
+      - route_module_id_detail
+      title: AdminEnterpriseModuleActionPosture
+      description: Backend-derived action posture for one enterprise admin module.
     AdminEnterpriseReadinessModuleItem:
       properties:
         module_id:
@@ -3664,6 +3731,8 @@ components:
         spot_rule_boundary:
           type: string
           title: Spot Rule Boundary
+        action_posture:
+          $ref: '#/components/schemas/AdminEnterpriseModuleActionPosture'
       additionalProperties: false
       type: object
       required:
@@ -3672,6 +3741,7 @@ components:
       - primary_owner
       - support_status
       - spot_rule_boundary
+      - action_posture
       title: AdminEnterpriseReadinessModuleItem
       description: One module's enterprise admin readiness posture.
     AdminEnterpriseReadinessResponse:
@@ -3708,6 +3778,10 @@ components:
         module_registry_count:
           type: integer
           title: Module Registry Count
+          default: 0
+        module_action_posture_count:
+          type: integer
+          title: Module Action Posture Count
           default: 0
         modules:
           items:

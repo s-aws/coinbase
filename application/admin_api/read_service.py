@@ -54,6 +54,7 @@ from .models import (
     AdminCapabilityRegistryResponse,
     AdminCsrfContractResponse,
     AdminEnterpriseCommandGapItem,
+    AdminEnterpriseModuleActionPosture,
     AdminEnterpriseReadinessModuleItem,
     AdminEnterpriseReadinessResponse,
     AdminFrontendFixturesResponse,
@@ -92,7 +93,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "941-960"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "961-980"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1560,7 +1561,7 @@ class AdminApiReadService:
         """Return whole-platform M9 readiness evidence without running gates."""
 
         def route_groups(
-            *prefixes: str,
+            module_id: str,
         ) -> tuple[list[str], list[str], list[str], list[str]]:
             read_routes: list[str] = []
             command_routes: list[str] = []
@@ -1568,7 +1569,7 @@ class AdminApiReadService:
             evidence_routes: list[str] = []
             for item in ADMIN_API_ROUTE_INVENTORY:
                 method, path = _surface_method_and_path(item.surface)
-                if not any(path.startswith(prefix) for prefix in prefixes):
+                if item.module_id != module_id:
                     continue
                 route = f"{method} {path}"
                 if item.action_class == AdminApiActionClass.READ_ONLY:
@@ -1583,6 +1584,42 @@ class AdminApiReadService:
                     live_routes.append(route)
             return read_routes, command_routes, live_routes, sorted(set(evidence_routes))
 
+        def action_posture(
+            *,
+            module_id: str,
+            support_status: AdminApiModuleSupportStatus,
+            read_routes: list[str],
+            command_routes: list[str],
+            live_routes: list[str],
+            evidence_routes: list[str],
+            unsupported_actions: list[str],
+            command_gaps: list[AdminEnterpriseCommandGapItem],
+        ) -> AdminEnterpriseModuleActionPosture:
+            route_inventory_count = sum(
+                1 for item in ADMIN_API_ROUTE_INVENTORY if item.module_id == module_id
+            )
+            route_module_id_status = (
+                AdminApiGateStatus.PASSED
+                if route_inventory_count > 0
+                else AdminApiGateStatus.WARNING
+            )
+            return AdminEnterpriseModuleActionPosture(
+                module_id=module_id,
+                support_status=support_status,
+                read_route_count=len(read_routes),
+                command_route_count=len(command_routes),
+                live_route_count=len(live_routes),
+                evidence_route_count=len(evidence_routes),
+                unsupported_action_count=len(unsupported_actions),
+                command_gap_count=len(command_gaps),
+                route_module_id_status=route_module_id_status,
+                route_module_id_detail=(
+                    f"{route_inventory_count} route inventory rows are bound to "
+                    f"module_id={module_id}; enterprise readiness route lists are "
+                    "derived from module_id, not path prefixes."
+                ),
+            )
+
         def module_item(
             *,
             module_id: str,
@@ -1590,7 +1627,6 @@ class AdminApiReadService:
             primary_owner: str,
             support_status: AdminApiModuleSupportStatus,
             spot_rule_boundary: str,
-            prefixes: tuple[str, ...] = (),
             unsupported_actions: list[str] | None = None,
             command_gaps: list[AdminEnterpriseCommandGapItem] | None = None,
             identity_keys: list[str] | None = None,
@@ -1600,8 +1636,10 @@ class AdminApiReadService:
             frontend_contract_refs: list[str] | None = None,
             documentation_refs: list[str] | None = None,
         ) -> AdminEnterpriseReadinessModuleItem:
+            normalized_unsupported_actions = unsupported_actions or []
+            normalized_command_gaps = command_gaps or []
             read_routes, command_routes, live_routes, evidence_routes = route_groups(
-                *prefixes
+                module_id
             )
             return AdminEnterpriseReadinessModuleItem(
                 module_id=module_id,
@@ -1611,8 +1649,8 @@ class AdminApiReadService:
                 read_routes=read_routes,
                 command_routes=command_routes,
                 live_routes=live_routes,
-                unsupported_actions=unsupported_actions or [],
-                command_gaps=command_gaps or [],
+                unsupported_actions=normalized_unsupported_actions,
+                command_gaps=normalized_command_gaps,
                 identity_keys=identity_keys or [],
                 constraints=constraints or [],
                 evidence_routes=evidence_routes,
@@ -1621,6 +1659,16 @@ class AdminApiReadService:
                 frontend_contract_refs=frontend_contract_refs or [],
                 documentation_refs=documentation_refs or [],
                 spot_rule_boundary=spot_rule_boundary,
+                action_posture=action_posture(
+                    module_id=module_id,
+                    support_status=support_status,
+                    read_routes=read_routes,
+                    command_routes=command_routes,
+                    live_routes=live_routes,
+                    evidence_routes=evidence_routes,
+                    unsupported_actions=normalized_unsupported_actions,
+                    command_gaps=normalized_command_gaps,
+                ),
             )
 
         def command_gap(
@@ -1645,7 +1693,6 @@ class AdminApiReadService:
                 module="Admin / System Health",
                 primary_owner="admin_api_contract",
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
-                prefixes=("/api/v1/admin/",),
                 unsupported_actions=[
                     "browser-run backend tests",
                     "browser-held backend secrets",
@@ -1710,7 +1757,6 @@ class AdminApiReadService:
                 module="Spot Operations",
                 primary_owner="strategy",
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
-                prefixes=("/api/v1/spot/", "/api/v1/orders"),
                 unsupported_actions=[
                     "spot short selling",
                     "browser-side wallet or cost-basis authority",
@@ -1787,7 +1833,6 @@ class AdminApiReadService:
                 module="Futures / Perpetuals",
                 primary_owner="admin_api_contract",
                 support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
-                prefixes=("/api/v1/futures/",),
                 unsupported_actions=[
                     "frontend futures placement",
                     "frontend futures cancel/close/reduce",
@@ -1886,7 +1931,6 @@ class AdminApiReadService:
                 module="Stealth Orders",
                 primary_owner="stealth_lifecycle",
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
-                prefixes=("/api/v1/stealth/",),
                 unsupported_actions=[
                     "cancel by exchange order id",
                     "hide-again mutation for live revealed placements",
@@ -1963,7 +2007,6 @@ class AdminApiReadService:
                 module="Order Movement / Repricing",
                 primary_owner="stealth_lifecycle",
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
-                prefixes=("/api/v1/movement-repricing/",),
                 unsupported_actions=[
                     "frontend live repricing",
                     "cooldown clearing from command draft",
@@ -2054,7 +2097,6 @@ class AdminApiReadService:
                 module="Guard / Risk Policy",
                 primary_owner="order_lifecycle",
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
-                prefixes=("/api/v1/admin/guard-risk-policy",),
                 unsupported_actions=[
                     "browser-side guard calculation",
                     "browser-side profitability authority",
@@ -2126,7 +2168,6 @@ class AdminApiReadService:
                 module="Audit Workbench",
                 primary_owner="admin_api_contract",
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
-                prefixes=("/api/v1/admin/audit-workbench",),
                 unsupported_actions=[
                     "audit mutation",
                     "command replay",
@@ -2202,7 +2243,7 @@ class AdminApiReadService:
                     "or promote spot identities into non-spot command authority."
                 ),
             ),
-            AdminEnterpriseReadinessModuleItem(
+            module_item(
                 module_id="legacy_dashboard_websocket",
                 module="Legacy Dashboard WebSocket",
                 primary_owner="dashboard_contract",
@@ -2350,6 +2391,9 @@ class AdminApiReadService:
             unsupported_module_count=unsupported_module_count,
             command_gap_count=command_gap_count,
             module_registry_count=len(modules),
+            module_action_posture_count=sum(
+                1 for module in modules if module.action_posture is not None
+            ),
             modules=modules,
             security_checks=security_checks,
             release_checks=release_checks,

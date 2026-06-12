@@ -1422,7 +1422,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "941-960"
+    assert live_payload["approved_phase_range"] == "961-980"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1446,7 +1446,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "941-960"
+    assert enterprise_payload["approved_phase_range"] == "961-980"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -1457,6 +1457,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert enterprise_payload["live_coinbase_orders_ran"] is False
     assert enterprise_payload["command_gap_count"] >= 10
     assert enterprise_payload["module_registry_count"] == enterprise_payload["module_count"]
+    assert enterprise_payload["module_action_posture_count"] == enterprise_payload["module_count"]
     registry_by_id = {
         item["module_id"]: item for item in enterprise_payload["modules"]
     }
@@ -1476,6 +1477,22 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         assert module["frontend_contract_refs"]
         assert module["documentation_refs"]
         assert module["spot_rule_boundary"]
+        posture = module["action_posture"]
+        assert posture["module_id"] == module["module_id"]
+        assert posture["support_status"] == module["support_status"]
+        assert posture["read_route_count"] == len(module["read_routes"])
+        assert posture["command_route_count"] == len(module["command_routes"])
+        assert posture["live_route_count"] == len(module["live_routes"])
+        assert posture["evidence_route_count"] == len(module["evidence_routes"])
+        assert posture["unsupported_action_count"] == len(module["unsupported_actions"])
+        assert posture["command_gap_count"] == len(module["command_gaps"])
+        assert posture["route_module_id_status"] == AdminApiGateStatus.PASSED.value
+        assert "derived from module_id, not path prefixes" in (
+            posture["route_module_id_detail"]
+        )
+        assert posture["frontend_authority"] == "backend_contract_only"
+        assert posture["live_coinbase_execution"] == "not_run"
+        assert posture["notional_usdc"] == "0"
     module_statuses = {
         item["module"]: item["support_status"]
         for item in enterprise_payload["modules"]
@@ -1502,6 +1519,29 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "spot short selling" in spot_module["unsupported_actions"]
     assert "client_order_id" in spot_module["identity_keys"]
     assert "POST /api/v1/orders" in spot_module["command_routes"]
+    assert spot_module["action_posture"]["read_route_count"] == 8
+    assert spot_module["action_posture"]["command_route_count"] == 3
+    assert spot_module["action_posture"]["live_route_count"] == 3
+    assert spot_module["action_posture"]["command_gap_count"] == 2
+    admin_module = registry_by_id["admin_system_health"]
+    assert "GET /api/v1/admin/guard-risk-policy" not in admin_module["read_routes"]
+    assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
+    assert admin_module["action_posture"]["read_route_count"] == 12
+    assert registry_by_id["guard_risk_policy"]["read_routes"] == [
+        "GET /api/v1/admin/guard-risk-policy"
+    ]
+    assert registry_by_id["guard_risk_policy"]["action_posture"][
+        "read_route_count"
+    ] == 1
+    assert registry_by_id["audit_workbench"]["read_routes"] == [
+        "GET /api/v1/admin/audit-workbench"
+    ]
+    assert registry_by_id["audit_workbench"]["action_posture"][
+        "read_route_count"
+    ] == 1
+    assert registry_by_id["legacy_dashboard_websocket"]["action_posture"][
+        "command_route_count"
+    ] == 3
     futures_module = next(
         item
         for item in enterprise_payload["modules"]
