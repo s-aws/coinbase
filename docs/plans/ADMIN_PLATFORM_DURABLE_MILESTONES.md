@@ -64,7 +64,8 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M32 - Live Admission Audit Trail Evidence | Complete | Make missing append-only backend admission audit behavior explicit per live-shaped route without creating audit storage, command authority, or browser approval. |
 | M33 - Route-Specific Cap/Guard Contract Evidence | Complete | Make missing backend cap/guard decision behavior explicit per live-shaped route without creating a browser guard evaluator, command authority, or live execution. |
 | M34 - Command Admission Decision Evidence | Complete | Make per-command live admission decisions route-bound, payload-bound, audited, and visible while preserving live-disabled execution. |
-| M35 - Command Admission Audit Persistence | Active | Persist command admission decisions in the append-only Admin API audit path and expose them through read-only audit evidence. |
+| M35 - Command Admission Audit Persistence | Complete | Persist command admission decisions in the append-only Admin API audit path and expose them through read-only audit evidence. |
+| M36 - Durable Approval Store Foundation | Active | Add backend-owned append-only approval-store infrastructure without adding approval mutation, browser approval, or live execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1313,7 +1314,7 @@ Purpose: make command admission decisions durable by writing them to the
 existing append-only Admin API audit log and exposing them through read-only
 Audit Workbench evidence without creating a new audit path or live admission.
 
-Active scope:
+Completed scope:
 
 - Phases 1201-1220 advance the active unattended range while preserving the
   same no-live frontend posture and carried Coinbase cap policy.
@@ -1343,6 +1344,61 @@ Done when:
   backend-owned, append-only, read-only in the browser, live-disabled, and not
   command authority.
 - Full backend regression passes.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
+Completed evidence:
+
+- Backend persisted command admission decisions on existing Admin API audit
+  events and normalized them through read-only Audit Workbench evidence.
+- Live-enablement marks only `command_admission_decision_recorded` passed
+  while approval, cap/guard, exchange submission, and reconciliation facts
+  remain blocked.
+- Frontend Audit Workbench renders the Admission column from backend evidence
+  only.
+- Backend focused checks, backend full regression, frontend release gate,
+  autonomous checks, and blind/contextless review passed.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## M36 - Durable Approval Store Foundation
+
+Purpose: add the backend-owned durable approval-store primitive required for
+future live HTTP admission while keeping approval snapshots absent, HTTP
+commands live-disabled, and the browser read-only.
+
+Active scope:
+
+- Phases 1221-1240 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `application/admin_api/approval.py` owns strict approval records and the
+  append-only file store.
+- Approval records are route-bound, method-bound, module-bound,
+  identity-bound, actor-bound, operator-intent-bound, idempotency-bound,
+  payload-hash-bound, expiring, cap/guard-linked, and reconciliation-linked.
+- Live-enablement approval-store contract evidence may report the durable
+  store as configured, but route-specific approval snapshots remain absent
+  and live execution remains disabled.
+- Existing command routes may remove the approval-store-missing blocker only
+  because the store contract exists; they must keep approval snapshot,
+  admission audit, cap/guard, reconciliation, live-disabled, and browser
+  rejection blockers.
+- No approval endpoint, approval mutation, BFF mutation broadening, browser
+  approval writer, Coinbase call, guard evaluator, live admission endpoint, or
+  direct dashboard WebSocket approval path is allowed.
+
+Done when:
+
+- Backend approval-store regression proves append-only durability, exact
+  matching, payload binding, idempotency binding, and expiry rejection.
+- Backend live-enablement evidence reports configured approval-store
+  contracts while preserving zero live-enabled paths and missing approval
+  snapshots.
+- Frontend mocks, quality artifacts, docs, and tests align with the new store
+  evidence and active range.
+- Blind/contextless review confirms the store is backend-owned and no browser
+  approval or live Coinbase path was added.
+- Backend full regression and frontend `npm run release:gate` pass.
 - Live Coinbase execution is not run; submitted and executed notional remain
   `$0`.
 

@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+import os
+from pathlib import Path
+from threading import RLock
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,6 +31,104 @@ class ApprovalSnapshot(BaseModel):
     payload_hash: str = Field(min_length=64, max_length=64)
     actor_id: str = Field(min_length=1)
     client_order_id: str = Field(min_length=1)
+
+
+class AdminApiApprovalRecord(BaseModel):
+    """Durable approval record shape for future live Admin API commands."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    approval_id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: datetime
+    approved_by_actor_id: str = Field(min_length=1)
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    cap_guard_decision_ref: str = Field(min_length=1)
+    reconciliation_plan_ref: str = Field(min_length=1)
+    approval_reason: str | None = None
+
+    def is_expired(self, now: datetime | None = None) -> bool:
+        check_time = now or datetime.now(timezone.utc)
+        expires_at = self.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return expires_at <= check_time
+
+
+class FileAdminApiApprovalStore:
+    """Append-only JSONL approval store for future live Admin API commands."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get("COINBASE_ADMIN_API_APPROVAL_LOG_PATH")
+            or Path("runtime_state") / "admin_api_approvals.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(self, record: AdminApiApprovalRecord) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.approval_id
+
+    def read_recent(self, *, limit: int = 100) -> list[AdminApiApprovalRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[AdminApiApprovalRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(AdminApiApprovalRecord.model_validate_json(line))
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def find_matching(
+        self,
+        *,
+        route: str,
+        method: str,
+        module_id: str,
+        identity_key: str,
+        identity_value: str,
+        operator_intent: str,
+        idempotency_key: str,
+        payload_hash: str,
+        now: datetime | None = None,
+    ) -> AdminApiApprovalRecord | None:
+        for record in self.read_recent(limit=500):
+            if record.is_expired(now):
+                continue
+            if (
+                record.route == route
+                and record.method == method
+                and record.module_id == module_id
+                and record.identity_key == identity_key
+                and record.identity_value == identity_value
+                and record.operator_intent == operator_intent
+                and record.idempotency_key == idempotency_key
+                and record.payload_hash == payload_hash
+            ):
+                return record
+        return None
 
 
 class LiveExecutionGateDecision(BaseModel):
@@ -132,7 +235,6 @@ def evaluate_command_live_admission(
         blockers=[
             AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
             AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING,
-            AdminApiLiveAdmissionBlocker.APPROVAL_STORE_MISSING,
             AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
             AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
             AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
@@ -143,15 +245,16 @@ def evaluate_command_live_admission(
             "durable idempotency payload hash",
             "operator intent header",
             "shared command service boundary",
-            "missing durable approval store",
+            "durable approval store contract",
+            "missing route-specific approval snapshot",
             "missing admission audit trail",
             "missing route-specific cap/guard decision",
             "browser authority rejected",
         ],
         detail=(
-            "HTTP live execution is blocked until backend-owned approval, "
-            "cap/guard, admission-audit, and reconciliation gates admit this "
-            "exact route, identity, payload hash, idempotency key, and operator "
-            "intent."
+            "HTTP live execution is blocked until a backend-owned approval "
+            "snapshot, cap/guard, admission-audit, and reconciliation gates "
+            "admit this exact route, identity, payload hash, idempotency key, "
+            "and operator intent."
         ),
     )

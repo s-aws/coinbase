@@ -107,7 +107,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1201-1220"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1221-1240"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -487,10 +487,11 @@ def _approval_store_requirement(
     expected_source: str,
     detail: str,
     expected_value: str | None = None,
+    status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
 ) -> AdminLiveApprovalStoreRequirementItem:
     return AdminLiveApprovalStoreRequirementItem(
         requirement=requirement,
-        status=AdminApiGateStatus.BLOCKED,
+        status=status,
         required=True,
         expected_source=expected_source,
         expected_value=expected_value,
@@ -507,61 +508,61 @@ def _live_approval_store_contract_evidence(
     requirements = [
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.BACKEND_OWNED,
-            expected_source="approval_store",
-            detail="Approval storage must be owned and enforced by the backend.",
+            expected_source="admin_api_approval_store",
+            detail="Approval storage is owned by the backend approval store.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.ROUTE_BOUND,
-            expected_source="route_inventory",
+            expected_source="admin_api_approval_store",
             expected_value=route,
-            detail="Approval storage must bind approval to the exact route.",
+            detail="Approval records bind approval to the exact route.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.METHOD_BOUND,
-            expected_source="route_inventory",
+            expected_source="admin_api_approval_store",
             expected_value=method,
-            detail="Approval storage must bind approval to the exact HTTP method.",
+            detail="Approval records bind approval to the exact HTTP method.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.MODULE_BOUND,
-            expected_source="route_inventory",
+            expected_source="admin_api_approval_store",
             expected_value=module_id,
-            detail="Approval storage must bind approval to the enterprise module id.",
+            detail="Approval records bind approval to the enterprise module id.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.ACTOR_BOUND,
-            expected_source="approval_store",
-            detail="Approval storage must record the backend-authenticated approving actor.",
+            expected_source="admin_api_approval_store",
+            detail="Approval records store the backend-authenticated approving actor.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.IDEMPOTENCY_BOUND,
-            expected_source="command_headers",
-            detail="Approval storage must bind to the command idempotency key.",
+            expected_source="admin_api_approval_store",
+            detail="Approval records bind to the command idempotency key.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.PAYLOAD_HASH_BOUND,
-            expected_source="command_service",
-            detail="Approval storage must bind to the submitted command payload hash.",
+            expected_source="admin_api_approval_store",
+            detail="Approval records bind to the submitted command payload hash.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.EXPIRING,
-            expected_source="approval_store",
-            detail="Approval storage must enforce expiry and reject evergreen approval.",
+            expected_source="admin_api_approval_store",
+            detail="Approval records have explicit expiry and reject evergreen approval.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.CAP_GUARD_BOUND,
-            expected_source="guard_risk_policy",
-            detail="Approval storage must bind to backend cap and guard decision evidence.",
+            expected_source="admin_api_approval_store",
+            detail="Approval records bind to backend cap and guard decision evidence references.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.RECONCILIATION_BOUND,
-            expected_source="reconciliation_policy",
-            detail="Approval storage must bind to the planned post-live reconciliation evidence.",
+            expected_source="admin_api_approval_store",
+            detail="Approval records bind to planned post-live reconciliation evidence references.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.APPEND_ONLY_AUDIT,
-            expected_source="audit_store",
-            detail="Approval storage must write append-only audit evidence for approval decisions.",
+            expected_source="admin_api_approval_store",
+            detail="Approval records are stored as append-only JSONL evidence.",
         ),
         _approval_store_requirement(
             requirement=AdminApiLiveApprovalStoreRequirement.BROWSER_AUTHORITY_REJECTED,
@@ -571,24 +572,28 @@ def _live_approval_store_contract_evidence(
         ),
     ]
     return AdminLiveApprovalStoreContractEvidence(
-        status=AdminApiGateStatus.BLOCKED,
+        status=AdminApiGateStatus.PASSED,
         required=True,
-        configured=False,
-        durable=False,
+        configured=True,
+        durable=True,
         backend_owned=True,
         browser_authority="display_only",
-        source="not_configured",
+        source="admin_api_approval_store",
         requirement_count=len(requirements),
-        missing_requirement_count=len(requirements),
+        missing_requirement_count=sum(
+            1 for requirement in requirements if requirement.status != AdminApiGateStatus.PASSED
+        ),
         requirements=requirements,
         evidence=[
-            "No durable backend approval store is configured for this route.",
-            "Approval records must be backend-owned, route-bound, expiring, payload-bound, and audited.",
-            "Browser acknowledgement is display-only and cannot satisfy approval-store requirements.",
+            "Durable backend approval store contract is implemented.",
+            "Approval records are backend-owned, route-bound, expiring, payload-bound, and append-only.",
+            "No approval mutation endpoint or browser approval authority is exposed by this evidence.",
         ],
         detail=(
-            f"{method} {route} remains live-disabled until a backend approval "
-            "store contract is implemented and configured."
+            f"{method} {route} has a durable approval store contract, but "
+            "remains live-disabled until a route-specific approval snapshot, "
+            "cap/guard decision, full admission audit trail, and reconciliation "
+            "plan are linked."
         ),
     )
 

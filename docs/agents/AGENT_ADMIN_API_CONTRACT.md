@@ -87,10 +87,10 @@ Live-enablement approval snapshot evidence is read-only missing-approval
 evidence. It may list required durable approval fields and backend sources,
 but it must not become approval storage, browser approval, command authority,
 Coinbase execution, or reconciliation proof.
-Live-enablement approval-store contract evidence is read-only missing-store
-evidence. It may list required durable backend store behavior and backend
-sources, but it must not become approval storage, browser approval, command
-authority, Coinbase execution, or reconciliation proof.
+Live-enablement approval-store contract evidence is read-only store
+infrastructure evidence. It may list configured durable backend store behavior
+and backend sources, but it must not become approval mutation, browser
+approval, command authority, Coinbase execution, or reconciliation proof.
 Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser

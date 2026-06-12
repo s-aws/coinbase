@@ -43,9 +43,9 @@ These primitives apply across modules:
 - route-specific approval snapshot evidence that names missing durable,
   backend-owned, expiring, payload-bound approval fields without creating
   approval storage or browser approval
-- approval-store contract evidence that names missing durable backend store
-  behavior without creating approval storage, command authority, or browser
-  approval
+- approval-store contract evidence that names configured durable backend store
+  infrastructure without creating approval mutation, command authority, or
+  browser approval
 - live-admission audit trail evidence that names missing append-only backend
   audit facts without creating audit storage, command authority, or browser
   approval

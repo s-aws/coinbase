@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1201-1220",
+  "approved_phase_range": "1221-1240",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -187,10 +187,10 @@ Expected M8 readiness posture:
   "approval_snapshot_required_field_count": 65,
   "approval_snapshot_missing_field_count": 65,
   "approval_store_required_count": 5,
-  "approval_store_configured_count": 0,
-  "approval_store_missing_count": 5,
+  "approval_store_configured_count": 5,
+  "approval_store_missing_count": 0,
   "approval_store_requirement_count": 60,
-  "approval_store_missing_requirement_count": 60,
+  "approval_store_missing_requirement_count": 0,
   "admission_audit_required_count": 5,
   "admission_audit_configured_count": 0,
   "admission_audit_missing_count": 5,
@@ -436,51 +436,51 @@ Expected M8 readiness posture:
         "detail": "POST /api/v1/orders remains live-disabled until a durable route-specific approval snapshot is present."
       },
       "approval_store_contract": {
-        "status": "blocked",
+        "status": "passed",
         "required": true,
-        "configured": false,
-        "durable": false,
+        "configured": true,
+        "durable": true,
         "backend_owned": true,
         "browser_authority": "display_only",
-        "source": "not_configured",
+        "source": "admin_api_approval_store",
         "requirement_count": 12,
-        "missing_requirement_count": 12,
+        "missing_requirement_count": 0,
         "requirements": [
           {
             "requirement": "backend_owned",
-            "status": "blocked",
+            "status": "passed",
             "required": true,
-            "expected_source": "approval_store",
+            "expected_source": "admin_api_approval_store",
             "expected_value": null,
-            "detail": "Approval storage must be owned and enforced by the backend."
+            "detail": "Approval storage is owned by the backend approval store."
           },
           {
             "requirement": "route_bound",
-            "status": "blocked",
+            "status": "passed",
             "required": true,
-            "expected_source": "route_inventory",
+            "expected_source": "admin_api_approval_store",
             "expected_value": "/api/v1/orders",
-            "detail": "Approval storage must bind approval to the exact route."
+            "detail": "Approval records bind approval to the exact route."
           },
           {
             "requirement": "payload_hash_bound",
-            "status": "blocked",
+            "status": "passed",
             "required": true,
-            "expected_source": "command_service",
+            "expected_source": "admin_api_approval_store",
             "expected_value": null,
-            "detail": "Approval storage must bind to the submitted command payload hash."
+            "detail": "Approval records bind to the submitted command payload hash."
           },
           {
             "requirement": "append_only_audit",
-            "status": "blocked",
+            "status": "passed",
             "required": true,
-            "expected_source": "audit_store",
+            "expected_source": "admin_api_approval_store",
             "expected_value": null,
-            "detail": "Approval storage must write append-only audit evidence for approval decisions."
+            "detail": "Approval records are stored as append-only JSONL evidence."
           },
           {
             "requirement": "browser_authority_rejected",
-            "status": "blocked",
+            "status": "passed",
             "required": true,
             "expected_source": "frontend_boundary",
             "expected_value": "display_only",
@@ -488,11 +488,11 @@ Expected M8 readiness posture:
           }
         ],
         "evidence": [
-          "No durable backend approval store is configured for this route.",
-          "Approval records must be backend-owned, route-bound, expiring, payload-bound, and audited.",
-          "Browser acknowledgement is display-only and cannot satisfy approval-store requirements."
+          "Durable backend approval store contract is implemented.",
+          "Approval records are backend-owned, route-bound, expiring, payload-bound, and append-only.",
+          "No approval mutation endpoint or browser approval authority is exposed by this evidence."
         ],
-        "detail": "POST /api/v1/orders remains live-disabled until a backend approval store contract is implemented and configured."
+        "detail": "POST /api/v1/orders has a durable approval store contract, but remains live-disabled until a route-specific approval snapshot, cap/guard decision, full admission audit trail, and reconciliation plan are linked."
       },
       "admission_audit_trail": {
         "status": "blocked",
@@ -661,10 +661,10 @@ make passed and blocking prerequisites visible per route; they are not a
 browser approval workflow, live switch, command route, Coinbase call, or
 reconciliation substitute. M30 approval snapshot fields make the missing
 durable, route-specific, backend-owned, expiring, payload-bound approval
-record explicit; they are not approval storage or browser approval. M31
-approval-store contract fields make the missing durable backend approval store
-requirements explicit; they are not approval storage, browser approval,
-command authority, Coinbase execution, or reconciliation proof. M32
+record explicit; they are not approval storage or browser approval. M36
+approval-store foundation fields make configured durable backend
+approval-store infrastructure explicit; they are not approval mutation,
+browser approval, command authority, Coinbase execution, or reconciliation proof. M32
 admission-audit trail fields make the missing append-only backend admission
 audit facts explicit; they are not audit storage, approval storage, browser
 approval, command authority, Coinbase execution, or reconciliation proof.
@@ -679,6 +679,12 @@ idempotency key, operator intent, and payload hash to the current blockers.
 They are not browser approval, command authority, guard execution,
 reconciliation authority, or live Coinbase execution.
 
+M35 persists command admission decisions to the existing append-only Admin API
+audit log. M36 adds backend-owned append-only approval-store infrastructure,
+so approval-store contract evidence may pass while route-specific approval
+snapshots remain absent and live execution remains disabled. Neither milestone
+adds an approval endpoint, browser approval, or Coinbase execution path.
+
 ```http
 GET /api/v1/admin/enterprise-readiness
 Authorization: Bearer <backend-verifiable-token>
@@ -686,13 +692,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1201-1220",
+  "approved_phase_range": "1221-1240",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

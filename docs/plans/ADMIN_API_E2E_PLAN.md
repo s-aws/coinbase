@@ -38,107 +38,119 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Command Admission Audit Persistence Batch - Phases 1201-1220
+## Active Durable Approval Store Foundation Batch - Phases 1221-1240
 
-### Phase 1201 - Advance Active Queue Range
+### Phase 1221 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1181-1200 to active
-  phases 1201-1220 while preserving the same no-live frontend posture and
+- Move the durable autonomous queue from completed phases 1201-1220 to active
+  phases 1221-1240 while preserving the same no-live frontend posture and
   carried Coinbase cap policy.
 
-### Phase 1202 - M35 Command Admission Audit Persistence
+### Phase 1222 - M36 Durable Approval Store Foundation
 
-- Persist route-bound command admission decision evidence in the existing
-  append-only Admin API audit log while keeping the shared command service as
-  the only command behavior path.
+- Implement the backend-owned append-only approval store foundation while
+  keeping HTTP commands live-disabled and preserving the shared command
+  service as the only command behavior path.
 
-### Phase 1203 - Backend Range Evidence
+### Phase 1223 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
-  checks reporting the active 1201-1220 phase range.
+  checks reporting the active 1221-1240 phase range.
 
-### Phase 1204 - Existing Audit Store Reuse Gate
+### Phase 1224 - No-Live Approval Boundary Gate
 
-- Reuse `FileAdminApiAuditStore`; do not add a live admission endpoint,
-  approval mutation, guard evaluator, Coinbase call, direct dashboard
-  WebSocket path, new audit endpoint, or browser-owned audit writer.
+- Do not add an approval endpoint, approval mutation, live admission endpoint,
+  guard evaluator, Coinbase call, direct dashboard WebSocket path, or
+  browser-owned approval writer.
 
-### Phase 1205 - Audit Event Schema Contract
+### Phase 1225 - Approval Record Schema Contract
 
-- Extend Admin API audit events with typed admission decision evidence while
-  preserving strict model validation and append-only JSONL storage.
+- Define strict approval records with route, method, module, identity,
+  approving actor, operator intent, idempotency key, payload hash, expiry,
+  cap/guard reference, and reconciliation reference.
 
-### Phase 1206 - Command Adapter Audit Binding
+### Phase 1226 - Append-Only Approval Store
 
-- Write admission decisions through the existing idempotent command adapter
-  before live-disabled responses are returned and stored.
+- Add durable append-only JSONL approval-store persistence and recent-read
+  support under backend ownership.
 
-### Phase 1207 - Idempotency Conflict Audit Binding
+### Phase 1227 - Exact Match And Expiry Gate
 
-- Ensure idempotency conflicts also write route-bound admission decision
-  evidence without replaying or mutating previous command responses.
+- Prove approval lookup is exact-match, payload-bound, idempotency-bound,
+  route-bound, identity-bound, and expiration-aware.
 
-### Phase 1208 - Cross-Module Route Coverage
+### Phase 1228 - Admission Blocker Realignment
 
-- Cover manual order, client-order cancel, stealth cancel, movement reprice,
-  and spot campaign command routes with durable admission audit evidence.
+- Remove the approval-store-missing blocker from command admission evidence
+  once the durable store contract exists while keeping approval snapshot,
+  admission audit, cap/guard, reconciliation, live-disabled, and browser
+  rejection blockers.
 
-### Phase 1209 - Audit Workbench Normalization
+### Phase 1229 - Live-Enablement Store Evidence
 
-- Expose persisted admission decisions through the read-only Audit Workbench
-  normalization path as backend evidence, not browser authority.
+- Report the approval-store contract as configured and durable while keeping
+  route-specific approval snapshots absent and live execution disabled.
 
-### Phase 1210 - Partial Live-Enablement Evidence
+### Phase 1230 - No Browser Approval Boundary
 
-- Report the command-admission-decision audit fact as passed while keeping
-  approval, cap/guard, exchange submission, and reconciliation facts blocked.
-
-### Phase 1211 - No Browser Audit Boundary
-
-- Keep persisted admission audit evidence read-only and forbid use as browser
-  approval, browser wallet authority, audit mutation, command submission,
+- Keep approval-store evidence read-only and forbid browser approval,
+  browser wallet authority, audit mutation, command submission,
   reconciliation, or Coinbase execution authority.
 
-### Phase 1212 - OpenAPI Regeneration
+### Phase 1231 - OpenAPI Stability Check
 
-- Regenerate backend OpenAPI after the audit workbench event model expands.
+- Confirm no generated OpenAPI schema drift is introduced unless a public
+  response model changes.
 
-### Phase 1213 - Frontend Schema Sync Coordination
+### Phase 1232 - Frontend Range Sync Coordination
 
-- Coordinate frontend generated-schema consumption from the backend schema.
+- Coordinate frontend quality artifacts, autonomous checks, release checks,
+  and deployment checks with active range 1221-1240.
 
-### Phase 1214 - Frontend Audit Evidence Rows
+### Phase 1233 - Frontend Mock Evidence Alignment
 
-- Render persisted admission status, route, identity key, and blockers in the
-  Audit Workbench event table as read-only backend evidence.
+- Align mock/backend runtime live-enablement evidence with configured
+  approval-store counts and zero missing store requirements.
 
-### Phase 1215 - Runtime Mock Artifact Alignment
+### Phase 1234 - Frontend Command Blocker Alignment
 
-- Align mocks, runtime evidence, visual targets, release checks, deployment
-  checks, and autonomous validators.
+- Align dry-submit command evidence with the backend admission blocker set
+  after approval-store foundation exists.
 
-### Phase 1216 - Documentation Update
+### Phase 1235 - Documentation Update
 
 - Update admin API, architecture, examples, handoff, roadmap, and review docs.
 
-### Phase 1217 - Drift Scan
+### Phase 1236 - Drift Scan
 
-- Search for stale active range, M34 active wording, browser-authority
-  wording, and spot-rule leakage.
+- Search for stale active range, M35 active wording, browser-authority
+  wording, approval mutation wording, and spot-rule leakage.
 
-### Phase 1218 - Focused Backend Gates
+### Phase 1237 - Focused Backend Gates
 
 - Run backend autonomous and focused Admin API/readiness checks.
 
-### Phase 1219 - Frontend Gates And Blind Review
+### Phase 1238 - Focused Frontend Gates
 
-- Run focused frontend quality and UI checks plus blind/contextless review for
-  backend-owned persisted admission audit evidence.
+- Run focused frontend quality and UI checks.
 
-### Phase 1220 - Full Gates And Summary
+### Phase 1239 - Blind Review
+
+- Run blind/contextless review for backend-owned approval storage,
+  no-browser approval, no approval mutation, and no live Coinbase execution.
+
+### Phase 1240 - Full Gates And Summary
 
 - Run backend full regression and frontend `npm run release:gate`, then
   summarize verification and live posture.
+
+## Completed Command Admission Audit Persistence Batch - Phases 1201-1220
+
+- M35 persisted route-bound command admission decision evidence in the
+  existing append-only Admin API audit log and exposed it through read-only
+  Audit Workbench evidence. It did not add live admission, approval mutation,
+  guard execution, approval storage, Coinbase calls, or browser command
+  authority.
 
 ## Completed Command Admission Decision Evidence Batch - Phases 1181-1200
 

@@ -44,9 +44,11 @@ WebSocket.
 Mutating HTTP command responses include the current fail-closed live execution
 gate decision and M34 route-bound admission decision evidence. M35 persists
 that same admission decision in the existing append-only Admin API audit log
-and exposes it through the read-only Audit Workbench. The admission decision
+and exposes it through the read-only Audit Workbench. M36 adds the
+backend-owned append-only approval-store foundation while approval snapshots
+remain absent and HTTP live execution remains disabled. The admission decision
 binds the route, method, module id, identity key, actor, idempotency key,
-operator intent, and payload hash to the missing approval, cap/guard,
+operator intent, and payload hash to the missing approval snapshot, cap/guard,
 admission-audit, and reconciliation blockers before HTTP live execution can be
 enabled.
 
@@ -223,9 +225,9 @@ The platform/module split is documented in
   blocking approval, cap/guard, live-execution-service, and reconciliation
   prerequisites. M30 route-specific approval snapshot evidence makes the
   missing durable, backend-owned, expiring, payload-bound approval record
-  explicit per live-shaped path. M31 approval-store contract evidence makes
-  the missing durable backend approval store requirements explicit per
-  live-shaped path. M32 live-admission audit trail evidence makes the missing
+  explicit per live-shaped path. M36 approval-store foundation evidence makes
+  configured durable backend approval-store infrastructure explicit per
+  live-shaped path without creating approval snapshots. M32 live-admission audit trail evidence makes the missing
   append-only backend admission audit facts explicit per live-shaped path.
   M33 route-specific cap/guard contract evidence makes the missing backend
   cap, guard, payload, approval, admission-audit, and product-scope bindings
@@ -241,6 +243,10 @@ The platform/module split is documented in
   to existing Admin API audit events and exposes it through Audit Workbench
   read evidence. It is not audit mutation, browser approval, guard execution,
   reconciliation authority, or live Coinbase execution.
+- M36 durable approval-store foundation adds backend-owned append-only
+  approval record storage and exact-match lookup semantics. It is not an
+  approval endpoint, browser approval, BFF mutation, live admission, Coinbase
+  execution, or proof that a route-specific approval snapshot exists.
 - Audit workbench reads normalize route inventory, command audit, order,
   stealth, movement/repricing, futures/perpetual, guard/risk, and campaign
   evidence into one read-only surface. They do not mutate audit history, read

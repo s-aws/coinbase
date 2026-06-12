@@ -23,6 +23,7 @@ from application.admin_api.auth import (
     verify_oidc_jwt,
 )
 from application.admin_api import command_service
+from application.admin_api.approval import AdminApiApprovalRecord, FileAdminApiApprovalStore
 from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -816,7 +817,8 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["reconciliation_required"] is True
     assert admission["browser_authority"] == "rejected"
     assert admission["live_exchange_submitted"] is False
-    assert "approval_store_missing" in admission["blockers"]
+    assert "approval_store_missing" not in admission["blockers"]
+    assert "approval_snapshot_missing" in admission["blockers"]
     assert "cap_guard_missing" in admission["blockers"]
     assert payload["guard"]["admission_decision"] == admission
     assert payload["audit_id"]
@@ -1264,6 +1266,74 @@ def test_admin_api_idempotency_contract_replays_same_hash_and_conflicts_on_drift
 
 
 @pytest.mark.regression
+def test_admin_api_approval_store_is_append_only_expiring_and_payload_bound():
+    store = FileAdminApiApprovalStore(_store_dir() / "approvals.jsonl")
+    now = datetime(2026, 6, 12, tzinfo=timezone.utc)
+    record = AdminApiApprovalRecord(
+        expires_at=now + timedelta(minutes=5),
+        approved_by_actor_id="approver-001",
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approval",
+        payload_hash="a" * 64,
+        cap_guard_decision_ref="cap-guard-001",
+        reconciliation_plan_ref="reconciliation-001",
+        approval_reason="bounded canary approval",
+    )
+
+    approval_id = store.append(record)
+
+    rows = store.read_recent()
+    assert len(rows) == 1
+    assert rows[0].approval_id == approval_id
+    assert rows[0].payload_hash == "a" * 64
+    assert rows[0].required_permission == AdminApiPermission.ORDER_CREATE
+
+    match = store.find_matching(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-001",
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approval",
+        payload_hash="a" * 64,
+        now=now,
+    )
+    assert match is not None
+    assert match.approval_id == approval_id
+
+    assert store.find_matching(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-001",
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approval",
+        payload_hash="b" * 64,
+        now=now,
+    ) is None
+    assert store.find_matching(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-001",
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approval",
+        payload_hash="a" * 64,
+        now=now + timedelta(minutes=10),
+    ) is None
+
+
+@pytest.mark.regression
 def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates():
     service_source = inspect.getsource(command_service)
     route_source = "\n".join(
@@ -1507,7 +1577,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1201-1220"
+    assert live_payload["approved_phase_range"] == "1221-1240"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -1524,10 +1594,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["approval_snapshot_required_field_count"] == 65
     assert live_payload["approval_snapshot_missing_field_count"] == 65
     assert live_payload["approval_store_required_count"] == 5
-    assert live_payload["approval_store_configured_count"] == 0
-    assert live_payload["approval_store_missing_count"] == 5
+    assert live_payload["approval_store_configured_count"] == 5
+    assert live_payload["approval_store_missing_count"] == 0
     assert live_payload["approval_store_requirement_count"] == 60
-    assert live_payload["approval_store_missing_requirement_count"] == 60
+    assert live_payload["approval_store_missing_requirement_count"] == 0
     assert live_payload["admission_audit_required_count"] == 5
     assert live_payload["admission_audit_configured_count"] == 0
     assert live_payload["admission_audit_missing_count"] == 5
@@ -1602,7 +1672,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
-        item["approval_store_contract"]["status"] == "blocked"
+        item["approval_store_contract"]["status"] == "passed"
         for item in live_routes.values()
     )
     assert all(
@@ -1610,11 +1680,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
-        item["approval_store_contract"]["configured"] is False
+        item["approval_store_contract"]["configured"] is True
         for item in live_routes.values()
     )
     assert all(
-        item["approval_store_contract"]["durable"] is False
+        item["approval_store_contract"]["durable"] is True
         for item in live_routes.values()
     )
     assert all(
@@ -1630,7 +1700,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
-        item["approval_store_contract"]["missing_requirement_count"] == 12
+        item["approval_store_contract"]["missing_requirement_count"] == 0
         for item in live_routes.values()
     )
     assert all(
@@ -1760,27 +1830,27 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert all(field["status"] == "blocked" for field in spot_approval_fields.values())
     assert all(field["required"] is True for field in spot_approval_fields.values())
     spot_store = live_routes["/api/v1/orders"]["approval_store_contract"]
-    assert spot_store["source"] == "not_configured"
+    assert spot_store["source"] == "admin_api_approval_store"
     assert "approval store" in spot_store["detail"]
     spot_store_requirements = {
         requirement["requirement"]: requirement
         for requirement in spot_store["requirements"]
     }
-    assert spot_store_requirements["backend_owned"]["expected_source"] == "approval_store"
-    assert spot_store_requirements["route_bound"]["expected_source"] == "route_inventory"
+    assert spot_store_requirements["backend_owned"]["expected_source"] == "admin_api_approval_store"
+    assert spot_store_requirements["route_bound"]["expected_source"] == "admin_api_approval_store"
     assert spot_store_requirements["route_bound"]["expected_value"] == "/api/v1/orders"
     assert spot_store_requirements["method_bound"]["expected_value"] == "POST"
     assert spot_store_requirements["module_bound"]["expected_value"] == "spot_operations"
-    assert spot_store_requirements["actor_bound"]["expected_source"] == "approval_store"
-    assert spot_store_requirements["idempotency_bound"]["expected_source"] == "command_headers"
-    assert spot_store_requirements["payload_hash_bound"]["expected_source"] == "command_service"
-    assert spot_store_requirements["expiring"]["expected_source"] == "approval_store"
-    assert spot_store_requirements["cap_guard_bound"]["expected_source"] == "guard_risk_policy"
-    assert spot_store_requirements["reconciliation_bound"]["expected_source"] == "reconciliation_policy"
-    assert spot_store_requirements["append_only_audit"]["expected_source"] == "audit_store"
+    assert spot_store_requirements["actor_bound"]["expected_source"] == "admin_api_approval_store"
+    assert spot_store_requirements["idempotency_bound"]["expected_source"] == "admin_api_approval_store"
+    assert spot_store_requirements["payload_hash_bound"]["expected_source"] == "admin_api_approval_store"
+    assert spot_store_requirements["expiring"]["expected_source"] == "admin_api_approval_store"
+    assert spot_store_requirements["cap_guard_bound"]["expected_source"] == "admin_api_approval_store"
+    assert spot_store_requirements["reconciliation_bound"]["expected_source"] == "admin_api_approval_store"
+    assert spot_store_requirements["append_only_audit"]["expected_source"] == "admin_api_approval_store"
     assert spot_store_requirements["browser_authority_rejected"]["expected_value"] == "display_only"
     assert all(
-        requirement["status"] == "blocked"
+        requirement["status"] == "passed"
         for requirement in spot_store_requirements.values()
     )
     assert all(
@@ -1905,7 +1975,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1201-1220"
+    assert enterprise_payload["approved_phase_range"] == "1221-1240"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

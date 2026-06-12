@@ -97,14 +97,20 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1201-1220`.
-- M35 command admission audit persistence is in progress. It must use the
-  existing append-only Admin API audit log and Audit Workbench read path only:
-  persisted admission decisions can describe route, payload hash,
-  idempotency, operator intent, approval, cap/guard, admission-audit, and
-  reconciliation blockers, but they must not become browser approval, browser
-  wallet authority, audit mutation, guard execution, a new command route,
-  Coinbase execution, or reconciliation authority.
+- Active autonomous range: `1221-1240`.
+- M36 durable approval-store foundation is in progress. It may add backend
+  append-only approval-store infrastructure and evidence only. It must not
+  add an approval endpoint, approval mutation, live admission endpoint, guard
+  evaluator, Coinbase call, direct dashboard WebSocket approval path, BFF
+  mutation broadening, browser approval workflow, browser approval writer, or
+  reconciliation authority.
+- M35 command admission audit persistence writes admission decisions through
+  the existing append-only Admin API audit log and Audit Workbench read path
+  only. Persisted admission decisions can describe route, payload hash,
+  idempotency, operator intent, approval snapshot, cap/guard,
+  admission-audit, and reconciliation blockers, but they must not become
+  browser approval, browser wallet authority, audit mutation, guard execution,
+  a new command route, Coinbase execution, or reconciliation authority.
 - M34 command admission decision evidence is exposed through existing
   live-disabled Admin API command responses. It must remain evidence-only:
   decisions can describe route, payload hash, idempotency, operator intent,
@@ -118,9 +124,9 @@ notional, retained inventory, reconciliation result, and audit ids.
   approval, a command route, Coinbase execution, or reconciliation authority.
 - M31 approval-store contract evidence is exposed through the existing
   `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
-  requirements can describe what a durable backend approval store must prove,
-  but they must not become approval storage, browser approval, a command
-  route, Coinbase execution, or reconciliation authority.
+  requirements can describe configured durable backend approval-store
+  infrastructure, but they must not become approval mutation, browser
+  approval, a command route, Coinbase execution, or reconciliation authority.
 - M30 route-specific approval snapshot evidence is exposed through the
   existing `GET /api/v1/admin/live-enablement` read. It must remain
   evidence-only: required fields can describe what a durable backend approval

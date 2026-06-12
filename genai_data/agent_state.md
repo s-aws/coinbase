@@ -36,23 +36,22 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `1201-1220`.
-- Active milestone: M35 - Command Admission Audit Persistence.
-- In-scope files: Admin API audit event contracts, admission decision
-  persistence, audit workbench evidence, admin platform docs, frontend
-  association docs, generated OpenAPI/frontend schema, regression tests,
-  frontend audit evidence, and agent context needed for local-agent accuracy.
+- Latest autonomous range: `1221-1240`.
+- Latest milestone: M36 - Durable Approval Store Foundation.
+- In-scope files: Admin API approval-store contracts, live-enablement
+  approval-store evidence, command admission blocker evidence, admin platform
+  docs, frontend association docs, regression tests, frontend mock/runtime
+  evidence, and agent context needed for local-agent accuracy.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M35 must use the existing append-only Admin API audit log and Audit
-  Workbench read path only. Do not add a live admission endpoint, approval
-  mutation, guard evaluator, new audit endpoint, approval storage, command
-  route, BFF mutation broadening, direct dashboard WebSocket call, Coinbase
-  call, browser approval workflow, browser audit writer, or reconciliation
-  authority.
+- M36 may add backend-owned append-only approval-store infrastructure and
+  evidence only. Do not add an approval endpoint, approval mutation, live
+  admission endpoint, guard evaluator, Coinbase call, direct dashboard
+  WebSocket approval path, BFF mutation broadening, browser approval workflow,
+  browser approval writer, or reconciliation authority.
 
 ## Decisions (Durable)
 
@@ -259,6 +258,18 @@ Keep it short. Keep it factual.
     passed while approval, cap/guard, exchange submission, and reconciliation
     facts remain blocked.
 
+- [2026-06-12] Decision: M36 durable approval-store foundation adds backend
+  append-only approval storage without adding approval mutation or live
+  admission.
+  - Reason: Future live HTTP admission needs a durable backend-owned store,
+    but exposing browser approval or a mutation before cap/guard and
+    reconciliation are wired would create unsafe partial authority.
+  - Impact: Approval-store contract evidence may report configured backend
+    infrastructure. Route-specific approval snapshots remain absent, HTTP
+    commands remain live-disabled, and command admission remains blocked by
+    approval snapshot, admission audit, cap/guard, reconciliation, live
+    disabled, and browser-rejection blockers.
+
 ## Open Risks
 
 - Risk: Broad all-USDC SELL execution still has many wallet-only or insufficient-known-profitable rows.
@@ -291,50 +302,49 @@ Keep it short. Keep it factual.
 
 - Last backend focused Admin API/readiness run: 2026-06-12
   `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
-- Result: Passed, 63 tests, 1 warning.
+- Result: Passed, 64 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-12
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: Passed for approved range `1201-1220`. Live Coinbase execution
+- Result: M36 passed for approved range `1221-1240`. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-12
   `python -m pytest tests\regression\ -v --tb=short`
-- Result: Passed, 790 tests, 1 warning.
+- Result: Passed, 791 tests, 1 warning.
 - Last frontend focused run: 2026-06-12
-  `npm run api:check`, focused Vitest, and `npm run release:gate`.
-- Result: Passed; frontend full `npm run release:gate` passed with `186` unit
-  tests and `3` Playwright tests after the M35 schema, Audit Workbench
-  admission evidence, docs, artifacts, and review-log updates.
-- Last blind/contextless M35 review: 2026-06-12
-- Result: Passed for command admission audit persistence. Reviewer found no
-  duplicate audit path, stale active-range doc, browser authority expansion,
-  BFF mutation broadening, Coinbase execution path, or safety-boundary
-  violation.
-- Live Coinbase execution for M35: not run. Submitted notional `0` USDC.
+  `npm run api:check`, focused Vitest, `npm run autonomous:check`, and
+  `npm run release:gate`.
+- Result: Passed for M36 with `186` unit tests and `3` Playwright tests in
+  the release gate.
+- Last blind/contextless M36 review: 2026-06-12
+- Result: Passed for durable approval-store foundation. Non-blocking
+  compatibility note: `approval_store_missing` remains in the public enum
+  vocabulary but is no longer emitted by current command admission.
+- Live Coinbase execution for M36: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Advance the next approved admin-platform batch from the roadmap without
-   enabling live HTTP execution.
-2. Preserve the single command/audit behavior path when adding the next
-   approval-store, cap/guard, or live-admission evidence slice.
+1. Activate the next approved admin-platform batch after `1221-1240` while
+   preserving M36's no-approval-mutation and no-live posture.
+2. Continue toward route-specific approval snapshot/admission prerequisites
+   only through backend-owned contracts, not browser authority.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
 
 ## Handoff Notes
 
-- What is done through M35: backend live-enablement exposes typed, blocked,
+- What is done through M36: backend live-enablement exposes typed,
   route-specific approval snapshot, approval-store contract,
   live-admission audit trail, and cap/guard requirements per live-shaped
   route. Existing live-disabled command responses now expose typed,
   fail-closed command admission decision evidence bound to route, identity,
   actor, payload hash, idempotency key, and operator intent. The same
   admission decision is persisted on existing Admin API audit events and
-  surfaced through read-only Audit Workbench evidence. OpenAPI was
-  regenerated; frontend generated schema, mocks, dry-submit and Audit
-  Workbench evidence rows, quality artifacts, docs, and tests consume the
-  contract.
+  surfaced through read-only Audit Workbench evidence. M36 adds a backend-owned
+  append-only approval-store foundation and updates live-enablement/frontend
+  evidence to show the store contract as configured and durable while approval
+  snapshots, admission audit, cap/guard, and reconciliation remain blocked.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard, and
@@ -342,8 +352,8 @@ Keep it short. Keep it factual.
   controls, guard evaluator, audit storage, approval storage, BFF mutation
   broadening, Coinbase call, browser approval, or reconciliation behavior is
   allowed.
-- What is in progress: Nothing known after M35 validation; next approved
-  roadmap batch should start from this state.
+- What is in progress: no implementation batch is currently in progress after
+  M36 completion.
 - What is blocked: Nothing currently known.
-- Exact next command: inspect `docs/plans/AUTONOMOUS_WORK_QUEUE.md` and start
-  the next approved admin-platform phase range.
+- Exact next command: activate the next approved phase range, then run focused
+  backend/frontend gates for the selected batch.

@@ -2,6 +2,58 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Durable Approval Store Foundation Review - Phases 1221-1240
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify M36 adds backend-owned append-only approval-store infrastructure and
+  evidence only
+- verify no approval mutation endpoint, browser approval authority, BFF
+  approval writer, live Coinbase execution, reconciliation authority, or
+  parallel command path was added
+- verify command admission no longer reports `approval_store_missing` while
+  still blocking on approval snapshot, admission audit, cap/guard,
+  reconciliation, live-disabled, and browser-rejected blockers
+- verify frontend changes only render and mock-align backend evidence while
+  keeping live notional at `$0`
+
+Findings:
+
+- PASS: `AdminApiApprovalRecord` and `FileAdminApiApprovalStore` provide a
+  backend-owned append-only JSONL approval-store foundation with exact-match
+  and expiry checks.
+- PASS: no approval mutation endpoint, browser approval authority, BFF approval
+  writer, Coinbase submission path, reconciliation authority, or parallel
+  command path was found.
+- PASS: command admission omits `approval_store_missing` and still blocks on
+  the remaining live-admission prerequisites.
+- PASS: live-enablement reports approval-store contract evidence as
+  configured, durable, backend-owned, and display-only while snapshots,
+  admission audit, cap/guard, and reconciliation remain blocked.
+- PASS: frontend changes are contract/mock/rendering alignment only, with live
+  Coinbase execution not run and submitted/executed notional `$0`.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `64 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1221-1240`.
+- Backend full regression passed with `791 passed, 1 warning`.
+- Frontend focused unit slice passed with `71` tests.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review passed. Non-blocking compatibility note:
+  `approval_store_missing` remains in the public enum vocabulary but is no
+  longer emitted by current command admission.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Command Admission Audit Persistence Review - Phases 1201-1220
 
 Review scope:
