@@ -110,6 +110,9 @@ For module action posture, use the backend `action_posture` object from
 `GET /api/v1/admin/enterprise-readiness`. Do not infer command authority from
 route counts, and do not group `/api/v1/admin/*` paths by prefix when a
 specific `module_id` exists.
+The frontend Enterprise Module Catalog is a read-only rendering of the same
+enterprise-readiness payload. Do not add a parallel module-catalog endpoint or
+move module authority into the browser.
 
 ## Durable Milestones
 

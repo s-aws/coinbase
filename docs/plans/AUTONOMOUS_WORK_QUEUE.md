@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **961-980**.
+- Approved phase range: **981-1000**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -45,6 +45,130 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Completed Phases 981-1000
+
+### Phase 981 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 961-980 to active
+  phases 981-1000 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 982 - M24 Enterprise Module Catalog
+
+- Support the frontend's read-only enterprise module catalog with the existing
+  backend-owned enterprise-readiness contract.
+
+### Phase 983 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 981-1000 phase range.
+
+### Phase 984 - Frontend Navigation Surface
+
+- Coordinate the frontend Modules route while preserving backend authority
+  over module data and trading behavior.
+
+### Phase 985 - Typed Catalog Consumption
+
+- Keep the catalog source as the generated Admin API response type, not a
+  hand-rolled frontend schema.
+
+### Phase 986 - Module Action Cards
+
+- Ensure per-module catalog cards use backend module id, owner, support
+  status, action posture, command gaps, unsupported actions, identity keys,
+  route counts, and refs.
+
+### Phase 987 - Spot Boundary Visibility
+
+- Preserve backend spot/non-spot boundary evidence so spot inventory, USDC,
+  no-shorting, and cost-basis rules do not become generic authority.
+
+### Phase 988 - Contract And Documentation References
+
+- Keep backend contract refs and docs refs in enterprise readiness so the
+  frontend catalog can orient contextless maintainers.
+
+### Phase 989 - No Browser Authority Scan
+
+- Confirm the catalog adds no backend behavior path, no Coinbase call, and no
+  browser-side trading decision.
+
+### Phase 990 - Runtime Evidence Contract Update
+
+- Coordinate frontend runtime evidence and visual smoke targets for the
+  Enterprise Module Catalog.
+
+### Phase 991 - AdminShell Tests
+
+- Cover module catalog route, summary, action posture, contract refs, command
+  gaps, and spot boundary rendering.
+
+### Phase 992 - Mock And Runtime Alignment
+
+- Keep backend range evidence, frontend mock runtime, backend runtime tests,
+  and quality artifacts aligned with 981-1000.
+
+### Phase 993 - Documentation Update
+
+- Update backend API, architecture, capability matrix, examples, maintainer
+  handoff, and roadmap docs for the module catalog.
+
+### Phase 994 - Stale Range And Catalog Drift Scan
+
+- Search for current-state contradictions around 961-980 versus 981-1000 and
+  for missing module catalog evidence.
+
+### Phase 995 - Focused Backend Gates
+
+- Run backend autonomous queue check and focused Admin API/spot readiness
+  regression checks.
+
+### Phase 996 - Focused Frontend Gates
+
+- Run frontend typecheck, API route coverage, release readiness, autonomous
+  queue, and focused catalog UI/runtime/quality tests.
+
+### Phase 997 - Blind/Contextless Review
+
+- Run blind/contextless review focused on whether a fresh agent can explain
+  the module catalog, backend authority, and spot/non-spot boundaries.
+
+### Phase 998 - Full Backend Regression
+
+- Run the full backend regression suite.
+
+### Phase 999 - Full Frontend Release Gate
+
+- Run frontend `npm run release:gate`.
+
+### Phase 1000 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 981-1000
+
+- Backend focused gates passed:
+  `pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
+  reported `63` passed with `1` warning.
+- Backend autonomous queue check passed:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Frontend focused gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and catalog UI/runtime/quality tests
+  reported `45` focused tests passed.
+- Full backend regression passed:
+  `pytest tests\regression\ -v --tb=short` reported `790` passed with
+  `1` warning.
+- Full frontend release gate passed: `npm run release:gate` reported `186`
+  unit tests passed and `3` Playwright tests passed.
+- Blind/contextless M24 review passed with no blockers. It confirmed the
+  catalog uses `GET /api/v1/admin/enterprise-readiness`, adds no trading
+  behavior, WebSocket path, Coinbase call, or browser command authority, and
+  keeps spot-only rules scoped to spot evidence.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 961-980
 

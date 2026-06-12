@@ -53,6 +53,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M21 - Enterprise Module Registry Evidence | Complete | Make every admin module's owner, contracts, docs, and spot-rule boundary backend-owned evidence. |
 | M22 - Enterprise Route Module Binding | Complete | Bind routes and capabilities to backend-owned enterprise module ids. |
 | M23 - Enterprise Module Action Posture | Complete | Derive per-module route/action posture from backend module ids instead of path prefixes. |
+| M24 - Enterprise Module Catalog | Complete | Make enterprise module readiness directly consumable as a read-only admin catalog. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -856,6 +857,51 @@ Completed evidence:
   tests passed.
 - Blind/contextless M23 review passed with no blockers and found no browser
   authority leakage.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## M24 - Enterprise Module Catalog
+
+Purpose: support a frontend read-only catalog that makes backend-owned module
+readiness, owners, contracts, docs, command gaps, unsupported actions, action
+posture, and spot/non-spot boundaries directly understandable.
+
+Completed scope:
+
+- Phases 981-1000 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Backend enterprise-readiness and live-enablement evidence reports active
+  phase range 981-1000.
+- The frontend Modules route consumes the existing
+  `GET /api/v1/admin/enterprise-readiness` contract; the backend does not add
+  a parallel module-catalog endpoint.
+- Module catalog rendering remains evidence-only and adds no backend behavior
+  path, Coinbase call, or browser trading decision.
+- Spot/non-spot boundaries stay backend-owned evidence and must not become
+  generic frontend authority.
+
+Completed evidence:
+
+- Backend and frontend validators use active phase range 981-1000.
+- The frontend Modules catalog consumes
+  `GET /api/v1/admin/enterprise-readiness`; the backend did not add a
+  parallel catalog endpoint.
+- Frontend AdminShell tests cover the catalog route, module summary, action
+  posture, contract refs, command gaps, and spot boundary rendering.
+- Runtime quality artifacts require Enterprise Module Catalog UI evidence and
+  `.enterprise-module-catalog` visual smoke coverage.
+- Focused backend gates passed: Admin API contract and spot readiness
+  regression checks (`63` tests passed with `1` warning).
+- Backend autonomous queue check passed for active phase range 981-1000.
+- Focused frontend gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and catalog UI/runtime/quality unit tests
+  (`45` focused tests passed).
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M24 review passed with no blockers and confirmed no
+  catalog trading behavior, direct WebSocket path, Coinbase call, or browser
+  command authority.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 

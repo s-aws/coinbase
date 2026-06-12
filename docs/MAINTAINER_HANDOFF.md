@@ -95,8 +95,12 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 ## Current Handoff State
 
-- M9/M21/M23 enterprise readiness is exposed by `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `961-980`.
+- M9/M21/M23/M24 enterprise readiness is exposed by
+  `GET /api/v1/admin/enterprise-readiness`.
+- Active autonomous range: `981-1000`.
+- The frontend Enterprise Module Catalog consumes the existing readiness
+  contract. Do not add a parallel module-catalog endpoint or browser trading
+  authority.
 - Default live Coinbase execution: `not_run`.
 - Submitted notional: `$0`.
 - Executed notional: `$0`.
