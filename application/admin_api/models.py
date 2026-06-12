@@ -19,6 +19,8 @@ from core.enums import (
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
     AdminApiAuthMode,
+    AdminApiFunctionalityExposureStatus,
+    AdminApiFunctionalityWorkflowType,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminApiGateStatus,
@@ -482,6 +484,41 @@ class AdminEnterpriseModuleActionPosture(BaseModel):
     notional_usdc: DecimalString = "0"
 
 
+class AdminEnterpriseFunctionalityInventoryItem(BaseModel):
+    """One backend workflow and its enterprise admin exposure posture."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_id: str
+    module_id: str
+    module: str
+    workflow_type: AdminApiFunctionalityWorkflowType
+    exposure_status: AdminApiFunctionalityExposureStatus
+    support_status: AdminApiModuleSupportStatus
+    summary: str
+    backend_supported: bool
+    admin_api_exposed: bool
+    frontend_exposed: bool
+    command_capable: bool = False
+    live_designated: bool = False
+    live_enabled: bool = False
+    read_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    recovery_routes: list[str] = Field(default_factory=list)
+    automation_routes: list[str] = Field(default_factory=list)
+    legacy_surfaces: list[str] = Field(default_factory=list)
+    identity_keys: list[str] = Field(default_factory=list)
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    required_next_contract: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    frontend_boundary: str
+    spot_rule_boundary: str
+    live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    notional_usdc: DecimalString = "0"
+
+
 class AdminEnterpriseReadinessModuleItem(BaseModel):
     """One module's enterprise admin readiness posture."""
 
@@ -522,7 +559,16 @@ class AdminEnterpriseReadinessResponse(BaseModel):
     command_gap_count: int = 0
     module_registry_count: int = 0
     module_action_posture_count: int = 0
+    functionality_inventory_count: int = 0
+    backend_supported_workflow_count: int = 0
+    admin_exposed_workflow_count: int = 0
+    command_workflow_count: int = 0
+    live_designated_workflow_count: int = 0
+    recovery_workflow_count: int = 0
+    automation_workflow_count: int = 0
+    repair_workflow_count: int = 0
     modules: list[AdminEnterpriseReadinessModuleItem] = Field(default_factory=list)
+    functionality_inventory: list[AdminEnterpriseFunctionalityInventoryItem] = Field(default_factory=list)
     security_checks: list[AdminGateCheck] = Field(default_factory=list)
     release_checks: list[AdminGateCheck] = Field(default_factory=list)
     frontend_authority: str = "backend_contract_only"

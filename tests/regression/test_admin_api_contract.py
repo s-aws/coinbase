@@ -68,6 +68,8 @@ from core.enums import (
     AdminApiCommandRoutesMode,
     AdminApiCommandStatus,
     AdminApiErrorCode,
+    AdminApiFunctionalityExposureStatus,
+    AdminApiFunctionalityWorkflowType,
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiLiveAdmissionBlocker,
@@ -2661,7 +2663,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1421-1440"
+    assert live_payload["approved_phase_range"] == "1441-1460"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -3185,7 +3187,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1421-1440"
+    assert enterprise_payload["approved_phase_range"] == "1441-1460"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -3197,6 +3199,84 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert enterprise_payload["command_gap_count"] >= 10
     assert enterprise_payload["module_registry_count"] == enterprise_payload["module_count"]
     assert enterprise_payload["module_action_posture_count"] == enterprise_payload["module_count"]
+    assert enterprise_payload["functionality_inventory_count"] == len(
+        enterprise_payload["functionality_inventory"]
+    )
+    assert enterprise_payload["functionality_inventory_count"] >= 14
+    assert enterprise_payload["backend_supported_workflow_count"] >= 13
+    assert enterprise_payload["admin_exposed_workflow_count"] >= 11
+    assert enterprise_payload["command_workflow_count"] >= 6
+    assert enterprise_payload["live_designated_workflow_count"] >= 5
+    assert enterprise_payload["recovery_workflow_count"] >= 1
+    assert enterprise_payload["automation_workflow_count"] >= 1
+    assert enterprise_payload["repair_workflow_count"] >= 1
+    inventory_by_id = {
+        item["workflow_id"]: item
+        for item in enterprise_payload["functionality_inventory"]
+    }
+    assert {
+        "admin.platform_evidence",
+        "spot.read_models",
+        "spot.order_command_drafts",
+        "spot.sweep_automation_and_live_executor",
+        "stealth.lifecycle_reads",
+        "stealth.cancel_command_draft",
+        "movement.repricing_reads",
+        "movement.reprice_command_draft",
+        "futures.read_models",
+        "futures.commands_not_modeled",
+        "guard_risk.policy_evidence",
+        "audit.recovery_and_repair_evidence",
+        "audit.fill_ledger_repair_contract_required",
+        "legacy.dashboard_compatibility",
+    } <= set(inventory_by_id)
+    spot_command_inventory = inventory_by_id["spot.order_command_drafts"]
+    assert spot_command_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert spot_command_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert spot_command_inventory["command_capable"] is True
+    assert spot_command_inventory["live_designated"] is True
+    assert spot_command_inventory["live_enabled"] is False
+    assert spot_command_inventory["live_coinbase_execution"] == "not_run"
+    assert "client_order_id" in spot_command_inventory["identity_keys"]
+    assert "POST /api/v1/orders/{client_order_id}/cancel" in (
+        spot_command_inventory["command_routes"]
+    )
+    assert "no-shorting" in spot_command_inventory["spot_rule_boundary"]
+    futures_command_inventory = inventory_by_id["futures.commands_not_modeled"]
+    assert futures_command_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+    )
+    assert futures_command_inventory["support_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert futures_command_inventory["admin_api_exposed"] is False
+    assert futures_command_inventory["frontend_exposed"] is False
+    assert "Spot rules are forbidden" in futures_command_inventory[
+        "spot_rule_boundary"
+    ]
+    legacy_inventory = inventory_by_id["legacy.dashboard_compatibility"]
+    assert legacy_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY.value
+    )
+    assert legacy_inventory["admin_api_exposed"] is False
+    assert legacy_inventory["live_designated"] is True
+    assert "place_order WebSocket" in legacy_inventory["legacy_surfaces"]
+    repair_inventory = inventory_by_id[
+        "audit.fill_ledger_repair_contract_required"
+    ]
+    assert repair_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.REPAIR.value
+    )
+    assert repair_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+    )
+    assert "Admin API repair mutation contract missing" in repair_inventory[
+        "blockers"
+    ]
     registry_by_id = {
         item["module_id"]: item for item in enterprise_payload["modules"]
     }

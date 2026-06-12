@@ -16,6 +16,8 @@ from core.enums import (
     AdminApiAuthMode,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
+    AdminApiFunctionalityExposureStatus,
+    AdminApiFunctionalityWorkflowType,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminFuturesPositionSide,
@@ -65,6 +67,7 @@ from .models import (
     AdminCapabilityRegistryResponse,
     AdminCsrfContractResponse,
     AdminEnterpriseCommandGapItem,
+    AdminEnterpriseFunctionalityInventoryItem,
     AdminEnterpriseModuleActionPosture,
     AdminEnterpriseReadinessModuleItem,
     AdminEnterpriseReadinessResponse,
@@ -114,7 +117,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1421-1440"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1441-1460"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -2600,6 +2603,64 @@ class AdminApiReadService:
                 frontend_boundary=frontend_boundary,
             )
 
+        def functionality_item(
+            *,
+            workflow_id: str,
+            module_id: str,
+            module: str,
+            workflow_type: AdminApiFunctionalityWorkflowType,
+            exposure_status: AdminApiFunctionalityExposureStatus,
+            support_status: AdminApiModuleSupportStatus,
+            summary: str,
+            backend_supported: bool,
+            admin_api_exposed: bool,
+            frontend_exposed: bool,
+            frontend_boundary: str,
+            spot_rule_boundary: str,
+            command_capable: bool = False,
+            live_designated: bool = False,
+            live_enabled: bool = False,
+            read_routes: list[str] | None = None,
+            command_routes: list[str] | None = None,
+            recovery_routes: list[str] | None = None,
+            automation_routes: list[str] | None = None,
+            legacy_surfaces: list[str] | None = None,
+            identity_keys: list[str] | None = None,
+            backend_contract_refs: list[str] | None = None,
+            frontend_contract_refs: list[str] | None = None,
+            documentation_refs: list[str] | None = None,
+            required_next_contract: str | None = None,
+            blockers: list[str] | None = None,
+        ) -> AdminEnterpriseFunctionalityInventoryItem:
+            return AdminEnterpriseFunctionalityInventoryItem(
+                workflow_id=workflow_id,
+                module_id=module_id,
+                module=module,
+                workflow_type=workflow_type,
+                exposure_status=exposure_status,
+                support_status=support_status,
+                summary=summary,
+                backend_supported=backend_supported,
+                admin_api_exposed=admin_api_exposed,
+                frontend_exposed=frontend_exposed,
+                command_capable=command_capable,
+                live_designated=live_designated,
+                live_enabled=live_enabled,
+                read_routes=read_routes or [],
+                command_routes=command_routes or [],
+                recovery_routes=recovery_routes or [],
+                automation_routes=automation_routes or [],
+                legacy_surfaces=legacy_surfaces or [],
+                identity_keys=identity_keys or [],
+                backend_contract_refs=backend_contract_refs or [],
+                frontend_contract_refs=frontend_contract_refs or [],
+                documentation_refs=documentation_refs or [],
+                required_next_contract=required_next_contract,
+                blockers=blockers or [],
+                frontend_boundary=frontend_boundary,
+                spot_rule_boundary=spot_rule_boundary,
+            )
+
         modules = [
             module_item(
                 module_id="admin_system_health",
@@ -3230,6 +3291,589 @@ class AdminApiReadService:
                 ),
             ),
         ]
+        functionality_inventory = [
+            functionality_item(
+                workflow_id="admin.platform_evidence",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                workflow_type=AdminApiFunctionalityWorkflowType.PLATFORM_EVIDENCE,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned bootstrap, health, auth, capability, live-readiness, "
+                    "release, fixture, and enterprise-readiness evidence."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                read_routes=[
+                    "GET /api/v1/admin/bootstrap",
+                    "GET /api/v1/admin/health",
+                    "GET /api/v1/admin/session",
+                    "GET /api/v1/admin/oidc-readiness",
+                    "GET /api/v1/admin/capabilities",
+                    "GET /api/v1/admin/csrf",
+                    "GET /api/v1/admin/live-enablement",
+                    "GET /api/v1/admin/enterprise-readiness",
+                    "GET /api/v1/admin/release-gate",
+                    "GET /api/v1/admin/recovery-gate",
+                    "GET /api/v1/admin/fill-ledger-health",
+                    "GET /api/v1/admin/frontend-fixtures",
+                ],
+                identity_keys=["request_id", "correlation_id", "actor_id"],
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py",
+                    "api/v1/routes/admin.py",
+                    "application/admin_api/route_inventory.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/ADMIN_PLATFORM_ARCHITECTURE.md",
+                ],
+                frontend_boundary=(
+                    "Display platform evidence only; do not run backend tests, hold "
+                    "secrets, or approve live commands from the browser."
+                ),
+                spot_rule_boundary="Platform evidence is not a spot-rule source.",
+            ),
+            functionality_item(
+                workflow_id="spot.read_models",
+                module_id="spot_operations",
+                module="Spot Operations",
+                workflow_type=AdminApiFunctionalityWorkflowType.READ_MODEL,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot readiness, order, sweep, P/L, cost-basis, campaign, and "
+                    "direct-order audit reads are exposed through backend contracts."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                read_routes=[
+                    "GET /api/v1/orders",
+                    "GET /api/v1/orders/{client_order_id}",
+                    "GET /api/v1/spot/readiness",
+                    "GET /api/v1/spot/sweep/status",
+                    "GET /api/v1/spot/sweep/pnl",
+                    "GET /api/v1/spot/cost-basis/status",
+                    "GET /api/v1/spot/campaign/status",
+                    "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
+                ],
+                identity_keys=["client_order_id", "product_id", "campaign_id"],
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_spot_readiness",
+                    "business/spot_portfolio_sweep.py",
+                    "business/spot_inventory_authority.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/spot-ops/spotBackendAdapters.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "README.spot-portfolio-sweep.md",
+                    "README.spot-campaign.md",
+                ],
+                frontend_boundary=(
+                    "Display backend spot evidence; do not calculate wallet, cost-basis, "
+                    "profitability, or sell authority in the browser."
+                ),
+                spot_rule_boundary=(
+                    "Spot inventory, USDC scope, no shorting, and cost basis apply only "
+                    "inside spot workflows."
+                ),
+            ),
+            functionality_item(
+                workflow_id="spot.order_command_drafts",
+                module_id="spot_operations",
+                module="Spot Operations",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Manual order, cancel by client_order_id, and campaign execution "
+                    "commands are exposed as authenticated live-disabled drafts."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                command_routes=[
+                    "POST /api/v1/orders",
+                    "POST /api/v1/orders/{client_order_id}/cancel",
+                    "POST /api/v1/spot/campaign/executions",
+                ],
+                identity_keys=["client_order_id", "campaign_id"],
+                backend_contract_refs=[
+                    "application/admin_api/command_service.py",
+                    "api/v1/routes/orders.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/SPOT_ORDER_FRONTEND_FLOW.md",
+                ],
+                required_next_contract=(
+                    "Approval, cap/guard, audit, reconciliation, and live adapter "
+                    "admission must all pass before execution."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "approval_snapshot_missing",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "Keep buttons dry-submit/live-disabled unless backend capability "
+                    "and live-enablement evidence explicitly admit execution."
+                ),
+                spot_rule_boundary="Spot commands must preserve no-shorting and inventory authority.",
+            ),
+            functionality_item(
+                workflow_id="spot.sweep_automation_and_live_executor",
+                module_id="spot_operations",
+                module="Spot Operations",
+                workflow_type=AdminApiFunctionalityWorkflowType.AUTOMATION,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Backend sweep planning, scheduling, safety policy, live executor, "
+                    "run records, and reconciliation helpers exist; enterprise admin "
+                    "currently exposes status and live-disabled campaign execution."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                command_routes=["POST /api/v1/spot/campaign/executions"],
+                automation_routes=[
+                    "tools/run_spot_portfolio_sweep_live.py",
+                    "tools/run_spot_portfolio_sweep_dry_run.py",
+                    "tools/run_spot_campaign.py",
+                ],
+                identity_keys=["campaign_id", "config_id", "client_order_id"],
+                backend_contract_refs=[
+                    "business/spot_portfolio_sweep.py",
+                    "business/spot_campaign.py",
+                    "tools/run_spot_portfolio_sweep_live.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotCampaign",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-campaign.md",
+                    "README.spot-portfolio-sweep.md",
+                    "docs/SPOT_READINESS_ROADMAP.md",
+                ],
+                required_next_contract=(
+                    "Enterprise admin scheduling, approval, execution, recovery, and "
+                    "reconciliation contracts for durable sweep runs."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "backend scheduling UI contract missing",
+                    "approval and reconciliation contracts incomplete",
+                ],
+                frontend_boundary=(
+                    "Show automation status and draft execution only; do not launch "
+                    "live sweep tools or create a browser scheduler."
+                ),
+                spot_rule_boundary=(
+                    "Sweep automation is spot-only and must keep USDC, inventory, "
+                    "average-cost, and known-profitable sell authority inside backend gates."
+                ),
+            ),
+            functionality_item(
+                workflow_id="stealth.lifecycle_reads",
+                module_id="stealth_orders",
+                module="Stealth Orders",
+                workflow_type=AdminApiFunctionalityWorkflowType.READ_MODEL,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth list/detail reads expose lifecycle, placement, policy, and "
+                    "exchange-evidence state keyed by stealth_order_id."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                read_routes=[
+                    "GET /api/v1/stealth/orders",
+                    "GET /api/v1/stealth/orders/{stealth_order_id}",
+                ],
+                identity_keys=["stealth_order_id", "client_order_id"],
+                backend_contract_refs=[
+                    "core/stealth_order_manager.py",
+                    "application/admin_api/read_service.py::build_stealth_order_list",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::listStealthOrders",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                ],
+                frontend_boundary=(
+                    "Display stealth state only; active placement ids and exchange ids "
+                    "are not browser mutation authority."
+                ),
+                spot_rule_boundary=(
+                    "Spot guard evidence may apply to spot stealth orders only through "
+                    "backend checks."
+                ),
+            ),
+            functionality_item(
+                workflow_id="stealth.cancel_command_draft",
+                module_id="stealth_orders",
+                module="Stealth Orders",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth cancel is exposed as a live-disabled draft keyed by "
+                    "stealth_order_id and must preserve exchange-reality state."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                command_routes=["POST /api/v1/stealth/orders/{stealth_order_id}/cancel"],
+                identity_keys=["stealth_order_id"],
+                backend_contract_refs=[
+                    "application/admin_api/command_service.py::cancel_stealth_order_by_stealth_order_id",
+                    "api/v1/routes/stealth.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::cancelStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Live exchange cancel, audit, cap, approval, and reconciliation "
+                    "contract for active revealed placements."
+                ),
+                blockers=["live_execution_disabled", "exchange reality proof missing"],
+                frontend_boundary=(
+                    "Do not cancel by exchange order id or mutate active placement state "
+                    "from the browser."
+                ),
+                spot_rule_boundary="Stealth identity rules are not spot inventory rules.",
+            ),
+            functionality_item(
+                workflow_id="movement.repricing_reads",
+                module_id="movement_repricing",
+                module="Order Movement / Repricing",
+                workflow_type=AdminApiFunctionalityWorkflowType.READ_MODEL,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Movement/repricing evidence reads expose move records, stealth "
+                    "details, replacement slots, mutation claims, and cooldown evidence."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                read_routes=[
+                    "GET /api/v1/movement-repricing/evidence",
+                    "GET /api/v1/movement-repricing/orders/{client_order_id}",
+                    "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
+                ],
+                identity_keys=["client_order_id", "stealth_order_id"],
+                backend_contract_refs=[
+                    "business/move_manager.py",
+                    "core/stealth_order_manager.py",
+                    "application/admin_api/read_service.py::build_movement_repricing_evidence",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::listMovementRepricingEvidence",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=["README.movement-repricing.md"],
+                frontend_boundary=(
+                    "Display movement evidence only; do not clear cooldowns or mutate "
+                    "revealed placements."
+                ),
+                spot_rule_boundary=(
+                    "Spot replacement deltas are backend guard evidence only, not "
+                    "browser authority."
+                ),
+            ),
+            functionality_item(
+                workflow_id="movement.reprice_command_draft",
+                module_id="movement_repricing",
+                module="Order Movement / Repricing",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth reprice is exposed as a live-disabled cancel/replace-shaped "
+                    "draft keyed by stealth_order_id."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                command_routes=[
+                    "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+                ],
+                identity_keys=["stealth_order_id"],
+                backend_contract_refs=[
+                    "application/admin_api/command_service.py::reprice_stealth_order_by_stealth_order_id",
+                    "api/v1/routes/movement_repricing.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::repriceStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=["README.movement-repricing.md"],
+                required_next_contract=(
+                    "Backend live reprice contract with mutation claims, exchange "
+                    "cancel/replace, approval, cap, audit, and reconciliation."
+                ),
+                blockers=["live_execution_disabled", "cancel/replace reconciliation missing"],
+                frontend_boundary=(
+                    "Keep as dry-submit evidence; do not call legacy dashboard repricer "
+                    "or mutate cooldown state."
+                ),
+                spot_rule_boundary="No spot-only authority can approve movement/repricing.",
+            ),
+            functionality_item(
+                workflow_id="futures.read_models",
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                workflow_type=AdminApiFunctionalityWorkflowType.READ_MODEL,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                summary=(
+                    "Futures account and position read models are exposed with "
+                    "position_key identity and position/risk evidence."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                read_routes=[
+                    "GET /api/v1/futures/account",
+                    "GET /api/v1/futures/positions",
+                    "GET /api/v1/futures/positions/{position_key}",
+                ],
+                identity_keys=["position_key"],
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_futures_account",
+                    "application/admin_api/read_service.py::build_futures_positions",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getFuturesAccount",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=["README.futures-perpetuals.md"],
+                frontend_boundary=(
+                    "Display position/risk evidence only; do not infer close, reduce, "
+                    "or placement commands."
+                ),
+                spot_rule_boundary=(
+                    "Futures workflows must not use spot inventory, no-shorting, USDC, "
+                    "or cost-basis authority."
+                ),
+            ),
+            functionality_item(
+                workflow_id="futures.commands_not_modeled",
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                summary=(
+                    "Futures placement, close, reduce, cancel, and funding workflows "
+                    "are not modeled as Admin API commands yet."
+                ),
+                backend_supported=False,
+                admin_api_exposed=False,
+                frontend_exposed=False,
+                command_capable=True,
+                identity_keys=["position_key"],
+                required_next_contract=(
+                    "Backend command contracts over position side, margin, leverage, "
+                    "liquidation, reduce-only, close-only, funding, cap, approval, audit, "
+                    "and reconciliation evidence."
+                ),
+                blockers=["backend futures command contract missing"],
+                backend_contract_refs=["api/v1/routes/futures.py"],
+                frontend_contract_refs=["src/features/admin-shell/AdminShell.tsx"],
+                documentation_refs=["README.futures-perpetuals.md"],
+                frontend_boundary=(
+                    "Do not add futures command drafts from spot order/cancel patterns."
+                ),
+                spot_rule_boundary="Spot rules are forbidden in futures command authority.",
+            ),
+            functionality_item(
+                workflow_id="guard_risk.policy_evidence",
+                module_id="guard_risk_policy",
+                module="Guard / Risk Policy",
+                workflow_type=AdminApiFunctionalityWorkflowType.PLATFORM_EVIDENCE,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend guard/risk policy evidence is exposed as read-only "
+                    "authority-source, limit, profitability, wallet, and rejection evidence."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                read_routes=["GET /api/v1/admin/guard-risk-policy"],
+                identity_keys=["policy_id", "product_id", "correlation_id"],
+                backend_contract_refs=[
+                    "core/action_condition_guard.py",
+                    "core/product_capability.py",
+                    "application/admin_api/read_service.py::build_guard_risk_policy",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getGuardRiskPolicy",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=["README.guard-risk-policy.md"],
+                frontend_boundary=(
+                    "Display backend guard evidence; never calculate guard, wallet, "
+                    "inventory, margin, or profitability authority in the browser."
+                ),
+                spot_rule_boundary=(
+                    "Spot-specific guard rows may be displayed but must not become "
+                    "generic rules for non-spot workflows."
+                ),
+            ),
+            functionality_item(
+                workflow_id="audit.recovery_and_repair_evidence",
+                module_id="audit_workbench",
+                module="Audit Workbench",
+                workflow_type=AdminApiFunctionalityWorkflowType.RECOVERY,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Audit workbench, recovery gate, and fill-ledger health expose "
+                    "read-only cross-module recovery and repair evidence."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                read_routes=["GET /api/v1/admin/audit-workbench"],
+                recovery_routes=[
+                    "GET /api/v1/admin/recovery-gate",
+                    "GET /api/v1/admin/fill-ledger-health",
+                ],
+                identity_keys=[
+                    "client_order_id",
+                    "stealth_order_id",
+                    "position_key",
+                    "audit_id",
+                    "correlation_id",
+                ],
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_audit_workbench",
+                    "application/admin_api/read_service.py::build_recovery_gate",
+                    "application/admin_api/read_service.py::build_fill_ledger_health",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getAdminAuditWorkbench",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=["README.audit-workbench.md"],
+                required_next_contract=(
+                    "Backend-owned repair mutation contracts before any ledger/audit "
+                    "repair control is exposed."
+                ),
+                blockers=["repair mutation contract missing"],
+                frontend_boundary=(
+                    "Audit/recovery links are evidence only; do not mutate audit history, "
+                    "repair ledgers, or replay commands from the browser."
+                ),
+                spot_rule_boundary="Audit may display spot rows but cannot promote spot identity.",
+            ),
+            functionality_item(
+                workflow_id="audit.fill_ledger_repair_contract_required",
+                module_id="audit_workbench",
+                module="Audit Workbench",
+                workflow_type=AdminApiFunctionalityWorkflowType.REPAIR,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                summary=(
+                    "Fill-ledger repair tools and planning evidence exist outside the "
+                    "enterprise Admin API mutation plane."
+                ),
+                backend_supported=True,
+                admin_api_exposed=False,
+                frontend_exposed=False,
+                identity_keys=["client_order_id", "trade_id"],
+                backend_contract_refs=[
+                    "tools/run_spot_fill_ledger_repair.py",
+                    "business/fill_reconciler.py",
+                ],
+                documentation_refs=["docs/SPOT_READINESS_ROADMAP.md"],
+                required_next_contract=(
+                    "Backend-owned repair command with RBAC, idempotency, audit, "
+                    "dry-run preview, and reconciliation proof."
+                ),
+                blockers=["Admin API repair mutation contract missing"],
+                frontend_boundary=(
+                    "Do not expose ledger repair buttons until the backend mutation "
+                    "contract exists."
+                ),
+                spot_rule_boundary=(
+                    "Current repair tooling is spot/fill-ledger oriented and must not "
+                    "be generalized to futures or stealth state mutation."
+                ),
+            ),
+            functionality_item(
+                workflow_id="legacy.dashboard_compatibility",
+                module_id="legacy_dashboard_websocket",
+                module="Legacy Dashboard WebSocket",
+                workflow_type=AdminApiFunctionalityWorkflowType.LEGACY_COMPATIBILITY,
+                exposure_status=AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY,
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                summary=(
+                    "Legacy dashboard WebSocket live surfaces exist for compatibility "
+                    "but are not the enterprise admin command plane."
+                ),
+                backend_supported=True,
+                admin_api_exposed=False,
+                frontend_exposed=False,
+                command_capable=True,
+                live_designated=True,
+                legacy_surfaces=[
+                    "place_order WebSocket",
+                    "place_hotpoint_test_order WebSocket",
+                    "cancel_order WebSocket",
+                ],
+                identity_keys=["client_order_id"],
+                backend_contract_refs=["dashboard_server.py", "docs/LIVE_ORDER_SURFACES.md"],
+                frontend_contract_refs=["src/shared/api/contracts/adminBffProxy.ts"],
+                documentation_refs=["docs/LIVE_ORDER_SURFACES.md"],
+                required_next_contract=(
+                    "Any enterprise replacement must be an Admin API route through "
+                    "auth, RBAC, idempotency, approval, caps, audit, and reconciliation."
+                ),
+                blockers=["compatibility-only surface"],
+                frontend_boundary=(
+                    "Do not call legacy dashboard WebSocket command handlers from the "
+                    "enterprise frontend."
+                ),
+                spot_rule_boundary=(
+                    "Legacy spot behavior is not reusable frontend authority."
+                ),
+            ),
+        ]
         unsupported_statuses = {
             AdminApiModuleSupportStatus.NOT_MODELED,
             AdminApiModuleSupportStatus.UNSUPPORTED,
@@ -3288,6 +3932,34 @@ class AdminApiReadService:
         )
         unsupported_module_count = len(modules) - supported_module_count
         command_gap_count = sum(len(module.command_gaps) for module in modules)
+        functionality_inventory_count = len(functionality_inventory)
+        backend_supported_workflow_count = sum(
+            1 for item in functionality_inventory if item.backend_supported
+        )
+        admin_exposed_workflow_count = sum(
+            1 for item in functionality_inventory if item.admin_api_exposed
+        )
+        command_workflow_count = sum(
+            1 for item in functionality_inventory if item.command_capable
+        )
+        live_designated_workflow_count = sum(
+            1 for item in functionality_inventory if item.live_designated
+        )
+        recovery_workflow_count = sum(
+            1
+            for item in functionality_inventory
+            if item.workflow_type == AdminApiFunctionalityWorkflowType.RECOVERY
+        )
+        automation_workflow_count = sum(
+            1
+            for item in functionality_inventory
+            if item.workflow_type == AdminApiFunctionalityWorkflowType.AUTOMATION
+        )
+        repair_workflow_count = sum(
+            1
+            for item in functionality_inventory
+            if item.workflow_type == AdminApiFunctionalityWorkflowType.REPAIR
+        )
         status = (
             AdminApiGateStatus.BLOCKED
             if any(
@@ -3307,7 +3979,16 @@ class AdminApiReadService:
             module_action_posture_count=sum(
                 1 for module in modules if module.action_posture is not None
             ),
+            functionality_inventory_count=functionality_inventory_count,
+            backend_supported_workflow_count=backend_supported_workflow_count,
+            admin_exposed_workflow_count=admin_exposed_workflow_count,
+            command_workflow_count=command_workflow_count,
+            live_designated_workflow_count=live_designated_workflow_count,
+            recovery_workflow_count=recovery_workflow_count,
+            automation_workflow_count=automation_workflow_count,
+            repair_workflow_count=repair_workflow_count,
             modules=modules,
+            functionality_inventory=functionality_inventory,
             security_checks=security_checks,
             release_checks=release_checks,
         )

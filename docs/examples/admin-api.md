@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1421-1440",
+  "approved_phase_range": "1441-1460",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -842,7 +842,8 @@ live-enablement adapter evidence without making route-to-service mapping
 executable. M45 adds command admission execution-intent evidence without
 making command-to-service intent executable. M46 adds normalized
 live-readiness checklist evidence without making any prerequisite executable
-or admissive. None of these
+or admissive. M47 adds a backend-owned functionality inventory and gap ledger
+without adding mutation or live authority. None of these
 milestones adds an approval endpoint, browser approval, or Coinbase execution
 path.
 
@@ -853,19 +854,80 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1421-1440",
+  "approved_phase_range": "1441-1460",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
+  "functionality_inventory_count": 14,
+  "backend_supported_workflow_count": 13,
+  "admin_exposed_workflow_count": 11,
+  "command_workflow_count": 6,
+  "live_designated_workflow_count": 5,
+  "recovery_workflow_count": 1,
+  "automation_workflow_count": 1,
+  "repair_workflow_count": 1,
+  "functionality_inventory": [
+    {
+      "workflow_id": "spot.order_command_drafts",
+      "module_id": "spot_operations",
+      "module": "Spot Operations",
+      "workflow_type": "command_draft",
+      "exposure_status": "admin_draft_live_disabled",
+      "support_status": "command_draft_live_disabled",
+      "backend_supported": true,
+      "admin_api_exposed": true,
+      "frontend_exposed": true,
+      "command_capable": true,
+      "live_designated": true,
+      "live_enabled": false,
+      "identity_keys": ["client_order_id", "campaign_id"],
+      "command_routes": [
+        "POST /api/v1/orders",
+        "POST /api/v1/orders/{client_order_id}/cancel",
+        "POST /api/v1/spot/campaign/executions"
+      ],
+      "required_next_contract": "Approval, cap/guard, audit, reconciliation, and live adapter admission must all pass before execution.",
+      "blockers": [
+        "live_execution_disabled",
+        "approval_snapshot_missing",
+        "cap_guard_missing",
+        "reconciliation_plan_missing"
+      ],
+      "frontend_boundary": "Keep buttons dry-submit/live-disabled unless backend capability and live-enablement evidence explicitly admit execution.",
+      "spot_rule_boundary": "Spot commands must preserve no-shorting and inventory authority.",
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "workflow_id": "futures.commands_not_modeled",
+      "module_id": "futures_perpetuals",
+      "module": "Futures / Perpetuals",
+      "workflow_type": "command_draft",
+      "exposure_status": "backend_contract_required",
+      "support_status": "not_modeled",
+      "backend_supported": false,
+      "admin_api_exposed": false,
+      "frontend_exposed": false,
+      "command_capable": true,
+      "live_designated": false,
+      "live_enabled": false,
+      "required_next_contract": "Backend command contracts over position side, margin, leverage, liquidation, reduce-only, close-only, funding, cap, approval, audit, and reconciliation evidence.",
+      "blockers": ["backend futures command contract missing"],
+      "frontend_boundary": "Do not add futures command drafts from spot order/cancel patterns.",
+      "spot_rule_boundary": "Spot rules are forbidden in futures command authority.",
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    }
+  ],
   "modules": [
     {
       "module_id": "spot_operations",

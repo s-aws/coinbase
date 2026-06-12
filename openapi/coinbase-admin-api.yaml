@@ -3017,6 +3017,30 @@ components:
       type: object
       title: AdminApiFlexibleObject
       description: Typed object shell that preserves backend-owned read payload detail.
+    AdminApiFunctionalityExposureStatus:
+      type: string
+      enum:
+      - admin_exposed
+      - admin_draft_live_disabled
+      - backend_contract_required
+      - admin_unsupported
+      - compatibility_only
+      title: AdminApiFunctionalityExposureStatus
+      description: Whether a backend workflow is exposed through the enterprise admin
+        path.
+    AdminApiFunctionalityWorkflowType:
+      type: string
+      enum:
+      - platform_evidence
+      - read_model
+      - command_draft
+      - live_execution
+      - recovery
+      - automation
+      - repair
+      - legacy_compatibility
+      title: AdminApiFunctionalityWorkflowType
+      description: Enterprise admin workflow classification for backend functionality.
     AdminApiGateStatus:
       type: string
       enum:
@@ -3708,6 +3732,137 @@ components:
       - frontend_boundary
       title: AdminEnterpriseCommandGapItem
       description: Structured evidence for a command path that is blocked or not modeled.
+    AdminEnterpriseFunctionalityInventoryItem:
+      properties:
+        workflow_id:
+          type: string
+          title: Workflow Id
+        module_id:
+          type: string
+          title: Module Id
+        module:
+          type: string
+          title: Module
+        workflow_type:
+          $ref: '#/components/schemas/AdminApiFunctionalityWorkflowType'
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        summary:
+          type: string
+          title: Summary
+        backend_supported:
+          type: boolean
+          title: Backend Supported
+        admin_api_exposed:
+          type: boolean
+          title: Admin Api Exposed
+        frontend_exposed:
+          type: boolean
+          title: Frontend Exposed
+        command_capable:
+          type: boolean
+          title: Command Capable
+          default: false
+        live_designated:
+          type: boolean
+          title: Live Designated
+          default: false
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        recovery_routes:
+          items:
+            type: string
+          type: array
+          title: Recovery Routes
+        automation_routes:
+          items:
+            type: string
+          type: array
+          title: Automation Routes
+        legacy_surfaces:
+          items:
+            type: string
+          type: array
+          title: Legacy Surfaces
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        required_next_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Next Contract
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        frontend_boundary:
+          type: string
+          title: Frontend Boundary
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
+        live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - workflow_id
+      - module_id
+      - module
+      - workflow_type
+      - exposure_status
+      - support_status
+      - summary
+      - backend_supported
+      - admin_api_exposed
+      - frontend_exposed
+      - frontend_boundary
+      - spot_rule_boundary
+      title: AdminEnterpriseFunctionalityInventoryItem
+      description: One backend workflow and its enterprise admin exposure posture.
     AdminEnterpriseModuleActionPosture:
       properties:
         module_id:
@@ -3903,11 +4058,48 @@ components:
           type: integer
           title: Module Action Posture Count
           default: 0
+        functionality_inventory_count:
+          type: integer
+          title: Functionality Inventory Count
+          default: 0
+        backend_supported_workflow_count:
+          type: integer
+          title: Backend Supported Workflow Count
+          default: 0
+        admin_exposed_workflow_count:
+          type: integer
+          title: Admin Exposed Workflow Count
+          default: 0
+        command_workflow_count:
+          type: integer
+          title: Command Workflow Count
+          default: 0
+        live_designated_workflow_count:
+          type: integer
+          title: Live Designated Workflow Count
+          default: 0
+        recovery_workflow_count:
+          type: integer
+          title: Recovery Workflow Count
+          default: 0
+        automation_workflow_count:
+          type: integer
+          title: Automation Workflow Count
+          default: 0
+        repair_workflow_count:
+          type: integer
+          title: Repair Workflow Count
+          default: 0
         modules:
           items:
             $ref: '#/components/schemas/AdminEnterpriseReadinessModuleItem'
           type: array
           title: Modules
+        functionality_inventory:
+          items:
+            $ref: '#/components/schemas/AdminEnterpriseFunctionalityInventoryItem'
+          type: array
+          title: Functionality Inventory
         security_checks:
           items:
             $ref: '#/components/schemas/AdminGateCheck'

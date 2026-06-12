@@ -200,6 +200,29 @@ class AdminApiModuleSupportStatus(str, Enum):
     UNSUPPORTED = "unsupported"
 
 
+class AdminApiFunctionalityWorkflowType(str, Enum):
+    """Enterprise admin workflow classification for backend functionality."""
+
+    PLATFORM_EVIDENCE = "platform_evidence"
+    READ_MODEL = "read_model"
+    COMMAND_DRAFT = "command_draft"
+    LIVE_EXECUTION = "live_execution"
+    RECOVERY = "recovery"
+    AUTOMATION = "automation"
+    REPAIR = "repair"
+    LEGACY_COMPATIBILITY = "legacy_compatibility"
+
+
+class AdminApiFunctionalityExposureStatus(str, Enum):
+    """Whether a backend workflow is exposed through the enterprise admin path."""
+
+    ADMIN_EXPOSED = "admin_exposed"
+    ADMIN_DRAFT_LIVE_DISABLED = "admin_draft_live_disabled"
+    BACKEND_CONTRACT_REQUIRED = "backend_contract_required"
+    ADMIN_UNSUPPORTED = "admin_unsupported"
+    COMPATIBILITY_ONLY = "compatibility_only"
+
+
 class AdminApiCommandRoutesMode(str, Enum):
     """Command-route posture exposed by read models."""
 

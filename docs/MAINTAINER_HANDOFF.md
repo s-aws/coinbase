@@ -97,8 +97,18 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1421-1440`.
-- M46 live readiness precondition evidence is active for phases `1421-1440`.
+- Active autonomous range: `1441-1460`.
+- M47 backend functionality inventory and gap ledger is active for phases
+  `1441-1460`. The existing
+  `GET /api/v1/admin/enterprise-readiness` route should report
+  backend-owned workflow inventory rows for read, command, live, recovery,
+  repair, automation, and legacy compatibility surfaces. Inventory rows must
+  classify gaps as `not_modeled`, `unsupported`, or
+  `backend_contract_required`, and must not add mutation routes, live
+  execution, approval mutation, route-local execution, browser/BFF authority,
+  Coinbase calls, or parallel endpoints.
+- M46 live readiness precondition evidence is complete for phases
+  `1421-1440`.
   `GET /api/v1/admin/live-enablement` may report a normalized backend-owned
   checklist for approval store, approval snapshot, admission audit, cap/guard,
   reconciliation, live execution adapter, execution intent envelope,

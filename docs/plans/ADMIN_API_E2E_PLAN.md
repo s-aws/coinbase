@@ -38,7 +38,117 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Live Readiness Preconditions Evidence Batch - Phases 1421-1440
+## Active Backend Functionality Inventory Batch - Phases 1441-1460
+
+### Phase 1441 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1421-1440 to active
+  phases 1441-1460 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1442 - M47 Functionality Inventory Contract
+
+- Extend existing `GET /api/v1/admin/enterprise-readiness` with a
+  backend-owned `functionality_inventory` gap ledger for read, command, live,
+  recovery, repair, automation, and legacy workflows.
+
+### Phase 1443 - Backend Range Evidence
+
+- Keep backend enterprise-readiness, autonomous, runtime, and handoff checks
+  reporting the 1441-1460 phase range.
+
+### Phase 1444 - Workflow Type And Exposure Enums
+
+- Add typed workflow and exposure classifications through `core/enums.py`
+  instead of magic strings.
+
+### Phase 1445 - Enterprise Readiness Inventory Model
+
+- Add typed response models and aggregate counts for workflow inventory rows
+  without adding mutation request models or live execution fields.
+
+### Phase 1446 - Inventory Source Mapping
+
+- Map inventory rows from existing Admin API routes, command metadata,
+  module readiness, capability rows, docs, and legacy surface evidence.
+
+### Phase 1447 - Read, Command, And Live Classification
+
+- Classify each read model, command draft, and live-designated workflow with
+  route ids, identity keys, exposure status, blockers, and next contract.
+
+### Phase 1448 - Recovery, Repair, And Automation Classification
+
+- Classify recovery, repair, campaign, scheduler, sweep, retry, and
+  automation workflows as exposed, draft/live-disabled, unsupported, or
+  backend-contract-required.
+
+### Phase 1449 - Legacy Compatibility Classification
+
+- Mark legacy dashboard WebSocket command surfaces as compatibility-only and
+  explicitly outside the enterprise admin command plane.
+
+### Phase 1450 - Aggregate Inventory Counts
+
+- Expose backend-supported, admin-exposed, command, live-designated,
+  recovery, repair, and automation workflow counts from enterprise readiness.
+
+### Phase 1451 - Route, Identity, And Contract References
+
+- Include route lists, identity keys, backend contract refs, frontend
+  contract refs, documentation refs, frontend boundaries, and spot-rule
+  boundaries for each workflow row.
+
+### Phase 1452 - Missing-Contract Blockers
+
+- Represent gaps as `not_modeled`, `unsupported`, or
+  `backend_contract_required`; do not replace missing backend behavior with
+  route-local logic.
+
+### Phase 1453 - OpenAPI And Examples
+
+- Regenerate OpenAPI and update Admin API examples for the inventory fields
+  while preserving no-live evidence and notional `$0`.
+
+### Phase 1454 - Capability Matrix And Handoff Docs
+
+- Update capability matrix, maintainer handoff, durable milestones, and docs
+  index references so contextless agents can find M47 before implementation.
+
+### Phase 1455 - Frontend Range Sync
+
+- Coordinate frontend schema, mocks, runtime evidence, quality artifacts,
+  autonomous queue, and release validators for 1441-1460.
+
+### Phase 1456 - Drift Scan
+
+- Scan both repos for stale active ranges, M46 active wording, browser/BFF
+  authority drift, direct legacy WebSocket command use, and accidental live
+  enablement.
+
+### Phase 1457 - Focused Backend Gates
+
+- Run focused backend Admin API/enterprise-readiness tests and backend
+  autonomous queue validation for M47.
+
+### Phase 1458 - Focused Frontend Gates
+
+- Run focused frontend API, unit, lint/type, autonomous, and relevant smoke
+  checks that cover functionality inventory rendering.
+
+### Phase 1459 - Blind/Contextless Review
+
+- Run blind/contextless review to confirm a fresh agent can explain the
+  remaining admin work from the inventory without inventing frontend trading
+  behavior or spot-specific non-spot rules.
+
+### Phase 1460 - Full Gates And Summary
+
+- Run full backend regression and frontend release gate. Summarize live
+  Coinbase execution status and notional. Default remains no-live with
+  submitted and executed notional `$0`.
+
+## Completed Live Readiness Preconditions Evidence Batch - Phases 1421-1440
 
 ### Phase 1421 - Advance Active Queue Range
 

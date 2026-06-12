@@ -57,6 +57,32 @@ FastAPI handlers. When a backend feature is not implemented, the admin platform
 should expose that as `not_modeled` or `unsupported` until a backend-owned
 module contract exists.
 
+## Roadmap Sequencing Rules
+
+Future milestones must advance in dependency order. A later milestone cannot
+claim completion unless the prerequisite contract evidence exists in the
+current worktree and is covered by tests.
+
+1. Inventory first: identify backend-supported workflows, unsupported
+   workflows, and missing contracts before adding UI or routes.
+2. Mutation taxonomy second: define identity keys, RBAC, idempotency, audit,
+   approval, cap/guard, and reconciliation requirements before adding write
+   endpoints.
+3. Gate primitives third: approval lifecycle, cap/guard execution,
+   admission audit, and reconciliation proof must exist before live adapters.
+4. Controlled execution fourth: live adapters may be enabled only through the
+   shared command service after all gate primitives pass.
+5. Module completion fifth: spot, stealth, movement/repricing,
+   futures/perpetuals, campaigns, repair, and operations finish only through
+   their module-owned backend contracts.
+6. Release last: security, regression, live-cap, recovery, deployment,
+   contextless review, and public handoff evidence must prove the full scope.
+
+If a milestone discovers missing backend functionality, the correct result is
+`not_modeled`, `unsupported`, or a new prerequisite milestone. Do not fill the
+gap with frontend logic, BFF logic, route-local execution, or a second trading
+path.
+
 ## Milestone Status
 
 | Milestone | Status | Purpose |
@@ -107,21 +133,45 @@ module contract exists.
 | M43 - Disabled Live Execution Service Foundation | Complete | Add a backend-owned disabled service descriptor for command admission without adding execution methods, browser approval, or Coinbase execution. |
 | M44 - Live Execution Adapter Contract Evidence | Complete | Expose backend-owned route-to-shared-command live execution adapter evidence without adding executable adapters, browser approval, or Coinbase execution. |
 | M45 - Live Execution Intent Envelope Evidence | Complete | Expose backend-owned command admission execution-intent evidence without adding executable adapters, browser approval, BFF execution authority, or Coinbase execution. |
-| M46 - Live Readiness Preconditions Evidence | Active | Normalize live-enablement prerequisites into backend-owned read-only checklist evidence without adding approval mutation, command authority, or Coinbase execution. |
-| M47 - Full Backend Functionality Inventory | Planned | Inventory all backend-supported read, write, recovery, automation, and live workflows and classify what enterprise admin must expose. |
-| M48 - Approval Mutation Contract | Planned | Add backend-owned approval request/record mutation contracts without making browser approval sufficient for live execution. |
-| M49 - Cap/Guard Execution Contract | Planned | Wire route-specific backend cap/guard decision execution into command admission without browser guard authority. |
-| M50 - Admission Audit Writer Completion | Planned | Complete append-only live admission audit writing and linking before any live adapter can run. |
-| M51 - Reconciliation Execution Contract | Planned | Add backend-owned reconciliation plan execution/proof contracts for admitted commands without browser reconciliation authority. |
-| M52 - Controlled Live Execution Adapter Implementation | Planned | Implement executable backend live adapters only after approval, cap/guard, audit, and reconciliation gates pass. |
-| M53 - Spot Full Admin Operations | Planned | Bring spot read, dry-run, approval, execution, reconciliation, recovery, campaign, and sweep workflows to full gated admin functionality. |
-| M54 - Stealth Full Admin Operations | Planned | Bring stealth create/cancel/move/reprice/recovery workflows to full gated admin functionality while preserving exchange-reality invariants. |
-| M55 - Movement/Repricing Full Admin Operations | Planned | Bring movement/repricing write workflows to full gated admin functionality through existing mutation claims and exchange handling. |
-| M56 - Futures/Perpetuals Full Admin Operations | Planned | Add futures/perpetual command and risk workflows only after backend-owned position, margin, liquidation, reduce-only, close-only, and funding contracts exist. |
-| M57 - Campaign/Sweep Full Admin Operations | Planned | Bring automation, scheduling, execution, reconciliation, retry, and recovery workflows to full gated admin functionality. |
-| M58 - Audit, Recovery, And Repair Operations | Planned | Add non-trading administrative write workflows for audit, ledger repair, recovery gates, and operator runbooks through backend-owned contracts. |
-| M59 - Production Operations Administration | Planned | Add role, policy, configuration, deployment, and observability administration without exposing secrets or browser-held backend authority. |
-| M60 - Full Functionality Release Candidate | Planned | Prove all supported backend functionality through release, security, regression, live-cap, and contextless review gates. |
+| M46 - Live Readiness Preconditions Evidence | Complete | Normalize live-enablement prerequisites into backend-owned read-only checklist evidence without adding approval mutation, command authority, or Coinbase execution. |
+| M47 - Backend Functionality Inventory And Gap Ledger | Complete | Produce the current authoritative backend-owned workflow inventory for read, command, live, recovery, repair, automation, and legacy surfaces, with explicit admin exposure status and missing-contract blockers. |
+| M48 - Mutation Taxonomy And Authority Map | Next | Define every admin mutation family, identity key, RBAC permission, idempotency rule, audit requirement, and owning backend service before adding new write routes. |
+| M49 - Approval Request And Decision Lifecycle | Planned | Add backend-owned approval request, review, revoke, expiry, and snapshot-linking contracts without making browser approval sufficient for live execution. |
+| M50 - Cap/Guard Decision Execution Records | Planned | Persist route-specific backend cap/guard decisions and link them to command admission without browser guard, wallet, margin, or profitability authority. |
+| M51 - Admission Audit Writer And Linkage | Planned | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
+| M52 - Reconciliation Plan And Proof Runner | Planned | Add backend-owned reconciliation plan creation, execution, and proof contracts for admitted commands without browser reconciliation authority. |
+| M53 - Controlled Execution Adapter Pilot | Planned | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
+| M54 - Spot Full Admin Command Suite | Planned | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
+| M55 - Stealth Full Admin Command Suite | Planned | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
+| M56 - Movement/Repricing Full Admin Command Suite | Planned | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | Planned | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M58 - Automation, Campaign, Scheduler, And Retry Suite | Planned | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
+| M59 - Recovery, Repair, Policy, And Operations Admin | Planned | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
+| M60 - Full Functionality Release Candidate | Planned | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
+
+## Remaining Milestone Dependency Ledger
+
+This section is the authoritative sequencing contract for M47-M60. Numbered
+phases are execution slices inside these milestones; agents may split a
+milestone into smaller phases, but they must not skip the dependency gate or
+broaden the milestone's authority.
+
+| Milestone | Depends On | Backend Deliverable | Required Proof | Explicit Non-Goals |
+| --- | --- | --- | --- | --- |
+| M47 - Backend Functionality Inventory And Gap Ledger | M46 live-readiness evidence. | Extend `GET /api/v1/admin/enterprise-readiness` with the current authoritative workflow inventory rows for read, command, live, recovery, repair, automation, and legacy surfaces. | OpenAPI, route examples, inventory counts, capability matrix, docs, backend regression, frontend release gate after consumption, blind/contextless review. | No new mutation route, live execution, approval mutation, route-local executor, Coinbase call, or browser/BFF authority. |
+| M48 - Mutation Taxonomy And Authority Map | M47 inventory must identify all command-capable and missing-contract workflows. | Define mutation families, identity keys, RBAC permissions, idempotency keys, audit events, approval requirements, cap/guard requirements, reconciliation requirements, and owning backend service for every supported or planned command. | Contract tests prove every command route maps to exactly one taxonomy row; docs explain unsupported/not-modeled gaps. | No command execution, approval decision storage, live adapter, or copied spot command semantics for non-spot modules. |
+| M49 - Approval Request And Decision Lifecycle | M48 taxonomy must define which commands require approval and what identity snapshot they bind to. | Add backend approval request, review, revoke, expiry, and snapshot-linking contracts through the existing approval store path. | Append-only approval tests, idempotency tests, RBAC tests, audit linkage, OpenAPI, examples, frontend generated schema and display. | Browser approval is not sufficient for execution; no live adapter and no route-local approval store. |
+| M50 - Cap/Guard Decision Execution Records | M48 taxonomy and M49 approval identities. | Persist backend cap/guard decisions for admitted commands, linked to payload, actor, route, module, approval snapshot, and audit id. | Tests prove wallet, margin, profitability, inventory, and account-limit decisions come from backend guards and are fail-closed. | No browser guard evaluator, no frontend wallet authority, no futures use of spot guard rules. |
+| M51 - Admission Audit Writer And Linkage | M49 approval lifecycle and M50 cap/guard records. | Complete append-only admission audit writer that links identity, payload, approval, cap/guard, reconciliation intent, and live-intent evidence. | Audit immutability tests, correlation-id tests, replay/read tests, OpenAPI examples, frontend audit trace rendering. | No mutable audit rows, no hidden live state, no execution without an audit write. |
+| M52 - Reconciliation Plan And Proof Runner | M51 audit linkage. | Add backend reconciliation plan creation, execution, and proof contracts for admitted commands before execution adapters can run. | Tests cover plan generation, proof persistence, failure handling, and readback from audit/recovery surfaces. | Browser cannot execute reconciliation and cannot mark exchange state reconciled. |
+| M53 - Controlled Execution Adapter Pilot | M49-M52 all complete and fail-closed. | Enable one tightly capped backend live adapter through the shared command service and existing exchange/domain path. | Live-cap evidence, dry-run proof, focused tests, backend regression, frontend release gate, blind review, and explicit Coinbase notional report if live is run. | No browser live switch, no BFF execution authority, no second trading path, no multi-module rollout. |
+| M54 - Spot Full Admin Command Suite | M53 pilot plus spot inventory, cost-basis, no-shorting, campaign, sweep, P/L, and recovery contracts. | Complete spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation, and live execution admin workflows through the gate chain. | Spot-focused regression, live-cap tests, campaign/recovery tests, frontend release gate, blind review, Coinbase notional report for live tests. | Spot rules must not become platform defaults or futures/stealth authority. |
+| M55 - Stealth Full Admin Command Suite | M53 pilot plus stealth lifecycle locks, exchange-truth invariants, and cancel/move/reveal contracts. | Complete stealth create, cancel, reveal, move, reprice, recovery, and reconciliation admin workflows through existing stealth manager and bridge paths. | Stealth regression, exchange-truth tests, active-placement audit evidence, frontend release gate, blind review. | No hide-again shortcut, no local state mutation without live cancel/move/reconcile proof, no `order_id` internal tracking. |
+| M56 - Movement/Repricing Full Admin Command Suite | M53 pilot plus movement claim, replacement-slot, cooldown, cancel/replace, and audit contracts. | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, recovery, and reconciliation workflows through existing mutation claims. | Movement/repricing regression, claim-lock tests, replacement-slot tests, frontend release gate, blind review. | No bypass of locks, no direct dashboard WebSocket mutation, no browser cooldown clearing. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | M48 taxonomy plus futures-specific risk semantics. | Add futures/perpetual position, margin, collateral, liquidation, reduce-only, close-only, funding, order, cancel, and reconciliation contracts before UI command enablement. | Futures contract tests, risk/cap tests, no-spot-rule review, OpenAPI, examples, frontend generated schema and release gate. | No spot wallet/no-shorting/cost-basis assumptions; no command drafts copied from spot without futures semantics. |
+| M58 - Automation, Campaign, Scheduler, And Retry Suite | M54 spot commands and the generic approval/cap/audit/reconciliation chain. | Add durable scheduling, run limits, pause/resume, retry, operator status, recovery, and reconciliation contracts for automations. | Scheduler persistence tests, retry/idempotency tests, run-limit tests, recovery tests, frontend release gate, blind review. | No browser scheduler, no unbounded loops, no live run without explicit cap and audit evidence. |
+| M59 - Recovery, Repair, Policy, And Operations Admin | M51-M52 audit/reconciliation foundation and module-specific repair contracts. | Add backend-owned repair, policy/configuration, role, deployment, observability, and runbook administration with dry-run/preview where destructive. | RBAC tests, repair dry-run tests, policy audit tests, secret-boundary checks, frontend release gate, blind review. | No secret exposure, no direct database repair from browser, no mutation without audit and rollback/preview evidence. |
+| M60 - Full Functionality Release Candidate | M47-M59 complete or explicitly deferred as unsupported/not-modeled. | Prove the complete enterprise admin platform for all backend-supported features with release packaging, operator docs, security review, and handoff evidence. | Backend full regression, frontend `npm run release:gate`, security review, live-cap ledger, contextless reviews, docs index, maintainer handoff. | No unclassified gaps, no undocumented live behavior, no frontend-only functionality claim. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1946,34 +1996,78 @@ Purpose: make the live-enablement route show a normalized backend-owned
 checklist of prerequisites before any live-shaped command can ever become
 executable.
 
-Active scope:
+Completed scope:
 
-- Phases 1421-1440 advance the active unattended range while preserving the
-  same no-live frontend posture and carried Coinbase cap policy.
-- `GET /api/v1/admin/live-enablement` may expose per-route
+- Phases 1421-1440 advanced the unattended range while preserving the same
+  no-live frontend posture and carried Coinbase cap policy.
+- `GET /api/v1/admin/live-enablement` exposes per-route
   `readiness_preconditions` derived from existing live-enablement evidence:
   approval store, approval snapshot, admission audit, cap/guard,
   reconciliation, live execution adapter, execution intent envelope,
   browser/BFF boundary, and disabled live execution service.
-- The checklist is read-only evidence. It must not call command admission with
+- The checklist is read-only evidence. It does not call command admission with
   synthetic identities, re-resolve stores, create a separate preflight
   endpoint, remove command blockers, mark paths live eligible, or create any
   route-local executor.
 - Browser authority remains `display_only`, BFF authority remains
   `forward_only_no_execution`, and live Coinbase execution remains not run.
 
-Done when:
+Completed evidence:
 
-- Backend models, OpenAPI, live-enablement response, tests, docs, examples,
-  and autonomous validator report phase range `1421-1440` and the normalized
-  readiness precondition evidence.
-- Frontend generated schema, mocks, governance UI, runtime/quality artifacts,
-  docs, and tests consume the backend checklist as display-only evidence.
-- Blind/contextless review confirms no browser approval, BFF execution
-  authority, route-local execution, command-admission broadening, live switch,
-  Coinbase call, or order/exchange-state mutation was added.
-- Backend full regression and frontend `npm run release:gate` pass.
-- Live Coinbase execution is not run; submitted and executed notional remain
+- Backend commit `44016e7` added the contract, OpenAPI, tests, examples, and
+  autonomous validator updates for `1421-1440`.
+- Frontend commit `24fa853` consumed the backend checklist as display-only
+  evidence.
+- Blind/contextless review passed and confirmed no browser approval, BFF
+  execution authority, route-local execution, command-admission broadening,
+  live switch, Coinbase call, or order/exchange-state mutation was added.
+- Backend full regression passed with `799 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M47 - Backend Functionality Inventory And Gap Ledger
+
+Purpose: stop guessing at the next admin features by making the backend report
+the current authoritative workflow ledger that the enterprise admin platform
+must cover.
+
+Completed scope:
+
+- Phases 1441-1460 advanced the unattended range while preserving the same
+  no-live posture and carried Coinbase cap policy.
+- Existing `GET /api/v1/admin/enterprise-readiness`, not a new endpoint, now
+  exposes `functionality_inventory` rows for read, command, live, recovery,
+  repair, automation, and legacy compatibility workflows.
+- Each row states module id, workflow type, exposure status,
+  backend-supported status, Admin API exposure, frontend exposure,
+  command/live flags, identity keys, routes/surfaces, contract refs, docs,
+  blockers, required next contract, frontend boundary, and spot-rule
+  boundary.
+- Missing behavior is classified as `not_modeled`, `unsupported`, or
+  `backend_contract_required`; M47 added no mutations, live execution,
+  approval mutation, route-local execution, browser authority, BFF execution
+  authority, Coinbase calls, or parallel endpoint.
+- The inventory is a curated backend-owned ledger, not a static analyzer over
+  every Python symbol, dashboard callback, or WebSocket handler. M48 must use
+  this ledger to add mutation taxonomy and coverage proof before any new write
+  route or UI is added.
+
+Completed evidence:
+
+- Backend models, enums, OpenAPI, enterprise-readiness response, route
+  examples, tests, docs, capability matrix, handoff, and autonomous validator
+  report phase range `1441-1460` and workflow inventory counts.
+- Frontend generated schema, mocks, module catalog UI, quality artifacts,
+  docs, and tests render the inventory as a gap ledger without enabling
+  commands.
+- Blind/contextless review confirmed a fresh agent can explain M47, M48, and
+  the no-frontend/BFF/route-local-authority boundary.
+- Backend full regression passed with `799 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run; submitted and executed notional remain
   `$0`.
 
 ## M24 - Enterprise Module Catalog
