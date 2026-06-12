@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiApprovalLifecycleStatus,
     AdminApiCommandStatus,
     AdminApiCommandRoutesMode,
     AdminApiErrorCode,
@@ -293,6 +294,121 @@ class CampaignExecutionCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     request: CampaignExecutionRequest
     allow_live_execution: bool = False
+
+
+class AdminApprovalRequestCreateRequest(BaseModel):
+    """Request a backend-owned approval snapshot for a command attempt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    operator_intent: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    request_reason: str | None = None
+
+
+class AdminApprovalDecisionRequest(BaseModel):
+    """Approve or reject a requested backend-owned approval snapshot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: AdminApiApprovalLifecycleStatus
+    decision_reason: str | None = None
+    expires_at: str | None = None
+    cap_guard_decision_ref: str | None = None
+    reconciliation_plan_ref: str | None = None
+
+
+class AdminApprovalRevokeRequest(BaseModel):
+    """Revoke an approved backend approval snapshot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revoke_reason: str | None = None
+
+
+class AdminApprovalLifecycleItem(BaseModel):
+    """Operator-visible state for one backend approval lifecycle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    approval_request_id: str
+    approval_id: str | None = None
+    status: AdminApiApprovalLifecycleStatus
+    requested_at: str
+    decided_at: str | None = None
+    revoked_at: str | None = None
+    expires_at: str | None = None
+    expired: bool = False
+    route: str
+    method: str
+    module_id: str
+    identity_key: str
+    identity_value: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    requested_by_actor_id: str
+    decision_actor_id: str | None = None
+    revoked_by_actor_id: str | None = None
+    operator_intent: str
+    command_idempotency_key: str
+    payload_hash: str
+    cap_guard_decision_ref: str | None = None
+    reconciliation_plan_ref: str | None = None
+    request_reason: str | None = None
+    decision_reason: str | None = None
+    revoke_reason: str | None = None
+    snapshot_linked: bool = False
+    live_execution_authority: bool = False
+    live_exchange_submitted: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class AdminApprovalListResponse(BaseModel):
+    """List backend-owned approval lifecycle records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_approval_lifecycle_list"
+    approvals: list[AdminApprovalLifecycleItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    pending_count: int = Field(ge=0)
+    approved_count: int = Field(ge=0)
+    rejected_count: int = Field(ge=0)
+    revoked_count: int = Field(ge=0)
+    expired_count: int = Field(ge=0)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminApprovalLifecycleResponse(BaseModel):
+    """Response for approval lifecycle mutations and detail reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_approval_lifecycle"
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    approval: AdminApprovalLifecycleItem | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
 
 
 class AdminApiCommandResponse(BaseModel):

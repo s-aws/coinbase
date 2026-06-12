@@ -41,6 +41,13 @@ cap/guard, admission audit, reconciliation, and owning service evidence.
 Taxonomy rows are read-only evidence; they do not create approval mutation,
 route-local execution, live adapters, BFF execution authority, or Coinbase
 calls.
+M49 adds a backend-owned approval request and decision lifecycle through the
+existing append-only approval store. Approval requests, approve/reject
+decisions, revocations, and expiry-derived status are typed Admin API
+contracts. Approved decisions link the existing resolver-compatible approval
+snapshot record, but browser approval remains insufficient for live execution:
+cap/guard, admission audit, reconciliation, disabled live service, and live
+adapter gates still fail closed.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -65,6 +72,11 @@ the route, method, module id, identity key, identity value, requesting actor,
 idempotency key, operator intent, and payload hash to the approval snapshot,
 admission audit, cap/guard, and reconciliation blockers before HTTP live
 execution can be enabled.
+For `POST /api/v1/orders`, the route attaches a stable backend-owned
+`client_order_id` before admission when the request omits one. The id is
+derived from endpoint, actor, idempotency key, and the payload hash so replay
+evidence is stable while the browser still does not create or override order
+identity. The command remains live-disabled and returns `501`.
 
 Current read-only HTTP surfaces include:
 
@@ -82,6 +94,8 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
 - `GET /api/v1/admin/frontend-fixtures`
+- `GET /api/v1/admin/approvals`
+- `GET /api/v1/admin/approvals/requests/{approval_request_id}`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
@@ -112,6 +126,8 @@ WebSocket compatibility command surfaces, and two backend-contract-required
 families for futures/perpetual commands and fill-ledger repair. Every current
 command surface in `ADMIN_API_ROUTE_INVENTORY` must appear in exactly one
 taxonomy row.
+M49 adds the `admin.approval_lifecycle` taxonomy row for approval request,
+decision, and revoke local-state mutation routes.
 
 Current mutating HTTP command surfaces are:
 
@@ -120,6 +136,17 @@ Current mutating HTTP command surfaces are:
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 - `POST /api/v1/spot/campaign/executions`
+
+Current local-state approval lifecycle mutation surfaces are:
+
+- `POST /api/v1/admin/approvals/requests`
+- `POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions`
+- `POST /api/v1/admin/approvals/{approval_id}/revoke`
+
+These approval lifecycle routes are authenticated, authorized, idempotent, and
+audited. They write backend-owned approval lifecycle evidence only; they do not
+submit orders, cancel orders, run guards, execute reconciliation, or call
+Coinbase.
 
 The current operational dashboard is still the proof-of-concept WebSocket and
 HTML surface documented in `agent.md` and `genai_data/API_REFERENCE.md`.
@@ -193,6 +220,9 @@ The platform/module split is documented in
   idempotency, approval, and cap gates, label it compatibility-only and exclude
   it from new frontend workflows.
 - Use `client_order_id` for internal and operator-facing order tracking.
+- Manual order create may omit `client_order_id`; the backend route derives it
+  before approval/admission evidence. Frontend and BFF code must display the
+  returned id but must not generate or override it.
 - Preserve Coinbase cancellation through the project wrapper
   `cancel_order(client_order_id)`, which accepts only explicit Coinbase
   `success: true` cancel evidence as success.

@@ -128,6 +128,9 @@ class AdminApiPermission(str, Enum):
 
     ANALYTICS_READ = "analytics:read"
     AUDIT_READ = "audit:read"
+    APPROVAL_READ = "approval:read"
+    APPROVAL_REQUEST = "approval:request"
+    APPROVAL_MANAGE = "approval:manage"
     ORDER_CREATE = "order:create"
     ORDER_CANCEL = "order:cancel"
     CAMPAIGN_READ = "campaign:read"
@@ -226,6 +229,7 @@ class AdminApiFunctionalityExposureStatus(str, Enum):
 class AdminApiMutationFamilyType(str, Enum):
     """Enterprise admin mutation family classification."""
 
+    ADMIN_APPROVAL_LIFECYCLE = "admin_approval_lifecycle"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"
@@ -236,6 +240,24 @@ class AdminApiMutationFamilyType(str, Enum):
     LEGACY_DASHBOARD_PLACE = "legacy_dashboard_place"
     LEGACY_DASHBOARD_HOTPOINT = "legacy_dashboard_hotpoint"
     LEGACY_DASHBOARD_CANCEL = "legacy_dashboard_cancel"
+
+
+class AdminApiApprovalLifecycleStatus(str, Enum):
+    """Lifecycle state for backend-owned approval records."""
+
+    REQUESTED = "requested"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
+class AdminApiApprovalLifecycleEventType(str, Enum):
+    """Append-only event type for the approval lifecycle store."""
+
+    REQUEST_CREATED = "request_created"
+    DECISION_RECORDED = "decision_recorded"
+    APPROVAL_REVOKED = "approval_revoked"
 
 
 class AdminApiCommandRoutesMode(str, Enum):

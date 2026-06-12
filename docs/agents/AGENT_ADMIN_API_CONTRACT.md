@@ -95,6 +95,11 @@ Approval snapshot resolver infrastructure is backend-only. It may resolve an
 exact unexpired approval-store record into immutable evidence, but it must not
 become approval mutation, browser approval, command authority, Coinbase
 execution, or reconciliation proof.
+Approval lifecycle routes are backend-owned local-state mutations. They may
+request, approve/reject, revoke, and expose expiring approval snapshot
+evidence through `application/admin_api/approval_service.py`, but they must not
+call Coinbase, call command execution adapters, run guard decisions, execute
+reconciliation, or make browser approval sufficient for live execution.
 Resolver-backed command admission evidence remains fail-closed. A resolved
 snapshot may remove only `approval_snapshot_missing`; it does not authorize
 live execution while live-disabled, admission-audit, cap/guard,

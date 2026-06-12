@@ -38,7 +38,113 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Mutation Taxonomy Batch - Phases 1461-1480
+## Active Approval Lifecycle Batch - Phases 1481-1500
+
+### Phase 1481 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1461-1480 to active
+  phases 1481-1500 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1482 - M49 Approval Lifecycle Contract
+
+- Add backend-owned approval request, review, decision, revoke, expiry, and
+  snapshot-linking contracts through the existing Admin API approval store path.
+
+### Phase 1483 - Backend Range Evidence
+
+- Keep backend enterprise-readiness, autonomous, runtime, and handoff checks
+  reporting the 1481-1500 phase range.
+
+### Phase 1484 - Approval Lifecycle Enums And Models
+
+- Add typed approval lifecycle status/event enums and OpenAPI models without
+  using magic strings or spot-specific identity assumptions.
+
+### Phase 1485 - Approval Store Lifecycle Events
+
+- Extend the existing append-only approval store with lifecycle events while
+  preserving the existing resolver snapshot record path.
+
+### Phase 1486 - Approval Request Route
+
+- Add an authenticated, RBAC-gated, idempotent, audited route for requesting
+  approval against a route-inventory command shape.
+
+### Phase 1487 - Approval Decision Route
+
+- Add an admin-managed approval/rejection decision route that links approved
+  snapshots to payload hash, command idempotency, actor, cap/guard ref, and
+  reconciliation ref without executing commands.
+
+### Phase 1488 - Approval Revoke And Expiry
+
+- Add revoke handling and expiry-derived status so revoked or expired
+  snapshots fail closed in the existing approval resolver.
+
+### Phase 1489 - Approval Lifecycle Reads
+
+- Add list/detail reads for approval lifecycle state keyed by
+  `approval_request_id` and `approval_id` evidence, with no Coinbase calls.
+
+### Phase 1490 - Route Inventory And Mutation Taxonomy
+
+- Add approval lifecycle routes to route inventory and map them to one
+  platform mutation taxonomy row so every mutating surface remains classified.
+
+### Phase 1491 - Audit And Idempotency Proof
+
+- Prove approval lifecycle mutations append audit evidence, replay exact
+  idempotency requests, and reject idempotency drift.
+
+### Phase 1492 - RBAC Separation Proof
+
+- Prove traders can request approval for commands they are otherwise allowed
+  to submit, but only approval managers/admins can decide or revoke approvals.
+
+### Phase 1493 - OpenAPI And Backend Examples
+
+- Regenerate OpenAPI and route inventory artifacts; update Admin API examples
+  and docs for request, decision, revoke, expiry, and snapshot-linking evidence.
+
+### Phase 1494 - Capability Matrix And Handoff Docs
+
+- Update capability matrix, maintainer handoff, durable milestones, route
+  inventory, and docs index references for M49.
+
+### Phase 1495 - Frontend Schema Sync
+
+- Regenerate frontend OpenAPI types from the backend schema and add canonical
+  backend client wrappers for approval lifecycle reads and mutations.
+
+### Phase 1496 - Frontend BFF Boundary
+
+- Add BFF allowlist and mutation evidence handling for approval lifecycle
+  routes without creating browser approval authority or command execution.
+
+### Phase 1497 - Frontend Approval Lifecycle Surface
+
+- Add enterprise admin UI for approval list/detail, request, decision, revoke,
+  and expiry evidence using generated contracts and backend decisions only.
+
+### Phase 1498 - Focused Gates
+
+- Run focused backend Admin API tests, backend autonomous queue validation,
+  frontend route coverage, unit/component tests, and command-security checks.
+
+### Phase 1499 - Blind/Contextless Review
+
+- Run blind/contextless review confirming approval lifecycle is a platform
+  primitive, not browser approval, BFF execution authority, or live Coinbase
+  execution.
+
+### Phase 1500 - Full Gates And Summary
+
+- Run full backend regression and frontend release gate. Summarize live
+  Coinbase execution status and notional. Default remains no-live with
+  submitted and executed notional `$0`.
+
+## Completed Mutation Taxonomy Batch - Phases 1461-1480
 
 ### Phase 1461 - Advance Active Queue Range
 
@@ -2370,6 +2476,10 @@ Replays return the stored response; payload drift returns conflict.
 - Require `Idempotency-Key` on live POST commands.
 - Persist command key, actor, role, endpoint, operator intent, payload hash, generated
   `client_order_id`, status, response, failure stage, and timestamps.
+- For manual order create requests that omit `client_order_id`, derive a
+  backend-owned stable UUID from endpoint, actor, idempotency key, and payload
+  hash before command admission. Keep the payload hash bound to the submitted
+  client body, not to a browser-generated id.
 - Replays with the same key and same payload hash return the original result.
 - Replays with the same key and different payload hash, including changed
   operator intent, return conflict.
@@ -2389,6 +2499,9 @@ enforcement are wired into the route admission path.
 - Live placement requires server-side approval, not only a frontend checkbox.
 - Approval binds to product, side, size, price, order config, cap result, actor,
   generated `client_order_id`, and payload hash.
+- If the approval target is a website-created manual order, its
+  `client_order_id` must come from backend command/admission evidence or a
+  future backend reservation/execution transition, not from browser code.
 - Execution rejects when the submitted payload differs from the approved
   snapshot.
 - Keep manual spot live acknowledgement, but do not treat it as sufficient

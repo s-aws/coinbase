@@ -13,6 +13,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiApprovalLifecycleEventType,
+    AdminApiApprovalLifecycleStatus,
     AdminApiGateStatus,
     AdminApiLiveAdmissionBlocker,
     AdminApiPermission,
@@ -130,6 +132,39 @@ class AdminApiApprovalRecord(BaseModel):
         return expires_at <= check_time
 
 
+class AdminApiApprovalLifecycleEvent(BaseModel):
+    """Append-only event for backend-owned approval request and decision state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
+    event_type: AdminApiApprovalLifecycleEventType
+    recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    approval_request_id: str = Field(default_factory=lambda: str(uuid4()), min_length=1)
+    approval_id: str | None = None
+    status: AdminApiApprovalLifecycleStatus
+    actor_id: str = Field(min_length=1)
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    requested_by_actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    expires_at: datetime | None = None
+    cap_guard_decision_ref: str | None = None
+    reconciliation_plan_ref: str | None = None
+    request_reason: str | None = None
+    decision_reason: str | None = None
+    revoke_reason: str | None = None
+    live_exchange_submitted: bool = False
+    browser_authority: str = "display_only"
+
+
 class FileAdminApiApprovalStore:
     """Append-only JSONL approval store for future live Admin API commands."""
 
@@ -149,6 +184,13 @@ class FileAdminApiApprovalStore:
                 handle.write(record.model_dump_json() + "\n")
             return record.approval_id
 
+    def append_lifecycle_event(self, event: AdminApiApprovalLifecycleEvent) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(event.model_dump_json() + "\n")
+            return event.event_id
+
     def read_recent(self, *, limit: int = 100) -> list[AdminApiApprovalRecord]:
         normalized_limit = max(1, min(limit, 500))
         with self._lock:
@@ -166,6 +208,61 @@ class FileAdminApiApprovalStore:
             if len(records) >= normalized_limit:
                 break
         return records
+
+    def read_lifecycle_events(
+        self,
+        *,
+        limit: int = 500,
+    ) -> list[AdminApiApprovalLifecycleEvent]:
+        """Return recent approval lifecycle events, newest first."""
+
+        normalized_limit = max(1, min(limit, 1000))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        events: list[AdminApiApprovalLifecycleEvent] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                events.append(AdminApiApprovalLifecycleEvent.model_validate_json(line))
+            except ValueError:
+                continue
+            if len(events) >= normalized_limit:
+                break
+        return events
+
+    def find_lifecycle_request(
+        self,
+        *,
+        approval_request_id: str,
+    ) -> AdminApiApprovalLifecycleEvent | None:
+        for event in self.read_lifecycle_events(limit=1000):
+            if (
+                event.approval_request_id == approval_request_id
+                and event.event_type == AdminApiApprovalLifecycleEventType.REQUEST_CREATED
+            ):
+                return event
+        return None
+
+    def find_by_approval_id(
+        self,
+        approval_id: str,
+    ) -> AdminApiApprovalRecord | None:
+        for record in self.read_recent(limit=1000):
+            if record.approval_id == approval_id:
+                return record
+        return None
+
+    def approval_is_revoked(self, approval_id: str) -> bool:
+        for event in self.read_lifecycle_events(limit=1000):
+            if (
+                event.approval_id == approval_id
+                and event.event_type == AdminApiApprovalLifecycleEventType.APPROVAL_REVOKED
+            ):
+                return True
+        return False
 
     def find_matching(
         self,
@@ -185,6 +282,8 @@ class FileAdminApiApprovalStore:
     ) -> AdminApiApprovalRecord | None:
         for record in self.read_recent(limit=500):
             if record.is_expired(now):
+                continue
+            if self.approval_is_revoked(record.approval_id):
                 continue
             if (
                 record.route == route

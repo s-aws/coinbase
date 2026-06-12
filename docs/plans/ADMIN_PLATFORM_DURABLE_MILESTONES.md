@@ -135,8 +135,8 @@ path.
 | M45 - Live Execution Intent Envelope Evidence | Complete | Expose backend-owned command admission execution-intent evidence without adding executable adapters, browser approval, BFF execution authority, or Coinbase execution. |
 | M46 - Live Readiness Preconditions Evidence | Complete | Normalize live-enablement prerequisites into backend-owned read-only checklist evidence without adding approval mutation, command authority, or Coinbase execution. |
 | M47 - Backend Functionality Inventory And Gap Ledger | Complete | Produce the current authoritative backend-owned workflow inventory for read, command, live, recovery, repair, automation, and legacy surfaces, with explicit admin exposure status and missing-contract blockers. |
-| M48 - Mutation Taxonomy And Authority Map | Next | Define every admin mutation family, identity key, RBAC permission, idempotency rule, audit requirement, and owning backend service before adding new write routes. |
-| M49 - Approval Request And Decision Lifecycle | Planned | Add backend-owned approval request, review, revoke, expiry, and snapshot-linking contracts without making browser approval sufficient for live execution. |
+| M48 - Mutation Taxonomy And Authority Map | Complete | Define every admin mutation family, identity key, RBAC permission, idempotency rule, audit requirement, and owning backend service before adding new write routes. |
+| M49 - Approval Request And Decision Lifecycle | Active | Add backend-owned approval request, review, revoke, expiry, and snapshot-linking contracts without making browser approval sufficient for live execution. |
 | M50 - Cap/Guard Decision Execution Records | Planned | Persist route-specific backend cap/guard decisions and link them to command admission without browser guard, wallet, margin, or profitability authority. |
 | M51 - Admission Audit Writer And Linkage | Planned | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
 | M52 - Reconciliation Plan And Proof Runner | Planned | Add backend-owned reconciliation plan creation, execution, and proof contracts for admitted commands without browser reconciliation authority. |
@@ -2108,6 +2108,56 @@ Done when:
 - Backend full regression and frontend `npm run release:gate` pass.
 - Live Coinbase execution is not run; submitted and executed notional remain
   `$0`.
+
+## M49 - Approval Request And Decision Lifecycle
+
+Purpose: make approval request, decision, revoke, expiry, and snapshot-linking
+state backend-owned and durable without making browser approval sufficient for
+live execution.
+
+Active scope:
+
+- Phases 1481-1500 advance the unattended range while preserving the same
+  no-live posture and carried Coinbase cap policy.
+- Approval lifecycle routes are platform local-state mutations:
+  `POST /api/v1/admin/approvals/requests`,
+  `POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions`,
+  and `POST /api/v1/admin/approvals/{approval_id}/revoke`.
+- Approval lifecycle reads are
+  `GET /api/v1/admin/approvals` and
+  `GET /api/v1/admin/approvals/requests/{approval_request_id}`.
+- Approved decisions write the existing resolver-compatible approval snapshot
+  record, while lifecycle events capture request, decision, revoke, and
+  expiry evidence in the same backend approval store path.
+- Revoked and expired approval snapshots must fail closed in the existing
+  approval resolver.
+- The `admin.approval_lifecycle` mutation taxonomy row classifies the three
+  approval lifecycle POST routes as one platform mutation family.
+
+Current backend evidence:
+
+- `core/enums.py` defines approval lifecycle permissions, statuses, events,
+  and mutation family enum values.
+- `application/admin_api/approval.py` keeps the existing approval snapshot
+  record path and adds append-only lifecycle events.
+- `application/admin_api/approval_service.py` owns lifecycle transitions and
+  route-inventory validation.
+- `api/v1/routes/approvals.py` provides authenticated, RBAC-gated,
+  idempotent, audited approval lifecycle routes without Coinbase calls.
+- Backend focused Admin API regression passed for approval lifecycle create,
+  approve, replay, idempotency conflict, revoke, expiry, RBAC, resolver
+  fail-closed behavior, route inventory, OpenAPI, and mutation taxonomy.
+
+Remaining proof before completion:
+
+- Frontend generated schema, canonical wrappers, BFF allowlist, UI, mocks,
+  docs, and release gate must consume the lifecycle contracts.
+- Blind/contextless review must confirm a fresh agent does not treat browser
+  approval, BFF forwarding, or a linked snapshot as live execution authority.
+- Backend full regression and frontend `npm run release:gate` must pass.
+- Live Coinbase execution must remain not run unless a later explicitly
+  approved phase says otherwise; submitted and executed notional remain `$0`
+  for M49.
 
 ## M24 - Enterprise Module Catalog
 

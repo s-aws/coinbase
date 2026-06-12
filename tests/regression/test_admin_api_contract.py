@@ -24,11 +24,13 @@ from application.admin_api.auth import (
 )
 from application.admin_api import command_service
 from application.admin_api.approval import (
+    AdminApiApprovalLifecycleEvent,
     AdminApiApprovalRecord,
     ApprovalSnapshotRequest,
     FileAdminApiApprovalStore,
     resolve_approval_snapshot,
 )
+from application.admin_api.approval_service import AdminApiApprovalLifecycleService
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
 from application.admin_api.cap_guard import (
     CapGuardDecisionRequest,
@@ -56,12 +58,15 @@ from application.admin_api.live_execution import (
 )
 from application.admin_api.models import (
     AdminApiActor,
+    AdminApprovalRequestCreateRequest,
     AdminLiveAdmissionDecisionEvidence,
     ManualOrderRequest,
 )
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
     AdminApiActionClass,
+    AdminApiApprovalLifecycleEventType,
+    AdminApiApprovalLifecycleStatus,
     AdminApiAuthMode,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
@@ -120,6 +125,7 @@ def _store_dir() -> Path:
 
 
 def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    from api.v1.routes import approvals as approval_routes
     from api.v1.routes import orders as order_routes
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
@@ -143,6 +149,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[order_routes.get_reconciliation_store] = (
         lambda: reconciliation_store
     )
+    app.dependency_overrides[approval_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[approval_routes.get_audit_store] = lambda: audit_store
+    app.dependency_overrides[approval_routes.get_approval_store] = lambda: approval_store
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
     client.admin_api_test_audit_store = audit_store
@@ -222,6 +233,35 @@ def _manual_order_approval_payload(
             _manual_order_payload(client_order_id=client_order_id)
         ).model_dump(mode="json"),
         "path_params": {},
+    }
+
+
+def _approval_request_payload(
+    *,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+) -> dict:
+    return {
+        "route": "/api/v1/orders",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": client_order_id,
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "required_permission": AdminApiPermission.ORDER_CREATE.value,
+        "operator_intent": operator_intent,
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash
+        or make_payload_hash(
+            _manual_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+                idempotency_key=idempotency_key,
+            )
+        ),
+        "request_reason": "operator wants a bounded manual order approval",
     }
 
 
@@ -1127,7 +1167,8 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert payload["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
     assert payload["required_permission"] == AdminApiPermission.ORDER_CREATE.value
     assert payload["service_method"] == "place_manual_order"
-    assert payload["client_order_id"] is None
+    client_order_id = payload["client_order_id"]
+    assert client_order_id
     assert payload["live_exchange_submitted"] is False
     assert payload["failure_stage"] == "approval"
     assert payload["guard"]["approval_snapshot_required"] is True
@@ -1140,7 +1181,7 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["method"] == "POST"
     assert admission["module_id"] == "spot_operations"
     assert admission["identity_key"] == "client_order_id"
-    assert admission["identity_value"] is None
+    assert admission["identity_value"] == client_order_id
     assert admission["service_method"] == "place_manual_order"
     assert admission["actor_id"] == "operator-001"
     assert admission["idempotency_key"] == "idem-001"
@@ -1154,22 +1195,26 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["approval_snapshot_present"] is False
     assert admission["approval_snapshot_id"] is None
     assert admission["approval_snapshot_source"] == "missing"
-    assert admission["approval_snapshot_missing_reason"] == "identity_value_missing"
+    assert admission["approval_snapshot_missing_reason"] == (
+        "no_matching_unexpired_snapshot"
+    )
     assert admission["admission_audit_present"] is False
     assert admission["admission_audit_id"] is None
     assert admission["admission_audit_source"] == "missing"
     assert admission["admission_audit_recorded_at"] is None
-    assert admission["admission_audit_missing_reason"] == "identity_value_missing"
+    assert admission["admission_audit_missing_reason"] == "approval_snapshot_missing"
     assert admission["cap_guard_present"] is False
     assert admission["cap_guard_decision_id"] is None
     assert admission["cap_guard_source"] == "missing"
     assert admission["cap_guard_recorded_at"] is None
-    assert admission["cap_guard_missing_reason"] == "identity_value_missing"
+    assert admission["cap_guard_missing_reason"] == "approval_snapshot_missing"
     assert admission["reconciliation_plan_present"] is False
     assert admission["reconciliation_plan_id"] is None
     assert admission["reconciliation_plan_source"] == "missing"
     assert admission["reconciliation_plan_recorded_at"] is None
-    assert admission["reconciliation_plan_missing_reason"] == "identity_value_missing"
+    assert admission["reconciliation_plan_missing_reason"] == (
+        "approval_snapshot_missing"
+    )
     assert admission["live_execution_service_required"] is True
     assert admission["live_execution_service_present"] is True
     assert admission["live_execution_service_status"] == "live_disabled"
@@ -1186,7 +1231,7 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
         module_id="spot_operations",
         service_method="place_manual_order",
         identity_key="client_order_id",
-        identity_value=None,
+        identity_value=client_order_id,
     )
     assert "approval_store_missing" not in admission["blockers"]
     assert "approval_snapshot_missing" in admission["blockers"]
@@ -1915,7 +1960,10 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
 def test_admin_api_examples_keep_operator_intent_in_headers():
     doc = (ROOT / "docs" / "examples" / "admin-api.md").read_text(encoding="utf-8")
     assert "X-Operator-Intent: manual_one_off" in doc
-    assert '"operator_intent":' not in doc
+    command_examples = doc.split("## Approval Lifecycle", maxsplit=1)[0]
+    approval_lifecycle_examples = doc.split("## Approval Lifecycle", maxsplit=1)[1]
+    assert '"operator_intent":' not in command_examples
+    assert '"operator_intent":' in approval_lifecycle_examples
 
 
 @pytest.mark.regression
@@ -2085,6 +2133,328 @@ def test_admin_api_approval_store_is_append_only_expiring_and_payload_bound():
             idempotency_key="idem-approval",
             payload_hash="a" * 64,
             now=now,
+        )
+        is None
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_approval_lifecycle_routes_create_approve_replay_and_conflict(monkeypatch):
+    client = _client(monkeypatch)
+    request_headers = _headers(
+        idempotency_key="approval-request-idem",
+        operator_intent="request_manual_order_approval",
+        roles=AdminApiRole.TRADER.value,
+    )
+    request_body = _approval_request_payload()
+
+    created = client.post(
+        "/api/v1/admin/approvals/requests",
+        headers=request_headers,
+        json=request_body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "accepted"
+    assert created_payload["required_permission"] == "approval:request"
+    assert created_payload["service_method"] == "create_approval_request"
+    assert created_payload["live_exchange_submitted"] is False
+    assert created_payload["live_coinbase_orders_ran"] is False
+    approval_request = created_payload["approval"]
+    assert approval_request["status"] == "requested"
+    assert approval_request["approval_id"] is None
+    assert approval_request["requested_by_actor_id"] == "operator-001"
+    assert approval_request["identity_key"] == "client_order_id"
+    assert approval_request["identity_value"] == "client-approved"
+    assert approval_request["command_idempotency_key"] == "idem-approved"
+    assert approval_request["snapshot_linked"] is False
+    assert approval_request["live_execution_authority"] is False
+    assert approval_request["browser_authority"] == "display_only"
+
+    approval_request_id = approval_request["approval_request_id"]
+    listed = client.get(
+        "/api/v1/admin/approvals",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed.status_code == 200
+    list_payload = listed.json()
+    assert list_payload["pending_count"] == 1
+    assert list_payload["approved_count"] == 0
+    assert list_payload["live_coinbase_orders_ran"] is False
+    assert list_payload["approvals"][0]["approval_request_id"] == approval_request_id
+
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    decision_headers = _headers(
+        idempotency_key="approval-decision-idem",
+        operator_intent="approve_manual_order_snapshot",
+        roles=AdminApiRole.ADMIN.value,
+    )
+    decision_body = {
+        "decision": AdminApiApprovalLifecycleStatus.APPROVED.value,
+        "decision_reason": "bounded canary approval",
+        "expires_at": expires_at,
+        "cap_guard_decision_ref": "cap-guard-approval-001",
+        "reconciliation_plan_ref": "reconciliation-approval-001",
+    }
+
+    decided = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=decision_headers,
+        json=decision_body,
+    )
+
+    assert decided.status_code == 200
+    decision_payload = decided.json()
+    assert decision_payload["required_permission"] == "approval:manage"
+    approved = decision_payload["approval"]
+    assert approved["status"] == "approved"
+    assert approved["approval_id"]
+    assert approved["decision_actor_id"] == "operator-001"
+    assert approved["snapshot_linked"] is True
+    assert approved["live_execution_authority"] is False
+
+    snapshot = resolve_approval_snapshot(
+        store=client.admin_api_test_approval_store,
+        request=ApprovalSnapshotRequest(
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-approved",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            requested_by_actor_id="operator-001",
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approved",
+            payload_hash=request_body["payload_hash"],
+        ),
+        now=datetime.now(timezone.utc),
+    )
+    assert snapshot is not None
+    assert snapshot.approval_id == approved["approval_id"]
+
+    replayed = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=decision_headers,
+        json=decision_body,
+    )
+    assert replayed.status_code == 200
+    assert replayed.headers["X-Idempotency-Replayed"] == "true"
+    assert replayed.json()["approval"]["approval_id"] == approved["approval_id"]
+
+    conflict_body = dict(decision_body)
+    conflict_body["decision_reason"] = "changed reason"
+    conflict = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=decision_headers,
+        json=conflict_body,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == "conflict"
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=20)
+    assert any(row.permission == AdminApiPermission.APPROVAL_REQUEST for row in audit_rows)
+    assert any(row.permission == AdminApiPermission.APPROVAL_MANAGE for row in audit_rows)
+
+
+@pytest.mark.regression
+def test_admin_api_approval_lifecycle_revoke_blocks_snapshot_resolution(monkeypatch):
+    client = _client(monkeypatch)
+    request_body = _approval_request_payload(client_order_id="client-revoke")
+    created = client.post(
+        "/api/v1/admin/approvals/requests",
+        headers=_headers(
+            idempotency_key="approval-request-revoke-idem",
+            operator_intent="request_revoke_fixture",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=request_body,
+    )
+    approval_request_id = created.json()["approval"]["approval_request_id"]
+    decision = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=_headers(
+            idempotency_key="approval-decision-revoke-idem",
+            operator_intent="approve_revoke_fixture",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "decision": AdminApiApprovalLifecycleStatus.APPROVED.value,
+            "decision_reason": "temporary approval",
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+            "cap_guard_decision_ref": "cap-guard-revoke-001",
+            "reconciliation_plan_ref": "reconciliation-revoke-001",
+        },
+    )
+    approval_id = decision.json()["approval"]["approval_id"]
+
+    revoked = client.post(
+        f"/api/v1/admin/approvals/{approval_id}/revoke",
+        headers=_headers(
+            idempotency_key="approval-revoke-idem",
+            operator_intent="revoke_snapshot",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={"revoke_reason": "operator cancelled the approval"},
+    )
+
+    assert revoked.status_code == 200
+    revoked_approval = revoked.json()["approval"]
+    assert revoked_approval["status"] == "revoked"
+    assert revoked_approval["approval_id"] == approval_id
+    assert revoked_approval["snapshot_linked"] is False
+    assert revoked_approval["revoked_by_actor_id"] == "operator-001"
+    assert client.admin_api_test_approval_store.approval_is_revoked(approval_id) is True
+    assert (
+        resolve_approval_snapshot(
+            store=client.admin_api_test_approval_store,
+            request=ApprovalSnapshotRequest(
+                route="/api/v1/orders",
+                method="POST",
+                module_id="spot_operations",
+                identity_key="client_order_id",
+                identity_value="client-revoke",
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                requested_by_actor_id="operator-001",
+                operator_intent="manual_one_off",
+                idempotency_key="idem-approved",
+                payload_hash=request_body["payload_hash"],
+            ),
+            now=datetime.now(timezone.utc),
+        )
+        is None
+    )
+
+    revoked_list = client.get(
+        "/api/v1/admin/approvals?lifecycle_status=revoked",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert revoked_list.status_code == 200
+    assert revoked_list.json()["returned_count"] == 1
+    assert revoked_list.json()["revoked_count"] == 1
+
+
+@pytest.mark.regression
+def test_admin_api_approval_lifecycle_rbac_and_expiry_are_fail_closed(monkeypatch):
+    client = _client(monkeypatch)
+    created = client.post(
+        "/api/v1/admin/approvals/requests",
+        headers=_headers(
+            idempotency_key="approval-request-rbac-idem",
+            operator_intent="request_rbac_fixture",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=_approval_request_payload(client_order_id="client-rbac"),
+    )
+    approval_request_id = created.json()["approval"]["approval_request_id"]
+
+    denied = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=_headers(
+            idempotency_key="approval-decision-denied-idem",
+            operator_intent="unauthorized_approval_decision",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "decision": AdminApiApprovalLifecycleStatus.APPROVED.value,
+            "decision_reason": "should fail",
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+            "cap_guard_decision_ref": "cap-guard-denied",
+            "reconciliation_plan_ref": "reconciliation-denied",
+        },
+    )
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "permission_denied"
+
+    service = AdminApiApprovalLifecycleService()
+    store = FileAdminApiApprovalStore(_store_dir() / "expired_approval.jsonl")
+    now = datetime(2026, 6, 12, tzinfo=timezone.utc)
+    request_item = service.create_request(
+        store=store,
+        body=AdminApprovalRequestCreateRequest.model_validate(
+            _approval_request_payload(client_order_id="client-expired")
+        ),
+        actor_id="operator-001",
+        now=now,
+    )
+    store.append(
+        AdminApiApprovalRecord(
+            created_at=now,
+            expires_at=now + timedelta(minutes=1),
+            approved_by_actor_id="approver-001",
+            requested_by_actor_id="operator-001",
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-expired",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approved",
+            payload_hash=_approval_request_payload(client_order_id="client-expired")[
+                "payload_hash"
+            ],
+            cap_guard_decision_ref="cap-guard-expired",
+            reconciliation_plan_ref="reconciliation-expired",
+        )
+    )
+    store.append_lifecycle_event(
+        AdminApiApprovalLifecycleEvent(
+            event_type=AdminApiApprovalLifecycleEventType.DECISION_RECORDED,
+            recorded_at=now,
+            approval_request_id=request_item.approval_request_id,
+            approval_id=store.read_recent(limit=1)[0].approval_id,
+            status=AdminApiApprovalLifecycleStatus.APPROVED,
+            actor_id="approver-001",
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-expired",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            requested_by_actor_id="operator-001",
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approved",
+            payload_hash=_approval_request_payload(client_order_id="client-expired")[
+                "payload_hash"
+            ],
+            expires_at=now + timedelta(minutes=1),
+            cap_guard_decision_ref="cap-guard-expired",
+            reconciliation_plan_ref="reconciliation-expired",
+        )
+    )
+
+    expired_items = service.list_approvals(
+        store=store,
+        status_filter=AdminApiApprovalLifecycleStatus.EXPIRED,
+        now=now + timedelta(minutes=2),
+    )
+    assert len(expired_items) == 1
+    assert expired_items[0].status == AdminApiApprovalLifecycleStatus.EXPIRED
+    assert expired_items[0].snapshot_linked is False
+    assert (
+        resolve_approval_snapshot(
+            store=store,
+            request=ApprovalSnapshotRequest(
+                route="/api/v1/orders",
+                method="POST",
+                module_id="spot_operations",
+                identity_key="client_order_id",
+                identity_value="client-expired",
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                requested_by_actor_id="operator-001",
+                operator_intent="manual_one_off",
+                idempotency_key="idem-approved",
+                payload_hash=_approval_request_payload(client_order_id="client-expired")[
+                    "payload_hash"
+                ],
+            ),
+            now=now + timedelta(minutes=2),
         )
         is None
     )
@@ -2664,7 +3034,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1461-1480"
+    assert live_payload["approved_phase_range"] == "1481-1500"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -3188,7 +3558,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1461-1480"
+    assert enterprise_payload["approved_phase_range"] == "1481-1500"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -3227,6 +3597,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         item["mutation_id"]: item for item in enterprise_payload["mutation_taxonomy"]
     }
     assert {
+        "admin.approval_lifecycle",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.campaign_execution",
@@ -3252,6 +3623,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert len(taxonomy_surfaces) == len(set(taxonomy_surfaces))
     assert {
         "admin.platform_evidence",
+        "admin.approval_lifecycle",
         "spot.read_models",
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
@@ -3282,6 +3654,19 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         spot_command_inventory["command_routes"]
     )
     assert "no-shorting" in spot_command_inventory["spot_rule_boundary"]
+    approval_inventory = inventory_by_id["admin.approval_lifecycle"]
+    assert approval_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert approval_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert approval_inventory["command_capable"] is True
+    assert approval_inventory["live_designated"] is False
+    assert "POST /api/v1/admin/approvals/requests" in (
+        approval_inventory["command_routes"]
+    )
+    assert "browser may request" in approval_inventory["frontend_boundary"]
     futures_command_inventory = inventory_by_id["futures.commands_not_modeled"]
     assert futures_command_inventory["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -3333,6 +3718,27 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_cancel_taxonomy["browser_authority"] == "display_only"
     assert "cancel_order(client_order_id)" in spot_cancel_taxonomy["summary"]
     assert "exchange order_id" in spot_cancel_taxonomy["frontend_boundary"]
+    approval_taxonomy = taxonomy_by_id["admin.approval_lifecycle"]
+    assert approval_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_APPROVAL_LIFECYCLE.value
+    )
+    assert approval_taxonomy["workflow_id"] == "admin.approval_lifecycle"
+    assert approval_taxonomy["command_surfaces"] == [
+        "POST /api/v1/admin/approvals/requests",
+        "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        "POST /api/v1/admin/approvals/{approval_id}/revoke",
+    ]
+    assert approval_taxonomy["action_classes"] == ["local_state_mutation"] * 3
+    assert approval_taxonomy["required_permissions"] == [
+        "approval:request",
+        "approval:manage",
+        "approval:manage",
+    ]
+    assert approval_taxonomy["live_adapter_required"] is False
+    assert approval_taxonomy["route_local_execution_allowed"] is False
+    assert "must not become approval authority" in approval_taxonomy[
+        "frontend_boundary"
+    ]
     futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
     assert futures_taxonomy["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -3426,7 +3832,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     admin_module = registry_by_id["admin_system_health"]
     assert "GET /api/v1/admin/guard-risk-policy" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 12
+    assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
+    assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
+    assert admin_module["action_posture"]["read_route_count"] == 14
+    assert admin_module["action_posture"]["command_route_count"] == 3
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]

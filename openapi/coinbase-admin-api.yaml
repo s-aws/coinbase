@@ -941,6 +941,471 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/approvals:
+    get:
+      tags:
+      - approvals
+      summary: List backend-owned approval lifecycle records
+      operationId: list_admin_approvals_api_v1_admin_approvals_get
+      parameters:
+      - name: lifecycle_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiApprovalLifecycleStatus'
+          - type: 'null'
+          title: Lifecycle Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/approvals/requests/{approval_request_id}:
+    get:
+      tags:
+      - approvals
+      summary: Read one backend-owned approval request lifecycle
+      operationId: get_admin_approval_request_api_v1_admin_approvals_requests__approval_request_id__get
+      parameters:
+      - name: approval_request_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Approval Request Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/approvals/requests:
+    post:
+      tags:
+      - approvals
+      summary: Create a backend-owned approval request
+      operationId: create_admin_approval_request_api_v1_admin_approvals_requests_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminApprovalRequestCreateRequest'
+      responses:
+        '200':
+          description: Approval lifecycle mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '400':
+          description: Approval lifecycle mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/approvals/requests/{approval_request_id}/decisions:
+    post:
+      tags:
+      - approvals
+      summary: Approve or reject a backend-owned approval request
+      operationId: decide_admin_approval_request_api_v1_admin_approvals_requests__approval_request_id__decisions_post
+      parameters:
+      - name: approval_request_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Approval Request Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminApprovalDecisionRequest'
+      responses:
+        '200':
+          description: Approval lifecycle mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '400':
+          description: Approval lifecycle mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/approvals/{approval_id}/revoke:
+    post:
+      tags:
+      - approvals
+      summary: Revoke a backend-owned approval snapshot
+      operationId: revoke_admin_approval_api_v1_admin_approvals__approval_id__revoke_post
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Approval Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminApprovalRevokeRequest'
+      responses:
+        '200':
+          description: Approval lifecycle mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '400':
+          description: Approval lifecycle mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApprovalLifecycleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/account:
     get:
       tags:
@@ -2835,6 +3300,16 @@ components:
       - actor_id
       title: AdminApiActor
       description: Authenticated actor evidence supplied by future auth middleware.
+    AdminApiApprovalLifecycleStatus:
+      type: string
+      enum:
+      - requested
+      - approved
+      - rejected
+      - revoked
+      - expired
+      title: AdminApiApprovalLifecycleStatus
+      description: Lifecycle state for backend-owned approval records.
     AdminApiAuthMode:
       type: string
       enum:
@@ -3192,6 +3667,7 @@ components:
     AdminApiMutationFamilyType:
       type: string
       enum:
+      - admin_approval_lifecycle
       - spot_manual_order
       - spot_order_cancel
       - spot_campaign_execution
@@ -3209,6 +3685,9 @@ components:
       enum:
       - analytics:read
       - audit:read
+      - approval:read
+      - approval:request
+      - approval:manage
       - order:create
       - order:cancel
       - campaign:read
@@ -3277,6 +3756,373 @@ components:
       - blocked
       title: AdminApiVerifierReadinessStatus
       description: Implementation readiness for Admin API authentication verifiers.
+    AdminApprovalDecisionRequest:
+      properties:
+        decision:
+          $ref: '#/components/schemas/AdminApiApprovalLifecycleStatus'
+        decision_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Reason
+        expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expires At
+        cap_guard_decision_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Ref
+        reconciliation_plan_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Ref
+      additionalProperties: false
+      type: object
+      required:
+      - decision
+      title: AdminApprovalDecisionRequest
+      description: Approve or reject a requested backend-owned approval snapshot.
+    AdminApprovalLifecycleItem:
+      properties:
+        approval_request_id:
+          type: string
+          title: Approval Request Id
+        approval_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Id
+        status:
+          $ref: '#/components/schemas/AdminApiApprovalLifecycleStatus'
+        requested_at:
+          type: string
+          title: Requested At
+        decided_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decided At
+        revoked_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revoked At
+        expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expires At
+        expired:
+          type: boolean
+          title: Expired
+          default: false
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+        identity_key:
+          type: string
+          title: Identity Key
+        identity_value:
+          type: string
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        requested_by_actor_id:
+          type: string
+          title: Requested By Actor Id
+        decision_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Actor Id
+        revoked_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revoked By Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          title: Payload Hash
+        cap_guard_decision_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Ref
+        reconciliation_plan_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Ref
+        request_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Request Reason
+        decision_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Reason
+        revoke_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revoke Reason
+        snapshot_linked:
+          type: boolean
+          title: Snapshot Linked
+          default: false
+        live_execution_authority:
+          type: boolean
+          title: Live Execution Authority
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approval_request_id
+      - status
+      - requested_at
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - requested_by_actor_id
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      - detail
+      title: AdminApprovalLifecycleItem
+      description: Operator-visible state for one backend approval lifecycle.
+    AdminApprovalLifecycleResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_approval_lifecycle
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: local_state_mutation
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApprovalLifecycleItem'
+          - type: 'null'
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: AdminApprovalLifecycleResponse
+      description: Response for approval lifecycle mutations and detail reads.
+    AdminApprovalListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_approval_lifecycle_list
+        approvals:
+          items:
+            $ref: '#/components/schemas/AdminApprovalLifecycleItem'
+          type: array
+          title: Approvals
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        pending_count:
+          type: integer
+          minimum: 0.0
+          title: Pending Count
+        approved_count:
+          type: integer
+          minimum: 0.0
+          title: Approved Count
+        rejected_count:
+          type: integer
+          minimum: 0.0
+          title: Rejected Count
+        revoked_count:
+          type: integer
+          minimum: 0.0
+          title: Revoked Count
+        expired_count:
+          type: integer
+          minimum: 0.0
+          title: Expired Count
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - pending_count
+      - approved_count
+      - rejected_count
+      - revoked_count
+      - expired_count
+      title: AdminApprovalListResponse
+      description: List backend-owned approval lifecycle records.
+    AdminApprovalRequestCreateRequest:
+      properties:
+        route:
+          type: string
+          minLength: 1
+          title: Route
+        method:
+          type: string
+          minLength: 1
+          title: Method
+        module_id:
+          type: string
+          minLength: 1
+          title: Module Id
+        identity_key:
+          type: string
+          minLength: 1
+          title: Identity Key
+        identity_value:
+          type: string
+          minLength: 1
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Payload Hash
+        request_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Request Reason
+      additionalProperties: false
+      type: object
+      required:
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      title: AdminApprovalRequestCreateRequest
+      description: Request a backend-owned approval snapshot for a command attempt.
+    AdminApprovalRevokeRequest:
+      properties:
+        revoke_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revoke Reason
+      additionalProperties: false
+      type: object
+      title: AdminApprovalRevokeRequest
+      description: Revoke an approved backend approval snapshot.
     AdminAuditEvidenceSource:
       type: string
       enum:

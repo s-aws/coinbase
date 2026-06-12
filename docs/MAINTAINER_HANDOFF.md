@@ -97,17 +97,21 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1461-1480`.
-- M48 mutation taxonomy and authority map is active for phases `1461-1480`.
-  The existing `GET /api/v1/admin/enterprise-readiness` route should report
-  backend-owned `mutation_taxonomy` rows that map every current command route
-  and legacy command surface to exactly one mutation family. Rows must record
-  workflow id, module id, identity keys, RBAC permission, action class,
-  idempotency, operator intent, approval, cap/guard, admission audit,
-  reconciliation, owning backend service, shared command-service method, and
-  browser/BFF/route-local non-authority. M48 must not add command execution,
-  approval mutation, live adapters, frontend/BFF authority, Coinbase calls, or
-  copied spot semantics for non-spot modules.
+- Active autonomous range: `1481-1500`.
+- M49 approval request and decision lifecycle is active for phases
+  `1481-1500`. The backend now owns approval request, approve/reject, revoke,
+  expiry, and snapshot-linking contracts through the existing approval store
+  path. Approval lifecycle routes are local-state mutations only: they may
+  write approval evidence and link resolver-compatible snapshots, but browser
+  approval, BFF forwarding, or a linked snapshot is not sufficient live
+  execution authority. Do not call Coinbase, run command adapters, evaluate
+  guards, execute reconciliation, or create route-local trading behavior from
+  approval lifecycle routes.
+- M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
+  The existing `GET /api/v1/admin/enterprise-readiness` route reports
+  backend-owned `mutation_taxonomy` rows that map every current command route,
+  approval lifecycle local-state mutation route, and legacy command surface to
+  exactly one mutation family.
 - M47 backend functionality inventory and gap ledger is complete for phases
   `1441-1460`. The existing `GET /api/v1/admin/enterprise-readiness` route
   reports backend-owned workflow inventory rows for read, command, live,

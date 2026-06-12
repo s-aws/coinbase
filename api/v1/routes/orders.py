@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Callable
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Request, status
@@ -234,6 +235,34 @@ def _idempotency_payload_hash(
     })
 
 
+def _manual_order_with_backend_identity(
+    *,
+    body: ManualOrderRequest,
+    actor: AdminApiActor,
+    endpoint: str,
+    idempotency_key: str,
+    payload_hash: str,
+) -> ManualOrderRequest:
+    """Attach a stable backend-owned client id before admission checks."""
+
+    if body.client_order_id:
+        return body
+
+    material = "|".join(
+        [
+            "coinbase-admin-api",
+            "manual-order",
+            endpoint,
+            actor.actor_id,
+            idempotency_key,
+            payload_hash,
+        ]
+    )
+    return body.model_copy(
+        update={"client_order_id": str(uuid.uuid5(uuid.NAMESPACE_URL, material))}
+    )
+
+
 def _execute_idempotent_command(
     *,
     idempotency_key: str,
@@ -430,6 +459,13 @@ def create_manual_order(
         operator_intent=operator_intent,
         body=body.model_dump(mode="json"),
     )
+    body = _manual_order_with_backend_identity(
+        body=body,
+        actor=actor,
+        endpoint=endpoint,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -450,6 +486,7 @@ def create_manual_order(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        client_order_id=body.client_order_id,
         command_runner=lambda: service.place_manual_order(
             ManualOrderCommand(envelope=envelope, request=body)
         ),

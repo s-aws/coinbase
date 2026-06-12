@@ -119,7 +119,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1461-1480"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1481-1500"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3482,6 +3482,8 @@ class AdminApiReadService:
                     "GET /api/v1/admin/recovery-gate",
                     "GET /api/v1/admin/fill-ledger-health",
                     "GET /api/v1/admin/frontend-fixtures",
+                    "GET /api/v1/admin/approvals",
+                    "GET /api/v1/admin/approvals/requests/{approval_request_id}",
                 ],
                 identity_keys=["request_id", "correlation_id", "actor_id"],
                 backend_contract_refs=[
@@ -3502,6 +3504,72 @@ class AdminApiReadService:
                     "secrets, or approve live commands from the browser."
                 ),
                 spot_rule_boundary="Platform evidence is not a spot-rule source.",
+            ),
+            functionality_item(
+                workflow_id="admin.approval_lifecycle",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned approval request, decision, revoke, expiry, "
+                    "and snapshot-linking lifecycle for future live admission."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                read_routes=[
+                    "GET /api/v1/admin/approvals",
+                    "GET /api/v1/admin/approvals/requests/{approval_request_id}",
+                ],
+                command_routes=[
+                    "POST /api/v1/admin/approvals/requests",
+                    "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+                    "POST /api/v1/admin/approvals/{approval_id}/revoke",
+                ],
+                identity_keys=[
+                    "approval_request_id",
+                    "approval_id",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                backend_contract_refs=[
+                    "application/admin_api/approval.py",
+                    "application/admin_api/approval_service.py",
+                    "api/v1/routes/approvals.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Cap/guard decision execution records must link to approved "
+                    "snapshots before live command admission can proceed."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may request, display, and forward approval "
+                    "decisions through backend contracts only; it must not become "
+                    "approval authority or execute commands."
+                ),
+                spot_rule_boundary=(
+                    "Approval lifecycle is a platform primitive. Spot wallet, "
+                    "USDC, cost-basis, and no-shorting rules are not generic "
+                    "approval rules."
+                ),
             ),
             functionality_item(
                 workflow_id="spot.read_models",
@@ -4037,7 +4105,123 @@ class AdminApiReadService:
                 ),
             ),
         ]
+        approval_lifecycle_surfaces = [
+            "POST /api/v1/admin/approvals/requests",
+            "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+            "POST /api/v1/admin/approvals/{approval_id}/revoke",
+        ]
+        approval_lifecycle_rows = [
+            route_inventory_item(surface)
+            for surface in approval_lifecycle_surfaces
+        ]
         mutation_taxonomy = [
+            mutation_taxonomy_item(
+                mutation_id="admin.approval_lifecycle",
+                mutation_family=AdminApiMutationFamilyType.ADMIN_APPROVAL_LIFECYCLE,
+                workflow_id="admin.approval_lifecycle",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Approval lifecycle is a backend-owned local-state mutation "
+                    "family for request, decision, revoke, expiry, and snapshot "
+                    "linking; it is not live execution authority by itself."
+                ),
+                command_surfaces=approval_lifecycle_surfaces,
+                action_classes=[
+                    row.action_class for row in approval_lifecycle_rows
+                ],
+                required_permissions=[
+                    row.permission for row in approval_lifecycle_rows
+                ],
+                identity_keys=[
+                    "approval_request_id",
+                    "approval_id",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "method",
+                    "module_id",
+                    "identity_key",
+                    "identity_value",
+                    "action_class",
+                    "required_permission",
+                    "operator_intent",
+                    "command_idempotency_key",
+                    "payload_hash",
+                    "cap_guard_decision_ref",
+                    "reconciliation_plan_ref",
+                ],
+                idempotency_contract="required",
+                approval_contract=(
+                    "backend-owned append-only request/decision/revoke "
+                    "lifecycle; browser approval is insufficient for execution"
+                ),
+                cap_guard_contract=(
+                    "approved snapshots must bind cap_guard_decision_ref but "
+                    "do not execute cap/guard checks"
+                ),
+                admission_audit_contract=(
+                    "approval lifecycle mutations append Admin API audit events"
+                ),
+                reconciliation_contract=(
+                    "approved snapshots must bind reconciliation_plan_ref; "
+                    "reconciliation execution remains separate"
+                ),
+                owning_backend_service="application/admin_api/approval_service.py",
+                shared_command_service_method=None,
+                route_inventory_refs=approval_lifecycle_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/approval.py",
+                    "application/admin_api/approval_service.py",
+                    "api/v1/routes/approvals.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Cap/guard decision execution records must link to approved "
+                    "snapshots before live command admission can proceed."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "The frontend may request and display approval lifecycle "
+                    "state through generated contracts only; it must not become "
+                    "approval authority, a live switch, or a command executor."
+                ),
+                bff_boundary=(
+                    "BFF may forward only to backend approval lifecycle routes "
+                    "with required mutation evidence; it must not approve or "
+                    "execute commands."
+                ),
+                route_local_boundary=(
+                    "Approval routes may append lifecycle and snapshot evidence "
+                    "through the approval service only; they must not call "
+                    "Coinbase or command execution adapters."
+                ),
+                spot_rule_boundary=(
+                    "Approval lifecycle is a platform primitive. Spot wallet, "
+                    "USDC, cost-basis, and no-shorting rules are not generic "
+                    "approval rules."
+                ),
+                cap_guard_required=True,
+                reconciliation_required=True,
+                live_adapter_required=False,
+            ),
             mutation_taxonomy_from_surface(
                 surface="POST /api/v1/orders",
                 mutation_id="spot.manual_order",

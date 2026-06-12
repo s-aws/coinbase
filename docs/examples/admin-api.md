@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1461-1480",
+  "approved_phase_range": "1481-1500",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1461-1480",
+  "approved_phase_range": "1481-1500",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1493,6 +1493,8 @@ Current backend behavior:
 
 - parse the request through FastAPI/Pydantic
 - authenticate actor and authorize `order:create`
+- derive a stable backend-owned `client_order_id` before command admission
+  when the request omitted one
 - evaluate durable idempotency
 - write durable command audit evidence
 - return `501` with `status: "not_implemented"`
@@ -1504,7 +1506,7 @@ Future backend behavior:
 - run action-condition guards
 - enforce live caps
 - create or verify an approval snapshot
-- mint one `client_order_id`
+- reuse the already-derived backend-owned `client_order_id`
 - persist idempotency and audit state
 - submit to Coinbase only after all gates pass
 
@@ -1551,6 +1553,10 @@ If the same `Idempotency-Key` and same command payload are sent again for the
 same endpoint, path identity, actor/roles, and operator intent, the API should
 return the original command result without minting a second `client_order_id`
 or submitting a second Coinbase order.
+For manual order create requests that omit `client_order_id`, the route derives
+one from endpoint, actor, idempotency key, and payload hash before admission.
+That derived id is response/audit evidence and the value future approval
+snapshots must bind to; the browser must not invent it.
 
 If the same `Idempotency-Key` is reused with a different payload, path
 identity, actor/roles, or `X-Operator-Intent`, the API should return conflict.
@@ -1584,6 +1590,8 @@ Current read-only routes:
 - `GET /api/v1/admin/recovery-gate`
 - `GET /api/v1/admin/fill-ledger-health`
 - `GET /api/v1/admin/frontend-fixtures`
+- `GET /api/v1/admin/approvals`
+- `GET /api/v1/admin/approvals/requests/{approval_request_id}`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
@@ -1600,6 +1608,83 @@ Current read-only routes:
 - `GET /api/v1/spot/cost-basis/status`
 - `GET /api/v1/spot/campaign/status`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
+
+## Approval Lifecycle
+
+Approval lifecycle routes write backend-owned local approval evidence only.
+They do not submit orders, cancel orders, run guard checks, execute
+reconciliation, or call Coinbase.
+
+Create a route-bound approval request:
+
+```http
+POST /api/v1/admin/approvals/requests
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: trader-001
+X-Admin-Roles: trader
+Idempotency-Key: approval-request-001
+X-Correlation-Id: corr-approval-001
+X-Operator-Intent: request_manual_order_approval
+Content-Type: application/json
+
+{
+  "route": "/api/v1/orders",
+  "method": "POST",
+  "module_id": "spot_operations",
+  "identity_key": "client_order_id",
+  "identity_value": "client-approved-001",
+  "action_class": "live_exchange_place",
+  "required_permission": "order:create",
+  "operator_intent": "manual_one_off",
+  "command_idempotency_key": "manual-order-idem-001",
+  "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "request_reason": "bounded canary approval"
+}
+```
+
+Approve the request. Only an actor with `approval:manage` can decide or revoke
+approval lifecycle records:
+
+```http
+POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: approval-decision-001
+X-Correlation-Id: corr-approval-002
+X-Operator-Intent: approve_manual_order_snapshot
+Content-Type: application/json
+
+{
+  "decision": "approved",
+  "decision_reason": "bounded canary approval",
+  "expires_at": "2026-06-12T19:00:00+00:00",
+  "cap_guard_decision_ref": "cap-guard-001",
+  "reconciliation_plan_ref": "reconciliation-001"
+}
+```
+
+Revoke an approved snapshot:
+
+```http
+POST /api/v1/admin/approvals/{approval_id}/revoke
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: approval-revoke-001
+X-Correlation-Id: corr-approval-003
+X-Operator-Intent: revoke_manual_order_snapshot
+Content-Type: application/json
+
+{
+  "revoke_reason": "operator cancelled the approval"
+}
+```
+
+Revoked and expired snapshots fail closed in the existing approval resolver.
+An approved snapshot still does not make a command executable while cap/guard,
+admission audit, reconciliation, disabled live service, and live adapter gates
+remain blocked.
 
 ## Structured Errors
 

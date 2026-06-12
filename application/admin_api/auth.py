@@ -36,11 +36,13 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
     AdminApiRole.VIEWER: frozenset({
         AdminApiPermission.ANALYTICS_READ,
         AdminApiPermission.AUDIT_READ,
+        AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.CAMPAIGN_READ,
     }),
     AdminApiRole.OPERATOR: frozenset({
         AdminApiPermission.ANALYTICS_READ,
         AdminApiPermission.AUDIT_READ,
+        AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.CAMPAIGN_READ,
         AdminApiPermission.RUNTIME_PAUSE,
         AdminApiPermission.RUNTIME_RESUME,
@@ -48,6 +50,8 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
     AdminApiRole.TRADER: frozenset({
         AdminApiPermission.ANALYTICS_READ,
         AdminApiPermission.AUDIT_READ,
+        AdminApiPermission.APPROVAL_READ,
+        AdminApiPermission.APPROVAL_REQUEST,
         AdminApiPermission.ORDER_CREATE,
         AdminApiPermission.ORDER_CANCEL,
         AdminApiPermission.CAMPAIGN_READ,
@@ -59,6 +63,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
     AdminApiRole.AUDITOR: frozenset({
         AdminApiPermission.ANALYTICS_READ,
         AdminApiPermission.AUDIT_READ,
+        AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.CAMPAIGN_READ,
     }),
     AdminApiRole.EMERGENCY: frozenset({
