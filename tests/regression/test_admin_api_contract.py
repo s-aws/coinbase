@@ -73,6 +73,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiLiveAdmissionBlocker,
+    AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
     AdminApiRole,
@@ -2663,7 +2664,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1441-1460"
+    assert live_payload["approved_phase_range"] == "1461-1480"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -3187,7 +3188,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1441-1460"
+    assert enterprise_payload["approved_phase_range"] == "1461-1480"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -3210,10 +3211,45 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert enterprise_payload["recovery_workflow_count"] >= 1
     assert enterprise_payload["automation_workflow_count"] >= 1
     assert enterprise_payload["repair_workflow_count"] >= 1
+    assert enterprise_payload["mutation_taxonomy_count"] == len(
+        enterprise_payload["mutation_taxonomy"]
+    )
+    assert enterprise_payload["mutation_taxonomy_count"] >= 10
+    assert enterprise_payload["route_bound_mutation_taxonomy_count"] >= 8
+    assert enterprise_payload["live_disabled_mutation_count"] >= 5
+    assert enterprise_payload["backend_contract_required_mutation_count"] >= 2
+    assert enterprise_payload["compatibility_mutation_count"] >= 3
     inventory_by_id = {
         item["workflow_id"]: item
         for item in enterprise_payload["functionality_inventory"]
     }
+    taxonomy_by_id = {
+        item["mutation_id"]: item for item in enterprise_payload["mutation_taxonomy"]
+    }
+    assert {
+        "spot.manual_order",
+        "spot.order_cancel",
+        "spot.campaign_execution",
+        "stealth.cancel",
+        "movement.reprice",
+        "futures.commands_contract_required",
+        "audit.fill_ledger_repair_contract_required",
+        "legacy.dashboard_place",
+        "legacy.dashboard_hotpoint",
+        "legacy.dashboard_cancel",
+    } <= set(taxonomy_by_id)
+    command_surfaces = [
+        item.surface
+        for item in ADMIN_API_ROUTE_INVENTORY
+        if item.action_class != AdminApiActionClass.READ_ONLY
+    ]
+    taxonomy_surfaces = [
+        surface
+        for item in enterprise_payload["mutation_taxonomy"]
+        for surface in item["command_surfaces"]
+    ]
+    assert sorted(taxonomy_surfaces) == sorted(command_surfaces)
+    assert len(taxonomy_surfaces) == len(set(taxonomy_surfaces))
     assert {
         "admin.platform_evidence",
         "spot.read_models",
@@ -3277,6 +3313,51 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "Admin API repair mutation contract missing" in repair_inventory[
         "blockers"
     ]
+    spot_cancel_taxonomy = taxonomy_by_id["spot.order_cancel"]
+    assert spot_cancel_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value
+    )
+    assert spot_cancel_taxonomy["workflow_id"] == "spot.order_command_drafts"
+    assert spot_cancel_taxonomy["command_surfaces"] == [
+        "POST /api/v1/orders/{client_order_id}/cancel"
+    ]
+    assert spot_cancel_taxonomy["required_permissions"] == ["order:cancel"]
+    assert spot_cancel_taxonomy["identity_keys"] == ["client_order_id"]
+    assert spot_cancel_taxonomy["idempotency_required"] is True
+    assert spot_cancel_taxonomy["rbac_required"] is True
+    assert spot_cancel_taxonomy["approval_required"] is True
+    assert spot_cancel_taxonomy["cap_guard_required"] is True
+    assert spot_cancel_taxonomy["admission_audit_required"] is True
+    assert spot_cancel_taxonomy["reconciliation_required"] is True
+    assert spot_cancel_taxonomy["route_local_execution_allowed"] is False
+    assert spot_cancel_taxonomy["browser_authority"] == "display_only"
+    assert "cancel_order(client_order_id)" in spot_cancel_taxonomy["summary"]
+    assert "exchange order_id" in spot_cancel_taxonomy["frontend_boundary"]
+    futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
+    assert futures_taxonomy["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+    )
+    assert futures_taxonomy["command_surfaces"] == []
+    assert futures_taxonomy["idempotency_required"] is False
+    assert futures_taxonomy["approval_required"] is False
+    assert "backend futures command contract missing" in futures_taxonomy["blockers"]
+    assert "Spot rules are forbidden" in futures_taxonomy["spot_rule_boundary"]
+    repair_taxonomy = taxonomy_by_id["audit.fill_ledger_repair_contract_required"]
+    assert repair_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.FILL_LEDGER_REPAIR_CONTRACT_REQUIRED.value
+    )
+    assert repair_taxonomy["action_classes"] == ["local_state_mutation"]
+    assert repair_taxonomy["required_permissions"] == ["config:update"]
+    assert repair_taxonomy["command_surfaces"] == []
+    assert "preview/apply" in repair_taxonomy["frontend_boundary"]
+    legacy_taxonomy = taxonomy_by_id["legacy.dashboard_place"]
+    assert legacy_taxonomy["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY.value
+    )
+    assert legacy_taxonomy["command_surfaces"] == ["place_order WebSocket"]
+    assert legacy_taxonomy["required_permissions"] == ["compatibility policy"]
+    assert "compatibility-only surface" in legacy_taxonomy["blockers"]
+    assert "must not call legacy dashboard" in legacy_taxonomy["frontend_boundary"]
     registry_by_id = {
         item["module_id"]: item for item in enterprise_payload["modules"]
     }

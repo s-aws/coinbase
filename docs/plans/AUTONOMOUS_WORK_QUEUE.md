@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1441-1460**.
+- Approved phase range: **1461-1480**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,7 +46,116 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1441-1460
+## Active Phases 1461-1480
+
+### Phase 1461 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1441-1460 to active
+  phases 1461-1480 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1462 - M48 Mutation Taxonomy Contract
+
+- Extend existing `GET /api/v1/admin/enterprise-readiness` with a
+  backend-owned `mutation_taxonomy` authority map. Do not add a new endpoint,
+  mutation route, approval mutation, live adapter, or Coinbase call.
+
+### Phase 1463 - Backend Range Evidence
+
+- Keep backend enterprise-readiness, autonomous, runtime, and handoff checks
+  reporting the 1461-1480 phase range.
+
+### Phase 1464 - Mutation Family Enum
+
+- Add typed mutation-family classifications through `core/enums.py` instead
+  of magic strings.
+
+### Phase 1465 - Enterprise Readiness Taxonomy Model
+
+- Add typed response models and aggregate counts for mutation taxonomy rows
+  without adding request models or executable command behavior.
+
+### Phase 1466 - Route Ownership Mapping
+
+- Map every current command route and legacy command surface from
+  `ADMIN_API_ROUTE_INVENTORY` to exactly one mutation taxonomy row.
+
+### Phase 1467 - Workflow Linkage
+
+- Link taxonomy rows back to M47 `functionality_inventory` workflow ids so
+  command-capable, backend-contract-required, unsupported, and compatibility
+  workflows remain traceable.
+
+### Phase 1468 - Identity And Payload Binding
+
+- Record identity keys, payload binding fields, idempotency source,
+  operator-intent requirements, and route inventory refs for each mutation
+  family.
+
+### Phase 1469 - RBAC And Service Ownership
+
+- Record required permissions, action classes, owning backend service, and
+  shared command-service method for each currently modeled command route.
+
+### Phase 1470 - Approval And Cap/Guard Requirements
+
+- Record approval, cap/guard, and admission blocker requirements without
+  creating approval storage mutations, browser approval, or guard evaluation.
+
+### Phase 1471 - Admission Audit Requirements
+
+- Record append-only admission audit requirements and audit refs without
+  adding audit mutation or live execution.
+
+### Phase 1472 - Reconciliation Requirements
+
+- Record reconciliation and proof requirements for each mutation family
+  without executing reconciliation or marking exchange state reconciled.
+
+### Phase 1473 - Missing Contract Classification
+
+- Classify futures/perpetual commands and fill-ledger repair as backend
+  contract required until module-owned contracts exist.
+
+### Phase 1474 - Legacy Compatibility Classification
+
+- Keep legacy dashboard WebSocket command surfaces compatibility-only and
+  outside the enterprise admin command plane.
+
+### Phase 1475 - OpenAPI And Examples
+
+- Regenerate OpenAPI and update Admin API examples for mutation taxonomy
+  fields while preserving no-live evidence and notional `$0`.
+
+### Phase 1476 - Capability Matrix And Handoff Docs
+
+- Update capability matrix, maintainer handoff, durable milestones, and docs
+  index references so contextless agents can find M48 before implementation.
+
+### Phase 1477 - Frontend Range Sync
+
+- Coordinate frontend schema, mocks, runtime evidence, quality artifacts,
+  autonomous queue, and release validators for 1461-1480.
+
+### Phase 1478 - Focused Gates
+
+- Run focused backend Admin API/enterprise-readiness tests, backend
+  autonomous queue validation, and focused frontend checks covering taxonomy
+  rendering.
+
+### Phase 1479 - Blind/Contextless Review
+
+- Run blind/contextless review to confirm a fresh agent can explain mutation
+  authority without inventing frontend trading behavior, BFF execution, or
+  spot-specific non-spot rules.
+
+### Phase 1480 - Full Gates And Summary
+
+- Run full backend regression and frontend release gate. Summarize live
+  Coinbase execution status and notional. Default remains no-live with
+  submitted and executed notional `$0`.
+
+## Completed Phases 1441-1460
 
 ### Phase 1441 - Advance Active Queue Range
 

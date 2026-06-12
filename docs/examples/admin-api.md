@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1441-1460",
+  "approved_phase_range": "1461-1480",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -854,13 +854,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1441-1460",
+  "approved_phase_range": "1461-1480",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -875,6 +875,11 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
+  "mutation_taxonomy_count": 10,
+  "route_bound_mutation_taxonomy_count": 8,
+  "live_disabled_mutation_count": 5,
+  "backend_contract_required_mutation_count": 2,
+  "compatibility_mutation_count": 3,
   "functionality_inventory": [
     {
       "workflow_id": "spot.order_command_drafts",
@@ -926,6 +931,65 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
       "spot_rule_boundary": "Spot rules are forbidden in futures command authority.",
       "live_coinbase_execution": "not_run",
       "notional_usdc": "0"
+    }
+  ],
+  "mutation_taxonomy": [
+    {
+      "mutation_id": "spot.order_cancel",
+      "mutation_family": "spot_order_cancel",
+      "workflow_id": "spot.order_command_drafts",
+      "module_id": "spot_operations",
+      "module": "Spot Operations",
+      "exposure_status": "admin_draft_live_disabled",
+      "support_status": "command_draft_live_disabled",
+      "command_surfaces": [
+        "POST /api/v1/orders/{client_order_id}/cancel"
+      ],
+      "action_classes": ["live_exchange_cancel"],
+      "required_permissions": ["order:cancel"],
+      "identity_keys": ["client_order_id"],
+      "payload_binding_fields": [
+        "endpoint",
+        "actor",
+        "operator_intent",
+        "body",
+        "path_params"
+      ],
+      "idempotency_required": true,
+      "operator_intent_required": true,
+      "rbac_required": true,
+      "approval_required": true,
+      "cap_guard_required": true,
+      "admission_audit_required": true,
+      "reconciliation_required": true,
+      "live_adapter_required": true,
+      "owning_backend_service": "application/admin_api/command_service.py",
+      "shared_command_service_method": "cancel_order_by_client_order_id",
+      "browser_authority": "display_only",
+      "bff_execution_authority": "forward_only_no_execution",
+      "route_local_execution_allowed": false,
+      "blockers": [
+        "live_execution_disabled",
+        "approval_snapshot_missing",
+        "cancel reconciliation proof missing"
+      ],
+      "frontend_boundary": "Do not accept exchange order_id as the internal cancel identity; frontend cancel evidence must stay client_order_id-scoped.",
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "mutation_id": "futures.commands_contract_required",
+      "mutation_family": "futures_contract_required",
+      "workflow_id": "futures.commands_not_modeled",
+      "module_id": "futures_perpetuals",
+      "exposure_status": "backend_contract_required",
+      "support_status": "not_modeled",
+      "command_surfaces": [],
+      "identity_keys": ["position_key", "product_id", "portfolio_id"],
+      "required_next_contract": "Futures/perpetual command contracts over position side, margin, collateral, liquidation, reduce-only, close-only, funding, order, cancel, and reconciliation semantics.",
+      "blockers": ["backend futures command contract missing"],
+      "frontend_boundary": "Do not create futures command drafts by copying spot order, wallet, no-shorting, or cost-basis behavior.",
+      "spot_rule_boundary": "Spot rules are forbidden in futures/perpetual command authority."
     }
   ],
   "modules": [

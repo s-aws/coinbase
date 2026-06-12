@@ -33,6 +33,7 @@ from core.enums import (
     AdminApiLiveReadinessPrecondition,
     AdminApiModuleSupportStatus,
     AdminMovementRepricingEvidenceType,
+    AdminApiMutationFamilyType,
     AdminApiPermission,
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
@@ -68,6 +69,7 @@ from .models import (
     AdminCsrfContractResponse,
     AdminEnterpriseCommandGapItem,
     AdminEnterpriseFunctionalityInventoryItem,
+    AdminEnterpriseMutationTaxonomyItem,
     AdminEnterpriseModuleActionPosture,
     AdminEnterpriseReadinessModuleItem,
     AdminEnterpriseReadinessResponse,
@@ -117,7 +119,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1441-1460"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1461-1480"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -2661,6 +2663,167 @@ class AdminApiReadService:
                 spot_rule_boundary=spot_rule_boundary,
             )
 
+        def route_inventory_item(surface: str):
+            for item in ADMIN_API_ROUTE_INVENTORY:
+                if item.surface == surface:
+                    return item
+            raise KeyError(f"Admin API route inventory surface not found: {surface}")
+
+        def mutation_taxonomy_item(
+            *,
+            mutation_id: str,
+            mutation_family: AdminApiMutationFamilyType,
+            workflow_id: str,
+            module_id: str,
+            module: str,
+            exposure_status: AdminApiFunctionalityExposureStatus,
+            support_status: AdminApiModuleSupportStatus,
+            summary: str,
+            identity_keys: list[str],
+            idempotency_contract: str,
+            approval_contract: str,
+            cap_guard_contract: str,
+            admission_audit_contract: str,
+            reconciliation_contract: str,
+            owning_backend_service: str,
+            frontend_boundary: str,
+            spot_rule_boundary: str,
+            command_surfaces: list[str] | None = None,
+            related_workflow_ids: list[str] | None = None,
+            action_classes: list[AdminApiActionClass] | None = None,
+            required_permissions: list[AdminApiPermission | str] | None = None,
+            payload_binding_fields: list[str] | None = None,
+            shared_command_service_method: str | None = None,
+            route_inventory_refs: list[str] | None = None,
+            backend_contract_refs: list[str] | None = None,
+            frontend_contract_refs: list[str] | None = None,
+            documentation_refs: list[str] | None = None,
+            required_next_contract: str | None = None,
+            blockers: list[str] | None = None,
+            idempotency_required: bool = True,
+            operator_intent_required: bool = True,
+            rbac_required: bool = True,
+            approval_required: bool = True,
+            cap_guard_required: bool = True,
+            admission_audit_required: bool = True,
+            reconciliation_required: bool = True,
+            live_adapter_required: bool = True,
+            bff_boundary: str | None = None,
+            route_local_boundary: str | None = None,
+        ) -> AdminEnterpriseMutationTaxonomyItem:
+            normalized_surfaces = command_surfaces or []
+            inventory_refs = route_inventory_refs or normalized_surfaces
+            return AdminEnterpriseMutationTaxonomyItem(
+                mutation_id=mutation_id,
+                mutation_family=mutation_family,
+                workflow_id=workflow_id,
+                related_workflow_ids=related_workflow_ids or [],
+                module_id=module_id,
+                module=module,
+                exposure_status=exposure_status,
+                support_status=support_status,
+                summary=summary,
+                command_surfaces=normalized_surfaces,
+                action_classes=action_classes or [],
+                required_permissions=required_permissions or [],
+                identity_keys=identity_keys,
+                payload_binding_fields=payload_binding_fields
+                or [
+                    "endpoint",
+                    "actor",
+                    "operator_intent",
+                    "body",
+                    "path_params",
+                ],
+                idempotency_required=idempotency_required,
+                idempotency_contract=idempotency_contract,
+                operator_intent_required=operator_intent_required,
+                rbac_required=rbac_required,
+                approval_required=approval_required,
+                approval_contract=approval_contract,
+                cap_guard_required=cap_guard_required,
+                cap_guard_contract=cap_guard_contract,
+                admission_audit_required=admission_audit_required,
+                admission_audit_contract=admission_audit_contract,
+                reconciliation_required=reconciliation_required,
+                reconciliation_contract=reconciliation_contract,
+                live_adapter_required=live_adapter_required,
+                owning_backend_service=owning_backend_service,
+                shared_command_service_method=shared_command_service_method,
+                route_inventory_refs=inventory_refs,
+                backend_contract_refs=backend_contract_refs or [],
+                frontend_contract_refs=frontend_contract_refs or [],
+                documentation_refs=documentation_refs or [],
+                required_next_contract=required_next_contract,
+                blockers=blockers or [],
+                frontend_boundary=frontend_boundary,
+                bff_boundary=bff_boundary
+                or (
+                    "BFF may forward only to backend Admin API with server-held "
+                    "credentials; it must not approve or execute this mutation."
+                ),
+                route_local_boundary=route_local_boundary
+                or (
+                    "FastAPI route adapters must bind auth, RBAC, idempotency, "
+                    "audit, approval, cap/guard, and reconciliation evidence; "
+                    "they must not implement route-local trading behavior."
+                ),
+                spot_rule_boundary=spot_rule_boundary,
+            )
+
+        def mutation_taxonomy_from_surface(
+            *,
+            surface: str,
+            mutation_id: str,
+            mutation_family: AdminApiMutationFamilyType,
+            workflow_id: str,
+            module: str,
+            exposure_status: AdminApiFunctionalityExposureStatus,
+            support_status: AdminApiModuleSupportStatus,
+            summary: str,
+            identity_keys: list[str],
+            owning_backend_service: str,
+            frontend_boundary: str,
+            spot_rule_boundary: str,
+            related_workflow_ids: list[str] | None = None,
+            backend_contract_refs: list[str] | None = None,
+            frontend_contract_refs: list[str] | None = None,
+            documentation_refs: list[str] | None = None,
+            required_next_contract: str | None = None,
+            blockers: list[str] | None = None,
+        ) -> AdminEnterpriseMutationTaxonomyItem:
+            route_row = route_inventory_item(surface)
+            return mutation_taxonomy_item(
+                mutation_id=mutation_id,
+                mutation_family=mutation_family,
+                workflow_id=workflow_id,
+                related_workflow_ids=related_workflow_ids,
+                module_id=route_row.module_id,
+                module=module,
+                exposure_status=exposure_status,
+                support_status=support_status,
+                summary=summary,
+                command_surfaces=[route_row.surface],
+                action_classes=[route_row.action_class],
+                required_permissions=[route_row.permission],
+                identity_keys=identity_keys,
+                idempotency_contract=route_row.idempotency,
+                approval_contract=route_row.approval,
+                cap_guard_contract=route_row.caps,
+                admission_audit_contract=route_row.audit,
+                reconciliation_contract=route_row.parity_test,
+                owning_backend_service=owning_backend_service,
+                shared_command_service_method=route_row.shared_method,
+                route_inventory_refs=[route_row.surface],
+                backend_contract_refs=backend_contract_refs,
+                frontend_contract_refs=frontend_contract_refs,
+                documentation_refs=documentation_refs,
+                required_next_contract=required_next_contract,
+                blockers=blockers,
+                frontend_boundary=frontend_boundary,
+                spot_rule_boundary=spot_rule_boundary,
+            )
+
         modules = [
             module_item(
                 module_id="admin_system_health",
@@ -3874,6 +4037,420 @@ class AdminApiReadService:
                 ),
             ),
         ]
+        mutation_taxonomy = [
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/orders",
+                mutation_id="spot.manual_order",
+                mutation_family=AdminApiMutationFamilyType.SPOT_MANUAL_ORDER,
+                workflow_id="spot.order_command_drafts",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Manual spot order placement is a live-disabled Admin API "
+                    "command family keyed by backend-supplied client_order_id."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::place_manual_order",
+                    "application/admin_api/command_service.py::place_manual_order",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::placeManualOrder",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Route-specific approval snapshot, cap/guard decision, "
+                    "admission audit, reconciliation plan, and executable live "
+                    "adapter must all pass before Coinbase placement."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "approval_snapshot_missing",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may draft and dry-submit through generated "
+                    "contracts only; it must not submit Coinbase orders, compute "
+                    "wallet authority, or bypass backend guards."
+                ),
+                spot_rule_boundary=(
+                    "Spot-only no-shorting, USDC, wallet, lot, and cost-basis "
+                    "authority must remain backend guard evidence."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/orders/{client_order_id}/cancel",
+                mutation_id="spot.order_cancel",
+                mutation_family=AdminApiMutationFamilyType.SPOT_ORDER_CANCEL,
+                workflow_id="spot.order_command_drafts",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot cancel is keyed by client_order_id and must call the "
+                    "project cancel_order(client_order_id) wrapper because Coinbase "
+                    "accepts the client id for cancellation."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::cancel_order_by_client_order_id",
+                    "application/admin_api/command_service.py::cancel_order_by_client_order_id",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::cancelOrderByClientOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/agents/INVARIANTS.md",
+                ],
+                required_next_contract=(
+                    "Backend cancel admission must link approval, cap/guard, audit, "
+                    "exchange cancel evidence, and reconciliation by client_order_id."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "approval_snapshot_missing",
+                    "cancel reconciliation proof missing",
+                ],
+                frontend_boundary=(
+                    "Do not accept exchange order_id as the internal cancel identity; "
+                    "frontend cancel evidence must stay client_order_id-scoped."
+                ),
+                spot_rule_boundary=(
+                    "Spot cancel may release spot inventory holds only through backend "
+                    "reconciliation; browser state is not wallet authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/campaign/executions",
+                mutation_id="spot.campaign_execution",
+                mutation_family=AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION,
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.sweep_automation_and_live_executor"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot campaign execution is the Admin API command family for "
+                    "campaign and sweep automation review, still live-disabled."
+                ),
+                identity_keys=["campaign_id", "config_id", "client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::execute_spot_campaign",
+                    "application/admin_api/command_service.py::execute_spot_campaign",
+                    "business/spot_campaign.py",
+                    "business/spot_portfolio_sweep.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotCampaign",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-campaign.md",
+                    "README.spot-portfolio-sweep.md",
+                ],
+                required_next_contract=(
+                    "Durable scheduler, run-limit, approval, cap/guard, audit, "
+                    "execution, recovery, and reconciliation contracts for each run."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "backend scheduling UI contract missing",
+                    "run reconciliation proof missing",
+                ],
+                frontend_boundary=(
+                    "Do not launch live sweep tools or implement a browser scheduler; "
+                    "only display/dry-submit backend campaign evidence."
+                ),
+                spot_rule_boundary=(
+                    "Spot campaign automation must keep USDC scope, no-shorting, "
+                    "inventory, and cost-basis authority inside backend gates."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
+                mutation_id="stealth.cancel",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL,
+                workflow_id="stealth.cancel_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth cancel is keyed by stealth_order_id and must preserve "
+                    "active placement/exchange-reality invariants."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::cancel_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::cancel_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::cancelStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
+                ],
+                required_next_contract=(
+                    "Exchange cancel/reconcile path must prove active placement "
+                    "handling before local stealth state changes."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "exchange reality proof missing",
+                    "active placement reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not cancel by exchange order id or mutate active placement "
+                    "state from the browser."
+                ),
+                spot_rule_boundary=(
+                    "Stealth authority is lifecycle/exchange-reality based; spot "
+                    "wallet rules apply only through backend guards for spot products."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+                mutation_id="movement.reprice",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="movement.reprice_command_draft",
+                module="Order Movement / Repricing",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Movement/reprice is a cancel/replace-shaped mutation keyed by "
+                    "stealth_order_id with mutation-claim and cooldown requirements."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/movement_repricing.py::reprice_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reprice_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py",
+                    "business/move_manager.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::repriceStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=["README.movement-repricing.md"],
+                required_next_contract=(
+                    "Backend live reprice contract with mutation claims, cooldown "
+                    "handling, exchange cancel/replace, approval, cap, audit, and "
+                    "reconciliation."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "mutation claim proof missing",
+                    "cancel/replace reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not clear cooldowns, bypass mutation claims, call legacy "
+                    "dashboard repricing, or mutate revealed placement state."
+                ),
+                spot_rule_boundary=(
+                    "Spot replacement-budget checks may apply only as backend guard "
+                    "evidence; they cannot approve movement/repricing generically."
+                ),
+            ),
+            mutation_taxonomy_item(
+                mutation_id="futures.commands_contract_required",
+                mutation_family=AdminApiMutationFamilyType.FUTURES_CONTRACT_REQUIRED,
+                workflow_id="futures.commands_not_modeled",
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                summary=(
+                    "Futures placement, close, reduce-only, close-only, cancel, "
+                    "funding, and collateral commands require backend-specific "
+                    "contracts before any route or UI exists."
+                ),
+                identity_keys=["position_key", "product_id", "portfolio_id"],
+                action_classes=[],
+                required_permissions=[],
+                idempotency_contract="backend futures idempotency contract missing",
+                approval_contract="backend futures approval contract missing",
+                cap_guard_contract=(
+                    "backend futures margin, collateral, liquidation, reduce-only, "
+                    "close-only, and funding guard contract missing"
+                ),
+                admission_audit_contract="backend futures admission audit contract missing",
+                reconciliation_contract="backend futures reconciliation contract missing",
+                owning_backend_service="backend futures/perpetual command service missing",
+                backend_contract_refs=["api/v1/routes/futures.py"],
+                frontend_contract_refs=["src/features/admin-shell/AdminShell.tsx"],
+                documentation_refs=["README.futures-perpetuals.md"],
+                required_next_contract=(
+                    "Futures/perpetual command contracts over position side, margin, "
+                    "collateral, liquidation, reduce-only, close-only, funding, "
+                    "order, cancel, and reconciliation semantics."
+                ),
+                blockers=["backend futures command contract missing"],
+                frontend_boundary=(
+                    "Do not create futures command drafts by copying spot order, "
+                    "wallet, no-shorting, or cost-basis behavior."
+                ),
+                spot_rule_boundary=(
+                    "Spot rules are forbidden in futures/perpetual command authority."
+                ),
+                idempotency_required=False,
+                operator_intent_required=False,
+                rbac_required=False,
+                approval_required=False,
+                cap_guard_required=False,
+                admission_audit_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="audit.fill_ledger_repair_contract_required",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FILL_LEDGER_REPAIR_CONTRACT_REQUIRED
+                ),
+                workflow_id="audit.fill_ledger_repair_contract_required",
+                module_id="audit_workbench",
+                module="Audit Workbench",
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                summary=(
+                    "Fill-ledger repair requires a backend-owned preview, apply, audit, "
+                    "and reconciliation contract before any admin repair control exists."
+                ),
+                identity_keys=["client_order_id", "trade_id", "audit_id"],
+                action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
+                required_permissions=[AdminApiPermission.CONFIG_UPDATE],
+                idempotency_contract="backend repair idempotency contract missing",
+                approval_contract="repair approval/preview contract missing",
+                cap_guard_contract="repair policy and blast-radius guard contract missing",
+                admission_audit_contract="append-only repair audit contract missing",
+                reconciliation_contract="repair reconciliation/proof contract missing",
+                owning_backend_service="backend fill-ledger repair service missing",
+                backend_contract_refs=[
+                    "tools/run_spot_fill_ledger_repair.py",
+                    "business/fill_reconciler.py",
+                ],
+                documentation_refs=["docs/SPOT_READINESS_ROADMAP.md"],
+                required_next_contract=(
+                    "Backend repair command with dry-run preview, idempotency, RBAC, "
+                    "append-only audit, bounded apply, rollback/proof, and "
+                    "reconciliation evidence."
+                ),
+                blockers=["Admin API repair mutation contract missing"],
+                frontend_boundary=(
+                    "Do not expose ledger repair buttons until backend preview/apply "
+                    "contracts exist."
+                ),
+                spot_rule_boundary=(
+                    "Current repair tooling is spot/fill-ledger oriented and must "
+                    "not mutate futures, stealth, or movement state."
+                ),
+                idempotency_required=False,
+                operator_intent_required=False,
+                rbac_required=False,
+                approval_required=False,
+                cap_guard_required=False,
+                admission_audit_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="place_order WebSocket",
+                mutation_id="legacy.dashboard_place",
+                mutation_family=AdminApiMutationFamilyType.LEGACY_DASHBOARD_PLACE,
+                workflow_id="legacy.dashboard_compatibility",
+                module="Legacy Dashboard WebSocket",
+                exposure_status=AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY,
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                summary=(
+                    "Legacy dashboard place_order WebSocket exists only as a "
+                    "compatibility surface and is not the enterprise admin command plane."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=["dashboard_server.py", "docs/LIVE_ORDER_SURFACES.md"],
+                frontend_contract_refs=["src/shared/api/contracts/adminBffProxy.ts"],
+                documentation_refs=["docs/LIVE_ORDER_SURFACES.md"],
+                required_next_contract=(
+                    "Any replacement must be an Admin API route through auth, RBAC, "
+                    "idempotency, approval, caps, audit, reconciliation, and shared "
+                    "command service."
+                ),
+                blockers=["compatibility-only surface"],
+                frontend_boundary=(
+                    "Enterprise frontend must not call legacy dashboard WebSocket "
+                    "placement handlers."
+                ),
+                spot_rule_boundary="Legacy spot behavior is not frontend authority.",
+            ),
+            mutation_taxonomy_from_surface(
+                surface="place_hotpoint_test_order WebSocket",
+                mutation_id="legacy.dashboard_hotpoint",
+                mutation_family=AdminApiMutationFamilyType.LEGACY_DASHBOARD_HOTPOINT,
+                workflow_id="legacy.dashboard_compatibility",
+                module="Legacy Dashboard WebSocket",
+                exposure_status=AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY,
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                summary=(
+                    "Legacy hotpoint placement WebSocket exists only as a compatibility "
+                    "surface and must not become enterprise frontend authority."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="dashboard compatibility adapter",
+                backend_contract_refs=["dashboard_server.py", "docs/LIVE_ORDER_SURFACES.md"],
+                frontend_contract_refs=["src/shared/api/contracts/adminBffProxy.ts"],
+                documentation_refs=["docs/LIVE_ORDER_SURFACES.md"],
+                required_next_contract=(
+                    "Backend-owned Admin API command contract before any equivalent "
+                    "enterprise UI path exists."
+                ),
+                blockers=["compatibility-only surface"],
+                frontend_boundary=(
+                    "Enterprise frontend must not call legacy dashboard hotpoint "
+                    "WebSocket handlers."
+                ),
+                spot_rule_boundary="Legacy hotpoint behavior is not reusable spot authority.",
+            ),
+            mutation_taxonomy_from_surface(
+                surface="cancel_order WebSocket",
+                mutation_id="legacy.dashboard_cancel",
+                mutation_family=AdminApiMutationFamilyType.LEGACY_DASHBOARD_CANCEL,
+                workflow_id="legacy.dashboard_compatibility",
+                module="Legacy Dashboard WebSocket",
+                exposure_status=AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY,
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                summary=(
+                    "Legacy cancel_order WebSocket remains compatibility-only; "
+                    "enterprise cancel authority belongs to Admin API client_order_id "
+                    "contracts."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=["dashboard_server.py", "docs/LIVE_ORDER_SURFACES.md"],
+                frontend_contract_refs=["src/shared/api/contracts/adminBffProxy.ts"],
+                documentation_refs=["docs/LIVE_ORDER_SURFACES.md"],
+                required_next_contract=(
+                    "Use Admin API cancel routes and project cancel_order(client_order_id) "
+                    "wrapper; do not add browser WebSocket cancel authority."
+                ),
+                blockers=["compatibility-only surface"],
+                frontend_boundary=(
+                    "Enterprise frontend must not call legacy dashboard WebSocket "
+                    "cancel handlers."
+                ),
+                spot_rule_boundary="Legacy cancel behavior is not frontend spot authority.",
+            ),
+        ]
         unsupported_statuses = {
             AdminApiModuleSupportStatus.NOT_MODELED,
             AdminApiModuleSupportStatus.UNSUPPORTED,
@@ -3960,6 +4537,28 @@ class AdminApiReadService:
             for item in functionality_inventory
             if item.workflow_type == AdminApiFunctionalityWorkflowType.REPAIR
         )
+        mutation_taxonomy_count = len(mutation_taxonomy)
+        route_bound_mutation_taxonomy_count = sum(
+            1 for item in mutation_taxonomy if item.command_surfaces
+        )
+        live_disabled_mutation_count = sum(
+            1
+            for item in mutation_taxonomy
+            if item.exposure_status
+            == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+        )
+        backend_contract_required_mutation_count = sum(
+            1
+            for item in mutation_taxonomy
+            if item.exposure_status
+            == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+        )
+        compatibility_mutation_count = sum(
+            1
+            for item in mutation_taxonomy
+            if item.exposure_status
+            == AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY
+        )
         status = (
             AdminApiGateStatus.BLOCKED
             if any(
@@ -3987,8 +4586,16 @@ class AdminApiReadService:
             recovery_workflow_count=recovery_workflow_count,
             automation_workflow_count=automation_workflow_count,
             repair_workflow_count=repair_workflow_count,
+            mutation_taxonomy_count=mutation_taxonomy_count,
+            route_bound_mutation_taxonomy_count=route_bound_mutation_taxonomy_count,
+            live_disabled_mutation_count=live_disabled_mutation_count,
+            backend_contract_required_mutation_count=(
+                backend_contract_required_mutation_count
+            ),
+            compatibility_mutation_count=compatibility_mutation_count,
             modules=modules,
             functionality_inventory=functionality_inventory,
+            mutation_taxonomy=mutation_taxonomy,
             security_checks=security_checks,
             release_checks=release_checks,
         )

@@ -223,6 +223,21 @@ class AdminApiFunctionalityExposureStatus(str, Enum):
     COMPATIBILITY_ONLY = "compatibility_only"
 
 
+class AdminApiMutationFamilyType(str, Enum):
+    """Enterprise admin mutation family classification."""
+
+    SPOT_MANUAL_ORDER = "spot_manual_order"
+    SPOT_ORDER_CANCEL = "spot_order_cancel"
+    SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"
+    STEALTH_CANCEL = "stealth_cancel"
+    MOVEMENT_REPRICE = "movement_reprice"
+    FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
+    FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
+    LEGACY_DASHBOARD_PLACE = "legacy_dashboard_place"
+    LEGACY_DASHBOARD_HOTPOINT = "legacy_dashboard_hotpoint"
+    LEGACY_DASHBOARD_CANCEL = "legacy_dashboard_cancel"
+
+
 class AdminApiCommandRoutesMode(str, Enum):
     """Command-route posture exposed by read models."""
 

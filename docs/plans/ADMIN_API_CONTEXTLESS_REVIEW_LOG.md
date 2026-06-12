@@ -2,6 +2,65 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Mutation Taxonomy And Authority Map Review - Phases 1461-1480
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify a fresh maintainer can trace M48 from backend route inventory,
+  enums, models, `build_enterprise_readiness()`, OpenAPI, examples, and tests
+- verify `GET /api/v1/admin/enterprise-readiness` carries
+  `mutation_taxonomy` rows for route-bound, backend-contract-required, and
+  legacy compatibility mutation families
+- verify spot cancel remains `client_order_id` scoped and documents the
+  project `cancel_order(client_order_id)` wrapper
+- verify frontend/BFF/browser and route-local code must not invent trading
+  behavior or fill missing backend functionality
+- verify spot-only wallet, no-shorting, USDC, cost-basis, and profitability
+  rules do not become futures/perpetual, stealth, movement/repricing, repair,
+  or legacy dashboard authority
+- verify active roadmap/range docs are coherent for phases `1461-1480`
+
+Findings:
+
+- PASS: backend contextless review found no blockers and confirmed a fresh
+  maintainer can trace M48 from route inventory to typed taxonomy rows,
+  OpenAPI, docs, and regression assertions.
+- PASS: frontend contextless review found no blockers and confirmed the
+  Enterprise Mutation Taxonomy surface is display-only evidence sourced from
+  `GET /api/v1/admin/enterprise-readiness`.
+- PASS: taxonomy covers five live-disabled HTTP command routes, three legacy
+  dashboard compatibility command surfaces, and two backend-contract-required
+  families for futures/perpetual commands and fill-ledger repair.
+- PASS: taxonomy rows preserve `browser_authority=display_only`,
+  `bff_execution_authority=forward_only_no_execution`,
+  `route_local_execution_allowed=false`, no-live Coinbase posture, and `$0`
+  notional.
+- PASS: futures/perpetual command rows remain
+  `backend_contract_required`, have no command surfaces, and explicitly block
+  copied spot order, wallet, no-shorting, or cost-basis behavior.
+- DOCUMENTED RISK: backend shared command service code still contains future
+  live branches behind `allow_live_execution=True`. Current HTTP request
+  models and tests keep the Admin API path no-live, but future callers must
+  not bypass those gates.
+
+Status:
+
+- Backend focused Admin API checks passed.
+- Backend autonomous queue validation passed for `1461-1480`.
+- Backend full regression passed with `799 passed, 1 warning`.
+- Frontend focused M48 checks passed with `45 passed`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Blind/contextless backend and frontend reviews passed with no blockers.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Backend Functionality Inventory Review - Phases 1441-1460
 
 Review scope:

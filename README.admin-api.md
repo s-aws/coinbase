@@ -33,7 +33,14 @@ structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
 `command_gaps` and a top-level `command_gap_count` so unsupported, not
 modeled, and live-disabled command paths are visible without relying on
-free-form unsupported-action strings.
+free-form unsupported-action strings. The same readiness payload now includes
+M48 `mutation_taxonomy` rows and aggregate counts. Each row maps a command
+route or legacy command surface to exactly one backend-owned mutation family
+with identity keys, RBAC permission, idempotency, operator intent, approval,
+cap/guard, admission audit, reconciliation, and owning service evidence.
+Taxonomy rows are read-only evidence; they do not create approval mutation,
+route-local execution, live adapters, BFF execution authority, or Coinbase
+calls.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -98,6 +105,13 @@ live-disabled/live-eligible routes, unsupported actions, and command gaps from
 backend route-inventory `module_id` ownership. It is display evidence only; it
 does not authorize browser-side commands or replace backend guard, wallet,
 margin, approval, audit, cap, or reconciliation gates.
+
+The same response exposes M48 `mutation_taxonomy` evidence. Current taxonomy
+rows cover the five live-disabled HTTP command routes, three legacy dashboard
+WebSocket compatibility command surfaces, and two backend-contract-required
+families for futures/perpetual commands and fill-ledger repair. Every current
+command surface in `ADMIN_API_ROUTE_INVENTORY` must appear in exactly one
+taxonomy row.
 
 Current mutating HTTP command surfaces are:
 

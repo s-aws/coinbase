@@ -2070,6 +2070,45 @@ Completed evidence:
 - Live Coinbase execution was not run; submitted and executed notional remain
   `$0`.
 
+## M48 - Mutation Taxonomy And Authority Map
+
+Purpose: define mutation authority before adding any new write route, approval
+mutation, live adapter, or frontend command UI.
+
+Active scope:
+
+- Phases 1461-1480 advance the unattended range while preserving the same
+  no-live posture and carried Coinbase cap policy.
+- Existing `GET /api/v1/admin/enterprise-readiness`, not a new endpoint, now
+  exposes `mutation_taxonomy` rows.
+- Every current command route and legacy command surface in
+  `ADMIN_API_ROUTE_INVENTORY` must map to exactly one mutation taxonomy row.
+- Each row must state mutation id, mutation family, workflow id, module id,
+  exposure status, support status, command surfaces, action classes,
+  required permissions, identity keys, payload binding fields, idempotency,
+  operator intent, RBAC, approval, cap/guard, admission audit,
+  reconciliation, live-adapter requirement, owning backend service, shared
+  command-service method, refs, blockers, frontend boundary, BFF boundary,
+  route-local boundary, and spot-rule boundary.
+- Futures/perpetual commands and fill-ledger repair remain
+  backend-contract-required until module-owned contracts exist.
+- Legacy dashboard WebSocket command surfaces remain compatibility-only and
+  outside the enterprise admin command plane.
+
+Done when:
+
+- Backend models, enums, OpenAPI, enterprise-readiness response, route
+  examples, tests, docs, capability matrix, handoff, and autonomous validator
+  report phase range `1461-1480` and mutation taxonomy counts.
+- Frontend generated schema, mocks, module catalog UI, quality artifacts,
+  docs, and tests render the taxonomy as evidence without enabling commands.
+- Blind/contextless review can explain mutation authority, the route ownership
+  proof, and why browser/BFF/route-local logic must not fill missing backend
+  behavior.
+- Backend full regression and frontend `npm run release:gate` pass.
+- Live Coinbase execution is not run; submitted and executed notional remain
+  `$0`.
+
 ## M24 - Enterprise Module Catalog
 
 Purpose: support a frontend read-only catalog that makes backend-owned module

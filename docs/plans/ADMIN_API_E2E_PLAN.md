@@ -38,115 +38,122 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Backend Functionality Inventory Batch - Phases 1441-1460
+## Active Mutation Taxonomy Batch - Phases 1461-1480
 
-### Phase 1441 - Advance Active Queue Range
+### Phase 1461 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1421-1440 to active
-  phases 1441-1460 while preserving the same no-live frontend posture and
+- Move the durable autonomous queue from completed phases 1441-1460 to active
+  phases 1461-1480 while preserving the same no-live frontend posture and
   carried Coinbase cap policy.
 
-### Phase 1442 - M47 Functionality Inventory Contract
+### Phase 1462 - M48 Mutation Taxonomy Contract
 
 - Extend existing `GET /api/v1/admin/enterprise-readiness` with a
-  backend-owned `functionality_inventory` gap ledger for read, command, live,
-  recovery, repair, automation, and legacy workflows.
+  backend-owned `mutation_taxonomy` authority map. Do not add a new endpoint,
+  mutation route, approval mutation, live adapter, or Coinbase call.
 
-### Phase 1443 - Backend Range Evidence
+### Phase 1463 - Backend Range Evidence
 
 - Keep backend enterprise-readiness, autonomous, runtime, and handoff checks
-  reporting the 1441-1460 phase range.
+  reporting the 1461-1480 phase range.
 
-### Phase 1444 - Workflow Type And Exposure Enums
+### Phase 1464 - Mutation Family Enum
 
-- Add typed workflow and exposure classifications through `core/enums.py`
-  instead of magic strings.
+- Add typed mutation-family classifications through `core/enums.py` instead
+  of magic strings.
 
-### Phase 1445 - Enterprise Readiness Inventory Model
+### Phase 1465 - Enterprise Readiness Taxonomy Model
 
-- Add typed response models and aggregate counts for workflow inventory rows
-  without adding mutation request models or live execution fields.
+- Add typed response models and aggregate counts for mutation taxonomy rows
+  without adding request models or executable command behavior.
 
-### Phase 1446 - Inventory Source Mapping
+### Phase 1466 - Route Ownership Mapping
 
-- Map inventory rows from existing Admin API routes, command metadata,
-  module readiness, capability rows, docs, and legacy surface evidence.
+- Map every current command route and legacy command surface from
+  `ADMIN_API_ROUTE_INVENTORY` to exactly one mutation taxonomy row.
 
-### Phase 1447 - Read, Command, And Live Classification
+### Phase 1467 - Workflow Linkage
 
-- Classify each read model, command draft, and live-designated workflow with
-  route ids, identity keys, exposure status, blockers, and next contract.
+- Link taxonomy rows back to M47 `functionality_inventory` workflow ids so
+  command-capable, backend-contract-required, unsupported, and compatibility
+  workflows remain traceable.
 
-### Phase 1448 - Recovery, Repair, And Automation Classification
+### Phase 1468 - Identity And Payload Binding
 
-- Classify recovery, repair, campaign, scheduler, sweep, retry, and
-  automation workflows as exposed, draft/live-disabled, unsupported, or
-  backend-contract-required.
+- Record identity keys, payload binding fields, idempotency source,
+  operator-intent requirements, and route inventory refs for each mutation
+  family.
 
-### Phase 1449 - Legacy Compatibility Classification
+### Phase 1469 - RBAC And Service Ownership
 
-- Mark legacy dashboard WebSocket command surfaces as compatibility-only and
-  explicitly outside the enterprise admin command plane.
+- Record required permissions, action classes, owning backend service, and
+  shared command-service method for each currently modeled command route.
 
-### Phase 1450 - Aggregate Inventory Counts
+### Phase 1470 - Approval And Cap/Guard Requirements
 
-- Expose backend-supported, admin-exposed, command, live-designated,
-  recovery, repair, and automation workflow counts from enterprise readiness.
+- Record approval, cap/guard, and admission blocker requirements without
+  creating approval storage mutations, browser approval, or guard evaluation.
 
-### Phase 1451 - Route, Identity, And Contract References
+### Phase 1471 - Admission Audit Requirements
 
-- Include route lists, identity keys, backend contract refs, frontend
-  contract refs, documentation refs, frontend boundaries, and spot-rule
-  boundaries for each workflow row.
+- Record append-only admission audit requirements and audit refs without
+  adding audit mutation or live execution.
 
-### Phase 1452 - Missing-Contract Blockers
+### Phase 1472 - Reconciliation Requirements
 
-- Represent gaps as `not_modeled`, `unsupported`, or
-  `backend_contract_required`; do not replace missing backend behavior with
-  route-local logic.
+- Record reconciliation and proof requirements for each mutation family
+  without executing reconciliation or marking exchange state reconciled.
 
-### Phase 1453 - OpenAPI And Examples
+### Phase 1473 - Missing Contract Classification
 
-- Regenerate OpenAPI and update Admin API examples for the inventory fields
-  while preserving no-live evidence and notional `$0`.
+- Classify futures/perpetual commands and fill-ledger repair as backend
+  contract required until module-owned contracts exist.
 
-### Phase 1454 - Capability Matrix And Handoff Docs
+### Phase 1474 - Legacy Compatibility Classification
+
+- Keep legacy dashboard WebSocket command surfaces compatibility-only and
+  outside the enterprise admin command plane.
+
+### Phase 1475 - OpenAPI And Examples
+
+- Regenerate OpenAPI and update Admin API examples for mutation taxonomy
+  fields while preserving no-live evidence and notional `$0`.
+
+### Phase 1476 - Capability Matrix And Handoff Docs
 
 - Update capability matrix, maintainer handoff, durable milestones, and docs
-  index references so contextless agents can find M47 before implementation.
+  index references so contextless agents can find M48 before implementation.
 
-### Phase 1455 - Frontend Range Sync
+### Phase 1477 - Frontend Range Sync
 
 - Coordinate frontend schema, mocks, runtime evidence, quality artifacts,
-  autonomous queue, and release validators for 1441-1460.
+  autonomous queue, and release validators for 1461-1480.
 
-### Phase 1456 - Drift Scan
+### Phase 1478 - Focused Gates
 
-- Scan both repos for stale active ranges, M46 active wording, browser/BFF
-  authority drift, direct legacy WebSocket command use, and accidental live
-  enablement.
+- Run focused backend Admin API/enterprise-readiness tests, backend
+  autonomous queue validation, and focused frontend checks covering taxonomy
+  rendering.
 
-### Phase 1457 - Focused Backend Gates
+### Phase 1479 - Blind/Contextless Review
 
-- Run focused backend Admin API/enterprise-readiness tests and backend
-  autonomous queue validation for M47.
+- Run blind/contextless review to confirm a fresh agent can explain mutation
+  authority without inventing frontend trading behavior, BFF execution, or
+  spot-specific non-spot rules.
 
-### Phase 1458 - Focused Frontend Gates
-
-- Run focused frontend API, unit, lint/type, autonomous, and relevant smoke
-  checks that cover functionality inventory rendering.
-
-### Phase 1459 - Blind/Contextless Review
-
-- Run blind/contextless review to confirm a fresh agent can explain the
-  remaining admin work from the inventory without inventing frontend trading
-  behavior or spot-specific non-spot rules.
-
-### Phase 1460 - Full Gates And Summary
+### Phase 1480 - Full Gates And Summary
 
 - Run full backend regression and frontend release gate. Summarize live
   Coinbase execution status and notional. Default remains no-live with
   submitted and executed notional `$0`.
+
+## Completed Backend Functionality Inventory Batch - Phases 1441-1460
+
+Phases 1441-1460 completed M47 by adding the backend-owned
+`functionality_inventory` gap ledger to the existing enterprise-readiness
+route, regenerating OpenAPI, updating examples/docs, and passing focused
+backend checks, backend regression, frontend release gate, and
+blind/contextless review without live Coinbase execution.
 
 ## Completed Live Readiness Preconditions Evidence Batch - Phases 1421-1440
 

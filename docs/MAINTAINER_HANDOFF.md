@@ -97,16 +97,21 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1441-1460`.
-- M47 backend functionality inventory and gap ledger is active for phases
-  `1441-1460`. The existing
-  `GET /api/v1/admin/enterprise-readiness` route should report
-  backend-owned workflow inventory rows for read, command, live, recovery,
-  repair, automation, and legacy compatibility surfaces. Inventory rows must
-  classify gaps as `not_modeled`, `unsupported`, or
-  `backend_contract_required`, and must not add mutation routes, live
-  execution, approval mutation, route-local execution, browser/BFF authority,
-  Coinbase calls, or parallel endpoints.
+- Active autonomous range: `1461-1480`.
+- M48 mutation taxonomy and authority map is active for phases `1461-1480`.
+  The existing `GET /api/v1/admin/enterprise-readiness` route should report
+  backend-owned `mutation_taxonomy` rows that map every current command route
+  and legacy command surface to exactly one mutation family. Rows must record
+  workflow id, module id, identity keys, RBAC permission, action class,
+  idempotency, operator intent, approval, cap/guard, admission audit,
+  reconciliation, owning backend service, shared command-service method, and
+  browser/BFF/route-local non-authority. M48 must not add command execution,
+  approval mutation, live adapters, frontend/BFF authority, Coinbase calls, or
+  copied spot semantics for non-spot modules.
+- M47 backend functionality inventory and gap ledger is complete for phases
+  `1441-1460`. The existing `GET /api/v1/admin/enterprise-readiness` route
+  reports backend-owned workflow inventory rows for read, command, live,
+  recovery, repair, automation, and legacy compatibility surfaces.
 - M46 live readiness precondition evidence is complete for phases
   `1421-1440`.
   `GET /api/v1/admin/live-enablement` may report a normalized backend-owned

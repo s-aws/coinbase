@@ -34,6 +34,7 @@ from core.enums import (
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
     AdminMovementRepricingEvidenceType,
+    AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
     AdminApiRouteAvailability,
@@ -519,6 +520,62 @@ class AdminEnterpriseFunctionalityInventoryItem(BaseModel):
     notional_usdc: DecimalString = "0"
 
 
+class AdminEnterpriseMutationTaxonomyItem(BaseModel):
+    """One backend-owned admin mutation family and its authority contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_id: str
+    mutation_family: AdminApiMutationFamilyType
+    workflow_id: str
+    related_workflow_ids: list[str] = Field(default_factory=list)
+    module_id: str
+    module: str
+    exposure_status: AdminApiFunctionalityExposureStatus
+    support_status: AdminApiModuleSupportStatus
+    summary: str
+    command_surfaces: list[str] = Field(default_factory=list)
+    action_classes: list[AdminApiActionClass] = Field(default_factory=list)
+    required_permissions: list[AdminApiPermission | str] = Field(default_factory=list)
+    identity_keys: list[str] = Field(default_factory=list)
+    payload_binding_fields: list[str] = Field(default_factory=list)
+    idempotency_required: bool = True
+    idempotency_contract: str
+    operator_intent_required: bool = True
+    rbac_required: bool = True
+    approval_required: bool = True
+    approval_contract: str
+    cap_guard_required: bool = True
+    cap_guard_contract: str
+    admission_audit_required: bool = True
+    admission_audit_contract: str
+    reconciliation_required: bool = True
+    reconciliation_contract: str
+    live_adapter_required: bool = True
+    owning_backend_service: str
+    shared_command_service_method: str | None = None
+    route_inventory_refs: list[str] = Field(default_factory=list)
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    required_next_contract: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    frontend_boundary: str
+    bff_boundary: str = (
+        "BFF may forward only to backend Admin API; it must not execute or "
+        "approve commands."
+    )
+    route_local_boundary: str = (
+        "FastAPI route adapters must not implement route-local trading behavior."
+    )
+    browser_authority: str = "display_only"
+    bff_execution_authority: str = "forward_only_no_execution"
+    route_local_execution_allowed: bool = False
+    spot_rule_boundary: str
+    live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    notional_usdc: DecimalString = "0"
+
+
 class AdminEnterpriseReadinessModuleItem(BaseModel):
     """One module's enterprise admin readiness posture."""
 
@@ -567,8 +624,14 @@ class AdminEnterpriseReadinessResponse(BaseModel):
     recovery_workflow_count: int = 0
     automation_workflow_count: int = 0
     repair_workflow_count: int = 0
+    mutation_taxonomy_count: int = 0
+    route_bound_mutation_taxonomy_count: int = 0
+    live_disabled_mutation_count: int = 0
+    backend_contract_required_mutation_count: int = 0
+    compatibility_mutation_count: int = 0
     modules: list[AdminEnterpriseReadinessModuleItem] = Field(default_factory=list)
     functionality_inventory: list[AdminEnterpriseFunctionalityInventoryItem] = Field(default_factory=list)
+    mutation_taxonomy: list[AdminEnterpriseMutationTaxonomyItem] = Field(default_factory=list)
     security_checks: list[AdminGateCheck] = Field(default_factory=list)
     release_checks: list[AdminGateCheck] = Field(default_factory=list)
     frontend_authority: str = "backend_contract_only"

@@ -3189,6 +3189,21 @@ components:
       - unsupported
       title: AdminApiModuleSupportStatus
       description: Enterprise admin support posture for a platform or domain module.
+    AdminApiMutationFamilyType:
+      type: string
+      enum:
+      - spot_manual_order
+      - spot_order_cancel
+      - spot_campaign_execution
+      - stealth_cancel
+      - movement_reprice
+      - futures_contract_required
+      - fill_ledger_repair_contract_required
+      - legacy_dashboard_place
+      - legacy_dashboard_hotpoint
+      - legacy_dashboard_cancel
+      title: AdminApiMutationFamilyType
+      description: Enterprise admin mutation family classification.
     AdminApiPermission:
       type: string
       enum:
@@ -3930,6 +3945,206 @@ components:
       - route_module_id_detail
       title: AdminEnterpriseModuleActionPosture
       description: Backend-derived action posture for one enterprise admin module.
+    AdminEnterpriseMutationTaxonomyItem:
+      properties:
+        mutation_id:
+          type: string
+          title: Mutation Id
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        workflow_id:
+          type: string
+          title: Workflow Id
+        related_workflow_ids:
+          items:
+            type: string
+          type: array
+          title: Related Workflow Ids
+        module_id:
+          type: string
+          title: Module Id
+        module:
+          type: string
+          title: Module
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        summary:
+          type: string
+          title: Summary
+        command_surfaces:
+          items:
+            type: string
+          type: array
+          title: Command Surfaces
+        action_classes:
+          items:
+            $ref: '#/components/schemas/AdminApiActionClass'
+          type: array
+          title: Action Classes
+        required_permissions:
+          items:
+            anyOf:
+            - $ref: '#/components/schemas/AdminApiPermission'
+            - type: string
+          type: array
+          title: Required Permissions
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        payload_binding_fields:
+          items:
+            type: string
+          type: array
+          title: Payload Binding Fields
+        idempotency_required:
+          type: boolean
+          title: Idempotency Required
+          default: true
+        idempotency_contract:
+          type: string
+          title: Idempotency Contract
+        operator_intent_required:
+          type: boolean
+          title: Operator Intent Required
+          default: true
+        rbac_required:
+          type: boolean
+          title: Rbac Required
+          default: true
+        approval_required:
+          type: boolean
+          title: Approval Required
+          default: true
+        approval_contract:
+          type: string
+          title: Approval Contract
+        cap_guard_required:
+          type: boolean
+          title: Cap Guard Required
+          default: true
+        cap_guard_contract:
+          type: string
+          title: Cap Guard Contract
+        admission_audit_required:
+          type: boolean
+          title: Admission Audit Required
+          default: true
+        admission_audit_contract:
+          type: string
+          title: Admission Audit Contract
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        reconciliation_contract:
+          type: string
+          title: Reconciliation Contract
+        live_adapter_required:
+          type: boolean
+          title: Live Adapter Required
+          default: true
+        owning_backend_service:
+          type: string
+          title: Owning Backend Service
+        shared_command_service_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Shared Command Service Method
+        route_inventory_refs:
+          items:
+            type: string
+          type: array
+          title: Route Inventory Refs
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        required_next_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Next Contract
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        frontend_boundary:
+          type: string
+          title: Frontend Boundary
+        bff_boundary:
+          type: string
+          title: Bff Boundary
+          default: BFF may forward only to backend Admin API; it must not execute
+            or approve commands.
+        route_local_boundary:
+          type: string
+          title: Route Local Boundary
+          default: FastAPI route adapters must not implement route-local trading behavior.
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_execution_authority:
+          type: string
+          title: Bff Execution Authority
+          default: forward_only_no_execution
+        route_local_execution_allowed:
+          type: boolean
+          title: Route Local Execution Allowed
+          default: false
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
+        live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_id
+      - mutation_family
+      - workflow_id
+      - module_id
+      - module
+      - exposure_status
+      - support_status
+      - summary
+      - idempotency_contract
+      - approval_contract
+      - cap_guard_contract
+      - admission_audit_contract
+      - reconciliation_contract
+      - owning_backend_service
+      - frontend_boundary
+      - spot_rule_boundary
+      title: AdminEnterpriseMutationTaxonomyItem
+      description: One backend-owned admin mutation family and its authority contract.
     AdminEnterpriseReadinessModuleItem:
       properties:
         module_id:
@@ -4090,6 +4305,26 @@ components:
           type: integer
           title: Repair Workflow Count
           default: 0
+        mutation_taxonomy_count:
+          type: integer
+          title: Mutation Taxonomy Count
+          default: 0
+        route_bound_mutation_taxonomy_count:
+          type: integer
+          title: Route Bound Mutation Taxonomy Count
+          default: 0
+        live_disabled_mutation_count:
+          type: integer
+          title: Live Disabled Mutation Count
+          default: 0
+        backend_contract_required_mutation_count:
+          type: integer
+          title: Backend Contract Required Mutation Count
+          default: 0
+        compatibility_mutation_count:
+          type: integer
+          title: Compatibility Mutation Count
+          default: 0
         modules:
           items:
             $ref: '#/components/schemas/AdminEnterpriseReadinessModuleItem'
@@ -4100,6 +4335,11 @@ components:
             $ref: '#/components/schemas/AdminEnterpriseFunctionalityInventoryItem'
           type: array
           title: Functionality Inventory
+        mutation_taxonomy:
+          items:
+            $ref: '#/components/schemas/AdminEnterpriseMutationTaxonomyItem'
+          type: array
+          title: Mutation Taxonomy
         security_checks:
           items:
             $ref: '#/components/schemas/AdminGateCheck'
