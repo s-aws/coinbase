@@ -504,21 +504,53 @@ Done when:
 Purpose: prove the M10 handoff playbook by onboarding a small backend-owned
 read-only module slice end to end.
 
-Current onboarding work:
+Completion evidence:
 
 - Phases 721-740 load existing backend release-gate, recovery-gate, and
   fill-ledger-health reads through the frontend runtime snapshot and display
   them as backend-owned operational gate evidence.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless review cleared after stale range, fixture key, and
+  recovery-scope remediation.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 Done when:
 
 - Frontend runtime snapshot includes all three gate reads.
 - Operator UI displays gate status, checks, read-only posture, and no-live
   evidence without creating browser authority.
-- Backend and frontend validators use active phase range 721-740.
+- Backend and frontend validators used active phase range 721-740.
 - Focused and full gates pass.
 - Blind/contextless review confirms the module slice can be understood from
   checked-in docs and tests.
+
+## M12 - Frontend-Fixtures Runtime Evidence
+
+Purpose: promote the existing backend-owned frontend-fixtures route from
+contract-only coverage to runtime-loaded admin evidence without making it a
+browser-side source of trading behavior.
+
+Current onboarding work:
+
+- Phases 741-760 load `GET /api/v1/admin/frontend-fixtures` through the
+  frontend runtime snapshot and display fixture bundle diagnostics.
+- The evidence highlights backend gate fixture keys, schema version, and
+  no-live posture.
+- Mock fixtures, route coverage, quality artifacts, and docs stay aligned with
+  the backend route.
+
+Done when:
+
+- Frontend runtime snapshot includes frontend-fixtures.
+- Operator diagnostics display fixture count, gate fixture keys, schema
+  version, and no-live evidence.
+- Backend and frontend validators use active phase range 741-760.
+- Focused and full gates pass.
+- Blind/contextless review confirms frontend-fixtures are clearly read-only
+  evidence and not a parallel trading authority.
 
 ## Objective Completion
 

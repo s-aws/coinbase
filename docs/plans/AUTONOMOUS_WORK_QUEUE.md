@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **721-740**.
+- Approved phase range: **741-760**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -551,7 +551,7 @@ Stop advancement to the next phase until fixed when any of these occur:
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 
-## Approved Phases 721-740
+## Completed Phases 721-740
 
 ### Phase 721 - Advance Active Queue Range
 
@@ -645,6 +645,117 @@ Stop advancement to the next phase until fixed when any of these occur:
 - Mark M11 operational-gates onboarding proof complete if gates and review pass.
 
 ### Phase 740 - Commit And Final Batch Summary
+
+- Commit backend and frontend work separately, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 721-740
+
+- Phase range 721-740 completed M11 operational-gates onboarding proof.
+- Backend release-gate, spot/direct-order recovery-gate, and fill-ledger-health
+  read routes are consumed through the frontend runtime snapshot.
+- Frontend diagnostics and read-only operator models display the gate statuses,
+  checks, read-only posture, and no-live evidence.
+- Backend full regression passed with `789 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `178` unit tests and `3`
+  Playwright tests.
+- Blind/contextless M11 review found no blockers after stale range, fixture-key,
+  and recovery-scope issues were remediated.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## Approved Phases 741-760
+
+### Phase 741 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 721-740 to active
+  phases 741-760 while preserving the same cap and stop-condition policy.
+
+### Phase 742 - M12 Frontend-Fixtures Runtime Slice
+
+- Promote the existing backend-owned frontend-fixtures route from contract-only
+  coverage to runtime-loaded admin evidence.
+
+### Phase 743 - Backend Range Evidence
+
+- Update backend no-live readiness evidence so live-enablement and
+  enterprise-readiness report the active 741-760 phase range.
+
+### Phase 744 - Backend Fixture Contract Recheck
+
+- Re-verify the backend frontend-fixtures response includes gate fixture keys
+  and remains read-only/no-live.
+
+### Phase 745 - Frontend Runtime Fixture Snapshot
+
+- Load frontend-fixtures through the canonical runtime snapshot.
+
+### Phase 746 - Frontend Fixture Diagnostics
+
+- Display fixture count, gate fixture keys, schema version, and no-live posture
+  in operational diagnostics.
+
+### Phase 747 - Mock And Route-Coverage Parity
+
+- Keep mock fixtures, BFF allowlist, and route coverage aligned with runtime
+  fixture evidence.
+
+### Phase 748 - Quality Artifact Range Sync
+
+- Update frontend release/deployment/autonomous artifacts and tests to the
+  741-760 active range.
+
+### Phase 749 - Operator Docs Sync
+
+- Document frontend-fixtures as backend-owned test/readiness evidence, not a
+  browser-side trading source.
+
+### Phase 750 - Stale Range Audit
+
+- Search for current-state contradictions around 721-740 versus 741-760 and
+  around contract-only versus runtime-loaded frontend-fixture evidence.
+
+### Phase 751 - Focused Backend Verification
+
+- Run focused Admin API contract and autonomous queue checks for active range
+  and fixture-route posture.
+
+### Phase 752 - Focused Frontend Verification
+
+- Run focused runtime, mock, Admin shell, route-coverage, and quality tests for
+  frontend-fixtures consumption.
+
+### Phase 753 - Contextless M12 Review
+
+- Run a blind/contextless review asking whether the frontend-fixtures route is
+  clearly runtime evidence only and not a parallel trading authority.
+
+### Phase 754 - Review Remediation
+
+- Resolve blocker or ambiguity from M12 review before full gates.
+
+### Phase 755 - Full Backend Regression
+
+- Run full backend regression after M12 changes and docs updates.
+
+### Phase 756 - Full Frontend Release Gate
+
+- Run full frontend release gate after M12 evidence renders.
+
+### Phase 757 - Final Drift Check
+
+- Run diff, stale-range, generated-file, route-range, and live-notional checks.
+
+### Phase 758 - Milestone Evidence
+
+- Mark M12 frontend-fixtures runtime evidence complete if gates and review pass.
+
+### Phase 759 - Next Batch Planning
+
+- Prepare the next roadmap batch only if it aligns with the durable enterprise
+  admin objective.
+
+### Phase 760 - Commit And Final Batch Summary
 
 - Commit backend and frontend work separately, then summarize implementation,
   verification, live posture, commits, and next objective scope.
