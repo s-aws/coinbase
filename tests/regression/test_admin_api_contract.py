@@ -36,6 +36,12 @@ from application.admin_api.cap_guard import (
     FileAdminApiCapGuardStore,
     resolve_cap_guard_decision,
 )
+from application.admin_api.reconciliation import (
+    FileAdminApiReconciliationStore,
+    ReconciliationPlanRecord,
+    ReconciliationPlanRequest,
+    resolve_reconciliation_plan,
+)
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -114,6 +120,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     audit_store = FileAdminApiAuditStore(store_dir / "audit.jsonl")
     approval_store = FileAdminApiApprovalStore(store_dir / "approvals.jsonl")
     cap_guard_store = FileAdminApiCapGuardStore(store_dir / "cap_guard.jsonl")
+    reconciliation_store = FileAdminApiReconciliationStore(
+        store_dir / "reconciliation.jsonl"
+    )
     app.dependency_overrides[order_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -122,11 +131,15 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[order_routes.get_cap_guard_store] = (
         lambda: cap_guard_store
     )
+    app.dependency_overrides[order_routes.get_reconciliation_store] = (
+        lambda: reconciliation_store
+    )
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
     client.admin_api_test_audit_store = audit_store
     client.admin_api_test_approval_store = approval_store
     client.admin_api_test_cap_guard_store = cap_guard_store
+    client.admin_api_test_reconciliation_store = reconciliation_store
     return client
 
 
@@ -320,6 +333,55 @@ def _append_manual_order_cap_guard_decision(
         max_submitted_notional_usdc="3.10",
         max_executed_notional_usdc="1.00",
         reason="Exact backend-owned cap/guard proof for no-live admission tests.",
+    )
+    store.append(record)
+    return record
+
+
+def _append_manual_order_reconciliation_plan(
+    *,
+    store: FileAdminApiReconciliationStore,
+    approval: AdminApiApprovalRecord,
+    audit_event: AdminApiAuditEvent,
+    cap_guard: CapGuardDecisionRecord,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+    allowed: bool = True,
+    status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+) -> ReconciliationPlanRecord:
+    record = ReconciliationPlanRecord(
+        plan_id=approval.reconciliation_plan_ref,
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="place_manual_order",
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash
+        or make_payload_hash(
+            _manual_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+                idempotency_key=idempotency_key,
+            )
+        ),
+        approval_snapshot_id=approval.approval_id,
+        admission_audit_id=audit_event.audit_id,
+        cap_guard_decision_id=cap_guard.decision_id,
+        allowed=allowed,
+        status=status,
+        reconciliation_policy_ref="post_submit_reconciliation:manual_order",
+        product_scope="USDC spot product scope",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+        reason="Exact backend-owned reconciliation plan proof for no-live admission tests.",
     )
     store.append(record)
     return record
@@ -1051,6 +1113,11 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["cap_guard_source"] == "missing"
     assert admission["cap_guard_recorded_at"] is None
     assert admission["cap_guard_missing_reason"] == "identity_value_missing"
+    assert admission["reconciliation_plan_present"] is False
+    assert admission["reconciliation_plan_id"] is None
+    assert admission["reconciliation_plan_source"] == "missing"
+    assert admission["reconciliation_plan_recorded_at"] is None
+    assert admission["reconciliation_plan_missing_reason"] == "identity_value_missing"
     assert admission["browser_authority"] == "rejected"
     assert admission["live_exchange_submitted"] is False
     assert "approval_store_missing" not in admission["blockers"]
@@ -1106,6 +1173,11 @@ def test_admin_api_approval_snapshot_resolution_is_evidence_only(monkeypatch):
     assert admission["cap_guard_source"] == "missing"
     assert admission["cap_guard_recorded_at"] is None
     assert admission["cap_guard_missing_reason"] == "admission_audit_missing"
+    assert admission["reconciliation_plan_present"] is False
+    assert admission["reconciliation_plan_id"] is None
+    assert admission["reconciliation_plan_source"] == "missing"
+    assert admission["reconciliation_plan_recorded_at"] is None
+    assert admission["reconciliation_plan_missing_reason"] == "admission_audit_missing"
     assert "approval_snapshot_missing" not in admission["blockers"]
     assert "live_execution_disabled" in admission["blockers"]
     assert "admission_audit_missing" in admission["blockers"]
@@ -1160,6 +1232,11 @@ def test_admin_api_admission_audit_resolution_is_evidence_only(monkeypatch):
     assert admission["cap_guard_source"] == "missing"
     assert admission["cap_guard_recorded_at"] is None
     assert admission["cap_guard_missing_reason"] == "no_matching_cap_guard_decision"
+    assert admission["reconciliation_plan_present"] is False
+    assert admission["reconciliation_plan_id"] is None
+    assert admission["reconciliation_plan_source"] == "missing"
+    assert admission["reconciliation_plan_recorded_at"] is None
+    assert admission["reconciliation_plan_missing_reason"] == "cap_guard_missing"
     assert "approval_snapshot_missing" not in admission["blockers"]
     assert "admission_audit_missing" not in admission["blockers"]
     assert "live_execution_disabled" in admission["blockers"]
@@ -1229,6 +1306,13 @@ def test_admin_api_cap_guard_resolution_is_evidence_only(monkeypatch):
     assert admission["cap_guard_source"] == "admin_api_cap_guard_log"
     assert admission["cap_guard_recorded_at"] == cap_guard.recorded_at
     assert admission["cap_guard_missing_reason"] is None
+    assert admission["reconciliation_plan_present"] is False
+    assert admission["reconciliation_plan_id"] is None
+    assert admission["reconciliation_plan_source"] == "missing"
+    assert admission["reconciliation_plan_recorded_at"] is None
+    assert admission["reconciliation_plan_missing_reason"] == (
+        "no_matching_reconciliation_plan"
+    )
     assert "approval_snapshot_missing" not in admission["blockers"]
     assert "admission_audit_missing" not in admission["blockers"]
     assert "cap_guard_missing" not in admission["blockers"]
@@ -1247,6 +1331,89 @@ def test_admin_api_cap_guard_resolution_is_evidence_only(monkeypatch):
     assert audit_rows[-1]["approval_id"] == approval.approval_id
     assert audit_rows[-1]["admission_decision"]["cap_guard_decision_id"] == (
         cap_guard.decision_id
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_reconciliation_plan_resolution_is_evidence_only(monkeypatch):
+    client = _client(monkeypatch)
+    now = datetime.now(timezone.utc)
+    client_order_id = "client-reconciliation-approved"
+    idempotency_key = "idem-reconciliation-approved"
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=now,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    reconciliation_plan = _append_manual_order_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key=idempotency_key),
+        json=_manual_order_payload(client_order_id=client_order_id),
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    admission = payload["admission_decision"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["client_order_id"] == client_order_id
+    assert payload["failure_stage"] == "approval"
+    assert admission["allowed"] is False
+    assert admission["approval_snapshot_present"] is True
+    assert admission["approval_snapshot_id"] == approval.approval_id
+    assert admission["admission_audit_present"] is True
+    assert admission["admission_audit_id"] == audit_event.audit_id
+    assert admission["cap_guard_present"] is True
+    assert admission["cap_guard_decision_id"] == cap_guard.decision_id
+    assert admission["reconciliation_plan_present"] is True
+    assert admission["reconciliation_plan_id"] == reconciliation_plan.plan_id
+    assert admission["reconciliation_plan_source"] == (
+        "admin_api_reconciliation_plan_log"
+    )
+    assert admission["reconciliation_plan_recorded_at"] == (
+        reconciliation_plan.recorded_at
+    )
+    assert admission["reconciliation_plan_missing_reason"] is None
+    assert "approval_snapshot_missing" not in admission["blockers"]
+    assert "admission_audit_missing" not in admission["blockers"]
+    assert "cap_guard_missing" not in admission["blockers"]
+    assert "reconciliation_plan_missing" not in admission["blockers"]
+    assert "live_execution_disabled" in admission["blockers"]
+    assert "browser_authority_rejected" in admission["blockers"]
+    assert payload["guard"]["admission_decision"] == admission
+    assert payload["audit_id"]
+
+    audit_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "audit.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert audit_rows[-1]["approval_id"] == approval.approval_id
+    assert audit_rows[-1]["admission_decision"]["reconciliation_plan_id"] == (
+        reconciliation_plan.plan_id
     )
 
 
@@ -2006,6 +2173,97 @@ def test_admin_api_cap_guard_decision_resolver_is_exact_and_identity_generic():
 
 
 @pytest.mark.regression
+def test_admin_api_reconciliation_plan_resolver_is_exact_and_identity_generic():
+    store = FileAdminApiReconciliationStore(_store_dir() / "reconciliation.jsonl")
+    record = ReconciliationPlanRecord(
+        plan_id="reconciliation-futures-001",
+        route="/api/v1/futures/positions/position-001/reduce",
+        method="POST",
+        module_id="futures_perpetuals",
+        identity_key="position_id",
+        identity_value="position-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="reduce_futures_position",
+        actor_id="operator-002",
+        operator_intent="reduce_position",
+        idempotency_key="idem-futures-reduce",
+        payload_hash="c" * 64,
+        approval_snapshot_id="approval-futures-001",
+        admission_audit_id="audit-futures-001",
+        cap_guard_decision_id="cap-guard-futures-001",
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        reconciliation_policy_ref="futures_position_reconciliation",
+        product_scope="futures/perpetual configured product scope",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+        reason="Backend-owned futures reconciliation plan proof.",
+    )
+    store.append(record)
+    store.append(record.model_copy(update={
+        "plan_id": "reconciliation-denied",
+        "allowed": False,
+        "status": AdminApiGateStatus.BLOCKED,
+    }))
+
+    request = ReconciliationPlanRequest(
+        route="/api/v1/futures/positions/position-001/reduce",
+        method="POST",
+        module_id="futures_perpetuals",
+        identity_key="position_id",
+        identity_value="position-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="reduce_futures_position",
+        actor_id="operator-002",
+        operator_intent="reduce_position",
+        idempotency_key="idem-futures-reduce",
+        payload_hash="c" * 64,
+        approval_snapshot_id="approval-futures-001",
+        approval_reconciliation_plan_ref="reconciliation-futures-001",
+        admission_audit_id="audit-futures-001",
+        cap_guard_decision_id="cap-guard-futures-001",
+    )
+
+    proof = resolve_reconciliation_plan(store=store, request=request)
+
+    assert proof is not None
+    assert proof.plan_id == "reconciliation-futures-001"
+    assert proof.approval_snapshot_id == "approval-futures-001"
+    assert proof.admission_audit_id == "audit-futures-001"
+    assert proof.cap_guard_decision_id == "cap-guard-futures-001"
+    assert proof.product_scope == "futures/perpetual configured product scope"
+
+    drift_updates = [
+        {"route": "/api/v1/futures/positions/position-002/reduce"},
+        {"method": "PUT"},
+        {"module_id": "spot_operations"},
+        {"identity_key": "client_order_id"},
+        {"identity_value": "position-002"},
+        {"action_class": AdminApiActionClass.LIVE_EXCHANGE_CANCEL},
+        {"required_permission": AdminApiPermission.ORDER_CANCEL},
+        {"service_method": "close_futures_position"},
+        {"actor_id": "operator-003"},
+        {"operator_intent": "close_position"},
+        {"idempotency_key": "idem-futures-reduce-2"},
+        {"payload_hash": "d" * 64},
+        {"approval_snapshot_id": "approval-futures-002"},
+        {"approval_reconciliation_plan_ref": "reconciliation-denied"},
+        {"admission_audit_id": "audit-futures-002"},
+        {"cap_guard_decision_id": "cap-guard-futures-002"},
+    ]
+    for update in drift_updates:
+        assert (
+            resolve_reconciliation_plan(
+                store=store,
+                request=request.model_copy(update=update),
+            )
+            is None
+        )
+
+
+@pytest.mark.regression
 def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates():
     service_source = inspect.getsource(command_service)
     route_source = "\n".join(
@@ -2249,7 +2507,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1301-1320"
+    assert live_payload["approved_phase_range"] == "1321-1340"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -2649,7 +2907,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1301-1320"
+    assert enterprise_payload["approved_phase_range"] == "1321-1340"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -4177,6 +4435,11 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "cap_guard_source": "missing",
         "cap_guard_recorded_at": None,
         "cap_guard_missing_reason": None,
+        "reconciliation_plan_present": False,
+        "reconciliation_plan_id": None,
+        "reconciliation_plan_source": "missing",
+        "reconciliation_plan_recorded_at": None,
+        "reconciliation_plan_missing_reason": None,
         "browser_authority": "rejected",
         "live_exchange_submitted": False,
         "blockers": ["admission_audit_missing"],

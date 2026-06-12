@@ -4589,6 +4589,29 @@ components:
           - type: string
           - type: 'null'
           title: Cap Guard Missing Reason
+        reconciliation_plan_present:
+          type: boolean
+          title: Reconciliation Plan Present
+          default: false
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_plan_source:
+          type: string
+          title: Reconciliation Plan Source
+          default: missing
+        reconciliation_plan_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Recorded At
+        reconciliation_plan_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Missing Reason
         browser_authority:
           type: string
           title: Browser Authority

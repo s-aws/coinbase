@@ -2,6 +2,68 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Command Admission Reconciliation Plan Proof Wiring Review - Phases 1321-1340
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify backend command admission reconciliation proof remains evidence-only,
+  live-disabled, and fail-closed
+- verify exact reconciliation plan proof requires exact approval snapshot,
+  exact admission-audit proof, and exact cap/guard proof first
+- verify a resolved reconciliation proof removes only
+  `reconciliation_plan_missing`
+- verify live-disabled and browser-authority blockers remain after
+  reconciliation proof resolution
+- verify no reconciliation execution, reconciliation mutation endpoint,
+  browser/BFF reconciliation authority, direct dashboard WebSocket
+  reconciliation path, live admission endpoint, Coinbase call, or
+  order/exchange-state mutation was added
+- verify existing command adapters use the shared command path
+- verify frontend reconciliation fields are display-only backend evidence
+- verify non-spot identities remain generic and do not inherit spot wallet,
+  no-shorting, USDC, average-cost, or cost-basis rules
+
+Findings:
+
+- PASS: backend admission stays fail-closed and reconciliation proof resolves
+  only after approval snapshot, admission-audit, and cap/guard proof.
+- PASS: reconciliation proof lookup is exact, backend-owned, and append-only.
+- PASS: a resolved reconciliation proof removes only
+  `reconciliation_plan_missing`; live and browser-authority blockers remain.
+- PASS: no reconciliation execution, mutation endpoint, browser/BFF
+  reconciliation authority, dashboard reconciliation path, Coinbase call,
+  live admission endpoint, order/exchange-state mutation, or parallel command
+  path was found.
+- PASS: frontend dry-submit rows and Audit Workbench display reconciliation
+  proof fields as read-only backend evidence.
+- PASS: non-spot identity coverage uses generic identity fields and does not
+  import spot-only wallet, no-shorting, USDC, average-cost, or cost-basis
+  rules.
+- Residual risk: reconciliation plan proof records still use
+  `max_submitted_notional_usdc` and `max_executed_notional_usdc` fields as the
+  current platform cap vocabulary. Revisit before adding non-USDC collateral
+  or cap semantics.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `71 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for `1321-1340`.
+- Frontend focused reconciliation display, runtime, and quality checks passed
+  with `74` tests.
+- Blind/contextless review passed with no blockers.
+- Backend full regression passed with `798 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Command Admission Cap/Guard Proof Wiring Review - Phases 1301-1320
 
 Review scope:

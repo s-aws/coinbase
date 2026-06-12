@@ -36,11 +36,11 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `1301-1320`.
-- Latest completed milestone: M40 - Command Admission Cap/Guard Proof Wiring.
-- Completed files: Admin API command admission cap/guard evidence,
-  cap/guard-store resolver exact matching, cap/guard-store dependency
-  injection for existing command adapters, OpenAPI,
+- Latest completed autonomous range: `1321-1340`.
+- Latest completed milestone: M41 - Command Admission Reconciliation Plan Proof Wiring.
+- Completed files: Admin API command admission reconciliation evidence,
+  reconciliation-store resolver exact matching, reconciliation-store
+  dependency injection for existing command adapters, OpenAPI,
   live-enablement range evidence, admin platform docs, frontend generated
   schema, frontend dry-submit and Audit Workbench display evidence, frontend
   mock/runtime evidence, and agent context needed for local-agent accuracy.
@@ -49,22 +49,22 @@ Keep it short. Keep it factual.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M40 wired existing live-disabled command admission evidence to
-  backend-owned append-only cap/guard proof results. It did not add a guard
-  endpoint, guard mutation, live admission endpoint, guard evaluator,
-  Coinbase call, direct dashboard WebSocket guard path, BFF guard authority,
-  browser guard writer, browser approval workflow, or reconciliation
-  authority.
+- M41 wired existing live-disabled command admission evidence to
+  backend-owned append-only reconciliation plan proof results. It did not add
+  reconciliation execution, a reconciliation mutation endpoint, live
+  admission endpoint, Coinbase call, direct dashboard WebSocket
+  reconciliation path, BFF reconciliation authority, browser reconciliation
+  writer, browser approval workflow, or order/exchange-state mutation.
 
 ## Active Scope
 
 - Active autonomous range: none. Introduce the next approved range before
   beginning new roadmap work.
 - Active milestone: none.
-- Next expected direction: backend-owned reconciliation proof evidence for
-  live-disabled command admission, preserving no browser authority, no
-  reconciliation mutation authority, no Coinbase execution, and no spot-rule
-  leakage into non-spot modules.
+- Next expected direction: controlled live execution final-boundary planning
+  for existing Admin API command routes, preserving no browser authority,
+  single command path, backend-owned caps, durable audit, reconciliation
+  evidence, and explicit no-live posture until a phase authorizes execution.
 
 ## Decisions (Durable)
 
@@ -352,34 +352,35 @@ Keep it short. Keep it factual.
 
 - Last backend focused Admin API/readiness run: 2026-06-12
   `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
-- Result: Passed, 69 tests, 1 warning.
+- Result: Passed for M41 focused checks, 71 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-12
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M40 passed for approved range `1301-1320`. Live Coinbase execution
+- Result: M41 active range `1321-1340` passed. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-12
   `python -m pytest tests\regression\ -v --tb=short`
-- Result: Passed, 796 tests, 1 warning.
+- Result: Passed, 798 tests, 1 warning.
 - Last frontend focused run: 2026-06-12
   `npm run api:check`, `npm run autonomous:check`, `npm run lint`,
   focused Vitest, and
   `npm run release:gate`.
-- Result: Passed for M40 with `186` unit tests and `3` Playwright tests in
-  the release gate. Focused frontend cap/guard display, runtime, and quality
-  checks passed with `74` tests.
-- Last blind/contextless M40 review: 2026-06-12
-- Result: Passed for command admission cap/guard proof wiring with no
-  blockers.
-- Live Coinbase execution for M40: not run. Submitted notional `0` USDC.
+- Result: Passed for M41 with `186` unit tests and `3` Playwright tests in
+  the release gate. Focused frontend reconciliation display, runtime, and
+  quality checks passed with `74` tests.
+- Last blind/contextless M41 review: 2026-06-12
+- Result: Passed for command admission reconciliation plan proof wiring with
+  no blockers.
+- Live Coinbase execution for M41: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
 1. Introduce the next approved autonomous phase range before beginning new
    roadmap implementation.
-2. Continue toward backend-owned reconciliation proof without browser
-   authority, audit mutation, approval mutation, guard mutation, guard
-   execution, reconciliation authority, or live execution.
+2. Continue toward controlled live execution final-boundary evidence without
+   browser authority, audit mutation, approval mutation, guard mutation,
+   guard execution, reconciliation execution, reconciliation authority, or
+   unapproved live execution.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
@@ -413,14 +414,20 @@ Keep it short. Keep it factual.
   approval-snapshot-bound and admission-audit-bound cap/guard decisions can be
   reported on live-disabled command responses. A resolved cap/guard proof
   removes only `cap_guard_missing`; live-disabled, reconciliation, and
-  browser-authority blockers remain.
+  browser-authority blockers remain. M41 adds backend-owned append-only
+  reconciliation plan proof to the same live-disabled command admission
+  evidence. It requires exact approval snapshot, admission audit, and
+  cap/guard proof first. A resolved reconciliation plan proof may remove only
+  `reconciliation_plan_missing`; live-disabled and browser-authority blockers
+  remain.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard,
-  command admission decision, and admission audit proof evidence as display
-  evidence only. No command controls, guard evaluator, audit storage, approval
-  storage, BFF mutation broadening, Coinbase call, browser approval, or
-  reconciliation behavior is allowed.
+  reconciliation proof, command admission decision, and admission audit proof
+  evidence as display evidence only. No command controls, guard evaluator,
+  audit storage, approval storage, reconciliation execution, BFF mutation
+  broadening, Coinbase call, browser approval, or reconciliation behavior is
+  allowed.
 - What is in progress: Nothing. Introduce the next approved autonomous range
   before starting more roadmap work.
 - What is blocked: Nothing currently known.

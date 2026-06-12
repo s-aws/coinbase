@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1301-1320**.
+- Approved phase range: **1321-1340**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,7 +46,123 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1301-1320
+## Active Phases 1321-1340
+
+### Phase 1321 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1301-1320 to active
+  phases 1321-1340 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1322 - M41 Command Admission Reconciliation Plan Proof Wiring
+
+- Wire existing Admin API command admission evidence to backend-owned
+  reconciliation plan proof resolution without adding reconciliation
+  mutation, browser approval, BFF reconciliation authority, live admission,
+  or live Coinbase execution.
+
+### Phase 1323 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the 1321-1340 phase range.
+
+### Phase 1324 - No-Live Reconciliation Boundary Gate
+
+- Confirm a resolved reconciliation plan proof can only change admission
+  evidence; it must not remove live-disabled or browser-authority blockers.
+
+### Phase 1325 - Reconciliation Plan Proof Contract
+
+- Add backend-owned reconciliation plan proof evidence fields for plan
+  presence, plan id, source, recorded time, and missing reason.
+
+### Phase 1326 - Reconciliation Store Resolver Exact Matching
+
+- Resolve reconciliation proof only from exact append-only plan records bound
+  to route, method, module, identity, actor, idempotency key, operator intent,
+  payload hash, service method, approval snapshot id, approval reconciliation
+  plan reference, admission audit id, and cap/guard decision id.
+
+### Phase 1327 - Command Admission Reconciliation Dependency Injection
+
+- Route all live-shaped Admin API command adapters through the shared durable
+  reconciliation store dependency instead of ad hoc lookup paths.
+
+### Phase 1328 - Snapshot-Audit-And-Cap-Bound Reconciliation Lookup
+
+- Require exact approval snapshot, exact admission audit proof, and exact
+  cap/guard proof before reconciliation plan proof can be resolved.
+
+### Phase 1329 - Reconciliation Present Fail-Closed Proof
+
+- Prove exact reconciliation plan proof removes only
+  `reconciliation_plan_missing` and still returns a no-live HTTP command
+  response.
+
+### Phase 1330 - Reconciliation Missing Reason Proof
+
+- Prove missing identity, missing approval snapshot, missing admission audit,
+  missing cap/guard proof, missing reconciliation store, and missing
+  reconciliation proof fail closed with explicit admission evidence.
+
+### Phase 1331 - Non-Spot Path Identity Preservation
+
+- Keep futures/perpetual, stealth, and movement/repricing command admission
+  identities generic; do not import spot wallet, cost-basis, no-shorting, or
+  USDC rules into those modules.
+
+### Phase 1332 - OpenAPI Refresh
+
+- Regenerate backend OpenAPI because command admission reconciliation proof
+  fields changed.
+
+### Phase 1333 - Frontend Schema Generation
+
+- Regenerate the frontend TypeScript schema from backend OpenAPI without hand
+  edits.
+
+### Phase 1334 - Frontend Mock Evidence Sync
+
+- Update frontend mock/runtime evidence for active range 1321-1340 and
+  reconciliation present/missing metadata while keeping default mock
+  live-enablement no-live.
+
+### Phase 1335 - Frontend Dry Submit Evidence Sync
+
+- Keep dry command workflow display-only and show backend reconciliation
+  evidence without adding browser approval, command authority, reconciliation
+  execution, or Coinbase calls.
+
+### Phase 1336 - Frontend Audit Workbench Evidence Sync
+
+- Keep Audit Workbench display-only and show persisted admission
+  reconciliation evidence without adding audit mutation or reconciliation
+  authority.
+
+### Phase 1337 - Documentation Update
+
+- Update Admin API, frontend, architecture, capability matrix, examples,
+  maintainer handoff, roadmap, and review docs for resolver-backed
+  reconciliation evidence.
+
+### Phase 1338 - Drift Scan
+
+- Check stale phase ranges, stale M40 active wording, browser-authority
+  wording, reconciliation mutation wording, live-admission wording, and
+  spot-rule leakage.
+
+### Phase 1339 - Focused Gates And Blind Review
+
+- Run backend autonomous, focused Admin API/readiness checks, focused
+  frontend checks, and blind/contextless review.
+
+### Phase 1340 - Full Gates And Summary
+
+- Run backend full regression and frontend `npm run release:gate`, then
+  summarize implementation, verification, live posture, commits, and next
+  phases.
+
+## Completed Phases 1301-1320
 
 ### Phase 1301 - Advance Active Queue Range
 

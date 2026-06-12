@@ -97,7 +97,17 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1301-1320`.
+- Active autonomous range: `1321-1340`.
+- M41 command admission reconciliation plan proof wiring is complete for
+  phases `1321-1340`. Existing Admin API command admission evidence may
+  consult backend-owned append-only reconciliation plan proof after exact
+  approval snapshot, admission-audit, and cap/guard proof resolution. A
+  resolved reconciliation proof may remove only
+  `reconciliation_plan_missing`; live-disabled and browser-authority blockers
+  remain. It must not add reconciliation execution, a reconciliation mutation
+  endpoint, browser approval, BFF reconciliation authority, live admission
+  endpoint, Coinbase calls, direct dashboard WebSocket reconciliation, browser
+  reconciliation writer, or order/exchange-state mutation.
 - M40 command admission cap/guard proof wiring is complete. Existing Admin
   API command admission evidence may consult backend-owned append-only
   cap/guard decision proof and expose whether an exact approval-snapshot-bound

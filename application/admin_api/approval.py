@@ -29,6 +29,11 @@ from .cap_guard import (
     FileAdminApiCapGuardStore,
     resolve_cap_guard_decision,
 )
+from .reconciliation import (
+    FileAdminApiReconciliationStore,
+    ReconciliationPlanRequest,
+    resolve_reconciliation_plan,
+)
 from .models import AdminLiveAdmissionDecisionEvidence
 
 
@@ -330,6 +335,7 @@ def evaluate_command_live_admission(
     approval_store: FileAdminApiApprovalStore | None = None,
     audit_store: FileAdminApiAuditStore | None = None,
     cap_guard_store: FileAdminApiCapGuardStore | None = None,
+    reconciliation_store: FileAdminApiReconciliationStore | None = None,
     now: datetime | None = None,
 ) -> AdminLiveAdmissionDecisionEvidence:
     """Return route-bound live admission evidence for one command attempt.
@@ -471,10 +477,57 @@ def evaluate_command_live_admission(
         evidence.append(
             "route-specific cap/guard decision resolved but live execution remains blocked"
         )
-    blockers.extend([
-        AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
-        AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
-    ])
+
+    reconciliation_plan = None
+    reconciliation_plan_missing_reason = "reconciliation_store_not_checked"
+    if reconciliation_store is None:
+        reconciliation_plan_missing_reason = "reconciliation_store_dependency_missing"
+    elif not identity_value:
+        reconciliation_plan_missing_reason = "identity_value_missing"
+    elif approval_snapshot is None:
+        reconciliation_plan_missing_reason = "approval_snapshot_missing"
+    elif admission_audit is None:
+        reconciliation_plan_missing_reason = "admission_audit_missing"
+    elif cap_guard is None:
+        reconciliation_plan_missing_reason = "cap_guard_missing"
+    else:
+        reconciliation_plan = resolve_reconciliation_plan(
+            store=reconciliation_store,
+            request=ReconciliationPlanRequest(
+                route=route,
+                method=method,
+                module_id=module_id,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                action_class=action_class,
+                required_permission=required_permission,
+                service_method=service_method,
+                actor_id=actor_id,
+                operator_intent=operator_intent,
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                approval_snapshot_id=approval_snapshot.approval_id,
+                approval_reconciliation_plan_ref=(
+                    approval_snapshot.reconciliation_plan_ref
+                ),
+                admission_audit_id=admission_audit.audit_id,
+                cap_guard_decision_id=cap_guard.decision_id,
+            ),
+        )
+        if reconciliation_plan is None:
+            reconciliation_plan_missing_reason = "no_matching_reconciliation_plan"
+
+    if reconciliation_plan is None:
+        blockers.append(AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING)
+        evidence.append(
+            "missing route-specific reconciliation plan: "
+            f"{reconciliation_plan_missing_reason}"
+        )
+    else:
+        evidence.append(
+            "route-specific reconciliation plan resolved but live execution remains blocked"
+        )
+    blockers.append(AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED)
     evidence.extend([
         "browser authority rejected",
     ])
@@ -549,6 +602,23 @@ def evaluate_command_live_admission(
         ),
         cap_guard_missing_reason=(
             None if cap_guard is not None else cap_guard_missing_reason
+        ),
+        reconciliation_plan_present=reconciliation_plan is not None,
+        reconciliation_plan_id=(
+            reconciliation_plan.plan_id if reconciliation_plan is not None else None
+        ),
+        reconciliation_plan_source=(
+            reconciliation_plan.source if reconciliation_plan is not None else "missing"
+        ),
+        reconciliation_plan_recorded_at=(
+            reconciliation_plan.recorded_at
+            if reconciliation_plan is not None
+            else None
+        ),
+        reconciliation_plan_missing_reason=(
+            None
+            if reconciliation_plan is not None
+            else reconciliation_plan_missing_reason
         ),
         browser_authority="rejected",
         live_exchange_submitted=False,

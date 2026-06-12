@@ -107,6 +107,11 @@ Resolver-backed command admission cap/guard proof evidence remains
 fail-closed. A resolved cap/guard proof may remove only `cap_guard_missing`;
 it does not authorize live execution while live-disabled, reconciliation, or
 browser-authority blockers remain.
+Resolver-backed command admission reconciliation plan proof evidence remains
+fail-closed. A resolved reconciliation plan proof may remove only
+`reconciliation_plan_missing`; it does not authorize live execution while
+live-disabled or browser-authority blockers remain, and it must not execute
+reconciliation or mutate exchange/order state.
 Live-enablement admission-audit trail evidence is read-only missing-audit
 evidence. It may list required append-only backend admission facts and
 sources, but it must not become audit storage, approval storage, browser

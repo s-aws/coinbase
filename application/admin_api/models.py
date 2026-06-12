@@ -126,6 +126,11 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     cap_guard_source: str = "missing"
     cap_guard_recorded_at: str | None = None
     cap_guard_missing_reason: str | None = None
+    reconciliation_plan_present: bool = False
+    reconciliation_plan_id: str | None = None
+    reconciliation_plan_source: str = "missing"
+    reconciliation_plan_recorded_at: str | None = None
+    reconciliation_plan_missing_reason: str | None = None
     browser_authority: str = "rejected"
     live_exchange_submitted: bool = False
     blockers: list[AdminApiLiveAdmissionBlocker] = Field(default_factory=list)

@@ -279,6 +279,12 @@ The platform/module split is documented in
   cap/guard proof removes only the `cap_guard_missing` blocker; live-disabled,
   reconciliation, and browser-authority blockers still prevent Coinbase
   submission.
+- M41 command admission reconciliation plan proof wiring lets existing
+  live-disabled command responses report `reconciliation_plan_present`,
+  reconciliation plan ids, source, recorded time, and missing-reconciliation
+  reasons. A resolved reconciliation plan proof removes only the
+  `reconciliation_plan_missing` blocker; live-disabled and browser-authority
+  blockers still prevent Coinbase submission.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.
