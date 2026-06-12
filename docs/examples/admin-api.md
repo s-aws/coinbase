@@ -166,7 +166,7 @@ Expected M8 readiness posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1041-1060",
+  "approved_phase_range": "1061-1080",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -257,13 +257,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1041-1060",
+  "approved_phase_range": "1061-1080",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

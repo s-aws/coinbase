@@ -38,6 +38,122 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Completed Enterprise Command Gap Triage Batch - Phases 1061-1080
+
+### Phase 1061 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1041-1060 to active
+  phases 1061-1080 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1062 - M28 Enterprise Command Gap Triage
+
+- Add a read-only triage lens over existing enterprise-readiness and
+  capability evidence so unsupported, not-modeled, and
+  command-draft-live-disabled gaps are understandable across modules.
+
+### Phase 1063 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1061-1080 phase range.
+
+### Phase 1064 - Existing Contract Reuse Gate
+
+- Reuse `GET /api/v1/admin/enterprise-readiness` and
+  `GET /api/v1/admin/capabilities`; do not add a parallel triage endpoint.
+
+### Phase 1065 - Gap Status Rollup
+
+- Roll up gaps by status, module, live posture, notional, required backend
+  contract, and frontend boundary without changing the response shape.
+
+### Phase 1066 - Capability Coverage Binding
+
+- Bind gaps to module-level command capability coverage by backend
+  `module_id`, not frontend path prefixes.
+
+### Phase 1067 - Unsupported And Not-Modeled Boundary
+
+- Keep unsupported actions distinct from not-modeled contracts and
+  live-disabled drafts.
+
+### Phase 1068 - Non-Spot Boundary Confirmation
+
+- Keep futures/perpetual command gaps as backend-contract prerequisites and
+  not spot-derived drafts.
+
+### Phase 1069 - Spot Rule Boundary Confirmation
+
+- Keep spot shorting, wallet, USDC, inventory, cost-basis, and average-cost
+  rules scoped to spot evidence only.
+
+### Phase 1070 - Legacy Dashboard Boundary Confirmation
+
+- Keep legacy dashboard WebSocket command execution unsupported for the
+  enterprise frontend and compatibility-only in backend evidence.
+
+### Phase 1071 - No Browser Authority Scan
+
+- Confirm triage adds no command button, BFF mutation route, direct fetch,
+  dashboard WebSocket call, Coinbase call, or browser approval logic.
+
+### Phase 1072 - Frontend TDD Coverage
+
+- Cover the triage region, status counts, module rows, required contracts,
+  frontend boundaries, and capability coverage.
+
+### Phase 1073 - Runtime And Artifact Alignment
+
+- Align runtime evidence, visual smoke targets, autonomous queue, release, and
+  deployment checks.
+
+### Phase 1074 - Documentation Update
+
+- Update Admin API, architecture, capability matrix, handoff, examples,
+  roadmap, and review docs.
+
+### Phase 1075 - Drift Scan
+
+- Check stale phase range, stale active/completed wording, generated artifacts,
+  browser-authority wording, and spot-rule leakage.
+
+### Phase 1076 - Focused Backend Gates
+
+- Run backend autonomous and focused Admin API/readiness checks.
+
+### Phase 1077 - Focused Frontend Gates
+
+- Run focused frontend quality and UI checks.
+
+### Phase 1078 - Blind/Contextless Review
+
+- Run blind/contextless review for backend authority, triage clarity, and
+  no-browser-command posture.
+
+### Phase 1079 - Full Backend Regression
+
+- Run backend full regression.
+
+### Phase 1080 - Full Gates And Summary
+
+- Run frontend `npm run release:gate`, then summarize verification and live
+  posture.
+
+### Completion Evidence
+
+- Backend active range evidence reports `1061-1080`; no Admin API route,
+  endpoint, OpenAPI schema, or response model was added for triage.
+- The frontend triage surface consumes existing enterprise-readiness and
+  capability evidence only.
+- Focused backend checks passed with `63` tests passed and `1` warning.
+- Backend autonomous queue check passed for approved range 1061-1080.
+- Full backend regression passed with `790` tests passed and `1` warning.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests passed.
+- Blind/contextless review passed with no blockers.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Completed Enterprise Live-Action Governance Linkage Batch - Phases 1041-1060
 
 ### Phase 1041 - Advance Active Queue Range

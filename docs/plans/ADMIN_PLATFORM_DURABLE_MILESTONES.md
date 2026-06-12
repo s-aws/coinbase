@@ -57,6 +57,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M25 - Enterprise Module Traceability | Complete | Make module routes, command gaps, contracts, docs, identity keys, and spot boundaries traceable from the catalog. |
 | M26 - Enterprise Module Capability Linkage | Complete | Link module readiness to backend capability rows and disabled command workflow posture. |
 | M27 - Enterprise Live-Action Governance Linkage | Complete | Link live-shaped command routes to backend governance gates, blockers, module ownership, and no-browser-authority evidence. |
+| M28 - Enterprise Command Gap Triage | Complete | Make unsupported, not-modeled, and live-disabled command gaps triageable across modules without adding command authority. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1001,6 +1002,46 @@ Completed evidence:
   tests passed.
 - Blind/contextless M27 review passed with no blockers and confirmed no
   browser authority or live command enablement was added.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## M28 - Enterprise Command Gap Triage
+
+Purpose: make unsupported, not-modeled, and command-draft-live-disabled gaps
+triageable across modules from backend-owned enterprise-readiness and
+capability evidence without adding a command path or browser authority.
+
+Completed scope:
+
+- Phases 1061-1080 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- `GET /api/v1/admin/enterprise-readiness` remains the source for command-gap
+  action, status, reason, required backend contract, frontend boundary, module
+  owner, identity, and spot-rule boundary evidence.
+- `GET /api/v1/admin/capabilities` remains the source for module command
+  capability coverage; no triage-specific backend endpoint is introduced.
+- Unsupported actions stay distinct from not-modeled contracts and
+  live-disabled drafts so contextless agents do not treat unsupported behavior
+  as backlog.
+- Futures/perpetual gaps remain non-spot backend-contract prerequisites.
+  Spot wallet, USDC, no-shorting, inventory, cost-basis, and average-cost
+  rules must not become non-spot triage authority.
+
+Completed evidence:
+
+- Frontend renders Enterprise Command Gap Triage as read-only evidence with
+  no command controls.
+- Tests cover status counts, module rows, required backend contracts,
+  frontend boundaries, and capability coverage.
+- Runtime artifacts, release checks, docs, examples, and maintainer handoff
+  mention the triage boundary.
+- Focused backend checks passed with `63` tests passed and `1` warning.
+- Backend autonomous queue check passed for approved range 1061-1080.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless M28 review passed with no blockers and confirmed no new
+  endpoint, command path, browser authority, or spot-rule leakage was added.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 

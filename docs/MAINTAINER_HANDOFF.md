@@ -97,7 +97,12 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1041-1060`.
+- Active autonomous range: `1061-1080`.
+- M28 enterprise command gap triage uses existing
+  `GET /api/v1/admin/enterprise-readiness` and
+  `GET /api/v1/admin/capabilities` evidence. It must remain a read-only
+  triage lens and must not add a parallel endpoint, command path, or browser
+  approval workflow.
 - M27 live-action governance linkage uses the existing
   `GET /api/v1/admin/live-enablement`, `GET /api/v1/admin/capabilities`, and
   `GET /api/v1/admin/enterprise-readiness` reads. It must remain evidence

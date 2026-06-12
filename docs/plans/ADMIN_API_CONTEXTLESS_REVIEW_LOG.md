@@ -2,6 +2,47 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Enterprise Command Gap Triage Review - Phases 1061-1080
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify M28 reuses `GET /api/v1/admin/enterprise-readiness` and
+  `GET /api/v1/admin/capabilities`
+- verify no backend endpoint, frontend feature-local fetch, BFF mutation
+  broadening, direct dashboard WebSocket call, Coinbase call, command button,
+  or browser approval path was added
+- verify unsupported, not-modeled, and command-draft-live-disabled gaps remain
+  distinct and are not treated as a command backlog
+- verify spot-only rules stay scoped to spot evidence
+- verify futures/perpetual, stealth, movement/repricing, and legacy dashboard
+  boundaries remain clear
+
+Findings:
+
+- PASS: triage uses existing backend evidence routes and canonical frontend
+  runtime/client wrappers.
+- PASS: no new backend endpoint, feature-local fetch, direct dashboard
+  WebSocket call, Coinbase call, command button, or browser approval logic was
+  found.
+- PASS: gap statuses are counted and rendered separately.
+- PASS: spot-only wallet, USDC, no-shorting, cost-basis, and average-cost
+  rules stay scoped to spot.
+- PASS: futures/perpetual, stealth, movement/repricing, and legacy dashboard
+  boundaries remain explicit.
+
+Status:
+
+- Focused backend and frontend gates passed before review.
+- Full backend regression and frontend release gate passed before M28
+  completion.
+- Live Coinbase execution was not run; backend notional `$0`.
+
 ## Enterprise Live-Action Governance Linkage Review - Phases 1041-1060
 
 Review scope:

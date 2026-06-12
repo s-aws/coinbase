@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1041-1060**.
+- Approved phase range: **1061-1080**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -45,6 +45,141 @@ Stop advancement to the next phase until fixed when any of these occur:
 - The worktree contains unrelated changes that affect the files in scope.
 - A requested change would create a parallel implementation for existing
   behavior.
+
+## Completed Phases 1061-1080
+
+### Phase 1061 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1041-1060 to active
+  phases 1061-1080 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1062 - M28 Enterprise Command Gap Triage
+
+- Add a read-only cross-module triage lens over backend-owned
+  enterprise-readiness and capability evidence for unsupported, not-modeled,
+  and command-draft-live-disabled gaps.
+
+### Phase 1063 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1061-1080 phase range.
+
+### Phase 1064 - Existing Contract Reuse Gate
+
+- Reuse `GET /api/v1/admin/enterprise-readiness` and
+  `GET /api/v1/admin/capabilities`; do not add a parallel command-gap triage
+  endpoint.
+
+### Phase 1065 - Gap Status Rollup
+
+- Roll up command gaps by status, module, live posture, notional, and required
+  backend contract without changing the enterprise-readiness response shape.
+
+### Phase 1066 - Capability Coverage Binding
+
+- Bind each gap row to module-level command capability coverage using backend
+  `module_id`, not frontend path-prefix inference.
+
+### Phase 1067 - Unsupported Action Boundary
+
+- Keep unsupported actions visibly distinct from not-modeled command gaps and
+  live-disabled drafts so contextless agents do not treat them as backlog.
+
+### Phase 1068 - Non-Spot Contract Boundary
+
+- Confirm futures/perpetual placement, close, reduce, and cancellation gaps
+  remain backend-contract prerequisites, not spot-derived command drafts.
+
+### Phase 1069 - Spot Rule Boundary
+
+- Keep spot shorting, wallet, USDC, inventory, cost-basis, and average-cost
+  rules scoped to spot evidence only.
+
+### Phase 1070 - Legacy Dashboard Boundary
+
+- Keep legacy dashboard WebSocket command execution unsupported for the
+  enterprise frontend and compatibility-only in backend evidence.
+
+### Phase 1071 - No Browser Authority Scan
+
+- Confirm triage adds no command button, direct fetch, BFF mutation route,
+  dashboard WebSocket use, Coinbase call, or browser approval logic.
+
+### Phase 1072 - Frontend TDD Coverage
+
+- Add or update tests proving the triage surface renders status counts,
+  module rows, backend-contract requirements, frontend boundaries, and
+  capability coverage.
+
+### Phase 1073 - Runtime And Artifact Alignment
+
+- Align runtime evidence, visual smoke targets, deployment readiness,
+  autonomous queue checks, and release checks with the triage surface.
+
+### Phase 1074 - Documentation Update
+
+- Update Admin API, frontend, architecture, capability matrix, examples,
+  maintainer handoff, roadmap, and review docs for command-gap triage.
+
+### Phase 1075 - Drift Scan
+
+- Check stale phase ranges, stale M28 active/completed wording, route
+  inventory assumptions, browser-authority wording, and spot-rule leakage.
+
+### Phase 1076 - Focused Backend Gates
+
+- Run backend autonomous and focused Admin API/readiness checks.
+
+### Phase 1077 - Focused Frontend Gates
+
+- Run frontend typecheck, lint, API, release-readiness, deployment,
+  autonomous, focused UI/runtime/mock/quality, and targeted Playwright checks.
+
+### Phase 1078 - Blind/Contextless Review
+
+- Run a contextless review verifying the triage surface is understandable,
+  read-only, backend-sourced, and not a command backlog or approval path.
+
+### Phase 1079 - Full Backend Regression
+
+- Run `pytest tests\regression\ -v --tb=short` and
+  `python3 -m pytest tests/regression/ -v`.
+
+### Phase 1080 - Full Gates And Summary
+
+- Run frontend `npm run release:gate`, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 1061-1080
+
+- Backend active range evidence now reports `1061-1080` from
+  live-enablement, enterprise-readiness, and autonomous queue checks.
+- The frontend Modules route renders Enterprise Command Gap Triage from
+  existing `GET /api/v1/admin/enterprise-readiness` and
+  `GET /api/v1/admin/capabilities` evidence.
+- No backend endpoint, response model, OpenAPI schema, generated client, BFF
+  mutation allowlist, feature-local fetch, direct dashboard WebSocket call,
+  Coinbase call, command button, or browser approval path was added.
+- Focused backend gates passed:
+  `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
+  reported `63` passed with `1` warning.
+- Backend autonomous queue check passed:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Focused frontend gates passed: typecheck, lint, API route coverage, command
+  fetch guard, release readiness, deployment readiness, autonomous queue,
+  focused UI/runtime/mock/quality tests (`45` focused tests passed), and
+  targeted Playwright smoke (`3` tests passed).
+- Full backend regression passed:
+  `python -m pytest tests\regression\ -v --tb=short` reported `790` passed
+  with `1` warning.
+- Full frontend release gate passed: `npm run release:gate` reported `186`
+  unit tests passed and `3` Playwright tests passed.
+- Blind/contextless M28 review passed with no blockers. It confirmed the
+  triage surface reuses existing backend evidence, adds no command authority,
+  keeps gap statuses distinct, and preserves spot/non-spot boundaries.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
 
 ## Completed Phases 1041-1060
 

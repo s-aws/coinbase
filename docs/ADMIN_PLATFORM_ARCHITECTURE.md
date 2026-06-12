@@ -120,6 +120,12 @@ The frontend Enterprise Module Traceability surface also uses that same
 payload for route lists, command gaps, contracts, docs, identity keys, and
 spot boundaries. Do not add a parallel traceability endpoint or infer browser
 command authority from trace evidence.
+The frontend Enterprise Command Gap Triage surface uses the same
+enterprise-readiness payload plus capability rows to group unsupported,
+not-modeled, and command-draft-live-disabled gaps across modules. Do not add a
+parallel triage endpoint, command path, BFF mutation, direct dashboard
+WebSocket call, Coinbase call, or browser approval workflow from this
+evidence.
 The frontend Enterprise Module Capability Linkage surface combines
 `GET /api/v1/admin/capabilities` with enterprise-readiness module rows to show
 per-module capability rows, command contracts, shared methods, permissions,
