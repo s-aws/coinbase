@@ -55,6 +55,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M23 - Enterprise Module Action Posture | Complete | Derive per-module route/action posture from backend module ids instead of path prefixes. |
 | M24 - Enterprise Module Catalog | Complete | Make enterprise module readiness directly consumable as a read-only admin catalog. |
 | M25 - Enterprise Module Traceability | Complete | Make module routes, command gaps, contracts, docs, identity keys, and spot boundaries traceable from the catalog. |
+| M26 - Enterprise Module Capability Linkage | Complete | Link module readiness to backend capability rows and disabled command workflow posture. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -907,6 +908,51 @@ Completed evidence:
   confirmed no traceability trading behavior, feature-local fetch path, direct
   dashboard WebSocket path, Coinbase call, command control, or browser command
   authority.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
+## M26 - Enterprise Module Capability Linkage
+
+Purpose: make each enterprise module's command and route posture traceable
+from backend-owned capability rows as well as enterprise-readiness module
+evidence.
+
+Completed scope:
+
+- Phases 1021-1040 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- Backend enterprise-readiness and live-enablement evidence report active
+  phase range 1021-1040.
+- The frontend capability linkage surface must consume
+  `GET /api/v1/admin/capabilities` and
+  `GET /api/v1/admin/enterprise-readiness`; the backend must not add a
+  parallel capability-linkage endpoint.
+- Capability linkage rendering remains evidence-only and adds no backend
+  behavior path, Coinbase call, direct dashboard WebSocket call, command
+  button, or browser trading decision.
+- Spot/non-spot boundaries remain backend-owned evidence; spot command
+  capability rows must not make spot wallet, USDC, no-shorting, cost-basis, or
+  average-cost rules generic for other modules.
+
+Completed evidence:
+
+- Backend and frontend validators use active phase range 1021-1040.
+- The frontend Modules route shows Enterprise Module Capability Linkage from
+  backend capability rows.
+- Tests cover capability source text, route counts, command rows,
+  live-disabled command posture, shared method, permission, and matched
+  readiness command counts.
+- Runtime quality artifacts require the new UI evidence surface and visual
+  smoke target.
+- Frontend mock capability evidence is route-inventory-shaped with `38`
+  capability rows, including `11` spot rows and `3` legacy WebSocket
+  compatibility rows.
+- Focused backend and frontend gates passed.
+- Full backend regression passed: `790` tests passed with `1` warning.
+- Full frontend release gate passed: `186` unit tests and `3` Playwright
+  tests passed.
+- Blind/contextless review initially blocked on path-only mock capability
+  evidence. Remediation was reviewed and passed with no remaining blocker.
 - Live Coinbase execution was not run; submitted notional `$0`, executed
   notional `$0`.
 

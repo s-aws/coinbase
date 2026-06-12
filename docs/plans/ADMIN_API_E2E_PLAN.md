@@ -38,6 +38,138 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
+## Completed Enterprise Module Capability Linkage Batch - Phases 1021-1040
+
+### Phase 1021 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1001-1020 to active
+  phases 1021-1040 while preserving the same no-live frontend posture and
+  carried Coinbase cap policy.
+
+### Phase 1022 - M26 Enterprise Module Capability Linkage
+
+- Link the frontend Modules route to backend-owned capability evidence from
+  `GET /api/v1/admin/capabilities` without adding a new endpoint or command
+  path.
+
+### Phase 1023 - Backend Range Evidence
+
+- Keep backend live-enablement, enterprise-readiness, autonomous, and runtime
+  checks reporting the active 1021-1040 phase range.
+
+### Phase 1024 - Existing Capability Contract Reuse Gate
+
+- Confirm module capability linkage consumes the existing capabilities route
+  and enterprise-readiness route; do not add a parallel capability endpoint.
+
+### Phase 1025 - Frontend Capability Linkage Surface
+
+- Add a read-only Enterprise Module Capability Linkage section under Modules
+  showing per-module capability rows and command-contract rows.
+
+### Phase 1026 - Command Workflow Posture Evidence
+
+- Show live-enabled, frontend-safe, availability, action class, permission,
+  shared method, idempotency, approval, caps, audit, and parity evidence from
+  backend capability rows.
+
+### Phase 1027 - Readiness Command Matching
+
+- Match module readiness command routes against capability rows by method and
+  route so gaps are visible without path-prefix inference.
+
+### Phase 1028 - Unsupported Module Capability Boundary
+
+- Keep unsupported legacy dashboard WebSocket command posture visible as
+  unmatched backend capability evidence, not as frontend WebSocket authority.
+
+### Phase 1029 - Spot Boundary Non-Generic Confirmation
+
+- Confirm spot command capability evidence does not make spot inventory,
+  USDC, no-shorting, cost-basis, or average-cost rules generic for non-spot
+  modules.
+
+### Phase 1030 - No Browser Authority Scan
+
+- Confirm capability linkage adds no backend behavior path, Coinbase call,
+  direct dashboard WebSocket call, command button, or browser-side trading
+  decision.
+
+### Phase 1031 - Runtime Evidence Contract Update
+
+- Add Enterprise Module Capability Linkage to runtime evidence surfaces and
+  visual smoke targets.
+
+### Phase 1032 - AdminShell Capability Linkage Tests
+
+- Cover capability source text, route counts, command rows, live-disabled
+  command posture, shared backend method, permission, and matched readiness
+  command counts.
+
+### Phase 1033 - Mock And Runtime Alignment
+
+- Keep backend range evidence, frontend mock runtime, backend runtime tests,
+  and quality artifacts aligned with 1021-1040 and capability linkage
+  evidence.
+
+### Phase 1034 - Documentation Update
+
+- Update backend API, architecture, examples, maintainer handoff, and roadmap
+  docs for module capability linkage.
+
+### Phase 1035 - Stale Range And Linkage Drift Scan
+
+- Search for active-state contradictions around 1001-1020 versus 1021-1040
+  and for missing module capability linkage evidence.
+
+### Phase 1036 - Focused Backend Gates
+
+- Run backend autonomous queue check and focused Admin API/spot readiness
+  regression checks.
+
+### Phase 1037 - Focused Frontend Gates
+
+- Run frontend typecheck, API route coverage, release readiness, autonomous
+  queue, and focused capability linkage UI/runtime/quality tests.
+
+### Phase 1038 - Blind/Contextless Review
+
+- Run blind/contextless review focused on whether a fresh agent can explain
+  module capability linkage, backend authority, command workflow posture, and
+  spot/non-spot boundaries.
+
+### Phase 1039 - Full Backend Regression
+
+- Run the full backend regression suite.
+
+### Phase 1040 - Full Frontend Release Gate And Summary
+
+- Run frontend `npm run release:gate`, then summarize implementation,
+  verification, live posture, commits, and next objective scope.
+
+## Completion Evidence - Phases 1021-1040
+
+- Backend focused gates passed:
+  `pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
+  reported `63` passed with `1` warning.
+- Backend autonomous queue check passed:
+  `python tools\run_autonomous_work_queue_check.py --summary-only`.
+- Frontend focused gates passed: typecheck, API route coverage, autonomous
+  queue check, release readiness, and capability-linkage UI/runtime/mock/
+  quality tests reported `45` focused tests passed.
+- Full backend regression passed:
+  `pytest tests\regression\ -v --tb=short` reported `790` passed with
+  `1` warning.
+- Full frontend release gate passed: `npm run release:gate` reported `186`
+  unit tests passed and `3` Playwright tests passed.
+- Blind/contextless M26 review initially blocked on path-only mock capability
+  evidence. Remediation made mock capabilities route-inventory-shaped with
+  `38` capability rows, including `11` spot rows and `3` legacy WebSocket
+  compatibility rows. Follow-up review passed and found no browser authority
+  or trading behavior.
+- Live Coinbase execution was not run; submitted notional `$0`, executed
+  notional `$0`.
+
 ## Completed Enterprise Module Traceability Batch - Phases 1001-1020
 
 ### Phase 1001 - Advance Active Queue Range

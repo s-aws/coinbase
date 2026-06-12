@@ -117,6 +117,11 @@ The frontend Enterprise Module Traceability surface also uses that same
 payload for route lists, command gaps, contracts, docs, identity keys, and
 spot boundaries. Do not add a parallel traceability endpoint or infer browser
 command authority from trace evidence.
+The frontend Enterprise Module Capability Linkage surface combines
+`GET /api/v1/admin/capabilities` with enterprise-readiness module rows to show
+per-module capability rows, command contracts, shared methods, permissions,
+and disabled command workflow posture. Do not add a parallel linkage endpoint
+or treat capability rows as browser approval for live execution.
 
 ## Durable Milestones
 

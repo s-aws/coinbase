@@ -34,5 +34,8 @@ implicit platform model.
 - Keep enterprise-readiness `action_posture` counts aligned with backend
   route-inventory `module_id` ownership; do not use path-prefix grouping as
   module authority.
+- Keep Enterprise Module Capability Linkage aligned with backend capability
+  rows and enterprise-readiness command routes. It is read-only evidence for
+  command workflow posture, not a separate source of command authority.
 - Update route inventory, OpenAPI, examples, frontend association, and
   contextless review prompts when a module changes status.

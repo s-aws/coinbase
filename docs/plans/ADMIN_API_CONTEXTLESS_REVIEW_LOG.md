@@ -2,6 +2,43 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Enterprise Module Capability Linkage Review - Phases 1021-1040
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- verify the frontend Modules route links enterprise readiness to backend
+  capability rows from existing backend-owned contracts
+- verify no frontend trading behavior, feature-local fetch path, dashboard
+  WebSocket use, Coinbase call, command control, or browser authority was
+  added
+- verify spot-only rules stay scoped to spot evidence
+- verify active range 1021-1040 and no-live posture
+
+Findings:
+
+- Initial review BLOCKED because frontend mock capabilities were path-only and
+  dropped backend route-inventory rows for duplicate method/path surfaces and
+  legacy WebSocket compatibility surfaces.
+- Remediation made frontend mock capabilities route-inventory-shaped with
+  `38` capability rows, `11` spot rows, and `3` legacy WebSocket compatibility
+  rows.
+- Follow-up review PASS: the linkage component receives existing runtime
+  `capabilities` props, renders evidence only, and adds no executable fetch,
+  WebSocket, command wrapper invocation, live-enabled flag, or browser
+  authority path.
+
+Status:
+
+- Focused backend and frontend gates passed after remediation.
+- Full backend regression and frontend release gate passed before completion.
+- Live Coinbase execution was not run; backend notional `$0`.
+
 ## Enterprise Module Traceability Review - Phases 1001-1020
 
 Review scope:
