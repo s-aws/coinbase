@@ -72,6 +72,7 @@ working contract, test, gate, and review evidence for the claimed scope.
 | M40 - Command Admission Cap/Guard Proof Wiring | Complete | Wire existing live-disabled command admission evidence to backend cap/guard proof results without adding guard mutation, browser approval, or live execution. |
 | M41 - Command Admission Reconciliation Plan Proof Wiring | Complete | Wire existing live-disabled command admission evidence to backend reconciliation plan proof results without adding reconciliation execution, browser approval, or live execution. |
 | M42 - Command Admission Live Execution Service Boundary Evidence | Complete | Make the disabled backend live execution service boundary explicit on command admission evidence without adding a live switch, browser approval, or Coinbase execution. |
+| M43 - Disabled Live Execution Service Foundation | Complete | Add a backend-owned disabled service descriptor for command admission without adding execution methods, browser approval, or Coinbase execution. |
 
 ## M0 - Platform Pivot Baseline
 
@@ -1756,6 +1757,51 @@ Completion evidence:
   Playwright tests.
 - Blind/contextless review passed with no blockers after the stale agent-state
   next-command sentence was remediated.
+- Live Coinbase execution was not run; submitted and executed notional remain
+  `$0`.
+
+## M43 - Disabled Live Execution Service Foundation
+
+Purpose: introduce a backend-owned disabled live execution service descriptor
+that command admission can consume as evidence before any executable live
+service exists.
+
+Completed scope:
+
+- Phases 1361-1380 advance the active unattended range while preserving the
+  same no-live frontend posture and carried Coinbase cap policy.
+- A disabled service descriptor may report `required=true`, `present=true`,
+  `status=live_disabled`, `source=disabled_backend_service`, and
+  `missing_reason=live_execution_disabled`.
+- The descriptor must not expose create, cancel, submit, execute, Coinbase,
+  route-local execution, browser approval, or BFF execution authority methods.
+- Existing command adapters must continue through the shared route adapter,
+  idempotency, audit, admission, and command service path.
+- A resolved approval snapshot, admission audit, cap/guard proof, and
+  reconciliation proof must still leave `live_execution_disabled` and
+  `browser_authority_rejected` blockers.
+- Public command schema should remain stable unless public models change.
+- No live Coinbase execution is allowed in this batch; submitted and executed
+  notional remain `$0`.
+
+Completed evidence:
+
+- Backend focused Admin API/readiness tests passed with `72 passed,
+  1 warning`.
+- Backend autonomous queue validation passed for active range `1361-1380`.
+- Tests prove the disabled service descriptor has no execution methods and
+  command responses remain no-live with `live_exchange_submitted=false`.
+- Frontend mocks, quality artifacts, docs, and tests align with phase range
+  `1361-1380` and source `disabled_backend_service` without adding browser
+  approval, live execution authority, or command authority.
+- Frontend focused descriptor-display, runtime, and quality checks passed
+  with `74` tests.
+- Blind/contextless review confirmed disabled service evidence is
+  backend-owned and no browser approval, BFF execution authority, spot-rule
+  leakage, or live Coinbase path was added.
+- Backend full regression passed with `799 passed, 1 warning`.
+- Frontend `npm run release:gate` passed with `186` unit tests and `3`
+  Playwright tests.
 - Live Coinbase execution was not run; submitted and executed notional remain
   `$0`.
 

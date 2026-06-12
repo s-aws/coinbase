@@ -289,6 +289,10 @@ The platform/module split is documented in
   existing live-disabled command responses report that the backend live
   execution service is required but absent/disabled. It does not remove
   `live_execution_disabled`, authorize the browser, or submit to Coinbase.
+- M43 disabled live execution service foundation makes that backend service
+  boundary present as evidence with source `disabled_backend_service`. The
+  descriptor has no create, cancel, submit, execute, browser, BFF, or Coinbase
+  authority methods, so command routes remain no-live.
 - Approval-store rows created before M37 that lack `requested_by_actor_id`
   fail closed during strict JSONL reads. They are ignored by resolver lookup
   rather than treated as reusable approval authority.

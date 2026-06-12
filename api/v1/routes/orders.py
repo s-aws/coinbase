@@ -21,6 +21,10 @@ from application.admin_api.idempotency import (
     IdempotencyRecord,
     make_payload_hash,
 )
+from application.admin_api.live_execution import (
+    AdminApiLiveExecutionService,
+    get_disabled_live_execution_service,
+)
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from application.admin_api.models import (
     AdminApiActor,
@@ -120,6 +124,12 @@ def get_reconciliation_store() -> FileAdminApiReconciliationStore:
     """Return durable reconciliation plan storage for admission evidence."""
 
     return FileAdminApiReconciliationStore()
+
+
+def get_live_execution_service() -> AdminApiLiveExecutionService:
+    """Return the backend-owned disabled live execution service boundary."""
+
+    return get_disabled_live_execution_service()
 
 
 def get_read_service() -> AdminApiReadService:
@@ -244,6 +254,7 @@ def _execute_idempotent_command(
     approval_store: FileAdminApiApprovalStore,
     cap_guard_store: FileAdminApiCapGuardStore,
     reconciliation_store: FileAdminApiReconciliationStore,
+    live_execution_service: AdminApiLiveExecutionService,
     command_runner: Callable[[], AdminApiCommandResponse],
     client_order_id: str | None = None,
     stealth_order_id: str | None = None,
@@ -266,6 +277,7 @@ def _execute_idempotent_command(
         audit_store=audit_store,
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
     )
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
@@ -394,6 +406,10 @@ def create_manual_order(
         FileAdminApiReconciliationStore,
         Depends(get_reconciliation_store),
     ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
 ) -> JSONResponse:
     """Route adapter for manual placement.
 
@@ -433,6 +449,7 @@ def create_manual_order(
         approval_store=approval_store,
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
         command_runner=lambda: service.place_manual_order(
             ManualOrderCommand(envelope=envelope, request=body)
         ),
@@ -462,6 +479,10 @@ def cancel_order_by_client_order_id(
     reconciliation_store: Annotated[
         FileAdminApiReconciliationStore,
         Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
     ],
 ) -> JSONResponse:
     """Route adapter for cancel-by-client-order-id."""
@@ -499,6 +520,7 @@ def cancel_order_by_client_order_id(
         approval_store=approval_store,
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
         client_order_id=client_order_id,
         command_runner=lambda: service.cancel_order_by_client_order_id(
             CancelOrderCommand(
@@ -532,6 +554,10 @@ def execute_spot_campaign(
     reconciliation_store: Annotated[
         FileAdminApiReconciliationStore,
         Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
     ],
 ) -> JSONResponse:
     """Route adapter for future campaign execution.
@@ -572,6 +598,7 @@ def execute_spot_campaign(
         approval_store=approval_store,
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
         command_runner=lambda: service.execute_spot_campaign(
             CampaignExecutionCommand(envelope=envelope, request=body)
         ),

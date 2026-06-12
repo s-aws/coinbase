@@ -15,7 +15,6 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiGateStatus,
     AdminApiLiveAdmissionBlocker,
-    AdminApiLiveExecutionStatus,
     AdminApiPermission,
 )
 
@@ -34,6 +33,10 @@ from .reconciliation import (
     FileAdminApiReconciliationStore,
     ReconciliationPlanRequest,
     resolve_reconciliation_plan,
+)
+from .live_execution import (
+    AdminApiLiveExecutionService,
+    AdminApiLiveExecutionServiceState,
 )
 from .models import AdminLiveAdmissionDecisionEvidence
 
@@ -337,6 +340,7 @@ def evaluate_command_live_admission(
     audit_store: FileAdminApiAuditStore | None = None,
     cap_guard_store: FileAdminApiCapGuardStore | None = None,
     reconciliation_store: FileAdminApiReconciliationStore | None = None,
+    live_execution_service: AdminApiLiveExecutionService | None = None,
     now: datetime | None = None,
 ) -> AdminLiveAdmissionDecisionEvidence:
     """Return route-bound live admission evidence for one command attempt.
@@ -529,8 +533,13 @@ def evaluate_command_live_admission(
             "route-specific reconciliation plan resolved but live execution remains blocked"
         )
     blockers.append(AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED)
+    live_execution_state = (
+        live_execution_service.admission_state()
+        if live_execution_service is not None
+        else AdminApiLiveExecutionServiceState()
+    )
     evidence.extend([
-        "live execution service disabled",
+        f"live execution service {live_execution_state.source} disabled",
         "browser authority rejected",
     ])
 
@@ -622,11 +631,11 @@ def evaluate_command_live_admission(
             if reconciliation_plan is not None
             else reconciliation_plan_missing_reason
         ),
-        live_execution_service_required=True,
-        live_execution_service_present=False,
-        live_execution_service_status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
-        live_execution_service_source="not_configured",
-        live_execution_service_missing_reason="live_execution_disabled",
+        live_execution_service_required=live_execution_state.required,
+        live_execution_service_present=live_execution_state.present,
+        live_execution_service_status=live_execution_state.status,
+        live_execution_service_source=live_execution_state.source,
+        live_execution_service_missing_reason=live_execution_state.missing_reason,
         browser_authority="rejected",
         live_exchange_submitted=False,
         blockers=blockers,

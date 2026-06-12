@@ -36,35 +36,36 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `1341-1360`.
-- Latest completed milestone: M42 - Command Admission Live Execution Service
-  Boundary Evidence.
-- Completed files: Admin API command admission live execution service
-  boundary evidence, OpenAPI, live-enablement range evidence, admin platform
-  docs, frontend generated schema, frontend dry-submit and Audit Workbench
-  display evidence, frontend mock/runtime evidence, review logs, and agent
-  context needed for local-agent accuracy.
+- Latest completed autonomous range: `1361-1380`.
+- Latest completed milestone: M43 - Disabled Live Execution Service
+  Foundation.
+- Completed files: Admin API disabled live execution service descriptor,
+  command admission dependency injection, OpenAPI, live-enablement range
+  evidence, admin platform docs, frontend generated schema, frontend
+  dry-submit and Audit Workbench display evidence, frontend mock/runtime
+  evidence, review logs, and agent context needed for local-agent accuracy.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M42 made the remaining backend live execution service boundary explicit on
-  existing live-disabled command admission evidence. It reports the service
-  as required but disabled/unconfigured and leaves `live_execution_disabled`
-  and `browser_authority_rejected` blockers in place. It did not add a live
-  switch, browser authority, BFF execution authority, Coinbase call, route
-  local executor, or parallel command path.
+- M43 made the backend live execution service boundary present as a disabled
+  descriptor consumed by existing live-disabled command admission evidence.
+  It reports `required=true`, `present=true`, `status=live_disabled`,
+  `source=disabled_backend_service`, and
+  `missing_reason=live_execution_disabled`. It did not add create, cancel,
+  submit, execute, Coinbase, route-local execution, browser approval, BFF
+  execution authority, a live switch, or a parallel command path.
 
 ## Active Scope
 
-- Active autonomous range: next range pending.
-- Active milestone: next range pending.
-- Current direction: advance the next approved 20-phase range after M42
-  completion, preserving no browser authority, the single command path,
-  backend-owned caps, durable audit, reconciliation evidence, and explicit
-  no-live posture unless a phase explicitly requires capped live Coinbase
-  evidence.
+- Active autonomous range: `1361-1380` until the next approved range is
+  advanced in the queue docs and validators.
+- Active milestone: pending next batch after M43 completion.
+- Current direction: continue the enterprise admin frontend/API path for the
+  whole trading engine, building only on backend-owned contracts and keeping
+  command/live execution disabled unless a future approved live phase wires a
+  real backend live execution boundary.
 
 ## Decisions (Durable)
 
@@ -376,7 +377,9 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Advance the next approved autonomous range after M42 completion.
+1. Finish M43 disabled live execution service foundation, focused gates,
+   blind/contextless review, full backend regression, and frontend release
+   gate.
 2. Preserve controlled live execution final-boundary evidence without
    browser authority, audit mutation, approval mutation, guard mutation,
    guard execution, reconciliation execution, reconciliation authority, or
@@ -431,7 +434,8 @@ Keep it short. Keep it factual.
   command controls, guard evaluator, audit storage, approval storage,
   reconciliation execution, BFF mutation broadening, Coinbase call, browser
   approval, or reconciliation behavior is allowed.
-- What is in progress: next approved range pending after M42 completion.
+- What is in progress: M43 disabled live execution service foundation, active
+  approved range `1361-1380`.
 - What is blocked: Nothing currently known.
-- Exact next command: add the next approved phase range and scope, then run
-  focused backend/frontend gates for that batch.
+- Exact next command: run focused backend/frontend gates for the disabled
+  service descriptor and active range `1361-1380`.

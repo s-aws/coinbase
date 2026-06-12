@@ -15,6 +15,7 @@ from application.admin_api.approval import FileAdminApiApprovalStore
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.idempotency import FileIdempotencyStore
+from application.admin_api.live_execution import AdminApiLiveExecutionService
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from application.admin_api.models import (
     AdminApiActor,
@@ -43,6 +44,7 @@ from .orders import (
     get_cap_guard_store,
     get_command_service,
     get_idempotency_store,
+    get_live_execution_service,
     get_reconciliation_store,
 )
 
@@ -172,6 +174,10 @@ def reprice_stealth_order_by_stealth_order_id(
         FileAdminApiReconciliationStore,
         Depends(get_reconciliation_store),
     ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
 ) -> JSONResponse:
     """Route adapter for live-disabled movement repricing by ``stealth_order_id``."""
 
@@ -208,6 +214,7 @@ def reprice_stealth_order_by_stealth_order_id(
         approval_store=approval_store,
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
         stealth_order_id=stealth_order_id,
         command_runner=lambda: service.reprice_stealth_order_by_stealth_order_id(
             MovementRepriceCommand(

@@ -97,7 +97,13 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1341-1360`.
+- Active autonomous range: `1361-1380`.
+- M43 disabled live execution service foundation is complete for phases
+  `1361-1380`. Existing Admin API command admission evidence consumes a
+  backend-owned disabled service descriptor reporting the service as present
+  but `live_disabled` with source `disabled_backend_service`. The descriptor
+  must not expose create, cancel, submit, execute, Coinbase, route-local
+  execution, browser approval, or BFF execution authority methods.
 - M42 command admission live execution service boundary evidence is complete
   for phases `1341-1360`. Existing Admin API command admission evidence may
   report that the

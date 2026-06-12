@@ -48,6 +48,10 @@ from application.admin_api.idempotency import (
     evaluate_idempotency,
     make_payload_hash,
 )
+from application.admin_api.live_execution import (
+    DisabledAdminApiLiveExecutionService,
+    get_disabled_live_execution_service,
+)
 from application.admin_api.models import (
     AdminApiActor,
     AdminLiveAdmissionDecisionEvidence,
@@ -1119,9 +1123,9 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     assert admission["reconciliation_plan_recorded_at"] is None
     assert admission["reconciliation_plan_missing_reason"] == "identity_value_missing"
     assert admission["live_execution_service_required"] is True
-    assert admission["live_execution_service_present"] is False
+    assert admission["live_execution_service_present"] is True
     assert admission["live_execution_service_status"] == "live_disabled"
-    assert admission["live_execution_service_source"] == "not_configured"
+    assert admission["live_execution_service_source"] == "disabled_backend_service"
     assert admission["live_execution_service_missing_reason"] == (
         "live_execution_disabled"
     )
@@ -1404,9 +1408,9 @@ def test_admin_api_reconciliation_plan_resolution_is_evidence_only(monkeypatch):
     )
     assert admission["reconciliation_plan_missing_reason"] is None
     assert admission["live_execution_service_required"] is True
-    assert admission["live_execution_service_present"] is False
+    assert admission["live_execution_service_present"] is True
     assert admission["live_execution_service_status"] == "live_disabled"
-    assert admission["live_execution_service_source"] == "not_configured"
+    assert admission["live_execution_service_source"] == "disabled_backend_service"
     assert admission["live_execution_service_missing_reason"] == (
         "live_execution_disabled"
     )
@@ -2278,6 +2282,23 @@ def test_admin_api_reconciliation_plan_resolver_is_exact_and_identity_generic():
 
 
 @pytest.mark.regression
+def test_admin_api_disabled_live_execution_service_is_evidence_only():
+    service = get_disabled_live_execution_service()
+    state = service.admission_state()
+
+    assert isinstance(service, DisabledAdminApiLiveExecutionService)
+    assert state.required is True
+    assert state.present is True
+    assert state.status.value == "live_disabled"
+    assert state.source == "disabled_backend_service"
+    assert state.missing_reason == "live_execution_disabled"
+    assert not hasattr(service, "create_order")
+    assert not hasattr(service, "cancel_order")
+    assert not hasattr(service, "execute")
+    assert not hasattr(service, "submit")
+
+
+@pytest.mark.regression
 def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates():
     service_source = inspect.getsource(command_service)
     route_source = "\n".join(
@@ -2521,7 +2542,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1341-1360"
+    assert live_payload["approved_phase_range"] == "1361-1380"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -2921,7 +2942,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1341-1360"
+    assert enterprise_payload["approved_phase_range"] == "1361-1380"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -4361,6 +4382,8 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
                 idempotency_key="idem-001",
                 operator_intent="manual_one_off",
                 payload_hash="1" * 64,
+                live_execution_service_present=True,
+                live_execution_service_source="disabled_backend_service",
                 live_exchange_submitted=False,
                 blockers=["admission_audit_missing"],
                 evidence=["append-only command admission audit"],
@@ -4455,9 +4478,9 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "reconciliation_plan_recorded_at": None,
         "reconciliation_plan_missing_reason": None,
         "live_execution_service_required": True,
-        "live_execution_service_present": False,
+        "live_execution_service_present": True,
         "live_execution_service_status": "live_disabled",
-        "live_execution_service_source": "not_configured",
+        "live_execution_service_source": "disabled_backend_service",
         "live_execution_service_missing_reason": "live_execution_disabled",
         "browser_authority": "rejected",
         "live_exchange_submitted": False,

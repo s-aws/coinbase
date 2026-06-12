@@ -62,6 +62,10 @@ These primitives apply across modules:
 - command admission live execution service boundary evidence that can report
   the backend live execution service as required but disabled/unconfigured
   without adding a live switch, browser authority, or Coinbase calls
+- disabled live execution service descriptor evidence that can report a
+  backend-owned service boundary as present but `live_disabled` without
+  exposing create, cancel, submit, execute, browser authority, BFF execution
+  authority, or Coinbase methods
 
 Platform primitives describe authority flow and evidence. They do not encode
 domain-specific trading rules.
@@ -200,6 +204,10 @@ the backend live execution service is required, present, and enabled for a
 live-shaped command. In the current contract it remains disabled and may not
 remove `live_execution_disabled`, bypass browser-authority rejection, or
 submit to Coinbase.
+The disabled live execution service descriptor is the current backend-owned
+service boundary. It is evidence-only and has no execution methods; command
+routes may consume its state, but they must still return no-live command
+responses until every live gate is explicitly wired.
 Live-admission audit trail evidence is a read-only refinement of the same
 route. It may show required append-only admission facts and expected backend
 sources, but it must not become audit storage, approval storage, browser
