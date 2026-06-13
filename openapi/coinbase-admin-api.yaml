@@ -4951,6 +4951,15 @@ components:
       - forbidden
       title: AdminApiSessionStatus
       description: Authenticated Admin API session status.
+    AdminApiSpotCommandSuiteGapFamily:
+      type: string
+      enum:
+      - spot_sweep_automation
+      - spot_pnl_tracking
+      - spot_recovery_workflow
+      - spot_reconciliation_workflow
+      title: AdminApiSpotCommandSuiteGapFamily
+      description: Spot command-suite families that still require admin contract work.
     AdminApiVerifierReadinessStatus:
       type: string
       enum:
@@ -10466,6 +10475,71 @@ components:
       - detail
       title: SpotCommandSuiteCommandItem
       description: One spot admin command surface and its remaining gate chain.
+    SpotCommandSuiteCoverageGapItem:
+      properties:
+        family:
+          $ref: '#/components/schemas/AdminApiSpotCommandSuiteGapFamily'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+        command_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Command Route
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - family
+      - exposure_status
+      - required_backend_contract
+      - spot_rule_boundary
+      - detail
+      title: SpotCommandSuiteCoverageGapItem
+      description: Remaining spot admin suite family that is not yet command-complete.
     SpotCommandSuiteProofRouteItem:
       properties:
         gate:
@@ -10612,6 +10686,15 @@ components:
             $ref: '#/components/schemas/SpotCommandSuiteCommandItem'
           type: array
           title: Commands
+        coverage_gap_count:
+          type: integer
+          title: Coverage Gap Count
+          default: 0
+        coverage_gaps:
+          items:
+            $ref: '#/components/schemas/SpotCommandSuiteCoverageGapItem'
+          type: array
+          title: Coverage Gaps
         read_routes:
           items:
             type: string

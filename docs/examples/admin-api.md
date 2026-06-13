@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1621-1640",
+  "approved_phase_range": "1641-1660",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1621-1640",
+  "approved_phase_range": "1641-1660",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1627,6 +1627,9 @@ local-state evidence requirements only; they do not execute the command.
 Each command row also includes backend-owned `readiness_preconditions` copied
 from live-enablement evidence so operators can see which gates are configured,
 blocking, or passed without treating the browser as a gate evaluator.
+The response also includes `coverage_gaps` for remaining M54 spot families
+that are not command-complete. Gap rows are read-only planning evidence, not
+mutation routes or browser authority.
 
 ```http
 GET /api/v1/spot/command-suite
@@ -1640,11 +1643,12 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1621-1640",
+  "approved_phase_range": "1641-1660",
   "command_count": 3,
   "blocked_command_count": 3,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
+  "coverage_gap_count": 4,
   "spot_rules_platform_default": false,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
@@ -1859,6 +1863,45 @@ X-Admin-Roles: viewer
       "live_adapter_configured": false,
       "live_enabled": false,
       "executable": false
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "family": "spot_sweep_automation",
+      "status": "blocked",
+      "exposure_status": "backend_contract_required",
+      "command_route": null,
+      "current_read_evidence_routes": [
+        "GET /api/v1/spot/sweep/status",
+        "GET /api/v1/spot/campaign/status",
+        "GET /api/v1/spot/command-suite"
+      ],
+      "required_backend_contract": "Durable enterprise sweep scheduling, pause/resume, run-limit, retry, execution-record, recovery, and reconciliation contract.",
+      "required_gate_chain": [
+        "route_inventory_contract",
+        "approval_snapshot",
+        "admission_audit",
+        "cap_guard_decision",
+        "reconciliation_plan",
+        "live_execution_service"
+      ],
+      "missing_contracts": [
+        "enterprise_sweep_scheduler_contract",
+        "sweep_run_limit_contract",
+        "sweep_pause_resume_contract",
+        "sweep_retry_recovery_contract",
+        "sweep_reconciliation_execution_contract"
+      ],
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "spot_rule_boundary": "Spot-only wallet, USDC, no-shorting, inventory, cost-basis, and average-cost rules apply only to spot command authority.",
+      "documentation_refs": [
+        "README.spot-portfolio-sweep.md",
+        "README.spot-campaign.md",
+        "docs/COMMAND_WORKFLOWS.md"
+      ],
+      "detail": "Sweep and campaign evidence is readable, but enterprise admin sweep automation is not command-complete until durable scheduler, run-limit, recovery, and reconciliation contracts exist."
     }
   ]
 }

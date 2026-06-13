@@ -90,6 +90,7 @@ from core.enums import (
     AdminApiModuleSupportStatus,
     AdminApiPermission,
     AdminApiRole,
+    AdminApiSpotCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
 )
 from tools.generate_admin_api_openapi import generate_openapi_schema
@@ -3807,12 +3808,62 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert payload["blocked_command_count"] == 3
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
+    assert payload["coverage_gap_count"] == 4
     assert payload["spot_rules_platform_default"] is False
     assert payload["browser_authority"] == "display_only"
     assert payload["bff_authority"] == "forward_only_no_execution"
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["submitted_notional_usdc"] == "0"
     assert payload["executed_notional_usdc"] == "0"
+
+    coverage_gaps = {item["family"]: item for item in payload["coverage_gaps"]}
+    assert set(coverage_gaps) == {
+        AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION.value,
+        AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING.value,
+        AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW.value,
+        AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW.value,
+    }
+    for gap in coverage_gaps.values():
+        assert gap["status"] == AdminApiGateStatus.BLOCKED.value
+        assert gap["command_route"] is None
+        assert gap["backend_owned"] is True
+        assert gap["browser_authority"] == "display_only"
+        assert gap["bff_authority"] == "forward_only_no_execution"
+        assert "Spot-only" in gap["spot_rule_boundary"]
+        assert gap["current_read_evidence_routes"]
+        assert gap["required_backend_contract"]
+        assert gap["required_gate_chain"]
+        assert gap["missing_contracts"]
+        assert "docs/COMMAND_WORKFLOWS.md" in gap["documentation_refs"]
+    sweep_gap = coverage_gaps[
+        AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION.value
+    ]
+    assert (
+        sweep_gap["exposure_status"]
+        == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+    )
+    assert "GET /api/v1/spot/sweep/status" in sweep_gap["current_read_evidence_routes"]
+    assert "enterprise_sweep_scheduler_contract" in sweep_gap["missing_contracts"]
+    pnl_gap = coverage_gaps[
+        AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING.value
+    ]
+    assert (
+        pnl_gap["exposure_status"]
+        == AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert "GET /api/v1/spot/sweep/pnl" in pnl_gap["current_read_evidence_routes"]
+    recovery_gap = coverage_gaps[
+        AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW.value
+    ]
+    assert "GET /api/v1/admin/recovery-gate" in recovery_gap[
+        "current_read_evidence_routes"
+    ]
+    reconciliation_gap = coverage_gaps[
+        AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW.value
+    ]
+    assert "GET /api/v1/admin/reconciliation/plans" in reconciliation_gap[
+        "current_read_evidence_routes"
+    ]
 
     commands = {item["mutation_family"]: item for item in payload["commands"]}
     assert set(commands) == {
@@ -4121,7 +4172,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1621-1640"
+    assert live_payload["approved_phase_range"] == "1641-1660"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4675,7 +4726,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1621-1640"
+    assert enterprise_payload["approved_phase_range"] == "1641-1660"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

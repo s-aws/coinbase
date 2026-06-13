@@ -41,6 +41,7 @@ from core.enums import (
     AdminApiRouteAvailability,
     AdminApiRole,
     AdminApiSessionStatus,
+    AdminApiSpotCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     AdminFuturesPositionSide,
     AdminRiskEvidenceSource,
@@ -2034,6 +2035,27 @@ class SpotCommandSuiteCommandItem(BaseModel):
     detail: str
 
 
+class SpotCommandSuiteCoverageGapItem(BaseModel):
+    """Remaining spot admin suite family that is not yet command-complete."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    family: AdminApiSpotCommandSuiteGapFamily
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    exposure_status: AdminApiFunctionalityExposureStatus
+    command_route: str | None = None
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    required_backend_contract: str
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    spot_rule_boundary: str
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class SpotCommandSuiteResponse(AdminApiReadPayload):
     """Read-only M54 spot command-suite readiness evidence."""
 
@@ -2051,6 +2073,8 @@ class SpotCommandSuiteResponse(AdminApiReadPayload):
     submitted_notional_usdc: DecimalString = "0"
     executed_notional_usdc: DecimalString = "0"
     commands: list[SpotCommandSuiteCommandItem] = Field(default_factory=list)
+    coverage_gap_count: int = 0
+    coverage_gaps: list[SpotCommandSuiteCoverageGapItem] = Field(default_factory=list)
     read_routes: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     message: str | None = None

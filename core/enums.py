@@ -251,6 +251,15 @@ class AdminApiMutationFamilyType(str, Enum):
     LEGACY_DASHBOARD_CANCEL = "legacy_dashboard_cancel"
 
 
+class AdminApiSpotCommandSuiteGapFamily(str, Enum):
+    """Spot command-suite families that still require admin contract work."""
+
+    SPOT_SWEEP_AUTOMATION = "spot_sweep_automation"
+    SPOT_PNL_TRACKING = "spot_pnl_tracking"
+    SPOT_RECOVERY_WORKFLOW = "spot_recovery_workflow"
+    SPOT_RECONCILIATION_WORKFLOW = "spot_reconciliation_workflow"
+
+
 class AdminApiApprovalLifecycleStatus(str, Enum):
     """Lifecycle state for backend-owned approval records."""
 

@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1621-1640**.
+- Approved phase range: **1641-1660**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,116 +46,133 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1621-1640
+## Active Phases 1641-1660
 
-### Phase 1621 - Advance Active Queue Range
+### Phase 1641 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1601-1620 to active
-  phases 1621-1640 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1621-1640 to active
+  phases 1641-1660 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1622 - M54 Command Workflow Readiness Trace Scope
+### Phase 1642 - M54 Spot Coverage Gap Scope
 
-- Treat command-suite readiness-precondition exposure as completed
-  prerequisite evidence and bind those backend-owned preconditions into
-  website command workflow review cards.
+- Extend `GET /api/v1/spot/command-suite` with backend-owned coverage-gap
+  evidence for the remaining M54 spot families before adding new command
+  routes or live controls.
 
-### Phase 1623 - Backend Range Evidence
+### Phase 1643 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting the active `1621-1640` phase range.
+  regression tests reporting the active `1641-1660` phase range.
 
-### Phase 1624 - Website Range Evidence
+### Phase 1644 - Typed Gap Contract
 
-- Keep website release, deployment, autonomous, runtime, mock, and artifact
-  checks aligned with the backend `1621-1640` phase range.
+- Add typed enum/model coverage for spot sweep automation, P/L tracking,
+  recovery workflow, and reconciliation workflow gaps without overloading
+  mutation-family rows.
 
-### Phase 1625 - Readiness Trace Contract Preservation
+### Phase 1645 - Sweep Automation Gap Evidence
 
-- Preserve `GET /api/v1/spot/command-suite` as the backend-owned source for
-  command readiness evidence; do not add a second readiness endpoint or
-  browser evaluator.
+- Report durable scheduler, run-limit, pause/resume, retry, recovery, and
+  reconciliation contracts missing from the enterprise sweep automation path.
 
-### Phase 1626 - Manual Order Draft Readiness Trace
+### Phase 1646 - P/L Tracking Gap Evidence
 
-- Display manual spot order readiness preconditions inside the command
-  workflow review evidence for approval snapshot, browser/BFF boundary, and
-  disabled live execution service blockers.
+- Report read-only spot P/L and average-cost evidence as admin-exposed but not
+  browser profitability, sell authority, or a command route.
 
-### Phase 1627 - Cancel Draft Readiness Trace
+### Phase 1647 - Recovery Workflow Gap Evidence
 
-- Display cancel readiness preconditions inside command workflow evidence
-  while preserving `client_order_id` as the cancel identity and exchange
-  `order_id` as evidence only.
+- Report spot recovery preview/apply, rollback, audit, and reconciliation
+  contracts missing from the command suite while preserving read-only recovery
+  gate and direct-order audit evidence.
 
-### Phase 1628 - Campaign Draft Readiness Trace
+### Phase 1648 - Reconciliation Workflow Gap Evidence
 
-- Display campaign execution readiness preconditions inside command workflow
-  evidence keyed by `campaign_id` while keeping campaign drafts dry/no-live.
+- Report spot reconciliation execution/proof contracts missing from the
+  command suite while preserving reconciliation plan records as local-state
+  evidence only.
 
-### Phase 1629 - Authority Boundary Wording
+### Phase 1649 - Command Versus Gap Separation
 
-- Make the command workflow readiness evidence state that browser and BFF
-  layers cannot satisfy readiness locally or convert checklist rows into live
-  command authority.
+- Prove manual order, cancel by `client_order_id`, and campaign execution
+  remain covered blocked command rows while the new families remain gap rows
+  with no command route.
 
-### Phase 1630 - Non-Spot Boundary Proof
+### Phase 1650 - Authority Boundary Proof
 
-- Prove stealth cancel, movement reprice, futures/perpetuals, and legacy
-  dashboard surfaces do not inherit spot readiness preconditions as authority.
+- Prove browser and BFF layers can display coverage gaps only and cannot
+  create missing backend contracts, evaluate spot rules, reconcile, or execute
+  Coinbase orders.
 
-### Phase 1631 - Frontend Focused Tests
+### Phase 1651 - OpenAPI Schema Sync
 
-- Cover readiness-precondition evidence in command workflow unit tests,
-  including spot-only coverage and non-spot absence.
+- Regenerate backend OpenAPI so the coverage-gap model is part of the
+  generated Admin API contract.
 
-### Phase 1632 - Backend Focused Gates
+### Phase 1652 - Backend Focused Tests
 
-- Run backend autonomous validation and focused Admin API/spot readiness
-  regression for the active range and command-suite source evidence.
+- Run backend autonomous validation and focused Admin API command-suite tests
+  for the active range and coverage-gap evidence.
 
-### Phase 1633 - Frontend Focused Gates
+### Phase 1653 - Website Schema Sync
 
-- Run typecheck, lint, API checks, autonomous validation, command fetch guard,
-  and focused command workflow/range tests.
+- Regenerate the website schema from backend OpenAPI and keep canonical
+  runtime/mock fixtures aligned with `coverage_gaps`.
 
-### Phase 1634 - Documentation Update
+### Phase 1654 - Website Runtime Gap Evidence
 
-- Update command workflow, API contract, testing, handoff, roadmap, durable
-  milestone, and examples so contextless maintainers can trace command draft
-  readiness rows to backend command-suite evidence.
+- Carry command-suite coverage gaps through website mock/runtime snapshots as
+  backend-shaped read-only evidence.
 
-### Phase 1635 - Contextless Review
+### Phase 1655 - Website Gap Rendering
 
-- Run blind/contextless review for whether a fresh agent can trace readiness
-  preconditions from backend command-suite evidence into website command
-  workflow draft cards without inventing browser/BFF authority.
+- Render coverage gaps inside Spot Command Suite read-only views without
+  buttons, BFF mutation authority, or command-workflow enablement.
 
-### Phase 1636 - Remediation
+### Phase 1656 - Frontend Focused Tests
 
-- Fix any blocker-level ambiguity from focused gates or contextless review
-  before advancing.
+- Cover generated schema, runtime/mock gap evidence, read-only rendering, and
+  unchanged command-workflow behavior in focused frontend tests.
 
-### Phase 1637 - Full Backend Gate
+### Phase 1657 - Documentation Update
 
-- Run full backend regression:
-  `pytest tests\regression\ -v --tb=short`.
+- Update command workflow, API contract, testing, handoff, examples, roadmap,
+  durable milestone, and capability-matrix docs so contextless maintainers can
+  distinguish covered commands from gap families.
 
-### Phase 1638 - Full Website Gate
+### Phase 1658 - Contextless Review
 
-- Run full website release gate:
-  `npm run release:gate`.
+- Run blind/contextless review for whether a fresh agent can trace coverage
+  gaps from backend command-suite evidence into website rendering without
+  inventing command authority.
 
-### Phase 1639 - No-Live Notional Evidence
+### Phase 1659 - Full Gates And No-Live Evidence
 
-- Confirm no live Coinbase execution was run and submitted/executed notional
-  remains `$0`.
+- Run backend full regression and website release gate, then confirm no live
+  Coinbase execution was run and submitted/executed notional remains `$0`.
 
-### Phase 1640 - Summary And Push
+### Phase 1660 - Summary And Push
 
-- Commit and push both repositories, then summarize command workflow
-  readiness trace scope, gates, contextless review, remaining live blockers,
-  and Coinbase notional `$0`.
+- Commit and push both repositories, then summarize spot coverage-gap scope,
+  gates, contextless review, remaining blockers, and Coinbase notional `$0`.
+
+## Completed Phases 1621-1640
+
+The 1621-1640 range completed command workflow readiness trace binding:
+
+- Website command workflow draft cards display backend-owned
+  `spot.commandSuite.readiness_preconditions` for spot manual order, cancel by
+  `client_order_id`, and campaign execution.
+- Readiness rows include source, expected source, blocker,
+  configured/blocking state, and browser/BFF authority beside draft payload
+  evidence.
+- The binding remains trace-only evidence. It does not evaluate readiness,
+  create proof records, enable commands, call Coinbase, or leak spot rules into
+  stealth, movement, futures/perpetuals, or legacy dashboard surfaces.
+- Backend full regression, website release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted and executed notional
+  stayed `$0`.
 
 ## Completed Phases 1601-1620
 

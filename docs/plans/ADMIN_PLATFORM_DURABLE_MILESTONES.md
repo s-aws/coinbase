@@ -2402,9 +2402,9 @@ Completed fifth-slice scope:
   create proof records, enable commands, call Coinbase, or treat spot
   preconditions as non-spot authority.
 
-Active sixth-slice scope:
+Completed sixth-slice scope:
 
-- Active phases 1621-1640 bind the same backend-owned command-suite
+- Phases 1621-1640 bound the same backend-owned command-suite
   `readiness_preconditions` into website command workflow draft evidence for
   spot manual order, cancel by `client_order_id`, and campaign execution.
 - The command workflow cards may display readiness blockers, source, expected
@@ -2412,6 +2412,16 @@ Active sixth-slice scope:
   draft payload. They must not evaluate readiness, create proof records,
   enable commands, call Coinbase, or treat spot preconditions as non-spot
   authority.
+
+Active seventh-slice scope:
+
+- Active phases 1641-1660 extend the command-suite contract with typed
+  `coverage_gaps` for spot sweep automation, P/L tracking, recovery workflow,
+  and reconciliation workflow.
+- Gap rows are not mutation-family rows and must not become command workflow
+  drafts. They name current read evidence, missing backend contracts, required
+  gate chains, and browser/BFF authority boundaries before any new spot command
+  route is introduced.
 
 Current backend evidence:
 
@@ -2424,16 +2434,14 @@ Current backend evidence:
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
-- The frontend command workflow must trace readiness preconditions beside
-  draft payload evidence while preserving backend ownership and avoiding proof
-  creation, gate evaluation, or command authority.
-- Spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation,
-  and any eventual live execution screens must prove the full approval,
-  cap/guard, admission audit, reconciliation, live service, and adapter chain.
+- Spot sweep automation, P/L tracking, recovery, reconciliation, and any
+  eventual live execution screens must prove the full approval, cap/guard,
+  admission audit, reconciliation, live service, and adapter chain through
+  backend-owned contracts before command UI can exist.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
-- Live Coinbase execution remains not run for the current M54 readiness
-  precondition slice; submitted and executed notional remain `$0`.
+- Live Coinbase execution remains not run for the current M54 coverage-gap
+  slice; submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
 

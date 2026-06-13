@@ -37,6 +37,7 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
+    AdminApiSpotCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     OrderSide,
     ProductCapability,
@@ -113,6 +114,7 @@ from .models import (
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
+    SpotCommandSuiteCoverageGapItem,
     SpotCommandSuiteProofRouteItem,
     SpotCommandSuiteResponse,
 )
@@ -122,7 +124,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1621-1640"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1641-1660"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -6942,6 +6944,172 @@ class AdminApiReadService:
                 )
             )
 
+        spot_boundary = _enterprise_module_spot_boundary("spot_operations")
+        gap_required_gate_chain = [
+            "route_inventory_contract",
+            "idempotency",
+            "operator_intent",
+            "payload_hash",
+            "approval_snapshot",
+            "admission_audit",
+            "cap_guard_decision",
+            "reconciliation_plan",
+            "live_execution_adapter",
+            "live_execution_service",
+            "post_live_reconciliation",
+        ]
+        coverage_gaps = [
+            SpotCommandSuiteCoverageGapItem(
+                family=AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=[
+                    "GET /api/v1/spot/sweep/status",
+                    "GET /api/v1/spot/campaign/status",
+                    "GET /api/v1/spot/command-suite",
+                ],
+                required_backend_contract=(
+                    "Durable enterprise sweep scheduling, pause/resume, run-limit, "
+                    "retry, execution-record, recovery, and reconciliation contract."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "enterprise_sweep_scheduler_contract",
+                    "sweep_run_limit_contract",
+                    "sweep_pause_resume_contract",
+                    "sweep_retry_recovery_contract",
+                    "sweep_reconciliation_execution_contract",
+                ],
+                spot_rule_boundary=spot_boundary,
+                documentation_refs=[
+                    "README.spot-portfolio-sweep.md",
+                    "README.spot-campaign.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Sweep and campaign evidence is readable, but enterprise admin "
+                    "sweep automation is not command-complete until durable "
+                    "scheduler, run-limit, recovery, and reconciliation contracts "
+                    "exist."
+                ),
+            ),
+            SpotCommandSuiteCoverageGapItem(
+                family=AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                command_route=None,
+                current_read_evidence_routes=[
+                    "GET /api/v1/spot/sweep/pnl",
+                    "GET /api/v1/spot/cost-basis/status",
+                ],
+                required_backend_contract=(
+                    "Durable spot P/L checkpoint, product ledger, average-cost "
+                    "snapshot, and operator review contract for admin workflows."
+                ),
+                required_gate_chain=[
+                    "route_inventory_contract",
+                    "cost_basis_authority",
+                    "fill_ledger_health",
+                    "mark_price_snapshot",
+                    "checkpoint_persistence",
+                    "audit_readback",
+                ],
+                missing_contracts=[
+                    "spot_pnl_checkpoint_contract",
+                    "spot_average_cost_review_contract",
+                    "spot_pnl_audit_link_contract",
+                ],
+                spot_rule_boundary=spot_boundary,
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "README.spot-portfolio-sweep.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "P/L and average-cost evidence is exposed as read-only "
+                    "operator evidence; it is not a browser profitability or sell "
+                    "authority and has no command route."
+                ),
+            ),
+            SpotCommandSuiteCoverageGapItem(
+                family=AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=[
+                    "GET /api/v1/admin/recovery-gate",
+                    "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
+                ],
+                required_backend_contract=(
+                    "Spot recovery preview/apply contract with RBAC, idempotency, "
+                    "append-only audit, rollback evidence, and reconciliation proof."
+                ),
+                required_gate_chain=[
+                    "route_inventory_contract",
+                    "recovery_preview",
+                    "idempotency",
+                    "operator_intent",
+                    "approval_snapshot",
+                    "admission_audit",
+                    "rollback_plan",
+                    "reconciliation_proof",
+                ],
+                missing_contracts=[
+                    "spot_recovery_preview_contract",
+                    "spot_recovery_apply_contract",
+                    "spot_recovery_rollback_contract",
+                    "spot_recovery_reconciliation_contract",
+                ],
+                spot_rule_boundary=spot_boundary,
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "docs/OPERATOR_READ_MODELS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Recovery-gate and direct-order audit reads do not create a "
+                    "spot recovery mutation. Recovery must stay backend-owned and "
+                    "previewed before any apply path exists."
+                ),
+            ),
+            SpotCommandSuiteCoverageGapItem(
+                family=AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=[
+                    "GET /api/v1/admin/reconciliation/plans",
+                    "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+                ],
+                required_backend_contract=(
+                    "Spot-specific reconciliation execution/proof contract that "
+                    "can compare backend order state with Coinbase evidence without "
+                    "browser or BFF state mutation."
+                ),
+                required_gate_chain=[
+                    "route_inventory_contract",
+                    "reconciliation_plan",
+                    "exchange_evidence_snapshot",
+                    "audit_link",
+                    "proof_persistence",
+                    "post_live_reconciliation",
+                ],
+                missing_contracts=[
+                    "spot_reconciliation_execution_contract",
+                    "spot_exchange_state_proof_contract",
+                    "spot_reconciliation_repair_policy_contract",
+                ],
+                spot_rule_boundary=spot_boundary,
+                documentation_refs=[
+                    "README.reconciliation-plans.md",
+                    "docs/examples/reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Reconciliation plan records are local-state evidence only. "
+                    "They do not execute reconciliation, mutate exchange/order "
+                    "state, or prove Coinbase state."
+                ),
+            ),
+        ]
+
         return SpotCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             status=AdminApiGateStatus.BLOCKED,
@@ -6959,11 +7127,14 @@ class AdminApiReadService:
             submitted_notional_usdc="0",
             executed_notional_usdc="0",
             commands=commands,
+            coverage_gap_count=len(coverage_gaps),
+            coverage_gaps=coverage_gaps,
             read_routes=read_routes,
             evidence=[
                 "M54 starts with read-only spot command-suite coverage before execution.",
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
+                "Sweep automation, P/L tracking, recovery, and reconciliation gaps are explicit backend-owned evidence before more spot command UI exists.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(

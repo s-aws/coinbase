@@ -38,44 +38,55 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Command Workflow Readiness Trace Batch - Phases 1621-1640
+## Active M54 Coverage Gap Evidence Batch - Phases 1641-1660
 
-### Phase 1621 - Advance Active Queue Range
+### Phase 1641 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1601-1620 to active
-  phases 1621-1640 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1621-1640 to active
+  phases 1641-1660 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1622 - Command Workflow Readiness Trace Scope
+### Phase 1642 - Command-Suite Gap Contract
 
-- Reuse existing backend command-suite readiness evidence as the source for
-  website command workflow draft readiness rows.
+- Extend `GET /api/v1/spot/command-suite` with typed coverage-gap evidence for
+  sweep automation, P/L tracking, recovery, and reconciliation before adding
+  any new spot command routes.
 
-### Phase 1623 - Backend Range Evidence
+### Phase 1643 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting `1621-1640`.
+  regression tests reporting `1641-1660`.
 
-### Phase 1624 - Website Draft Evidence Linkage
+### Phase 1644 - Website Gap Rendering
 
-- Pass generated command-suite readiness preconditions through website command
-  workflow evidence for spot manual order, cancel by `client_order_id`, and
-  campaign execution.
+- Sync website generated schema and render command-suite coverage gaps as
+  read-only evidence, not command workflow controls.
 
-### Phase 1625 - Non-Spot Boundary Evidence
+### Phase 1645 - Boundary Evidence
 
-- Prove stealth cancel and movement reprice drafts do not inherit spot
-  readiness preconditions as authority or spot wallet/no-shorting rules.
+- Prove command rows and gap rows remain separate, BFF mutation authority does
+  not broaden, and non-spot modules do not inherit spot gap semantics.
 
-### Phase 1626 - Tests, Docs, And Review
+### Phase 1646 - Tests, Docs, And Review
 
-- Cover command workflow readiness evidence in focused tests, update
-  handoff/roadmap docs, and run blind/contextless review before full gates.
+- Cover backend/frontend gap evidence in focused tests, update handoff/roadmap
+  docs, and run blind/contextless review before full gates.
 
-### Phase 1627 - Full Gates And Push
+### Phase 1647 - Full Gates And Push
 
 - Run backend regression, website release gate, then commit and push both
   repositories with no live Coinbase execution.
+
+## Completed M54 Command Workflow Readiness Trace Batch - Phases 1621-1640
+
+- Website command workflow draft cards display backend-owned command-suite
+  `readiness_preconditions` for manual order, cancel by `client_order_id`, and
+  campaign execution.
+- The trace remains display-only evidence and does not create proof records,
+  gate evaluation, BFF execution authority, Coinbase calls, or non-spot
+  spot-rule leakage.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Readiness Preconditions Batch - Phases 1601-1620
 

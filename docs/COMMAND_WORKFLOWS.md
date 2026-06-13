@@ -58,6 +58,14 @@ back to command-suite evidence only; it must not evaluate readiness, create
 proof records, enable commands, or copy spot wallet/no-shorting rules into
 non-spot modules.
 
+The command-suite response also reports `coverage_gaps` for remaining M54 spot
+families that are not command-complete: sweep automation, P/L tracking,
+recovery workflow, and reconciliation workflow. Gap rows are separate from
+`mutation_family` command rows. They may name current read evidence, missing
+backend contracts, required gate chains, and browser/BFF boundaries, but they
+must not become command workflow drafts, BFF mutation routes, browser
+profitability or sell authority, reconciliation execution, or Coinbase calls.
+
 Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls
 `cancel_order(client_order_id)` because the exchange accepts the client id for
