@@ -3938,7 +3938,11 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
         in pnl_gap["current_read_evidence_routes"]
     )
-    assert "spot_average_cost_review_contract" in pnl_gap["missing_contracts"]
+    assert "average_cost_review_checkpoint" in pnl_gap["required_gate_chain"]
+    assert "spot_average_cost_review_contract" not in pnl_gap["missing_contracts"]
+    assert "spot_pnl_audit_link_contract" in pnl_gap["missing_contracts"]
+    assert "spot_pnl_recovery_link_contract" in pnl_gap["missing_contracts"]
+    assert "spot_pnl_reconciliation_link_contract" in pnl_gap["missing_contracts"]
     recovery_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW.value
     ]
@@ -4200,6 +4204,10 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert checkpoint["profitability_authority"] is False
     assert checkpoint["sell_authority"] is False
     assert checkpoint["checkpoint_is_tax_accounting"] is False
+    assert checkpoint["average_cost_reviewed"] is True
+    assert checkpoint["average_cost_review_source"] == "coinbase_average_cost"
+    assert "not sell authority" in checkpoint["average_cost_review_detail"]
+    assert "browser guard evidence" in checkpoint["average_cost_review_detail"]
 
     replayed = client.post(
         "/api/v1/spot/pnl/checkpoints",
@@ -4233,6 +4241,7 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert listed.status_code == 200
     assert listed.json()["total_count"] == 1
     assert listed.json()["warning_count"] == 1
+    assert listed.json()["average_cost_review_count"] == 1
     assert listed.json()["live_coinbase_orders_ran"] is False
 
     detail = client.get(
@@ -4242,6 +4251,7 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert detail.status_code == 200
     assert detail.json()["read_only"] is True
     assert detail.json()["checkpoint"]["checkpoint_id"] == "spot-pnl-checkpoint-001"
+    assert detail.json()["checkpoint"]["average_cost_reviewed"] is True
 
     rejected = client.post(
         "/api/v1/spot/pnl/checkpoints",
@@ -4261,6 +4271,25 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert client.admin_api_test_pnl_checkpoint_store.find_by_checkpoint_id(
         "spot-pnl-checkpoint-002"
     ) is None
+
+    rejected_empty_average_cost = client.post(
+        "/api/v1/spot/pnl/checkpoints",
+        json={
+            **body,
+            "checkpoint_id": "spot-pnl-checkpoint-003",
+            "average_cost_snapshot": {},
+        },
+        headers=_headers(
+            idempotency_key="spot-pnl-checkpoint-empty-average-cost",
+            operator_intent="record_spot_pnl_checkpoint",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert rejected_empty_average_cost.status_code == 400
+    assert (
+        "average_cost_snapshot must be non-empty"
+        in rejected_empty_average_cost.json()["message"]
+    )
 
 
 @pytest.mark.regression
@@ -4401,7 +4430,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1701-1720"
+    assert live_payload["approved_phase_range"] == "1721-1740"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4960,7 +4989,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1701-1720"
+    assert enterprise_payload["approved_phase_range"] == "1721-1740"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

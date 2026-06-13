@@ -793,6 +793,9 @@ class SpotPnlCheckpointItem(BaseModel):
     product_ids: list[str] = Field(default_factory=list)
     pnl_snapshot: FlexibleDict
     average_cost_snapshot: FlexibleDict | None = None
+    average_cost_reviewed: bool = False
+    average_cost_review_source: str | None = None
+    average_cost_review_detail: str
     source_report_route: str
     review_status: AdminApiGateStatus
     actor_id: str
@@ -823,6 +826,7 @@ class SpotPnlCheckpointListResponse(BaseModel):
     passed_count: int = Field(ge=0)
     blocked_count: int = Field(ge=0)
     warning_count: int = Field(ge=0)
+    average_cost_review_count: int = Field(ge=0)
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

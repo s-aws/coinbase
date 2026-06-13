@@ -38,40 +38,51 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Spot P/L Checkpoint Evidence Batch - Phases 1701-1720
+## Active M54 Spot Average-Cost Review Evidence Batch - Phases 1721-1740
 
-### Phase 1701 - Advance Active Queue Range
+### Phase 1721 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1681-1700 to active
-  phases 1701-1720 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1701-1720 to active
+  phases 1721-1740 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1702 - Spot P/L Checkpoint Contract
+### Phase 1722 - Average-Cost Review Contract
 
-- Add `GET /api/v1/spot/pnl/checkpoints`,
-  `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`, and
-  `POST /api/v1/spot/pnl/checkpoints` as backend-owned P/L review evidence
-  contracts.
+- Extend the existing Spot P/L checkpoint contract so it explicitly reports
+  average-cost review evidence without adding a second writer or Coinbase
+  execution path.
 
-### Phase 1703 - Permission, Idempotency, And Audit
+### Phase 1723 - Models, Validation, And Counts
 
-- Add `spot_pnl:record`, append-only checkpoint storage, RBAC, idempotency,
-  audit, and no-live response evidence.
+- Add checkpoint average-cost review fields, reject empty provided
+  `average_cost_snapshot` payloads, and expose aggregate average-cost review
+  counts in list responses.
 
-### Phase 1704 - Command Suite And Taxonomy Evidence
+### Phase 1724 - Command Suite Gap Update
 
-- Update command-suite P/L gap evidence and mutation taxonomy so checkpoint
-  records are partial P/L coverage, not sell/profit/tax/Coinbase authority.
+- Update the Spot command-suite P/L gap so average-cost review is covered by
+  checkpoint evidence while audit and reconciliation linkage remain open.
 
-### Phase 1705 - Website Contract Consumption
+### Phase 1725 - Website Contract Consumption
 
-- Regenerate the website schema and add canonical wrappers, BFF coverage,
-  mock/runtime fixtures, and Spot P/L panel evidence.
+- Regenerate the website schema and update canonical wrappers, mock/runtime
+  fixtures, release artifacts, and the Spot P/L panel for the new fields.
 
-### Phase 1706 - Tests, Docs, Review, And Push
+### Phase 1726 - Tests, Docs, Review, And Push
 
 - Cover backend/frontend tests, docs, blind/contextless review, full gates, and
   confirm Coinbase submitted/executed notional remains `$0` before pushing.
+
+## Completed M54 Spot P/L Checkpoint Evidence Batch - Phases 1701-1720
+
+- `POST /api/v1/spot/pnl/checkpoints` is route-bound, idempotent,
+  audited, RBAC-protected, and local-state only.
+- `GET /api/v1/spot/pnl/checkpoints` and
+  `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}` expose durable
+  checkpoint evidence to the website without sell, profit, tax, or Coinbase
+  authority.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Sweep Automation Command Contract Batch - Phases 1681-1700
 

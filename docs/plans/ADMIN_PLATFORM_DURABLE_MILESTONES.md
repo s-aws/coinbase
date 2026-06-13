@@ -2443,15 +2443,26 @@ Completed ninth-slice scope:
   orders, or close the wider sweep automation gap until scheduler, run-limit,
   recovery, and reconciliation contracts exist.
 
-Active tenth-slice scope:
+Completed tenth-slice scope:
 
-- Active phases 1701-1720 add backend-owned Spot P/L checkpoint list/detail
+- Phases 1701-1720 added backend-owned Spot P/L checkpoint list/detail
   reads and a local-state checkpoint record route keyed by `checkpoint_id`.
 - Checkpoint records are durable operator review evidence only. They must not
   become tax accounting, sell authority, profitability authority, browser
   guard evidence, Coinbase execution evidence, or a second trading path.
-- The P/L tracking gap remains open for average-cost review linkage, audit
+- The P/L tracking gap remained open for average-cost review linkage, audit
   linkage, recovery, and reconciliation proof.
+
+Active eleventh-slice scope:
+
+- Active phases 1721-1740 extend the same checkpoint path with explicit
+  average-cost review evidence fields and counts.
+- Average-cost review evidence must stay local-state review evidence. It must
+  not become a second writer, sell authority, profitability authority, tax
+  accounting, browser guard evidence, Coinbase execution evidence, or a
+  generic rule for non-spot modules.
+- The P/L tracking gap remains open for audit linkage, recovery, and
+  reconciliation proof.
 
 Current backend evidence:
 

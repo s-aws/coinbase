@@ -88,13 +88,30 @@ class AdminApiSpotPnlCheckpointService:
             )
         if not body.pnl_snapshot:
             raise SpotPnlCheckpointError("Spot P/L checkpoint requires pnl_snapshot.")
+        if body.average_cost_snapshot is not None and not body.average_cost_snapshot:
+            raise SpotPnlCheckpointError(
+                "Spot P/L checkpoint average_cost_snapshot must be non-empty when provided."
+            )
 
 
 def _item_from_record(record: SpotPnlCheckpointRecord) -> SpotPnlCheckpointItem:
+    average_cost_reviewed = bool(record.average_cost_snapshot)
+    average_cost_review_source = _average_cost_review_source(record.average_cost_snapshot)
+    average_cost_review_detail = (
+        "Checkpoint includes backend-sourced average-cost review evidence. "
+        "This is still not sell authority, profitability authority, tax "
+        "accounting, browser guard evidence, or Coinbase execution evidence."
+        if average_cost_reviewed
+        else (
+            "Checkpoint does not include average-cost review evidence; use "
+            "/api/v1/spot/sweep/pnl with include_coinbase_average_cost=true "
+            "before recording average-cost review evidence."
+        )
+    )
     detail = (
         "Spot P/L checkpoint is durable operator review evidence only. It is "
-        "not tax accounting, sell authority, profitability authority, or live "
-        "Coinbase execution evidence."
+        "not tax accounting, sell authority, profitability authority, browser "
+        "guard evidence, or live Coinbase execution evidence."
     )
     return SpotPnlCheckpointItem(
         checkpoint_id=record.checkpoint_id,
@@ -103,6 +120,9 @@ def _item_from_record(record: SpotPnlCheckpointRecord) -> SpotPnlCheckpointItem:
         product_ids=record.product_ids,
         pnl_snapshot=record.pnl_snapshot,
         average_cost_snapshot=record.average_cost_snapshot,
+        average_cost_reviewed=average_cost_reviewed,
+        average_cost_review_source=average_cost_review_source,
+        average_cost_review_detail=average_cost_review_detail,
         source_report_route=record.source_report_route,
         review_status=record.review_status,
         actor_id=record.actor_id,
@@ -113,6 +133,15 @@ def _item_from_record(record: SpotPnlCheckpointRecord) -> SpotPnlCheckpointItem:
         operator_notes=record.operator_notes,
         detail=detail,
     )
+
+
+def _average_cost_review_source(snapshot: dict | None) -> str | None:
+    if not snapshot:
+        return None
+    source = snapshot.get("source")
+    if isinstance(source, str) and source.strip():
+        return source.strip()
+    return "average_cost_snapshot"
 
 
 def _normalize_now(now: datetime | None) -> datetime:

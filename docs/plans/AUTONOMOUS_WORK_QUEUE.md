@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1701-1720**.
+- Approved phase range: **1721-1740**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,116 +46,128 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1701-1720
+## Active Phases 1721-1740
 
-### Phase 1701 - Advance Active Queue Range
+### Phase 1721 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1681-1700 to active
-  phases 1701-1720 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1701-1720 to active
+  phases 1721-1740 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1702 - Spot P/L Checkpoint Scope
+### Phase 1722 - Average-Cost Review Scope
 
-- Define Spot P/L checkpoints as backend-owned local-state review evidence,
-  not tax accounting, sell authority, profitability authority, or Coinbase
-  execution evidence.
+- Define average-cost review as evidence on the existing Spot P/L checkpoint
+  path, not a second local-state store, sell authority, profitability
+  authority, tax accounting, or Coinbase execution evidence.
 
-### Phase 1703 - P/L Checkpoint Permission Boundary
+### Phase 1723 - Checkpoint Average-Cost Fields
 
-- Add a distinct `spot_pnl:record` permission so checkpoint records are
-  independently auditable from live order, campaign, and sweep execution
-  permissions.
+- Add typed checkpoint list/detail fields that report whether a checkpoint
+  includes average-cost review evidence, its source, and a no-authority detail.
 
-### Phase 1704 - P/L Checkpoint Models
+### Phase 1724 - Average-Cost Snapshot Validation
 
-- Add typed checkpoint create/list/detail response models that preserve
-  no-live, no-sell-authority, no-profitability-authority, and no-tax-accounting
-  fields.
+- Preserve P/L-only checkpoint support, but reject explicitly provided empty
+  `average_cost_snapshot` payloads.
 
-### Phase 1705 - Durable Checkpoint Store
+### Phase 1725 - Average-Cost Review Counts
 
-- Add append-only local checkpoint storage with readback by checkpoint id and
-  status-filtered listing.
+- Add aggregate list evidence for how many durable checkpoint records include
+  average-cost review evidence.
 
-### Phase 1706 - Checkpoint Service Validation
+### Phase 1726 - Command-Suite P/L Gap Update
 
-- Add service validation for source report route, non-empty P/L snapshots,
-  actor/operator intent, and idempotency payload binding.
+- Remove `spot_average_cost_review_contract` from the P/L tracking gap once the
+  checkpoint contract exposes average-cost review evidence, while keeping audit
+  and reconciliation linkage gaps open.
 
-### Phase 1707 - FastAPI Checkpoint Routes
+### Phase 1727 - Single Route Boundary
 
-- Expose `GET /api/v1/spot/pnl/checkpoints`,
-  `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`, and
-  `POST /api/v1/spot/pnl/checkpoints` through backend-owned Admin API routes.
+- Prove average-cost review remains on `POST /api/v1/spot/pnl/checkpoints`
+  and does not add a parallel writer, browser authority, or Coinbase path.
 
-### Phase 1708 - Idempotency, RBAC, And Audit
+### Phase 1728 - Backend OpenAPI Sync
 
-- Prove checkpoint record creation is authenticated, authorized, idempotent,
-  append-audited, and still no-live.
+- Regenerate backend OpenAPI and route-inventory artifacts for the enhanced
+  checkpoint response contract.
 
-### Phase 1709 - Route Inventory And Capability Evidence
+### Phase 1729 - Backend Focused Tests
 
-- Add checkpoint read/write rows to Admin API route inventory and capability
-  evidence without adding a second trading path.
+- Cover average-cost review fields, aggregate counts, empty-snapshot
+  rejection, command-suite gap updates, and no-live posture.
 
-### Phase 1710 - Command-Suite P/L Gap Update
+### Phase 1730 - Backend Docs And Examples
 
-- Update the Spot command-suite P/L tracking gap to show checkpoint record
-  coverage while leaving average-cost review, audit linkage, and
-  reconciliation linkage incomplete.
+- Update Admin API, Spot portfolio sweep, command workflow, examples,
+  capability matrix, and handoff docs for average-cost review evidence.
 
-### Phase 1711 - Mutation Taxonomy Row
-
-- Add `spot.pnl_checkpoint` to enterprise mutation taxonomy with explicit
-  browser/BFF display-only and forward-only boundaries.
-
-### Phase 1712 - Backend OpenAPI Sync
-
-- Regenerate backend OpenAPI and route-inventory artifacts for the checkpoint
-  models and routes.
-
-### Phase 1713 - Backend Focused Tests
-
-- Cover viewer denial, trader acceptance, idempotent replay, conflict,
-  invalid source route rejection, list/detail readback, route inventory, and
-  no-live posture.
-
-### Phase 1714 - Website Schema Sync
+### Phase 1731 - Website Schema Sync
 
 - Regenerate the website schema from backend OpenAPI without hand-editing
   generated files.
 
-### Phase 1715 - Website Wrappers And BFF Coverage
+### Phase 1732 - Website Contract Consumption
 
-- Add canonical website wrappers, BFF route coverage, mutation contract
-  evidence, and smoke catalog entries for checkpoint list/detail/record.
+- Consume the new checkpoint average-cost fields through canonical wrappers,
+  BFF coverage, and generated types only.
 
-### Phase 1716 - Runtime, Mock, And P/L UI Evidence
+### Phase 1733 - Mock And Runtime Evidence
 
-- Load checkpoint evidence through the Spot runtime snapshot, mock backend,
-  and Spot P/L read panel without creating browser P/L authority.
+- Update mock backend, runtime fixtures, route coverage, smoke catalogs, and
+  quality artifacts for average-cost review evidence and the new active range.
 
-### Phase 1717 - Release And Artifact Alignment
+### Phase 1734 - Spot P/L UI Evidence
+
+- Render checkpoint average-cost review counts/source in the Spot P/L read
+  panel without browser P/L, sell, tax, or profitability authority.
+
+### Phase 1735 - Command-Suite Gap UI Evidence
+
+- Render the updated P/L gap so average-cost review is no longer listed as
+  missing, while audit and reconciliation linkage remain explicit blockers.
+
+### Phase 1736 - Release And Artifact Alignment
 
 - Update release/deployment/autonomous artifacts, route coverage, smoke
-  checks, and quality gates for checkpoint evidence.
+  checks, and quality gates for the 1721-1740 evidence batch.
 
-### Phase 1718 - Documentation And Examples
+### Phase 1737 - Focused Frontend Tests
 
-- Update Admin API, Spot portfolio sweep, command workflow, examples,
-  capability matrix, and handoff docs for contextless readers.
+- Cover generated schema, wrappers, mutation contract, mock route, P/L panel,
+  command-suite gap rendering, and unchanged no-live behavior.
 
-### Phase 1719 - Contextless Review And Remediation
+### Phase 1738 - Documentation Update
+
+- Update API contract, command workflows, mock API, examples, capability
+  matrix, testing, and handoff docs for contextless average-cost traceability.
+
+### Phase 1739 - Contextless Review And Remediation
 
 - Run blind/contextless review for whether a fresh agent can explain the
-  checkpoint path without inventing browser tax, sell, profitability, or
-  Coinbase execution authority; remediate blockers.
+  average-cost review path without inventing browser authority or Coinbase
+  execution; remediate blockers.
 
-### Phase 1720 - Summary And Push
+### Phase 1740 - Summary And Push
 
 - Run full backend regression and website release gate, confirm Coinbase
   submitted/executed notional remains `$0`, then commit and push both
   repositories.
+
+## Completed Phases 1701-1720
+
+The 1701-1720 range completed backend-owned Spot P/L checkpoint evidence:
+
+- `POST /api/v1/spot/pnl/checkpoints` records durable local P/L checkpoint
+  evidence with `spot_pnl:record`, idempotency, audit, and no-live posture.
+- `GET /api/v1/spot/pnl/checkpoints` and
+  `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}` expose read-only
+  checkpoint evidence for the website.
+- The website consumes generated schema, canonical wrappers, BFF/smoke
+  catalogs, mock/runtime evidence, and Spot P/L panel rows without browser
+  sell, profit, tax, or Coinbase authority.
+- Backend full regression, website release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted and executed notional
+  stayed `$0`.
 
 ## Completed Phases 1681-1700
 

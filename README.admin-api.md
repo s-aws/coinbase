@@ -95,6 +95,13 @@ Spot P/L checkpoint records add a separate local-state mutation surface:
 operator-review records sourced from `/api/v1/spot/sweep/pnl`; they do not
 submit Coinbase orders, approve sells, prove profitability, execute
 reconciliation, or create tax-accounting authority.
+When `average_cost_snapshot` is present, the same checkpoint is also the
+average-cost review evidence path. Responses expose
+`average_cost_reviewed`, `average_cost_review_source`,
+`average_cost_review_detail`, and list-level `average_cost_review_count`.
+Those fields are review evidence only; they do not make Coinbase average cost
+sell authority, profit authority, tax accounting, browser guard evidence, or
+Coinbase execution evidence.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -198,6 +205,9 @@ M54 adds the `spot.pnl_checkpoint` taxonomy row for backend-owned Spot P/L
 checkpoint records. These records are local-state review evidence only; they
 are not live execution, sell eligibility, profitability proof, reconciliation
 execution, or tax accounting.
+The checkpoint path is also the single Admin API average-cost review evidence
+path when an `average_cost_snapshot` is recorded; do not add a parallel
+average-cost writer.
 
 Current mutating HTTP command surfaces are:
 

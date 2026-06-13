@@ -247,6 +247,11 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 - Do not treat Admin API P/L checkpoint records as permission to sell,
   profitability proof, reconciliation proof, tax lots, or evidence that a live
   Coinbase order ran.
+- If a checkpoint includes `average_cost_snapshot`, the Admin API reports it
+  through `average_cost_reviewed`, `average_cost_review_source`,
+  `average_cost_review_detail`, and list-level `average_cost_review_count`.
+  This is still the same checkpoint review path, not a separate average-cost
+  authority store.
 
 ## Examples
 

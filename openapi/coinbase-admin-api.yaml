@@ -11300,6 +11300,18 @@ components:
             type: object
           - type: 'null'
           title: Average Cost Snapshot
+        average_cost_reviewed:
+          type: boolean
+          title: Average Cost Reviewed
+          default: false
+        average_cost_review_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Average Cost Review Source
+        average_cost_review_detail:
+          type: string
+          title: Average Cost Review Detail
         source_report_route:
           type: string
           title: Source Report Route
@@ -11362,6 +11374,7 @@ components:
       - recorded_at
       - scope
       - pnl_snapshot
+      - average_cost_review_detail
       - source_report_route
       - review_status
       - actor_id
@@ -11403,6 +11416,10 @@ components:
           type: integer
           minimum: 0.0
           title: Warning Count
+        average_cost_review_count:
+          type: integer
+          minimum: 0.0
+          title: Average Cost Review Count
         read_only:
           type: boolean
           title: Read Only
@@ -11419,6 +11436,7 @@ components:
       - passed_count
       - blocked_count
       - warning_count
+      - average_cost_review_count
       title: SpotPnlCheckpointListResponse
       description: List backend-owned Spot P/L checkpoint records.
     SpotPnlCheckpointResponse:

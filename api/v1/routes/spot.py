@@ -400,6 +400,9 @@ def list_spot_pnl_checkpoints(
         passed_count=counts[AdminApiGateStatus.PASSED],
         blocked_count=counts[AdminApiGateStatus.BLOCKED],
         warning_count=counts[AdminApiGateStatus.WARNING],
+        average_cost_review_count=sum(
+            1 for item in all_checkpoints if item.average_cost_reviewed
+        ),
     )
     return JSONResponse(content=payload.model_dump(mode="json"))
 

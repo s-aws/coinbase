@@ -125,7 +125,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1701-1720"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1721-1740"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -7229,7 +7229,7 @@ class AdminApiReadService:
                 ),
                 required_backend_contract=(
                     "Durable spot P/L product ledger, average-cost snapshot "
-                    "review, audit linkage, and recovery/reconciliation linkage "
+                    "review evidence, audit linkage, and recovery/reconciliation linkage "
                     "for admin workflows."
                 ),
                 required_gate_chain=[
@@ -7238,11 +7238,12 @@ class AdminApiReadService:
                     "fill_ledger_health",
                     "mark_price_snapshot",
                     "checkpoint_persistence",
+                    "average_cost_review_checkpoint",
                     "audit_readback",
                 ],
                 missing_contracts=[
-                    "spot_average_cost_review_contract",
                     "spot_pnl_audit_link_contract",
+                    "spot_pnl_recovery_link_contract",
                     "spot_pnl_reconciliation_link_contract",
                 ],
                 spot_rule_boundary=spot_boundary,
@@ -7253,9 +7254,10 @@ class AdminApiReadService:
                 ],
                 detail=(
                     "P/L, average-cost, and checkpoint evidence is exposed as "
-                    "operator evidence; the checkpoint route records local review "
-                    "state only and is not browser profitability, sell authority, "
-                    "tax accounting, or Coinbase execution evidence."
+                    "operator evidence; the checkpoint route records local P/L "
+                    "and average-cost review state only and is not browser "
+                    "profitability, sell authority, tax accounting, or Coinbase "
+                    "execution evidence."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
