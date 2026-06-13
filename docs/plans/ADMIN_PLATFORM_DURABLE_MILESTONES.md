@@ -162,12 +162,12 @@ not independent roadmaps.
 | M52 - Reconciliation Plan And Proof Records | Complete | Add backend-owned reconciliation plan record and proof contracts for admitted commands without browser reconciliation authority or reconciliation execution. |
 | M53 - Controlled Execution Adapter Pilot | Complete | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
 | M54 - Spot Full Admin Command Suite | In Progress | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
-| M55 - Stealth Full Admin Command Suite | Planned | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
-| M56 - Movement/Repricing Full Admin Command Suite | Planned | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
-| M57 - Futures/Perpetuals Contract Foundation And Commands | Planned | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
-| M58 - Automation, Campaign, Scheduler, And Retry Suite | Planned | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
-| M59 - Recovery, Repair, Policy, And Operations Admin | Planned | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
-| M60 - Full Functionality Release Candidate | Planned | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
+| M55 - Stealth Full Admin Command Suite | Approved; not started | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
+| M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | Approved; not started | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
+| M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
+| M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
 
 ## Remaining Milestone Dependency Ledger
 
