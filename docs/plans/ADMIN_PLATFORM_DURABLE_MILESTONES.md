@@ -2389,9 +2389,9 @@ Completed fourth-slice scope:
   compatibility must not inherit spot proof-route navigation or spot
   wallet/no-shorting rules.
 
-Active fifth-slice scope:
+Completed fifth-slice scope:
 
-- Active phases 1601-1620 expose backend-owned readiness preconditions on
+- Phases 1601-1620 exposed backend-owned readiness preconditions on
   each spot command-suite row by reusing `AdminLiveReadinessPreconditionItem`
   from live-enablement evidence.
 - The command-suite rows must show total, blocking, and passed precondition
@@ -2401,6 +2401,17 @@ Active fifth-slice scope:
 - The frontend may render those preconditions, but it must not evaluate them,
   create proof records, enable commands, call Coinbase, or treat spot
   preconditions as non-spot authority.
+
+Active sixth-slice scope:
+
+- Active phases 1621-1640 bind the same backend-owned command-suite
+  `readiness_preconditions` into website command workflow draft evidence for
+  spot manual order, cancel by `client_order_id`, and campaign execution.
+- The command workflow cards may display readiness blockers, source, expected
+  source, configured/blocking state, and browser/BFF boundary beside the
+  draft payload. They must not evaluate readiness, create proof records,
+  enable commands, call Coinbase, or treat spot preconditions as non-spot
+  authority.
 
 Current backend evidence:
 
@@ -2413,9 +2424,9 @@ Current backend evidence:
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
-- The frontend must render readiness preconditions while preserving backend
-  ownership and avoiding proof creation, gate evaluation, or command
-  authority.
+- The frontend command workflow must trace readiness preconditions beside
+  draft payload evidence while preserving backend ownership and avoiding proof
+  creation, gate evaluation, or command authority.
 - Spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation,
   and any eventual live execution screens must prove the full approval,
   cap/guard, admission audit, reconciliation, live service, and adapter chain.

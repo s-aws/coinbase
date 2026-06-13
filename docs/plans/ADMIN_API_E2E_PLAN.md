@@ -38,49 +38,55 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Readiness Preconditions Batch - Phases 1601-1620
+## Active M54 Command Workflow Readiness Trace Batch - Phases 1621-1640
 
-### Phase 1601 - Advance Active Queue Range
+### Phase 1621 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1581-1600 to active
-  phases 1601-1620 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1601-1620 to active
+  phases 1621-1640 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1602 - Readiness Preconditions Scope
+### Phase 1622 - Command Workflow Readiness Trace Scope
 
-- Expose backend-owned readiness preconditions on each spot command-suite row
-  by reusing the existing live-enablement precondition contract.
+- Reuse existing backend command-suite readiness evidence as the source for
+  website command workflow draft readiness rows.
 
-### Phase 1603 - Backend Range Evidence
+### Phase 1623 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting `1601-1620`.
+  regression tests reporting `1621-1640`.
 
-### Phase 1604 - Website Read Model Linkage
+### Phase 1624 - Website Draft Evidence Linkage
 
-- Pass generated command-suite readiness preconditions through the website
-  spot read-model adapter and read-only Spot Command Suite view.
+- Pass generated command-suite readiness preconditions through website command
+  workflow evidence for spot manual order, cancel by `client_order_id`, and
+  campaign execution.
 
-### Phase 1605 - Spot Command Readiness Evidence
-
-- Render readiness preconditions for spot manual order, cancel by
-  `client_order_id`, and campaign execution without adding browser gate
-  evaluation or live execution authority.
-
-### Phase 1606 - Non-Spot Boundary Evidence
+### Phase 1625 - Non-Spot Boundary Evidence
 
 - Prove stealth cancel and movement reprice drafts do not inherit spot
   readiness preconditions as authority or spot wallet/no-shorting rules.
 
-### Phase 1607 - Tests, Docs, And Review
+### Phase 1626 - Tests, Docs, And Review
 
-- Cover the readiness-precondition evidence in focused tests, update
+- Cover command workflow readiness evidence in focused tests, update
   handoff/roadmap docs, and run blind/contextless review before full gates.
 
-### Phase 1608 - Full Gates And Push
+### Phase 1627 - Full Gates And Push
 
 - Run backend regression, website release gate, then commit and push both
   repositories with no live Coinbase execution.
+
+## Completed M54 Readiness Preconditions Batch - Phases 1601-1620
+
+- `GET /api/v1/spot/command-suite` exposes backend-owned
+  `readiness_preconditions` and aggregate count fields for manual order,
+  cancel by `client_order_id`, and campaign execution.
+- The readiness rows are copied from live-enablement evidence and stay
+  display-only; they do not add browser/BFF gate evaluation or live execution
+  authority.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Proof-Route Navigation Batch - Phases 1581-1600
 

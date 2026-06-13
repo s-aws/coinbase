@@ -97,18 +97,18 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1601-1620`.
+- Active autonomous range: `1621-1640`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
   `AdminApiCommandService.place_manual_order`. M54 completed the first
-  read-only Spot command-suite slice and backend-owned proof-route linkage at
+  read-only Spot command-suite slice, backend-owned proof-route linkage, and
+  backend-owned readiness preconditions at
   `GET /api/v1/spot/command-suite` for manual order, cancel by
   `client_order_id`, and campaign execution readiness. The active M54 range
-  links those command-suite proof routes from website command draft evidence
-  panels to existing backend-owned workbench sections and now exposes
-  backend-owned readiness preconditions per spot command while preserving
-  backend authority. Live Coinbase execution remains
+  binds those readiness preconditions into website command workflow draft
+  evidence so operators can see blockers beside the draft payload while
+  preserving backend authority. Live Coinbase execution remains
   disabled unless a later phase explicitly runs under the carried cap policy.
   Browser approval, BFF forwarding, linked snapshots, cap/guard records, audit
   records, reconciliation plans, command-suite proof routes, command draft

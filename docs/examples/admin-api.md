@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1601-1620",
+  "approved_phase_range": "1621-1640",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1601-1620",
+  "approved_phase_range": "1621-1640",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1640,7 +1640,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1601-1620",
+  "approved_phase_range": "1621-1640",
   "command_count": 3,
   "blocked_command_count": 3,
   "live_enabled_command_count": 0,

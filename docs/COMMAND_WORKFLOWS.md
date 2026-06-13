@@ -51,6 +51,13 @@ browser/BFF boundary, and live service gates. They are status evidence only;
 they do not create proof records, evaluate gates in the browser, enable BFF
 execution, or call Coinbase.
 
+Website command workflow draft cards may display the same backend-owned
+`readiness_preconditions` beside draft payload evidence for spot manual order,
+cancel by `client_order_id`, and campaign execution. That display is a trace
+back to command-suite evidence only; it must not evaluate readiness, create
+proof records, enable commands, or copy spot wallet/no-shorting rules into
+non-spot modules.
+
 Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls
 `cancel_order(client_order_id)` because the exchange accepts the client id for
