@@ -38,40 +38,51 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Spot Average-Cost Review Evidence Batch - Phases 1721-1740
+## Active M54 Spot P/L Checkpoint Audit-Link Evidence Batch - Phases 1741-1760
 
-### Phase 1721 - Advance Active Queue Range
+### Phase 1741 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1701-1720 to active
-  phases 1721-1740 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1721-1740 to active
+  phases 1741-1760 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1722 - Average-Cost Review Contract
+### Phase 1742 - Audit-Link Contract
 
-- Extend the existing Spot P/L checkpoint contract so it explicitly reports
-  average-cost review evidence without adding a second writer or Coinbase
-  execution path.
+- Extend the existing Spot P/L checkpoint contract so accepted checkpoint
+  records expose verified append-only Admin API audit-link readback without adding a
+  second writer, recovery executor, reconciliation executor, or Coinbase path.
 
-### Phase 1723 - Models, Validation, And Counts
+### Phase 1743 - Models, Route, And Counts
 
-- Add checkpoint average-cost review fields, reject empty provided
-  `average_cost_snapshot` payloads, and expose aggregate average-cost review
-  counts in list responses.
+- Add checkpoint audit-link fields, ensure accepted writes persist the same
+  `audit_id` used by the Admin API audit event, and expose aggregate verified
+  audit-linked counts for verified links in list responses.
 
-### Phase 1724 - Command Suite Gap Update
+### Phase 1744 - Command Suite Gap Update
 
-- Update the Spot command-suite P/L gap so average-cost review is covered by
-  checkpoint evidence while audit and reconciliation linkage remain open.
+- Update the Spot command-suite P/L gap so checkpoint audit linkage is covered
+  while recovery and reconciliation linkage remain open.
 
-### Phase 1725 - Website Contract Consumption
+### Phase 1745 - Website Contract Consumption
 
 - Regenerate the website schema and update canonical wrappers, mock/runtime
-  fixtures, release artifacts, and the Spot P/L panel for the new fields.
+  fixtures, release artifacts, and the Spot P/L panel for audit-link evidence.
 
-### Phase 1726 - Tests, Docs, Review, And Push
+### Phase 1746 - Tests, Docs, Review, And Push
 
 - Cover backend/frontend tests, docs, blind/contextless review, full gates, and
   confirm Coinbase submitted/executed notional remains `$0` before pushing.
+
+## Completed M54 Spot Average-Cost Review Evidence Batch - Phases 1721-1740
+
+- The existing Spot P/L checkpoint contract reports average-cost review
+  evidence without adding a second writer or Coinbase execution path.
+- Checkpoint records reject explicitly empty provided `average_cost_snapshot`
+  payloads and expose aggregate average-cost review counts.
+- The Spot command-suite P/L gap no longer lists average-cost review as
+  missing, while audit, recovery, and reconciliation linkage remained open.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Spot P/L Checkpoint Evidence Batch - Phases 1701-1720
 

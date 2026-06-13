@@ -125,7 +125,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1721-1740"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1741-1760"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -5029,9 +5029,15 @@ class AdminApiReadService:
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
                     "Spot P/L checkpoint records are backend-owned local-state "
-                    "review evidence over /api/v1/spot/sweep/pnl snapshots."
+                    "review evidence over /api/v1/spot/sweep/pnl snapshots with "
+                    "verified append-only Admin API audit-link readback."
                 ),
-                identity_keys=["checkpoint_id", "product_id", "client_order_id"],
+                identity_keys=[
+                    "checkpoint_id",
+                    "audit_id",
+                    "product_id",
+                    "client_order_id",
+                ],
                 owning_backend_service=(
                     "application/admin_api/pnl_checkpoint_service.py"
                 ),
@@ -5049,9 +5055,9 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 required_next_contract=(
-                    "Frontend checkpoint record form and recovery/"
+                    "Frontend checkpoint record form plus recovery and "
                     "reconciliation linkage before checkpoint evidence can "
-                    "inform operator workflows."
+                    "drive operator remediation workflows."
                 ),
                 blockers=[
                     "frontend checkpoint record form missing",
@@ -5059,8 +5065,9 @@ class AdminApiReadService:
                 ],
                 frontend_boundary=(
                     "The browser may display and forward checkpoint records only; "
-                    "it must not calculate profitability, approve sells, create "
-                    "tax accounting, or call Coinbase."
+                    "it must not create audit authority, calculate profitability, "
+                    "approve sells, create tax accounting, run recovery or "
+                    "reconciliation, or call Coinbase."
                 ),
                 spot_rule_boundary=(
                     "Spot P/L checkpoint evidence is operational review data only; "
@@ -7229,7 +7236,7 @@ class AdminApiReadService:
                 ),
                 required_backend_contract=(
                     "Durable spot P/L product ledger, average-cost snapshot "
-                    "review evidence, audit linkage, and recovery/reconciliation linkage "
+                    "review evidence, checkpoint audit linkage, and recovery/reconciliation linkage "
                     "for admin workflows."
                 ),
                 required_gate_chain=[
@@ -7242,7 +7249,6 @@ class AdminApiReadService:
                     "audit_readback",
                 ],
                 missing_contracts=[
-                    "spot_pnl_audit_link_contract",
                     "spot_pnl_recovery_link_contract",
                     "spot_pnl_reconciliation_link_contract",
                 ],
@@ -7254,10 +7260,10 @@ class AdminApiReadService:
                 ],
                 detail=(
                     "P/L, average-cost, and checkpoint evidence is exposed as "
-                    "operator evidence; the checkpoint route records local P/L "
-                    "and average-cost review state only and is not browser "
-                    "profitability, sell authority, tax accounting, or Coinbase "
-                    "execution evidence."
+                    "operator evidence; the checkpoint route records local P/L, "
+                    "average-cost review, and verified audit-link state only and "
+                    "is not browser profitability, sell authority, tax accounting, "
+                    "recovery, reconciliation, or Coinbase execution evidence."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(

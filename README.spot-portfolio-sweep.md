@@ -252,6 +252,12 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `average_cost_review_detail`, and list-level `average_cost_review_count`.
   This is still the same checkpoint review path, not a separate average-cost
   authority store.
+- Accepted checkpoint records also expose verified append-only Admin API audit
+  link readback through `audit_id`, `audit_linked`, `audit_source`,
+  `audit_detail`, and list-level `audit_linked_count`. This is review evidence
+  only, not recovery execution, reconciliation execution, Coinbase execution,
+  or browser authority. A checkpoint with an `audit_id` but no matching audit
+  row is reported as unverified and does not increment `audit_linked_count`.
 
 ## Examples
 

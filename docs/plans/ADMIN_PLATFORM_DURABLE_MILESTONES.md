@@ -2453,15 +2453,25 @@ Completed tenth-slice scope:
 - The P/L tracking gap remained open for average-cost review linkage, audit
   linkage, recovery, and reconciliation proof.
 
-Active eleventh-slice scope:
+Completed eleventh-slice scope:
 
-- Active phases 1721-1740 extend the same checkpoint path with explicit
+- Phases 1721-1740 extended the same checkpoint path with explicit
   average-cost review evidence fields and counts.
 - Average-cost review evidence must stay local-state review evidence. It must
   not become a second writer, sell authority, profitability authority, tax
   accounting, browser guard evidence, Coinbase execution evidence, or a
   generic rule for non-spot modules.
-- The P/L tracking gap remains open for audit linkage, recovery, and
+- The P/L tracking gap remained open for audit linkage, recovery, and
+  reconciliation proof.
+
+Active twelfth-slice scope:
+
+- Active phases 1741-1760 extend the same checkpoint path with explicit
+  append-only Admin API audit-link evidence fields and counts.
+- Audit-link evidence must stay local-state review evidence. It must not
+  become a browser audit store, recovery executor, reconciliation executor,
+  Coinbase execution evidence, or a generic rule for non-spot modules.
+- The P/L tracking gap remains open for recovery and
   reconciliation proof.
 
 Current backend evidence:
@@ -2478,7 +2488,7 @@ Current backend evidence:
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
   include the command-suite response, proof-route gate linkage, typed
   coverage-gap evidence-route linkage, sweep automation command contract, and
-  checkpoint mutation taxonomy evidence.
+  checkpoint mutation taxonomy and audit-link evidence.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 

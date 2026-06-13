@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from core.enums import AdminApiGateStatus
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiGateStatus,
+    AdminApiPermission,
+)
 
+from .audit import FileAdminApiAuditStore
 from .models import (
+    SPOT_PNL_CHECKPOINT_LEGACY_AUDIT_DETAIL,
     SpotPnlCheckpointCreateRequest,
     SpotPnlCheckpointItem,
 )
@@ -32,6 +39,7 @@ class AdminApiSpotPnlCheckpointService:
         operator_intent: str,
         idempotency_key: str,
         payload_hash: str,
+        audit_id: str,
         now: datetime | None = None,
     ) -> SpotPnlCheckpointItem:
         recorded_at = _normalize_now(now)
@@ -52,6 +60,7 @@ class AdminApiSpotPnlCheckpointService:
             operator_intent=operator_intent,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
+            audit_id=audit_id,
             operator_notes=body.operator_notes,
         )
         store.append(record)
@@ -61,10 +70,14 @@ class AdminApiSpotPnlCheckpointService:
         self,
         *,
         store: FileSpotPnlCheckpointStore,
+        audit_store: FileAdminApiAuditStore | None = None,
         status_filter: AdminApiGateStatus | None = None,
         limit: int = 100,
     ) -> list[SpotPnlCheckpointItem]:
-        items = [_item_from_record(record) for record in store.read_recent(limit=limit)]
+        items = [
+            _item_from_record(record, audit_store=audit_store)
+            for record in store.read_recent(limit=limit)
+        ]
         if status_filter is not None:
             items = [item for item in items if item.review_status == status_filter]
         return items
@@ -74,11 +87,12 @@ class AdminApiSpotPnlCheckpointService:
         *,
         store: FileSpotPnlCheckpointStore,
         checkpoint_id: str,
+        audit_store: FileAdminApiAuditStore | None = None,
     ) -> SpotPnlCheckpointItem:
         record = store.find_by_checkpoint_id(checkpoint_id)
         if record is None:
             raise SpotPnlCheckpointError("Spot P/L checkpoint was not found.")
-        return _item_from_record(record)
+        return _item_from_record(record, audit_store=audit_store)
 
     @staticmethod
     def _validate_checkpoint(body: SpotPnlCheckpointCreateRequest) -> None:
@@ -94,9 +108,46 @@ class AdminApiSpotPnlCheckpointService:
             )
 
 
-def _item_from_record(record: SpotPnlCheckpointRecord) -> SpotPnlCheckpointItem:
+def _item_from_record(
+    record: SpotPnlCheckpointRecord,
+    *,
+    audit_store: FileAdminApiAuditStore | None = None,
+) -> SpotPnlCheckpointItem:
     average_cost_reviewed = bool(record.average_cost_snapshot)
     average_cost_review_source = _average_cost_review_source(record.average_cost_snapshot)
+    audit_event = (
+        audit_store.find_by_audit_id(record.audit_id)
+        if audit_store is not None and record.audit_id
+        else None
+    )
+    audit_linked = (
+        audit_event is not None
+        and audit_event.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
+        and audit_event.permission == AdminApiPermission.SPOT_PNL_RECORD
+        and audit_event.status == AdminApiCommandStatus.ACCEPTED
+        and audit_event.endpoint == "POST /api/v1/spot/pnl/checkpoints"
+        and audit_event.actor_id == record.actor_id
+        and audit_event.operator_intent == record.operator_intent
+        and audit_event.idempotency_key == record.idempotency_key
+    )
+    audit_detail = (
+        "Checkpoint is linked to a verified append-only Admin API audit event "
+        "for this local-state record. The audit link is review evidence only "
+        "and does not execute recovery, reconciliation, Coinbase orders, or "
+        "browser authority."
+        if audit_linked
+        else (
+            (
+                "Checkpoint includes an audit_id, but no matching append-only "
+                "Admin API audit event was found for this checkpoint route, "
+                "actor, idempotency key, status, and permission; treat it as "
+                "unverified local checkpoint evidence until the audit log is "
+                "repaired."
+            )
+            if record.audit_id
+            else SPOT_PNL_CHECKPOINT_LEGACY_AUDIT_DETAIL
+        )
+    )
     average_cost_review_detail = (
         "Checkpoint includes backend-sourced average-cost review evidence. "
         "This is still not sell authority, profitability authority, tax "
@@ -129,6 +180,10 @@ def _item_from_record(record: SpotPnlCheckpointRecord) -> SpotPnlCheckpointItem:
         operator_intent=record.operator_intent,
         idempotency_key=record.idempotency_key,
         payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        audit_linked=audit_linked,
+        audit_source="admin_api_audit_log" if audit_linked else None,
+        audit_detail=audit_detail,
         source=record.source,
         operator_notes=record.operator_notes,
         detail=detail,

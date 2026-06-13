@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated, Callable, TypeVar
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -180,29 +181,31 @@ def _record_checkpoint_audit(
     request_id: str,
     operator_intent: str,
     response: SpotPnlCheckpointResponse,
+    audit_id: str | None = None,
 ) -> str:
-    return audit_store.append(
-        AdminApiAuditEvent(
-            actor_id=actor.actor_id,
-            action_class=response.action_class,
-            permission=response.required_permission,
-            endpoint=endpoint,
-            request_id=request_id,
-            operator_intent=operator_intent,
-            idempotency_key=response.idempotency_key,
-            status=response.status,
-            failure_stage=(
-                "idempotency"
-                if response.status == AdminApiCommandStatus.CONFLICT
-                else (
-                    "spot_pnl_checkpoint"
-                    if response.status == AdminApiCommandStatus.REJECTED
-                    else None
-                )
-            ),
-            message=response.message,
-        )
-    )
+    event_fields = {
+        "actor_id": actor.actor_id,
+        "action_class": response.action_class,
+        "permission": response.required_permission,
+        "endpoint": endpoint,
+        "request_id": request_id,
+        "operator_intent": operator_intent,
+        "idempotency_key": response.idempotency_key,
+        "status": response.status,
+        "failure_stage": (
+            "idempotency"
+            if response.status == AdminApiCommandStatus.CONFLICT
+            else (
+                "spot_pnl_checkpoint"
+                if response.status == AdminApiCommandStatus.REJECTED
+                else None
+            )
+        ),
+        "message": response.message,
+    }
+    if audit_id is not None:
+        event_fields["audit_id"] = audit_id
+    return audit_store.append(AdminApiAuditEvent(**event_fields))
 
 
 def _execute_idempotent_spot_pnl_checkpoint(
@@ -215,7 +218,8 @@ def _execute_idempotent_spot_pnl_checkpoint(
     operator_intent: str,
     idempotency_store: FileIdempotencyStore,
     audit_store: FileAdminApiAuditStore,
-    operation: Callable[[], SpotPnlCheckpointItem],
+    operation: Callable[[str], SpotPnlCheckpointItem],
+    rehydrate_checkpoint: Callable[[SpotPnlCheckpointItem], SpotPnlCheckpointItem] | None = None,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.SPOT_PNL_RECORD)
     check = idempotency_store.evaluate(
@@ -248,7 +252,8 @@ def _execute_idempotent_spot_pnl_checkpoint(
         return _checkpoint_response(response)
 
     try:
-        checkpoint = operation()
+        audit_id = str(uuid4())
+        checkpoint = operation(audit_id)
         response = SpotPnlCheckpointResponse(
             status=AdminApiCommandStatus.ACCEPTED,
             required_permission=AdminApiPermission.SPOT_PNL_RECORD,
@@ -257,6 +262,7 @@ def _execute_idempotent_spot_pnl_checkpoint(
             checkpoint=checkpoint,
             correlation_id=request_id,
             idempotency_key=idempotency_key,
+            audit_id=audit_id,
         )
     except SpotPnlCheckpointError as exc:
         response = SpotPnlCheckpointResponse(
@@ -274,8 +280,11 @@ def _execute_idempotent_spot_pnl_checkpoint(
         request_id=request_id,
         operator_intent=operator_intent,
         response=response,
+        audit_id=response.audit_id,
     )
     if response.status == AdminApiCommandStatus.ACCEPTED:
+        if response.checkpoint is not None and rehydrate_checkpoint is not None:
+            response.checkpoint = rehydrate_checkpoint(response.checkpoint)
         idempotency_store.put_record(
             IdempotencyRecord(
                 idempotency_key=idempotency_key,
@@ -376,6 +385,7 @@ def list_spot_pnl_checkpoints(
         AdminApiSpotPnlCheckpointService,
         Depends(get_spot_pnl_checkpoint_service),
     ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
     checkpoint_store: Annotated[
         FileSpotPnlCheckpointStore,
         Depends(get_spot_pnl_checkpoint_store),
@@ -386,10 +396,15 @@ def list_spot_pnl_checkpoints(
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     checkpoints = service.list_checkpoints(
         store=checkpoint_store,
+        audit_store=audit_store,
         status_filter=checkpoint_status,
         limit=limit,
     )
-    all_checkpoints = service.list_checkpoints(store=checkpoint_store, limit=500)
+    all_checkpoints = service.list_checkpoints(
+        store=checkpoint_store,
+        audit_store=audit_store,
+        limit=500,
+    )
     counts = {status_value: 0 for status_value in AdminApiGateStatus}
     for item in all_checkpoints:
         counts[item.review_status] += 1
@@ -403,6 +418,7 @@ def list_spot_pnl_checkpoints(
         average_cost_review_count=sum(
             1 for item in all_checkpoints if item.average_cost_reviewed
         ),
+        audit_linked_count=sum(1 for item in all_checkpoints if item.audit_linked),
     )
     return JSONResponse(content=payload.model_dump(mode="json"))
 
@@ -420,6 +436,7 @@ def get_spot_pnl_checkpoint(
         AdminApiSpotPnlCheckpointService,
         Depends(get_spot_pnl_checkpoint_service),
     ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
     checkpoint_store: Annotated[
         FileSpotPnlCheckpointStore,
         Depends(get_spot_pnl_checkpoint_store),
@@ -430,6 +447,7 @@ def get_spot_pnl_checkpoint(
         checkpoint = service.get_checkpoint(
             store=checkpoint_store,
             checkpoint_id=checkpoint_id,
+            audit_store=audit_store,
         )
     except SpotPnlCheckpointError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -484,13 +502,19 @@ def record_spot_pnl_checkpoint(
         operator_intent=operator_intent,
         idempotency_store=idempotency_store,
         audit_store=audit_store,
-        operation=lambda: service.record_checkpoint(
+        operation=lambda audit_id: service.record_checkpoint(
             store=checkpoint_store,
             body=body,
             actor_id=actor.actor_id,
             operator_intent=operator_intent,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
+            audit_id=audit_id,
+        ),
+        rehydrate_checkpoint=lambda checkpoint: service.get_checkpoint(
+            store=checkpoint_store,
+            checkpoint_id=checkpoint.checkpoint_id,
+            audit_store=audit_store,
         ),
     )
 

@@ -29,6 +29,7 @@ class SpotPnlCheckpointRecord(BaseModel):
     operator_intent: str = Field(min_length=1)
     idempotency_key: str = Field(min_length=1)
     payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
     operator_notes: str = Field(min_length=1)
     source: str = "admin_api_spot_pnl_checkpoint_log"
 

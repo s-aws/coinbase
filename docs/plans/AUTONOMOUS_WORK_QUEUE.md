@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1721-1740**.
+- Approved phase range: **1741-1760**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,112 +46,134 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1721-1740
+## Active Phases 1741-1760
 
-### Phase 1721 - Advance Active Queue Range
+### Phase 1741 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1701-1720 to active
-  phases 1721-1740 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1721-1740 to active
+  phases 1741-1760 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1722 - Average-Cost Review Scope
+### Phase 1742 - Audit-Link Scope
 
-- Define average-cost review as evidence on the existing Spot P/L checkpoint
-  path, not a second local-state store, sell authority, profitability
-  authority, tax accounting, or Coinbase execution evidence.
+- Define Spot P/L checkpoint audit linkage as verified evidence on the
+  existing checkpoint route and append-only Admin API audit store, not a new
+  checkpoint writer, recovery executor, reconciliation executor, or Coinbase
+  path.
 
-### Phase 1723 - Checkpoint Average-Cost Fields
+### Phase 1743 - Checkpoint Audit Fields
 
-- Add typed checkpoint list/detail fields that report whether a checkpoint
-  includes average-cost review evidence, its source, and a no-authority detail.
+- Add typed checkpoint list/detail fields for the linked Admin API audit id,
+  audit source, linked-state boolean, and no-authority audit detail.
 
-### Phase 1724 - Average-Cost Snapshot Validation
+### Phase 1744 - Accepted-Write Audit Identity
 
-- Preserve P/L-only checkpoint support, but reject explicitly provided empty
-  `average_cost_snapshot` payloads.
+- Ensure an accepted checkpoint and its append-only Admin API audit event share
+  the same backend-generated `audit_id`, with idempotent replays returning the
+  stored linked evidence.
 
-### Phase 1725 - Average-Cost Review Counts
+### Phase 1745 - Audit Link Counts
 
 - Add aggregate list evidence for how many durable checkpoint records include
-  average-cost review evidence.
+  a verified Admin API audit link.
 
-### Phase 1726 - Command-Suite P/L Gap Update
+### Phase 1746 - Command-Suite P/L Gap Update
 
-- Remove `spot_average_cost_review_contract` from the P/L tracking gap once the
-  checkpoint contract exposes average-cost review evidence, while keeping audit
+- Remove `spot_pnl_audit_link_contract` from the P/L tracking gap once
+  checkpoint read models expose verified audit linkage, while keeping recovery
   and reconciliation linkage gaps open.
 
-### Phase 1727 - Single Route Boundary
+### Phase 1747 - Single Path Boundary
 
-- Prove average-cost review remains on `POST /api/v1/spot/pnl/checkpoints`
-  and does not add a parallel writer, browser authority, or Coinbase path.
+- Prove verified audit linkage remains on `POST /api/v1/spot/pnl/checkpoints`
+  and the existing Admin API audit store without adding browser audit authority,
+  recovery execution, reconciliation execution, or Coinbase calls.
 
-### Phase 1728 - Backend OpenAPI Sync
+### Phase 1748 - Backend OpenAPI Sync
 
 - Regenerate backend OpenAPI and route-inventory artifacts for the enhanced
-  checkpoint response contract.
+  checkpoint audit-link response contract.
 
-### Phase 1729 - Backend Focused Tests
+### Phase 1749 - Backend Focused Tests
 
-- Cover average-cost review fields, aggregate counts, empty-snapshot
-  rejection, command-suite gap updates, and no-live posture.
+- Cover audit id linkage, aggregate audit counts, idempotent replay evidence,
+  command-suite gap updates, and no-live posture.
 
-### Phase 1730 - Backend Docs And Examples
+### Phase 1750 - Backend Docs And Examples
 
 - Update Admin API, Spot portfolio sweep, command workflow, examples,
-  capability matrix, and handoff docs for average-cost review evidence.
+  capability matrix, and handoff docs for checkpoint audit-link evidence.
 
-### Phase 1731 - Website Schema Sync
+### Phase 1751 - Website Schema Sync
 
 - Regenerate the website schema from backend OpenAPI without hand-editing
   generated files.
 
-### Phase 1732 - Website Contract Consumption
+### Phase 1752 - Website Contract Consumption
 
-- Consume the new checkpoint average-cost fields through canonical wrappers,
-  BFF coverage, and generated types only.
+- Consume the checkpoint audit-link fields through generated types, canonical
+  wrappers, BFF coverage, and mock/runtime fixtures only.
 
-### Phase 1733 - Mock And Runtime Evidence
+### Phase 1753 - Mock And Runtime Evidence
 
-- Update mock backend, runtime fixtures, route coverage, smoke catalogs, and
-  quality artifacts for average-cost review evidence and the new active range.
+- Update mock backend, runtime snapshots, route coverage, smoke catalogs, and
+  quality artifacts for audit-link evidence and the new active range.
 
-### Phase 1734 - Spot P/L UI Evidence
+### Phase 1754 - Spot P/L UI Evidence
 
-- Render checkpoint average-cost review counts/source in the Spot P/L read
-  panel without browser P/L, sell, tax, or profitability authority.
+- Render checkpoint audit-link counts/source/id in the Spot P/L read panel
+  without browser audit authority, recovery authority, reconciliation
+  authority, or Coinbase execution authority.
 
-### Phase 1735 - Command-Suite Gap UI Evidence
+### Phase 1755 - Command-Suite Gap UI Evidence
 
-- Render the updated P/L gap so average-cost review is no longer listed as
-  missing, while audit and reconciliation linkage remain explicit blockers.
+- Render the updated P/L gap so verified audit linkage is no longer listed as
+  missing, while recovery and reconciliation linkage remain explicit blockers.
 
-### Phase 1736 - Release And Artifact Alignment
+### Phase 1756 - Release And Artifact Alignment
 
 - Update release/deployment/autonomous artifacts, route coverage, smoke
-  checks, and quality gates for the 1721-1740 evidence batch.
+  checks, and quality gates for the 1741-1760 evidence batch.
 
-### Phase 1737 - Focused Frontend Tests
+### Phase 1757 - Focused Frontend Tests
 
-- Cover generated schema, wrappers, mutation contract, mock route, P/L panel,
-  command-suite gap rendering, and unchanged no-live behavior.
+- Cover generated schema, mock route, P/L panel audit metrics, command-suite
+  gap rendering, and unchanged no-live behavior.
 
-### Phase 1738 - Documentation Update
+### Phase 1758 - Documentation Update
 
 - Update API contract, command workflows, mock API, examples, capability
-  matrix, testing, and handoff docs for contextless average-cost traceability.
+  matrix, testing, and handoff docs for contextless audit-link traceability.
 
-### Phase 1739 - Contextless Review And Remediation
+### Phase 1759 - Contextless Review And Remediation
 
 - Run blind/contextless review for whether a fresh agent can explain the
-  average-cost review path without inventing browser authority or Coinbase
-  execution; remediate blockers.
+  checkpoint audit-link path without inventing browser authority, recovery
+  execution, reconciliation execution, or Coinbase execution; remediate
+  blockers.
 
-### Phase 1740 - Summary And Push
+### Phase 1760 - Summary And Push
 
 - Run full backend regression and website release gate, confirm Coinbase
   submitted/executed notional remains `$0`, then commit and push both
   repositories.
+
+## Completed Phases 1721-1740
+
+The 1721-1740 range completed Spot P/L checkpoint average-cost review
+evidence:
+
+- `POST /api/v1/spot/pnl/checkpoints` remains the single writer for P/L
+  checkpoint and average-cost review evidence.
+- Checkpoint list/detail responses expose `average_cost_reviewed`,
+  `average_cost_review_source`, `average_cost_review_detail`, and
+  `average_cost_review_count`.
+- The command-suite P/L gap no longer lists average-cost review as missing,
+  while audit, recovery, and reconciliation linkage remained blockers for the
+  next slices.
+- Backend full regression, website release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted and executed notional
+  stayed `$0`.
 
 ## Completed Phases 1701-1720
 

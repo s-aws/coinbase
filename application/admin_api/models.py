@@ -56,6 +56,11 @@ from core.enums import (
     TimeInForce,
 )
 
+SPOT_PNL_CHECKPOINT_LEGACY_AUDIT_DETAIL = (
+    "Checkpoint does not include a verified Admin API audit link; treat it as "
+    "legacy local checkpoint evidence until a linked record is written."
+)
+
 
 DecimalString = Annotated[
     str,
@@ -802,6 +807,10 @@ class SpotPnlCheckpointItem(BaseModel):
     operator_intent: str
     idempotency_key: str
     payload_hash: str
+    audit_id: str | None = None
+    audit_linked: bool = False
+    audit_source: str | None = None
+    audit_detail: str = SPOT_PNL_CHECKPOINT_LEGACY_AUDIT_DETAIL
     source: str = "admin_api_spot_pnl_checkpoint_log"
     operator_notes: str
     browser_authority: str = "display_only"
@@ -827,6 +836,7 @@ class SpotPnlCheckpointListResponse(BaseModel):
     blocked_count: int = Field(ge=0)
     warning_count: int = Field(ge=0)
     average_cost_review_count: int = Field(ge=0)
+    audit_linked_count: int = Field(ge=0)
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

@@ -94,6 +94,12 @@ tax-accounting ledger, or Coinbase order path.
 When the request includes `average_cost_snapshot`, the same checkpoint path is
 the average-cost review evidence contract. It must not be replaced with a
 second average-cost writer or interpreted as sell/profit authority.
+Accepted checkpoint records also expose verified append-only Admin API audit
+link readback for the local-state mutation. That link must not be replaced
+with a second checkpoint audit writer or interpreted as browser audit
+authority, recovery execution, reconciliation execution, or Coinbase execution
+authority. A checkpoint with an `audit_id` but no matching audit row is
+reported as unverified checkpoint evidence.
 The word "operator" in checkpoint text means the human reviewing the evidence;
 the backend RBAC role named `operator` can read checkpoint evidence but cannot
 record it. Recording requires `spot_pnl:record`, currently granted to `trader`

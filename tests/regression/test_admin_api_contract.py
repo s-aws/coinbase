@@ -48,7 +48,10 @@ from application.admin_api.reconciliation import (
     ReconciliationPlanRequest,
     resolve_reconciliation_plan,
 )
-from application.admin_api.pnl_checkpoint import FileSpotPnlCheckpointStore
+from application.admin_api.pnl_checkpoint import (
+    FileSpotPnlCheckpointStore,
+    SpotPnlCheckpointRecord,
+)
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -202,6 +205,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
+    client.admin_api_test_idempotency_store = idempotency_store
     client.admin_api_test_audit_store = audit_store
     client.admin_api_test_approval_store = approval_store
     client.admin_api_test_cap_guard_store = cap_guard_store
@@ -3940,7 +3944,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     )
     assert "average_cost_review_checkpoint" in pnl_gap["required_gate_chain"]
     assert "spot_average_cost_review_contract" not in pnl_gap["missing_contracts"]
-    assert "spot_pnl_audit_link_contract" in pnl_gap["missing_contracts"]
+    assert "spot_pnl_audit_link_contract" not in pnl_gap["missing_contracts"]
     assert "spot_pnl_recovery_link_contract" in pnl_gap["missing_contracts"]
     assert "spot_pnl_reconciliation_link_contract" in pnl_gap["missing_contracts"]
     recovery_gap = coverage_gaps[
@@ -4208,6 +4212,15 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert checkpoint["average_cost_review_source"] == "coinbase_average_cost"
     assert "not sell authority" in checkpoint["average_cost_review_detail"]
     assert "browser guard evidence" in checkpoint["average_cost_review_detail"]
+    assert payload["audit_id"]
+    assert checkpoint["audit_id"] == payload["audit_id"]
+    assert checkpoint["audit_linked"] is True
+    assert checkpoint["audit_source"] == "admin_api_audit_log"
+    assert "review evidence only" in checkpoint["audit_detail"]
+    audit_event = client.admin_api_test_audit_store.find_by_audit_id(payload["audit_id"])
+    assert audit_event is not None
+    assert audit_event.idempotency_key == "spot-pnl-checkpoint-idem"
+    assert audit_event.operator_intent == "record_spot_pnl_checkpoint"
 
     replayed = client.post(
         "/api/v1/spot/pnl/checkpoints",
@@ -4221,6 +4234,7 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert replayed.status_code == 200
     assert replayed.headers["X-Idempotency-Replayed"] == "true"
     assert replayed.json()["checkpoint"]["checkpoint_id"] == "spot-pnl-checkpoint-001"
+    assert replayed.json()["checkpoint"]["audit_id"] == payload["audit_id"]
 
     conflict = client.post(
         "/api/v1/spot/pnl/checkpoints",
@@ -4242,6 +4256,7 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert listed.json()["total_count"] == 1
     assert listed.json()["warning_count"] == 1
     assert listed.json()["average_cost_review_count"] == 1
+    assert listed.json()["audit_linked_count"] == 1
     assert listed.json()["live_coinbase_orders_ran"] is False
 
     detail = client.get(
@@ -4252,6 +4267,125 @@ def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch
     assert detail.json()["read_only"] is True
     assert detail.json()["checkpoint"]["checkpoint_id"] == "spot-pnl-checkpoint-001"
     assert detail.json()["checkpoint"]["average_cost_reviewed"] is True
+    assert detail.json()["checkpoint"]["audit_id"] == payload["audit_id"]
+    assert detail.json()["checkpoint"]["audit_linked"] is True
+
+    client.admin_api_test_pnl_checkpoint_store.append(
+        SpotPnlCheckpointRecord(
+            checkpoint_id="spot-pnl-checkpoint-unverified-audit",
+            scope="portfolio",
+            product_ids=["ETH-USDC"],
+            pnl_snapshot={"portfolio": {"total_pnl": "0.10"}},
+            average_cost_snapshot={"source": "coinbase_average_cost"},
+            source_report_route="/api/v1/spot/sweep/pnl",
+            review_status=AdminApiGateStatus.WARNING,
+            actor_id="operator-001",
+            operator_intent="record_spot_pnl_checkpoint",
+            idempotency_key="spot-pnl-checkpoint-unverified-audit",
+            payload_hash="a" * 64,
+            audit_id="missing-spot-pnl-checkpoint-audit",
+            operator_notes="Stored checkpoint has an audit id without an audit row.",
+        )
+    )
+    client.admin_api_test_audit_store.append(
+        AdminApiAuditEvent(
+            audit_id="missing-spot-pnl-checkpoint-audit",
+            actor_id="operator-001",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            permission=AdminApiPermission.ORDER_CREATE,
+            endpoint="POST /api/v1/orders",
+            request_id="corr-mismatched-audit",
+            operator_intent="record_spot_pnl_checkpoint",
+            idempotency_key="spot-pnl-checkpoint-unverified-audit",
+            status=AdminApiCommandStatus.ACCEPTED,
+            message="Mismatched audit row must not verify checkpoint linkage.",
+        )
+    )
+    unverified_detail = client.get(
+        "/api/v1/spot/pnl/checkpoints/spot-pnl-checkpoint-unverified-audit",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert unverified_detail.status_code == 200
+    unverified_checkpoint = unverified_detail.json()["checkpoint"]
+    assert unverified_checkpoint["audit_id"] == "missing-spot-pnl-checkpoint-audit"
+    assert unverified_checkpoint["audit_linked"] is False
+    assert unverified_checkpoint["audit_source"] is None
+    assert "no matching append-only Admin API audit event" in (
+        unverified_checkpoint["audit_detail"]
+    )
+    listed_after_unverified = client.get(
+        "/api/v1/spot/pnl/checkpoints",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed_after_unverified.status_code == 200
+    assert listed_after_unverified.json()["total_count"] == 2
+    assert listed_after_unverified.json()["audit_linked_count"] == 1
+
+    legacy_body = {
+        **body,
+        "checkpoint_id": "spot-pnl-checkpoint-legacy-replay",
+    }
+    legacy_payload_hash = make_payload_hash({
+        "endpoint": "POST /api/v1/spot/pnl/checkpoints",
+        "actor_id": "operator-001",
+        "roles": [AdminApiRole.TRADER.value],
+        "operator_intent": "record_spot_pnl_checkpoint",
+        "body": legacy_body,
+        "path_params": {},
+    })
+    legacy_response = {
+        "type": "spot_pnl_checkpoint",
+        "status": AdminApiCommandStatus.ACCEPTED.value,
+        "required_permission": AdminApiPermission.SPOT_PNL_RECORD.value,
+        "service_method": "record_spot_pnl_checkpoint",
+        "message": "Spot P/L checkpoint accepted.",
+        "checkpoint": {
+            "checkpoint_id": "spot-pnl-checkpoint-legacy-replay",
+            "recorded_at": "2026-01-01T00:00:00+00:00",
+            "scope": "portfolio",
+            "product_ids": ["BTC-USDC"],
+            "pnl_snapshot": legacy_body["pnl_snapshot"],
+            "average_cost_snapshot": legacy_body["average_cost_snapshot"],
+            "average_cost_reviewed": True,
+            "average_cost_review_source": "coinbase_average_cost",
+            "average_cost_review_detail": "legacy average-cost detail",
+            "source_report_route": "/api/v1/spot/sweep/pnl",
+            "review_status": AdminApiGateStatus.WARNING.value,
+            "actor_id": "operator-001",
+            "operator_intent": "record_spot_pnl_checkpoint",
+            "idempotency_key": "spot-pnl-checkpoint-legacy-replay",
+            "payload_hash": legacy_payload_hash,
+            "source": "admin_api_spot_pnl_checkpoint_log",
+            "operator_notes": legacy_body["operator_notes"],
+            "detail": "legacy checkpoint detail",
+        },
+        "correlation_id": "corr-001",
+        "idempotency_key": "spot-pnl-checkpoint-legacy-replay",
+    }
+    client.admin_api_test_idempotency_store.put_record(
+        IdempotencyRecord(
+            idempotency_key="spot-pnl-checkpoint-legacy-replay",
+            payload_hash=legacy_payload_hash,
+            status=AdminApiCommandStatus.ACCEPTED,
+            response=legacy_response,
+            actor_id="operator-001",
+            endpoint="POST /api/v1/spot/pnl/checkpoints",
+        )
+    )
+    legacy_replay = client.post(
+        "/api/v1/spot/pnl/checkpoints",
+        json=legacy_body,
+        headers=_headers(
+            idempotency_key="spot-pnl-checkpoint-legacy-replay",
+            operator_intent="record_spot_pnl_checkpoint",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert legacy_replay.status_code == 200
+    assert legacy_replay.headers["X-Idempotency-Replayed"] == "true"
+    legacy_checkpoint = legacy_replay.json()["checkpoint"]
+    assert legacy_checkpoint["audit_linked"] is False
+    assert "legacy local checkpoint evidence" in legacy_checkpoint["audit_detail"]
 
     rejected = client.post(
         "/api/v1/spot/pnl/checkpoints",
@@ -4430,7 +4564,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1721-1740"
+    assert live_payload["approved_phase_range"] == "1741-1760"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4989,7 +5123,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1721-1740"
+    assert enterprise_payload["approved_phase_range"] == "1741-1760"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

@@ -102,6 +102,11 @@ average-cost review evidence path. Responses expose
 Those fields are review evidence only; they do not make Coinbase average cost
 sell authority, profit authority, tax accounting, browser guard evidence, or
 Coinbase execution evidence.
+Accepted checkpoint records also expose verified append-only Admin API audit
+link readback for the local-state mutation through `audit_id`, `audit_linked`,
+`audit_source`, `audit_detail`, and list-level `audit_linked_count`. That
+link is operator review evidence only; it does not execute recovery,
+reconciliation, Coinbase orders, or browser authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -206,8 +211,9 @@ checkpoint records. These records are local-state review evidence only; they
 are not live execution, sell eligibility, profitability proof, reconciliation
 execution, or tax accounting.
 The checkpoint path is also the single Admin API average-cost review evidence
-path when an `average_cost_snapshot` is recorded; do not add a parallel
-average-cost writer.
+and checkpoint audit-link evidence path when an `average_cost_snapshot` is
+recorded; do not add a parallel average-cost writer or checkpoint audit
+writer.
 
 Current mutating HTTP command surfaces are:
 

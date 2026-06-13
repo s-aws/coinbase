@@ -11329,6 +11329,25 @@ components:
         payload_hash:
           type: string
           title: Payload Hash
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        audit_linked:
+          type: boolean
+          title: Audit Linked
+          default: false
+        audit_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Source
+        audit_detail:
+          type: string
+          title: Audit Detail
+          default: Checkpoint does not include a verified Admin API audit link; treat
+            it as legacy local checkpoint evidence until a linked record is written.
         source:
           type: string
           title: Source
@@ -11420,6 +11439,10 @@ components:
           type: integer
           minimum: 0.0
           title: Average Cost Review Count
+        audit_linked_count:
+          type: integer
+          minimum: 0.0
+          title: Audit Linked Count
         read_only:
           type: boolean
           title: Read Only
@@ -11437,6 +11460,7 @@ components:
       - blocked_count
       - warning_count
       - average_cost_review_count
+      - audit_linked_count
       title: SpotPnlCheckpointListResponse
       description: List backend-owned Spot P/L checkpoint records.
     SpotPnlCheckpointResponse:

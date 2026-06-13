@@ -97,7 +97,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1721-1740`.
+- Active autonomous range: `1741-1760`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -111,10 +111,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   reconciliation so missing spot admin families are explicit before new command
   routes or live controls exist. M54 then linked those gap rows to typed
   `current_read_evidence` rows derived from route inventory and added durable
-  Spot P/L checkpoint records at `/api/v1/spot/pnl/checkpoints`. The active
-  M54 range extends that same checkpoint path with average-cost review
-  evidence; it must not add a parallel writer, browser P/L authority, sell
-  authority, tax accounting, or Coinbase execution. Live Coinbase execution
+  Spot P/L checkpoint records at `/api/v1/spot/pnl/checkpoints`. M54 then
+  extended that same checkpoint path with average-cost review evidence; the
+  active M54 range extends it with verified append-only Admin API audit-link
+  readback.
+  The checkpoint path must not add a parallel writer, browser P/L authority,
+  sell authority, tax accounting, browser audit authority, recovery execution,
+  reconciliation execution, or Coinbase execution. Live Coinbase execution
   remains disabled unless a later phase explicitly runs under the carried cap
   policy.
   Browser approval, BFF forwarding, linked snapshots, cap/guard records, audit

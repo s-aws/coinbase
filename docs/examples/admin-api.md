@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1721-1740",
+  "approved_phase_range": "1741-1760",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1721-1740",
+  "approved_phase_range": "1741-1760",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1707,6 +1707,13 @@ When the request includes `average_cost_snapshot`, responses also include
 `average_cost_review_detail` warning that the review evidence is not sell,
 profit, tax, browser guard, or Coinbase execution authority. List responses
 include `average_cost_review_count`.
+Accepted checkpoint records also include `audit_id`, `audit_linked=true`,
+`audit_source=admin_api_audit_log`, and an `audit_detail` warning when the
+append-only Admin API audit row is verified. List responses include
+`audit_linked_count` for verified links only. A checkpoint with an `audit_id`
+but no matching audit row is reported as unverified evidence. The audit link
+does not execute recovery, reconciliation, Coinbase orders, or browser
+authority.
 
 ```http
 GET /api/v1/spot/pnl/checkpoints?checkpoint_status=passed&limit=25
@@ -1751,7 +1758,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1721-1740",
+  "approved_phase_range": "1741-1760",
   "command_count": 4,
   "blocked_command_count": 4,
   "live_enabled_command_count": 0,
