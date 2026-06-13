@@ -764,6 +764,94 @@ class AdminReconciliationPlanResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class SpotPnlCheckpointCreateRequest(BaseModel):
+    """Append one backend-owned Spot P/L review checkpoint."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    checkpoint_id: str = Field(min_length=1)
+    scope: str = Field(min_length=1, examples=["portfolio"])
+    product_ids: list[str] = Field(default_factory=list)
+    pnl_snapshot: FlexibleDict
+    average_cost_snapshot: FlexibleDict | None = None
+    source_report_route: str = Field(
+        default="/api/v1/spot/sweep/pnl",
+        min_length=1,
+    )
+    review_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    operator_notes: str = Field(min_length=1)
+
+
+class SpotPnlCheckpointItem(BaseModel):
+    """Durable Spot P/L review checkpoint evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    checkpoint_id: str
+    recorded_at: str
+    scope: str
+    product_ids: list[str] = Field(default_factory=list)
+    pnl_snapshot: FlexibleDict
+    average_cost_snapshot: FlexibleDict | None = None
+    source_report_route: str
+    review_status: AdminApiGateStatus
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    payload_hash: str
+    source: str = "admin_api_spot_pnl_checkpoint_log"
+    operator_notes: str
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    profitability_authority: bool = False
+    sell_authority: bool = False
+    checkpoint_is_tax_accounting: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    detail: str
+
+
+class SpotPnlCheckpointListResponse(BaseModel):
+    """List backend-owned Spot P/L checkpoint records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "spot_pnl_checkpoint_list"
+    checkpoints: list[SpotPnlCheckpointItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    warning_count: int = Field(ge=0)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+
+
+class SpotPnlCheckpointResponse(BaseModel):
+    """Response for Spot P/L checkpoint mutations and detail reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "spot_pnl_checkpoint"
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    checkpoint: SpotPnlCheckpointItem | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    read_only: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    profitability_authority: bool = False
+    sell_authority: bool = False
+    checkpoint_is_tax_accounting: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminApiCommandResponse(BaseModel):
     """Typed response returned by Admin API command adapters."""
 

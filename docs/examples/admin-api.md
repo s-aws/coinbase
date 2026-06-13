@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1681-1700",
+  "approved_phase_range": "1701-1720",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1681-1700",
+  "approved_phase_range": "1701-1720",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -875,8 +875,8 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 15,
-  "route_bound_mutation_taxonomy_count": 13,
+  "mutation_taxonomy_count": 16,
+  "route_bound_mutation_taxonomy_count": 14,
   "live_disabled_mutation_count": 6,
   "backend_contract_required_mutation_count": 2,
   "compatibility_mutation_count": 3,
@@ -1037,14 +1037,14 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
       "action_posture": {
         "module_id": "spot_operations",
         "support_status": "command_draft_live_disabled",
-        "read_route_count": 9,
-        "command_route_count": 4,
+        "read_route_count": 11,
+        "command_route_count": 5,
         "live_route_count": 4,
         "evidence_route_count": 9,
         "unsupported_action_count": 3,
         "command_gap_count": 2,
         "route_module_id_status": "passed",
-        "route_module_id_detail": "13 route inventory rows are bound to module_id=spot_operations; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "route_module_id_detail": "16 route inventory rows are bound to module_id=spot_operations; enterprise readiness route lists are derived from module_id, not path prefixes.",
         "frontend_authority": "backend_contract_only",
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0"
@@ -1656,10 +1656,66 @@ Current read-only routes:
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`
+- `GET /api/v1/spot/pnl/checkpoints`
+- `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`
 - `GET /api/v1/spot/cost-basis/status`
 - `GET /api/v1/spot/campaign/status`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
 - `GET /api/v1/spot/command-suite`
+
+Spot P/L checkpoint records are local-state evidence for operator review. They
+must be sourced from `/api/v1/spot/sweep/pnl`; they do not approve sells,
+prove profitability, execute reconciliation, create tax lots, or submit
+Coinbase orders.
+
+```http
+POST /api/v1/spot/pnl/checkpoints
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: trader-001
+X-Admin-Roles: trader
+Idempotency-Key: spot-pnl-checkpoint-2026-06-13
+X-Correlation-Id: spot-pnl-checkpoint-request-2026-06-13
+X-Operator-Intent: daily_spot_pnl_review
+Content-Type: application/json
+```
+
+```json
+{
+  "checkpoint_id": "spot-pnl-checkpoint-2026-06-13",
+  "scope": "portfolio",
+  "product_ids": ["BTC-USDC", "ETH-USDC"],
+  "source_report_route": "/api/v1/spot/sweep/pnl",
+  "review_status": "passed",
+  "pnl_snapshot": {
+    "portfolio_mark_to_market_usdc": "128.40",
+    "since_last_purchase_usdc": "3.21"
+  },
+  "average_cost_snapshot": {
+    "source": "coinbase_average_cost"
+  },
+  "operator_notes": "Daily operator checkpoint from sweep P/L report."
+}
+```
+
+Accepted responses include the persisted `checkpoint_id`, status, source
+route, payload hash, and explicit no-authority flags:
+`profitability_authority=false`, `sell_authority=false`,
+`checkpoint_is_tax_accounting=false`, `live_exchange_submitted=false`, and
+`live_coinbase_orders_ran=false`.
+
+```http
+GET /api/v1/spot/pnl/checkpoints?checkpoint_status=passed&limit=25
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```http
+GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
 
 `GET /api/v1/spot/command-suite` is M54 read-only backend evidence for the
 current spot command families. It covers manual spot order placement, order
@@ -1690,7 +1746,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1681-1700",
+  "approved_phase_range": "1701-1720",
   "command_count": 4,
   "blocked_command_count": 4,
   "live_enabled_command_count": 0,

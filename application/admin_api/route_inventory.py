@@ -258,6 +258,49 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/pnl/checkpoints",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_spot_pnl_checkpoints",
+        parity_test=(
+            "read-only Spot P/L checkpoint evidence; no profitability authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="get_spot_pnl_checkpoint",
+        parity_test=(
+            "read-only Spot P/L checkpoint detail; checkpoint is not sell authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/pnl/checkpoints",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_PNL_RECORD,
+        idempotency="required",
+        approval="not required for local P/L review evidence",
+        caps="not applicable",
+        audit="required",
+        shared_method="record_spot_pnl_checkpoint",
+        parity_test=(
+            "append-only P/L checkpoint evidence only; no Coinbase call, "
+            "sell authority, or tax accounting"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="legacy_dashboard_websocket",
         surface="cancel_order WebSocket",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,

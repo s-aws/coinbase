@@ -48,6 +48,7 @@ from application.admin_api.reconciliation import (
     ReconciliationPlanRequest,
     resolve_reconciliation_plan,
 )
+from application.admin_api.pnl_checkpoint import FileSpotPnlCheckpointStore
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -139,6 +140,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import cap_guard as cap_guard_routes
     from api.v1.routes import orders as order_routes
     from api.v1.routes import reconciliation as reconciliation_routes
+    from api.v1.routes import spot as spot_routes
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
     app = create_app()
@@ -149,6 +151,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     cap_guard_store = FileAdminApiCapGuardStore(store_dir / "cap_guard.jsonl")
     reconciliation_store = FileAdminApiReconciliationStore(
         store_dir / "reconciliation.jsonl"
+    )
+    pnl_checkpoint_store = FileSpotPnlCheckpointStore(
+        store_dir / "spot_pnl_checkpoints.jsonl"
     )
     app.dependency_overrides[order_routes.get_idempotency_store] = (
         lambda: idempotency_store
@@ -188,12 +193,20 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[reconciliation_routes.get_reconciliation_store] = (
         lambda: reconciliation_store
     )
+    app.dependency_overrides[spot_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[spot_routes.get_audit_store] = lambda: audit_store
+    app.dependency_overrides[spot_routes.get_spot_pnl_checkpoint_store] = (
+        lambda: pnl_checkpoint_store
+    )
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
     client.admin_api_test_audit_store = audit_store
     client.admin_api_test_approval_store = approval_store
     client.admin_api_test_cap_guard_store = cap_guard_store
     client.admin_api_test_reconciliation_store = reconciliation_store
+    client.admin_api_test_pnl_checkpoint_store = pnl_checkpoint_store
     return client
 
 
@@ -3906,7 +3919,10 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "GET /api/v1/spot/sweep/status" in sweep_gap["current_read_evidence_routes"]
     assert "enterprise_sweep_scheduler_contract" in sweep_gap["missing_contracts"]
     for family, gap in coverage_gaps.items():
-        if family != AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION.value:
+        if family not in {
+            AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION.value,
+            AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING.value,
+        }:
             assert gap["command_route"] is None
     pnl_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING.value
@@ -3915,7 +3931,14 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         pnl_gap["exposure_status"]
         == AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
     )
+    assert pnl_gap["command_route"] == "/api/v1/spot/pnl/checkpoints"
     assert "GET /api/v1/spot/sweep/pnl" in pnl_gap["current_read_evidence_routes"]
+    assert "GET /api/v1/spot/pnl/checkpoints" in pnl_gap["current_read_evidence_routes"]
+    assert (
+        "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
+        in pnl_gap["current_read_evidence_routes"]
+    )
+    assert "spot_average_cost_review_contract" in pnl_gap["missing_contracts"]
     recovery_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW.value
     ]
@@ -4124,6 +4147,123 @@ def test_admin_api_spot_routes_preserve_typed_read_payload_fields(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch):
+    client = _client(monkeypatch)
+    body = {
+        "checkpoint_id": "spot-pnl-checkpoint-001",
+        "scope": "portfolio",
+        "product_ids": ["BTC-USDC", "ETH-USDC"],
+        "pnl_snapshot": {
+            "portfolio": {"total_pnl": "1.23"},
+            "products": [{"product_id": "BTC-USDC", "total_pnl": "0.50"}],
+        },
+        "average_cost_snapshot": {"source": "coinbase_average_cost"},
+        "source_report_route": "/api/v1/spot/sweep/pnl",
+        "review_status": "warning",
+        "operator_notes": "Operator reviewed P/L checkpoint evidence.",
+    }
+
+    denied = client.post(
+        "/api/v1/spot/pnl/checkpoints",
+        json=body,
+        headers=_headers(
+            idempotency_key="spot-pnl-checkpoint-denied",
+            operator_intent="record_spot_pnl_checkpoint",
+            roles=AdminApiRole.VIEWER.value,
+        ),
+    )
+    assert denied.status_code == 403
+
+    created = client.post(
+        "/api/v1/spot/pnl/checkpoints",
+        json=body,
+        headers=_headers(
+            idempotency_key="spot-pnl-checkpoint-idem",
+            operator_intent="record_spot_pnl_checkpoint",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert created.status_code == 200
+    payload = created.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["required_permission"] == AdminApiPermission.SPOT_PNL_RECORD.value
+    assert payload["service_method"] == "record_spot_pnl_checkpoint"
+    assert payload["profitability_authority"] is False
+    assert payload["sell_authority"] is False
+    assert payload["checkpoint_is_tax_accounting"] is False
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    checkpoint = payload["checkpoint"]
+    assert checkpoint["checkpoint_id"] == "spot-pnl-checkpoint-001"
+    assert checkpoint["review_status"] == AdminApiGateStatus.WARNING.value
+    assert checkpoint["source_report_route"] == "/api/v1/spot/sweep/pnl"
+    assert checkpoint["profitability_authority"] is False
+    assert checkpoint["sell_authority"] is False
+    assert checkpoint["checkpoint_is_tax_accounting"] is False
+
+    replayed = client.post(
+        "/api/v1/spot/pnl/checkpoints",
+        json=body,
+        headers=_headers(
+            idempotency_key="spot-pnl-checkpoint-idem",
+            operator_intent="record_spot_pnl_checkpoint",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert replayed.status_code == 200
+    assert replayed.headers["X-Idempotency-Replayed"] == "true"
+    assert replayed.json()["checkpoint"]["checkpoint_id"] == "spot-pnl-checkpoint-001"
+
+    conflict = client.post(
+        "/api/v1/spot/pnl/checkpoints",
+        json={**body, "operator_notes": "changed"},
+        headers=_headers(
+            idempotency_key="spot-pnl-checkpoint-idem",
+            operator_intent="record_spot_pnl_checkpoint",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == AdminApiCommandStatus.CONFLICT.value
+
+    listed = client.get(
+        "/api/v1/spot/pnl/checkpoints",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed.status_code == 200
+    assert listed.json()["total_count"] == 1
+    assert listed.json()["warning_count"] == 1
+    assert listed.json()["live_coinbase_orders_ran"] is False
+
+    detail = client.get(
+        "/api/v1/spot/pnl/checkpoints/spot-pnl-checkpoint-001",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert detail.status_code == 200
+    assert detail.json()["read_only"] is True
+    assert detail.json()["checkpoint"]["checkpoint_id"] == "spot-pnl-checkpoint-001"
+
+    rejected = client.post(
+        "/api/v1/spot/pnl/checkpoints",
+        json={
+            **body,
+            "checkpoint_id": "spot-pnl-checkpoint-002",
+            "source_report_route": "/api/v1/futures/positions",
+        },
+        headers=_headers(
+            idempotency_key="spot-pnl-checkpoint-rejected",
+            operator_intent="record_spot_pnl_checkpoint",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert rejected.status_code == 400
+    assert "must reference /api/v1/spot/sweep/pnl" in rejected.json()["message"]
+    assert client.admin_api_test_pnl_checkpoint_store.find_by_checkpoint_id(
+        "spot-pnl-checkpoint-002"
+    ) is None
+
+
+@pytest.mark.regression
 def test_admin_api_backend_rbac_matches_frontend_role_hints():
     viewer = AdminApiActor(actor_id="viewer-001", roles=[AdminApiRole.VIEWER])
     operator = AdminApiActor(actor_id="operator-001", roles=[AdminApiRole.OPERATOR])
@@ -4135,12 +4275,14 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
     assert actor_has_permission(viewer, AdminApiPermission.CAMPAIGN_READ)
     assert not actor_has_permission(viewer, AdminApiPermission.ORDER_CREATE)
     assert not actor_has_permission(viewer, AdminApiPermission.SPOT_SWEEP_EXECUTE)
+    assert not actor_has_permission(viewer, AdminApiPermission.SPOT_PNL_RECORD)
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_PAUSE)
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_RESUME)
     assert not actor_has_permission(operator, AdminApiPermission.ORDER_CANCEL)
     assert not actor_has_permission(operator, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.CAMPAIGN_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.SPOT_SWEEP_EXECUTE)
+    assert actor_has_permission(trader, AdminApiPermission.SPOT_PNL_RECORD)
     assert not actor_has_permission(emergency, AdminApiPermission.ORDER_CANCEL)
     assert actor_has_permission(emergency, AdminApiPermission.RUNTIME_SHUTDOWN)
 
@@ -4259,7 +4401,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1681-1700"
+    assert live_payload["approved_phase_range"] == "1701-1720"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4818,7 +4960,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1681-1700"
+    assert enterprise_payload["approved_phase_range"] == "1701-1720"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -5183,9 +5325,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "sweep_config_id" in spot_module["identity_keys"]
     assert "POST /api/v1/orders" in spot_module["command_routes"]
     assert "POST /api/v1/spot/sweep/automation-runs" in spot_module["command_routes"]
+    assert "POST /api/v1/spot/pnl/checkpoints" in spot_module["command_routes"]
     assert "GET /api/v1/spot/command-suite" in spot_module["read_routes"]
-    assert spot_module["action_posture"]["read_route_count"] == 9
-    assert spot_module["action_posture"]["command_route_count"] == 4
+    assert "GET /api/v1/spot/pnl/checkpoints" in spot_module["read_routes"]
+    assert (
+        "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
+        in spot_module["read_routes"]
+    )
+    assert spot_module["action_posture"]["read_route_count"] == 11
+    assert spot_module["action_posture"]["command_route_count"] == 5
     assert spot_module["action_posture"]["live_route_count"] == 4
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]

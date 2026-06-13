@@ -2,17 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Annotated, TypeVar
+from typing import Annotated, Callable, TypeVar
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
 from application.admin_api.auth import get_authenticated_actor, require_permission
+from application.admin_api.idempotency import (
+    FileIdempotencyStore,
+    IdempotencyRecord,
+    make_payload_hash,
+)
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
+    SpotPnlCheckpointCreateRequest,
+    SpotPnlCheckpointItem,
+    SpotPnlCheckpointListResponse,
+    SpotPnlCheckpointResponse,
     SpotCampaignStatusResponse,
     SpotCommandSuiteResponse,
     SpotCostBasisStatusResponse,
@@ -21,8 +31,19 @@ from application.admin_api.models import (
     SpotSweepPnlResponse,
     SpotSweepStatusResponse,
 )
+from application.admin_api.pnl_checkpoint import FileSpotPnlCheckpointStore
+from application.admin_api.pnl_checkpoint_service import (
+    AdminApiSpotPnlCheckpointService,
+    SpotPnlCheckpointError,
+)
 from application.admin_api.read_service import AdminApiReadService
-from core.enums import AdminApiPermission
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiGateStatus,
+    AdminApiIdempotencyDecision,
+    AdminApiPermission,
+)
 
 
 router = APIRouter()
@@ -38,6 +59,40 @@ READ_ONLY_ROUTE_RESPONSES = {
     },
 }
 
+PNL_CHECKPOINT_ROUTE_RESPONSES = {
+    200: {
+        "model": SpotPnlCheckpointResponse,
+        "description": "Spot P/L checkpoint mutation accepted or replayed.",
+    },
+    400: {
+        "model": SpotPnlCheckpointResponse,
+        "description": "Spot P/L checkpoint mutation rejected.",
+    },
+    401: READ_ONLY_ROUTE_RESPONSES[401],
+    403: READ_ONLY_ROUTE_RESPONSES[403],
+    404: {
+        "model": AdminApiErrorResponse,
+        "description": "Spot P/L checkpoint was not found.",
+    },
+    409: {
+        "model": SpotPnlCheckpointResponse,
+        "description": "Idempotency key conflict.",
+    },
+}
+
+PNL_CHECKPOINT_DETAIL_ROUTE_RESPONSES = {
+    200: {
+        "model": SpotPnlCheckpointResponse,
+        "description": "Spot P/L checkpoint detail loaded.",
+    },
+    401: READ_ONLY_ROUTE_RESPONSES[401],
+    403: READ_ONLY_ROUTE_RESPONSES[403],
+    404: {
+        "model": AdminApiErrorResponse,
+        "description": "Spot P/L checkpoint was not found.",
+    },
+}
+
 
 def get_read_service() -> AdminApiReadService:
     """Return the read-only Admin API status service."""
@@ -45,11 +100,193 @@ def get_read_service() -> AdminApiReadService:
     return AdminApiReadService()
 
 
+def get_spot_pnl_checkpoint_service() -> AdminApiSpotPnlCheckpointService:
+    """Return the backend-owned Spot P/L checkpoint service."""
+
+    return AdminApiSpotPnlCheckpointService()
+
+
+def get_spot_pnl_checkpoint_store() -> FileSpotPnlCheckpointStore:
+    """Return durable Spot P/L checkpoint storage."""
+
+    return FileSpotPnlCheckpointStore()
+
+
+def get_idempotency_store() -> FileIdempotencyStore:
+    """Return durable idempotency storage for Spot local mutations."""
+
+    return FileIdempotencyStore()
+
+
+def get_audit_store() -> FileAdminApiAuditStore:
+    """Return durable audit storage for Spot local mutations."""
+
+    return FileAdminApiAuditStore()
+
+
 TReadModel = TypeVar("TReadModel", bound=BaseModel)
 
 
 def _read_model_response(model: type[TReadModel], payload: dict) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(model.model_validate(payload)))
+
+
+def _http_status_for_checkpoint(response: SpotPnlCheckpointResponse) -> int:
+    if response.status == AdminApiCommandStatus.CONFLICT:
+        return status.HTTP_409_CONFLICT
+    if response.status == AdminApiCommandStatus.REJECTED:
+        return status.HTTP_400_BAD_REQUEST
+    return status.HTTP_200_OK
+
+
+def _checkpoint_response(
+    response: SpotPnlCheckpointResponse,
+    *,
+    replayed: bool = False,
+) -> JSONResponse:
+    headers = {"X-Correlation-Id": response.correlation_id or ""}
+    if replayed:
+        headers["X-Idempotency-Replayed"] = "true"
+    return JSONResponse(
+        status_code=_http_status_for_checkpoint(response),
+        content=response.model_dump(mode="json"),
+        headers=headers,
+    )
+
+
+def _checkpoint_payload_hash(
+    *,
+    endpoint: str,
+    actor: AdminApiActor,
+    operator_intent: str,
+    body: dict,
+    path_params: dict | None = None,
+) -> str:
+    return make_payload_hash({
+        "endpoint": endpoint,
+        "actor_id": actor.actor_id,
+        "roles": [role.value for role in actor.roles],
+        "operator_intent": operator_intent,
+        "body": body,
+        "path_params": path_params or {},
+    })
+
+
+def _record_checkpoint_audit(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    response: SpotPnlCheckpointResponse,
+) -> str:
+    return audit_store.append(
+        AdminApiAuditEvent(
+            actor_id=actor.actor_id,
+            action_class=response.action_class,
+            permission=response.required_permission,
+            endpoint=endpoint,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            idempotency_key=response.idempotency_key,
+            status=response.status,
+            failure_stage=(
+                "idempotency"
+                if response.status == AdminApiCommandStatus.CONFLICT
+                else (
+                    "spot_pnl_checkpoint"
+                    if response.status == AdminApiCommandStatus.REJECTED
+                    else None
+                )
+            ),
+            message=response.message,
+        )
+    )
+
+
+def _execute_idempotent_spot_pnl_checkpoint(
+    *,
+    idempotency_key: str,
+    payload_hash: str,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    operation: Callable[[], SpotPnlCheckpointItem],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.SPOT_PNL_RECORD)
+    check = idempotency_store.evaluate(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        payload = dict(check.record.response)
+        return _checkpoint_response(
+            SpotPnlCheckpointResponse.model_validate(payload),
+            replayed=True,
+        )
+    if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+        response = SpotPnlCheckpointResponse(
+            status=AdminApiCommandStatus.CONFLICT,
+            required_permission=AdminApiPermission.SPOT_PNL_RECORD,
+            service_method="record_spot_pnl_checkpoint",
+            message="Idempotency-Key was already used with a different payload.",
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+        )
+        response.audit_id = _record_checkpoint_audit(
+            audit_store=audit_store,
+            actor=actor,
+            endpoint=endpoint,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            response=response,
+        )
+        return _checkpoint_response(response)
+
+    try:
+        checkpoint = operation()
+        response = SpotPnlCheckpointResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            required_permission=AdminApiPermission.SPOT_PNL_RECORD,
+            service_method="record_spot_pnl_checkpoint",
+            message="Spot P/L checkpoint accepted.",
+            checkpoint=checkpoint,
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+        )
+    except SpotPnlCheckpointError as exc:
+        response = SpotPnlCheckpointResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            required_permission=AdminApiPermission.SPOT_PNL_RECORD,
+            service_method="record_spot_pnl_checkpoint",
+            message=str(exc),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+        )
+    response.audit_id = _record_checkpoint_audit(
+        audit_store=audit_store,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=request_id,
+        operator_intent=operator_intent,
+        response=response,
+    )
+    if response.status == AdminApiCommandStatus.ACCEPTED:
+        idempotency_store.put_record(
+            IdempotencyRecord(
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                status=response.status,
+                response=response.model_dump(mode="json"),
+                actor_id=actor.actor_id,
+                endpoint=endpoint,
+            )
+        )
+    return _checkpoint_response(response)
 
 
 @router.get(
@@ -123,6 +360,134 @@ def spot_sweep_pnl(
         service.build_spot_sweep_pnl(
             product_ids=product_ids,
             include_coinbase_average_cost=include_coinbase_average_cost,
+        ),
+    )
+
+
+@router.get(
+    "/spot/pnl/checkpoints",
+    response_model=SpotPnlCheckpointListResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="List backend-owned Spot P/L checkpoint records",
+)
+def list_spot_pnl_checkpoints(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        AdminApiSpotPnlCheckpointService,
+        Depends(get_spot_pnl_checkpoint_service),
+    ],
+    checkpoint_store: Annotated[
+        FileSpotPnlCheckpointStore,
+        Depends(get_spot_pnl_checkpoint_store),
+    ],
+    checkpoint_status: AdminApiGateStatus | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    checkpoints = service.list_checkpoints(
+        store=checkpoint_store,
+        status_filter=checkpoint_status,
+        limit=limit,
+    )
+    all_checkpoints = service.list_checkpoints(store=checkpoint_store, limit=500)
+    counts = {status_value: 0 for status_value in AdminApiGateStatus}
+    for item in all_checkpoints:
+        counts[item.review_status] += 1
+    payload = SpotPnlCheckpointListResponse(
+        checkpoints=checkpoints,
+        returned_count=len(checkpoints),
+        total_count=len(all_checkpoints),
+        passed_count=counts[AdminApiGateStatus.PASSED],
+        blocked_count=counts[AdminApiGateStatus.BLOCKED],
+        warning_count=counts[AdminApiGateStatus.WARNING],
+    )
+    return JSONResponse(content=payload.model_dump(mode="json"))
+
+
+@router.get(
+    "/spot/pnl/checkpoints/{checkpoint_id}",
+    response_model=SpotPnlCheckpointResponse,
+    responses=PNL_CHECKPOINT_DETAIL_ROUTE_RESPONSES,
+    summary="Read one backend-owned Spot P/L checkpoint record",
+)
+def get_spot_pnl_checkpoint(
+    checkpoint_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        AdminApiSpotPnlCheckpointService,
+        Depends(get_spot_pnl_checkpoint_service),
+    ],
+    checkpoint_store: Annotated[
+        FileSpotPnlCheckpointStore,
+        Depends(get_spot_pnl_checkpoint_store),
+    ],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    try:
+        checkpoint = service.get_checkpoint(
+            store=checkpoint_store,
+            checkpoint_id=checkpoint_id,
+        )
+    except SpotPnlCheckpointError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    payload = SpotPnlCheckpointResponse(
+        status=AdminApiCommandStatus.ACCEPTED,
+        required_permission=AdminApiPermission.ANALYTICS_READ,
+        service_method="get_spot_pnl_checkpoint",
+        message="Spot P/L checkpoint detail loaded.",
+        checkpoint=checkpoint,
+        read_only=True,
+    )
+    return JSONResponse(content=payload.model_dump(mode="json"))
+
+
+@router.post(
+    "/spot/pnl/checkpoints",
+    response_model=SpotPnlCheckpointResponse,
+    responses=PNL_CHECKPOINT_ROUTE_RESPONSES,
+    summary="Record a backend-owned Spot P/L checkpoint",
+)
+def record_spot_pnl_checkpoint(
+    request: Request,
+    body: SpotPnlCheckpointCreateRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        AdminApiSpotPnlCheckpointService,
+        Depends(get_spot_pnl_checkpoint_service),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    checkpoint_store: Annotated[
+        FileSpotPnlCheckpointStore,
+        Depends(get_spot_pnl_checkpoint_store),
+    ],
+) -> JSONResponse:
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _checkpoint_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+    return _execute_idempotent_spot_pnl_checkpoint(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=lambda: service.record_checkpoint(
+            store=checkpoint_store,
+            body=body,
+            actor_id=actor.actor_id,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
         ),
     )
 

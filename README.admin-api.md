@@ -88,6 +88,13 @@ authority, live reconciliation execution, or Coinbase calls. The
 `sweep_config_id`, requires `spot_sweep:execute`, and returns
 `501 not_implemented` until durable scheduler, run-limit, recovery,
 reconciliation, and live execution gates pass.
+Spot P/L checkpoint records add a separate local-state mutation surface:
+`POST /api/v1/spot/pnl/checkpoints`, with read evidence at
+`GET /api/v1/spot/pnl/checkpoints` and
+`GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`. Checkpoints are durable
+operator-review records sourced from `/api/v1/spot/sweep/pnl`; they do not
+submit Coinbase orders, approve sells, prove profitability, execute
+reconciliation, or create tax-accounting authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -155,6 +162,8 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/spot/readiness`
 - `GET /api/v1/spot/sweep/status`
 - `GET /api/v1/spot/sweep/pnl`
+- `GET /api/v1/spot/pnl/checkpoints`
+- `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`
 - `GET /api/v1/spot/cost-basis/status`
 - `GET /api/v1/spot/campaign/status`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
@@ -185,6 +194,10 @@ they remain blocked/no-live evidence and cannot mark live admission allowed.
 M52 adds the `admin.reconciliation_plans` taxonomy row for backend-owned
 reconciliation plan records. Passed records are exact resolver input only;
 they do not execute reconciliation or mark exchange/order state reconciled.
+M54 adds the `spot.pnl_checkpoint` taxonomy row for backend-owned Spot P/L
+checkpoint records. These records are local-state review evidence only; they
+are not live execution, sell eligibility, profitability proof, reconciliation
+execution, or tax accounting.
 
 Current mutating HTTP command surfaces are:
 
@@ -203,12 +216,14 @@ Current local-state approval lifecycle mutation surfaces are:
 - `POST /api/v1/admin/admission-audits`
 - `POST /api/v1/admin/cap-guard/decisions`
 - `POST /api/v1/admin/reconciliation/plans`
+- `POST /api/v1/spot/pnl/checkpoints`
 
 These local-state routes are authenticated, authorized, idempotent, and
 audited. They write backend-owned approval lifecycle, admission audit,
-cap/guard decision, or reconciliation plan evidence only; they do not submit
-orders, cancel orders, evaluate browser guards, execute reconciliation, mutate
-order/exchange state, or call Coinbase.
+cap/guard decision, reconciliation plan, or Spot P/L checkpoint evidence only;
+they do not submit orders, cancel orders, evaluate browser guards, execute
+reconciliation, prove profitability, create tax lots, mutate order/exchange
+state, or call Coinbase.
 
 See [Admission Audit Records](README.admission-audits.md),
 [Cap/Guard Decision Records](README.cap-guard-decisions.md),

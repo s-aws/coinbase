@@ -97,6 +97,14 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   local fill ledger. Reports include cashflow, mark-to-market, since-last-
   purchase, and FIFO realized-lot views. They are operational P/L reports, not
   tax accounting.
+- The Admin API can persist operator-review P/L checkpoint records through
+  `POST /api/v1/spot/pnl/checkpoints` and read them through
+  `GET /api/v1/spot/pnl/checkpoints` and
+  `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`. These records are
+  durable local-state evidence for snapshots sourced from
+  `/api/v1/spot/sweep/pnl`; they are not sell eligibility, profitability
+  authority, tax accounting, reconciliation execution, or Coinbase order
+  evidence.
 - Inventory coverage reports compare eligible USDC spot wallet balances against
   local fill-ledger and imported baseline evidence. Wallet-only balances are
   sellable only if the action guard passes; they are not known-cost inventory.
@@ -136,6 +144,11 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `tools/run_spot_portfolio_sweep_live.py`
 - Live-disabled Admin API command contract:
   `POST /api/v1/spot/sweep/automation-runs`
+- Local-state Admin API P/L checkpoint contract:
+  `POST /api/v1/spot/pnl/checkpoints`
+- Read-only Admin API P/L checkpoint evidence:
+  `GET /api/v1/spot/pnl/checkpoints` and
+  `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`
 - Read-only release gate:
   `tools/run_spot_release_gate.py`
 - Read-only campaign CLI:
@@ -176,6 +189,8 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `runtime_state/spot_fill_ledger_repairs.jsonl`
 - Cost-basis snapshot ledger:
   `runtime_state/spot_cost_basis_snapshots.jsonl`
+- Admin API P/L checkpoint ledger:
+  `runtime_state/admin_api_spot_pnl_checkpoint.jsonl`
 - Campaign snapshot ledger:
   `runtime_state/spot_campaigns.jsonl`
 - Operation lock file:
@@ -229,6 +244,9 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   reopens quote-currency scope.
 - Do not treat wallet inventory as known profitable inventory.
 - Do not use this P/L report for tax accounting.
+- Do not treat Admin API P/L checkpoint records as permission to sell,
+  profitability proof, reconciliation proof, tax lots, or evidence that a live
+  Coinbase order ran.
 
 ## Examples
 

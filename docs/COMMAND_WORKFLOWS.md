@@ -62,10 +62,11 @@ browser scheduler, or copy spot wallet/no-shorting rules into non-spot modules.
 The command-suite response also reports `coverage_gaps` for remaining M54 spot
 families that are not command-complete: sweep automation, P/L tracking,
 recovery workflow, and reconciliation workflow. Gap rows are separate from
-`mutation_family` command rows. They may name current read evidence, missing
-backend contracts, required gate chains, and browser/BFF boundaries, but they
-must not become command workflow drafts, BFF mutation routes, browser
-profitability or sell authority, reconciliation execution, or Coinbase calls.
+`mutation_family` command rows. They may name current read evidence,
+checkpoint record evidence, missing backend contracts, required gate chains,
+and browser/BFF boundaries, but they must not become command workflow drafts,
+BFF mutation routes, browser profitability or sell authority, reconciliation
+execution, tax accounting, or Coinbase calls.
 
 Gap rows also report typed `current_read_evidence` rows derived from
 `ADMIN_API_ROUTE_INVENTORY`. These rows identify the existing read-only Admin
@@ -81,6 +82,19 @@ currently returns `501 not_implemented` with `live_exchange_submitted=false`.
 It must not call `tools/run_spot_portfolio_sweep_live.py`, invoke Coinbase,
 create a browser scheduler, or close the wider sweep automation gap until the
 durable scheduler, run-limit, recovery, and reconciliation contracts exist.
+
+`POST /api/v1/spot/pnl/checkpoints` is a backend-owned local-state mutation
+for durable operator-review records sourced from
+`/api/v1/spot/sweep/pnl`. It requires `spot_pnl:record`, idempotency, and
+audit evidence, and read evidence is available through
+`GET /api/v1/spot/pnl/checkpoints` and
+`GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`. It is not a command
+workflow draft, sell guard, profitability authority, reconciliation executor,
+tax-accounting ledger, or Coinbase order path.
+The word "operator" in checkpoint text means the human reviewing the evidence;
+the backend RBAC role named `operator` can read checkpoint evidence but cannot
+record it. Recording requires `spot_pnl:record`, currently granted to `trader`
+and `admin`.
 
 Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls

@@ -125,7 +125,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1681-1700"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1701-1720"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -5019,6 +5019,56 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/pnl/checkpoints",
+                mutation_id="spot.pnl_checkpoint",
+                mutation_family=AdminApiMutationFamilyType.SPOT_PNL_CHECKPOINT,
+                workflow_id="spot.pnl_checkpoint_records",
+                related_workflow_ids=["spot.pnl_tracking_gap"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Spot P/L checkpoint records are backend-owned local-state "
+                    "review evidence over /api/v1/spot/sweep/pnl snapshots."
+                ),
+                identity_keys=["checkpoint_id", "product_id", "client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/pnl_checkpoint_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/spot.py::record_spot_pnl_checkpoint",
+                    "application/admin_api/pnl_checkpoint.py",
+                    "application/admin_api/pnl_checkpoint_service.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotPnlCheckpoint",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-portfolio-sweep.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                required_next_contract=(
+                    "Frontend checkpoint record form and recovery/"
+                    "reconciliation linkage before checkpoint evidence can "
+                    "inform operator workflows."
+                ),
+                blockers=[
+                    "frontend checkpoint record form missing",
+                    "reconciliation linkage missing",
+                ],
+                frontend_boundary=(
+                    "The browser may display and forward checkpoint records only; "
+                    "it must not calculate profitability, approve sells, create "
+                    "tax accounting, or call Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "Spot P/L checkpoint evidence is operational review data only; "
+                    "average-cost, lot authority, and known-profitable sell "
+                    "authority remain backend guard inputs."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
                 mutation_id="stealth.cancel",
                 mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL,
@@ -7162,20 +7212,25 @@ class AdminApiReadService:
             SpotCommandSuiteCoverageGapItem(
                 family=AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING,
                 exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
-                command_route=None,
+                command_route="/api/v1/spot/pnl/checkpoints",
                 current_read_evidence_routes=[
                     "GET /api/v1/spot/sweep/pnl",
                     "GET /api/v1/spot/cost-basis/status",
+                    "GET /api/v1/spot/pnl/checkpoints",
+                    "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}",
                 ],
                 current_read_evidence=coverage_gap_evidence_routes(
                     [
                         "GET /api/v1/spot/sweep/pnl",
                         "GET /api/v1/spot/cost-basis/status",
+                        "GET /api/v1/spot/pnl/checkpoints",
+                        "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}",
                     ]
                 ),
                 required_backend_contract=(
-                    "Durable spot P/L checkpoint, product ledger, average-cost "
-                    "snapshot, and operator review contract for admin workflows."
+                    "Durable spot P/L product ledger, average-cost snapshot "
+                    "review, audit linkage, and recovery/reconciliation linkage "
+                    "for admin workflows."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -7186,9 +7241,9 @@ class AdminApiReadService:
                     "audit_readback",
                 ],
                 missing_contracts=[
-                    "spot_pnl_checkpoint_contract",
                     "spot_average_cost_review_contract",
                     "spot_pnl_audit_link_contract",
+                    "spot_pnl_reconciliation_link_contract",
                 ],
                 spot_rule_boundary=spot_boundary,
                 documentation_refs=[
@@ -7197,9 +7252,10 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "P/L and average-cost evidence is exposed as read-only "
-                    "operator evidence; it is not a browser profitability or sell "
-                    "authority and has no command route."
+                    "P/L, average-cost, and checkpoint evidence is exposed as "
+                    "operator evidence; the checkpoint route records local review "
+                    "state only and is not browser profitability, sell authority, "
+                    "tax accounting, or Coinbase execution evidence."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(

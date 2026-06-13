@@ -38,40 +38,50 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Sweep Automation Command Contract Batch - Phases 1681-1700
+## Active M54 Spot P/L Checkpoint Evidence Batch - Phases 1701-1720
 
-### Phase 1681 - Advance Active Queue Range
+### Phase 1701 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1661-1680 to active
-  phases 1681-1700 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1681-1700 to active
+  phases 1701-1720 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1682 - Sweep Automation Command Contract
+### Phase 1702 - Spot P/L Checkpoint Contract
 
-- Add `POST /api/v1/spot/sweep/automation-runs` as a backend-owned,
-  idempotent, audited, RBAC-protected, live-disabled Admin API command
-  contract keyed by `sweep_config_id`.
+- Add `GET /api/v1/spot/pnl/checkpoints`,
+  `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`, and
+  `POST /api/v1/spot/pnl/checkpoints` as backend-owned P/L review evidence
+  contracts.
 
-### Phase 1683 - Command Suite And Live Enablement Evidence
+### Phase 1703 - Permission, Idempotency, And Audit
 
-- Add `spot_sweep_automation` command-suite evidence while keeping the broader
-  sweep automation gap open for scheduler, run-limit, recovery, and
-  reconciliation contracts.
+- Add `spot_pnl:record`, append-only checkpoint storage, RBAC, idempotency,
+  audit, and no-live response evidence.
 
-### Phase 1684 - Website Command Draft
+### Phase 1704 - Command Suite And Taxonomy Evidence
 
-- Regenerate the website schema, add a typed API wrapper and dry-submit helper,
-  and expose a sweep automation draft that forwards only to the backend route.
+- Update command-suite P/L gap evidence and mutation taxonomy so checkpoint
+  records are partial P/L coverage, not sell/profit/tax/Coinbase authority.
 
-### Phase 1685 - Tests, Docs, And Review
+### Phase 1705 - Website Contract Consumption
 
-- Cover route, permission, OpenAPI, command-suite, mock/BFF, frontend workflow,
-  and no-live evidence; update docs and run blind/contextless review.
+- Regenerate the website schema and add canonical wrappers, BFF coverage,
+  mock/runtime fixtures, and Spot P/L panel evidence.
 
-### Phase 1686 - Full Gates And Push
+### Phase 1706 - Tests, Docs, Review, And Push
 
-- Run backend regression and website release gate, confirm Coinbase submitted
-  and executed notional remains `$0`, then commit and push both repositories.
+- Cover backend/frontend tests, docs, blind/contextless review, full gates, and
+  confirm Coinbase submitted/executed notional remains `$0` before pushing.
+
+## Completed M54 Sweep Automation Command Contract Batch - Phases 1681-1700
+
+- `POST /api/v1/spot/sweep/automation-runs` is route-bound, idempotent,
+  audited, RBAC-protected, and live-disabled by default.
+- The website consumes the generated schema through canonical wrappers,
+  command draft UI, BFF/smoke catalogs, route coverage, and quality artifacts
+  without adding a browser scheduler or Coinbase execution authority.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Coverage Gap Evidence-Route Batch - Phases 1661-1680
 

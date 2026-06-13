@@ -3687,6 +3687,266 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/pnl/checkpoints:
+    get:
+      tags:
+      - spot
+      summary: List backend-owned Spot P/L checkpoint records
+      operationId: list_spot_pnl_checkpoints_api_v1_spot_pnl_checkpoints_get
+      parameters:
+      - name: checkpoint_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - type: 'null'
+          title: Checkpoint Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotPnlCheckpointListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - spot
+      summary: Record a backend-owned Spot P/L checkpoint
+      operationId: record_spot_pnl_checkpoint_api_v1_spot_pnl_checkpoints_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpotPnlCheckpointCreateRequest'
+      responses:
+        '200':
+          description: Spot P/L checkpoint mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotPnlCheckpointResponse'
+        '400':
+          description: Spot P/L checkpoint mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotPnlCheckpointResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Spot P/L checkpoint was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotPnlCheckpointResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/pnl/checkpoints/{checkpoint_id}:
+    get:
+      tags:
+      - spot
+      summary: Read one backend-owned Spot P/L checkpoint record
+      operationId: get_spot_pnl_checkpoint_api_v1_spot_pnl_checkpoints__checkpoint_id__get
+      parameters:
+      - name: checkpoint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Checkpoint Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Spot P/L checkpoint detail loaded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotPnlCheckpointResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Spot P/L checkpoint was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/cost-basis/status:
     get:
       tags:
@@ -4981,6 +5241,7 @@ components:
       - spot_order_cancel
       - spot_campaign_execution
       - spot_sweep_automation
+      - spot_pnl_checkpoint
       - stealth_cancel
       - movement_reprice
       - futures_contract_required
@@ -5009,6 +5270,7 @@ components:
       - campaign:read
       - campaign:execute
       - spot_sweep:execute
+      - spot_pnl:record
       - config:update
       - runtime:pause
       - runtime:resume
@@ -10964,6 +11226,280 @@ components:
       type: object
       title: SpotDirectOrderAuditResponse
       description: Direct spot order audit response keyed by ``client_order_id``.
+    SpotPnlCheckpointCreateRequest:
+      properties:
+        checkpoint_id:
+          type: string
+          minLength: 1
+          title: Checkpoint Id
+        scope:
+          type: string
+          minLength: 1
+          title: Scope
+          examples:
+          - portfolio
+        product_ids:
+          items:
+            type: string
+          type: array
+          title: Product Ids
+        pnl_snapshot:
+          additionalProperties: true
+          type: object
+          title: Pnl Snapshot
+        average_cost_snapshot:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Average Cost Snapshot
+        source_report_route:
+          type: string
+          minLength: 1
+          title: Source Report Route
+          default: /api/v1/spot/sweep/pnl
+        review_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        operator_notes:
+          type: string
+          minLength: 1
+          title: Operator Notes
+      additionalProperties: false
+      type: object
+      required:
+      - checkpoint_id
+      - scope
+      - pnl_snapshot
+      - operator_notes
+      title: SpotPnlCheckpointCreateRequest
+      description: Append one backend-owned Spot P/L review checkpoint.
+    SpotPnlCheckpointItem:
+      properties:
+        checkpoint_id:
+          type: string
+          title: Checkpoint Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        scope:
+          type: string
+          title: Scope
+        product_ids:
+          items:
+            type: string
+          type: array
+          title: Product Ids
+        pnl_snapshot:
+          additionalProperties: true
+          type: object
+          title: Pnl Snapshot
+        average_cost_snapshot:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Average Cost Snapshot
+        source_report_route:
+          type: string
+          title: Source Report Route
+        review_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        payload_hash:
+          type: string
+          title: Payload Hash
+        source:
+          type: string
+          title: Source
+          default: admin_api_spot_pnl_checkpoint_log
+        operator_notes:
+          type: string
+          title: Operator Notes
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        profitability_authority:
+          type: boolean
+          title: Profitability Authority
+          default: false
+        sell_authority:
+          type: boolean
+          title: Sell Authority
+          default: false
+        checkpoint_is_tax_accounting:
+          type: boolean
+          title: Checkpoint Is Tax Accounting
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - checkpoint_id
+      - recorded_at
+      - scope
+      - pnl_snapshot
+      - source_report_route
+      - review_status
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - payload_hash
+      - operator_notes
+      - detail
+      title: SpotPnlCheckpointItem
+      description: Durable Spot P/L review checkpoint evidence.
+    SpotPnlCheckpointListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: spot_pnl_checkpoint_list
+        checkpoints:
+          items:
+            $ref: '#/components/schemas/SpotPnlCheckpointItem'
+          type: array
+          title: Checkpoints
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        passed_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Count
+        blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Count
+        warning_count:
+          type: integer
+          minimum: 0.0
+          title: Warning Count
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - passed_count
+      - blocked_count
+      - warning_count
+      title: SpotPnlCheckpointListResponse
+      description: List backend-owned Spot P/L checkpoint records.
+    SpotPnlCheckpointResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: spot_pnl_checkpoint
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: local_state_mutation
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        checkpoint:
+          anyOf:
+          - $ref: '#/components/schemas/SpotPnlCheckpointItem'
+          - type: 'null'
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        read_only:
+          type: boolean
+          title: Read Only
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        profitability_authority:
+          type: boolean
+          title: Profitability Authority
+          default: false
+        sell_authority:
+          type: boolean
+          title: Sell Authority
+          default: false
+        checkpoint_is_tax_accounting:
+          type: boolean
+          title: Checkpoint Is Tax Accounting
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: SpotPnlCheckpointResponse
+      description: Response for Spot P/L checkpoint mutations and detail reads.
     SpotReadinessResponse:
       properties:
         type:
