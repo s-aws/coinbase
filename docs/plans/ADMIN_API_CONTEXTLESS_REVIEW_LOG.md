@@ -2328,3 +2328,58 @@ Status:
   Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M52 Reconciliation Plan Records Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- explain the backend reconciliation plan record routes, models, store, and
+  resolver path
+- verify reconciliation plan records cannot execute reconciliation, mutate
+  order/exchange state, or call Coinbase
+- verify route inventory, mutation taxonomy, OpenAPI, docs, and frontend
+  consumption expose the capability as backend-owned evidence
+- verify future spot/admin order workflows still use the shared backend
+  command path rather than a second reconciliation or frontend trading path
+
+Findings:
+
+- Backend blind review passed with no blockers. It confirmed the three
+  reconciliation plan routes use `AdminApiReconciliationPlanService`,
+  `FileAdminApiReconciliationStore`, generated OpenAPI models, enum-backed
+  permissions, and authenticated/RBAC/idempotent route handlers.
+- Backend blind review confirmed the route records evidence only. It does not
+  call the command service, Coinbase adapters, live execution service, or
+  order/exchange-state mutation paths. Response flags remain hard false for
+  reconciliation execution, exchange submission, order/exchange mutation, and
+  Coinbase order execution.
+- Frontend blind review passed with no blockers. It confirmed generated
+  schema, canonical wrappers, BFF allowlists, mutation contracts, mocks, RBAC
+  hints, and the Reconciliation Plans workbench consume the backend contract
+  as display/forward-only evidence.
+- Frontend blind review found one non-blocking traceability issue: mock
+  metadata referenced `README.reconciliation-plans.md` in the website
+  repository, while the shipped website doc is `docs/RECONCILIATION_PLANS.md`.
+
+Resolution:
+
+- Website mock metadata now references `docs/RECONCILIATION_PLANS.md`.
+- No backend remediation was required.
+
+Status:
+
+- Backend focused Admin API contract checks passed with `73 passed,
+  1 warning`.
+- Backend full regression passed with `808 passed, 1 warning`.
+- Frontend focused reconciliation/API/runtime/mock/AdminShell/quality checks
+  passed with `88` tests.
+- Frontend `npm run release:gate` passed with `190` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

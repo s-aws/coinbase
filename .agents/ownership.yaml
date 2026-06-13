@@ -60,6 +60,7 @@ owners:
       - README.futures-perpetuals.md
       - README.guard-risk-policy.md
       - README.movement-repricing.md
+      - README.reconciliation-plans.md
       - README.spot-campaign.md
       - README.spot-portfolio-sweep.md
       - README.spot-trading.md

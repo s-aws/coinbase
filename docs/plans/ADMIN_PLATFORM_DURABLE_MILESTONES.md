@@ -139,7 +139,7 @@ path.
 | M49 - Approval Request And Decision Lifecycle | Complete | Add backend-owned approval request, review, revoke, expiry, and snapshot-linking contracts without making browser approval sufficient for live execution. |
 | M50 - Cap/Guard Decision Execution Records | Complete | Persist route-specific backend cap/guard decisions and link them to command admission without browser guard, wallet, margin, or profitability authority. |
 | M51 - Admission Audit Writer And Linkage | Complete | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
-| M52 - Reconciliation Plan And Proof Runner | Planned | Add backend-owned reconciliation plan creation, execution, and proof contracts for admitted commands without browser reconciliation authority. |
+| M52 - Reconciliation Plan And Proof Records | Complete | Add backend-owned reconciliation plan record and proof contracts for admitted commands without browser reconciliation authority or reconciliation execution. |
 | M53 - Controlled Execution Adapter Pilot | Planned | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
 | M54 - Spot Full Admin Command Suite | Planned | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | Planned | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
@@ -163,7 +163,7 @@ broaden the milestone's authority.
 | M49 - Approval Request And Decision Lifecycle | M48 taxonomy must define which commands require approval and what identity snapshot they bind to. | Add backend approval request, review, revoke, expiry, and snapshot-linking contracts through the existing approval store path. | Append-only approval tests, idempotency tests, RBAC tests, audit linkage, OpenAPI, examples, frontend generated schema and display. | Browser approval is not sufficient for execution; no live adapter and no route-local approval store. |
 | M50 - Cap/Guard Decision Execution Records | M48 taxonomy and M49 approval identities. | Persist backend cap/guard decisions for admitted commands, linked to payload, actor, route, module, approval snapshot, and audit id. | Tests prove wallet, margin, profitability, inventory, and account-limit decisions come from backend guards and are fail-closed. | No browser guard evaluator, no frontend wallet authority, no futures use of spot guard rules. |
 | M51 - Admission Audit Writer And Linkage | M49 approval lifecycle and M50 cap/guard records. | Complete append-only admission audit writer that links identity, payload, approval, cap/guard, reconciliation intent, and live-intent evidence. | Audit immutability tests, correlation-id tests, replay/read tests, OpenAPI examples, frontend audit trace rendering. | No mutable audit rows, no hidden live state, no execution without an audit write. |
-| M52 - Reconciliation Plan And Proof Runner | M51 audit linkage. | Add backend reconciliation plan creation, execution, and proof contracts for admitted commands before execution adapters can run. | Tests cover plan generation, proof persistence, failure handling, and readback from audit/recovery surfaces. | Browser cannot execute reconciliation and cannot mark exchange state reconciled. |
+| M52 - Reconciliation Plan And Proof Records | M51 audit linkage. | Add backend reconciliation plan record and proof contracts for admitted commands before execution adapters can run. | Tests cover plan recording, proof persistence, failure handling, and readback from admin record surfaces. | Browser cannot execute reconciliation, create proof authority, or mark exchange/order state reconciled. |
 | M53 - Controlled Execution Adapter Pilot | M49-M52 all complete and fail-closed. | Enable one tightly capped backend live adapter through the shared command service and existing exchange/domain path. | Live-cap evidence, dry-run proof, focused tests, backend regression, frontend release gate, blind review, and explicit Coinbase notional report if live is run. | No browser live switch, no BFF execution authority, no second trading path, no multi-module rollout. |
 | M54 - Spot Full Admin Command Suite | M53 pilot plus spot inventory, cost-basis, no-shorting, campaign, sweep, P/L, and recovery contracts. | Complete spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation, and live execution admin workflows through the gate chain. | Spot-focused regression, live-cap tests, campaign/recovery tests, frontend release gate, blind review, Coinbase notional report for live tests. | Spot rules must not become platform defaults or futures/stealth authority. |
 | M55 - Stealth Full Admin Command Suite | M53 pilot plus stealth lifecycle locks, exchange-truth invariants, and cancel/move/reveal contracts. | Complete stealth create, cancel, reveal, move, reprice, recovery, and reconciliation admin workflows through existing stealth manager and bridge paths. | Stealth regression, exchange-truth tests, active-placement audit evidence, frontend release gate, blind review. | No hide-again shortcut, no local state mutation without live cancel/move/reconcile proof, no `order_id` internal tracking. |
@@ -2195,7 +2195,6 @@ Current backend evidence:
 
 Remaining blockers before live execution:
 
-- M52 must complete reconciliation plan and proof contracts.
 - M53 remains the first possible controlled live adapter pilot and still
   requires explicit live evidence, cap proof, regression, release gate, and
   contextless review.
@@ -2239,11 +2238,58 @@ Current backend evidence:
 
 Remaining blockers before live execution:
 
-- M52 must complete reconciliation plan and proof contracts.
 - M53 remains the first possible controlled live adapter pilot and still
   requires explicit live evidence, cap proof, regression, release gate, and
   contextless review.
 - Live Coinbase execution remains not run for M51; submitted and executed
+  notional remain `$0`.
+
+## M52 - Reconciliation Plan And Proof Records
+
+Purpose: make reconciliation plan proof a backend-owned append-only writer
+and read contract before any live adapter can run.
+
+Completed scope:
+
+- Reconciliation plan read routes are
+  `GET /api/v1/admin/reconciliation/plans` and
+  `GET /api/v1/admin/reconciliation/plans/{plan_id}`.
+- Reconciliation plan recording is
+  `POST /api/v1/admin/reconciliation/plans`.
+- Records bind route inventory shape, identity, actor, operator intent,
+  command idempotency, payload hash, approval snapshot id, admission audit id,
+  cap/guard decision id, reconciliation policy, product scope, retained
+  inventory requirement, and submitted/executed notional caps.
+- Only `allowed=true` with `status=passed` is resolver-eligible. Blocked and
+  warning records remain durable fail-closed evidence.
+- The writer accepts only live-shaped command routes and rejects read-only or
+  local-state route targets.
+- The `admin.reconciliation_plans` functionality inventory and mutation
+  taxonomy rows classify the read and local-state mutation surfaces.
+
+Current backend evidence:
+
+- `core/enums.py` defines `reconciliation:read`,
+  `reconciliation:record`, and the `admin_reconciliation_plan` mutation
+  family.
+- `application/admin_api/reconciliation.py` remains the single append-only
+  reconciliation plan store and resolver proof source.
+- `application/admin_api/reconciliation_service.py` validates records against
+  `ADMIN_API_ROUTE_INVENTORY`, rejects non-live-shaped targets, and keeps
+  resolver eligibility tied to passed records only.
+- `api/v1/routes/reconciliation.py` provides authenticated, RBAC-gated,
+  idempotent reconciliation plan routes without Coinbase calls.
+- OpenAPI and route-inventory artifacts include the reconciliation plan
+  schemas and surfaces.
+- Backend focused Admin API contract checks, full backend regression, paired
+  website release gate, and blind/contextless review passed for M52.
+
+Remaining blockers before live execution:
+
+- M53 remains the first possible controlled live adapter pilot and still
+  requires explicit live evidence, cap proof, regression, release gate, and
+  contextless review.
+- Live Coinbase execution remains not run for M52; submitted and executed
   notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog

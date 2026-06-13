@@ -133,6 +133,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import approvals as approval_routes
     from api.v1.routes import cap_guard as cap_guard_routes
     from api.v1.routes import orders as order_routes
+    from api.v1.routes import reconciliation as reconciliation_routes
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
     app = create_app()
@@ -172,6 +173,15 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[cap_guard_routes.get_audit_store] = lambda: audit_store
     app.dependency_overrides[cap_guard_routes.get_cap_guard_store] = (
         lambda: cap_guard_store
+    )
+    app.dependency_overrides[reconciliation_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[reconciliation_routes.get_audit_store] = (
+        lambda: audit_store
+    )
+    app.dependency_overrides[reconciliation_routes.get_reconciliation_store] = (
+        lambda: reconciliation_store
     )
     client = TestClient(app)
     client.admin_api_test_store_dir = store_dir
@@ -576,6 +586,55 @@ def _append_manual_order_reconciliation_plan(
     )
     store.append(record)
     return record
+
+
+def _reconciliation_plan_payload(
+    *,
+    approval: AdminApiApprovalRecord,
+    audit_event: AdminApiAuditEvent,
+    cap_guard: CapGuardDecisionRecord,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+    allowed: bool = True,
+    status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+) -> dict:
+    return {
+        "route": "/api/v1/orders",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": client_order_id,
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "required_permission": AdminApiPermission.ORDER_CREATE.value,
+        "service_method": "place_manual_order",
+        "actor_id": "operator-001",
+        "operator_intent": operator_intent,
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash
+        or make_payload_hash(
+            _manual_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+                idempotency_key=idempotency_key,
+            )
+        ),
+        "approval_snapshot_id": approval.approval_id,
+        "approval_reconciliation_plan_ref": approval.reconciliation_plan_ref,
+        "admission_audit_id": audit_event.audit_id,
+        "cap_guard_decision_id": cap_guard.decision_id,
+        "allowed": allowed,
+        "status": status.value,
+        "reconciliation_policy_ref": "post_submit_reconciliation:manual_order",
+        "product_scope": "USDC spot product scope",
+        "exchange_submission_required": True,
+        "post_submit_reconciliation_required": True,
+        "retained_inventory_required": True,
+        "max_submitted_notional_usdc": "3.10",
+        "max_executed_notional_usdc": "1.00",
+        "reason": "Exact backend-owned reconciliation plan for route tests.",
+    }
 
 
 def _legacy_manual_order_payload(quote_size: str = "1.00") -> dict:
@@ -3068,6 +3127,281 @@ def test_admin_api_cap_guard_decision_routes_fail_closed(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_reconciliation_plan_routes_record_replay_and_resolve(monkeypatch):
+    client = _client(monkeypatch)
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id="client-reconciliation-route",
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id="client-reconciliation-route",
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id="client-reconciliation-route",
+    )
+    body = _reconciliation_plan_payload(
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id="client-reconciliation-route",
+    )
+    headers = _headers(
+        idempotency_key="reconciliation-plan-record-idem",
+        operator_intent="record_manual_order_reconciliation_plan",
+        roles=AdminApiRole.ADMIN.value,
+    )
+
+    created = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=headers,
+        json=body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "accepted"
+    assert created_payload["required_permission"] == "reconciliation:record"
+    assert created_payload["service_method"] == "record_reconciliation_plan"
+    assert created_payload["reconciliation_execution_ran"] is False
+    assert created_payload["order_exchange_state_mutated"] is False
+    assert created_payload["live_exchange_submitted"] is False
+    assert created_payload["live_coinbase_orders_ran"] is False
+    plan = created_payload["plan"]
+    assert plan["plan_id"] == approval.reconciliation_plan_ref
+    assert plan["approval_snapshot_id"] == approval.approval_id
+    assert plan["admission_audit_id"] == audit_event.audit_id
+    assert plan["cap_guard_decision_id"] == cap_guard.decision_id
+    assert plan["resolver_eligible"] is True
+    assert plan["browser_authority"] == "display_only"
+    assert plan["bff_authority"] == "forward_only_no_execution"
+    assert plan["reconciliation_execution_ran"] is False
+    assert plan["order_exchange_state_mutated"] is False
+
+    listed = client.get(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed.status_code == 200
+    list_payload = listed.json()
+    assert list_payload["returned_count"] == 1
+    assert list_payload["total_count"] == 1
+    assert list_payload["passed_count"] == 1
+    assert list_payload["blocked_count"] == 0
+    assert list_payload["warning_count"] == 0
+    assert list_payload["resolver_eligible_count"] == 1
+    assert list_payload["reconciliation_execution_ran"] is False
+    assert list_payload["live_coinbase_orders_ran"] is False
+
+    detail = client.get(
+        f"/api/v1/admin/reconciliation/plans/{approval.reconciliation_plan_ref}",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+    assert detail.status_code == 200
+    assert detail.json()["plan"]["plan_id"] == approval.reconciliation_plan_ref
+
+    proof = resolve_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        request=ReconciliationPlanRequest(
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-reconciliation-route",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="place_manual_order",
+            actor_id="operator-001",
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approved",
+            payload_hash=body["payload_hash"],
+            approval_snapshot_id=approval.approval_id,
+            approval_reconciliation_plan_ref=approval.reconciliation_plan_ref,
+            admission_audit_id=audit_event.audit_id,
+            cap_guard_decision_id=cap_guard.decision_id,
+        ),
+    )
+    assert proof is not None
+    assert proof.plan_id == approval.reconciliation_plan_ref
+    assert proof.source == "admin_api_reconciliation_plan_log"
+
+    replayed = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=headers,
+        json=body,
+    )
+    assert replayed.status_code == 200
+    assert replayed.headers["X-Idempotency-Replayed"] == "true"
+    assert replayed.json()["plan"]["plan_id"] == approval.reconciliation_plan_ref
+
+    conflict_body = dict(body)
+    conflict_body["reason"] = "changed reason"
+    conflict = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=headers,
+        json=conflict_body,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == "conflict"
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=20)
+    assert any(
+        row.permission == AdminApiPermission.RECONCILIATION_RECORD
+        for row in audit_rows
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_reconciliation_plan_routes_fail_closed(monkeypatch):
+    client = _client(monkeypatch)
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id="client-reconciliation-denied",
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id="client-reconciliation-denied",
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id="client-reconciliation-denied",
+    )
+    body = _reconciliation_plan_payload(
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id="client-reconciliation-denied",
+    )
+
+    denied = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(
+            idempotency_key="reconciliation-plan-record-denied-idem",
+            operator_intent="unauthorized_reconciliation_plan_record",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=body,
+    )
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "permission_denied"
+
+    inconsistent = dict(body)
+    inconsistent["status"] = AdminApiGateStatus.BLOCKED.value
+    rejected = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(
+            idempotency_key="reconciliation-plan-record-inconsistent-idem",
+            operator_intent="record_inconsistent_reconciliation_plan",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=inconsistent,
+    )
+    assert rejected.status_code == 400
+    assert rejected.json()["status"] == "rejected"
+    assert "allowed must be true only for passed" in rejected.json()["message"]
+    assert client.admin_api_test_reconciliation_store.read_recent() == []
+
+    blocked = _reconciliation_plan_payload(
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id="client-reconciliation-denied",
+        allowed=False,
+        status=AdminApiGateStatus.BLOCKED,
+    )
+    recorded_block = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(
+            idempotency_key="reconciliation-plan-record-blocked-idem",
+            operator_intent="record_blocked_reconciliation_plan",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=blocked,
+    )
+    assert recorded_block.status_code == 200
+    assert recorded_block.json()["plan"]["resolver_eligible"] is False
+    assert (
+        resolve_reconciliation_plan(
+            store=client.admin_api_test_reconciliation_store,
+            request=ReconciliationPlanRequest(
+                route="/api/v1/orders",
+                method="POST",
+                module_id="spot_operations",
+                identity_key="client_order_id",
+                identity_value="client-reconciliation-denied",
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                service_method="place_manual_order",
+                actor_id="operator-001",
+                operator_intent="manual_one_off",
+                idempotency_key="idem-approved",
+                payload_hash=blocked["payload_hash"],
+                approval_snapshot_id=approval.approval_id,
+                approval_reconciliation_plan_ref=approval.reconciliation_plan_ref,
+                admission_audit_id=audit_event.audit_id,
+                cap_guard_decision_id=cap_guard.decision_id,
+            ),
+        )
+        is None
+    )
+
+    mismatch = _reconciliation_plan_payload(
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id="client-reconciliation-other",
+    )
+    mismatch["module_id"] = "futures_perpetuals"
+    rejected_mismatch = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(
+            idempotency_key="reconciliation-plan-record-mismatch-idem",
+            operator_intent="record_mismatched_reconciliation_plan",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=mismatch,
+    )
+    assert rejected_mismatch.status_code == 400
+    assert rejected_mismatch.json()["status"] == "rejected"
+    assert "module_id does not match" in rejected_mismatch.json()["message"]
+
+    read_only = dict(body)
+    read_only.update({
+        "route": "/api/v1/admin/bootstrap",
+        "method": "GET",
+        "module_id": "admin_system_health",
+        "identity_key": "request_id",
+        "identity_value": "corr-001",
+        "action_class": AdminApiActionClass.READ_ONLY.value,
+        "required_permission": AdminApiPermission.ANALYTICS_READ.value,
+        "service_method": "build_admin_bootstrap",
+    })
+    rejected_read_only = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(
+            idempotency_key="reconciliation-plan-record-read-only-idem",
+            operator_intent="record_read_only_reconciliation_plan",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=read_only,
+    )
+    assert rejected_read_only.status_code == 400
+    assert rejected_read_only.json()["status"] == "rejected"
+    assert "only valid for live-shaped command routes" in (
+        rejected_read_only.json()["message"]
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_cap_guard_decision_resolver_is_exact_and_identity_generic():
     store = FileAdminApiCapGuardStore(_store_dir() / "cap_guard.jsonl")
     record = CapGuardDecisionRecord(
@@ -4129,6 +4463,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.approval_lifecycle",
         "admin.admission_audits",
         "admin.cap_guard_decisions",
+        "admin.reconciliation_plans",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.campaign_execution",
@@ -4157,6 +4492,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.approval_lifecycle",
         "admin.admission_audits",
         "admin.cap_guard_decisions",
+        "admin.reconciliation_plans",
         "spot.read_models",
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
@@ -4228,6 +4564,21 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         cap_guard_inventory["command_routes"]
     )
     assert "must not evaluate wallet" in cap_guard_inventory["frontend_boundary"]
+    reconciliation_inventory = inventory_by_id["admin.reconciliation_plans"]
+    assert reconciliation_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert reconciliation_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert reconciliation_inventory["command_capable"] is True
+    assert reconciliation_inventory["live_designated"] is False
+    assert "POST /api/v1/admin/reconciliation/plans" in (
+        reconciliation_inventory["command_routes"]
+    )
+    assert "must not execute reconciliation" in (
+        reconciliation_inventory["frontend_boundary"]
+    )
     futures_command_inventory = inventory_by_id["futures.commands_not_modeled"]
     assert futures_command_inventory["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -4329,6 +4680,24 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert cap_guard_taxonomy["route_local_execution_allowed"] is False
     assert "must not evaluate or override" in cap_guard_taxonomy["bff_boundary"]
     assert "Spot wallet" in cap_guard_taxonomy["spot_rule_boundary"]
+    reconciliation_taxonomy = taxonomy_by_id["admin.reconciliation_plans"]
+    assert reconciliation_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_RECONCILIATION_PLAN.value
+    )
+    assert reconciliation_taxonomy["workflow_id"] == "admin.reconciliation_plans"
+    assert reconciliation_taxonomy["command_surfaces"] == [
+        "POST /api/v1/admin/reconciliation/plans",
+    ]
+    assert reconciliation_taxonomy["action_classes"] == ["local_state_mutation"]
+    assert reconciliation_taxonomy["required_permissions"] == [
+        "reconciliation:record"
+    ]
+    assert reconciliation_taxonomy["live_adapter_required"] is False
+    assert reconciliation_taxonomy["route_local_execution_allowed"] is False
+    assert "must not create reconciliation proof" in (
+        reconciliation_taxonomy["bff_boundary"]
+    )
+    assert "Spot fill-ledger" in reconciliation_taxonomy["spot_rule_boundary"]
     futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
     assert futures_taxonomy["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
@@ -4424,8 +4793,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 18
-    assert admin_module["action_posture"]["command_route_count"] == 5
+    assert admin_module["action_posture"]["read_route_count"] == 20
+    assert admin_module["action_posture"]["command_route_count"] == 6
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]

@@ -1596,6 +1596,8 @@ Current read-only routes:
 - `GET /api/v1/admin/admission-audits/{admission_audit_id}`
 - `GET /api/v1/admin/cap-guard/decisions`
 - `GET /api/v1/admin/cap-guard/decisions/{decision_id}`
+- `GET /api/v1/admin/reconciliation/plans`
+- `GET /api/v1/admin/reconciliation/plans/{plan_id}`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
@@ -1821,6 +1823,78 @@ Revoked and expired snapshots fail closed in the existing approval resolver.
 An approved snapshot still does not make a command executable while cap/guard,
 admission audit, reconciliation, disabled live service, and live adapter gates
 remain blocked.
+
+## Reconciliation Plan Records
+
+Reconciliation plan routes persist backend-owned post-submit reconciliation
+plan evidence only. They do not submit orders, call Coinbase, execute
+reconciliation, mutate order state, mutate exchange state, or let the
+browser/BFF create reconciliation proof.
+
+List recorded plans:
+
+```http
+GET /api/v1/admin/reconciliation/plans?plan_status=passed&limit=10
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Read one plan:
+
+```http
+GET /api/v1/admin/reconciliation/plans/reconciliation-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Record one backend reconciliation plan:
+
+```http
+POST /api/v1/admin/reconciliation/plans
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: reconciliation-plan-record-001
+X-Correlation-Id: corr-reconciliation-plan-001
+X-Operator-Intent: record_manual_order_reconciliation_plan
+Content-Type: application/json
+
+{
+  "route": "/api/v1/orders",
+  "method": "POST",
+  "module_id": "spot_operations",
+  "identity_key": "client_order_id",
+  "identity_value": "client-approved-001",
+  "action_class": "live_exchange_place",
+  "required_permission": "order:create",
+  "service_method": "place_manual_order",
+  "actor_id": "admin-001",
+  "operator_intent": "manual_one_off",
+  "command_idempotency_key": "manual-order-idem-001",
+  "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "approval_snapshot_id": "approval-snapshot-001",
+  "approval_reconciliation_plan_ref": "reconciliation-001",
+  "admission_audit_id": "audit-admission-001",
+  "cap_guard_decision_id": "cap-guard-001",
+  "allowed": true,
+  "status": "passed",
+  "reconciliation_policy_ref": "post_submit_reconciliation:manual_order",
+  "product_scope": "BTC-USDC",
+  "exchange_submission_required": true,
+  "post_submit_reconciliation_required": true,
+  "retained_inventory_required": true,
+  "max_submitted_notional_usdc": "3.10",
+  "max_executed_notional_usdc": "1.00",
+  "reason": "backend reconciliation plan accepted the route-bound envelope"
+}
+```
+
+Only `allowed=true` with `status=passed` is resolver-eligible. Any mismatch,
+blocked status, warning status, read-only route target, local-state route
+target, permission mismatch, or duplicate plan id fails closed as evidence
+only.
 
 ## Structured Errors
 

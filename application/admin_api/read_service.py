@@ -3488,6 +3488,8 @@ class AdminApiReadService:
                     "GET /api/v1/admin/admission-audits/{admission_audit_id}",
                     "GET /api/v1/admin/cap-guard/decisions",
                     "GET /api/v1/admin/cap-guard/decisions/{decision_id}",
+                    "GET /api/v1/admin/reconciliation/plans",
+                    "GET /api/v1/admin/reconciliation/plans/{plan_id}",
                 ],
                 identity_keys=["request_id", "correlation_id", "actor_id"],
                 backend_contract_refs=[
@@ -3703,6 +3705,74 @@ class AdminApiReadService:
                     "Cap/guard decision records are platform evidence. Spot "
                     "wallet, USDC, cost-basis, and no-shorting rules stay in "
                     "spot route-specific guard inputs."
+                ),
+            ),
+            functionality_item(
+                workflow_id="admin.reconciliation_plans",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned reconciliation plan proof records that bind "
+                    "route, payload, approval snapshot, admission audit, "
+                    "cap/guard decision, reconciliation policy, product scope, "
+                    "and no-live execution evidence for future command admission."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                read_routes=[
+                    "GET /api/v1/admin/reconciliation/plans",
+                    "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+                ],
+                command_routes=["POST /api/v1/admin/reconciliation/plans"],
+                identity_keys=[
+                    "plan_id",
+                    "approval_reconciliation_plan_ref",
+                    "approval_snapshot_id",
+                    "admission_audit_id",
+                    "cap_guard_decision_id",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                backend_contract_refs=[
+                    "application/admin_api/reconciliation.py",
+                    "application/admin_api/reconciliation_service.py",
+                    "api/v1/routes/reconciliation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Controlled live adapter pilot remains blocked until the "
+                    "live service and route-specific adapter are explicitly "
+                    "enabled under cap, approval, audit, and reconciliation proof."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "browser_authority_rejected",
+                ],
+                frontend_boundary=(
+                    "The browser may display and forward reconciliation plan "
+                    "records only; it must not execute reconciliation, mutate "
+                    "order/exchange state, or mark submissions reconciled."
+                ),
+                spot_rule_boundary=(
+                    "Reconciliation plan records are platform evidence. Spot "
+                    "retained-inventory, fill-ledger, and USDC-specific rules "
+                    "remain route-specific backend proof, not generic frontend "
+                    "reconciliation authority."
                 ),
             ),
             functionality_item(
@@ -4262,6 +4332,13 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in cap_guard_decision_surfaces
         ]
+        reconciliation_plan_surfaces = [
+            "POST /api/v1/admin/reconciliation/plans",
+        ]
+        reconciliation_plan_rows = [
+            route_inventory_item(surface)
+            for surface in reconciliation_plan_surfaces
+        ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
                 mutation_id="admin.approval_lifecycle",
@@ -4602,6 +4679,133 @@ class AdminApiReadService:
                     "Cap/guard decision records are platform evidence. Spot "
                     "wallet, USDC, cost-basis, and no-shorting rules remain "
                     "route-specific guard inputs, not generic admin rules."
+                ),
+                approval_required=True,
+                cap_guard_required=True,
+                reconciliation_required=True,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="admin.reconciliation_plans",
+                mutation_family=AdminApiMutationFamilyType.ADMIN_RECONCILIATION_PLAN,
+                workflow_id="admin.reconciliation_plans",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Reconciliation plans are backend-owned append-only "
+                    "local-state records that link route, payload, approval "
+                    "snapshot, admission audit, cap/guard decision, and "
+                    "reconciliation policy proof before command admission can "
+                    "consider reconciliation present."
+                ),
+                command_surfaces=reconciliation_plan_surfaces,
+                action_classes=[
+                    row.action_class for row in reconciliation_plan_rows
+                ],
+                required_permissions=[
+                    row.permission for row in reconciliation_plan_rows
+                ],
+                identity_keys=[
+                    "plan_id",
+                    "approval_reconciliation_plan_ref",
+                    "approval_snapshot_id",
+                    "admission_audit_id",
+                    "cap_guard_decision_id",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "method",
+                    "module_id",
+                    "identity_key",
+                    "identity_value",
+                    "action_class",
+                    "required_permission",
+                    "service_method",
+                    "actor_id",
+                    "operator_intent",
+                    "command_idempotency_key",
+                    "payload_hash",
+                    "approval_snapshot_id",
+                    "approval_reconciliation_plan_ref",
+                    "admission_audit_id",
+                    "cap_guard_decision_id",
+                    "allowed",
+                    "status",
+                    "reconciliation_policy_ref",
+                    "product_scope",
+                ],
+                idempotency_contract="required",
+                approval_contract=(
+                    "records must reference a backend approval snapshot id; "
+                    "they do not create or approve snapshots"
+                ),
+                cap_guard_contract=(
+                    "records must reference a backend cap/guard decision id; "
+                    "they do not evaluate or override guard decisions"
+                ),
+                admission_audit_contract=(
+                    "records must bind to an append-only admission audit id and "
+                    "also append an Admin API audit event for the plan mutation"
+                ),
+                reconciliation_contract=(
+                    "only allowed=true plus status=passed is resolver-eligible; "
+                    "the record does not execute reconciliation or mutate "
+                    "order/exchange state"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/reconciliation_service.py"
+                ),
+                shared_command_service_method=None,
+                route_inventory_refs=reconciliation_plan_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/reconciliation.py",
+                    "application/admin_api/reconciliation_service.py",
+                    "api/v1/routes/reconciliation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Controlled live adapter pilot must still keep live service "
+                    "enablement and route-specific adapter admission explicit."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "browser_authority_rejected",
+                ],
+                frontend_boundary=(
+                    "The frontend may record and display backend reconciliation "
+                    "plan records through generated contracts only; it must not "
+                    "execute reconciliation, mark exchange state reconciled, or "
+                    "treat plan proof as Coinbase submission authority."
+                ),
+                bff_boundary=(
+                    "BFF may forward only to backend reconciliation plan routes "
+                    "with required mutation evidence; it must not create "
+                    "reconciliation proof, run reconciliation, or execute commands "
+                    "on its own."
+                ),
+                route_local_boundary=(
+                    "Reconciliation plan routes append evidence through the "
+                    "reconciliation service only; they must not call Coinbase, "
+                    "run reconciliation, mutate order/exchange state, or execute "
+                    "commands."
+                ),
+                spot_rule_boundary=(
+                    "Reconciliation plan records are platform evidence. Spot "
+                    "fill-ledger, retained-inventory, USDC, and no-shorting "
+                    "rules remain route-specific backend proof."
                 ),
                 approval_required=True,
                 cap_guard_required=True,

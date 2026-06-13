@@ -618,6 +618,122 @@ class AdminCapGuardDecisionResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminReconciliationPlanCreateRequest(BaseModel):
+    """Append one backend-owned reconciliation plan proof for command admission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    approval_snapshot_id: str = Field(min_length=1)
+    approval_reconciliation_plan_ref: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    allowed: bool
+    status: AdminApiGateStatus
+    reconciliation_policy_ref: str = Field(min_length=1)
+    product_scope: str = Field(min_length=1)
+    exchange_submission_required: bool = True
+    post_submit_reconciliation_required: bool = True
+    retained_inventory_required: bool = True
+    max_submitted_notional_usdc: DecimalString
+    max_executed_notional_usdc: DecimalString
+    reason: str = Field(min_length=1)
+
+
+class AdminReconciliationPlanItem(BaseModel):
+    """Operator-visible backend reconciliation plan proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plan_id: str
+    recorded_at: str
+    route: str
+    method: str
+    module_id: str
+    identity_key: str
+    identity_value: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    command_idempotency_key: str
+    payload_hash: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    allowed: bool
+    status: AdminApiGateStatus
+    source: str = "admin_api_reconciliation_plan_log"
+    reconciliation_policy_ref: str
+    product_scope: str
+    exchange_submission_required: bool = True
+    post_submit_reconciliation_required: bool = True
+    retained_inventory_required: bool = True
+    max_submitted_notional_usdc: DecimalString
+    max_executed_notional_usdc: DecimalString
+    reason: str
+    resolver_eligible: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    reconciliation_execution_ran: bool = False
+    order_exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    detail: str
+
+
+class AdminReconciliationPlanListResponse(BaseModel):
+    """List backend-owned reconciliation plan proof records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_reconciliation_plan_list"
+    plans: list[AdminReconciliationPlanItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    warning_count: int = Field(ge=0)
+    resolver_eligible_count: int = Field(ge=0)
+    reconciliation_execution_ran: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminReconciliationPlanResponse(BaseModel):
+    """Response for reconciliation plan mutations and detail reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_reconciliation_plan"
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    plan: AdminReconciliationPlanItem | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    reconciliation_execution_ran: bool = False
+    order_exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminApiCommandResponse(BaseModel):
     """Typed response returned by Admin API command adapters."""
 

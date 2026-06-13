@@ -39,6 +39,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.ADMISSION_AUDIT_READ,
         AdminApiPermission.CAP_GUARD_READ,
+        AdminApiPermission.RECONCILIATION_READ,
         AdminApiPermission.CAMPAIGN_READ,
     }),
     AdminApiRole.OPERATOR: frozenset({
@@ -47,6 +48,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.ADMISSION_AUDIT_READ,
         AdminApiPermission.CAP_GUARD_READ,
+        AdminApiPermission.RECONCILIATION_READ,
         AdminApiPermission.CAMPAIGN_READ,
         AdminApiPermission.RUNTIME_PAUSE,
         AdminApiPermission.RUNTIME_RESUME,
@@ -58,6 +60,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.APPROVAL_REQUEST,
         AdminApiPermission.ADMISSION_AUDIT_READ,
         AdminApiPermission.CAP_GUARD_READ,
+        AdminApiPermission.RECONCILIATION_READ,
         AdminApiPermission.ORDER_CREATE,
         AdminApiPermission.ORDER_CANCEL,
         AdminApiPermission.CAMPAIGN_READ,
@@ -72,6 +75,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.ADMISSION_AUDIT_READ,
         AdminApiPermission.CAP_GUARD_READ,
+        AdminApiPermission.RECONCILIATION_READ,
         AdminApiPermission.CAMPAIGN_READ,
     }),
     AdminApiRole.EMERGENCY: frozenset({

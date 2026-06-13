@@ -19,10 +19,11 @@ routes, a live-disabled
 stealth cancel command contract, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
 account and position routes, read-only guard/risk policy evidence, read-only
-cross-module audit workbench evidence, and read-only spot operator routes.
-Mutating HTTP routes still return `not_implemented` after
-auth, permission, idempotency, and audit handling; they do not submit orders,
-cancel orders, or call Coinbase.
+cross-module audit workbench evidence, backend-owned approval, cap/guard,
+admission audit, and reconciliation plan record routes, and read-only spot
+operator routes. Live-shaped trading command HTTP routes still return
+`not_implemented` after auth, permission, idempotency, and audit handling;
+they do not submit orders, cancel orders, or call Coinbase.
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
@@ -61,6 +62,13 @@ decision ref, expected reconciliation plan ref, and disabled live-intent
 evidence. The writer rejects records that claim live admission is allowed;
 browser audit, BFF audit, and the audit row itself remain insufficient for
 live execution.
+M52 adds backend-owned reconciliation plan records. These records bind the
+exact live-shaped route envelope to approval snapshot, admission audit,
+cap/guard decision, reconciliation policy, product scope, retained-inventory
+requirement, and notional caps. Only `allowed=true` with `status=passed` is
+resolver-eligible. The routes do not execute reconciliation, mutate order or
+exchange state, submit Coinbase orders, or create browser/BFF reconciliation
+authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -113,6 +121,8 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/admission-audits/{admission_audit_id}`
 - `GET /api/v1/admin/cap-guard/decisions`
 - `GET /api/v1/admin/cap-guard/decisions/{decision_id}`
+- `GET /api/v1/admin/reconciliation/plans`
+- `GET /api/v1/admin/reconciliation/plans/{plan_id}`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
@@ -152,6 +162,9 @@ matching; blocked and warning records remain durable fail-closed evidence.
 M51 adds the `admin.admission_audits` taxonomy row for backend-owned
 admission audit records. Admission audit records are exact proof input only;
 they remain blocked/no-live evidence and cannot mark live admission allowed.
+M52 adds the `admin.reconciliation_plans` taxonomy row for backend-owned
+reconciliation plan records. Passed records are exact resolver input only;
+they do not execute reconciliation or mark exchange/order state reconciled.
 
 Current mutating HTTP command surfaces are:
 
@@ -168,14 +181,17 @@ Current local-state approval lifecycle mutation surfaces are:
 - `POST /api/v1/admin/approvals/{approval_id}/revoke`
 - `POST /api/v1/admin/admission-audits`
 - `POST /api/v1/admin/cap-guard/decisions`
+- `POST /api/v1/admin/reconciliation/plans`
 
 These local-state routes are authenticated, authorized, idempotent, and
-audited. They write backend-owned approval lifecycle, admission audit, or
-cap/guard decision evidence only; they do not submit orders, cancel orders,
-evaluate browser guards, execute reconciliation, or call Coinbase.
+audited. They write backend-owned approval lifecycle, admission audit,
+cap/guard decision, or reconciliation plan evidence only; they do not submit
+orders, cancel orders, evaluate browser guards, execute reconciliation, mutate
+order/exchange state, or call Coinbase.
 
 See [Admission Audit Records](README.admission-audits.md),
-[Cap/Guard Decision Records](README.cap-guard-decisions.md), and
+[Cap/Guard Decision Records](README.cap-guard-decisions.md),
+[Reconciliation Plan Records](README.reconciliation-plans.md), and
 [Admin API Examples](docs/examples/admin-api.md) for record contracts and
 payload examples.
 

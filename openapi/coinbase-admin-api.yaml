@@ -1926,6 +1926,266 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/reconciliation/plans:
+    get:
+      tags:
+      - reconciliation
+      summary: List backend-owned reconciliation plan records
+      operationId: list_admin_reconciliation_plans_api_v1_admin_reconciliation_plans_get
+      parameters:
+      - name: plan_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - type: 'null'
+          title: Plan Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReconciliationPlanListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Reconciliation plan was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - reconciliation
+      summary: Record a backend-owned reconciliation plan
+      operationId: record_admin_reconciliation_plan_api_v1_admin_reconciliation_plans_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReconciliationPlanCreateRequest'
+      responses:
+        '200':
+          description: Reconciliation plan mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReconciliationPlanResponse'
+        '400':
+          description: Reconciliation plan mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReconciliationPlanResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReconciliationPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/reconciliation/plans/{plan_id}:
+    get:
+      tags:
+      - reconciliation
+      summary: Read one backend-owned reconciliation plan record
+      operationId: get_admin_reconciliation_plan_api_v1_admin_reconciliation_plans__plan_id__get
+      parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Plan Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReconciliationPlanResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Reconciliation plan was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/account:
     get:
       tags:
@@ -4541,6 +4801,7 @@ components:
       - admin_approval_lifecycle
       - admin_admission_audit
       - admin_cap_guard_decision
+      - admin_reconciliation_plan
       - spot_manual_order
       - spot_order_cancel
       - spot_campaign_execution
@@ -4565,6 +4826,8 @@ components:
       - admission_audit:record
       - cap_guard:read
       - cap_guard:record
+      - reconciliation:read
+      - reconciliation:record
       - order:create
       - order:cancel
       - campaign:read
@@ -8814,6 +9077,432 @@ components:
       - reason
       title: AdminProductCapabilityDecisionItem
       description: Read-only product capability policy decision for one capability.
+    AdminReconciliationPlanCreateRequest:
+      properties:
+        route:
+          type: string
+          minLength: 1
+          title: Route
+        method:
+          type: string
+          minLength: 1
+          title: Method
+        module_id:
+          type: string
+          minLength: 1
+          title: Module Id
+        identity_key:
+          type: string
+          minLength: 1
+          title: Identity Key
+        identity_value:
+          type: string
+          minLength: 1
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          minLength: 1
+          title: Service Method
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Payload Hash
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        approval_reconciliation_plan_ref:
+          type: string
+          minLength: 1
+          title: Approval Reconciliation Plan Ref
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          minLength: 1
+          title: Cap Guard Decision Id
+        allowed:
+          type: boolean
+          title: Allowed
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        reconciliation_policy_ref:
+          type: string
+          minLength: 1
+          title: Reconciliation Policy Ref
+        product_scope:
+          type: string
+          minLength: 1
+          title: Product Scope
+        exchange_submission_required:
+          type: boolean
+          title: Exchange Submission Required
+          default: true
+        post_submit_reconciliation_required:
+          type: boolean
+          title: Post Submit Reconciliation Required
+          default: true
+        retained_inventory_required:
+          type: boolean
+          title: Retained Inventory Required
+          default: true
+        max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        max_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      - approval_snapshot_id
+      - approval_reconciliation_plan_ref
+      - admission_audit_id
+      - cap_guard_decision_id
+      - allowed
+      - status
+      - reconciliation_policy_ref
+      - product_scope
+      - max_submitted_notional_usdc
+      - max_executed_notional_usdc
+      - reason
+      title: AdminReconciliationPlanCreateRequest
+      description: Append one backend-owned reconciliation plan proof for command
+        admission.
+    AdminReconciliationPlanItem:
+      properties:
+        plan_id:
+          type: string
+          title: Plan Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+        identity_key:
+          type: string
+          title: Identity Key
+        identity_value:
+          type: string
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          title: Payload Hash
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        allowed:
+          type: boolean
+          title: Allowed
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        source:
+          type: string
+          title: Source
+          default: admin_api_reconciliation_plan_log
+        reconciliation_policy_ref:
+          type: string
+          title: Reconciliation Policy Ref
+        product_scope:
+          type: string
+          title: Product Scope
+        exchange_submission_required:
+          type: boolean
+          title: Exchange Submission Required
+          default: true
+        post_submit_reconciliation_required:
+          type: boolean
+          title: Post Submit Reconciliation Required
+          default: true
+        retained_inventory_required:
+          type: boolean
+          title: Retained Inventory Required
+          default: true
+        max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        max_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        reason:
+          type: string
+          title: Reason
+        resolver_eligible:
+          type: boolean
+          title: Resolver Eligible
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        reconciliation_execution_ran:
+          type: boolean
+          title: Reconciliation Execution Ran
+          default: false
+        order_exchange_state_mutated:
+          type: boolean
+          title: Order Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - plan_id
+      - recorded_at
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - allowed
+      - status
+      - reconciliation_policy_ref
+      - product_scope
+      - max_submitted_notional_usdc
+      - max_executed_notional_usdc
+      - reason
+      - detail
+      title: AdminReconciliationPlanItem
+      description: Operator-visible backend reconciliation plan proof evidence.
+    AdminReconciliationPlanListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_reconciliation_plan_list
+        plans:
+          items:
+            $ref: '#/components/schemas/AdminReconciliationPlanItem'
+          type: array
+          title: Plans
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        passed_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Count
+        blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Count
+        warning_count:
+          type: integer
+          minimum: 0.0
+          title: Warning Count
+        resolver_eligible_count:
+          type: integer
+          minimum: 0.0
+          title: Resolver Eligible Count
+        reconciliation_execution_ran:
+          type: boolean
+          title: Reconciliation Execution Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - passed_count
+      - blocked_count
+      - warning_count
+      - resolver_eligible_count
+      title: AdminReconciliationPlanListResponse
+      description: List backend-owned reconciliation plan proof records.
+    AdminReconciliationPlanResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_reconciliation_plan
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: local_state_mutation
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        plan:
+          anyOf:
+          - $ref: '#/components/schemas/AdminReconciliationPlanItem'
+          - type: 'null'
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        reconciliation_execution_ran:
+          type: boolean
+          title: Reconciliation Execution Ran
+          default: false
+        order_exchange_state_mutated:
+          type: boolean
+          title: Order Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: AdminReconciliationPlanResponse
+      description: Response for reconciliation plan mutations and detail reads.
     AdminReplacementSlotEvidence:
       properties:
         client_order_id:

@@ -123,6 +123,14 @@ class FileAdminApiReconciliationStore:
                 break
         return records
 
+    def find_by_plan_id(self, plan_id: str) -> ReconciliationPlanRecord | None:
+        """Return the latest record with the given reconciliation plan id."""
+
+        for record in self.read_recent(limit=500):
+            if record.plan_id == plan_id:
+                return record
+        return None
+
     def find_matching_plan(
         self,
         *,

@@ -112,6 +112,13 @@ route-bound admission audit proof through
 `application/admin_api/admission_audit_service.py`, but they must not call
 Coinbase, call command execution adapters, evaluate guards, execute
 reconciliation, create browser audit authority, or mark live admission allowed.
+Reconciliation plan routes are backend-owned local-state mutations and reads
+over the append-only reconciliation plan store. They may persist and expose
+route-bound post-submit reconciliation plan proof through
+`application/admin_api/reconciliation_service.py`, but they must not call
+Coinbase, call command execution adapters, execute reconciliation, mutate
+order or exchange state, create browser reconciliation authority, or mark live
+admission allowed.
 Resolver-backed command admission evidence remains fail-closed. A resolved
 snapshot may remove only `approval_snapshot_missing`; it does not authorize
 live execution while live-disabled, admission-audit, cap/guard,
