@@ -307,6 +307,22 @@
       "command_contract": true
     },
     {
+      "module_id": "spot_operations",
+      "surface": "POST /api/v1/spot/sweep/automation-runs",
+      "method": "POST",
+      "path": "/api/v1/spot/sweep/automation-runs",
+      "action_class": "live_exchange_place",
+      "permission": "spot_sweep:execute",
+      "idempotency": "required",
+      "approval": "required",
+      "caps": "required",
+      "audit": "required",
+      "shared_method": "run_spot_sweep_automation",
+      "parity_test": "sweep automation remains fail-closed until scheduler, run-limit, safety, recovery, and reconciliation gates pass",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
       "module_id": "legacy_dashboard_websocket",
       "surface": "cancel_order WebSocket",
       "method": null,

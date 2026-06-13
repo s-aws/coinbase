@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1661-1680",
+  "approved_phase_range": "1681-1700",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,24 +860,24 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1661-1680",
+  "approved_phase_range": "1681-1700",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
-  "functionality_inventory_count": 17,
-  "backend_supported_workflow_count": 16,
-  "admin_exposed_workflow_count": 14,
-  "command_workflow_count": 9,
+  "functionality_inventory_count": 18,
+  "backend_supported_workflow_count": 17,
+  "admin_exposed_workflow_count": 15,
+  "command_workflow_count": 10,
   "live_designated_workflow_count": 5,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 13,
-  "route_bound_mutation_taxonomy_count": 11,
-  "live_disabled_mutation_count": 5,
+  "mutation_taxonomy_count": 15,
+  "route_bound_mutation_taxonomy_count": 13,
+  "live_disabled_mutation_count": 6,
   "backend_contract_required_mutation_count": 2,
   "compatibility_mutation_count": 3,
   "functionality_inventory": [
@@ -894,11 +894,12 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
       "command_capable": true,
       "live_designated": true,
       "live_enabled": false,
-      "identity_keys": ["client_order_id", "campaign_id"],
+      "identity_keys": ["client_order_id", "campaign_id", "sweep_config_id"],
       "command_routes": [
         "POST /api/v1/orders",
         "POST /api/v1/orders/{client_order_id}/cancel",
-        "POST /api/v1/spot/campaign/executions"
+        "POST /api/v1/spot/campaign/executions",
+        "POST /api/v1/spot/sweep/automation-runs"
       ],
       "required_next_contract": "Approval, cap/guard, audit, reconciliation, and live adapter admission must all pass before execution.",
       "blockers": [
@@ -947,7 +948,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
       ],
       "action_classes": ["live_exchange_cancel"],
       "required_permissions": ["order:cancel"],
-      "identity_keys": ["client_order_id"],
+      "identity_keys": ["client_order_id", "campaign_id", "sweep_config_id"],
       "payload_binding_fields": [
         "endpoint",
         "actor",
@@ -1036,14 +1037,14 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
       "action_posture": {
         "module_id": "spot_operations",
         "support_status": "command_draft_live_disabled",
-        "read_route_count": 8,
-        "command_route_count": 3,
-        "live_route_count": 3,
-        "evidence_route_count": 8,
+        "read_route_count": 9,
+        "command_route_count": 4,
+        "live_route_count": 4,
+        "evidence_route_count": 9,
         "unsupported_action_count": 3,
         "command_gap_count": 2,
         "route_module_id_status": "passed",
-        "route_module_id_detail": "11 route inventory rows are bound to module_id=spot_operations; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "route_module_id_detail": "13 route inventory rows are bound to module_id=spot_operations; enterprise readiness route lists are derived from module_id, not path prefixes.",
         "frontend_authority": "backend_contract_only",
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0"
@@ -1547,6 +1548,50 @@ Current response behavior:
 - include approval/cap guard evidence
 - never call Coinbase
 
+## Spot Sweep Automation Command
+
+Spot sweep automation now has a backend-owned command route, but live
+execution, scheduler execution, and Coinbase submission are still disabled.
+
+```http
+POST /api/v1/spot/sweep/automation-runs
+Authorization: Bearer <backend-verifiable-token>
+Idempotency-Key: 018f1a2b-4b9c-7e20-9d39-7d6c4a5f1085
+X-Correlation-Id: corr-20260613-001
+X-Operator-Intent: sweep_automation_run
+X-Admin-Actor: trader-001
+X-Admin-Roles: trader
+Content-Type: application/json
+X-CSRF-Token: <configured-csrf-token-when-required>
+```
+
+```json
+{
+  "sweep_config_id": "spot-sweep-usdc-hourly",
+  "side": "BUY",
+  "quote_notional_per_product": "1.00",
+  "repeat_every_hours": "6",
+  "max_runs": 2,
+  "max_products": 3,
+  "max_total_notional_per_run": "3.00",
+  "max_notional_per_order": "1.00",
+  "max_planned_orders": 3,
+  "run_if_due": true,
+  "dry_run": false,
+  "manual_live_acknowledgement": true
+}
+```
+
+Current response behavior:
+
+- authorize `spot_sweep:execute`
+- evaluate idempotency
+- write command audit and route-bound admission evidence
+- return `501` with `service_method: "run_spot_sweep_automation"`
+- include approval/cap/reconciliation/live-disabled guard evidence
+- report `live_exchange_submitted=false` and `sweep_runner_invoked=false`
+- never run sweep CLI tools and never call Coinbase
+
 ## Idempotent Retry
 
 If the same `Idempotency-Key` and same command payload are sent again for the
@@ -1645,9 +1690,9 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1661-1680",
-  "command_count": 3,
-  "blocked_command_count": 3,
+  "approved_phase_range": "1681-1700",
+  "command_count": 4,
+  "blocked_command_count": 4,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
   "coverage_gap_count": 4,
@@ -1865,14 +1910,27 @@ X-Admin-Roles: viewer
       "live_adapter_configured": false,
       "live_enabled": false,
       "executable": false
+    },
+    {
+      "mutation_family": "spot_sweep_automation",
+      "route": "/api/v1/spot/sweep/automation-runs",
+      "method": "POST",
+      "identity_key": "sweep_config_id",
+      "shared_method": "run_spot_sweep_automation",
+      "required_permission": "spot_sweep:execute",
+      "status": "blocked",
+      "live_execution_status": "live_disabled",
+      "live_adapter_configured": false,
+      "live_enabled": false,
+      "executable": false
     }
   ],
   "coverage_gaps": [
     {
       "family": "spot_sweep_automation",
       "status": "blocked",
-      "exposure_status": "backend_contract_required",
-      "command_route": null,
+      "exposure_status": "admin_draft_live_disabled",
+      "command_route": "/api/v1/spot/sweep/automation-runs",
       "current_read_evidence_routes": [
         "GET /api/v1/spot/sweep/status",
         "GET /api/v1/spot/campaign/status",

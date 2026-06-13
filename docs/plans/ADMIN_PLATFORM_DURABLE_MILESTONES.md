@@ -2423,9 +2423,9 @@ Completed seventh-slice scope:
   gate chains, and browser/BFF authority boundaries before any new spot command
   route is introduced.
 
-Active eighth-slice scope:
+Completed eighth-slice scope:
 
-- Active phases 1661-1680 link those gap rows to typed
+- Phases 1661-1680 link those gap rows to typed
   `current_read_evidence` rows derived from route inventory.
 - Evidence-route rows identify the existing read-only route, method,
   permission, shared read-service method, docs, and browser/BFF boundary that
@@ -2433,15 +2433,28 @@ Active eighth-slice scope:
   command routes, command workflow drafts, reconciliation execution, or
   Coinbase calls.
 
+Active ninth-slice scope:
+
+- Active phases 1681-1700 add a route-bound, live-disabled sweep automation
+  command contract keyed by `sweep_config_id`.
+- The command route may record Admin API envelope, idempotency, RBAC, audit,
+  approval, cap/guard, reconciliation, and disabled-live-service evidence. It
+  must not call sweep runner tools, create a browser scheduler, submit Coinbase
+  orders, or close the wider sweep automation gap until scheduler, run-limit,
+  recovery, and reconciliation contracts exist.
+
 Current backend evidence:
 
 - `application/admin_api/read_service.py::build_spot_command_suite` derives
   command readiness from route inventory and live-enablement evidence.
-- `api/v1/routes/spot.py` exposes the read-only route with
-  `analytics:read` permission.
+- `api/v1/routes/spot.py` exposes read-only spot routes with `analytics:read`
+  permission.
+- `api/v1/routes/orders.py::run_spot_sweep_automation` exposes the
+  live-disabled sweep automation command route with `spot_sweep:execute`
+  permission.
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
-  include the command-suite response, proof-route gate linkage, and typed
-  coverage-gap evidence-route linkage.
+  include the command-suite response, proof-route gate linkage, typed
+  coverage-gap evidence-route linkage, and sweep automation command contract.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
@@ -2451,8 +2464,8 @@ Remaining blockers before M54 can claim full spot command-suite completion:
   backend-owned contracts before command UI can exist.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
-- Live Coinbase execution remains not run for the current M54 evidence-route
-  slice; submitted and executed notional remain `$0`.
+- Live Coinbase execution remains not run for the current M54 sweep automation
+  contract slice; submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
 

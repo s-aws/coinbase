@@ -125,7 +125,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1661-1680"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1681-1700"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -222,6 +222,8 @@ def _enterprise_module_identity_key(module_id: str, route: str) -> str:
         return "stealth_order_id"
     if module_id == "futures_perpetuals":
         return "position_key"
+    if "spot/sweep/automation-runs" in route:
+        return "sweep_config_id"
     if "campaign" in route:
         return "campaign_id"
     if module_id == "spot_operations":
@@ -2938,7 +2940,7 @@ class AdminApiReadService:
                         ),
                     ),
                 ],
-                identity_keys=["client_order_id"],
+                identity_keys=["client_order_id", "campaign_id", "sweep_config_id"],
                 constraints=[
                     "USDC spot scope and no-shorting rules are spot-only.",
                     "Cost basis and inventory authority stay backend-owned.",
@@ -2952,11 +2954,13 @@ class AdminApiReadService:
                     "business/spot_portfolio_sweep.py",
                     "business/spot_inventory_authority.py",
                     "application/admin_api/command_service.py",
+                    "api/v1/routes/orders.py::run_spot_sweep_automation",
                     "api/v1/routes/spot.py",
                 ],
                 frontend_contract_refs=[
                     "src/shared/api/contracts/backendApiClient.ts::getSpotReadiness",
                     "src/shared/api/contracts/backendApiClient.ts::executeSpotCampaign",
+                    "src/shared/api/contracts/backendApiClient.ts::runSpotSweepAutomation",
                     "src/features/spot-ops/spotBackendAdapters.ts",
                 ],
                 documentation_refs=[
@@ -3837,8 +3841,9 @@ class AdminApiReadService:
                 exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 summary=(
-                    "Manual order, cancel by client_order_id, and campaign execution "
-                    "commands are exposed as authenticated live-disabled drafts."
+                    "Manual order, cancel by client_order_id, campaign execution, "
+                    "and sweep automation commands are exposed as authenticated "
+                    "live-disabled drafts."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
@@ -3849,8 +3854,9 @@ class AdminApiReadService:
                     "POST /api/v1/orders",
                     "POST /api/v1/orders/{client_order_id}/cancel",
                     "POST /api/v1/spot/campaign/executions",
+                    "POST /api/v1/spot/sweep/automation-runs",
                 ],
-                identity_keys=["client_order_id", "campaign_id"],
+                identity_keys=["client_order_id", "campaign_id", "sweep_config_id"],
                 backend_contract_refs=[
                     "application/admin_api/command_service.py",
                     "api/v1/routes/orders.py",
@@ -3889,20 +3895,29 @@ class AdminApiReadService:
                 summary=(
                     "Backend sweep planning, scheduling, safety policy, live executor, "
                     "run records, and reconciliation helpers exist; enterprise admin "
-                    "currently exposes status and live-disabled campaign execution."
+                    "currently exposes status, live-disabled campaign execution, "
+                    "and a live-disabled sweep automation run contract."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
                 frontend_exposed=True,
                 command_capable=True,
                 live_designated=True,
-                command_routes=["POST /api/v1/spot/campaign/executions"],
+                command_routes=[
+                    "POST /api/v1/spot/campaign/executions",
+                    "POST /api/v1/spot/sweep/automation-runs",
+                ],
                 automation_routes=[
                     "tools/run_spot_portfolio_sweep_live.py",
                     "tools/run_spot_portfolio_sweep_dry_run.py",
                     "tools/run_spot_campaign.py",
                 ],
-                identity_keys=["campaign_id", "config_id", "client_order_id"],
+                identity_keys=[
+                    "campaign_id",
+                    "config_id",
+                    "sweep_config_id",
+                    "client_order_id",
+                ],
                 backend_contract_refs=[
                     "business/spot_portfolio_sweep.py",
                     "business/spot_campaign.py",
@@ -3910,6 +3925,7 @@ class AdminApiReadService:
                 ],
                 frontend_contract_refs=[
                     "src/shared/api/contracts/backendApiClient.ts::executeSpotCampaign",
+                    "src/shared/api/contracts/backendApiClient.ts::runSpotSweepAutomation",
                     "src/features/command-workflows/CommandWorkflowShell.tsx",
                 ],
                 documentation_refs=[
@@ -4952,6 +4968,54 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Spot campaign automation must keep USDC scope, no-shorting, "
                     "inventory, and cost-basis authority inside backend gates."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/sweep/automation-runs",
+                mutation_id="spot.sweep_automation",
+                mutation_family=AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION,
+                workflow_id="spot.sweep_automation_and_live_executor",
+                related_workflow_ids=["spot.order_command_drafts"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot sweep automation is a route-bound Admin API command "
+                    "contract keyed by sweep_config_id, still live-disabled."
+                ),
+                identity_keys=["sweep_config_id", "config_id", "client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::run_spot_sweep_automation",
+                    "application/admin_api/command_service.py::run_spot_sweep_automation",
+                    "business/spot_portfolio_sweep.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::runSpotSweepAutomation",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-portfolio-sweep.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                required_next_contract=(
+                    "Durable sweep scheduler, run-limit, pause/resume, recovery, "
+                    "execution, and reconciliation contracts must pass before "
+                    "live Coinbase submission."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "sweep scheduler contract missing",
+                    "run reconciliation proof missing",
+                ],
+                frontend_boundary=(
+                    "Do not run sweep tools or implement a browser scheduler; "
+                    "only dry-submit through the backend-owned command contract."
+                ),
+                spot_rule_boundary=(
+                    "Sweep automation is spot-only and must keep USDC scope, "
+                    "inventory, average-cost, and known-profitable sell authority "
+                    "inside backend gates."
                 ),
             ),
             mutation_taxonomy_from_surface(
@@ -6852,6 +6916,31 @@ class AdminApiReadService:
                     "reconciliation contracts."
                 ),
             },
+            AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION: {
+                "surface": "POST /api/v1/spot/sweep/automation-runs",
+                "identity_key": "sweep_config_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::run_spot_sweep_automation",
+                    "application/admin_api/command_service.py::run_spot_sweep_automation",
+                    "business/spot_portfolio_sweep.py",
+                    "tools/run_spot_portfolio_sweep_live.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::runSpotSweepAutomation",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-portfolio-sweep.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                "detail": (
+                    "Spot sweep automation has a route-bound command contract, "
+                    "but remains non-executable until durable scheduling, "
+                    "run-limit, recovery, and reconciliation contracts are wired "
+                    "through backend-owned gates."
+                ),
+            },
         }
         read_routes = [
             item.surface
@@ -7031,8 +7120,8 @@ class AdminApiReadService:
         coverage_gaps = [
             SpotCommandSuiteCoverageGapItem(
                 family=AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/spot/sweep/automation-runs",
                 current_read_evidence_routes=[
                     "GET /api/v1/spot/sweep/status",
                     "GET /api/v1/spot/campaign/status",

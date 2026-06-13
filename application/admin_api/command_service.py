@@ -44,6 +44,7 @@ from .models import (
     CancelOrderCommand,
     ManualOrderCommand,
     MovementRepriceCommand,
+    SpotSweepAutomationRunCommand,
     StealthCancelCommand,
 )
 
@@ -814,6 +815,51 @@ class AdminApiCommandService:
                 "manual_live_acknowledgement": (
                     command.request.manual_live_acknowledgement
                 ),
+            },
+            failure_stage="approval",
+        )
+
+    def run_spot_sweep_automation(
+        self,
+        command: SpotSweepAutomationRunCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a future spot sweep automation run through the live gate."""
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+            service_method="run_spot_sweep_automation",
+            message=(
+                "Spot sweep automation requires enterprise scheduling, "
+                "idempotency, approval, caps, run-limit, recovery, and "
+                "reconciliation gates before live execution."
+            ),
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "sweep_config_id": command.request.sweep_config_id,
+                "side": command.request.side.value,
+                "dry_run": command.request.dry_run,
+                "run_if_due": command.request.run_if_due,
+                "max_runs": command.request.max_runs,
+                "max_products": command.request.max_products,
+                "max_planned_orders": command.request.max_planned_orders,
+                "repeat_every_hours": command.request.repeat_every_hours,
+                "quote_notional_per_product": (
+                    command.request.quote_notional_per_product
+                ),
+                "max_total_notional_per_run": (
+                    command.request.max_total_notional_per_run
+                ),
+                "max_notional_per_order": command.request.max_notional_per_order,
+                "manual_live_acknowledgement": (
+                    command.request.manual_live_acknowledgement
+                ),
+                "sweep_runner_invoked": False,
             },
             failure_stage="approval",
         )

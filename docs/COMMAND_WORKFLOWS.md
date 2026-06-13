@@ -26,14 +26,15 @@ reconciliation state, live adapter execution, and Coinbase calls.
 ## Spot Command Suite
 
 `GET /api/v1/spot/command-suite` is read-only M54 evidence. It reports whether
-manual spot order placement, spot cancel, and spot campaign execution have the
-required backend gates and shared command-service wiring.
+manual spot order placement, spot cancel, spot campaign execution, and spot
+sweep automation have the required backend gates and shared command-service
+wiring.
 
 This route does not submit orders, cancel orders, launch campaigns, mutate
 wallet or order state, or call Coinbase. Command rows use `mutation_family`
 enum values such as `spot_manual_order`, `spot_order_cancel`, and
-`spot_campaign_execution`. A row's `status` is gate status, while
-`live_execution_status` is the live-execution posture.
+`spot_campaign_execution`, and `spot_sweep_automation`. A row's `status` is
+gate status, while `live_execution_status` is the live-execution posture.
 
 Each command row also reports `proof_routes` for the backend-owned local-state
 records that must exist before the command can become executable: approval
@@ -53,10 +54,10 @@ execution, or call Coinbase.
 
 Website command workflow draft cards may display the same backend-owned
 `readiness_preconditions` beside draft payload evidence for spot manual order,
-cancel by `client_order_id`, and campaign execution. That display is a trace
-back to command-suite evidence only; it must not evaluate readiness, create
-proof records, enable commands, or copy spot wallet/no-shorting rules into
-non-spot modules.
+cancel by `client_order_id`, campaign execution, and sweep automation. That
+display is a trace back to command-suite evidence only; it must not evaluate
+readiness, create proof records, enable commands, launch sweep tools, create a
+browser scheduler, or copy spot wallet/no-shorting rules into non-spot modules.
 
 The command-suite response also reports `coverage_gaps` for remaining M54 spot
 families that are not command-complete: sweep automation, P/L tracking,
@@ -72,6 +73,14 @@ API route, method, permission, shared read-service method, documentation refs,
 and display/forward-only boundary that supports the gap. They are navigation
 and traceability evidence only; they do not create command routes or satisfy
 the missing backend contracts.
+
+`POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
+command contract. It is keyed by `sweep_config_id`, requires
+`spot_sweep:execute`, records idempotency/audit/admission evidence, and
+currently returns `501 not_implemented` with `live_exchange_submitted=false`.
+It must not call `tools/run_spot_portfolio_sweep_live.py`, invoke Coinbase,
+create a browser scheduler, or close the wider sweep automation gap until the
+durable scheduler, run-limit, recovery, and reconciliation contracts exist.
 
 Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls

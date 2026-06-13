@@ -28,9 +28,9 @@ they do not submit orders, cancel orders, or call Coinbase.
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
 The current runtime still returns `501` for create, order cancel, stealth
-cancel, movement reprice, and campaign execution commands because HTTP live
-execution is not approved. Read routes document typed `200` payloads plus
-structured `401` and `403` errors.
+cancel, movement reprice, campaign execution, and spot sweep automation
+commands because HTTP live execution is not approved. Read routes document
+typed `200` payloads plus structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
 `command_gaps` and a top-level `command_gap_count` so unsupported, not
 modeled, and live-disabled command paths are visible without relying on
@@ -73,16 +73,21 @@ M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
 command-suite with `GET /api/v1/spot/command-suite`, a read-only readiness
-contract for manual order placement, cancel by `client_order_id`, and spot
-campaign execution. The route reports blockers, missing gate-chain evidence,
-proof routes for backend approval/audit/cap/reconciliation records,
-`readiness_preconditions` copied from live-enablement evidence, aggregate
-`readiness_precondition_count`, `blocking_readiness_precondition_count`, and
+contract for manual order placement, cancel by `client_order_id`, spot
+campaign execution, and spot sweep automation. The route reports blockers,
+missing gate-chain evidence, proof routes for backend approval/audit/cap/
+reconciliation records, `readiness_preconditions` copied from live-enablement
+evidence, aggregate `readiness_precondition_count`,
+`blocking_readiness_precondition_count`, and
 `passed_readiness_precondition_count` fields, and frontend/BFF display
 boundaries; it does not add live controls or execute Coinbase orders. Proof
 routes are derived from `ADMIN_API_ROUTE_INVENTORY` and are local-state
 evidence requirements only. They are not browser authorization, BFF execution
-authority, live reconciliation execution, or Coinbase calls.
+authority, live reconciliation execution, or Coinbase calls. The
+`POST /api/v1/spot/sweep/automation-runs` command route is keyed by
+`sweep_config_id`, requires `spot_sweep:execute`, and returns
+`501 not_implemented` until durable scheduler, run-limit, recovery,
+reconciliation, and live execution gates pass.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -163,7 +168,7 @@ does not authorize browser-side commands or replace backend guard, wallet,
 margin, approval, audit, cap, or reconciliation gates.
 
 The same response exposes M48 `mutation_taxonomy` evidence. Current taxonomy
-rows cover the five live-disabled HTTP command routes, three legacy dashboard
+rows cover the six live-disabled HTTP command routes, three legacy dashboard
 WebSocket compatibility command surfaces, and two backend-contract-required
 families for futures/perpetual commands and fill-ledger repair. Every current
 command surface in `ADMIN_API_ROUTE_INVENTORY` must appear in exactly one
@@ -188,6 +193,7 @@ Current mutating HTTP command surfaces are:
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 - `POST /api/v1/spot/campaign/executions`
+- `POST /api/v1/spot/sweep/automation-runs`
 
 Current local-state approval lifecycle mutation surfaces are:
 

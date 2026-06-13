@@ -3291,6 +3291,119 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/sweep/automation-runs:
+    post:
+      tags:
+      - orders
+      summary: Run a spot sweep automation through the shared command service
+      description: 'Route adapter for future spot sweep automation execution.
+
+
+        The route has the command envelope, idempotency, audit, RBAC, and fail-closed
+
+        live gate, but it does not run sweep tools or submit Coinbase orders.'
+      operationId: run_spot_sweep_automation_api_v1_spot_sweep_automation_runs_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpotSweepAutomationRunRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -4867,6 +4980,7 @@ components:
       - spot_manual_order
       - spot_order_cancel
       - spot_campaign_execution
+      - spot_sweep_automation
       - stealth_cancel
       - movement_reprice
       - futures_contract_required
@@ -4894,6 +5008,7 @@ components:
       - order:cancel
       - campaign:read
       - campaign:execute
+      - spot_sweep:execute
       - config:update
       - runtime:pause
       - runtime:resume
@@ -10892,6 +11007,93 @@ components:
       type: object
       title: SpotReadinessResponse
       description: Spot readiness response.
+    SpotSweepAutomationRunRequest:
+      properties:
+        sweep_config_id:
+          type: string
+          minLength: 1
+          title: Sweep Config Id
+          examples:
+          - spot-sweep-usdc-hourly
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        quote_notional_per_product:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Quote Notional Per Product
+        repeat_every_hours:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Repeat Every Hours
+        max_runs:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Max Runs
+        max_products:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Max Products
+        max_total_notional_per_run:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Max Total Notional Per Run
+        max_notional_per_order:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Max Notional Per Order
+        max_planned_orders:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Max Planned Orders
+        run_if_due:
+          type: boolean
+          title: Run If Due
+          default: true
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - sweep_config_id
+      - side
+      title: SpotSweepAutomationRunRequest
+      description: Spot sweep automation request shape for future gated sweep runs.
     SpotSweepPnlResponse:
       properties:
         type:

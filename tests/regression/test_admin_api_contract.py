@@ -725,6 +725,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/guard-risk-policy" in written["paths"]
     assert "/api/v1/admin/audit-workbench" in written["paths"]
     assert "/api/v1/spot/campaign/executions" in written["paths"]
+    assert "/api/v1/spot/sweep/automation-runs" in written["paths"]
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
     assert "/api/v1/admin/session" in written["paths"]
@@ -772,6 +773,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     campaign_operation = written["paths"]["/api/v1/spot/campaign/executions"]["post"]
     assert "200" in campaign_operation["responses"]
     assert "501" in campaign_operation["responses"]
+    sweep_operation = written["paths"]["/api/v1/spot/sweep/automation-runs"]["post"]
+    assert "200" in sweep_operation["responses"]
+    assert "501" in sweep_operation["responses"]
     spot_readiness_operation = written["paths"]["/api/v1/spot/readiness"]["get"]
     assert "200" in spot_readiness_operation["responses"]
     assert "content" in spot_readiness_operation["responses"]["200"]
@@ -1859,6 +1863,51 @@ def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
     )
     assert payload["data"]["campaign_id"] == "usdc-sweep-001"
     assert payload["data"]["product_count"] == 2
+    assert payload["audit_id"]
+
+
+@pytest.mark.regression
+def test_admin_api_spot_sweep_automation_contract_is_not_implemented_and_not_live(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/spot/sweep/automation-runs",
+        headers=_headers(idempotency_key="idem-sweep-automation"),
+        json={
+            "sweep_config_id": "spot-sweep-usdc-hourly",
+            "side": "BUY",
+            "quote_notional_per_product": "1.00",
+            "repeat_every_hours": "6",
+            "max_runs": 2,
+            "max_products": 3,
+            "max_total_notional_per_run": "3.00",
+            "max_notional_per_order": "1.00",
+            "max_planned_orders": 3,
+            "run_if_due": True,
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    assert payload["required_permission"] == AdminApiPermission.SPOT_SWEEP_EXECUTE.value
+    assert payload["service_method"] == "run_spot_sweep_automation"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["admission_decision"]["route"] == (
+        "/api/v1/spot/sweep/automation-runs"
+    )
+    assert payload["admission_decision"]["identity_key"] == "sweep_config_id"
+    assert payload["admission_decision"]["required_permission"] == (
+        AdminApiPermission.SPOT_SWEEP_EXECUTE.value
+    )
+    assert payload["data"]["sweep_config_id"] == "spot-sweep-usdc-hourly"
+    assert payload["data"]["sweep_runner_invoked"] is False
     assert payload["audit_id"]
 
 
@@ -3804,8 +3853,8 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert payload["type"] == "spot_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "spot_operations"
-    assert payload["command_count"] == 3
-    assert payload["blocked_command_count"] == 3
+    assert payload["command_count"] == 4
+    assert payload["blocked_command_count"] == 4
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
     assert payload["coverage_gap_count"] == 4
@@ -3825,7 +3874,6 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     }
     for gap in coverage_gaps.values():
         assert gap["status"] == AdminApiGateStatus.BLOCKED.value
-        assert gap["command_route"] is None
         assert gap["backend_owned"] is True
         assert gap["browser_authority"] == "display_only"
         assert gap["bff_authority"] == "forward_only_no_execution"
@@ -3852,10 +3900,14 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     ]
     assert (
         sweep_gap["exposure_status"]
-        == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+        == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
     )
+    assert sweep_gap["command_route"] == "/api/v1/spot/sweep/automation-runs"
     assert "GET /api/v1/spot/sweep/status" in sweep_gap["current_read_evidence_routes"]
     assert "enterprise_sweep_scheduler_contract" in sweep_gap["missing_contracts"]
+    for family, gap in coverage_gaps.items():
+        if family != AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION.value:
+            assert gap["command_route"] is None
     pnl_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING.value
     ]
@@ -3882,6 +3934,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value,
         AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value,
         AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value,
+        AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION.value,
     }
     manual = commands[AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value]
     assert manual["route"] == "/api/v1/orders"
@@ -4007,6 +4060,18 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         for item in campaign["proof_routes"]
     )
 
+    sweep = commands[AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION.value]
+    assert sweep["route"] == "/api/v1/spot/sweep/automation-runs"
+    assert sweep["identity_key"] == "sweep_config_id"
+    assert sweep["required_permission"] == AdminApiPermission.SPOT_SWEEP_EXECUTE.value
+    assert sweep["shared_method"] == "run_spot_sweep_automation"
+    assert sweep["live_adapter_configured"] is False
+    assert "business/spot_portfolio_sweep.py" in sweep["backend_contract_refs"]
+    assert all(
+        item["command_identity_key"] == "sweep_config_id"
+        for item in sweep["proof_routes"]
+    )
+
 
 @pytest.mark.regression
 def test_admin_api_spot_routes_preserve_typed_read_payload_fields(monkeypatch):
@@ -4069,10 +4134,13 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
     assert actor_has_permission(viewer, AdminApiPermission.AUDIT_READ)
     assert actor_has_permission(viewer, AdminApiPermission.CAMPAIGN_READ)
     assert not actor_has_permission(viewer, AdminApiPermission.ORDER_CREATE)
+    assert not actor_has_permission(viewer, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_PAUSE)
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_RESUME)
     assert not actor_has_permission(operator, AdminApiPermission.ORDER_CANCEL)
+    assert not actor_has_permission(operator, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.CAMPAIGN_EXECUTE)
+    assert actor_has_permission(trader, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert not actor_has_permission(emergency, AdminApiPermission.ORDER_CANCEL)
     assert actor_has_permission(emergency, AdminApiPermission.RUNTIME_SHUTDOWN)
 
@@ -4118,6 +4186,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert capabilities.status_code == 200
     routes = {item["route"] for item in capabilities.json()["capabilities"]}
     assert "/api/v1/spot/campaign/executions" in routes
+    assert "/api/v1/spot/sweep/automation-runs" in routes
     assert "/api/v1/admin/bootstrap" in routes
     assert "/api/v1/admin/csrf" in routes
     assert "/api/v1/admin/live-enablement" in routes
@@ -4169,6 +4238,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert command_capabilities[
         ("POST", "/api/v1/spot/campaign/executions")
     ]["permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
+    assert command_capabilities[
+        ("POST", "/api/v1/spot/sweep/automation-runs")
+    ]["permission"] == AdminApiPermission.SPOT_SWEEP_EXECUTE.value
+    assert command_capabilities[
+        ("POST", "/api/v1/spot/sweep/automation-runs")
+    ]["shared_method"] == "run_spot_sweep_automation"
     assert csrf.status_code == 200
     assert csrf.json() == {
         "type": "admin_csrf_contract",
@@ -4184,7 +4259,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1661-1680"
+    assert live_payload["approved_phase_range"] == "1681-1700"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4192,35 +4267,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["max_executed_notional_usdc"] == "1.00"
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 40
-    assert live_payload["blocking_preflight_check_count"] == 20
-    assert live_payload["passed_preflight_check_count"] == 20
-    assert live_payload["approval_snapshot_required_count"] == 5
+    assert live_payload["preflight_check_count"] == 48
+    assert live_payload["blocking_preflight_check_count"] == 24
+    assert live_payload["passed_preflight_check_count"] == 24
+    assert live_payload["approval_snapshot_required_count"] == 6
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 5
-    assert live_payload["approval_snapshot_required_field_count"] == 75
-    assert live_payload["approval_snapshot_missing_field_count"] == 75
-    assert live_payload["approval_store_required_count"] == 5
-    assert live_payload["approval_store_configured_count"] == 5
+    assert live_payload["approval_snapshot_missing_count"] == 6
+    assert live_payload["approval_snapshot_required_field_count"] == 90
+    assert live_payload["approval_snapshot_missing_field_count"] == 90
+    assert live_payload["approval_store_required_count"] == 6
+    assert live_payload["approval_store_configured_count"] == 6
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 60
+    assert live_payload["approval_store_requirement_count"] == 72
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 5
+    assert live_payload["admission_audit_required_count"] == 6
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 5
-    assert live_payload["admission_audit_fact_count"] == 50
-    assert live_payload["admission_audit_missing_fact_count"] == 45
-    assert live_payload["cap_guard_required_count"] == 5
+    assert live_payload["admission_audit_missing_count"] == 6
+    assert live_payload["admission_audit_fact_count"] == 60
+    assert live_payload["admission_audit_missing_fact_count"] == 54
+    assert live_payload["cap_guard_required_count"] == 6
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 5
-    assert live_payload["cap_guard_requirement_count"] == 70
-    assert live_payload["cap_guard_missing_requirement_count"] == 70
-    assert live_payload["live_execution_adapter_required_count"] == 5
+    assert live_payload["cap_guard_missing_count"] == 6
+    assert live_payload["cap_guard_requirement_count"] == 84
+    assert live_payload["cap_guard_missing_requirement_count"] == 84
+    assert live_payload["live_execution_adapter_required_count"] == 6
     assert live_payload["live_execution_adapter_configured_count"] == 1
-    assert live_payload["live_execution_adapter_missing_count"] == 4
-    assert live_payload["readiness_precondition_count"] == 45
-    assert live_payload["blocking_readiness_precondition_count"] == 29
-    assert live_payload["passed_readiness_precondition_count"] == 16
+    assert live_payload["live_execution_adapter_missing_count"] == 5
+    assert live_payload["readiness_precondition_count"] == 54
+    assert live_payload["blocking_readiness_precondition_count"] == 35
+    assert live_payload["passed_readiness_precondition_count"] == 19
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -4231,6 +4306,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in live_routes
     )
     assert "/api/v1/spot/campaign/executions" in live_routes
+    assert "/api/v1/spot/sweep/automation-runs" in live_routes
+    assert (
+        live_routes["/api/v1/spot/sweep/automation-runs"]["identity_key"]
+        == "sweep_config_id"
+    )
     assert all(item["live_enabled"] is False for item in live_routes.values())
     assert live_routes["/api/v1/orders"]["status"] == "approval_required"
     assert all(
@@ -4738,7 +4818,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1661-1680"
+    assert enterprise_payload["approved_phase_range"] == "1681-1700"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -5100,11 +5180,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert "spot short selling" in spot_module["unsupported_actions"]
     assert "client_order_id" in spot_module["identity_keys"]
+    assert "sweep_config_id" in spot_module["identity_keys"]
     assert "POST /api/v1/orders" in spot_module["command_routes"]
+    assert "POST /api/v1/spot/sweep/automation-runs" in spot_module["command_routes"]
     assert "GET /api/v1/spot/command-suite" in spot_module["read_routes"]
     assert spot_module["action_posture"]["read_route_count"] == 9
-    assert spot_module["action_posture"]["command_route_count"] == 3
-    assert spot_module["action_posture"]["live_route_count"] == 3
+    assert spot_module["action_posture"]["command_route_count"] == 4
+    assert spot_module["action_posture"]["live_route_count"] == 4
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
     assert "GET /api/v1/admin/guard-risk-policy" not in admin_module["read_routes"]
@@ -6702,6 +6784,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )
+    assert rows["POST /api/v1/spot/sweep/automation-runs"].shared_method == (
+        "run_spot_sweep_automation"
+    )
+    assert rows["POST /api/v1/spot/sweep/automation-runs"].permission == (
+        AdminApiPermission.SPOT_SWEEP_EXECUTE
+    )
     assert rows["GET /api/v1/admin/bootstrap"].shared_method == "build_admin_bootstrap"
     assert rows["GET /api/v1/admin/oidc-readiness"].shared_method == (
         "build_oidc_jwt_readiness"
@@ -6757,6 +6845,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "place_manual_order" in doc
     assert "place_hotpoint_test_order" in doc
     assert "execute_spot_campaign" in doc
+    assert "run_spot_sweep_automation" in doc
     assert "build_admin_bootstrap" in doc
     assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc

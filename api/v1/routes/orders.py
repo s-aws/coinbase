@@ -40,6 +40,8 @@ from application.admin_api.models import (
     CancelOrderRequest,
     ManualOrderCommand,
     ManualOrderRequest,
+    SpotSweepAutomationRunCommand,
+    SpotSweepAutomationRunRequest,
 )
 from application.admin_api.read_service import AdminApiReadService
 from core.enums import (
@@ -638,5 +640,78 @@ def execute_spot_campaign(
         live_execution_service=live_execution_service,
         command_runner=lambda: service.execute_spot_campaign(
             CampaignExecutionCommand(envelope=envelope, request=body)
+        ),
+    )
+
+
+@router.post(
+    "/spot/sweep/automation-runs",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Run a spot sweep automation through the shared command service",
+)
+def run_spot_sweep_automation(
+    request: Request,
+    body: SpotSweepAutomationRunRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for future spot sweep automation execution.
+
+    The route has the command envelope, idempotency, audit, RBAC, and fail-closed
+    live gate, but it does not run sweep tools or submit Coinbase orders.
+    """
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        service_method="run_spot_sweep_automation",
+        route_template="/api/v1/spot/sweep/automation-runs",
+        module_id="spot_operations",
+        identity_key="sweep_config_id",
+        identity_value=body.sweep_config_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda: service.run_spot_sweep_automation(
+            SpotSweepAutomationRunCommand(envelope=envelope, request=body)
         ),
     )

@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1661-1680**.
+- Approved phase range: **1681-1700**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,112 +46,127 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1661-1680
+## Active Phases 1681-1700
 
-### Phase 1661 - Advance Active Queue Range
+### Phase 1681 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1641-1660 to active
-  phases 1661-1680 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1661-1680 to active
+  phases 1681-1700 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1662 - M54 Gap Evidence-Route Scope
+### Phase 1682 - Sweep Command Contract Scope
 
-- Extend coverage-gap evidence with typed backend read-route rows derived from
-  route inventory so existing evidence surfaces are traceable without adding
-  command routes.
+- Add a backend-owned Admin API command contract for spot sweep automation that
+  is route-bound, idempotent, audited, and live-disabled by default.
 
-### Phase 1663 - Backend Range Evidence
+### Phase 1683 - Sweep Permission Boundary
 
-- Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting the active `1661-1680` phase range.
+- Add a distinct backend permission for sweep automation so campaign execution
+  and sweep automation remain independently auditable capabilities.
 
-### Phase 1664 - Typed Evidence Route Model
+### Phase 1684 - Sweep Request Model
 
-- Add typed command-suite coverage-gap evidence route rows with method, route,
-  action class, permission, shared method, docs, and authority boundary.
+- Define the sweep automation request envelope with sweep config identity,
+  side, notional, cadence, run-limit, dry-run, and acknowledgement fields.
 
-### Phase 1665 - Sweep Evidence Routes
+### Phase 1685 - Shared Service Method
 
-- Link sweep automation gaps to existing sweep status, campaign status, and
-  command-suite read evidence without creating a scheduler command.
+- Add `run_spot_sweep_automation` to the shared command service as
+  fail-closed evidence only; it must not call sweep tools or Coinbase.
 
-### Phase 1666 - P/L Evidence Routes
+### Phase 1686 - FastAPI Route Adapter
 
-- Link P/L gaps to existing P/L and cost-basis read evidence without browser
-  profitability or sell authority.
+- Expose `POST /api/v1/spot/sweep/automation-runs` through the existing
+  command route adapter with RBAC, idempotency, audit, approval, cap/guard,
+  reconciliation, and live-execution-service evidence.
 
-### Phase 1667 - Recovery Evidence Routes
+### Phase 1687 - Route Inventory And Live Enablement
 
-- Link recovery gaps to recovery-gate and direct-order audit reads without a
-  recovery preview/apply mutation.
+- Add the route to Admin API inventory and prove live-enablement derives
+  `sweep_config_id`, readiness preconditions, and disabled adapter evidence
+  from that inventory.
 
-### Phase 1668 - Reconciliation Evidence Routes
+### Phase 1688 - Command Suite Row
 
-- Link reconciliation gaps to reconciliation plan read routes without
-  reconciliation execution or exchange/order-state mutation.
+- Add `spot_sweep_automation` as a command-suite mutation family while keeping
+  the wider sweep automation gap open for scheduler, recovery, and
+  reconciliation contracts.
 
-### Phase 1669 - Command/Gaps Separation Proof
+### Phase 1689 - Backend OpenAPI Sync
 
-- Prove covered command rows, coverage-gap rows, and evidence-route rows remain
-  separate and do not create command authority.
+- Regenerate backend OpenAPI and assert the new route and request schema match
+  generated contracts.
 
-### Phase 1670 - OpenAPI Schema Sync
+### Phase 1690 - Backend Focused Tests
 
-- Regenerate backend OpenAPI so the evidence-route model is part of the
-  generated Admin API contract.
+- Cover RBAC, OpenAPI, route inventory, idempotent command response,
+  command-suite evidence, live-enablements counts, and no-live Coinbase
+  posture.
 
-### Phase 1671 - Backend Focused Tests
+### Phase 1691 - Website Schema Sync
 
-- Run backend autonomous validation and focused Admin API command-suite tests
-  for active range, gap rows, and evidence-route rows.
+- Regenerate the website API schema from backend OpenAPI and update generated
+  contract consumers without hand-editing generated files.
 
-### Phase 1672 - Website Schema Sync
+### Phase 1692 - Website API Wrapper
 
-- Regenerate the website schema from backend OpenAPI and keep canonical
-  runtime/mock fixtures aligned with gap evidence routes.
+- Add the website API wrapper and dry-submit helper for sweep automation,
+  forwarding only to the backend route without browser execution authority.
 
-### Phase 1673 - Website Gap Navigation Mapping
+### Phase 1693 - Command Workflow Draft
 
-- Map backend evidence routes to existing local evidence anchors in the Spot
-  Command Suite read-only view.
+- Add a sweep automation draft card with validation for sweep config,
+  notional/cadence/run-limit fields, dry-run defaults, and operator intent.
 
-### Phase 1674 - Website Gap Navigation Rendering
+### Phase 1694 - Mock Backend And Fixtures
 
-- Render evidence-route navigation beside coverage gaps without buttons, BFF
-  mutation authority, command workflow drafts, reconciliation execution, or
-  Coinbase calls.
+- Update mock backend, runtime fixtures, route coverage, BFF smoke catalogs,
+  and quality artifacts for the new route and active phase range.
 
-### Phase 1675 - Frontend Focused Tests
+### Phase 1695 - Website Focused Tests
 
-- Cover generated schema, mock/runtime evidence routes, read-only navigation,
-  unchanged command workflow behavior, and active range evidence.
+- Cover generated schema, wrapper, dry-submit, draft validation, mock route,
+  capability contract, and unchanged no-live behavior.
 
-### Phase 1676 - Documentation Update
+### Phase 1696 - Documentation Update
 
-- Update command workflow, API contract, testing, handoff, examples, roadmap,
-  durable milestone, and capability-matrix docs for gap evidence-route
-  traceability.
+- Update API contract, command workflows, examples, capability matrix,
+  handoff, and testing docs so contextless readers can trace sweep automation
+  from frontend draft to backend service.
 
-### Phase 1677 - Contextless Review
+### Phase 1697 - Contextless Review
 
-- Run blind/contextless review for whether a fresh agent can trace coverage
-  gap evidence routes into website navigation without inventing command
-  authority.
+- Run blind/contextless review for whether a fresh agent can explain the sweep
+  automation command path without inventing a browser scheduler or Coinbase
+  execution path.
 
-### Phase 1678 - Remediation
+### Phase 1698 - Remediation
 
-- Fix any blocker-level ambiguity from focused gates or contextless review
-  before advancing.
+- Fix any blocker-level ambiguity from tests or contextless review before
+  advancing.
 
-### Phase 1679 - Full Gates And No-Live Evidence
+### Phase 1699 - Full Gates And No-Live Evidence
 
 - Run backend full regression and website release gate, then confirm no live
   Coinbase execution was run and submitted/executed notional remains `$0`.
 
-### Phase 1680 - Summary And Push
+### Phase 1700 - Summary And Push
 
-- Commit and push both repositories, then summarize evidence-route linkage,
-  gates, contextless review, remaining blockers, and Coinbase notional `$0`.
+- Commit and push both repositories, then summarize sweep automation command
+  contract evidence, gates, contextless review, remaining blockers, and
+  Coinbase notional `$0`.
+
+## Completed Phases 1661-1680
+
+The 1661-1680 range completed evidence-route linkage for command-suite gaps:
+
+- Spot command-suite coverage gaps now include typed backend read-route rows
+  derived from route inventory.
+- The website renders coverage-gap evidence routes as local read-only
+  navigation without adding command authority.
+- Backend full regression, website release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted and executed notional
+  stayed `$0`.
 
 ## Completed Phases 1641-1660
 

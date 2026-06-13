@@ -67,7 +67,8 @@ Shared command service methods currently cover manual placement,
 cancel-by-`client_order_id`, hotpoint test placement for legacy dashboard
 compatibility, live-disabled stealth cancel by `stealth_order_id`, and a
 live-disabled movement reprice command keyed by `stealth_order_id`, and a
-live-disabled spot campaign execution contract.
+live-disabled spot campaign execution contract, and a live-disabled spot sweep
+automation command contract keyed by `sweep_config_id`.
 
 Read-only Admin API routes currently cover backend bootstrap, health,
 session/RBAC evidence, capabilities, guard/risk policy evidence, audit
@@ -76,6 +77,12 @@ fixtures, order list/detail, stealth lifecycle list/detail,
 movement/repricing evidence, futures/perpetual account and position evidence,
 spot readiness, sweep status, sweep P/L, cost-basis status, campaign status,
 and direct order audit.
+Spot sweep automation command admission is route-bound evidence only. It may
+bind `sweep_config_id`, cadence, notional, run-limit, dry-run, and operator
+acknowledgement fields to the Admin API command envelope, but it must not call
+sweep runner tools, create a browser scheduler, call Coinbase, or mark the
+wider sweep automation gap complete before scheduler, recovery, and
+reconciliation contracts exist.
 The movement reprice command draft is not the legacy dashboard repricer: it
 must not clear cooldowns, call `process_anchor_repricing_for_product`, or
 mutate live revealed placements until the existing exchange-reality

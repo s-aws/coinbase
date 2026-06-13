@@ -243,6 +243,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="campaign execution remains fail-closed until live gates pass",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/sweep/automation-runs",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        idempotency="required",
+        approval="required",
+        caps="required",
+        audit="required",
+        shared_method="run_spot_sweep_automation",
+        parity_test=(
+            "sweep automation remains fail-closed until scheduler, run-limit, "
+            "safety, recovery, and reconciliation gates pass"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="legacy_dashboard_websocket",
         surface="cancel_order WebSocket",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,

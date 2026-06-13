@@ -65,6 +65,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.ORDER_CANCEL,
         AdminApiPermission.CAMPAIGN_READ,
         AdminApiPermission.CAMPAIGN_EXECUTE,
+        AdminApiPermission.SPOT_SWEEP_EXECUTE,
         AdminApiPermission.RUNTIME_PAUSE,
         AdminApiPermission.RUNTIME_RESUME,
     }),

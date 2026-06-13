@@ -243,6 +243,25 @@ class CampaignExecutionRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class SpotSweepAutomationRunRequest(BaseModel):
+    """Spot sweep automation request shape for future gated sweep runs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sweep_config_id: str = Field(min_length=1, examples=["spot-sweep-usdc-hourly"])
+    side: OrderSide
+    quote_notional_per_product: DecimalString | None = None
+    repeat_every_hours: DecimalString | None = None
+    max_runs: int | None = Field(default=None, ge=1)
+    max_products: int | None = Field(default=None, ge=1)
+    max_total_notional_per_run: DecimalString | None = None
+    max_notional_per_order: DecimalString | None = None
+    max_planned_orders: int | None = Field(default=None, ge=1)
+    run_if_due: bool = True
+    dry_run: bool = True
+    manual_live_acknowledgement: bool = False
+
+
 class ManualOrderCommand(BaseModel):
     """Shared service command for manual placement."""
 
@@ -294,6 +313,16 @@ class CampaignExecutionCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: CampaignExecutionRequest
+    allow_live_execution: bool = False
+
+
+class SpotSweepAutomationRunCommand(BaseModel):
+    """Shared service command for spot sweep automation runs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotSweepAutomationRunRequest
     allow_live_execution: bool = False
 
 

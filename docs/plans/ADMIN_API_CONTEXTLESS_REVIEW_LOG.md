@@ -2839,3 +2839,70 @@ Status:
   `190` unit tests and `3` Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M54 Spot Sweep Automation Command Contract Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- explain how an operator creates or dry-submits a Spot sweep automation command
+  from repository evidence only
+- verify the backend route, service method, identity key, permission, and
+  live-disabled status
+- verify the browser/frontend cannot trade directly and the command does not
+  invoke Coinbase or the sweep runner
+- classify the command as a Spot-domain capability versus a reusable admin
+  platform primitive
+- identify missing or ambiguous documentation for smaller local agents
+
+Findings:
+
+- Blind review passed the main contract checks. It identified
+  `POST /api/v1/spot/sweep/automation-runs`, frontend wrapper
+  `runSpotSweepAutomation`, backend service method
+  `run_spot_sweep_automation`, identity key `sweep_config_id`, permission
+  `spot_sweep:execute`, and expected status `501/not_implemented` with
+  `live_exchange_submitted=false` and `sweep_runner_invoked=false`.
+- The reviewer confirmed the no-browser-trading boundary from frontend
+  `AGENTS.md`, canonical command wrappers, BFF route guards, backend route
+  docstring, and disabled live-execution service.
+- The reviewer classified sweep automation as a Spot-domain module command, not
+  a reusable platform primitive. Reusable pieces are auth/RBAC, idempotency,
+  audit, OpenAPI, BFF forwarding, route inventory, capability evidence, and
+  release gates.
+- Spot-only rules not to copy into futures/perpetuals remain USDC/crypto-USDC
+  scope, spot wallet inventory, no-shorting, cost basis, average cost, lot
+  authority, known-profitable sell authority, and spot operational P/L
+  assumptions.
+- Initial frontend clarity issues were found: stale API contract wording
+  omitted sweep automation from the current `501` command list, command workflow
+  docs omitted `drySubmitSpotSweepAutomation`, and frontend RBAC hints did not
+  include `spot_sweep:execute`.
+
+Resolution:
+
+- Frontend API contract documentation now names spot sweep automation in the
+  current `501` live-disabled command posture.
+- Frontend command workflow documentation now names
+  `drySubmitSpotSweepAutomation`, `sweep_config_id`, and `spot_sweep:execute`.
+- Frontend RBAC hints now include `spot_sweep:execute` for trader/admin roles,
+  and the general Command Workflows route no longer advertises only
+  `order:create` as its route-level hint.
+
+Status:
+
+- Backend autonomous work queue check passed for approved phases `1681-1700`.
+- Backend ownership check passed.
+- Backend focused Admin API contract checks passed with `76 passed,
+  1 warning`.
+- Backend full regression passed with `811 passed, 1 warning`.
+- Frontend focused command/RBAC checks passed with `46` tests.
+- Frontend full `npm run release:gate` passed with `198` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

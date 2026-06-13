@@ -81,6 +81,12 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 - The dashboard exposes read-only sweep ledger status through
   `request_spot_sweep_status` and read-only sweep P/L through
   `request_spot_sweep_pnl`; live sweep approval remains CLI-only.
+- The Admin API exposes `POST /api/v1/spot/sweep/automation-runs` as a
+  route-bound, live-disabled command contract keyed by `sweep_config_id`. It
+  records admin envelope/idempotency/audit/admission evidence and currently
+  returns `501 not_implemented`; it must not run the live sweep CLI, create a
+  browser scheduler, or submit Coinbase orders until scheduler, run-limit,
+  recovery, reconciliation, and live execution gates pass.
 - Automation is a durable run-if-due CLI mode, not a daemon. Each invocation
   reloads fresh Coinbase product/wallet state, checks the JSONL run ledger, runs
   at most one due sweep, records the outcome, and exits.
@@ -128,6 +134,8 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `tools/run_spot_portfolio_sweep_dry_run.py`
 - Live/automation CLI:
   `tools/run_spot_portfolio_sweep_live.py`
+- Live-disabled Admin API command contract:
+  `POST /api/v1/spot/sweep/automation-runs`
 - Read-only release gate:
   `tools/run_spot_release_gate.py`
 - Read-only campaign CLI:
