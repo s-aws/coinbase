@@ -54,6 +54,13 @@ identity, actor, operator intent, payload hash, approval snapshot, admission
 audit id, and cap/guard policy refs. They are evidence and resolver input
 only; the browser and BFF do not evaluate wallet, margin, profitability,
 inventory, account-limit, or spot-specific guard rules.
+M51 adds backend-owned admission audit records. These records append exact
+resolver-eligible audit proof that binds route, identity, payload hash,
+idempotency, actor, operator intent, approval snapshot, expected cap/guard
+decision ref, expected reconciliation plan ref, and disabled live-intent
+evidence. The writer rejects records that claim live admission is allowed;
+browser audit, BFF audit, and the audit row itself remain insufficient for
+live execution.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -102,6 +109,8 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/frontend-fixtures`
 - `GET /api/v1/admin/approvals`
 - `GET /api/v1/admin/approvals/requests/{approval_request_id}`
+- `GET /api/v1/admin/admission-audits`
+- `GET /api/v1/admin/admission-audits/{admission_audit_id}`
 - `GET /api/v1/admin/cap-guard/decisions`
 - `GET /api/v1/admin/cap-guard/decisions/{decision_id}`
 - `GET /api/v1/orders`
@@ -140,6 +149,9 @@ M50 adds the `admin.cap_guard_decisions` taxonomy row for backend-owned
 cap/guard decision record routes. Only records with `allowed=true` and
 `status=passed` can become resolver-eligible for exact backend admission
 matching; blocked and warning records remain durable fail-closed evidence.
+M51 adds the `admin.admission_audits` taxonomy row for backend-owned
+admission audit records. Admission audit records are exact proof input only;
+they remain blocked/no-live evidence and cannot mark live admission allowed.
 
 Current mutating HTTP command surfaces are:
 
@@ -154,15 +166,17 @@ Current local-state approval lifecycle mutation surfaces are:
 - `POST /api/v1/admin/approvals/requests`
 - `POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions`
 - `POST /api/v1/admin/approvals/{approval_id}/revoke`
+- `POST /api/v1/admin/admission-audits`
 - `POST /api/v1/admin/cap-guard/decisions`
 
 These local-state routes are authenticated, authorized, idempotent, and
-audited. They write backend-owned approval lifecycle or cap/guard decision
-evidence only; they do not submit orders, cancel orders, evaluate browser
-guards, execute reconciliation, or call Coinbase.
+audited. They write backend-owned approval lifecycle, admission audit, or
+cap/guard decision evidence only; they do not submit orders, cancel orders,
+evaluate browser guards, execute reconciliation, or call Coinbase.
 
-See [Cap/Guard Decision Records](README.cap-guard-decisions.md) for the
-record contract and [Admin API Examples](docs/examples/admin-api.md) for
+See [Admission Audit Records](README.admission-audits.md),
+[Cap/Guard Decision Records](README.cap-guard-decisions.md), and
+[Admin API Examples](docs/examples/admin-api.md) for record contracts and
 payload examples.
 
 The current operational dashboard is still the proof-of-concept WebSocket and

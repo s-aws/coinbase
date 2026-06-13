@@ -106,6 +106,12 @@ They may persist and expose route-bound cap/guard decision evidence through
 call command execution adapters, evaluate wallet, margin, profitability,
 inventory, account-limit, or spot-specific guards in the browser/BFF, execute
 reconciliation, or make a cap/guard record sufficient for live execution.
+Admission audit routes are backend-owned local-state mutations and reads over
+the existing append-only Admin API audit store. They may persist and expose
+route-bound admission audit proof through
+`application/admin_api/admission_audit_service.py`, but they must not call
+Coinbase, call command execution adapters, evaluate guards, execute
+reconciliation, create browser audit authority, or mark live admission allowed.
 Resolver-backed command admission evidence remains fail-closed. A resolved
 snapshot may remove only `approval_snapshot_missing`; it does not authorize
 live execution while live-disabled, admission-audit, cap/guard,

@@ -138,7 +138,7 @@ path.
 | M48 - Mutation Taxonomy And Authority Map | Complete | Define every admin mutation family, identity key, RBAC permission, idempotency rule, audit requirement, and owning backend service before adding new write routes. |
 | M49 - Approval Request And Decision Lifecycle | Complete | Add backend-owned approval request, review, revoke, expiry, and snapshot-linking contracts without making browser approval sufficient for live execution. |
 | M50 - Cap/Guard Decision Execution Records | Complete | Persist route-specific backend cap/guard decisions and link them to command admission without browser guard, wallet, margin, or profitability authority. |
-| M51 - Admission Audit Writer And Linkage | Planned | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
+| M51 - Admission Audit Writer And Linkage | Complete | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
 | M52 - Reconciliation Plan And Proof Runner | Planned | Add backend-owned reconciliation plan creation, execution, and proof contracts for admitted commands without browser reconciliation authority. |
 | M53 - Controlled Execution Adapter Pilot | Planned | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
 | M54 - Spot Full Admin Command Suite | Planned | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
@@ -2195,12 +2195,55 @@ Current backend evidence:
 
 Remaining blockers before live execution:
 
-- M51 must complete append-only admission audit writer/linkage.
 - M52 must complete reconciliation plan and proof contracts.
 - M53 remains the first possible controlled live adapter pilot and still
   requires explicit live evidence, cap proof, regression, release gate, and
   contextless review.
 - Live Coinbase execution remains not run for M50; submitted and executed
+  notional remain `$0`.
+
+## M51 - Admission Audit Writer And Linkage
+
+Purpose: make admission audit proof a backend-owned append-only writer and
+read contract before any live adapter can run.
+
+Completed scope:
+
+- Admission audit read routes are
+  `GET /api/v1/admin/admission-audits` and
+  `GET /api/v1/admin/admission-audits/{admission_audit_id}`.
+- Admission audit recording is
+  `POST /api/v1/admin/admission-audits`.
+- Records bind route inventory shape, identity, actor, operator intent,
+  command idempotency, payload hash, approval snapshot id, approval cap/guard
+  decision ref, approval reconciliation plan ref, and disabled live execution
+  intent ref.
+- The writer rejects `allowed=true` or `status=passed`; admission audit proof
+  is resolver-eligible evidence only and cannot authorize live execution.
+- The `admin.admission_audits` functionality inventory and mutation taxonomy
+  rows classify the read and local-state mutation surfaces.
+
+Current backend evidence:
+
+- `core/enums.py` defines `admission_audit:read`,
+  `admission_audit:record`, and the `admin_admission_audit` mutation family.
+- `application/admin_api/audit.py` remains the single append-only Admin API
+  audit store and resolver proof source.
+- `application/admin_api/admission_audit_service.py` validates records
+  against `ADMIN_API_ROUTE_INVENTORY`, reuses disabled live-intent evidence,
+  and rejects live-allowed audit rows.
+- `api/v1/routes/admission_audit.py` provides authenticated, RBAC-gated,
+  idempotent admission audit routes without Coinbase calls.
+- OpenAPI and route-inventory artifacts include the admission audit schemas
+  and surfaces.
+
+Remaining blockers before live execution:
+
+- M52 must complete reconciliation plan and proof contracts.
+- M53 remains the first possible controlled live adapter pilot and still
+  requires explicit live evidence, cap proof, regression, release gate, and
+  contextless review.
+- Live Coinbase execution remains not run for M51; submitted and executed
   notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog

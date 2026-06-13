@@ -3484,6 +3484,8 @@ class AdminApiReadService:
                     "GET /api/v1/admin/frontend-fixtures",
                     "GET /api/v1/admin/approvals",
                     "GET /api/v1/admin/approvals/requests/{approval_request_id}",
+                    "GET /api/v1/admin/admission-audits",
+                    "GET /api/v1/admin/admission-audits/{admission_audit_id}",
                     "GET /api/v1/admin/cap-guard/decisions",
                     "GET /api/v1/admin/cap-guard/decisions/{decision_id}",
                 ],
@@ -3574,6 +3576,72 @@ class AdminApiReadService:
                 ),
             ),
             functionality_item(
+                workflow_id="admin.admission_audits",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned admission audit records that bind route, "
+                    "identity, payload, approval snapshot, cap/guard reference, "
+                    "reconciliation reference, and disabled live intent evidence "
+                    "before command admission can advance."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                read_routes=[
+                    "GET /api/v1/admin/admission-audits",
+                    "GET /api/v1/admin/admission-audits/{admission_audit_id}",
+                ],
+                command_routes=["POST /api/v1/admin/admission-audits"],
+                identity_keys=[
+                    "admission_audit_id",
+                    "approval_snapshot_id",
+                    "approval_cap_guard_decision_ref",
+                    "approval_reconciliation_plan_ref",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                backend_contract_refs=[
+                    "application/admin_api/audit.py",
+                    "application/admin_api/admission_audit_service.py",
+                    "api/v1/routes/admission_audit.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Reconciliation plan and proof runner must complete before "
+                    "live command admission can proceed."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may display and forward admission audit records "
+                    "only; it must not write browser audit history, claim "
+                    "execution, or satisfy live admission without backend proof."
+                ),
+                spot_rule_boundary=(
+                    "Admission audit records are platform evidence. Spot wallet, "
+                    "USDC, cost-basis, and no-shorting rules remain route-specific "
+                    "guard inputs, not generic audit rules."
+                ),
+            ),
+            functionality_item(
                 workflow_id="admin.cap_guard_decisions",
                 module_id="admin_system_health",
                 module="Admin / System Health",
@@ -3619,8 +3687,8 @@ class AdminApiReadService:
                     "docs/examples/admin-api.md",
                 ],
                 required_next_contract=(
-                    "Admission audit writer and reconciliation plan linkage must "
-                    "complete before live command admission can proceed."
+                    "Reconciliation plan and proof runner must complete before "
+                    "live command admission can proceed."
                 ),
                 blockers=[
                     "live_execution_disabled",
@@ -4180,6 +4248,13 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in approval_lifecycle_surfaces
         ]
+        admission_audit_surfaces = [
+            "POST /api/v1/admin/admission-audits",
+        ]
+        admission_audit_rows = [
+            route_inventory_item(surface)
+            for surface in admission_audit_surfaces
+        ]
         cap_guard_decision_surfaces = [
             "POST /api/v1/admin/cap-guard/decisions",
         ]
@@ -4296,6 +4371,124 @@ class AdminApiReadService:
                 live_adapter_required=False,
             ),
             mutation_taxonomy_item(
+                mutation_id="admin.admission_audits",
+                mutation_family=AdminApiMutationFamilyType.ADMIN_ADMISSION_AUDIT,
+                workflow_id="admin.admission_audits",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Admission audits are backend-owned append-only records that "
+                    "link route, identity, payload, idempotency, approval "
+                    "snapshot, expected cap/guard decision, expected "
+                    "reconciliation plan, and disabled live intent evidence."
+                ),
+                command_surfaces=admission_audit_surfaces,
+                action_classes=[
+                    row.action_class for row in admission_audit_rows
+                ],
+                required_permissions=[
+                    row.permission for row in admission_audit_rows
+                ],
+                identity_keys=[
+                    "admission_audit_id",
+                    "approval_snapshot_id",
+                    "approval_cap_guard_decision_ref",
+                    "approval_reconciliation_plan_ref",
+                    "client_order_id",
+                    "stealth_order_id",
+                    "campaign_id",
+                    "position_key",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "method",
+                    "module_id",
+                    "identity_key",
+                    "identity_value",
+                    "action_class",
+                    "required_permission",
+                    "service_method",
+                    "actor_id",
+                    "operator_intent",
+                    "command_idempotency_key",
+                    "payload_hash",
+                    "approval_snapshot_id",
+                    "approval_cap_guard_decision_ref",
+                    "approval_reconciliation_plan_ref",
+                    "allowed",
+                    "status",
+                    "reason",
+                ],
+                idempotency_contract="required",
+                approval_contract=(
+                    "records must reference a backend approval snapshot id; "
+                    "they do not approve snapshots or commands"
+                ),
+                cap_guard_contract=(
+                    "records bind expected cap/guard decision refs but do not "
+                    "evaluate guards or create cap/guard decisions"
+                ),
+                admission_audit_contract=(
+                    "accepted records append an exact resolver-eligible audit "
+                    "event to the existing Admin API audit log"
+                ),
+                reconciliation_contract=(
+                    "records bind expected reconciliation plan refs but do not "
+                    "create, execute, or prove reconciliation"
+                ),
+                owning_backend_service="application/admin_api/admission_audit_service.py",
+                shared_command_service_method=None,
+                route_inventory_refs=admission_audit_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/audit.py",
+                    "application/admin_api/admission_audit_service.py",
+                    "api/v1/routes/admission_audit.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/AdminShell.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                required_next_contract=(
+                    "Reconciliation plan and proof runner must complete before "
+                    "live command admission can advance."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                ],
+                frontend_boundary=(
+                    "The frontend may record and display backend admission audit "
+                    "records through generated contracts only; it must not write "
+                    "browser audit history, approve commands, or claim execution."
+                ),
+                bff_boundary=(
+                    "BFF may forward only to backend admission audit routes with "
+                    "required mutation evidence; it must not create audit proof "
+                    "or execute commands on its own."
+                ),
+                route_local_boundary=(
+                    "Admission audit routes append evidence through the audit "
+                    "service only; they must not call Coinbase, evaluate guards, "
+                    "run reconciliation, or execute commands."
+                ),
+                spot_rule_boundary=(
+                    "Admission audit records are platform evidence. Spot wallet, "
+                    "USDC, cost-basis, and no-shorting rules remain route-specific "
+                    "guard inputs, not generic admin audit rules."
+                ),
+                approval_required=True,
+                cap_guard_required=True,
+                reconciliation_required=True,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
                 mutation_id="admin.cap_guard_decisions",
                 mutation_family=AdminApiMutationFamilyType.ADMIN_CAP_GUARD_DECISION,
                 workflow_id="admin.cap_guard_decisions",
@@ -4382,8 +4575,8 @@ class AdminApiReadService:
                     "docs/examples/admin-api.md",
                 ],
                 required_next_contract=(
-                    "Admission audit writer and reconciliation plan linkage must "
-                    "complete before live command admission can advance."
+                    "Reconciliation plan and proof runner must complete before "
+                    "live command admission can advance."
                 ),
                 blockers=[
                     "live_execution_disabled",

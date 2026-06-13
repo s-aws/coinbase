@@ -53,6 +53,7 @@ owners:
       - agent.md
       - README.md
       - README.action-condition-guards.md
+      - README.admission-audits.md
       - README.admin-api.md
       - README.audit-workbench.md
       - README.cap-guard-decisions.md

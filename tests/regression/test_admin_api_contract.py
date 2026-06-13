@@ -32,6 +32,10 @@ from application.admin_api.approval import (
 )
 from application.admin_api.approval_service import AdminApiApprovalLifecycleService
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from application.admin_api.audit import (
+    AdmissionAuditTrailRequest,
+    resolve_admission_audit_trail,
+)
 from application.admin_api.cap_guard import (
     CapGuardDecisionRequest,
     CapGuardDecisionRecord,
@@ -125,6 +129,7 @@ def _store_dir() -> Path:
 
 
 def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    from api.v1.routes import admission_audit as admission_audit_routes
     from api.v1.routes import approvals as approval_routes
     from api.v1.routes import cap_guard as cap_guard_routes
     from api.v1.routes import orders as order_routes
@@ -155,6 +160,12 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     app.dependency_overrides[approval_routes.get_audit_store] = lambda: audit_store
     app.dependency_overrides[approval_routes.get_approval_store] = lambda: approval_store
+    app.dependency_overrides[admission_audit_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[admission_audit_routes.get_audit_store] = (
+        lambda: audit_store
+    )
     app.dependency_overrides[cap_guard_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -381,6 +392,48 @@ def _append_manual_order_admission_audit(
     )
     store.append(event)
     return event
+
+
+def _admission_audit_payload(
+    *,
+    approval: AdminApiApprovalRecord,
+    client_order_id: str = "client-approved",
+    idempotency_key: str = "idem-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+    allowed: bool = False,
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED,
+) -> dict:
+    return {
+        "route": "/api/v1/orders",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": client_order_id,
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "required_permission": AdminApiPermission.ORDER_CREATE.value,
+        "service_method": "place_manual_order",
+        "actor_id": "operator-001",
+        "operator_intent": operator_intent,
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash
+        or make_payload_hash(
+            _manual_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+                idempotency_key=idempotency_key,
+            )
+        ),
+        "approval_snapshot_id": approval.approval_id,
+        "approval_snapshot_approved_by_actor_id": approval.approved_by_actor_id,
+        "approval_snapshot_requested_by_actor_id": approval.requested_by_actor_id,
+        "approval_snapshot_expires_at": approval.expires_at.isoformat(),
+        "approval_cap_guard_decision_ref": approval.cap_guard_decision_ref,
+        "approval_reconciliation_plan_ref": approval.reconciliation_plan_ref,
+        "allowed": allowed,
+        "status": status.value,
+        "reason": "Exact backend-owned admission audit proof for route tests.",
+    }
 
 
 def _append_manual_order_cap_guard_decision(
@@ -2592,6 +2645,207 @@ def test_admin_api_approval_snapshot_resolver_is_exact_and_identity_generic():
 
 
 @pytest.mark.regression
+def test_admin_api_admission_audit_routes_record_replay_and_resolve(monkeypatch):
+    client = _client(monkeypatch)
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id="client-admission-audit-route",
+    )
+    body = _admission_audit_payload(
+        approval=approval,
+        client_order_id="client-admission-audit-route",
+    )
+    headers = _headers(
+        idempotency_key="admission-audit-record-idem",
+        operator_intent="record_manual_order_admission_audit",
+        roles=AdminApiRole.ADMIN.value,
+    )
+
+    created = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=headers,
+        json=body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "accepted"
+    assert created_payload["required_permission"] == "admission_audit:record"
+    assert created_payload["service_method"] == "record_admission_audit"
+    assert created_payload["live_exchange_submitted"] is False
+    assert created_payload["live_coinbase_orders_ran"] is False
+    admission_audit = created_payload["admission_audit"]
+    admission_audit_id = admission_audit["admission_audit_id"]
+    assert created_payload["audit_id"] == admission_audit_id
+    assert admission_audit["approval_snapshot_id"] == approval.approval_id
+    assert (
+        admission_audit["approval_cap_guard_decision_ref"]
+        == approval.cap_guard_decision_ref
+    )
+    assert (
+        admission_audit["approval_reconciliation_plan_ref"]
+        == approval.reconciliation_plan_ref
+    )
+    assert admission_audit["live_execution_intent_ref"] == (
+        "AdminApiCommandService.place_manual_order"
+    )
+    assert admission_audit["resolver_eligible"] is True
+    assert admission_audit["allowed"] is False
+    assert admission_audit["status"] == AdminApiGateStatus.BLOCKED.value
+    assert admission_audit["admission_decision"]["live_exchange_submitted"] is False
+    assert "admission_audit_missing" in admission_audit["admission_decision"]["blockers"]
+
+    listed = client.get(
+        "/api/v1/admin/admission-audits",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed.status_code == 200
+    list_payload = listed.json()
+    assert list_payload["returned_count"] == 1
+    assert list_payload["total_count"] == 1
+    assert list_payload["blocked_count"] == 1
+    assert list_payload["passed_count"] == 0
+    assert list_payload["resolver_eligible_count"] == 1
+    assert list_payload["live_coinbase_orders_ran"] is False
+
+    detail = client.get(
+        f"/api/v1/admin/admission-audits/{admission_audit_id}",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+    assert detail.status_code == 200
+    assert detail.json()["admission_audit"]["admission_audit_id"] == admission_audit_id
+
+    proof = resolve_admission_audit_trail(
+        store=client.admin_api_test_audit_store,
+        request=AdmissionAuditTrailRequest(
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-admission-audit-route",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="place_manual_order",
+            actor_id="operator-001",
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approved",
+            payload_hash=body["payload_hash"],
+            approval_snapshot_id=approval.approval_id,
+        ),
+    )
+    assert proof is not None
+    assert proof.audit_id == admission_audit_id
+    assert proof.source == "admin_api_audit_log"
+
+    replayed = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=headers,
+        json=body,
+    )
+    assert replayed.status_code == 200
+    assert replayed.headers["X-Idempotency-Replayed"] == "true"
+    assert replayed.json()["admission_audit"]["admission_audit_id"] == (
+        admission_audit_id
+    )
+
+    conflict_body = dict(body)
+    conflict_body["reason"] = "changed reason"
+    conflict = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=headers,
+        json=conflict_body,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == "conflict"
+
+
+@pytest.mark.regression
+def test_admin_api_admission_audit_routes_fail_closed(monkeypatch):
+    client = _client(monkeypatch)
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id="client-admission-audit-denied",
+    )
+    body = _admission_audit_payload(
+        approval=approval,
+        client_order_id="client-admission-audit-denied",
+    )
+
+    denied = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=_headers(
+            idempotency_key="admission-audit-record-denied-idem",
+            operator_intent="unauthorized_admission_audit_record",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=body,
+    )
+    assert denied.status_code == 403
+    assert denied.json()["code"] == "permission_denied"
+
+    allowed = dict(body)
+    allowed["allowed"] = True
+    allowed["status"] = AdminApiGateStatus.PASSED.value
+    rejected = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=_headers(
+            idempotency_key="admission-audit-record-allowed-idem",
+            operator_intent="record_allowed_admission_audit",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=allowed,
+    )
+    assert rejected.status_code == 400
+    assert rejected.json()["status"] == "rejected"
+    assert "cannot mark live admission allowed" in rejected.json()["message"]
+    assert client.admin_api_test_audit_store.find_matching_admission_audit(
+        request=AdmissionAuditTrailRequest(
+            route="/api/v1/orders",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value="client-admission-audit-denied",
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="place_manual_order",
+            actor_id="operator-001",
+            operator_intent="manual_one_off",
+            idempotency_key="idem-approved",
+            payload_hash=body["payload_hash"],
+            approval_snapshot_id=approval.approval_id,
+        )
+    ) is None
+
+    read_only = dict(body)
+    read_only.update({
+        "route": "/api/v1/admin/bootstrap",
+        "method": "GET",
+        "module_id": "admin_system_health",
+        "identity_key": "request_id",
+        "identity_value": "corr-001",
+        "action_class": AdminApiActionClass.READ_ONLY.value,
+        "required_permission": AdminApiPermission.ANALYTICS_READ.value,
+        "service_method": "build_admin_bootstrap",
+    })
+    rejected_read_only = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=_headers(
+            idempotency_key="admission-audit-record-read-only-idem",
+            operator_intent="record_read_only_admission_audit",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=read_only,
+    )
+    assert rejected_read_only.status_code == 400
+    assert rejected_read_only.json()["status"] == "rejected"
+    assert "only valid for live-shaped command routes" in (
+        rejected_read_only.json()["message"]
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_cap_guard_decision_routes_record_replay_and_resolve(monkeypatch):
     client = _client(monkeypatch)
     approval = _append_manual_order_approval(
@@ -3873,6 +4127,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     }
     assert {
         "admin.approval_lifecycle",
+        "admin.admission_audits",
         "admin.cap_guard_decisions",
         "spot.manual_order",
         "spot.order_cancel",
@@ -3900,6 +4155,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert {
         "admin.platform_evidence",
         "admin.approval_lifecycle",
+        "admin.admission_audits",
         "admin.cap_guard_decisions",
         "spot.read_models",
         "spot.order_command_drafts",
@@ -3944,6 +4200,21 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         approval_inventory["command_routes"]
     )
     assert "browser may request" in approval_inventory["frontend_boundary"]
+    admission_audit_inventory = inventory_by_id["admin.admission_audits"]
+    assert admission_audit_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert admission_audit_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert admission_audit_inventory["command_capable"] is True
+    assert admission_audit_inventory["live_designated"] is False
+    assert "POST /api/v1/admin/admission-audits" in (
+        admission_audit_inventory["command_routes"]
+    )
+    assert "must not write browser audit history" in (
+        admission_audit_inventory["frontend_boundary"]
+    )
     cap_guard_inventory = inventory_by_id["admin.cap_guard_decisions"]
     assert cap_guard_inventory["workflow_type"] == (
         AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
@@ -4029,6 +4300,21 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "must not become approval authority" in approval_taxonomy[
         "frontend_boundary"
     ]
+    admission_audit_taxonomy = taxonomy_by_id["admin.admission_audits"]
+    assert admission_audit_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_ADMISSION_AUDIT.value
+    )
+    assert admission_audit_taxonomy["workflow_id"] == "admin.admission_audits"
+    assert admission_audit_taxonomy["command_surfaces"] == [
+        "POST /api/v1/admin/admission-audits",
+    ]
+    assert admission_audit_taxonomy["action_classes"] == ["local_state_mutation"]
+    assert admission_audit_taxonomy["required_permissions"] == [
+        "admission_audit:record"
+    ]
+    assert admission_audit_taxonomy["live_adapter_required"] is False
+    assert admission_audit_taxonomy["route_local_execution_allowed"] is False
+    assert "must not create audit proof" in admission_audit_taxonomy["bff_boundary"]
     cap_guard_taxonomy = taxonomy_by_id["admin.cap_guard_decisions"]
     assert cap_guard_taxonomy["mutation_family"] == (
         AdminApiMutationFamilyType.ADMIN_CAP_GUARD_DECISION.value
@@ -4138,8 +4424,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 16
-    assert admin_module["action_posture"]["command_route_count"] == 4
+    assert admin_module["action_posture"]["read_route_count"] == 18
+    assert admin_module["action_posture"]["command_route_count"] == 5
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]
@@ -5742,6 +6028,21 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     enterprise_readiness_route = rows["GET /api/v1/admin/enterprise-readiness"]
     assert enterprise_readiness_route.shared_method == "build_enterprise_readiness"
     assert "structured command-gap" in enterprise_readiness_route.parity_test
+    assert rows["GET /api/v1/admin/admission-audits"].shared_method == (
+        "list_admission_audits"
+    )
+    assert rows["GET /api/v1/admin/admission-audits"].permission == (
+        AdminApiPermission.ADMISSION_AUDIT_READ
+    )
+    assert rows[
+        "GET /api/v1/admin/admission-audits/{admission_audit_id}"
+    ].shared_method == "get_admission_audit"
+    assert rows["POST /api/v1/admin/admission-audits"].shared_method == (
+        "record_admission_audit"
+    )
+    assert rows["POST /api/v1/admin/admission-audits"].permission == (
+        AdminApiPermission.ADMISSION_AUDIT_RECORD
+    )
     assert rows["GET /api/v1/admin/cap-guard/decisions"].shared_method == (
         "list_cap_guard_decisions"
     )
@@ -5773,6 +6074,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_csrf_contract" in doc
     assert "build_live_enablement" in doc
     assert "build_enterprise_readiness" in doc
+    assert "list_admission_audits" in doc
+    assert "record_admission_audit" in doc
     assert "list_cap_guard_decisions" in doc
     assert "record_cap_guard_decision" in doc
     assert "structured command-gap" in doc
@@ -5832,6 +6135,18 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/admin/audit-workbench" in schema_http_surfaces
     assert "GET /api/v1/admin/enterprise-readiness" in inventory_http_surfaces
     assert "GET /api/v1/admin/enterprise-readiness" in schema_http_surfaces
+    assert "GET /api/v1/admin/admission-audits" in inventory_http_surfaces
+    assert "GET /api/v1/admin/admission-audits" in schema_http_surfaces
+    assert (
+        "GET /api/v1/admin/admission-audits/{admission_audit_id}"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/admin/admission-audits/{admission_audit_id}"
+        in schema_http_surfaces
+    )
+    assert "POST /api/v1/admin/admission-audits" in inventory_http_surfaces
+    assert "POST /api/v1/admin/admission-audits" in schema_http_surfaces
     assert "GET /api/v1/admin/cap-guard/decisions" in inventory_http_surfaces
     assert "GET /api/v1/admin/cap-guard/decisions" in schema_http_surfaces
     assert (

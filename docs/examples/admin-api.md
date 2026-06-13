@@ -854,7 +854,7 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50/M51 enterprise readiness posture:
 
 ```json
 {
@@ -867,16 +867,16 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
-  "functionality_inventory_count": 16,
-  "backend_supported_workflow_count": 15,
-  "admin_exposed_workflow_count": 13,
-  "command_workflow_count": 8,
+  "functionality_inventory_count": 17,
+  "backend_supported_workflow_count": 16,
+  "admin_exposed_workflow_count": 14,
+  "command_workflow_count": 9,
   "live_designated_workflow_count": 5,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 12,
-  "route_bound_mutation_taxonomy_count": 10,
+  "mutation_taxonomy_count": 13,
+  "route_bound_mutation_taxonomy_count": 11,
   "live_disabled_mutation_count": 5,
   "backend_contract_required_mutation_count": 2,
   "compatibility_mutation_count": 3,
@@ -1592,6 +1592,8 @@ Current read-only routes:
 - `GET /api/v1/admin/frontend-fixtures`
 - `GET /api/v1/admin/approvals`
 - `GET /api/v1/admin/approvals/requests/{approval_request_id}`
+- `GET /api/v1/admin/admission-audits`
+- `GET /api/v1/admin/admission-audits/{admission_audit_id}`
 - `GET /api/v1/admin/cap-guard/decisions`
 - `GET /api/v1/admin/cap-guard/decisions/{decision_id}`
 - `GET /api/v1/orders`
@@ -1682,6 +1684,71 @@ Content-Type: application/json
   "revoke_reason": "operator cancelled the approval"
 }
 ```
+
+## Admission Audit Records
+
+Admission audit routes persist backend-owned command admission proof only.
+They do not submit orders, call Coinbase, run cap/guard checks, execute
+reconciliation, or let the browser/BFF write audit authority.
+
+List recorded admission audits:
+
+```http
+GET /api/v1/admin/admission-audits?admission_status=blocked&limit=10
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Read one admission audit:
+
+```http
+GET /api/v1/admin/admission-audits/audit-admission-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Record one backend admission audit proof:
+
+```http
+POST /api/v1/admin/admission-audits
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: admission-audit-record-001
+X-Correlation-Id: corr-admission-audit-001
+X-Operator-Intent: record_manual_order_admission_audit
+Content-Type: application/json
+
+{
+  "route": "/api/v1/orders",
+  "method": "POST",
+  "module_id": "spot_operations",
+  "identity_key": "client_order_id",
+  "identity_value": "client-approved-001",
+  "action_class": "live_exchange_place",
+  "required_permission": "order:create",
+  "service_method": "place_manual_order",
+  "actor_id": "operator-001",
+  "operator_intent": "manual_one_off",
+  "command_idempotency_key": "manual-order-idem-001",
+  "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "approval_snapshot_id": "approval-snapshot-001",
+  "approval_snapshot_approved_by_actor_id": "approver-001",
+  "approval_snapshot_requested_by_actor_id": "operator-001",
+  "approval_snapshot_expires_at": "2026-06-12T19:00:00+00:00",
+  "approval_cap_guard_decision_ref": "cap-guard-001",
+  "approval_reconciliation_plan_ref": "reconciliation-001",
+  "allowed": false,
+  "status": "blocked",
+  "reason": "backend admission audit proof recorded before cap/guard and reconciliation proofs"
+}
+```
+
+The writer rejects records that claim `allowed=true` or `status=passed`.
+The returned `admission_audit_id` can be linked by cap/guard and
+reconciliation records, but it does not authorize live execution.
 
 ## Cap/Guard Decision Records
 

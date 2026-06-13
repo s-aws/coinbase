@@ -411,6 +411,108 @@ class AdminApprovalLifecycleResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminAdmissionAuditCreateRequest(BaseModel):
+    """Append one backend-owned admission audit proof for command admission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    identity_key: str = Field(min_length=1)
+    identity_value: str = Field(min_length=1)
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    approval_snapshot_id: str = Field(min_length=1)
+    approval_snapshot_approved_by_actor_id: str | None = None
+    approval_snapshot_requested_by_actor_id: str | None = None
+    approval_snapshot_expires_at: str | None = None
+    approval_cap_guard_decision_ref: str = Field(min_length=1)
+    approval_reconciliation_plan_ref: str = Field(min_length=1)
+    allowed: bool = False
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    reason: str = Field(min_length=1)
+
+
+class AdminAdmissionAuditItem(BaseModel):
+    """Operator-visible append-only admission audit evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    admission_audit_id: str
+    recorded_at: str
+    route: str
+    method: str
+    module_id: str
+    identity_key: str
+    identity_value: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    command_idempotency_key: str
+    payload_hash: str
+    approval_snapshot_id: str
+    approval_snapshot_approved_by_actor_id: str | None = None
+    approval_snapshot_requested_by_actor_id: str | None = None
+    approval_snapshot_expires_at: str | None = None
+    approval_cap_guard_decision_ref: str
+    approval_reconciliation_plan_ref: str
+    live_execution_intent_ref: str
+    allowed: bool = False
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: str = "admin_api_audit_log"
+    resolver_eligible: bool = False
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    detail: str
+
+
+class AdminAdmissionAuditListResponse(BaseModel):
+    """List backend-owned admission audit records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_admission_audit_list"
+    admission_audits: list[AdminAdmissionAuditItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    blocked_count: int = Field(ge=0)
+    passed_count: int = Field(ge=0)
+    resolver_eligible_count: int = Field(ge=0)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminAdmissionAuditResponse(BaseModel):
+    """Response for admission audit mutations and detail reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_admission_audit"
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    admission_audit: AdminAdmissionAuditItem | None = None
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminCapGuardDecisionCreateRequest(BaseModel):
     """Append one backend-owned cap/guard decision for command admission."""
 

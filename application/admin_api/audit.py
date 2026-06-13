@@ -37,6 +37,9 @@ class AdminApiAuditEvent(BaseModel):
     failure_stage: str | None = None
     message: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    approval_cap_guard_decision_ref: str | None = None
+    approval_reconciliation_plan_ref: str | None = None
+    live_execution_intent_ref: str | None = None
 
 
 class AdmissionAuditTrailRequest(BaseModel):
@@ -138,6 +141,14 @@ class FileAdminApiAuditStore:
                 and decision.idempotency_key == request.idempotency_key
                 and decision.payload_hash == request.payload_hash
             ):
+                return event
+        return None
+
+    def find_by_audit_id(self, audit_id: str) -> AdminApiAuditEvent | None:
+        """Return the latest audit event with the given id, if present."""
+
+        for event in self.read_recent(limit=500):
+            if event.audit_id == audit_id:
                 return event
         return None
 

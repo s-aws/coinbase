@@ -2280,3 +2280,51 @@ Status:
   Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M51 Admission Audit Writer And Linkage Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- explain the canonical backend and frontend admission-audit route/wrapper/UI
+  path
+- verify admission audits are a reusable Admin/System Health primitive and not
+  a spot-only rule
+- verify the path does not enable live Coinbase execution
+- verify order, cancel, and admission identifiers are understandable
+- verify examples use `payload_hash` values valid against the backend/OpenAPI
+  64-character constraint
+
+Findings:
+
+- Initial blind review blocked because the website repository examples used
+  `sha256:payload`, which fails the backend/OpenAPI `payload_hash` length
+  constraint.
+
+Resolution:
+
+- Website admission-audit and approval examples now use 64-character payload
+  hashes.
+- Website mock approval, cap/guard, and admission-audit evidence uses the same
+  valid 64-character placeholder hash.
+- Follow-up blind review passed with no blockers and verified the backend
+  route registration, frontend wrappers, UI entry point, reusable platform
+  scope, `client_order_id` tracking rule, and no-live `$0` posture from the
+  repositories alone.
+
+Status:
+
+- Backend ownership check passed.
+- Backend focused Admin API contract checks passed with `71 passed,
+  1 warning`.
+- Backend full regression passed with `806 passed, 1 warning`.
+- Frontend focused wrapper/mock/AdminShell tests passed with `36 passed`.
+- Frontend `npm run release:gate` passed with `189` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

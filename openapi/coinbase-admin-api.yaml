@@ -941,6 +941,266 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/admission-audits:
+    get:
+      tags:
+      - admission-audit
+      summary: List backend-owned admission audit records
+      operationId: list_admin_admission_audits_api_v1_admin_admission_audits_get
+      parameters:
+      - name: admission_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - type: 'null'
+          title: Admission Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAdmissionAuditListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Admission audit was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - admission-audit
+      summary: Record a backend-owned admission audit
+      operationId: record_admin_admission_audit_api_v1_admin_admission_audits_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAdmissionAuditCreateRequest'
+      responses:
+        '200':
+          description: Admission audit mutation accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAdmissionAuditResponse'
+        '400':
+          description: Admission audit mutation rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAdmissionAuditResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAdmissionAuditResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/admission-audits/{admission_audit_id}:
+    get:
+      tags:
+      - admission-audit
+      summary: Read one backend-owned admission audit record
+      operationId: get_admin_admission_audit_api_v1_admin_admission_audits__admission_audit_id__get
+      parameters:
+      - name: admission_audit_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAdmissionAuditResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Admission audit was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/approvals:
     get:
       tags:
@@ -3532,6 +3792,357 @@ components:
       - reveal
       title: ActionGuardPhase
       description: Action-condition guard evaluation phase.
+    AdminAdmissionAuditCreateRequest:
+      properties:
+        route:
+          type: string
+          minLength: 1
+          title: Route
+        method:
+          type: string
+          minLength: 1
+          title: Method
+        module_id:
+          type: string
+          minLength: 1
+          title: Module Id
+        identity_key:
+          type: string
+          minLength: 1
+          title: Identity Key
+        identity_value:
+          type: string
+          minLength: 1
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          minLength: 1
+          title: Service Method
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Payload Hash
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        approval_snapshot_approved_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Approved By Actor Id
+        approval_snapshot_requested_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Requested By Actor Id
+        approval_snapshot_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Expires At
+        approval_cap_guard_decision_ref:
+          type: string
+          minLength: 1
+          title: Approval Cap Guard Decision Ref
+        approval_reconciliation_plan_ref:
+          type: string
+          minLength: 1
+          title: Approval Reconciliation Plan Ref
+        allowed:
+          type: boolean
+          title: Allowed
+          default: false
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      - approval_snapshot_id
+      - approval_cap_guard_decision_ref
+      - approval_reconciliation_plan_ref
+      - reason
+      title: AdminAdmissionAuditCreateRequest
+      description: Append one backend-owned admission audit proof for command admission.
+    AdminAdmissionAuditItem:
+      properties:
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        module_id:
+          type: string
+          title: Module Id
+        identity_key:
+          type: string
+          title: Identity Key
+        identity_value:
+          type: string
+          title: Identity Value
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          title: Payload Hash
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        approval_snapshot_approved_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Approved By Actor Id
+        approval_snapshot_requested_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Requested By Actor Id
+        approval_snapshot_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Expires At
+        approval_cap_guard_decision_ref:
+          type: string
+          title: Approval Cap Guard Decision Ref
+        approval_reconciliation_plan_ref:
+          type: string
+          title: Approval Reconciliation Plan Ref
+        live_execution_intent_ref:
+          type: string
+          title: Live Execution Intent Ref
+        allowed:
+          type: boolean
+          title: Allowed
+          default: false
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          type: string
+          title: Source
+          default: admin_api_audit_log
+        resolver_eligible:
+          type: boolean
+          title: Resolver Eligible
+          default: false
+        admission_decision:
+          anyOf:
+          - $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
+          - type: 'null'
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - admission_audit_id
+      - recorded_at
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      - approval_snapshot_id
+      - approval_cap_guard_decision_ref
+      - approval_reconciliation_plan_ref
+      - live_execution_intent_ref
+      - detail
+      title: AdminAdmissionAuditItem
+      description: Operator-visible append-only admission audit evidence.
+    AdminAdmissionAuditListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_admission_audit_list
+        admission_audits:
+          items:
+            $ref: '#/components/schemas/AdminAdmissionAuditItem'
+          type: array
+          title: Admission Audits
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Count
+        passed_count:
+          type: integer
+          minimum: 0.0
+          title: Passed Count
+        resolver_eligible_count:
+          type: integer
+          minimum: 0.0
+          title: Resolver Eligible Count
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - blocked_count
+      - passed_count
+      - resolver_eligible_count
+      title: AdminAdmissionAuditListResponse
+      description: List backend-owned admission audit records.
+    AdminAdmissionAuditResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_admission_audit
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: local_state_mutation
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        admission_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminAdmissionAuditItem'
+          - type: 'null'
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: AdminAdmissionAuditResponse
+      description: Response for admission audit mutations and detail reads.
     AdminApiActionClass:
       type: string
       enum:
@@ -3928,6 +4539,7 @@ components:
       type: string
       enum:
       - admin_approval_lifecycle
+      - admin_admission_audit
       - admin_cap_guard_decision
       - spot_manual_order
       - spot_order_cancel
@@ -3949,6 +4561,8 @@ components:
       - approval:read
       - approval:request
       - approval:manage
+      - admission_audit:read
+      - admission_audit:record
       - cap_guard:read
       - cap_guard:record
       - order:create
