@@ -69,6 +69,14 @@ requirement, and notional caps. Only `allowed=true` with `status=passed` is
 resolver-eligible. The routes do not execute reconciliation, mutate order or
 exchange state, submit Coinbase orders, or create browser/BFF reconciliation
 authority.
+M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
+through the shared `AdminApiCommandService.place_manual_order` method. It is
+configured evidence only and remains non-executable. M54 starts the Spot
+command-suite with `GET /api/v1/spot/command-suite`, a read-only readiness
+contract for manual order placement, cancel by `client_order_id`, and spot
+campaign execution. The route reports blockers, missing gate-chain evidence,
+and frontend/BFF display boundaries; it does not add live controls or execute
+Coinbase orders.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -139,6 +147,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/spot/cost-basis/status`
 - `GET /api/v1/spot/campaign/status`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
+- `GET /api/v1/spot/command-suite`
 
 `GET /api/v1/admin/enterprise-readiness` also exposes per-module
 `action_posture` evidence. The posture counts read routes, command routes,

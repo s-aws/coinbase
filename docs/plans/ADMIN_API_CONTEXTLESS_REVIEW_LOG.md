@@ -2,6 +2,61 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Spot Command Suite Readiness Review - Phases 1521-1540
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify `GET /api/v1/spot/command-suite` is read-only backend evidence and
+  not live execution authority
+- verify frontend, BFF, browser, and route-local code do not gain Coinbase
+  execution authority
+- verify spot-only wallet, USDC, no-shorting, cost-basis, and average-cost
+  rules stay spot-specific and are not copied into futures/perpetuals,
+  stealth, or movement/repricing modules
+- verify command identity uses `client_order_id` where appropriate, including
+  the project `cancel_order(client_order_id)` wrapper for Coinbase cancel
+- verify OpenAPI, route inventory, docs, frontend mocks, tests, and roadmap
+  phase range `1521-1540` are coherent
+
+Findings:
+
+- FIXED: the first blind review found the command-suite example used
+  `status="live_disabled"` on cancel and campaign rows even though `status`
+  is a gate-status enum. The examples now use `status="blocked"` and carry
+  live posture in `live_execution_status="live_disabled"`.
+- FIXED: the first blind review found route-inventory wording drift for
+  `GET /api/v1/spot/command-suite`. Backend markdown and frontend mock
+  evidence now say `read-only spot command-suite evidence`, matching generated
+  inventory.
+- FIXED: backend command evidence referenced `docs/COMMAND_WORKFLOWS.md`, but
+  the backend repository did not have that document. The backend now includes
+  the document and links it from `docs/README.md` and ownership metadata.
+- PASS: follow-up blind review found no blockers. It confirmed the route is a
+  read-only `GET`, the builder reports zero live/executable commands and `$0`
+  notional, cancel remains `client_order_id` scoped with
+  `cancel_order(client_order_id)`, and spot-only rules stay bounded to spot.
+- PASS: frontend/BFF evidence remains read/display-only. The canonical client
+  wrapper reads `GET /api/v1/spot/command-suite`, BFF allowlists it only as a
+  read route, and the UI renders evidence/table rows without command controls.
+
+Status:
+
+- Backend focused Admin API checks passed with `83 passed, 1 warning`.
+- Backend autonomous queue validation passed for `1521-1540`.
+- Backend full regression passed with `810 passed, 1 warning`.
+- Frontend focused M54 checks passed.
+- Frontend `npm run release:gate` passed with `190` unit tests and `3`
+  Playwright tests.
+- Blind/contextless follow-up review passed with no blockers.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Mutation Taxonomy And Authority Map Review - Phases 1461-1480
 
 Review scope:

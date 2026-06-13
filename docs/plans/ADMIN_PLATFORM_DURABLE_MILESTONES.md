@@ -140,8 +140,8 @@ path.
 | M50 - Cap/Guard Decision Execution Records | Complete | Persist route-specific backend cap/guard decisions and link them to command admission without browser guard, wallet, margin, or profitability authority. |
 | M51 - Admission Audit Writer And Linkage | Complete | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
 | M52 - Reconciliation Plan And Proof Records | Complete | Add backend-owned reconciliation plan record and proof contracts for admitted commands without browser reconciliation authority or reconciliation execution. |
-| M53 - Controlled Execution Adapter Pilot | In Progress | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
-| M54 - Spot Full Admin Command Suite | Planned | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
+| M53 - Controlled Execution Adapter Pilot | Complete | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
+| M54 - Spot Full Admin Command Suite | In Progress | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | Planned | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | Planned | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
 | M57 - Futures/Perpetuals Contract Foundation And Commands | Planned | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
@@ -2297,7 +2297,7 @@ Remaining blockers before live execution:
 Purpose: introduce one tightly scoped backend-owned pilot adapter path without
 creating browser/BFF execution authority or a second trading path.
 
-In-progress scope:
+Completed scope:
 
 - Active phases 1501-1520 advance the unattended range while preserving the
   no-live default and carried Coinbase cap policy.
@@ -2313,7 +2313,7 @@ In-progress scope:
   blocked.
 - All non-pilot live-shaped routes remain disabled adapter contracts.
 
-Current backend evidence:
+Completed backend evidence:
 
 - `application/admin_api/live_execution.py` owns the single-route M53 pilot
   adapter contract and the disabled adapter fallback.
@@ -2323,13 +2323,55 @@ Current backend evidence:
   non-executable, backend-owned, and still routed through
   `AdminApiCommandService.place_manual_order`.
 
-Remaining blockers before live execution:
+Remaining blockers before any future live execution:
 
 - Exact approval snapshot, admission audit, cap/guard decision,
   reconciliation plan, idempotency key, operator intent, payload hash, live
   execution service admission, backend regression, frontend release gate, and
   blind/contextless review must pass before any live Coinbase execution.
-- Live Coinbase execution remains not run for the current M53 dry-run slice;
+- Live Coinbase execution was not run for the M53 dry-run slice;
+  submitted and executed notional remain `$0`.
+
+## M54 - Spot Full Admin Command Suite
+
+Purpose: complete spot administration through backend-owned contracts without
+turning spot wallet, no-shorting, cost-basis, or campaign rules into platform
+defaults.
+
+Active first-slice scope:
+
+- Active phases 1521-1540 advance the unattended range while preserving the
+  no-live default and carried Coinbase cap policy.
+- `GET /api/v1/spot/command-suite` exposes read-only backend evidence for the
+  current spot command families: manual order placement, cancel by
+  `client_order_id`, and campaign execution.
+- The command-suite contract is display evidence. It reports route ownership,
+  mutation family, identity key, shared command-service method, required gate
+  chain, missing blockers, frontend/BFF authority boundaries, and no-live
+  notional.
+- The route does not execute commands, approve live execution, evaluate wallet
+  inventory in the browser, or authorize futures/perpetuals or stealth modules
+  with spot-specific rules.
+
+Current backend evidence:
+
+- `application/admin_api/read_service.py::build_spot_command_suite` derives
+  command readiness from route inventory and live-enablement evidence.
+- `api/v1/routes/spot.py` exposes the read-only route with
+  `analytics:read` permission.
+- OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
+  include the command-suite response.
+
+Remaining blockers before M54 can claim full spot command-suite completion:
+
+- The frontend must consume the generated schema and render command-suite
+  evidence without adding command authority.
+- Spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation,
+  and any eventual live execution screens must prove the full approval,
+  cap/guard, admission audit, reconciliation, live service, and adapter chain.
+- Backend regression, frontend release gate, and blind/contextless review must
+  pass for each broadened execution slice.
+- Live Coinbase execution remains not run for the current M54 read-only slice;
   submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog

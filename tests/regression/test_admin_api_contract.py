@@ -734,6 +734,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/recovery-gate" in written["paths"]
     assert "/api/v1/admin/fill-ledger-health" in written["paths"]
     assert "/api/v1/admin/frontend-fixtures" in written["paths"]
+    assert "/api/v1/spot/command-suite" in written["paths"]
     assert "/api/v1/spot/readiness" in written["paths"]
     assert "/api/v1/spot/direct-orders/{client_order_id}/audit" in written["paths"]
     assert written["info"]["title"] == "Coinbase Admin API"
@@ -773,6 +774,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "content" in spot_readiness_operation["responses"]["200"]
     assert "401" in spot_readiness_operation["responses"]
     assert "403" in spot_readiness_operation["responses"]
+    spot_command_suite_operation = written["paths"]["/api/v1/spot/command-suite"][
+        "get"
+    ]
+    assert "200" in spot_command_suite_operation["responses"]
+    assert "content" in spot_command_suite_operation["responses"]["200"]
+    assert "401" in spot_command_suite_operation["responses"]
+    assert "403" in spot_command_suite_operation["responses"]
     order_item_schema = written["components"]["schemas"]["AdminOrderReadItem"]
     assert "client_order_id" in order_item_schema["properties"]
     assert "order_id" not in order_item_schema["properties"]
@@ -881,6 +889,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     spot_readiness_schema = written["components"]["schemas"]["SpotReadinessResponse"]
     assert "products" in spot_readiness_schema["properties"]
     assert "wallet_snapshot" in spot_readiness_schema["properties"]
+    spot_command_suite_schema = written["components"]["schemas"][
+        "SpotCommandSuiteResponse"
+    ]
+    assert "commands" in spot_command_suite_schema["properties"]
+    assert "blocked_command_count" in spot_command_suite_schema["properties"]
+    assert "spot_rules_platform_default" in spot_command_suite_schema["properties"]
     spot_pnl_schema = written["components"]["schemas"]["SpotSweepPnlResponse"]
     assert "pnl_report" in spot_pnl_schema["properties"]
     for schema_name, component_schema in written["components"]["schemas"].items():
@@ -941,6 +955,7 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         == "movement_repricing"
     )
     assert route_modules["/api/v1/spot/readiness"] == "spot_operations"
+    assert route_modules["/api/v1/spot/command-suite"] == "spot_operations"
     websocket_modules = {
         item["surface"]: item["module_id"]
         for item in written["routes"]
@@ -3744,6 +3759,10 @@ def test_admin_api_read_only_spot_routes_are_auth_gated(monkeypatch):
 
     assert response.status_code == 401
 
+    response = client.get("/api/v1/spot/command-suite")
+
+    assert response.status_code == 401
+
 
 @pytest.mark.regression
 def test_admin_api_read_only_spot_readiness_uses_read_service(monkeypatch):
@@ -3766,6 +3785,71 @@ def test_admin_api_read_only_spot_readiness_uses_read_service(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["products"] == ["BTC-USDC"]
+
+
+@pytest.mark.regression
+def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch):
+    client = _client(monkeypatch)
+
+    response = client.get(
+        "/api/v1/spot/command-suite",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "spot_command_suite"
+    assert payload["status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["module_id"] == "spot_operations"
+    assert payload["command_count"] == 3
+    assert payload["blocked_command_count"] == 3
+    assert payload["live_enabled_command_count"] == 0
+    assert payload["executable_command_count"] == 0
+    assert payload["spot_rules_platform_default"] is False
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "forward_only_no_execution"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+
+    commands = {item["mutation_family"]: item for item in payload["commands"]}
+    assert set(commands) == {
+        AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value,
+        AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value,
+        AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value,
+    }
+    manual = commands[AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value]
+    assert manual["route"] == "/api/v1/orders"
+    assert manual["method"] == "POST"
+    assert manual["identity_key"] == "client_order_id"
+    assert manual["shared_method"] == "place_manual_order"
+    assert manual["live_adapter_configured"] is True
+    assert manual["live_enabled"] is False
+    assert manual["executable"] is False
+    assert manual["status"] == AdminApiGateStatus.BLOCKED.value
+    assert (
+        manual["live_execution_status"]
+        == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+    )
+    assert "approval_snapshot" in manual["required_gate_chain"]
+    assert "live_execution_service" in manual["missing_gate_chain"]
+    assert "Spot-only" in manual["spot_rule_boundary"]
+
+    cancel = commands[AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value]
+    assert cancel["route"] == "/api/v1/orders/{client_order_id}/cancel"
+    assert cancel["identity_key"] == "client_order_id"
+    assert cancel["live_adapter_configured"] is False
+    assert (
+        cancel["live_execution_status"]
+        == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+    )
+    assert "cancel_order(client_order_id)" in cancel["backend_contract_refs"]
+
+    campaign = commands[AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value]
+    assert campaign["route"] == "/api/v1/spot/campaign/executions"
+    assert campaign["identity_key"] == "campaign_id"
+    assert campaign["live_adapter_configured"] is False
+    assert "business/spot_campaign.py" in campaign["backend_contract_refs"]
 
 
 @pytest.mark.regression
@@ -3944,7 +4028,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1501-1520"
+    assert live_payload["approved_phase_range"] == "1521-1540"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4498,7 +4582,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1501-1520"
+    assert enterprise_payload["approved_phase_range"] == "1521-1540"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -4861,7 +4945,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "spot short selling" in spot_module["unsupported_actions"]
     assert "client_order_id" in spot_module["identity_keys"]
     assert "POST /api/v1/orders" in spot_module["command_routes"]
-    assert spot_module["action_posture"]["read_route_count"] == 8
+    assert "GET /api/v1/spot/command-suite" in spot_module["read_routes"]
+    assert spot_module["action_posture"]["read_route_count"] == 9
     assert spot_module["action_posture"]["command_route_count"] == 3
     assert spot_module["action_posture"]["live_route_count"] == 3
     assert spot_module["action_posture"]["command_gap_count"] == 2
@@ -4978,6 +5063,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.releaseGate",
         "admin.recoveryGate",
         "admin.fillLedgerHealth",
+        "spot.commandSuite",
     } <= fixture_keys
     assert "release.gate" not in fixture_keys
     assert "recovery.gate" not in fixture_keys

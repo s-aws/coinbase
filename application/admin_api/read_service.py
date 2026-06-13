@@ -112,6 +112,8 @@ from .models import (
     AdminStealthOrderDetailResponse,
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
+    SpotCommandSuiteCommandItem,
+    SpotCommandSuiteResponse,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
@@ -119,7 +121,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1501-1520"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1521-1540"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -6640,7 +6642,198 @@ class AdminApiReadService:
                 "admin.releaseGate": self.build_release_gate().model_dump(mode="json"),
                 "admin.recoveryGate": self.build_recovery_gate().model_dump(mode="json"),
                 "admin.fillLedgerHealth": self.build_fill_ledger_health().model_dump(mode="json"),
+                "spot.commandSuite": self.build_spot_command_suite().model_dump(mode="json"),
             },
+        )
+
+    def build_spot_command_suite(self) -> SpotCommandSuiteResponse:
+        """Return read-only M54 spot command-suite readiness evidence."""
+
+        live_enablement = self.build_live_enablement()
+        live_paths = {
+            (path.method, path.route): path
+            for path in live_enablement.paths
+            if path.module_id == "spot_operations"
+        }
+        command_metadata = {
+            AdminApiMutationFamilyType.SPOT_MANUAL_ORDER: {
+                "surface": "POST /api/v1/orders",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::place_manual_order",
+                    "application/admin_api/command_service.py::place_manual_order",
+                    "business/spot_inventory_authority.py",
+                    "core/action_condition_guard.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::placeManualOrder",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.admin-api.md",
+                    "README.spot-trading.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Manual spot order placement is the M53 pilot route, but it "
+                    "remains non-executable until approval, cap/guard, audit, "
+                    "reconciliation, and live execution service admission pass."
+                ),
+            },
+            AdminApiMutationFamilyType.SPOT_ORDER_CANCEL: {
+                "surface": "POST /api/v1/orders/{client_order_id}/cancel",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::cancel_order_by_client_order_id",
+                    "application/admin_api/command_service.py::cancel_order_by_client_order_id",
+                    "cancel_order(client_order_id)",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::cancelOrderByClientOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.admin-api.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Spot cancel is keyed by client_order_id. Coinbase accepts "
+                    "that id through the project cancel_order(client_order_id) "
+                    "wrapper, but Admin API live cancel remains disabled until "
+                    "approval, audit, cap/guard, and reconciliation evidence pass."
+                ),
+            },
+            AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION: {
+                "surface": "POST /api/v1/spot/campaign/executions",
+                "identity_key": "campaign_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::execute_spot_campaign",
+                    "application/admin_api/command_service.py::execute_spot_campaign",
+                    "business/spot_campaign.py",
+                    "business/spot_portfolio_sweep.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotCampaign",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-campaign.md",
+                    "README.spot-portfolio-sweep.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Spot campaign execution remains a dry-run review contract. "
+                    "Live campaign execution must still use backend-owned "
+                    "campaign, sweep, approval, cap, audit, recovery, and "
+                    "reconciliation contracts."
+                ),
+            },
+        }
+        read_routes = [
+            item.surface
+            for item in ADMIN_API_ROUTE_INVENTORY
+            if item.module_id == "spot_operations"
+            and item.action_class == AdminApiActionClass.READ_ONLY
+        ]
+        commands: list[SpotCommandSuiteCommandItem] = []
+        for mutation_family, metadata in command_metadata.items():
+            inventory_item = next(
+                item
+                for item in ADMIN_API_ROUTE_INVENTORY
+                if item.surface == metadata["surface"]
+            )
+            method, route = _surface_method_and_path(inventory_item.surface)
+            live_path = live_paths[(method, route)]
+            missing_gate_chain = [
+                precondition.precondition.value
+                for precondition in live_path.readiness_preconditions
+                if precondition.blocking
+            ]
+            required_gate_chain = [
+                "idempotency",
+                "operator_intent",
+                "payload_hash",
+                "approval_snapshot",
+                "approval_store_contract",
+                "admission_audit",
+                "cap_guard_decision",
+                "reconciliation_plan",
+                "live_execution_adapter",
+                "live_execution_service",
+                "post_live_reconciliation",
+            ]
+            commands.append(
+                SpotCommandSuiteCommandItem(
+                    mutation_family=mutation_family,
+                    route=route,
+                    method=method,
+                    identity_key=str(metadata["identity_key"]),
+                    action_class=inventory_item.action_class,
+                    required_permission=inventory_item.permission,
+                    shared_method=inventory_item.shared_method,
+                    status=AdminApiGateStatus.BLOCKED,
+                    live_execution_status=live_path.status,
+                    live_enabled=False,
+                    live_eligible=False,
+                    executable=False,
+                    live_adapter_configured=live_path.live_execution_adapter.configured,
+                    approval_required=True,
+                    cap_guard_required=True,
+                    admission_audit_required=True,
+                    reconciliation_required=True,
+                    idempotency_required=True,
+                    operator_intent_required=True,
+                    payload_hash_required=True,
+                    backend_owned=True,
+                    route_bound=True,
+                    browser_authority="display_only",
+                    bff_authority="forward_only_no_execution",
+                    product_scope="USDC spot command scope",
+                    spot_rule_boundary=_enterprise_module_spot_boundary(
+                        "spot_operations"
+                    ),
+                    required_gate_chain=required_gate_chain,
+                    missing_gate_chain=missing_gate_chain,
+                    backend_contract_refs=list(metadata["backend_contract_refs"]),
+                    frontend_contract_refs=list(metadata["frontend_contract_refs"]),
+                    documentation_refs=list(metadata["documentation_refs"]),
+                    evidence=[
+                        "Derived from ADMIN_API_ROUTE_INVENTORY and live-enablement readiness evidence.",
+                        "No browser, BFF, route-local, or Coinbase execution authority is added.",
+                        "Spot-only wallet, no-shorting, USDC, average-cost, and lot authority remain backend guard evidence.",
+                    ],
+                    detail=str(metadata["detail"]),
+                )
+            )
+
+        return SpotCommandSuiteResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.BLOCKED,
+            command_count=len(commands),
+            blocked_command_count=sum(
+                1 for command in commands if command.status == AdminApiGateStatus.BLOCKED
+            ),
+            live_enabled_command_count=sum(
+                1 for command in commands if command.live_enabled
+            ),
+            executable_command_count=sum(1 for command in commands if command.executable),
+            spot_rules_platform_default=False,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
+            commands=commands,
+            read_routes=read_routes,
+            evidence=[
+                "M54 starts with read-only spot command-suite coverage before execution.",
+                "Manual order, cancel, and campaign command families remain live-blocked.",
+                "Spot command readiness is not platform-wide authority for non-spot modules.",
+            ],
+            message=(
+                "Spot command-suite coverage is backend-owned readiness evidence; "
+                "live Coinbase execution remains disabled."
+            ),
         )
 
     def build_spot_readiness(

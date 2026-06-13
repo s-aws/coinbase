@@ -756,6 +756,22 @@
     },
     {
       "module_id": "spot_operations",
+      "surface": "GET /api/v1/spot/command-suite",
+      "method": "GET",
+      "path": "/api/v1/spot/command-suite",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "read-only spot command-suite evidence",
+      "audit": "optional read audit",
+      "shared_method": "build_spot_command_suite",
+      "parity_test": "M54 read-only spot command coverage; no Coinbase REST placement",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/sweep/status",
       "method": "GET",
       "path": "/api/v1/spot/sweep/status",

@@ -14,6 +14,7 @@ from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
     SpotCampaignStatusResponse,
+    SpotCommandSuiteResponse,
     SpotCostBasisStatusResponse,
     SpotDirectOrderAuditResponse,
     SpotReadinessResponse,
@@ -66,6 +67,23 @@ def spot_readiness(
     return _read_model_response(
         SpotReadinessResponse,
         service.build_spot_readiness(product_ids=product_ids),
+    )
+
+
+@router.get(
+    "/spot/command-suite",
+    response_model=SpotCommandSuiteResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read spot command-suite readiness coverage",
+)
+def spot_command_suite(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        SpotCommandSuiteResponse,
+        service.build_spot_command_suite().model_dump(mode="json"),
     )
 
 

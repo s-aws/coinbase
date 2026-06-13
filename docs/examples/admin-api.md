@@ -160,13 +160,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M8-M53 live-enablement posture:
+Expected M8-M54 live-enablement posture:
 
 ```json
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1501-1520",
+  "approved_phase_range": "1521-1540",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -854,13 +854,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50/M51/M52/M53 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50/M51/M52/M53/M54 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1501-1520",
+  "approved_phase_range": "1521-1540",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1614,6 +1614,77 @@ Current read-only routes:
 - `GET /api/v1/spot/cost-basis/status`
 - `GET /api/v1/spot/campaign/status`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
+- `GET /api/v1/spot/command-suite`
+
+`GET /api/v1/spot/command-suite` is M54 read-only backend evidence for the
+current spot command families. It covers manual spot order placement, order
+cancel by `client_order_id`, and campaign execution readiness. It does not
+execute commands, approve live execution, evaluate wallet inventory in the
+browser, or make spot-only rules reusable by futures/perpetuals or stealth
+modules.
+
+```http
+GET /api/v1/spot/command-suite
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```json
+{
+  "type": "spot_command_suite",
+  "module_id": "spot_operations",
+  "status": "blocked",
+  "approved_phase_range": "1521-1540",
+  "command_count": 3,
+  "blocked_command_count": 3,
+  "live_enabled_command_count": 0,
+  "executable_command_count": 0,
+  "spot_rules_platform_default": false,
+  "browser_authority": "display_only",
+  "bff_authority": "forward_only_no_execution",
+  "submitted_notional_usdc": "0",
+  "executed_notional_usdc": "0",
+  "commands": [
+    {
+      "mutation_family": "spot_manual_order",
+      "route": "/api/v1/orders",
+      "method": "POST",
+      "identity_key": "client_order_id",
+      "shared_method": "place_manual_order",
+      "status": "blocked",
+      "live_execution_status": "approval_required",
+      "live_adapter_configured": true,
+      "live_enabled": false,
+      "executable": false
+    },
+    {
+      "mutation_family": "spot_order_cancel",
+      "route": "/api/v1/orders/{client_order_id}/cancel",
+      "method": "POST",
+      "identity_key": "client_order_id",
+      "shared_method": "cancel_order_by_client_order_id",
+      "status": "blocked",
+      "live_execution_status": "live_disabled",
+      "live_adapter_configured": false,
+      "live_enabled": false,
+      "executable": false
+    },
+    {
+      "mutation_family": "spot_campaign_execution",
+      "route": "/api/v1/spot/campaign/executions",
+      "method": "POST",
+      "identity_key": "campaign_id",
+      "shared_method": "execute_spot_campaign",
+      "status": "blocked",
+      "live_execution_status": "live_disabled",
+      "live_adapter_configured": false,
+      "live_enabled": false,
+      "executable": false
+    }
+  ]
+}
+```
 
 ## Approval Lifecycle
 

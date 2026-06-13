@@ -1961,6 +1961,70 @@ class SpotDirectOrderAuditResponse(AdminApiReadPayload):
     message: str | None = None
 
 
+class SpotCommandSuiteCommandItem(BaseModel):
+    """One spot admin command surface and its remaining gate chain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    route: str
+    method: str
+    identity_key: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    live_execution_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    live_enabled: bool = False
+    live_eligible: bool = False
+    executable: bool = False
+    live_adapter_configured: bool = False
+    approval_required: bool = True
+    cap_guard_required: bool = True
+    admission_audit_required: bool = True
+    reconciliation_required: bool = True
+    idempotency_required: bool = True
+    operator_intent_required: bool = True
+    payload_hash_required: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    product_scope: str = "USDC spot command scope"
+    spot_rule_boundary: str
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class SpotCommandSuiteResponse(AdminApiReadPayload):
+    """Read-only M54 spot command-suite readiness evidence."""
+
+    type: str = "spot_command_suite"
+    module_id: str = "spot_operations"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    approved_phase_range: str
+    command_count: int = 0
+    blocked_command_count: int = 0
+    live_enabled_command_count: int = 0
+    executable_command_count: int = 0
+    spot_rules_platform_default: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    commands: list[SpotCommandSuiteCommandItem] = Field(default_factory=list)
+    read_routes: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    message: str | None = None
+
+
 class AdminApiRouteInventoryItem(BaseModel):
     """Route/message inventory row used by docs and regression tests."""
 

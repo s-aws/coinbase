@@ -97,15 +97,19 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1501-1520`.
+- Active autonomous range: `1521-1540`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
-  M52 reconciliation plan records are complete. The active M53 range wires
-  controlled pilot adapter evidence for `POST /api/v1/orders` through
-  `AdminApiCommandService.place_manual_order` while keeping live Coinbase
-  execution disabled unless a later phase explicitly runs under the carried
-  cap policy. Browser approval, BFF forwarding, linked snapshots, cap/guard
-  records, audit records, reconciliation plans, or pilot adapter evidence are
-  not sufficient live execution authority by themselves.
+  M52 reconciliation plan records are complete. M53 closed with a single
+  dry-run pilot adapter for `POST /api/v1/orders` through
+  `AdminApiCommandService.place_manual_order`. The active M54 range starts
+  the Spot command-suite by exposing backend-owned read-only coverage at
+  `GET /api/v1/spot/command-suite` for manual order, cancel by
+  `client_order_id`, and campaign execution readiness. Live Coinbase
+  execution remains disabled unless a later phase explicitly runs under the
+  carried cap policy. Browser approval, BFF forwarding, linked snapshots,
+  cap/guard records, audit records, reconciliation plans, command-suite
+  evidence, or pilot adapter evidence are not sufficient live execution
+  authority by themselves.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

@@ -38,52 +38,64 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M53 Pilot Adapter Batch - Phases 1501-1520
+## Active M54 Spot Command-Suite Batch - Phases 1521-1540
 
-### Phase 1501 - Advance Active Queue Range
+### Phase 1521 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1481-1500 to active
-  phases 1501-1520 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1501-1520 to active
+  phases 1521-1540 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1502 - Pilot Route Selection
+### Phase 1522 - M53 Closeout
 
-- Select exactly one pilot route: `POST /api/v1/orders`, mapped to
-  `AdminApiCommandService.place_manual_order`.
+- Mark the M53 pilot adapter batch complete and carry forward its exact
+  single-route dry-run evidence as an M54 prerequisite.
 
-### Phase 1503 - Pilot Adapter Evidence
+### Phase 1523 - Spot Command-Suite Coverage Contract
 
-- Add backend-owned dry-run adapter evidence for the selected route only. The
-  contract must remain non-executable and expose no Coinbase client, submit,
-  create, cancel, or execute method.
+- Add a backend-owned read-only spot command-suite contract covering manual
+  order, cancel by `client_order_id`, and campaign execution.
 
-### Phase 1504 - Live-Enablement Evidence
+### Phase 1524 - Route Inventory Authority
 
-- Update `GET /api/v1/admin/live-enablement` so the pilot route reports the
-  configured dry-run adapter while all other live-shaped routes remain
-  disabled.
+- Derive the contract from `ADMIN_API_ROUTE_INVENTORY` and live-enablement
+  readiness so route, module, permission, identity, and shared method evidence
+  cannot drift from the rest of the Admin API.
 
-### Phase 1505 - Admission And Cap Proof
+### Phase 1525 - OpenAPI And Fixtures
 
-- Prove the pilot route still requires exact approval, admission audit,
-  cap/guard, reconciliation, idempotency, operator intent, payload hash, and
-  live execution service admission before execution.
+- Expose `GET /api/v1/spot/command-suite`, regenerate OpenAPI and route
+  inventory artifacts, and include the response in backend-owned frontend
+  fixtures.
 
-### Phase 1506 - Backend Boundary Tests
+### Phase 1526 - Backend Tests
 
-- Add focused tests that the pilot remains single-route, dry-run only,
-  backend-owned, and routed through the shared command service.
+- Cover auth gating, payload shape, no-live notional, command identities,
+  pilot adapter status, non-executable posture, and spot-rule boundaries.
 
-### Phase 1507 - Frontend Sync
+### Phase 1527 - Frontend Schema And Runtime Sync
 
-- Sync frontend schema/runtime/mock/UI evidence for M53 without creating a
-  browser live switch, BFF execution authority, or direct Coinbase call.
+- Regenerate the website generated schema, add canonical wrapper/runtime/mock
+  consumption, and keep BFF authority read-only.
 
-### Phase 1508 - Gates And Reviews
+### Phase 1528 - Frontend UI Evidence
 
-- Run focused backend/frontend gates, dry smokes, full regression/release gate,
-  and blind/contextless review before any later phase may consider live
-  Coinbase execution.
+- Render spot command-suite coverage in the spot operator surface without
+  enabling command execution, browser live switches, or BFF execution.
+
+### Phase 1529 - Gates And Reviews
+
+- Run focused backend/frontend gates, dry smokes, blind/contextless review,
+  backend full regression, and frontend release gate before advancing M54.
+
+## Completed M53 Pilot Adapter Batch - Phases 1501-1520
+
+- `POST /api/v1/orders` is the only configured dry-run pilot adapter route.
+- All pilot evidence remains non-executable and all non-pilot live-shaped
+  routes remain `live_disabled`.
+- Backend regression, frontend release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted/executed notional
+  stayed `$0`.
 
 ## Completed Approval Lifecycle Batch - Phases 1481-1500
 
