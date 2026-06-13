@@ -38,7 +38,118 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Recovery Apply/Rollback Executor Batch - Phases 1881-1900
+## Active M54 State Repair And Post-Apply Reconciliation Batch - Phases 1901-1920
+
+This batch directly follows no-live recovery execution journals. Apply and
+rollback journal acceptance is now durable evidence, but local state repair
+semantics and post-apply reconciliation completion remain blocked. The batch
+may define and test backend-owned local repair contracts. It does not
+authorize live Coinbase execution, browser recovery authority, browser
+reconciliation authority, exchange reads, or unreviewed order/exchange-state
+mutation.
+
+### Phase 1901 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1881-1900 to active
+  phases 1901-1920 while preserving no-live defaults and cap policy.
+
+### Phase 1902 - State Repair Taxonomy
+
+- Define allowed local repair categories and explicitly reject Coinbase calls,
+  exchange-state mutation, browser authority, and parallel repair paths.
+
+### Phase 1903 - Repair Target Model
+
+- Add a typed repair target model keyed by `client_order_id` and linked to
+  execution journal ids, proof ids, rollback plan ids, audit ids, and
+  reconciliation plan ids.
+
+### Phase 1904 - Pre-Apply Snapshot Resolver
+
+- Require backend-owned pre-apply snapshots before any repair can be
+  considered executable.
+
+### Phase 1905 - Dry-Run Repair Plan
+
+- Materialize intended local repair actions without mutating order,
+  fill-ledger, reconciliation, or exchange state.
+
+### Phase 1906 - Repair Mutation Guard
+
+- Add one backend guard that rejects repairs unless journal, snapshot, proof,
+  approval, admission, cap/guard, reconciliation, idempotency, and operator
+  intent evidence match exactly.
+
+### Phase 1907 - Local Apply Repair Contract
+
+- Implement the first no-live local apply repair contract only after the guard
+  passes; keep Coinbase and browser/BFF authority unavailable.
+
+### Phase 1908 - Rollback Repair Contract
+
+- Define rollback semantics for locally applied repairs, including required
+  journal and snapshot evidence.
+
+### Phase 1909 - Repair Result Journal
+
+- Persist append-only repair result evidence with explicit state-repair,
+  order-state mutation, and rollback linkage fields.
+
+### Phase 1910 - Post-Apply Reconciliation Resolver
+
+- Resolve post-apply reconciliation evidence from backend records only.
+
+### Phase 1911 - Recovery Completion State
+
+- Distinguish journal accepted, repair applied, rollback applied,
+  reconciliation proof satisfied, and fully reconciled states.
+
+### Phase 1912 - Readback Evidence
+
+- Expose repair plans, repair result journals, rollback state, and
+  post-apply reconciliation completion through recovery read routes.
+
+### Phase 1913 - Route Inventory And OpenAPI Sync
+
+- Update route inventory, capability rows, models, OpenAPI, and examples.
+
+### Phase 1914 - Frontend Contract Sync
+
+- Coordinate website schema, wrappers, BFF allowlists, mocks, runtime
+  evidence, and UI evidence without adding browser repair controls.
+
+### Phase 1915 - Spot UI Evidence
+
+- Render repair readiness, state-repair flags, rollback linkage, and
+  reconciliation completion as evidence only.
+
+### Phase 1916 - Safety Tests
+
+- Prove `order_id` cannot become repair identity and browser/BFF code cannot
+  bypass backend prerequisites.
+
+### Phase 1917 - Backend And Frontend Focused Tests
+
+- Cover repair dry-run, apply, rollback, readback, schema sync, mocks, and UI
+  evidence without Coinbase calls.
+
+### Phase 1918 - Docs And Examples
+
+- Update Admin API, command workflow, Spot trading, examples, matrix,
+  inventory, and handoff docs.
+
+### Phase 1919 - Contextless Review And Remediation
+
+- Run blind/contextless review and fix blockers before final gates.
+
+### Phase 1920 - Final Gates, Push, And Next Range
+
+- Run backend autonomous check, focused tests, full regression, and frontend
+  release gate; report live Coinbase notional `$0`, push both repos, and
+  create the next milestone-linked active range only if M54 still has an
+  explicit gap.
+
+## Completed M54 Recovery Apply/Rollback Execution Journal Batch - Phases 1881-1900
 
 This batch directly follows proof persistence. Proof records and readback now
 exist, but recovery apply execution, rollback execution, and post-apply
@@ -142,6 +253,21 @@ outside a reviewed backend recovery executor.
   release gate; report live Coinbase notional `$0`, push both repos, and
   create the next milestone-linked active range only if M54 still has an
   explicit gap.
+
+The 1881-1900 range completed no-live recovery execution journal evidence:
+
+- Added append-only apply/rollback journal records keyed by `client_order_id`
+  and linked to approval, admission audit, cap/guard, reconciliation plan,
+  proof, idempotency, and command audit evidence.
+- Changed recovery apply/rollback POST routes to prerequisite-gated
+  local-state routes: `200` when exact backend evidence matches, `400`
+  otherwise, with no Coinbase calls or state repair.
+- Added explicit journal/state-repair flags so contextless agents do not
+  confuse journal acceptance with state repair.
+- Synchronized backend OpenAPI, route inventory, docs, tests, frontend
+  generated schema, mocks, dry-smoke expectations, and Spot UI evidence.
+- Live Coinbase execution was not run; submitted/executed notional remained
+  `$0`.
 
 ## Completed M54 Spot Recovery Proof Persistence Batch - Phases 1861-1880
 
