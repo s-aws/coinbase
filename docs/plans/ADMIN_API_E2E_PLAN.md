@@ -38,7 +38,119 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Spot P/L Checkpoint Reconciliation-Link Evidence Batch - Phases 1781-1800
+## Active M54 Spot Recovery Apply Contract Foundation Batch - Phases 1821-1840
+
+This batch directly closes the next M54 planning gap: Spot recovery preview
+exists, but recovery apply review, rollback-plan evidence, and
+reconciliation-proof evidence are still missing backend contracts. The batch
+does not authorize recovery execution, repair apply, rollback execution,
+reconciliation execution, order/exchange-state mutation, browser authority, or
+Coinbase execution.
+
+### Phase 1821 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1801-1820 to active
+  phases 1821-1840 while preserving the no-live default and carried Coinbase
+  cap policy.
+
+### Phase 1822 - Recovery Apply Scope
+
+- Define fail-closed Spot recovery apply review as backend-owned evidence,
+  not an executor.
+
+### Phase 1823 - Recovery Identity Contract
+
+- Bind recovery candidates to `client_order_id`, preview source, audit
+  correlation, idempotency key, and module id.
+
+### Phase 1824 - Recovery Apply Models
+
+- Add typed request/response contracts for approval, cap/guard, audit,
+  rollback, reconciliation, and live-disabled blockers.
+
+### Phase 1825 - Recovery Apply Route Contract
+
+- Add the route contract through existing Admin API auth/RBAC and shared
+  service boundaries while keeping it live-disabled.
+
+### Phase 1826 - Rollback Plan Contract
+
+- Add rollback-plan read evidence for recovery candidates without rollback
+  authority.
+
+### Phase 1827 - Reconciliation Proof Contract
+
+- Add reconciliation-proof evidence fields without proof-writing authority.
+
+### Phase 1828 - Admission Gate Linkage
+
+- Link recovery review to existing approval, cap/guard, audit,
+  reconciliation plan, and live-boundary evidence.
+
+### Phase 1829 - No-Live Sentinel Tests
+
+- Prove submitted/executed notional remains `$0` and no Coinbase path runs.
+
+### Phase 1830 - Route Inventory And OpenAPI Sync
+
+- Update route inventory, capability rows, mutation taxonomy linkage, OpenAPI,
+  and examples.
+
+### Phase 1831 - Command-Suite Gap Update
+
+- Point remaining recovery gaps at the new apply-review, rollback-plan, and
+  reconciliation-proof contracts.
+
+### Phase 1832 - Docs And Examples
+
+- Update Admin API, command workflow, Spot trading, examples, matrix,
+  inventory, and handoff docs.
+
+### Phase 1833 - Frontend Schema Sync
+
+- Coordinate generated website schema from backend OpenAPI.
+
+### Phase 1834 - Frontend Contract Consumption
+
+- Coordinate wrappers, BFF allowlist, mock evidence, and runtime snapshots.
+
+### Phase 1835 - Frontend UI Evidence
+
+- Coordinate recovery contract readiness rendering without command authority.
+
+### Phase 1836 - Quality Artifact Alignment
+
+- Update release, deployment, runtime, smoke, and autonomous artifacts.
+
+### Phase 1837 - Focused Test Gates
+
+- Run backend focused tests and frontend focused tests for the new contract
+  evidence.
+
+### Phase 1838 - Contextless Review And Remediation
+
+- Run blind/contextless review and fix blockers before final gates.
+
+### Phase 1839 - Final Gates
+
+- Run backend autonomous check, focused tests, full regression, and frontend
+  release gate.
+
+### Phase 1840 - Summary, Push, And Next Range
+
+- Report live Coinbase notional `$0`, push both repos, and create the next
+  milestone-linked active range if M54 still has an explicit gap.
+
+## Completed M54 Spot Recovery Preview Evidence Batch - Phases 1801-1820
+
+- Added `GET /api/v1/spot/recovery/preview` as backend-owned read-only
+  recovery preview evidence.
+- Preserved no-live posture, no browser authority, no recovery apply, no
+  rollback, no reconciliation execution, and no Coinbase execution.
+- Left recovery apply, rollback plan, and reconciliation proof as explicit
+  M54 blockers.
+
+## Completed M54 Spot P/L Checkpoint Reconciliation-Link Evidence Batch - Phases 1781-1800
 
 ### Phase 1781 - Advance Active Queue Range
 

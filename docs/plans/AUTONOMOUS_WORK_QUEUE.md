@@ -6,12 +6,19 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1801-1820**.
+- Approved phase range: **1821-1840**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
   remains exceptional. Default work is dry/no-live.
 - If any stop condition occurs, resolve it before advancing to the next phase.
+- Active phases must map to an approved durable milestone and to a concrete
+  architecture or planning gap in the milestone ledger. Do not create orphan
+  phases, generic polish phases, or unrelated roadmap batches.
+- When the active range completes, mark it complete, create the next
+  milestone-linked active range, update validators/artifacts, and continue.
+  If no remaining approved milestone owns the next gap, stop and request a
+  new decision instead of inventing scope.
 
 ## Live Coinbase Cap Policy
 
@@ -46,7 +53,147 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1801-1820
+## Active Phases 1821-1840
+
+These phases continue M54 and directly address the current architecture gap:
+Spot recovery has read-only preview evidence, but recovery apply, rollback
+planning, and reconciliation proof contracts are still missing. This batch
+does not authorize live Coinbase execution, browser recovery authority,
+repair apply, order/exchange-state mutation, or a second recovery path.
+
+### Phase 1821 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1801-1820 to active
+  phases 1821-1840 while preserving the no-live default, carried Coinbase cap
+  policy, and milestone-linked phase discipline.
+
+### Phase 1822 - Recovery Apply Scope
+
+- Define Spot recovery apply as a backend-owned, live-disabled contract
+  foundation that can describe admissibility and blockers without applying a
+  repair, rollback, reconciliation proof, order mutation, or Coinbase action.
+
+### Phase 1823 - Recovery Identity Contract
+
+- Bind recovery candidates to `client_order_id`, source route, preview
+  evidence, audit correlation, idempotency key, and module id so apply and
+  rollback contracts cannot depend on exchange-native `order_id` for internal
+  tracking.
+
+### Phase 1824 - Recovery Apply Request Model
+
+- Add or update typed request/response model plans for a recovery-apply
+  review contract that reports approval, cap/guard, audit, reconciliation,
+  rollback, and live-disabled blockers before any executor exists.
+
+### Phase 1825 - Recovery Apply Route Contract
+
+- Add the backend route contract only through existing Admin API auth/RBAC
+  and shared command-service boundaries; it must fail closed and remain
+  no-live until later execution phases explicitly enable it.
+
+### Phase 1826 - Rollback Plan Contract
+
+- Define rollback-plan read evidence for recovery candidates so operators can
+  inspect what would need to be undone without granting rollback authority.
+
+### Phase 1827 - Reconciliation Proof Contract
+
+- Define the reconciliation proof fields required before a future recovery
+  action can be considered complete, while keeping proof writing backend-only
+  and live-disabled for this batch.
+
+### Phase 1828 - Admission Gate Linkage
+
+- Link recovery apply review to existing approval snapshot, cap/guard,
+  admission audit, reconciliation plan, and live execution boundary evidence
+  without creating route-local guard logic.
+
+### Phase 1829 - No-Live Sentinel Tests
+
+- Add regression coverage proving the new recovery contracts submit and
+  execute `0` USDC, do not call Coinbase, and remain blocked when approval,
+  cap/guard, audit, rollback, or reconciliation proof is missing.
+
+### Phase 1830 - Route Inventory And OpenAPI Sync
+
+- Update route inventory, capabilities, mutation taxonomy linkage, OpenAPI,
+  and generated examples for recovery apply review, rollback plan, and
+  reconciliation proof evidence.
+
+### Phase 1831 - Command-Suite Gap Update
+
+- Update Spot command-suite gaps so preview is complete and the remaining
+  blockers point to the new apply-review, rollback-plan, and reconciliation
+  proof contracts until those proofs exist.
+
+### Phase 1832 - Docs And Examples
+
+- Update Admin API docs, command workflows, Spot trading docs, examples,
+  capability matrix, route inventory, and maintainer handoff for contextless
+  recovery contract orientation.
+
+### Phase 1833 - Frontend Schema Sync
+
+- Coordinate website schema regeneration from backend OpenAPI for the new
+  recovery contract evidence without hand-editing generated files.
+
+### Phase 1834 - Frontend Contract Consumption
+
+- Add canonical website wrappers, BFF allowlist entries, mock evidence, and
+  runtime snapshots for recovery apply review, rollback plan, and
+  reconciliation proof routes while keeping browser authority display-only.
+
+### Phase 1835 - Frontend UI Evidence
+
+- Render recovery contract readiness, rollback blockers, reconciliation proof
+  blockers, route links, and no-live evidence in the Spot command suite
+  without adding command buttons that imply execution authority.
+
+### Phase 1836 - Quality Artifact Alignment
+
+- Update release, deployment, runtime, smoke, and autonomous artifacts for
+  approved phases 1821-1840 and preserve no-live notional evidence.
+
+### Phase 1837 - Focused Test Gates
+
+- Run backend focused regression for the recovery contracts and website
+  focused unit tests for schema, wrappers, mock runtime, BFF coverage, and
+  Spot UI evidence.
+
+### Phase 1838 - Contextless Review And Remediation
+
+- Run blind/contextless review for whether a fresh agent can explain the
+  recovery apply/rollback/reconciliation contract chain without inventing
+  browser authority or live Coinbase execution; remediate blockers.
+
+### Phase 1839 - Final Gates
+
+- Run `python tools\run_autonomous_work_queue_check.py --summary-only`,
+  `pytest tests\regression\ -v --tb=short`,
+  `python3 -m pytest tests/regression/ -v`, and website
+  `npm run release:gate`.
+
+### Phase 1840 - Summary, Push, And Next Range
+
+- Confirm Coinbase submitted/executed notional remains `$0`, commit and push
+  both repositories, mark 1821-1840 complete, and create the next
+  milestone-linked active phase range if M54 still has an explicit gap.
+
+## Completed Phases 1801-1820
+
+The 1801-1820 range completed Spot recovery-preview evidence:
+
+- `GET /api/v1/spot/recovery/preview` exposes backend-owned read-only
+  recovery preview sources, candidate counts, and missing apply, rollback,
+  and reconciliation proof contracts.
+- The route reuses existing recovery planning evidence and does not create
+  recovery apply, repair apply, rollback, reconciliation execution,
+  order/exchange-state mutation, browser authority, or Coinbase execution.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed Coinbase notional `$0`.
+
+## Completed Phase Detail 1801-1820
 
 ### Phase 1801 - Advance Active Queue Range
 

@@ -83,6 +83,26 @@ If a milestone discovers missing backend functionality, the correct result is
 gap with frontend logic, BFF logic, route-local execution, or a second trading
 path.
 
+## Phase Continuity Rules
+
+Active phase ranges are execution slices inside these milestones. They are
+not independent roadmaps.
+
+- Every new phase must name the parent milestone and the architecture or
+  planning gap it closes from this document, the route inventory, the
+  capability matrix, or the maintainer handoff.
+- When an active range is completed and pushed, the same handoff must mark
+  that range complete, create the next active range for the next milestone
+  gap, and update validators/artifacts that enforce the active range.
+- Do not create generic polish phases, recommendation-only phases, or product
+  scope that is not traceable to M47-M60.
+- Add a new milestone only when no existing approved milestone owns a gap
+  that would block the durable objective. The new milestone must state its
+  dependency, deliverable, proof, and non-goals. Otherwise use the existing
+  milestone and split it into smaller phases.
+- If no milestone-aligned next phase exists, stop and ask for a decision
+  instead of inventing work.
+
 ## Milestone Status
 
 | Milestone | Status | Purpose |
@@ -2499,9 +2519,9 @@ Completed fourteenth-slice scope:
   reconciliation workflow gaps remain open for backend apply/rollback and
   execution/proof contracts.
 
-Active fifteenth-slice scope:
+Completed fifteenth-slice scope:
 
-- Active phases 1801-1820 add a spot-scoped
+- Phases 1801-1820 added a spot-scoped
   `GET /api/v1/spot/recovery/preview` contract that reports backend-owned
   read-only recovery preview sources, candidate counts, and remaining
   apply/rollback/reconciliation blockers.
@@ -2513,6 +2533,19 @@ Active fifteenth-slice scope:
 - The Spot recovery workflow gap removes the preview-contract blocker when
   this route is present, while apply, rollback, and reconciliation proof remain
   blocked.
+
+Active sixteenth-slice scope:
+
+- Active phases 1821-1840 add the backend-owned contract foundation for Spot
+  recovery apply review, rollback-plan evidence, and reconciliation-proof
+  evidence.
+- These contracts must stay fail-closed and no-live. They may describe
+  admissibility, blockers, identity, approval, cap/guard, audit,
+  rollback-plan, and reconciliation proof requirements, but they must not
+  apply recovery, repair state, perform rollback, execute reconciliation,
+  mutate order/exchange state, or call Coinbase.
+- This slice is directly owned by M54 because the current Spot recovery and
+  reconciliation workflow gaps prevent full Spot command-suite completion.
 
 Current backend evidence:
 
@@ -2532,6 +2565,9 @@ Current backend evidence:
   coverage-gap evidence-route linkage, sweep automation command contract, and
   checkpoint mutation taxonomy, audit-link evidence, recovery-link evidence,
   reconciliation-link evidence, and recovery-preview evidence.
+- The durable autonomous work queue now advances to phases 1821-1840 for
+  recovery apply review, rollback-plan, and reconciliation-proof contract
+  foundation without adding live execution.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
