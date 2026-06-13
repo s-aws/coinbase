@@ -113,6 +113,7 @@ from .models import (
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
+    SpotCommandSuiteProofRouteItem,
     SpotCommandSuiteResponse,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
@@ -121,7 +122,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1521-1540"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1541-1560"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -6655,6 +6656,125 @@ class AdminApiReadService:
             for path in live_enablement.paths
             if path.module_id == "spot_operations"
         }
+        inventory_by_surface = {
+            item.surface: item for item in ADMIN_API_ROUTE_INVENTORY
+        }
+        proof_route_specs = (
+            (
+                AdminApiLivePreflightCategory.APPROVAL,
+                "POST /api/v1/admin/approvals/requests",
+                None,
+                [
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                (
+                    "Create a backend-owned approval request bound to the exact "
+                    "route, method, actor, idempotency key, payload hash, and "
+                    "command identity."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.APPROVAL,
+                "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+                "approval_request_id",
+                [
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                (
+                    "Record the backend approval decision. Browser approval "
+                    "remains insufficient and does not execute the command."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.AUDIT,
+                "POST /api/v1/admin/admission-audits",
+                None,
+                [
+                    "README.admission-audits.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admission-audits.md",
+                ],
+                (
+                    "Append exact admission audit evidence for the route-bound "
+                    "command. The writer cannot mark live admission allowed."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.CAP_GUARD,
+                "POST /api/v1/admin/cap-guard/decisions",
+                None,
+                [
+                    "README.cap-guard-decisions.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/cap-guard-decisions.md",
+                ],
+                (
+                    "Record backend cap/guard evidence. The browser and BFF "
+                    "must not evaluate wallet, inventory, profitability, margin, "
+                    "or account limits."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.RECONCILIATION,
+                "POST /api/v1/admin/reconciliation/plans",
+                None,
+                [
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/reconciliation-plans.md",
+                ],
+                (
+                    "Record backend reconciliation proof requirements. This "
+                    "does not execute reconciliation or mutate order/exchange "
+                    "state."
+                ),
+            ),
+        )
+
+        def proof_routes_for_command(
+            command_identity_key: str,
+        ) -> list[SpotCommandSuiteProofRouteItem]:
+            proof_routes: list[SpotCommandSuiteProofRouteItem] = []
+            for (
+                gate,
+                surface,
+                route_identity_key,
+                documentation_refs,
+                detail,
+            ) in proof_route_specs:
+                item = inventory_by_surface[surface]
+                method, route = _surface_method_and_path(item.surface)
+                proof_routes.append(
+                    SpotCommandSuiteProofRouteItem(
+                        gate=gate,
+                        route=route,
+                        method=method,
+                        action_class=item.action_class,
+                        required_permission=item.permission,
+                        shared_method=item.shared_method,
+                        status=AdminApiGateStatus.BLOCKED,
+                        required=True,
+                        blocking=True,
+                        identity_key=(
+                            command_identity_key
+                            if route_identity_key is None
+                            else route_identity_key
+                        ),
+                        command_identity_key=command_identity_key,
+                        backend_owned=True,
+                        route_bound=True,
+                        browser_authority="display_only",
+                        bff_authority="forward_only_no_execution",
+                        documentation_refs=list(documentation_refs),
+                        detail=detail,
+                    )
+                )
+            return proof_routes
+
         command_metadata = {
             AdminApiMutationFamilyType.SPOT_MANUAL_ORDER: {
                 "surface": "POST /api/v1/orders",
@@ -6798,8 +6918,10 @@ class AdminApiReadService:
                     backend_contract_refs=list(metadata["backend_contract_refs"]),
                     frontend_contract_refs=list(metadata["frontend_contract_refs"]),
                     documentation_refs=list(metadata["documentation_refs"]),
+                    proof_routes=proof_routes_for_command(str(metadata["identity_key"])),
                     evidence=[
                         "Derived from ADMIN_API_ROUTE_INVENTORY and live-enablement readiness evidence.",
+                        "Proof routes are derived from backend route inventory and remain local-state records until live admission passes.",
                         "No browser, BFF, route-local, or Coinbase execution authority is added.",
                         "Spot-only wallet, no-shorting, USDC, average-cost, and lot authority remain backend guard evidence.",
                     ],
@@ -6827,6 +6949,7 @@ class AdminApiReadService:
             read_routes=read_routes,
             evidence=[
                 "M54 starts with read-only spot command-suite coverage before execution.",
+                "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],

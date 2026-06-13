@@ -35,6 +35,13 @@ enum values such as `spot_manual_order`, `spot_order_cancel`, and
 `spot_campaign_execution`. A row's `status` is gate status, while
 `live_execution_status` is the live-execution posture.
 
+Each command row also reports `proof_routes` for the backend-owned local-state
+records that must exist before the command can become executable: approval
+request/decision, admission audit, cap/guard decision, and reconciliation
+plan. Those proof routes are derived from `ADMIN_API_ROUTE_INVENTORY`; the
+frontend may display them but must not evaluate the gates, synthesize proof,
+or treat them as live approval.
+
 Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls
 `cancel_order(client_order_id)` because the exchange accepts the client id for

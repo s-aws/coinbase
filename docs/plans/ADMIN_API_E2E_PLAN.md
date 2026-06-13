@@ -38,55 +38,76 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Spot Command-Suite Batch - Phases 1521-1540
+## Active M54 Gate-Chain Linkage Batch - Phases 1541-1560
 
-### Phase 1521 - Advance Active Queue Range
+### Phase 1541 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1501-1520 to active
-  phases 1521-1540 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1521-1540 to active
+  phases 1541-1560 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1522 - M53 Closeout
+### Phase 1542 - M54 First-Slice Closeout
 
-- Mark the M53 pilot adapter batch complete and carry forward its exact
-  single-route dry-run evidence as an M54 prerequisite.
+- Treat the read-only command-suite route as completed prerequisite evidence:
+  the route names spot command families but still does not execute commands.
 
-### Phase 1523 - Spot Command-Suite Coverage Contract
+### Phase 1543 - Proof-Route Contract
 
-- Add a backend-owned read-only spot command-suite contract covering manual
-  order, cancel by `client_order_id`, and campaign execution.
+- Add typed proof-route rows to `GET /api/v1/spot/command-suite` so each spot
+  command reports the exact backend local-state routes needed for approval,
+  admission audit, cap/guard, and reconciliation proof.
 
-### Phase 1524 - Route Inventory Authority
+### Phase 1544 - Route Inventory Authority
 
-- Derive the contract from `ADMIN_API_ROUTE_INVENTORY` and live-enablement
-  readiness so route, module, permission, identity, and shared method evidence
-  cannot drift from the rest of the Admin API.
+- Derive proof-route method, path, permission, action class, and shared method
+  from `ADMIN_API_ROUTE_INVENTORY`.
 
-### Phase 1525 - OpenAPI And Fixtures
+### Phase 1545 - Approval Linkage
 
-- Expose `GET /api/v1/spot/command-suite`, regenerate OpenAPI and route
-  inventory artifacts, and include the response in backend-owned frontend
-  fixtures.
+- Link each spot command to approval request and decision routes while keeping
+  browser approval and BFF forwarding insufficient for execution.
 
-### Phase 1526 - Backend Tests
+### Phase 1546 - Audit, Guard, And Reconciliation Linkage
 
-- Cover auth gating, payload shape, no-live notional, command identities,
-  pilot adapter status, non-executable posture, and spot-rule boundaries.
+- Link each spot command to admission audit, cap/guard decision, and
+  reconciliation plan record routes without adding wallet evaluation,
+  reconciliation execution, or Coinbase calls.
 
-### Phase 1527 - Frontend Schema And Runtime Sync
+### Phase 1547 - Identity Binding
 
-- Regenerate the website generated schema, add canonical wrapper/runtime/mock
-  consumption, and keep BFF authority read-only.
+- Prove command identity keys remain explicit: `client_order_id` for manual
+  and cancel, `campaign_id` for campaign execution, and
+  `approval_request_id` for approval decisions.
 
-### Phase 1528 - Frontend UI Evidence
+### Phase 1548 - Backend Tests And Artifacts
 
-- Render spot command-suite coverage in the spot operator surface without
-  enabling command execution, browser live switches, or BFF execution.
+- Cover proof-route payload shape and regenerate OpenAPI/route artifacts.
 
-### Phase 1529 - Gates And Reviews
+### Phase 1549 - Frontend Schema And Runtime Sync
 
-- Run focused backend/frontend gates, dry smokes, blind/contextless review,
-  backend full regression, and frontend release gate before advancing M54.
+- Regenerate the website generated schema and extend canonical spot adapters
+  to consume proof routes as display-only evidence.
+
+### Phase 1550 - Frontend UI Evidence
+
+- Render proof-route linkage in the spot operator surface without adding live
+  controls, browser gate evaluation, or BFF execution authority.
+
+### Phase 1551 - Gates And Reviews
+
+- Run focused backend/frontend gates, blind/contextless review, backend full
+  regression, and frontend release gate before advancing M54.
+
+## Completed M54 Read-Only Command-Suite Batch - Phases 1521-1540
+
+- `GET /api/v1/spot/command-suite` exposes backend-owned read-only coverage
+  for manual order placement, cancel by `client_order_id`, and campaign
+  execution.
+- The website consumes generated schema and renders command-suite readiness
+  without adding command authority.
+- Backend regression, frontend release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted/executed notional
+  stayed `$0`.
 
 ## Completed M53 Pilot Adapter Batch - Phases 1501-1520
 

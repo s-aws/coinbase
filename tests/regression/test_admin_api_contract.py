@@ -84,6 +84,7 @@ from core.enums import (
     AdminApiIdempotencyDecision,
     AdminApiLiveAdmissionBlocker,
     AdminApiLiveExecutionStatus,
+    AdminApiLivePreflightCategory,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
@@ -3834,6 +3835,46 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "approval_snapshot" in manual["required_gate_chain"]
     assert "live_execution_service" in manual["missing_gate_chain"]
     assert "Spot-only" in manual["spot_rule_boundary"]
+    manual_proof_routes = {
+        f"{item['method']} {item['route']}": item
+        for item in manual["proof_routes"]
+    }
+    assert {
+        "POST /api/v1/admin/approvals/requests",
+        "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        "POST /api/v1/admin/admission-audits",
+        "POST /api/v1/admin/cap-guard/decisions",
+        "POST /api/v1/admin/reconciliation/plans",
+    } == set(manual_proof_routes)
+    assert {
+        item["gate"] for item in manual["proof_routes"]
+    } == {
+        AdminApiLivePreflightCategory.APPROVAL.value,
+        AdminApiLivePreflightCategory.AUDIT.value,
+        AdminApiLivePreflightCategory.CAP_GUARD.value,
+        AdminApiLivePreflightCategory.RECONCILIATION.value,
+    }
+    for proof_route in manual["proof_routes"]:
+        assert proof_route["status"] == AdminApiGateStatus.BLOCKED.value
+        assert proof_route["required"] is True
+        assert proof_route["blocking"] is True
+        assert proof_route["backend_owned"] is True
+        assert proof_route["route_bound"] is True
+        assert proof_route["browser_authority"] == "display_only"
+        assert proof_route["bff_authority"] == "forward_only_no_execution"
+        assert proof_route["command_identity_key"] == "client_order_id"
+    assert (
+        manual_proof_routes[
+            "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions"
+        ]["identity_key"]
+        == "approval_request_id"
+    )
+    assert (
+        manual_proof_routes["POST /api/v1/admin/cap-guard/decisions"][
+            "required_permission"
+        ]
+        == AdminApiPermission.CAP_GUARD_RECORD.value
+    )
 
     cancel = commands[AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value]
     assert cancel["route"] == "/api/v1/orders/{client_order_id}/cancel"
@@ -3844,12 +3885,24 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
     )
     assert "cancel_order(client_order_id)" in cancel["backend_contract_refs"]
+    assert all(
+        item["command_identity_key"] == "client_order_id"
+        for item in cancel["proof_routes"]
+    )
+    assert any(
+        item["shared_method"] == "record_reconciliation_plan"
+        for item in cancel["proof_routes"]
+    )
 
     campaign = commands[AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value]
     assert campaign["route"] == "/api/v1/spot/campaign/executions"
     assert campaign["identity_key"] == "campaign_id"
     assert campaign["live_adapter_configured"] is False
     assert "business/spot_campaign.py" in campaign["backend_contract_refs"]
+    assert all(
+        item["command_identity_key"] == "campaign_id"
+        for item in campaign["proof_routes"]
+    )
 
 
 @pytest.mark.regression
@@ -4028,7 +4081,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1521-1540"
+    assert live_payload["approved_phase_range"] == "1541-1560"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4582,7 +4635,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1521-1540"
+    assert enterprise_payload["approved_phase_range"] == "1541-1560"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

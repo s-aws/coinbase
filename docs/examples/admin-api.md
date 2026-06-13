@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1521-1540",
+  "approved_phase_range": "1541-1560",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1521-1540",
+  "approved_phase_range": "1541-1560",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1621,7 +1621,9 @@ current spot command families. It covers manual spot order placement, order
 cancel by `client_order_id`, and campaign execution readiness. It does not
 execute commands, approve live execution, evaluate wallet inventory in the
 browser, or make spot-only rules reusable by futures/perpetuals or stealth
-modules.
+modules. Each command row includes backend-owned `proof_routes` for approval,
+admission audit, cap/guard, and reconciliation records. These routes are
+local-state evidence requirements only; they do not execute the command.
 
 ```http
 GET /api/v1/spot/command-suite
@@ -1635,7 +1637,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1521-1540",
+  "approved_phase_range": "1541-1560",
   "command_count": 3,
   "blocked_command_count": 3,
   "live_enabled_command_count": 0,
@@ -1656,7 +1658,124 @@ X-Admin-Roles: viewer
       "live_execution_status": "approval_required",
       "live_adapter_configured": true,
       "live_enabled": false,
-      "executable": false
+      "executable": false,
+      "proof_routes": [
+        {
+          "gate": "approval",
+          "route": "/api/v1/admin/approvals/requests",
+          "method": "POST",
+          "action_class": "local_state_mutation",
+          "required_permission": "approval:request",
+          "shared_method": "create_approval_request",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "identity_key": "client_order_id",
+          "command_identity_key": "client_order_id",
+          "backend_owned": true,
+          "route_bound": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "documentation_refs": [
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Create a backend-owned approval request bound to the exact route, method, actor, idempotency key, payload hash, and command identity."
+        },
+        {
+          "gate": "approval",
+          "route": "/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+          "method": "POST",
+          "action_class": "local_state_mutation",
+          "required_permission": "approval:manage",
+          "shared_method": "decide_approval_request",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "identity_key": "approval_request_id",
+          "command_identity_key": "client_order_id",
+          "backend_owned": true,
+          "route_bound": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "documentation_refs": [
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Record the backend approval decision. Browser approval remains insufficient and does not execute the command."
+        },
+        {
+          "gate": "audit",
+          "route": "/api/v1/admin/admission-audits",
+          "method": "POST",
+          "action_class": "local_state_mutation",
+          "required_permission": "admission_audit:record",
+          "shared_method": "record_admission_audit",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "identity_key": "client_order_id",
+          "command_identity_key": "client_order_id",
+          "backend_owned": true,
+          "route_bound": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "documentation_refs": [
+            "README.admission-audits.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admission-audits.md"
+          ],
+          "detail": "Append exact admission audit evidence for the route-bound command. The writer cannot mark live admission allowed."
+        },
+        {
+          "gate": "cap_guard",
+          "route": "/api/v1/admin/cap-guard/decisions",
+          "method": "POST",
+          "action_class": "local_state_mutation",
+          "required_permission": "cap_guard:record",
+          "shared_method": "record_cap_guard_decision",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "identity_key": "client_order_id",
+          "command_identity_key": "client_order_id",
+          "backend_owned": true,
+          "route_bound": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "documentation_refs": [
+            "README.cap-guard-decisions.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/cap-guard-decisions.md"
+          ],
+          "detail": "Record backend cap/guard evidence. The browser and BFF must not evaluate wallet, inventory, profitability, margin, or account limits."
+        },
+        {
+          "gate": "reconciliation",
+          "route": "/api/v1/admin/reconciliation/plans",
+          "method": "POST",
+          "action_class": "local_state_mutation",
+          "required_permission": "reconciliation:record",
+          "shared_method": "record_reconciliation_plan",
+          "status": "blocked",
+          "required": true,
+          "blocking": true,
+          "identity_key": "client_order_id",
+          "command_identity_key": "client_order_id",
+          "backend_owned": true,
+          "route_bound": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "documentation_refs": [
+            "README.reconciliation-plans.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/reconciliation-plans.md"
+          ],
+          "detail": "Record backend reconciliation proof requirements. This does not execute reconciliation or mutate order/exchange state."
+        }
+      ]
     },
     {
       "mutation_family": "spot_order_cancel",

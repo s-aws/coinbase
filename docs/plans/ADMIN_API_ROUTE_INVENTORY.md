@@ -75,7 +75,7 @@ their own module ids even though their paths live under `/api/v1/admin/*`.
 | `GET /api/v1/spot/cost-basis/status` | `read_only` | `analytics:read` | not required | not required | not applicable | optional read audit | `build_spot_cost_basis_status` | no Coinbase REST placement | |
 | `GET /api/v1/spot/campaign/status` | `read_only` | `campaign:read` | not required | not required | not applicable | optional read audit | `build_spot_campaign_status` | no Coinbase REST placement | |
 | `GET /api/v1/spot/direct-orders/{client_order_id}/audit` | `read_only` | `audit:read` | not required | not required | not applicable | optional read audit | `build_spot_direct_order_audit` | no Coinbase REST placement | |
-| `GET /api/v1/spot/command-suite` | `read_only` | `analytics:read` | not required | not required | read-only spot command-suite evidence | optional read audit | `build_spot_command_suite` | M54 read-only spot command coverage; no Coinbase REST placement | |
+| `GET /api/v1/spot/command-suite` | `read_only` | `analytics:read` | not required | not required | read-only spot command-suite evidence | optional read audit | `build_spot_command_suite` | M54 read-only spot command coverage with proof-route linkage; no Coinbase REST placement | |
 
 Legacy WebSocket live commands that are not passed through enterprise
 idempotency, approval, and cap gates must stay compatibility-only, constrained

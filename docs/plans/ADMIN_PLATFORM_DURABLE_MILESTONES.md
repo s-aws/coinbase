@@ -2338,9 +2338,9 @@ Purpose: complete spot administration through backend-owned contracts without
 turning spot wallet, no-shorting, cost-basis, or campaign rules into platform
 defaults.
 
-Active first-slice scope:
+Completed first-slice scope:
 
-- Active phases 1521-1540 advance the unattended range while preserving the
+- Phases 1521-1540 advanced the unattended range while preserving the
   no-live default and carried Coinbase cap policy.
 - `GET /api/v1/spot/command-suite` exposes read-only backend evidence for the
   current spot command families: manual order placement, cancel by
@@ -2353,6 +2353,19 @@ Active first-slice scope:
   inventory in the browser, or authorize futures/perpetuals or stealth modules
   with spot-specific rules.
 
+Active second-slice scope:
+
+- Active phases 1541-1560 add gate-chain proof-route linkage to the same
+  command-suite contract.
+- Each command row must name backend-owned local-state proof routes for
+  approval request/decision, admission audit records, cap/guard decision
+  records, and reconciliation plan records.
+- Proof-route metadata must derive from `ADMIN_API_ROUTE_INVENTORY` so method,
+  path, action class, permission, and shared service method cannot drift.
+- The linkage remains display evidence only. It must not add command
+  authority, browser guard evaluation, BFF execution authority, live
+  reconciliation execution, or Coinbase calls.
+
 Current backend evidence:
 
 - `application/admin_api/read_service.py::build_spot_command_suite` derives
@@ -2360,19 +2373,19 @@ Current backend evidence:
 - `api/v1/routes/spot.py` exposes the read-only route with
   `analytics:read` permission.
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
-  include the command-suite response.
+  include the command-suite response and proof-route gate linkage.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
 - The frontend must consume the generated schema and render command-suite
-  evidence without adding command authority.
+  proof-route evidence without adding command authority.
 - Spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation,
   and any eventual live execution screens must prove the full approval,
   cap/guard, admission audit, reconciliation, live service, and adapter chain.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
-- Live Coinbase execution remains not run for the current M54 read-only slice;
-  submitted and executed notional remain `$0`.
+- Live Coinbase execution remains not run for the current M54 proof-route
+  slice; submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
 

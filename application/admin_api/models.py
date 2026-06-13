@@ -1961,6 +1961,30 @@ class SpotDirectOrderAuditResponse(AdminApiReadPayload):
     message: str | None = None
 
 
+class SpotCommandSuiteProofRouteItem(BaseModel):
+    """Backend proof route required before a spot command can be executable."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    gate: AdminApiLivePreflightCategory
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    blocking: bool = True
+    identity_key: str
+    command_identity_key: str
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class SpotCommandSuiteCommandItem(BaseModel):
     """One spot admin command surface and its remaining gate chain."""
 
@@ -1999,6 +2023,7 @@ class SpotCommandSuiteCommandItem(BaseModel):
     backend_contract_refs: list[str] = Field(default_factory=list)
     frontend_contract_refs: list[str] = Field(default_factory=list)
     documentation_refs: list[str] = Field(default_factory=list)
+    proof_routes: list[SpotCommandSuiteProofRouteItem] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     detail: str
 
