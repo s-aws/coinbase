@@ -137,9 +137,12 @@ Spot recovery now has read-only contract evidence routes:
 recovery-gate, fill-ledger-health, and optional direct-order audit candidates.
 The apply-review, rollback-plan, and reconciliation-proof routes expose the
 client-order-id candidate identity, gate chain, rollback prerequisites, and
-proof-field requirements without adding execution authority. They remove the
-read-contract gap, but recovery apply execution, rollback execution,
-post-apply reconciliation, and reconciliation execution remain blockers.
+proof-field requirements without adding execution authority. They also expose
+read-only state-repair taxonomy, repair targets, pre-apply snapshots, dry-run
+repair plans, and completion-state evidence so operators can inspect why a
+candidate is blocked or journal-accepted without applying local state changes.
+They remove the read-contract gap, but state repair execution, post-apply
+reconciliation completion, and reconciliation execution remain blockers.
 Disabled POST contracts exist for recovery apply and rollback; proof POST
 contracts persist append-only backend local evidence only after route-bound
 approval, admission audit, cap/guard, reconciliation plan, idempotency, and

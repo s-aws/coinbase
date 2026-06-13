@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+import uuid
 
 from core.enums import (
     ActionConditionType,
@@ -42,6 +43,8 @@ from core.enums import (
     OrderSide,
     ProductCapability,
     ProductType,
+    SpotRecoveryCompletionState,
+    SpotRecoveryRepairCategory,
     StealthOrderStatus,
     StealthMutationKind,
     AdminRiskEvidenceSource,
@@ -119,14 +122,19 @@ from .models import (
     SpotCommandSuiteProofRouteItem,
     SpotCommandSuiteResponse,
     SpotRecoveryApplyReviewResponse,
+    SpotRecoveryCompletionStateItem,
     SpotRecoveryContractCandidateItem,
     SpotRecoveryContractGateItem,
+    SpotRecoveryDryRunRepairPlanItem,
     SpotRecoveryExecutionRecordItem,
+    SpotRecoveryPreApplySnapshotItem,
     SpotRecoveryPreviewResponse,
     SpotRecoveryPreviewSourceItem,
     SpotRecoveryProofRecordItem,
     SpotRecoveryReconciliationProofResponse,
+    SpotRecoveryRepairTargetItem,
     SpotRecoveryRollbackPlanResponse,
+    SpotRecoveryStateRepairTaxonomyItem,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .spot_recovery_execution import (
@@ -139,7 +147,7 @@ from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRe
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1881-1900"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1901-1920"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -156,6 +164,11 @@ def _string_or_none(value: Any) -> str | None:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _stable_read_id(prefix: str, *parts: str) -> str:
+    material = "|".join([prefix, *parts])
+    return f"{prefix}:{uuid.uuid5(uuid.NAMESPACE_URL, material)}"
 
 
 def _csrf_required() -> bool:
@@ -8250,6 +8263,354 @@ class AdminApiReadService:
             )
         return hydrated
 
+    def _spot_recovery_state_repair_taxonomy(
+        self,
+    ) -> list[SpotRecoveryStateRepairTaxonomyItem]:
+        return [
+            SpotRecoveryStateRepairTaxonomyItem(
+                category=SpotRecoveryRepairCategory.FILL_BACKFILL_LEDGER,
+                allowed_local_state_scope=["fill_ledger"],
+                required_evidence=[
+                    "client_order_id",
+                    "exchange_state_proof_id",
+                    "reconciliation_plan_id",
+                    "pre_apply_snapshot_id",
+                    "dry_run_repair_plan_id",
+                ],
+                rejected_mutations=[
+                    "coinbase_rest_read",
+                    "coinbase_order_submission",
+                    "exchange_state_mutation",
+                    "browser_repair_apply",
+                ],
+                fill_ledger_mutation_allowed=True,
+                detail=(
+                    "Fill-backfill ledger repair is an allowed local category "
+                    "only after backend guard evidence exists. This read model "
+                    "does not apply the repair."
+                ),
+            ),
+            SpotRecoveryStateRepairTaxonomyItem(
+                category=SpotRecoveryRepairCategory.DIRECT_ORDER_AUDIT_LINK,
+                allowed_local_state_scope=["admin_api_audit_log"],
+                required_evidence=[
+                    "client_order_id",
+                    "audit_id",
+                    "approval_snapshot_id",
+                    "admission_audit_id",
+                    "cap_guard_decision_id",
+                ],
+                rejected_mutations=[
+                    "coinbase_rest_read",
+                    "coinbase_order_submission",
+                    "exchange_state_mutation",
+                    "browser_audit_writer",
+                ],
+                detail=(
+                    "Direct-order audit linkage is backend-owned local "
+                    "evidence only. It cannot become browser authority or "
+                    "exchange truth."
+                ),
+            ),
+            SpotRecoveryStateRepairTaxonomyItem(
+                category=SpotRecoveryRepairCategory.RECOVERY_PROOF_LINKAGE,
+                allowed_local_state_scope=["spot_recovery_proof_log"],
+                required_evidence=[
+                    "exchange_state_proof_id",
+                    "reconciliation_proof_id",
+                    "recovery_apply_audit_id",
+                    "reconciliation_plan_id",
+                ],
+                rejected_mutations=[
+                    "coinbase_rest_read",
+                    "coinbase_order_submission",
+                    "order_state_mutation",
+                    "browser_proof_writer",
+                ],
+                detail=(
+                    "Recovery proof linkage is append-only proof evidence. "
+                    "It does not reconcile, repair, or mutate order state."
+                ),
+            ),
+            SpotRecoveryStateRepairTaxonomyItem(
+                category=(
+                    SpotRecoveryRepairCategory.RECONCILIATION_COMPLETION_MARK
+                ),
+                allowed_local_state_scope=["reconciliation_evidence"],
+                required_evidence=[
+                    "reconciliation_proof_id",
+                    "post_apply_state_snapshot_id",
+                    "recovery_apply_journal_id",
+                    "reconciliation_plan_id",
+                ],
+                rejected_mutations=[
+                    "coinbase_rest_read",
+                    "coinbase_order_submission",
+                    "exchange_state_mutation",
+                    "browser_reconciliation_execution",
+                ],
+                reconciliation_state_mutation_allowed=True,
+                detail=(
+                    "Reconciliation completion may only mark backend-owned "
+                    "local completion after proof evidence exists; it is not "
+                    "reconciliation execution."
+                ),
+            ),
+        ]
+
+    def _spot_recovery_target_evidence(
+        self,
+        *,
+        candidates: list[SpotRecoveryContractCandidateItem],
+        proof_records: list[SpotRecoveryProofRecordItem],
+        execution_records: list[SpotRecoveryExecutionRecordItem],
+    ) -> tuple[
+        list[SpotRecoveryRepairTargetItem],
+        list[SpotRecoveryPreApplySnapshotItem],
+        list[SpotRecoveryDryRunRepairPlanItem],
+        list[SpotRecoveryCompletionStateItem],
+    ]:
+        targets: list[SpotRecoveryRepairTargetItem] = []
+        snapshots: list[SpotRecoveryPreApplySnapshotItem] = []
+        dry_run_plans: list[SpotRecoveryDryRunRepairPlanItem] = []
+        completion_states: list[SpotRecoveryCompletionStateItem] = []
+
+        candidate_by_client_order_id = {
+            candidate.identity_value: candidate
+            for candidate in candidates
+        }
+        for record in execution_records:
+            if record.client_order_id not in candidate_by_client_order_id:
+                candidate_by_client_order_id[record.client_order_id] = (
+                    SpotRecoveryContractCandidateItem(
+                        candidate_type="execution_journal_readback",
+                        identity_value=record.client_order_id,
+                        preview_source="spot_recovery_execution_journal",
+                        source_route=record.route,
+                        preview_only=False,
+                        detail=(
+                            "Execution journal readback created this repair "
+                            "target; client_order_id remains the identity."
+                        ),
+                    )
+                )
+        for proof in proof_records:
+            if proof.client_order_id not in candidate_by_client_order_id:
+                candidate_by_client_order_id[proof.client_order_id] = (
+                    SpotRecoveryContractCandidateItem(
+                        candidate_type="proof_record_readback",
+                        identity_value=proof.client_order_id,
+                        preview_source="spot_recovery_proof_log",
+                        source_route=proof.route,
+                        preview_only=False,
+                        detail=(
+                            "Proof record readback created this repair target; "
+                            "client_order_id remains the identity."
+                        ),
+                    )
+                )
+
+        for client_order_id, candidate in sorted(
+            candidate_by_client_order_id.items()
+        ):
+            related_executions = [
+                record
+                for record in execution_records
+                if record.client_order_id == client_order_id
+            ]
+            related_proofs = [
+                record
+                for record in proof_records
+                if record.client_order_id == client_order_id
+            ]
+            target_id = _stable_read_id(
+                "spot-recovery-repair-target",
+                client_order_id,
+                candidate.candidate_type,
+            )
+            snapshot_id = _stable_read_id(
+                "spot-recovery-pre-apply-snapshot",
+                client_order_id,
+                target_id,
+            )
+            dry_run_plan_id = _stable_read_id(
+                "spot-recovery-dry-run-repair-plan",
+                client_order_id,
+                target_id,
+            )
+            latest_apply = next(
+                (
+                    record
+                    for record in related_executions
+                    if record.mutation_family
+                    == AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+                ),
+                None,
+            )
+            latest_rollback = next(
+                (
+                    record
+                    for record in related_executions
+                    if record.mutation_family
+                    == AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+                ),
+                None,
+            )
+            reconciliation_proof_satisfied = any(
+                proof.reconciliation_proof_id for proof in related_proofs
+            ) or any(
+                record.post_apply_reconciliation_satisfied
+                for record in related_executions
+            )
+            state = SpotRecoveryCompletionState.REPAIR_BLOCKED
+            if latest_rollback is not None:
+                state = SpotRecoveryCompletionState.ROLLBACK_APPLIED
+            elif reconciliation_proof_satisfied:
+                state = (
+                    SpotRecoveryCompletionState.RECONCILIATION_PROOF_SATISFIED
+                )
+            elif latest_apply is not None:
+                state = SpotRecoveryCompletionState.JOURNAL_ACCEPTED
+            elif candidate.preview_only:
+                state = SpotRecoveryCompletionState.DRY_RUN_REPAIR_PLANNED
+
+            execution_journal_ids = [
+                record.journal_id for record in related_executions
+            ]
+            proof_ids = [record.proof_id for record in related_proofs]
+            rollback_plan_ids = sorted({
+                record.rollback_plan_id
+                for record in related_executions
+                if record.rollback_plan_id
+            } | {f"rollback-plan:{client_order_id}"})
+            audit_ids = sorted({
+                record.audit_id
+                for record in [*related_executions, *related_proofs]
+                if record.audit_id
+            })
+            reconciliation_plan_ids = sorted({
+                record.reconciliation_plan_id
+                for record in [*related_executions, *related_proofs]
+                if record.reconciliation_plan_id
+            })
+
+            categories = [SpotRecoveryRepairCategory.FILL_BACKFILL_LEDGER]
+            if candidate.candidate_type == "direct_order_audit":
+                categories = [SpotRecoveryRepairCategory.DIRECT_ORDER_AUDIT_LINK]
+            if related_proofs:
+                categories.append(SpotRecoveryRepairCategory.RECOVERY_PROOF_LINKAGE)
+            if reconciliation_proof_satisfied:
+                categories.append(
+                    SpotRecoveryRepairCategory.RECONCILIATION_COMPLETION_MARK
+                )
+
+            targets.append(
+                SpotRecoveryRepairTargetItem(
+                    target_id=target_id,
+                    client_order_id=client_order_id,
+                    candidate_type=candidate.candidate_type,
+                    preview_source=candidate.preview_source,
+                    source_route=candidate.source_route,
+                    categories=list(dict.fromkeys(categories)),
+                    execution_journal_ids=execution_journal_ids,
+                    latest_apply_journal_id=(
+                        latest_apply.journal_id if latest_apply else None
+                    ),
+                    latest_rollback_journal_id=(
+                        latest_rollback.journal_id if latest_rollback else None
+                    ),
+                    exchange_state_proof_ids=[
+                        proof.exchange_state_proof_id
+                        for proof in related_proofs
+                        if proof.exchange_state_proof_id
+                    ],
+                    reconciliation_proof_ids=[
+                        proof.reconciliation_proof_id
+                        for proof in related_proofs
+                        if proof.reconciliation_proof_id
+                    ],
+                    rollback_plan_ids=rollback_plan_ids,
+                    audit_ids=audit_ids,
+                    reconciliation_plan_ids=reconciliation_plan_ids,
+                    pre_apply_snapshot_id=snapshot_id,
+                    dry_run_repair_plan_id=dry_run_plan_id,
+                    completion_state=state,
+                    detail=(
+                        "Repair target is backend-owned evidence keyed by "
+                        "client_order_id. It is not executable browser "
+                        "authority and does not use order_id."
+                    ),
+                )
+            )
+            snapshots.append(
+                SpotRecoveryPreApplySnapshotItem(
+                    snapshot_id=snapshot_id,
+                    target_id=target_id,
+                    client_order_id=client_order_id,
+                    execution_journal_ids=execution_journal_ids,
+                    proof_ids=proof_ids,
+                    rollback_plan_ids=rollback_plan_ids,
+                    audit_ids=audit_ids,
+                    reconciliation_plan_ids=reconciliation_plan_ids,
+                    detail=(
+                        "Pre-apply snapshot evidence is required before any "
+                        "future local state repair can run. This snapshot is "
+                        "not captured as mutable state in the current phase."
+                    ),
+                )
+            )
+            dry_run_plans.append(
+                SpotRecoveryDryRunRepairPlanItem(
+                    repair_plan_id=dry_run_plan_id,
+                    target_id=target_id,
+                    client_order_id=client_order_id,
+                    categories=list(dict.fromkeys(categories)),
+                    intended_local_mutations=[
+                        category.value for category in dict.fromkeys(categories)
+                    ],
+                    rejected_mutations=[
+                        "coinbase_rest_read",
+                        "coinbase_order_submission",
+                        "exchange_state_mutation",
+                        "browser_repair_apply",
+                    ],
+                    required_guard_chain=[
+                        "execution_journal",
+                        "pre_apply_snapshot",
+                        "exchange_state_proof",
+                        "approval_snapshot",
+                        "admission_audit",
+                        "cap_guard_decision",
+                        "reconciliation_plan",
+                        "operator_intent",
+                        "payload_hash",
+                    ],
+                    pre_apply_snapshot_id=snapshot_id,
+                    detail=(
+                        "Dry-run repair plan lists intended local categories "
+                        "and rejected mutations only. It does not mutate order, "
+                        "fill-ledger, reconciliation, or exchange state."
+                    ),
+                )
+            )
+            completion_states.append(
+                SpotRecoveryCompletionStateItem(
+                    client_order_id=client_order_id,
+                    target_id=target_id,
+                    state=state,
+                    journal_accepted=latest_apply is not None,
+                    rollback_applied=latest_rollback is not None,
+                    reconciliation_proof_satisfied=reconciliation_proof_satisfied,
+                    fully_reconciled=False,
+                    detail=(
+                        "Completion state is derived from backend proof and "
+                        "journal evidence. Full reconciliation remains blocked "
+                        "until backend completion semantics exist."
+                    ),
+                )
+            )
+        return targets, snapshots, dry_run_plans, completion_states
+
     def build_spot_recovery_apply_review(
         self,
         *,
@@ -8269,6 +8630,19 @@ class AdminApiReadService:
         candidates = self._spot_recovery_contract_candidates(preview)
         persisted_executions = self._spot_recovery_execution_records(
             client_order_id=client_order_id
+        )
+        persisted_proofs = self._spot_recovery_proof_records(
+            client_order_id=client_order_id
+        )
+        (
+            repair_targets,
+            pre_apply_snapshots,
+            dry_run_repair_plans,
+            completion_states,
+        ) = self._spot_recovery_target_evidence(
+            candidates=candidates,
+            proof_records=persisted_proofs,
+            execution_records=persisted_executions,
         )
         latest_apply_journal_id = next(
             (
@@ -8304,14 +8678,24 @@ class AdminApiReadService:
                 "rollback_plan_contract",
                 "exchange_state_proof_record",
                 "recovery_apply_execution_journal",
+                "state_repair_taxonomy",
+                "repair_target_model",
+                "pre_apply_snapshot",
+                "dry_run_repair_plan",
                 "post_apply_reconciliation",
             ],
             contract_gate_evidence=self._spot_recovery_contract_gate_evidence(),
+            state_repair_taxonomy=self._spot_recovery_state_repair_taxonomy(),
+            repair_targets=repair_targets,
+            pre_apply_snapshots=pre_apply_snapshots,
+            dry_run_repair_plans=dry_run_repair_plans,
+            completion_states=completion_states,
             persisted_execution_count=len(persisted_executions),
             persisted_executions=persisted_executions,
             latest_apply_journal_id=latest_apply_journal_id,
             post_apply_reconciliation_satisfied_count=post_apply_satisfied_count,
             missing_contracts=[
+                "spot_recovery_state_repair_contract",
                 "spot_recovery_post_apply_reconciliation_completion",
             ],
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
@@ -8343,6 +8727,19 @@ class AdminApiReadService:
         candidates = self._spot_recovery_contract_candidates(preview)
         persisted_executions = self._spot_recovery_execution_records(
             client_order_id=client_order_id
+        )
+        persisted_proofs = self._spot_recovery_proof_records(
+            client_order_id=client_order_id
+        )
+        (
+            repair_targets,
+            pre_apply_snapshots,
+            dry_run_repair_plans,
+            completion_states,
+        ) = self._spot_recovery_target_evidence(
+            candidates=candidates,
+            proof_records=persisted_proofs,
+            execution_records=persisted_executions,
         )
         latest_rollback_journal_id = next(
             (
@@ -8383,6 +8780,11 @@ class AdminApiReadService:
                     "detail": "Require reconciliation proof before a future recovery action can close.",
                 },
             ],
+            state_repair_taxonomy=self._spot_recovery_state_repair_taxonomy(),
+            repair_targets=repair_targets,
+            pre_apply_snapshots=pre_apply_snapshots,
+            dry_run_repair_plans=dry_run_repair_plans,
+            completion_states=completion_states,
             persisted_execution_count=len(persisted_executions),
             persisted_executions=persisted_executions,
             latest_rollback_journal_id=latest_rollback_journal_id,
@@ -8421,6 +8823,16 @@ class AdminApiReadService:
         )
         persisted_executions = self._spot_recovery_execution_records(
             client_order_id=client_order_id
+        )
+        (
+            repair_targets,
+            pre_apply_snapshots,
+            dry_run_repair_plans,
+            completion_states,
+        ) = self._spot_recovery_target_evidence(
+            candidates=candidates,
+            proof_records=persisted_proofs,
+            execution_records=persisted_executions,
         )
         latest_exchange_state_proof_id = next(
             (
@@ -8490,6 +8902,11 @@ class AdminApiReadService:
                 "operator_intent",
                 "audit_id",
             ],
+            state_repair_taxonomy=self._spot_recovery_state_repair_taxonomy(),
+            repair_targets=repair_targets,
+            pre_apply_snapshots=pre_apply_snapshots,
+            dry_run_repair_plans=dry_run_repair_plans,
+            completion_states=completion_states,
             persisted_proof_count=len(persisted_proofs),
             persisted_proofs=persisted_proofs,
             persisted_execution_count=len(persisted_executions),

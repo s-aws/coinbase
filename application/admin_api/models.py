@@ -52,6 +52,8 @@ from core.enums import (
     OrderType,
     ProductCapability,
     ProductType,
+    SpotRecoveryCompletionState,
+    SpotRecoveryRepairCategory,
     StealthMutationKind,
     TimeInForce,
 )
@@ -2320,6 +2322,131 @@ class SpotRecoveryContractGateItem(BaseModel):
     detail: str
 
 
+class SpotRecoveryStateRepairTaxonomyItem(BaseModel):
+    """Allowed and rejected Spot recovery state-repair category evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: SpotRecoveryRepairCategory
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    allowed_local_state_scope: list[str] = Field(default_factory=list)
+    required_evidence: list[str] = Field(default_factory=list)
+    rejected_mutations: list[str] = Field(default_factory=list)
+    state_repair_available: bool = False
+    order_state_mutation_allowed: bool = False
+    fill_ledger_mutation_allowed: bool = False
+    reconciliation_state_mutation_allowed: bool = False
+    exchange_state_mutation_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    coinbase_submission_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
+class SpotRecoveryRepairTargetItem(BaseModel):
+    """Backend-owned repair target keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_id: str
+    client_order_id: str
+    identity_key: str = "client_order_id"
+    candidate_type: str
+    preview_source: str
+    source_route: str
+    categories: list[SpotRecoveryRepairCategory] = Field(default_factory=list)
+    execution_journal_ids: list[str] = Field(default_factory=list)
+    latest_apply_journal_id: str | None = None
+    latest_rollback_journal_id: str | None = None
+    exchange_state_proof_ids: list[str] = Field(default_factory=list)
+    reconciliation_proof_ids: list[str] = Field(default_factory=list)
+    rollback_plan_ids: list[str] = Field(default_factory=list)
+    audit_ids: list[str] = Field(default_factory=list)
+    reconciliation_plan_ids: list[str] = Field(default_factory=list)
+    pre_apply_snapshot_id: str
+    dry_run_repair_plan_id: str
+    completion_state: SpotRecoveryCompletionState
+    state_repair_available: bool = False
+    state_repair_executed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    reconciliation_executed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
+class SpotRecoveryPreApplySnapshotItem(BaseModel):
+    """Read-only pre-apply snapshot evidence for one repair target."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_id: str
+    target_id: str
+    client_order_id: str
+    source: str = "admin_api_spot_recovery_pre_apply_snapshot"
+    snapshot_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    snapshot_captured: bool = False
+    required_before_state_repair: bool = True
+    execution_journal_ids: list[str] = Field(default_factory=list)
+    proof_ids: list[str] = Field(default_factory=list)
+    rollback_plan_ids: list[str] = Field(default_factory=list)
+    audit_ids: list[str] = Field(default_factory=list)
+    reconciliation_plan_ids: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
+class SpotRecoveryDryRunRepairPlanItem(BaseModel):
+    """Dry-run local repair plan evidence without mutation authority."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    repair_plan_id: str
+    target_id: str
+    client_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    categories: list[SpotRecoveryRepairCategory] = Field(default_factory=list)
+    intended_local_mutations: list[str] = Field(default_factory=list)
+    rejected_mutations: list[str] = Field(default_factory=list)
+    required_guard_chain: list[str] = Field(default_factory=list)
+    pre_apply_snapshot_id: str
+    executable: bool = False
+    state_repair_executed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    reconciliation_executed: bool = False
+    live_coinbase_orders_ran: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
+class SpotRecoveryCompletionStateItem(BaseModel):
+    """Recovery completion state derived from backend-owned evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str
+    target_id: str
+    state: SpotRecoveryCompletionState
+    journal_accepted: bool = False
+    repair_applied: bool = False
+    rollback_applied: bool = False
+    reconciliation_proof_satisfied: bool = False
+    fully_reconciled: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    detail: str
+
+
 class SpotRecoveryApplyReviewResponse(AdminApiReadPayload):
     """Read-only Spot recovery apply-review contract evidence."""
 
@@ -2335,10 +2462,20 @@ class SpotRecoveryApplyReviewResponse(AdminApiReadPayload):
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     required_gate_chain: list[str] = Field(default_factory=list)
     contract_gate_evidence: list[SpotRecoveryContractGateItem] = Field(default_factory=list)
+    state_repair_taxonomy: list[SpotRecoveryStateRepairTaxonomyItem] = Field(default_factory=list)
+    repair_targets: list[SpotRecoveryRepairTargetItem] = Field(default_factory=list)
+    pre_apply_snapshots: list[SpotRecoveryPreApplySnapshotItem] = Field(default_factory=list)
+    dry_run_repair_plans: list[SpotRecoveryDryRunRepairPlanItem] = Field(default_factory=list)
+    completion_states: list[SpotRecoveryCompletionStateItem] = Field(default_factory=list)
     persisted_execution_count: int = Field(default=0, ge=0)
     persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
     latest_apply_journal_id: str | None = None
     execution_journal_available: bool = True
+    state_repair_taxonomy_available: bool = True
+    repair_target_model_available: bool = True
+    pre_apply_snapshot_required: bool = True
+    dry_run_repair_plan_available: bool = True
+    state_repair_contract_available: bool = False
     missing_contracts: list[str] = Field(default_factory=list)
     apply_review_contract_available: bool = True
     recovery_apply_available: bool = True
@@ -2372,10 +2509,20 @@ class SpotRecoveryRollbackPlanResponse(AdminApiReadPayload):
     candidates: list[SpotRecoveryContractCandidateItem] = Field(default_factory=list)
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     rollback_steps: list[FlexibleDict] = Field(default_factory=list)
+    state_repair_taxonomy: list[SpotRecoveryStateRepairTaxonomyItem] = Field(default_factory=list)
+    repair_targets: list[SpotRecoveryRepairTargetItem] = Field(default_factory=list)
+    pre_apply_snapshots: list[SpotRecoveryPreApplySnapshotItem] = Field(default_factory=list)
+    dry_run_repair_plans: list[SpotRecoveryDryRunRepairPlanItem] = Field(default_factory=list)
+    completion_states: list[SpotRecoveryCompletionStateItem] = Field(default_factory=list)
     persisted_execution_count: int = Field(default=0, ge=0)
     persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
     latest_rollback_journal_id: str | None = None
     execution_journal_available: bool = True
+    state_repair_taxonomy_available: bool = True
+    repair_target_model_available: bool = True
+    pre_apply_snapshot_required: bool = True
+    dry_run_repair_plan_available: bool = True
+    rollback_repair_contract_available: bool = False
     missing_contracts: list[str] = Field(default_factory=list)
     rollback_plan_contract_available: bool = True
     rollback_execution_available: bool = True
@@ -2425,11 +2572,36 @@ class SpotRecoveryProofRecordItem(BaseModel):
     manual_live_acknowledgement: bool = False
     source: str = "admin_api_spot_recovery_proof_log"
     proof_persisted: bool = True
-    recovery_apply_executed: bool = False
-    rollback_executed: bool = False
-    reconciliation_executed: bool = False
-    order_state_mutated: bool = False
-    exchange_state_mutated: bool = False
+    recovery_apply_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for recovery apply journal/proof "
+            "acceptance only. This field does not mean state repair executed; "
+            "prefer execution_journal_accepted, recovery_apply_journal_accepted, "
+            "and state_repair_executed when available."
+        ),
+    )
+    rollback_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for rollback journal/proof acceptance "
+            "only. This field does not mean rollback mutated order or exchange "
+            "state; prefer rollback_journal_accepted and state_repair_executed "
+            "when available."
+        ),
+    )
+    reconciliation_executed: bool = Field(
+        default=False,
+        description="True only when backend reconciliation execution has actually run.",
+    )
+    order_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend order state was actually mutated.",
+    )
+    exchange_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend exchange-state evidence was actually mutated.",
+    )
     coinbase_rest_read_ran: bool = False
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
@@ -2472,18 +2644,68 @@ class SpotRecoveryExecutionRecordItem(BaseModel):
     manual_live_acknowledgement: bool = False
     source: str = "admin_api_spot_recovery_execution_journal"
     repair_journal_persisted: bool = True
-    execution_journal_accepted: bool = True
-    recovery_apply_journal_accepted: bool = False
-    rollback_journal_accepted: bool = False
-    recovery_apply_executed: bool = False
-    rollback_executed: bool = False
+    execution_journal_accepted: bool = Field(
+        default=True,
+        description=(
+            "Append-only local execution journal acceptance. This is evidence "
+            "only and does not imply state repair, rollback mutation, "
+            "reconciliation execution, or Coinbase activity."
+        ),
+    )
+    recovery_apply_journal_accepted: bool = Field(
+        default=False,
+        description=(
+            "True when the accepted journal row is a recovery-apply journal. "
+            "Prefer this over legacy recovery_apply_executed for new consumers."
+        ),
+    )
+    rollback_journal_accepted: bool = Field(
+        default=False,
+        description=(
+            "True when the accepted journal row is a rollback journal. Prefer "
+            "this over legacy rollback_executed for new consumers."
+        ),
+    )
+    recovery_apply_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for recovery apply journal acceptance "
+            "only. This does not mean state repair executed; prefer "
+            "execution_journal_accepted, recovery_apply_journal_accepted, and "
+            "state_repair_executed."
+        ),
+    )
+    rollback_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for rollback journal acceptance only. "
+            "This does not mean rollback mutated order or exchange state; "
+            "prefer execution_journal_accepted, rollback_journal_accepted, and "
+            "state_repair_executed."
+        ),
+    )
     post_apply_reconciliation_required: bool = True
     post_apply_reconciliation_satisfied: bool = False
     repair_intent_accepted: bool = True
-    state_repair_executed: bool = False
-    order_state_mutated: bool = False
-    exchange_state_mutated: bool = False
-    reconciliation_executed: bool = False
+    state_repair_executed: bool = Field(
+        default=False,
+        description=(
+            "True only when backend state repair actually executed. Current "
+            "no-live recovery journals must leave this false."
+        ),
+    )
+    order_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend order state was actually mutated.",
+    )
+    exchange_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend exchange state was actually mutated.",
+    )
+    reconciliation_executed: bool = Field(
+        default=False,
+        description="True only when backend reconciliation execution actually ran.",
+    )
     coinbase_order_submitted: bool = False
     coinbase_rest_read_ran: bool = False
     live_exchange_submitted: bool = False
@@ -2507,10 +2729,20 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     candidates: list[SpotRecoveryContractCandidateItem] = Field(default_factory=list)
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     required_proof_fields: list[str] = Field(default_factory=list)
+    state_repair_taxonomy: list[SpotRecoveryStateRepairTaxonomyItem] = Field(default_factory=list)
+    repair_targets: list[SpotRecoveryRepairTargetItem] = Field(default_factory=list)
+    pre_apply_snapshots: list[SpotRecoveryPreApplySnapshotItem] = Field(default_factory=list)
+    dry_run_repair_plans: list[SpotRecoveryDryRunRepairPlanItem] = Field(default_factory=list)
+    completion_states: list[SpotRecoveryCompletionStateItem] = Field(default_factory=list)
     persisted_proof_count: int = Field(default=0, ge=0)
     persisted_proofs: list[SpotRecoveryProofRecordItem] = Field(default_factory=list)
     proof_persistence_available: bool = True
     execution_journal_available: bool = True
+    state_repair_taxonomy_available: bool = True
+    repair_target_model_available: bool = True
+    pre_apply_snapshot_required: bool = True
+    dry_run_repair_plan_available: bool = True
+    post_apply_reconciliation_completion_available: bool = False
     persisted_execution_count: int = Field(default=0, ge=0)
     persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
     latest_exchange_state_proof_id: str | None = None

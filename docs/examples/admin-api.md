@@ -2141,7 +2141,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Read-only recovery apply-review contract evidence; it does not apply recovery, write repair rows, execute reconciliation, or call Coinbase."
+          "detail": "Read-only recovery apply-review contract evidence, including state-repair taxonomy, repair-target evidence, pre-apply snapshots, dry-run repair plans, and completion-state evidence; it does not apply recovery, write repair rows, execute reconciliation, or call Coinbase."
         },
         {
           "route": "/api/v1/spot/recovery/rollback-plan",
@@ -2157,7 +2157,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Read-only recovery rollback-plan contract evidence; it does not execute rollback, repair state, mutate orders, or call Coinbase."
+          "detail": "Read-only recovery rollback-plan contract evidence, including state-repair taxonomy, repair-target evidence, pre-apply snapshots, dry-run repair plans, and completion-state evidence; it does not execute rollback, repair state, mutate orders, or call Coinbase."
         },
         {
           "route": "/api/v1/spot/recovery/reconciliation-proof",
@@ -2173,7 +2173,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Read-only recovery reconciliation-proof contract evidence; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
+          "detail": "Read-only recovery reconciliation-proof contract evidence, including completion-state evidence from backend proof and execution-journal records; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
         },
         {
           "route": "/api/v1/admin/recovery-gate",
@@ -2206,7 +2206,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery state repair semantics and post-apply reconciliation completion. Proof persistence, execution journal evidence, and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
+      "required_backend_contract": "Spot recovery state repair execution semantics and post-apply reconciliation completion. Proof persistence, execution journal evidence, state-repair taxonomy, repair-target evidence, pre-apply snapshots, dry-run repair plans, completion-state evidence, and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2230,7 +2230,7 @@ X-Admin-Roles: viewer
         "docs/OPERATOR_READ_MODELS.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and recovery POST contracts do not apply recovery, execute reconciliation, mutate order/exchange state, or call Coinbase. Apply execution, rollback execution, and reconciliation execution must stay backend-owned before any recovery action exists."
+      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and recovery POST contracts do not apply recovery, execute reconciliation, mutate order/exchange state, or call Coinbase. State-repair taxonomy, repair targets, pre-apply snapshots, dry-run repair plans, and completion states are read evidence only. Apply execution, rollback execution, and reconciliation execution must stay backend-owned before any recovery action exists."
     },
     {
       "family": "spot_reconciliation_workflow",

@@ -51,18 +51,68 @@ class SpotRecoveryExecutionRecord(BaseModel):
     manual_live_acknowledgement: bool = False
     source: str = "admin_api_spot_recovery_execution_journal"
     repair_journal_persisted: bool = True
-    execution_journal_accepted: bool = True
-    recovery_apply_journal_accepted: bool = False
-    rollback_journal_accepted: bool = False
-    recovery_apply_executed: bool = False
-    rollback_executed: bool = False
+    execution_journal_accepted: bool = Field(
+        default=True,
+        description=(
+            "Append-only local execution journal acceptance. This is evidence "
+            "only and does not imply state repair, rollback mutation, "
+            "reconciliation execution, or Coinbase activity."
+        ),
+    )
+    recovery_apply_journal_accepted: bool = Field(
+        default=False,
+        description=(
+            "True when the accepted journal row is a recovery-apply journal. "
+            "Prefer this over legacy recovery_apply_executed for new consumers."
+        ),
+    )
+    rollback_journal_accepted: bool = Field(
+        default=False,
+        description=(
+            "True when the accepted journal row is a rollback journal. Prefer "
+            "this over legacy rollback_executed for new consumers."
+        ),
+    )
+    recovery_apply_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for recovery apply journal acceptance "
+            "only. This does not mean state repair executed; prefer "
+            "execution_journal_accepted, recovery_apply_journal_accepted, and "
+            "state_repair_executed."
+        ),
+    )
+    rollback_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for rollback journal acceptance only. "
+            "This does not mean rollback mutated order or exchange state; "
+            "prefer execution_journal_accepted, rollback_journal_accepted, and "
+            "state_repair_executed."
+        ),
+    )
     post_apply_reconciliation_required: bool = True
     post_apply_reconciliation_satisfied: bool = False
     repair_intent_accepted: bool = True
-    state_repair_executed: bool = False
-    order_state_mutated: bool = False
-    exchange_state_mutated: bool = False
-    reconciliation_executed: bool = False
+    state_repair_executed: bool = Field(
+        default=False,
+        description=(
+            "True only when backend state repair actually executed. Current "
+            "no-live recovery journals must leave this false."
+        ),
+    )
+    order_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend order state was actually mutated.",
+    )
+    exchange_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend exchange state was actually mutated.",
+    )
+    reconciliation_executed: bool = Field(
+        default=False,
+        description="True only when backend reconciliation execution actually ran.",
+    )
     coinbase_order_submitted: bool = False
     coinbase_rest_read_ran: bool = False
     live_exchange_submitted: bool = False

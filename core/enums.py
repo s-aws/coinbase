@@ -842,6 +842,27 @@ class SpotFillLedgerRepairStatus(str, Enum):
     FAILED = "failed"
 
 
+class SpotRecoveryRepairCategory(str, Enum):
+    """Allowed local repair categories for Spot recovery evidence."""
+
+    FILL_BACKFILL_LEDGER = "fill_backfill_ledger"
+    DIRECT_ORDER_AUDIT_LINK = "direct_order_audit_link"
+    RECOVERY_PROOF_LINKAGE = "recovery_proof_linkage"
+    RECONCILIATION_COMPLETION_MARK = "reconciliation_completion_mark"
+
+
+class SpotRecoveryCompletionState(str, Enum):
+    """Backend-owned completion state for Spot recovery repair evidence."""
+
+    JOURNAL_ACCEPTED = "journal_accepted"
+    DRY_RUN_REPAIR_PLANNED = "dry_run_repair_planned"
+    REPAIR_BLOCKED = "repair_blocked"
+    REPAIR_APPLIED = "repair_applied"
+    ROLLBACK_APPLIED = "rollback_applied"
+    RECONCILIATION_PROOF_SATISFIED = "reconciliation_proof_satisfied"
+    FULLY_RECONCILED = "fully_reconciled"
+
+
 class FillLedgerReconciliationStatus(str, Enum):
     """Persistence status for fill_ledger reconciliation evidence."""
 

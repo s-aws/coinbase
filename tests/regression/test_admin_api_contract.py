@@ -111,6 +111,8 @@ from core.enums import (
     AdminApiRole,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
+    SpotRecoveryCompletionState,
+    SpotRecoveryRepairCategory,
 )
 from tools.generate_admin_api_openapi import generate_openapi_schema
 from tools.export_admin_api_route_inventory import (
@@ -2683,6 +2685,36 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
 
 
 @pytest.mark.regression
+def test_admin_api_openapi_recovery_execution_legacy_flags_are_described():
+    schema = create_app().openapi()
+    schemas = schema["components"]["schemas"]
+    execution_properties = schemas["SpotRecoveryExecutionRecordItem"]["properties"]
+    proof_properties = schemas["SpotRecoveryProofRecordItem"]["properties"]
+
+    assert "journal acceptance only" in execution_properties[
+        "recovery_apply_executed"
+    ]["description"]
+    assert "does not mean state repair executed" in execution_properties[
+        "recovery_apply_executed"
+    ]["description"]
+    assert "prefer execution_journal_accepted" in execution_properties[
+        "recovery_apply_executed"
+    ]["description"]
+    assert "does not mean rollback mutated order or exchange state" in (
+        execution_properties["rollback_executed"]["description"]
+    )
+    assert "True only when backend state repair actually executed" in (
+        execution_properties["state_repair_executed"]["description"]
+    )
+    assert "journal/proof acceptance only" in proof_properties[
+        "recovery_apply_executed"
+    ]["description"]
+    assert "rollback journal/proof acceptance only" in proof_properties[
+        "rollback_executed"
+    ]["description"]
+
+
+@pytest.mark.regression
 def test_admin_api_examples_keep_operator_intent_in_headers():
     doc = (ROOT / "docs" / "examples" / "admin-api.md").read_text(encoding="utf-8")
     assert "X-Operator-Intent: manual_one_off" in doc
@@ -5188,7 +5220,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1881-1900"
+    assert live_payload["approved_phase_range"] == "1901-1920"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -5747,7 +5779,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1881-1900"
+    assert enterprise_payload["approved_phase_range"] == "1901-1920"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6254,7 +6286,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "1881-1900"
+    assert recovery_preview_payload["approved_phase_range"] == "1901-1920"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -6554,6 +6586,9 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
     assert "spot_recovery_post_apply_reconciliation_completion" in (
         apply_review.missing_contracts
     )
+    assert "spot_recovery_state_repair_contract" in (
+        apply_review.missing_contracts
+    )
     assert {gate.name for gate in apply_review.contract_gate_evidence} >= {
         "approval_snapshot",
         "admission_audit",
@@ -6581,6 +6616,57 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
         reconciliation_proof.missing_contracts
     )
     for payload in (apply_review, rollback_plan, reconciliation_proof):
+        assert payload.state_repair_taxonomy_available is True
+        assert payload.repair_target_model_available is True
+        assert payload.pre_apply_snapshot_required is True
+        assert payload.dry_run_repair_plan_available is True
+        assert payload.state_repair_taxonomy
+        taxonomy_by_category = {
+            item.category: item for item in payload.state_repair_taxonomy
+        }
+        assert SpotRecoveryRepairCategory.FILL_BACKFILL_LEDGER in taxonomy_by_category
+        assert taxonomy_by_category[
+            SpotRecoveryRepairCategory.FILL_BACKFILL_LEDGER
+        ].fill_ledger_mutation_allowed is True
+        assert all(
+            item.coinbase_read_allowed is False
+            and item.coinbase_submission_allowed is False
+            and item.exchange_state_mutation_allowed is False
+            and item.browser_authority == "display_only"
+            for item in payload.state_repair_taxonomy
+        )
+        assert payload.repair_targets
+        repair_target = payload.repair_targets[0]
+        assert repair_target.identity_key == "client_order_id"
+        assert repair_target.client_order_id == "client-order-preview"
+        assert repair_target.state_repair_available is False
+        assert repair_target.state_repair_executed is False
+        assert repair_target.order_state_mutated is False
+        assert repair_target.exchange_state_mutated is False
+        assert repair_target.completion_state in {
+            SpotRecoveryCompletionState.DRY_RUN_REPAIR_PLANNED,
+            SpotRecoveryCompletionState.REPAIR_BLOCKED,
+        }
+        assert payload.pre_apply_snapshots
+        assert payload.pre_apply_snapshots[0].client_order_id == (
+            "client-order-preview"
+        )
+        assert payload.pre_apply_snapshots[0].required_before_state_repair is True
+        assert payload.pre_apply_snapshots[0].snapshot_captured is False
+        assert payload.dry_run_repair_plans
+        dry_run_plan = payload.dry_run_repair_plans[0]
+        assert dry_run_plan.client_order_id == "client-order-preview"
+        assert dry_run_plan.executable is False
+        assert dry_run_plan.state_repair_executed is False
+        assert dry_run_plan.exchange_state_mutated is False
+        assert "coinbase_rest_read" in dry_run_plan.rejected_mutations
+        assert "pre_apply_snapshot" in dry_run_plan.required_guard_chain
+        assert payload.completion_states
+        assert payload.completion_states[0].client_order_id == (
+            "client-order-preview"
+        )
+        assert payload.completion_states[0].repair_applied is False
+        assert payload.completion_states[0].fully_reconciled is False
         assert payload.live_coinbase_orders_ran is False
         assert payload.live_coinbase_read_ran is False
         assert payload.submitted_notional_usdc == "0"
@@ -6913,6 +6999,32 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
         rollback_payload["data"]["journal_id"]
     )
     assert readback_payload["post_apply_reconciliation_required_count"] == 1
+    assert readback_payload["repair_target_model_available"] is True
+    assert readback_payload["pre_apply_snapshot_required"] is True
+    assert readback_payload["dry_run_repair_plan_available"] is True
+    assert readback_payload["repair_targets"]
+    readback_target = readback_payload["repair_targets"][0]
+    assert readback_target["client_order_id"] == client_order_id
+    assert readback_target["identity_key"] == "client_order_id"
+    assert apply_payload["data"]["journal_id"] in (
+        readback_target["execution_journal_ids"]
+    )
+    assert rollback_payload["data"]["journal_id"] in (
+        readback_target["execution_journal_ids"]
+    )
+    assert readback_target["state_repair_executed"] is False
+    assert readback_target["order_state_mutated"] is False
+    assert readback_target["exchange_state_mutated"] is False
+    assert readback_payload["pre_apply_snapshots"]
+    assert readback_payload["pre_apply_snapshots"][0]["snapshot_captured"] is False
+    assert readback_payload["dry_run_repair_plans"]
+    assert readback_payload["dry_run_repair_plans"][0]["executable"] is False
+    assert "coinbase_order_submission" in (
+        readback_payload["dry_run_repair_plans"][0]["rejected_mutations"]
+    )
+    assert readback_payload["completion_states"]
+    assert readback_payload["completion_states"][0]["rollback_applied"] is True
+    assert readback_payload["completion_states"][0]["fully_reconciled"] is False
 
 
 @pytest.mark.regression

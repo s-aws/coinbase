@@ -113,12 +113,15 @@ The dedicated recovery read-contract routes,
 `GET /api/v1/spot/recovery/reconciliation-proof`, extend that read-only
 evidence with preview candidates from recovery-gate, fill-ledger-health,
 optional direct-order audit lookup, apply-review gate dependencies, rollback
-prerequisites, and reconciliation-proof field requirements. They close the
-read-contract gap only. POST contracts also exist for recovery apply
+prerequisites, reconciliation-proof field requirements, state-repair taxonomy,
+repair-target evidence, pre-apply snapshots, dry-run repair plans, and
+completion-state evidence. They close the read-contract gap only. POST
+contracts also exist for recovery apply
 execution, rollback execution, exchange-state proof recording, and
 reconciliation-proof recording. Apply and rollback remain fail-closed until
-backend executors, post-apply reconciliation, and reconciliation execution are
-implemented. The proof POST routes persist append-only backend local evidence
+backend state-repair executors, post-apply reconciliation completion, and
+reconciliation execution are implemented. The proof POST routes persist
+append-only backend local evidence
 only after approval, admission audit, cap/guard, reconciliation plan,
 idempotency, and audit prerequisites match. The read routes and proof POST
 routes must not write repair rows, roll back state, execute reconciliation,

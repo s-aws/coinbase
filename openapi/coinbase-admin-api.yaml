@@ -12534,6 +12534,31 @@ components:
             $ref: '#/components/schemas/SpotRecoveryContractGateItem'
           type: array
           title: Contract Gate Evidence
+        state_repair_taxonomy:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryStateRepairTaxonomyItem'
+          type: array
+          title: State Repair Taxonomy
+        repair_targets:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairTargetItem'
+          type: array
+          title: Repair Targets
+        pre_apply_snapshots:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryPreApplySnapshotItem'
+          type: array
+          title: Pre Apply Snapshots
+        dry_run_repair_plans:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryDryRunRepairPlanItem'
+          type: array
+          title: Dry Run Repair Plans
+        completion_states:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryCompletionStateItem'
+          type: array
+          title: Completion States
         persisted_execution_count:
           type: integer
           minimum: 0.0
@@ -12553,6 +12578,26 @@ components:
           type: boolean
           title: Execution Journal Available
           default: true
+        state_repair_taxonomy_available:
+          type: boolean
+          title: State Repair Taxonomy Available
+          default: true
+        repair_target_model_available:
+          type: boolean
+          title: Repair Target Model Available
+          default: true
+        pre_apply_snapshot_required:
+          type: boolean
+          title: Pre Apply Snapshot Required
+          default: true
+        dry_run_repair_plan_available:
+          type: boolean
+          title: Dry Run Repair Plan Available
+          default: true
+        state_repair_contract_available:
+          type: boolean
+          title: State Repair Contract Available
+          default: false
         missing_contracts:
           items:
             type: string
@@ -12636,6 +12681,72 @@ components:
       - detail
       title: SpotRecoveryApplyReviewResponse
       description: Read-only Spot recovery apply-review contract evidence.
+    SpotRecoveryCompletionState:
+      type: string
+      enum:
+      - journal_accepted
+      - dry_run_repair_planned
+      - repair_blocked
+      - repair_applied
+      - rollback_applied
+      - reconciliation_proof_satisfied
+      - fully_reconciled
+      title: SpotRecoveryCompletionState
+      description: Backend-owned completion state for Spot recovery repair evidence.
+    SpotRecoveryCompletionStateItem:
+      properties:
+        client_order_id:
+          type: string
+          title: Client Order Id
+        target_id:
+          type: string
+          title: Target Id
+        state:
+          $ref: '#/components/schemas/SpotRecoveryCompletionState'
+        journal_accepted:
+          type: boolean
+          title: Journal Accepted
+          default: false
+        repair_applied:
+          type: boolean
+          title: Repair Applied
+          default: false
+        rollback_applied:
+          type: boolean
+          title: Rollback Applied
+          default: false
+        reconciliation_proof_satisfied:
+          type: boolean
+          title: Reconciliation Proof Satisfied
+          default: false
+        fully_reconciled:
+          type: boolean
+          title: Fully Reconciled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - target_id
+      - state
+      - detail
+      title: SpotRecoveryCompletionStateItem
+      description: Recovery completion state derived from backend-owned evidence.
     SpotRecoveryContractCandidateItem:
       properties:
         candidate_type:
@@ -12749,6 +12860,92 @@ components:
       - detail
       title: SpotRecoveryContractGateItem
       description: Backend-owned recovery contract gate evidence.
+    SpotRecoveryDryRunRepairPlanItem:
+      properties:
+        repair_plan_id:
+          type: string
+          title: Repair Plan Id
+        target_id:
+          type: string
+          title: Target Id
+        client_order_id:
+          type: string
+          title: Client Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        categories:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairCategory'
+          type: array
+          title: Categories
+        intended_local_mutations:
+          items:
+            type: string
+          type: array
+          title: Intended Local Mutations
+        rejected_mutations:
+          items:
+            type: string
+          type: array
+          title: Rejected Mutations
+        required_guard_chain:
+          items:
+            type: string
+          type: array
+          title: Required Guard Chain
+        pre_apply_snapshot_id:
+          type: string
+          title: Pre Apply Snapshot Id
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        state_repair_executed:
+          type: boolean
+          title: State Repair Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - repair_plan_id
+      - target_id
+      - client_order_id
+      - pre_apply_snapshot_id
+      - detail
+      title: SpotRecoveryDryRunRepairPlanItem
+      description: Dry-run local repair plan evidence without mutation authority.
     SpotRecoveryExchangeStateProofRequest:
       properties:
         client_order_id:
@@ -12910,22 +13107,35 @@ components:
         execution_journal_accepted:
           type: boolean
           title: Execution Journal Accepted
+          description: Append-only local execution journal acceptance. This is evidence
+            only and does not imply state repair, rollback mutation, reconciliation
+            execution, or Coinbase activity.
           default: true
         recovery_apply_journal_accepted:
           type: boolean
           title: Recovery Apply Journal Accepted
+          description: True when the accepted journal row is a recovery-apply journal.
+            Prefer this over legacy recovery_apply_executed for new consumers.
           default: false
         rollback_journal_accepted:
           type: boolean
           title: Rollback Journal Accepted
+          description: True when the accepted journal row is a rollback journal. Prefer
+            this over legacy rollback_executed for new consumers.
           default: false
         recovery_apply_executed:
           type: boolean
           title: Recovery Apply Executed
+          description: Legacy compatibility flag for recovery apply journal acceptance
+            only. This does not mean state repair executed; prefer execution_journal_accepted,
+            recovery_apply_journal_accepted, and state_repair_executed.
           default: false
         rollback_executed:
           type: boolean
           title: Rollback Executed
+          description: Legacy compatibility flag for rollback journal acceptance only.
+            This does not mean rollback mutated order or exchange state; prefer execution_journal_accepted,
+            rollback_journal_accepted, and state_repair_executed.
           default: false
         post_apply_reconciliation_required:
           type: boolean
@@ -12942,18 +13152,23 @@ components:
         state_repair_executed:
           type: boolean
           title: State Repair Executed
+          description: True only when backend state repair actually executed. Current
+            no-live recovery journals must leave this false.
           default: false
         order_state_mutated:
           type: boolean
           title: Order State Mutated
+          description: True only when backend order state was actually mutated.
           default: false
         exchange_state_mutated:
           type: boolean
           title: Exchange State Mutated
+          description: True only when backend exchange state was actually mutated.
           default: false
         reconciliation_executed:
           type: boolean
           title: Reconciliation Executed
+          description: True only when backend reconciliation execution actually ran.
           default: false
         coinbase_order_submitted:
           type: boolean
@@ -13008,6 +13223,81 @@ components:
       - detail
       title: SpotRecoveryExecutionRecordItem
       description: Read-only Spot recovery apply/rollback journal evidence.
+    SpotRecoveryPreApplySnapshotItem:
+      properties:
+        snapshot_id:
+          type: string
+          title: Snapshot Id
+        target_id:
+          type: string
+          title: Target Id
+        client_order_id:
+          type: string
+          title: Client Order Id
+        source:
+          type: string
+          title: Source
+          default: admin_api_spot_recovery_pre_apply_snapshot
+        snapshot_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        snapshot_captured:
+          type: boolean
+          title: Snapshot Captured
+          default: false
+        required_before_state_repair:
+          type: boolean
+          title: Required Before State Repair
+          default: true
+        execution_journal_ids:
+          items:
+            type: string
+          type: array
+          title: Execution Journal Ids
+        proof_ids:
+          items:
+            type: string
+          type: array
+          title: Proof Ids
+        rollback_plan_ids:
+          items:
+            type: string
+          type: array
+          title: Rollback Plan Ids
+        audit_ids:
+          items:
+            type: string
+          type: array
+          title: Audit Ids
+        reconciliation_plan_ids:
+          items:
+            type: string
+          type: array
+          title: Reconciliation Plan Ids
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - snapshot_id
+      - target_id
+      - client_order_id
+      - detail
+      title: SpotRecoveryPreApplySnapshotItem
+      description: Read-only pre-apply snapshot evidence for one repair target.
     SpotRecoveryPreviewResponse:
       properties:
         type:
@@ -13311,22 +13601,34 @@ components:
         recovery_apply_executed:
           type: boolean
           title: Recovery Apply Executed
+          description: Legacy compatibility flag for recovery apply journal/proof
+            acceptance only. This field does not mean state repair executed; prefer
+            execution_journal_accepted, recovery_apply_journal_accepted, and state_repair_executed
+            when available.
           default: false
         rollback_executed:
           type: boolean
           title: Rollback Executed
+          description: Legacy compatibility flag for rollback journal/proof acceptance
+            only. This field does not mean rollback mutated order or exchange state;
+            prefer rollback_journal_accepted and state_repair_executed when available.
           default: false
         reconciliation_executed:
           type: boolean
           title: Reconciliation Executed
+          description: True only when backend reconciliation execution has actually
+            run.
           default: false
         order_state_mutated:
           type: boolean
           title: Order State Mutated
+          description: True only when backend order state was actually mutated.
           default: false
         exchange_state_mutated:
           type: boolean
           title: Exchange State Mutated
+          description: True only when backend exchange-state evidence was actually
+            mutated.
           default: false
         coinbase_rest_read_ran:
           type: boolean
@@ -13479,6 +13781,31 @@ components:
             type: string
           type: array
           title: Required Proof Fields
+        state_repair_taxonomy:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryStateRepairTaxonomyItem'
+          type: array
+          title: State Repair Taxonomy
+        repair_targets:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairTargetItem'
+          type: array
+          title: Repair Targets
+        pre_apply_snapshots:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryPreApplySnapshotItem'
+          type: array
+          title: Pre Apply Snapshots
+        dry_run_repair_plans:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryDryRunRepairPlanItem'
+          type: array
+          title: Dry Run Repair Plans
+        completion_states:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryCompletionStateItem'
+          type: array
+          title: Completion States
         persisted_proof_count:
           type: integer
           minimum: 0.0
@@ -13497,6 +13824,26 @@ components:
           type: boolean
           title: Execution Journal Available
           default: true
+        state_repair_taxonomy_available:
+          type: boolean
+          title: State Repair Taxonomy Available
+          default: true
+        repair_target_model_available:
+          type: boolean
+          title: Repair Target Model Available
+          default: true
+        pre_apply_snapshot_required:
+          type: boolean
+          title: Pre Apply Snapshot Required
+          default: true
+        dry_run_repair_plan_available:
+          type: boolean
+          title: Dry Run Repair Plan Available
+          default: true
+        post_apply_reconciliation_completion_available:
+          type: boolean
+          title: Post Apply Reconciliation Completion Available
+          default: false
         persisted_execution_count:
           type: integer
           minimum: 0.0
@@ -13615,6 +13962,138 @@ components:
       - detail
       title: SpotRecoveryReconciliationProofResponse
       description: Read-only Spot recovery reconciliation-proof contract evidence.
+    SpotRecoveryRepairCategory:
+      type: string
+      enum:
+      - fill_backfill_ledger
+      - direct_order_audit_link
+      - recovery_proof_linkage
+      - reconciliation_completion_mark
+      title: SpotRecoveryRepairCategory
+      description: Allowed local repair categories for Spot recovery evidence.
+    SpotRecoveryRepairTargetItem:
+      properties:
+        target_id:
+          type: string
+          title: Target Id
+        client_order_id:
+          type: string
+          title: Client Order Id
+        identity_key:
+          type: string
+          title: Identity Key
+          default: client_order_id
+        candidate_type:
+          type: string
+          title: Candidate Type
+        preview_source:
+          type: string
+          title: Preview Source
+        source_route:
+          type: string
+          title: Source Route
+        categories:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairCategory'
+          type: array
+          title: Categories
+        execution_journal_ids:
+          items:
+            type: string
+          type: array
+          title: Execution Journal Ids
+        latest_apply_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Apply Journal Id
+        latest_rollback_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Rollback Journal Id
+        exchange_state_proof_ids:
+          items:
+            type: string
+          type: array
+          title: Exchange State Proof Ids
+        reconciliation_proof_ids:
+          items:
+            type: string
+          type: array
+          title: Reconciliation Proof Ids
+        rollback_plan_ids:
+          items:
+            type: string
+          type: array
+          title: Rollback Plan Ids
+        audit_ids:
+          items:
+            type: string
+          type: array
+          title: Audit Ids
+        reconciliation_plan_ids:
+          items:
+            type: string
+          type: array
+          title: Reconciliation Plan Ids
+        pre_apply_snapshot_id:
+          type: string
+          title: Pre Apply Snapshot Id
+        dry_run_repair_plan_id:
+          type: string
+          title: Dry Run Repair Plan Id
+        completion_state:
+          $ref: '#/components/schemas/SpotRecoveryCompletionState'
+        state_repair_available:
+          type: boolean
+          title: State Repair Available
+          default: false
+        state_repair_executed:
+          type: boolean
+          title: State Repair Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - target_id
+      - client_order_id
+      - candidate_type
+      - preview_source
+      - source_route
+      - pre_apply_snapshot_id
+      - dry_run_repair_plan_id
+      - completion_state
+      - detail
+      title: SpotRecoveryRepairTargetItem
+      description: Backend-owned repair target keyed by ``client_order_id``.
     SpotRecoveryRollbackExecutionRequest:
       properties:
         client_order_id:
@@ -13714,6 +14193,31 @@ components:
             type: object
           type: array
           title: Rollback Steps
+        state_repair_taxonomy:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryStateRepairTaxonomyItem'
+          type: array
+          title: State Repair Taxonomy
+        repair_targets:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryRepairTargetItem'
+          type: array
+          title: Repair Targets
+        pre_apply_snapshots:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryPreApplySnapshotItem'
+          type: array
+          title: Pre Apply Snapshots
+        dry_run_repair_plans:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryDryRunRepairPlanItem'
+          type: array
+          title: Dry Run Repair Plans
+        completion_states:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryCompletionStateItem'
+          type: array
+          title: Completion States
         persisted_execution_count:
           type: integer
           minimum: 0.0
@@ -13733,6 +14237,26 @@ components:
           type: boolean
           title: Execution Journal Available
           default: true
+        state_repair_taxonomy_available:
+          type: boolean
+          title: State Repair Taxonomy Available
+          default: true
+        repair_target_model_available:
+          type: boolean
+          title: Repair Target Model Available
+          default: true
+        pre_apply_snapshot_required:
+          type: boolean
+          title: Pre Apply Snapshot Required
+          default: true
+        dry_run_repair_plan_available:
+          type: boolean
+          title: Dry Run Repair Plan Available
+          default: true
+        rollback_repair_contract_available:
+          type: boolean
+          title: Rollback Repair Contract Available
+          default: false
         missing_contracts:
           items:
             type: string
@@ -13803,6 +14327,78 @@ components:
       - detail
       title: SpotRecoveryRollbackPlanResponse
       description: Read-only Spot recovery rollback-plan contract evidence.
+    SpotRecoveryStateRepairTaxonomyItem:
+      properties:
+        category:
+          $ref: '#/components/schemas/SpotRecoveryRepairCategory'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        allowed_local_state_scope:
+          items:
+            type: string
+          type: array
+          title: Allowed Local State Scope
+        required_evidence:
+          items:
+            type: string
+          type: array
+          title: Required Evidence
+        rejected_mutations:
+          items:
+            type: string
+          type: array
+          title: Rejected Mutations
+        state_repair_available:
+          type: boolean
+          title: State Repair Available
+          default: false
+        order_state_mutation_allowed:
+          type: boolean
+          title: Order State Mutation Allowed
+          default: false
+        fill_ledger_mutation_allowed:
+          type: boolean
+          title: Fill Ledger Mutation Allowed
+          default: false
+        reconciliation_state_mutation_allowed:
+          type: boolean
+          title: Reconciliation State Mutation Allowed
+          default: false
+        exchange_state_mutation_allowed:
+          type: boolean
+          title: Exchange State Mutation Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        coinbase_submission_allowed:
+          type: boolean
+          title: Coinbase Submission Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - category
+      - detail
+      title: SpotRecoveryStateRepairTaxonomyItem
+      description: Allowed and rejected Spot recovery state-repair category evidence.
     SpotSweepAutomationRunRequest:
       properties:
         sweep_config_id:

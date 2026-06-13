@@ -50,11 +50,36 @@ class SpotRecoveryProofRecord(BaseModel):
     manual_live_acknowledgement: bool = False
     source: str = "admin_api_spot_recovery_proof_log"
     proof_persisted: bool = True
-    recovery_apply_executed: bool = False
-    rollback_executed: bool = False
-    reconciliation_executed: bool = False
-    order_state_mutated: bool = False
-    exchange_state_mutated: bool = False
+    recovery_apply_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for recovery apply journal/proof "
+            "acceptance only. This field does not mean state repair executed; "
+            "prefer execution_journal_accepted, recovery_apply_journal_accepted, "
+            "and state_repair_executed when available."
+        ),
+    )
+    rollback_executed: bool = Field(
+        default=False,
+        description=(
+            "Legacy compatibility flag for rollback journal/proof acceptance "
+            "only. This field does not mean rollback mutated order or exchange "
+            "state; prefer rollback_journal_accepted and state_repair_executed "
+            "when available."
+        ),
+    )
+    reconciliation_executed: bool = Field(
+        default=False,
+        description="True only when backend reconciliation execution has actually run.",
+    )
+    order_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend order state was actually mutated.",
+    )
+    exchange_state_mutated: bool = Field(
+        default=False,
+        description="True only when backend exchange-state evidence was actually mutated.",
+    )
     coinbase_rest_read_ran: bool = False
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
