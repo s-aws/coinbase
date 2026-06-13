@@ -38,49 +38,60 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Proof-Route Navigation Batch - Phases 1581-1600
+## Active M54 Readiness Preconditions Batch - Phases 1601-1620
 
-### Phase 1581 - Advance Active Queue Range
+### Phase 1601 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1561-1580 to active
-  phases 1581-1600 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1581-1600 to active
+  phases 1601-1620 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1582 - Proof-Route Navigation Scope
+### Phase 1602 - Readiness Preconditions Scope
 
-- Treat command draft proof-route rows as backend-owned prerequisite evidence
-  and link them to existing admin workbench sections.
+- Expose backend-owned readiness preconditions on each spot command-suite row
+  by reusing the existing live-enablement precondition contract.
 
-### Phase 1583 - Backend Range Evidence
+### Phase 1603 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting `1581-1600`.
+  regression tests reporting `1601-1620`.
 
-### Phase 1584 - Website Workbench Linkage
+### Phase 1604 - Website Read Model Linkage
 
-- Map approval, admission audit, cap/guard, and reconciliation proof routes
-  to the existing workbench anchors in the website command workflow shell.
+- Pass generated command-suite readiness preconditions through the website
+  spot read-model adapter and read-only Spot Command Suite view.
 
-### Phase 1585 - Spot Command Draft Navigation
+### Phase 1605 - Spot Command Readiness Evidence
 
-- Render proof-route navigation beside manual order, cancel by
-  `client_order_id`, and campaign execution draft evidence without adding
-  browser gate evaluation or live execution authority.
+- Render readiness preconditions for spot manual order, cancel by
+  `client_order_id`, and campaign execution without adding browser gate
+  evaluation or live execution authority.
 
-### Phase 1586 - Non-Spot Boundary Evidence
+### Phase 1606 - Non-Spot Boundary Evidence
 
 - Prove stealth cancel and movement reprice drafts do not inherit spot
-  proof-route navigation or spot wallet/no-shorting rules.
+  readiness preconditions as authority or spot wallet/no-shorting rules.
 
-### Phase 1587 - Tests, Docs, And Review
+### Phase 1607 - Tests, Docs, And Review
 
-- Cover the navigation in focused tests, update handoff/roadmap docs, and
-  run blind/contextless review before full gates.
+- Cover the readiness-precondition evidence in focused tests, update
+  handoff/roadmap docs, and run blind/contextless review before full gates.
 
-### Phase 1588 - Full Gates And Push
+### Phase 1608 - Full Gates And Push
 
 - Run backend regression, website release gate, then commit and push both
   repositories with no live Coinbase execution.
+
+## Completed M54 Proof-Route Navigation Batch - Phases 1581-1600
+
+- Website command draft proof-route evidence links to existing backend-owned
+  approval lifecycle, admission audit, cap/guard decision, and reconciliation
+  plan workbench sections.
+- The links are navigation only. They do not create proof records, evaluate
+  gates, forward commands, run reconciliation, call Coinbase, or make the BFF
+  authoritative.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Command Draft Linkage Batch - Phases 1561-1580
 

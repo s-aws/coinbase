@@ -2020,6 +2020,12 @@ class SpotCommandSuiteCommandItem(BaseModel):
     spot_rule_boundary: str
     required_gate_chain: list[str] = Field(default_factory=list)
     missing_gate_chain: list[str] = Field(default_factory=list)
+    readiness_preconditions: list[AdminLiveReadinessPreconditionItem] = Field(
+        default_factory=list
+    )
+    readiness_precondition_count: int = 0
+    blocking_readiness_precondition_count: int = 0
+    passed_readiness_precondition_count: int = 0
     backend_contract_refs: list[str] = Field(default_factory=list)
     frontend_contract_refs: list[str] = Field(default_factory=list)
     documentation_refs: list[str] = Field(default_factory=list)

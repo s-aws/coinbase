@@ -85,6 +85,7 @@ from core.enums import (
     AdminApiLiveAdmissionBlocker,
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
+    AdminApiLiveReadinessPrecondition,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
@@ -3834,6 +3835,45 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     )
     assert "approval_snapshot" in manual["required_gate_chain"]
     assert "live_execution_service" in manual["missing_gate_chain"]
+    assert manual["readiness_precondition_count"] == len(
+        manual["readiness_preconditions"]
+    )
+    assert manual["blocking_readiness_precondition_count"] == sum(
+        1 for item in manual["readiness_preconditions"] if item["blocking"]
+    )
+    assert manual["passed_readiness_precondition_count"] == sum(
+        1
+        for item in manual["readiness_preconditions"]
+        if item["status"] == AdminApiGateStatus.PASSED.value
+    )
+    manual_preconditions = {
+        item["precondition"]: item for item in manual["readiness_preconditions"]
+    }
+    assert set(manual_preconditions) == {
+        AdminApiLiveReadinessPrecondition.APPROVAL_STORE_CONTRACT.value,
+        AdminApiLiveReadinessPrecondition.APPROVAL_SNAPSHOT.value,
+        AdminApiLiveReadinessPrecondition.ADMISSION_AUDIT_TRAIL.value,
+        AdminApiLiveReadinessPrecondition.CAP_GUARD_CONTRACT.value,
+        AdminApiLiveReadinessPrecondition.RECONCILIATION_PLAN.value,
+        AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_ADAPTER.value,
+        AdminApiLiveReadinessPrecondition.EXECUTION_INTENT_ENVELOPE.value,
+        AdminApiLiveReadinessPrecondition.BROWSER_BFF_BOUNDARY.value,
+        AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE.value,
+    }
+    assert manual_preconditions[
+        AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_ADAPTER.value
+    ]["configured"] is True
+    assert manual_preconditions[
+        AdminApiLiveReadinessPrecondition.BROWSER_BFF_BOUNDARY.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    assert manual_preconditions[
+        AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE.value
+    ]["source"] == "disabled_backend_service"
+    assert all(
+        item["browser_authority"] == "display_only"
+        and item["bff_authority"] == "forward_only_no_execution"
+        for item in manual["readiness_preconditions"]
+    )
     assert "Spot-only" in manual["spot_rule_boundary"]
     manual_proof_routes = {
         f"{item['method']} {item['route']}": item
@@ -4081,7 +4121,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1581-1600"
+    assert live_payload["approved_phase_range"] == "1601-1620"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4635,7 +4675,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1581-1600"
+    assert enterprise_payload["approved_phase_range"] == "1601-1620"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

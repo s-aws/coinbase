@@ -75,12 +75,14 @@ configured evidence only and remains non-executable. M54 starts the Spot
 command-suite with `GET /api/v1/spot/command-suite`, a read-only readiness
 contract for manual order placement, cancel by `client_order_id`, and spot
 campaign execution. The route reports blockers, missing gate-chain evidence,
-proof routes for backend approval/audit/cap/reconciliation records, and
-frontend/BFF display boundaries; it does not add live controls or execute
-Coinbase orders. Proof routes are derived from `ADMIN_API_ROUTE_INVENTORY`
-and are local-state evidence requirements only. They are not browser
-authorization, BFF execution authority, live reconciliation execution, or
-Coinbase calls.
+proof routes for backend approval/audit/cap/reconciliation records,
+`readiness_preconditions` copied from live-enablement evidence, aggregate
+`readiness_precondition_count`, `blocking_readiness_precondition_count`, and
+`passed_readiness_precondition_count` fields, and frontend/BFF display
+boundaries; it does not add live controls or execute Coinbase orders. Proof
+routes are derived from `ADMIN_API_ROUTE_INVENTORY` and are local-state
+evidence requirements only. They are not browser authorization, BFF execution
+authority, live reconciliation execution, or Coinbase calls.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

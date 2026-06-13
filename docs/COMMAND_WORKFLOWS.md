@@ -42,6 +42,15 @@ plan. Those proof routes are derived from `ADMIN_API_ROUTE_INVENTORY`; the
 frontend may display them but must not evaluate the gates, synthesize proof,
 or treat them as live approval.
 
+Each command row also reports `readiness_preconditions` by reusing
+`AdminLiveReadinessPreconditionItem` from live-enablement evidence. These
+preconditions show source, expected source, blocker, configured/blocking
+state, and browser/BFF boundary for approval-store, approval snapshot,
+admission audit, cap/guard, reconciliation, live adapter, execution-intent,
+browser/BFF boundary, and live service gates. They are status evidence only;
+they do not create proof records, evaluate gates in the browser, enable BFF
+execution, or call Coinbase.
+
 Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls
 `cancel_order(client_order_id)` because the exchange accepts the client id for

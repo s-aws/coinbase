@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1581-1600",
+  "approved_phase_range": "1601-1620",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1581-1600",
+  "approved_phase_range": "1601-1620",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1624,6 +1624,9 @@ browser, or make spot-only rules reusable by futures/perpetuals or stealth
 modules. Each command row includes backend-owned `proof_routes` for approval,
 admission audit, cap/guard, and reconciliation records. These routes are
 local-state evidence requirements only; they do not execute the command.
+Each command row also includes backend-owned `readiness_preconditions` copied
+from live-enablement evidence so operators can see which gates are configured,
+blocking, or passed without treating the browser as a gate evaluator.
 
 ```http
 GET /api/v1/spot/command-suite
@@ -1637,7 +1640,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1581-1600",
+  "approved_phase_range": "1601-1620",
   "command_count": 3,
   "blocked_command_count": 3,
   "live_enabled_command_count": 0,
@@ -1774,6 +1777,62 @@ X-Admin-Roles: viewer
             "docs/examples/reconciliation-plans.md"
           ],
           "detail": "Record backend reconciliation proof requirements. This does not execute reconciliation or mutate order/exchange state."
+        }
+      ],
+      "readiness_preconditions": [
+        {
+          "precondition": "approval_snapshot",
+          "status": "blocked",
+          "required": true,
+          "configured": false,
+          "blocking": true,
+          "backend_owned": true,
+          "route_bound": true,
+          "source": "not_configured",
+          "expected_source": "approval_snapshot",
+          "blocker": "approval_snapshot_missing",
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "evidence": [
+            "No browser-side approval snapshot may satisfy live admission."
+          ],
+          "detail": "Approval snapshot evidence is required before live admission."
+        },
+        {
+          "precondition": "browser_bff_boundary",
+          "status": "passed",
+          "required": true,
+          "configured": true,
+          "blocking": false,
+          "backend_owned": true,
+          "route_bound": true,
+          "source": "frontend_boundary",
+          "expected_source": "backend_contract",
+          "blocker": null,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "evidence": [
+            "Browser and BFF authority is bounded to display/forward-only evidence."
+          ],
+          "detail": "Browser and BFF authority cannot satisfy live admission."
+        },
+        {
+          "precondition": "live_execution_service",
+          "status": "blocked",
+          "required": true,
+          "configured": false,
+          "blocking": true,
+          "backend_owned": true,
+          "route_bound": true,
+          "source": "disabled_backend_service",
+          "expected_source": "admin_api_live_execution_service",
+          "blocker": "live_execution_disabled",
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution",
+          "evidence": [
+            "No Coinbase client method is exposed."
+          ],
+          "detail": "The backend live execution service is disabled."
         }
       ]
     },

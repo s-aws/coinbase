@@ -122,7 +122,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1581-1600"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1601-1620"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -6870,6 +6870,7 @@ class AdminApiReadService:
                 for precondition in live_path.readiness_preconditions
                 if precondition.blocking
             ]
+            readiness_preconditions = list(live_path.readiness_preconditions)
             required_gate_chain = [
                 "idempotency",
                 "operator_intent",
@@ -6915,6 +6916,18 @@ class AdminApiReadService:
                     ),
                     required_gate_chain=required_gate_chain,
                     missing_gate_chain=missing_gate_chain,
+                    readiness_preconditions=readiness_preconditions,
+                    readiness_precondition_count=len(readiness_preconditions),
+                    blocking_readiness_precondition_count=sum(
+                        1
+                        for precondition in readiness_preconditions
+                        if precondition.blocking
+                    ),
+                    passed_readiness_precondition_count=sum(
+                        1
+                        for precondition in readiness_preconditions
+                        if precondition.status == AdminApiGateStatus.PASSED
+                    ),
                     backend_contract_refs=list(metadata["backend_contract_refs"]),
                     frontend_contract_refs=list(metadata["frontend_contract_refs"]),
                     documentation_refs=list(metadata["documentation_refs"]),

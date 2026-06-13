@@ -2377,9 +2377,9 @@ Completed third-slice scope:
 - Stealth cancel and movement reprice drafts must not inherit spot proof-route
   rows or spot wallet/no-shorting rules.
 
-Active fourth-slice scope:
+Completed fourth-slice scope:
 
-- Active phases 1581-1600 link the spot command draft proof-route evidence to
+- Phases 1581-1600 linked the spot command draft proof-route evidence to
   existing backend-owned workbench sections for approval lifecycle, admission
   audits, cap/guard decisions, and reconciliation plans.
 - The links are navigation only. They must not create proof records, evaluate
@@ -2388,6 +2388,19 @@ Active fourth-slice scope:
 - Stealth cancel, movement reprice, futures/perpetuals, and legacy dashboard
   compatibility must not inherit spot proof-route navigation or spot
   wallet/no-shorting rules.
+
+Active fifth-slice scope:
+
+- Active phases 1601-1620 expose backend-owned readiness preconditions on
+  each spot command-suite row by reusing `AdminLiveReadinessPreconditionItem`
+  from live-enablement evidence.
+- The command-suite rows must show total, blocking, and passed precondition
+  counts and preserve approval, audit, cap/guard, reconciliation, live adapter,
+  browser/BFF boundary, and disabled live service evidence as read-only
+  status.
+- The frontend may render those preconditions, but it must not evaluate them,
+  create proof records, enable commands, call Coinbase, or treat spot
+  preconditions as non-spot authority.
 
 Current backend evidence:
 
@@ -2400,15 +2413,16 @@ Current backend evidence:
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
-- The frontend must make proof-route navigation discoverable while preserving
-  backend ownership and avoiding proof creation or command authority.
+- The frontend must render readiness preconditions while preserving backend
+  ownership and avoiding proof creation, gate evaluation, or command
+  authority.
 - Spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation,
   and any eventual live execution screens must prove the full approval,
   cap/guard, admission audit, reconciliation, live service, and adapter chain.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
-- Live Coinbase execution remains not run for the current M54 proof-route
-  navigation slice; submitted and executed notional remain `$0`.
+- Live Coinbase execution remains not run for the current M54 readiness
+  precondition slice; submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
 

@@ -10407,6 +10407,23 @@ components:
             type: string
           type: array
           title: Missing Gate Chain
+        readiness_preconditions:
+          items:
+            $ref: '#/components/schemas/AdminLiveReadinessPreconditionItem'
+          type: array
+          title: Readiness Preconditions
+        readiness_precondition_count:
+          type: integer
+          title: Readiness Precondition Count
+          default: 0
+        blocking_readiness_precondition_count:
+          type: integer
+          title: Blocking Readiness Precondition Count
+          default: 0
+        passed_readiness_precondition_count:
+          type: integer
+          title: Passed Readiness Precondition Count
+          default: 0
         backend_contract_refs:
           items:
             type: string

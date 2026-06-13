@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1581-1600**.
+- Approved phase range: **1601-1620**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,110 +46,130 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1581-1600
+## Active Phases 1601-1620
 
-### Phase 1581 - Advance Active Queue Range
+### Phase 1601 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1541-1560 to active
-  phases 1581-1600 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1581-1600 to active
+  phases 1601-1620 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1582 - M54 Proof-Route Navigation Scope
+### Phase 1602 - M54 Readiness Preconditions Scope
 
-- Treat command draft proof-route evidence as completed prerequisite evidence
-  and close the next M54 gap by linking those routes to existing admin
-  workbench sections.
+- Treat proof-route navigation as completed prerequisite evidence and expose
+  backend-owned readiness preconditions on each spot command-suite row.
 
-### Phase 1583 - Backend Range Evidence
+### Phase 1603 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting the active `1581-1600` phase range.
+  regression tests reporting the active `1601-1620` phase range.
 
-### Phase 1584 - Website Range Evidence
+### Phase 1604 - Website Range Evidence
 
 - Keep website release, deployment, autonomous, runtime, mock, and artifact
-  checks aligned with the backend `1581-1600` phase range.
+  checks aligned with the backend `1601-1620` phase range.
 
-### Phase 1585 - Workbench Anchor Mapping
+### Phase 1605 - Command Readiness Contract
 
-- Map backend proof-route families to existing workbench anchors for approval
-  lifecycle, admission audits, cap/guard decisions, and reconciliation plans.
+- Add per-command `readiness_preconditions` to `GET /api/v1/spot/command-suite`
+  by reusing the existing backend `AdminLiveReadinessPreconditionItem`
+  contract.
 
-### Phase 1586 - Approval Lifecycle Navigation
+### Phase 1606 - Readiness Count Evidence
 
-- Link approval request and decision proof routes to the approval lifecycle
-  workbench without adding proof creation or browser-side approval authority.
+- Include total, blocking, and passed readiness-precondition counts per spot
+  command row so operators can see progress without inferring it from route
+  text.
 
-### Phase 1587 - Admission Audit Navigation
+### Phase 1607 - Manual Order Readiness Evidence
 
-- Link admission audit proof routes to the admission audit workbench without
-  satisfying audit gates locally.
+- Show manual order readiness preconditions for approval-store contract,
+  approval snapshot, admission audit, cap/guard, reconciliation plan, live
+  adapter, execution intent, browser/BFF boundary, and live service gates.
 
-### Phase 1588 - Cap/Guard Navigation
+### Phase 1608 - Cancel Readiness Evidence
 
-- Link cap/guard proof routes to the cap/guard decision workbench without
-  adding wallet checks or artificial-limit evaluation in the frontend.
+- Show cancel readiness preconditions while preserving `client_order_id` as
+  the only cancel identity and exchange `order_id` as display evidence only.
 
-### Phase 1589 - Reconciliation Navigation
+### Phase 1609 - Campaign Readiness Evidence
 
-- Link reconciliation proof routes to the reconciliation plan workbench
-  without running reconciliation or Coinbase actions.
+- Show campaign execution readiness preconditions keyed by `campaign_id`
+  while keeping campaign drafts dry/no-live.
 
-### Phase 1590 - Non-Spot Boundary Proof
+### Phase 1610 - Frontend Read Model Mapping
 
-- Prove stealth cancel and movement reprice drafts do not inherit spot
-  proof-route navigation or spot wallet/no-shorting rules.
+- Map generated command-suite readiness preconditions through the canonical
+  spot adapter without adding feature-local fetches.
 
-### Phase 1591 - Command Workflow Tests
+### Phase 1611 - Spot Read-Only View Rendering
 
-- Cover proof-route link counts, anchor targets, backend route labels, and
-  non-spot exclusion in focused command workflow tests.
+- Render readiness preconditions in the Spot Command Suite read-only view as
+  backend evidence distinct from proof-route links.
 
-### Phase 1592 - Documentation Update
+### Phase 1612 - Non-Spot Boundary Proof
 
-- Update command workflow, API contract, testing, handoff, roadmap, durable
-  milestone, and contextless review docs for proof-route workbench
-  navigation.
+- Prove stealth, movement, futures/perpetuals, and legacy dashboard surfaces
+  do not inherit spot readiness preconditions as authority.
 
-### Phase 1593 - Backend Focused Gates
+### Phase 1613 - Backend Focused Tests
 
-- Run backend autonomous validation and focused Admin API/spot readiness
-  regression for the phase range and no-live evidence.
+- Cover command-suite readiness preconditions, counts, disabled live service,
+  browser/BFF boundary, and no-live notional in Admin API regression tests.
 
-### Phase 1594 - Website Focused Gates
+### Phase 1614 - Frontend Focused Tests
 
-- Run generated API freshness, autonomous validation, command fetch guard,
-  typecheck, lint, and focused unit tests.
+- Cover generated schema consumption, mock/runtime evidence, spot read-only
+  rendering, and command-suite precondition rows in focused frontend tests.
 
-### Phase 1595 - Contextless Review
+### Phase 1615 - Documentation Update
 
-- Run blind/contextless review for whether a fresh agent can trace command
-  draft proof-route links to backend-owned workbenches without inventing proof
-  creation or browser authority.
+- Update command workflow, API contract, testing, examples, handoff, roadmap,
+  durable milestone, and review logs for readiness-precondition evidence.
 
-### Phase 1596 - Remediation
+### Phase 1616 - Contextless Review
+
+- Run blind/contextless review for whether a fresh agent can trace readiness
+  preconditions to backend live-enablement evidence without inventing browser
+  gate evaluation or live authority.
+
+### Phase 1617 - Remediation
 
 - Fix any blocker-level ambiguity from focused gates or contextless review
   before advancing.
 
-### Phase 1597 - Full Backend Gate
+### Phase 1618 - Full Backend Gate
 
 - Run full backend regression:
   `pytest tests\regression\ -v --tb=short`.
 
-### Phase 1598 - Full Website Gate
+### Phase 1619 - Full Website Gate
 
 - Run full website release gate:
   `npm run release:gate`.
 
-### Phase 1599 - Cross-Repo Push
+### Phase 1620 - Summary And Push
 
-- Commit and push the backend and website repositories after gates pass.
+- Commit and push both repositories, then summarize readiness-precondition
+  scope, gates, contextless review, remaining live blockers, and Coinbase
+  notional `$0`.
 
-### Phase 1600 - M54 Proof-Route Navigation Handoff
+## Completed Phases 1581-1600
 
-- Summarize proof-route navigation scope, gates, contextless review result,
-  remaining live blockers, and Coinbase notional `$0`.
+The 1581-1600 range completed proof-route workbench navigation:
+
+- Website command draft proof-route evidence links to existing backend-owned
+  workbench sections for approval lifecycle, admission audits, cap/guard
+  decisions, and reconciliation plans.
+- Links are navigation only. They do not create proof records, evaluate gates,
+  forward live commands, reconcile Coinbase state, or make browser/BFF
+  navigation authoritative.
+- Stealth cancel, movement reprice, futures/perpetuals, and legacy dashboard
+  compatibility do not inherit spot proof-route navigation or spot
+  wallet/no-shorting rules.
+- Backend full regression, website release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted and executed notional
+  stayed `$0`.
 
 ## Completed Phases 1561-1580
 

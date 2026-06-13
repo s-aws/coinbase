@@ -2,6 +2,55 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Spot Command Readiness Preconditions Review - Phases 1601-1620
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- trace `GET /api/v1/spot/command-suite` `readiness_preconditions` from
+  backend live-enablement evidence through models, OpenAPI, generated website
+  schema, mapper, view, mock runtime, tests, and docs
+- verify the rows are backend-owned evidence and do not grant browser, BFF,
+  route-local, reconciliation, or Coinbase execution authority
+- verify spot-only readiness does not leak wallet/no-shorting rules into
+  stealth, movement repricing, futures/perpetuals, or generic admin modules
+- verify `client_order_id` remains the command identity for spot cancel and
+  `order_id` remains exchange evidence only
+
+Findings:
+
+- PASS: blind/contextless review found no blockers.
+- PASS: the reviewer traced backend `SpotCommandSuiteCommandItem`
+  `readiness_preconditions` and count fields through generated OpenAPI,
+  website generated schema, `BackendApiClient.getSpotCommandSuite`, runtime
+  loading, spot mapper, read-only view, mock backend, and unit/regression
+  assertions.
+- PASS: no browser/BFF readiness authority, route-local execution, live
+  Coinbase execution, spot-only rule leakage into non-spot modules, or
+  `order_id` replacement of `client_order_id` was found.
+- FIXED: the reviewer noted `README.admin-api.md` and the website spot
+  read-only view doc did not explicitly name the new
+  `readiness_preconditions` and aggregate count fields. Both docs now name the
+  fields.
+
+Status:
+
+- Backend focused Admin API/readiness checks passed with `9 passed, 1 warning`.
+- Backend autonomous queue validation passed for `1601-1620`.
+- Backend ownership check passed.
+- Backend full regression passed with `810 passed, 1 warning`.
+- Frontend focused spot/runtime/mock/shell checks passed with `71 passed`.
+- Frontend generated API, route coverage, typecheck, lint, command-security,
+  autonomous queue, and release gate passed; release gate included `193` unit
+  tests and `3` Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Spot Proof-Route Workbench Navigation Review - Phases 1581-1600
 
 Review scope:
