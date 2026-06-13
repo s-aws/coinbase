@@ -2,6 +2,53 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Spot Proof-Route Workbench Navigation Review - Phases 1581-1600
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- trace backend `GET /api/v1/spot/command-suite` proof-route evidence into
+  website command draft workbench links
+- verify links target existing approval lifecycle, admission audit, cap/guard
+  decision, and reconciliation plan workbench sections
+- verify the links are navigation only and do not create proof records,
+  evaluate gates, authorize BFF/live execution, run reconciliation, or call
+  Coinbase
+- verify manual order, cancel by `client_order_id`, and campaign execution
+  are covered while stealth cancel and movement reprice remain excluded
+- verify docs/tests are sufficient for contextless maintainers
+
+Findings:
+
+- PASS: blind/contextless review found no blockers. It traced backend-owned
+  proof routes from `read_service.py` through the website command workflow
+  shell and confirmed the workbench anchors exist.
+- PASS: spot-only scope is explicit. Manual order, cancel by
+  `client_order_id`, and campaign execution receive proof-route navigation;
+  stealth cancel and movement reprice do not.
+- PASS: no browser/BFF live execution, proof creation, guard, wallet,
+  approval, cap, audit, reconciliation, or Coinbase authority was introduced.
+- FIXED: the review noted unknown future proof-route paths fell back to a
+  generic `#admin` link. Unmapped proof-route families now remain evidence
+  only until an explicit workbench mapping and test are added.
+
+Status:
+
+- Backend autonomous queue validation passed for `1581-1600`.
+- Backend focused Admin API checks passed with `83 passed, 1 warning`.
+- Frontend focused command workflow/range checks passed with `71 passed`.
+- Blind/contextless review passed with no blockers.
+- Backend full regression passed with `810 passed, 1 warning`.
+- Frontend release gate passed with `193` unit tests and `3` Playwright
+  tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Spot Command Draft Proof-Route Review - Phases 1561-1580
 
 Review scope:

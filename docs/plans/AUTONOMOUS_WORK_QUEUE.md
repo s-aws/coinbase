@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1561-1580**.
+- Approved phase range: **1581-1600**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,111 +46,126 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1561-1580
+## Active Phases 1581-1600
 
-### Phase 1561 - Advance Active Queue Range
+### Phase 1581 - Advance Active Queue Range
 
 - Move the durable autonomous queue from completed phases 1541-1560 to active
-  phases 1561-1580 while preserving the no-live default and carried Coinbase
+  phases 1581-1600 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1562 - M54 Proof-Route Closeout Scope
+### Phase 1582 - M54 Proof-Route Navigation Scope
 
-- Treat backend command-suite proof routes as completed prerequisite evidence
-  and close the remaining M54 gap in the website command draft surface.
+- Treat command draft proof-route evidence as completed prerequisite evidence
+  and close the next M54 gap by linking those routes to existing admin
+  workbench sections.
 
-### Phase 1563 - Backend Range Evidence
+### Phase 1583 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting the active `1561-1580` phase range.
+  regression tests reporting the active `1581-1600` phase range.
 
-### Phase 1564 - Website Range Evidence
+### Phase 1584 - Website Range Evidence
 
 - Keep website release, deployment, autonomous, runtime, mock, and artifact
-  checks aligned with the backend `1561-1580` phase range.
+  checks aligned with the backend `1581-1600` phase range.
 
-### Phase 1565 - Command Draft Proof-Route Contract
+### Phase 1585 - Workbench Anchor Mapping
 
-- Bind website command draft evidence panels to backend-owned
-  `spot.commandSuite.proof_routes` for spot manual order, spot cancel, and
-  spot campaign execution.
+- Map backend proof-route families to existing workbench anchors for approval
+  lifecycle, admission audits, cap/guard decisions, and reconciliation plans.
 
-### Phase 1566 - Manual Order Proof Routes
+### Phase 1586 - Approval Lifecycle Navigation
 
-- Show approval request/decision, admission audit, cap/guard, and
-  reconciliation proof routes for manual order drafts without collecting or
-  synthesizing `client_order_id` in the browser.
+- Link approval request and decision proof routes to the approval lifecycle
+  workbench without adding proof creation or browser-side approval authority.
 
-### Phase 1567 - Cancel Proof Routes
+### Phase 1587 - Admission Audit Navigation
 
-- Show proof-route evidence for cancel drafts while preserving
-  `client_order_id` as the only cancellation identity and keeping exchange
-  `order_id` as display evidence only.
+- Link admission audit proof routes to the admission audit workbench without
+  satisfying audit gates locally.
 
-### Phase 1568 - Campaign Proof Routes
+### Phase 1588 - Cap/Guard Navigation
 
-- Show campaign execution proof-route evidence keyed by `campaign_id` while
-  keeping campaign drafts `dry_run=true` and live-disabled.
+- Link cap/guard proof routes to the cap/guard decision workbench without
+  adding wallet checks or artificial-limit evaluation in the frontend.
 
-### Phase 1569 - Non-Spot Boundary Proof
+### Phase 1589 - Reconciliation Navigation
+
+- Link reconciliation proof routes to the reconciliation plan workbench
+  without running reconciliation or Coinbase actions.
+
+### Phase 1590 - Non-Spot Boundary Proof
 
 - Prove stealth cancel and movement reprice drafts do not inherit spot
-  proof-route rows or spot wallet/no-shorting rules.
+  proof-route navigation or spot wallet/no-shorting rules.
 
-### Phase 1570 - Frontend Runtime Wiring
+### Phase 1591 - Command Workflow Tests
 
-- Pass backend command-suite evidence through the integrated admin runtime to
-  the command workflow shell; do not create feature-local fetches.
+- Cover proof-route link counts, anchor targets, backend route labels, and
+  non-spot exclusion in focused command workflow tests.
 
-### Phase 1571 - Draft Evidence Tests
-
-- Cover proof-route rendering, identity keys, authority text, and non-spot
-  exclusion in focused command workflow tests.
-
-### Phase 1572 - Documentation Update
+### Phase 1592 - Documentation Update
 
 - Update command workflow, API contract, testing, handoff, roadmap, durable
-  milestone, and contextless review docs for proof-route-to-draft linkage.
+  milestone, and contextless review docs for proof-route workbench
+  navigation.
 
-### Phase 1573 - Backend Focused Gates
+### Phase 1593 - Backend Focused Gates
 
 - Run backend autonomous validation and focused Admin API/spot readiness
   regression for the phase range and no-live evidence.
 
-### Phase 1574 - Website Focused Gates
+### Phase 1594 - Website Focused Gates
 
 - Run generated API freshness, autonomous validation, command fetch guard,
   typecheck, lint, and focused unit tests.
 
-### Phase 1575 - Contextless Review
+### Phase 1595 - Contextless Review
 
 - Run blind/contextless review for whether a fresh agent can trace command
-  draft proof routes back to backend Admin API evidence without inventing
-  browser authority.
+  draft proof-route links to backend-owned workbenches without inventing proof
+  creation or browser authority.
 
-### Phase 1576 - Remediation
+### Phase 1596 - Remediation
 
 - Fix any blocker-level ambiguity from focused gates or contextless review
   before advancing.
 
-### Phase 1577 - Full Backend Gate
+### Phase 1597 - Full Backend Gate
 
 - Run full backend regression:
   `pytest tests\regression\ -v --tb=short`.
 
-### Phase 1578 - Full Website Gate
+### Phase 1598 - Full Website Gate
 
 - Run full website release gate:
   `npm run release:gate`.
 
-### Phase 1579 - Cross-Repo Push
+### Phase 1599 - Cross-Repo Push
 
 - Commit and push the backend and website repositories after gates pass.
 
-### Phase 1580 - Summary And Handoff
+### Phase 1600 - M54 Proof-Route Navigation Handoff
 
-- Summarize proof-route-to-draft scope, gates, contextless review result,
+- Summarize proof-route navigation scope, gates, contextless review result,
   remaining live blockers, and Coinbase notional `$0`.
+
+## Completed Phases 1561-1580
+
+The 1561-1580 range completed command draft proof-route linkage:
+
+- Website command draft evidence panels consume backend-owned
+  `spot.commandSuite.proof_routes` for spot manual order, cancel by
+  `client_order_id`, and campaign execution.
+- Manual order, cancel, and campaign drafts show approval, admission audit,
+  cap/guard, and reconciliation proof-route evidence without creating browser
+  gate authority.
+- Stealth cancel and movement reprice drafts do not inherit spot proof-route
+  rows or spot wallet/no-shorting rules.
+- Backend full regression, website release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted and executed notional
+  stayed `$0`.
 
 ## Completed Phases 1541-1560
 
