@@ -46,8 +46,10 @@ fail-closed evidence.
 - No reconciliation execution runs from these routes.
 - No browser or BFF code may mark exchange state reconciled, create
   reconciliation proof, or mutate order state.
-- Plans may be recorded only for live-shaped command routes in
-  `ADMIN_API_ROUTE_INVENTORY`; read-only and local-state routes are rejected.
+- Plans may be recorded for live-shaped command routes in
+  `ADMIN_API_ROUTE_INVENTORY`. The only local-state mutation exception is
+  Spot recovery proof recording with `spot_recovery:record`; other read-only
+  and local-state routes are rejected.
 - Spot-specific reconciliation details such as USDC scope, retained inventory,
   fill-ledger checks, cost basis, and no-shorting evidence stay route-specific
   and must not become futures, stealth, movement/repricing, or platform

@@ -144,6 +144,7 @@ class AdminApiPermission(str, Enum):
     SPOT_SWEEP_EXECUTE = "spot_sweep:execute"
     SPOT_PNL_RECORD = "spot_pnl:record"
     SPOT_RECOVERY_EXECUTE = "spot_recovery:execute"
+    SPOT_RECOVERY_RECORD = "spot_recovery:record"
     CONFIG_UPDATE = "config:update"
     RUNTIME_PAUSE = "runtime:pause"
     RUNTIME_RESUME = "runtime:resume"

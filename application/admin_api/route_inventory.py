@@ -292,32 +292,33 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/exchange-state-proofs",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
-        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
         idempotency="required",
         approval="required",
         caps="required",
         audit="required",
         shared_method="record_spot_recovery_exchange_state_proof",
         parity_test=(
-            "spot recovery exchange-state proof writing remains fail-closed; no "
-            "proof persistence, order/exchange-state mutation, Coinbase read, or "
-            "Coinbase REST placement"
+            "spot recovery exchange-state proof writing persists append-only "
+            "local proof evidence only; no order/exchange-state mutation, "
+            "Coinbase read, or Coinbase REST placement"
         ),
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/reconciliation-proofs",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
-        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
         idempotency="required",
         approval="required",
         caps="required",
         audit="required",
         shared_method="record_spot_recovery_reconciliation_proof",
         parity_test=(
-            "spot recovery reconciliation proof writing remains fail-closed; no "
-            "proof persistence, reconciliation execution, order/exchange-state "
-            "mutation, Coinbase read, or Coinbase REST placement"
+            "spot recovery reconciliation proof writing persists append-only "
+            "local proof evidence only; no reconciliation execution, "
+            "order/exchange-state mutation, Coinbase read, or Coinbase REST "
+            "placement"
         ),
     ),
     AdminApiRouteInventoryItem(

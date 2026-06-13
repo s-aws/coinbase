@@ -129,12 +129,17 @@ class AdminApiReconciliationPlanService:
             raise ReconciliationPlanError(
                 "Reconciliation plan service_method does not match route inventory."
             )
-        if route.action_class in {
-            AdminApiActionClass.READ_ONLY,
-            AdminApiActionClass.LOCAL_STATE_MUTATION,
-        }:
+        if route.action_class == AdminApiActionClass.READ_ONLY:
             raise ReconciliationPlanError(
                 "Reconciliation plans are only valid for live-shaped command routes."
+            )
+        if (
+            route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
+            and route.permission != AdminApiPermission.SPOT_RECOVERY_RECORD
+        ):
+            raise ReconciliationPlanError(
+                "Local-state reconciliation plans are only valid for spot "
+                "recovery proof record routes."
             )
 
     @staticmethod

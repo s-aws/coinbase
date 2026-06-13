@@ -111,9 +111,18 @@ class AdminApiAdmissionAuditService:
         if route.action_class not in {
             AdminApiActionClass.LIVE_EXCHANGE_PLACE,
             AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            AdminApiActionClass.LOCAL_STATE_MUTATION,
         }:
             raise AdmissionAuditError(
                 "Admission audits are only valid for live-shaped command routes."
+            )
+        if (
+            route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
+            and route.permission != AdminApiPermission.SPOT_RECOVERY_RECORD
+        ):
+            raise AdmissionAuditError(
+                "Local-state admission audits are only valid for spot recovery "
+                "proof record routes."
             )
 
     @staticmethod

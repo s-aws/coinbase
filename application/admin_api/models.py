@@ -317,11 +317,12 @@ class SpotRecoveryExchangeStateProofRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_order_id: str = Field(min_length=1)
-    exchange_state_evidence_ref: str | None = None
-    reconciliation_plan_id: str | None = None
-    approval_snapshot_id: str | None = None
-    admission_audit_id: str | None = None
-    cap_guard_decision_id: str | None = None
+    exchange_state_proof_id: str | None = None
+    exchange_state_evidence_ref: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
     dry_run: bool = True
     operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
@@ -333,12 +334,13 @@ class SpotRecoveryReconciliationProofRecordRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_order_id: str = Field(min_length=1)
-    exchange_state_proof_id: str | None = None
-    recovery_apply_audit_id: str | None = None
-    reconciliation_plan_id: str | None = None
-    approval_snapshot_id: str | None = None
-    admission_audit_id: str | None = None
-    cap_guard_decision_id: str | None = None
+    exchange_state_proof_id: str = Field(min_length=1)
+    reconciliation_proof_id: str | None = None
+    recovery_apply_audit_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
     dry_run: bool = True
     operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
@@ -429,22 +431,24 @@ class SpotRecoveryRollbackExecutionCommand(BaseModel):
 
 
 class SpotRecoveryExchangeStateProofCommand(BaseModel):
-    """Shared service command for disabled spot recovery exchange-state proof."""
+    """Shared service command for spot recovery exchange-state proof records."""
 
     model_config = ConfigDict(extra="forbid")
 
     envelope: AdminApiCommandEnvelope
     request: SpotRecoveryExchangeStateProofRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 
 class SpotRecoveryReconciliationProofRecordCommand(BaseModel):
-    """Shared service command for disabled spot recovery reconciliation proof."""
+    """Shared service command for spot recovery reconciliation proof records."""
 
     model_config = ConfigDict(extra="forbid")
 
     envelope: AdminApiCommandEnvelope
     request: SpotRecoveryReconciliationProofRecordRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 
@@ -2376,6 +2380,52 @@ class SpotRecoveryRollbackPlanResponse(AdminApiReadPayload):
     detail: str
 
 
+class SpotRecoveryProofRecordItem(BaseModel):
+    """Read-only Spot recovery proof record evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proof_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    client_order_id: str
+    exchange_state_proof_id: str | None = None
+    reconciliation_proof_id: str | None = None
+    exchange_state_evidence_ref: str | None = None
+    recovery_apply_audit_id: str | None = None
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_spot_recovery_proof_log"
+    proof_persisted: bool = True
+    recovery_apply_executed: bool = False
+    rollback_executed: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    coinbase_rest_read_ran: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     """Read-only Spot recovery reconciliation-proof contract evidence."""
 
@@ -2390,9 +2440,15 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     candidates: list[SpotRecoveryContractCandidateItem] = Field(default_factory=list)
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     required_proof_fields: list[str] = Field(default_factory=list)
+    persisted_proof_count: int = Field(default=0, ge=0)
+    persisted_proofs: list[SpotRecoveryProofRecordItem] = Field(default_factory=list)
+    proof_persistence_available: bool = True
+    latest_exchange_state_proof_id: str | None = None
+    latest_reconciliation_proof_id: str | None = None
     missing_contracts: list[str] = Field(default_factory=list)
     reconciliation_proof_contract_available: bool = True
-    reconciliation_proof_writer_available: bool = False
+    exchange_state_proof_writer_available: bool = True
+    reconciliation_proof_writer_available: bool = True
     reconciliation_execution_available: bool = False
     recovery_apply_available: bool = False
     backend_owned: bool = True

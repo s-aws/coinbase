@@ -3688,13 +3688,14 @@ paths:
               $ref: '#/components/schemas/SpotRecoveryExchangeStateProofRequest'
       responses:
         '200':
-          description: Command accepted or replayed after all backend gates pass.
+          description: Spot recovery proof record accepted or replayed after all backend
+            prerequisites match.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
         '400':
-          description: Command rejected before live exchange execution.
+          description: Spot recovery proof record rejected before local proof persistence.
           content:
             application/json:
               schema:
@@ -3706,19 +3707,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
-          description: Actor lacks the required Admin API permission.
+          description: Actor lacks the required spot recovery proof-record permission.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '409':
           description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
           content:
             application/json:
               schema:
@@ -3797,13 +3792,14 @@ paths:
               $ref: '#/components/schemas/SpotRecoveryReconciliationProofRecordRequest'
       responses:
         '200':
-          description: Command accepted or replayed after all backend gates pass.
+          description: Spot recovery proof record accepted or replayed after all backend
+            prerequisites match.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
         '400':
-          description: Command rejected before live exchange execution.
+          description: Spot recovery proof record rejected before local proof persistence.
           content:
             application/json:
               schema:
@@ -3815,19 +3811,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
-          description: Actor lacks the required Admin API permission.
+          description: Actor lacks the required spot recovery proof-record permission.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '409':
           description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
           content:
             application/json:
               schema:
@@ -6086,6 +6076,7 @@ components:
       - spot_sweep:execute
       - spot_pnl:record
       - spot_recovery:execute
+      - spot_recovery:record
       - config:update
       - runtime:pause
       - runtime:resume
@@ -12746,30 +12737,30 @@ components:
           type: string
           minLength: 1
           title: Client Order Id
-        exchange_state_evidence_ref:
+        exchange_state_proof_id:
           anyOf:
           - type: string
           - type: 'null'
+          title: Exchange State Proof Id
+        exchange_state_evidence_ref:
+          type: string
+          minLength: 1
           title: Exchange State Evidence Ref
         reconciliation_plan_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Reconciliation Plan Id
         approval_snapshot_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Approval Snapshot Id
         admission_audit_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Admission Audit Id
         cap_guard_decision_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Cap Guard Decision Id
         dry_run:
           type: boolean
@@ -12788,6 +12779,11 @@ components:
       type: object
       required:
       - client_order_id
+      - exchange_state_evidence_ref
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
       title: SpotRecoveryExchangeStateProofRequest
       description: Spot recovery exchange-state proof request keyed by ``client_order_id``.
     SpotRecoveryPreviewResponse:
@@ -12990,6 +12986,174 @@ components:
       - detail
       title: SpotRecoveryPreviewSourceItem
       description: One backend-owned read source contributing recovery-preview evidence.
+    SpotRecoveryProofRecordItem:
+      properties:
+        proof_id:
+          type: string
+          title: Proof Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        client_order_id:
+          type: string
+          title: Client Order Id
+        exchange_state_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange State Proof Id
+        reconciliation_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Proof Id
+        exchange_state_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange State Evidence Ref
+        recovery_apply_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Apply Audit Id
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        audit_id:
+          type: string
+          title: Audit Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_spot_recovery_proof_log
+        proof_persisted:
+          type: boolean
+          title: Proof Persisted
+          default: true
+        recovery_apply_executed:
+          type: boolean
+          title: Recovery Apply Executed
+          default: false
+        rollback_executed:
+          type: boolean
+          title: Rollback Executed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - proof_id
+      - recorded_at
+      - mutation_family
+      - client_order_id
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - audit_id
+      - detail
+      title: SpotRecoveryProofRecordItem
+      description: Read-only Spot recovery proof record evidence.
     SpotRecoveryReconciliationProofRecordRequest:
       properties:
         client_order_id:
@@ -12997,34 +13161,33 @@ components:
           minLength: 1
           title: Client Order Id
         exchange_state_proof_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Exchange State Proof Id
-        recovery_apply_audit_id:
+        reconciliation_proof_id:
           anyOf:
           - type: string
           - type: 'null'
+          title: Reconciliation Proof Id
+        recovery_apply_audit_id:
+          type: string
+          minLength: 1
           title: Recovery Apply Audit Id
         reconciliation_plan_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Reconciliation Plan Id
         approval_snapshot_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Approval Snapshot Id
         admission_audit_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Admission Audit Id
         cap_guard_decision_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Cap Guard Decision Id
         dry_run:
           type: boolean
@@ -13043,6 +13206,12 @@ components:
       type: object
       required:
       - client_order_id
+      - exchange_state_proof_id
+      - recovery_apply_audit_id
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
       title: SpotRecoveryReconciliationProofRecordRequest
       description: Spot recovery reconciliation-proof request keyed by ``client_order_id``.
     SpotRecoveryReconciliationProofResponse:
@@ -13088,6 +13257,30 @@ components:
             type: string
           type: array
           title: Required Proof Fields
+        persisted_proof_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Proof Count
+          default: 0
+        persisted_proofs:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryProofRecordItem'
+          type: array
+          title: Persisted Proofs
+        proof_persistence_available:
+          type: boolean
+          title: Proof Persistence Available
+          default: true
+        latest_exchange_state_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Exchange State Proof Id
+        latest_reconciliation_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Reconciliation Proof Id
         missing_contracts:
           items:
             type: string
@@ -13097,10 +13290,14 @@ components:
           type: boolean
           title: Reconciliation Proof Contract Available
           default: true
+        exchange_state_proof_writer_available:
+          type: boolean
+          title: Exchange State Proof Writer Available
+          default: true
         reconciliation_proof_writer_available:
           type: boolean
           title: Reconciliation Proof Writer Available
-          default: false
+          default: true
         reconciliation_execution_available:
           type: boolean
           title: Reconciliation Execution Available

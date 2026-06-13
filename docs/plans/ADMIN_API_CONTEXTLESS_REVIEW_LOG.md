@@ -2906,3 +2906,55 @@ Status:
   Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M54 Spot Recovery Proof Persistence Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers were not given chat history.
+
+Reviewer tasks:
+
+- verify backend Spot recovery proof persistence is append-only local evidence
+  and distinct from disabled recovery apply/rollback execution
+- verify proof writer routes use `client_order_id`, `spot_recovery:record`,
+  idempotency, audit, approval, cap/guard, admission-audit, and reconciliation
+  prerequisites without Coinbase calls
+- verify frontend smoke/docs/UI show proof persistence without browser/BFF
+  proof authority
+
+Findings:
+
+- Backend blind review confirmed proof writers are `client_order_id` keyed,
+  `spot_recovery:record` gated, append-only local evidence and do not run live
+  Coinbase execution.
+- Initial backend clarity findings were stale example snapshot posture,
+  generic proof-route OpenAPI `501` wording, and stale README taxonomy count.
+- Frontend blind review found no remaining blockers after remediation. It
+  confirmed apply/rollback dry smokes expect `501`, proof writer probes expect
+  `400` missing-prerequisite rejection, proof persistence is visible in Spot
+  Command Suite metrics, and browser/BFF authority remains display/forward-only.
+
+Resolution:
+
+- Backend examples now show `spot_recovery_workflow` as
+  `admin_draft_live_disabled` with command route
+  `/api/v1/spot/recovery/apply-executions`.
+- Backend proof writer route decorators now use proof-specific OpenAPI
+  responses without the generic `501` live-disabled description.
+- README taxonomy wording no longer hard-codes a stale command-route count.
+- Frontend docs, smoke catalogs, mocks, adapters, and UI distinguish disabled
+  recovery execution from append-only proof writer routes.
+
+Status:
+
+- Backend focused Admin API regression passed with `83 passed, 1 warning`.
+- Backend full regression passed with `818 passed, 1 warning`.
+- Frontend focused proof/API checks passed with `61` tests before the OpenAPI
+  response cleanup and `52` schema/contract tests after it.
+- Frontend full `npm run release:gate` passed with `202` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

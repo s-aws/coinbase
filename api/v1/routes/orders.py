@@ -32,6 +32,7 @@ from application.admin_api.models import (
     AdminApiCommandEnvelope,
     AdminApiCommandResponse,
     AdminApiErrorResponse,
+    AdminLiveAdmissionDecisionEvidence,
     AdminOrderDetailResponse,
     AdminOrderListResponse,
     CampaignExecutionCommand,
@@ -86,6 +87,29 @@ COMMAND_ROUTE_RESPONSES = {
     501: {
         "model": AdminApiCommandResponse,
         "description": "Live HTTP execution is not implemented for this command.",
+    },
+}
+
+SPOT_RECOVERY_PROOF_ROUTE_RESPONSES = {
+    200: {
+        "model": AdminApiCommandResponse,
+        "description": "Spot recovery proof record accepted or replayed after all backend prerequisites match.",
+    },
+    400: {
+        "model": AdminApiCommandResponse,
+        "description": "Spot recovery proof record rejected before local proof persistence.",
+    },
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required spot recovery proof-record permission.",
+    },
+    409: {
+        "model": AdminApiCommandResponse,
+        "description": "Idempotency key conflict.",
     },
 }
 
@@ -202,29 +226,30 @@ def _record_audit(
     operator_intent: str,
     response: AdminApiCommandResponse,
 ) -> str:
-    return audit_store.append(
-        AdminApiAuditEvent(
-            actor_id=actor.actor_id,
-            action_class=response.action_class,
-            permission=response.required_permission,
-            endpoint=endpoint,
-            request_id=request_id,
-            operator_intent=operator_intent,
-            idempotency_key=response.idempotency_key,
-            approval_id=(
-                response.admission_decision.approval_snapshot_id
-                if response.admission_decision is not None
-                else None
-            ),
-            client_order_id=response.client_order_id,
-            stealth_order_id=response.stealth_order_id,
-            coinbase_order_id=response.coinbase_order_id,
-            status=response.status,
-            failure_stage=response.failure_stage,
-            message=response.message,
-            admission_decision=response.admission_decision,
-        )
-    )
+    event_fields = {
+        "actor_id": actor.actor_id,
+        "action_class": response.action_class,
+        "permission": response.required_permission,
+        "endpoint": endpoint,
+        "request_id": request_id,
+        "operator_intent": operator_intent,
+        "idempotency_key": response.idempotency_key,
+        "approval_id": (
+            response.admission_decision.approval_snapshot_id
+            if response.admission_decision is not None
+            else None
+        ),
+        "client_order_id": response.client_order_id,
+        "stealth_order_id": response.stealth_order_id,
+        "coinbase_order_id": response.coinbase_order_id,
+        "status": response.status,
+        "failure_stage": response.failure_stage,
+        "message": response.message,
+        "admission_decision": response.admission_decision,
+    }
+    if response.audit_id is not None:
+        event_fields["audit_id"] = response.audit_id
+    return audit_store.append(AdminApiAuditEvent(**event_fields))
 
 
 def _idempotency_payload_hash(
@@ -294,7 +319,11 @@ def _execute_idempotent_command(
     cap_guard_store: FileAdminApiCapGuardStore,
     reconciliation_store: FileAdminApiReconciliationStore,
     live_execution_service: AdminApiLiveExecutionService,
-    command_runner: Callable[[], AdminApiCommandResponse],
+    command_runner: Callable[[], AdminApiCommandResponse] | None = None,
+    command_runner_with_admission: Callable[
+        [AdminLiveAdmissionDecisionEvidence],
+        AdminApiCommandResponse,
+    ] | None = None,
     client_order_id: str | None = None,
     stealth_order_id: str | None = None,
 ) -> JSONResponse:
@@ -350,7 +379,12 @@ def _execute_idempotent_command(
         )
         return _command_response(response)
 
-    response = command_runner()
+    if command_runner_with_admission is not None:
+        response = command_runner_with_admission(admission_decision)
+    elif command_runner is not None:
+        response = command_runner()
+    else:
+        raise ValueError("A command runner is required.")
     response.admission_decision = admission_decision
     if response.guard is None:
         response.guard = {}
@@ -738,6 +772,7 @@ def _execute_spot_recovery_contract(
     correlation_id: str,
     operator_intent: str,
     actor: AdminApiActor,
+    permission: AdminApiPermission,
     service_method: str,
     route_template: str,
     service: AdminApiCommandService,
@@ -748,6 +783,10 @@ def _execute_spot_recovery_contract(
     reconciliation_store: FileAdminApiReconciliationStore,
     live_execution_service: AdminApiLiveExecutionService,
     command_runner: Callable[[AdminApiCommandEnvelope], AdminApiCommandResponse],
+    command_runner_with_admission: Callable[
+        [AdminApiCommandEnvelope, AdminLiveAdmissionDecisionEvidence],
+        AdminApiCommandResponse,
+    ] | None = None,
 ) -> JSONResponse:
     endpoint = f"{request.method} {request.url.path}"
     envelope = _build_envelope(
@@ -769,7 +808,7 @@ def _execute_spot_recovery_contract(
         endpoint=endpoint,
         request_id=correlation_id,
         operator_intent=operator_intent,
-        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        permission=permission,
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         service_method=service_method,
         route_template=route_template,
@@ -782,7 +821,21 @@ def _execute_spot_recovery_contract(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
-        command_runner=lambda: command_runner(envelope),
+        command_runner=(
+            None
+            if command_runner_with_admission is not None
+            else lambda: command_runner(envelope)
+        ),
+        command_runner_with_admission=(
+            (
+                lambda admission_decision: command_runner_with_admission(
+                    envelope,
+                    admission_decision,
+                )
+            )
+            if command_runner_with_admission is not None
+            else None
+        ),
         client_order_id=body.client_order_id,
     )
 
@@ -824,6 +877,7 @@ def execute_spot_recovery_apply(
         correlation_id=correlation_id,
         operator_intent=operator_intent,
         actor=actor,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
         service_method="execute_spot_recovery_apply",
         route_template="/api/v1/spot/recovery/apply-executions",
         service=service,
@@ -876,6 +930,7 @@ def execute_spot_recovery_rollback(
         correlation_id=correlation_id,
         operator_intent=operator_intent,
         actor=actor,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
         service_method="execute_spot_recovery_rollback",
         route_template="/api/v1/spot/recovery/rollback-executions",
         service=service,
@@ -895,7 +950,7 @@ def execute_spot_recovery_rollback(
     "/spot/recovery/exchange-state-proofs",
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
+    responses=SPOT_RECOVERY_PROOF_ROUTE_RESPONSES,
     summary="Record spot recovery exchange-state proof through the shared command service",
 )
 def record_spot_recovery_exchange_state_proof(
@@ -928,6 +983,7 @@ def record_spot_recovery_exchange_state_proof(
         correlation_id=correlation_id,
         operator_intent=operator_intent,
         actor=actor,
+        permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
         service_method="record_spot_recovery_exchange_state_proof",
         route_template="/api/v1/spot/recovery/exchange-state-proofs",
         service=service,
@@ -937,11 +993,18 @@ def record_spot_recovery_exchange_state_proof(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
-        command_runner=lambda envelope: (
+        command_runner=lambda envelope: service.record_spot_recovery_exchange_state_proof(
+            SpotRecoveryExchangeStateProofCommand(
+                envelope=envelope,
+                request=body,
+            )
+        ),
+        command_runner_with_admission=lambda envelope, admission_decision: (
             service.record_spot_recovery_exchange_state_proof(
                 SpotRecoveryExchangeStateProofCommand(
                     envelope=envelope,
                     request=body,
+                    admission_decision=admission_decision,
                 )
             )
         ),
@@ -952,7 +1015,7 @@ def record_spot_recovery_exchange_state_proof(
     "/spot/recovery/reconciliation-proofs",
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
+    responses=SPOT_RECOVERY_PROOF_ROUTE_RESPONSES,
     summary="Record spot recovery reconciliation proof through the shared command service",
 )
 def record_spot_recovery_reconciliation_proof(
@@ -985,6 +1048,7 @@ def record_spot_recovery_reconciliation_proof(
         correlation_id=correlation_id,
         operator_intent=operator_intent,
         actor=actor,
+        permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
         service_method="record_spot_recovery_reconciliation_proof",
         route_template="/api/v1/spot/recovery/reconciliation-proofs",
         service=service,
@@ -999,6 +1063,15 @@ def record_spot_recovery_reconciliation_proof(
                 SpotRecoveryReconciliationProofRecordCommand(
                     envelope=envelope,
                     request=body,
+                )
+            )
+        ),
+        command_runner_with_admission=lambda envelope, admission_decision: (
+            service.record_spot_recovery_reconciliation_proof(
+                SpotRecoveryReconciliationProofRecordCommand(
+                    envelope=envelope,
+                    request=body,
+                    admission_decision=admission_decision,
                 )
             )
         ),

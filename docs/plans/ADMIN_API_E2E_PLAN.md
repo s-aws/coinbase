@@ -38,115 +38,122 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Spot Recovery Proof Persistence Batch - Phases 1861-1880
+## Active M54 Recovery Apply/Rollback Executor Batch - Phases 1881-1900
 
-This batch directly closes the next M54 planning gap: disabled/no-live
-recovery POST contracts exist, but durable proof persistence and proof
-traceability are still missing. The batch may add backend-owned local proof
-record evidence only. It does not authorize recovery execution, repair apply,
-rollback execution, reconciliation execution, browser authority,
-order/exchange-state mutation outside backend-owned proof records, or Coinbase
-execution.
+This batch directly follows proof persistence. Proof records and readback now
+exist, but recovery apply execution, rollback execution, and post-apply
+reconciliation remain blocked. The batch may add backend-owned no-live
+executor plumbing and durable repair intent/journal evidence only. It does
+not authorize live Coinbase execution, browser recovery authority, browser
+reconciliation authority, exchange reads, or order/exchange-state mutation
+outside a reviewed backend recovery executor.
 
-### Phase 1861 - Advance Active Queue Range
+### Phase 1881 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1841-1860 to active
-  phases 1861-1880 while preserving the no-live default and carried Coinbase
-  cap policy.
+- Move the durable autonomous queue from completed phases 1861-1880 to active
+  phases 1881-1900 while preserving no-live defaults and cap policy.
 
-### Phase 1862 - Proof Persistence Boundary
+### Phase 1882 - Recovery Executor Boundary
 
-- Define recovery proof persistence as append-only backend-owned local
-  evidence, not an executor, Coinbase reader, or browser proof authority.
+- Define the backend-only recovery executor boundary over proof records,
+  approval, admission audit, cap/guard, reconciliation plans, and idempotency.
 
-### Phase 1863 - Evidence Reference Contract
+### Phase 1883 - Apply Prerequisite Contract
 
-- Bind proof records to `client_order_id`, backend evidence refs, audit ids,
-  reconciliation plan ids, idempotency key, and operator intent.
+- Require apply execution to prove `client_order_id`, proof ids, rollback
+  plan, audit ids, cap/guard ids, reconciliation plan ids, and payload hash.
 
-### Phase 1864 - Store Pattern Selection
+### Phase 1884 - Repair Journal Pattern
 
-- Reuse existing Admin API local-state/audit persistence patterns rather than
-  creating a second recovery store.
+- Select or add one append-only journal pattern for recovery apply and
+  rollback evidence.
 
-### Phase 1865 - Exchange-State Proof Record
+### Phase 1885 - Dry-Run Apply Plan
 
-- Add exchange-state proof attempt records with source refs, actor,
-  correlation, idempotency, no-live posture, and unresolved blockers.
+- Add dry-run apply-plan materialization without mutating state.
 
-### Phase 1866 - Reconciliation Proof Record
+### Phase 1886 - No-Live Apply Execution
 
-- Add reconciliation-proof attempt records linked to exchange-state proof,
-  recovery apply audit, reconciliation plan, and no-live posture.
+- Implement the narrow local apply executor only when all backend
+  prerequisites pass; Coinbase calls remain unavailable.
 
-### Phase 1867 - Idempotency And Audit Linkage
+### Phase 1887 - Apply Audit Linkage
 
-- Keep proof-record mutations idempotent, RBAC-gated, audited, and traceable
-  without executing recovery.
+- Link apply execution to durable audit, proof, rollback, and reconciliation
+  evidence.
 
-### Phase 1868 - Readback Evidence
+### Phase 1888 - Rollback Journal Contract
 
-- Expose proof-record readback through existing Admin API read surfaces or a
-  narrowly scoped backend-owned read route.
+- Define rollback evidence for reversing a journaled local repair attempt.
 
-### Phase 1869 - Command Route Persistence Wiring
+### Phase 1889 - No-Live Rollback Execution
 
-- Wire exchange-state proof and reconciliation-proof POST contracts to local
-  proof persistence only when prerequisites pass; apply and rollback execution
-  remain fail-closed.
+- Implement rollback only through the backend-owned journal path.
 
-### Phase 1870 - Apply And Rollback Blocker Preservation
+### Phase 1890 - Post-Apply Reconciliation Gate
 
-- Keep recovery apply execution and rollback execution blocked until executor,
-  exchange-truth, rollback persistence, and post-apply reconciliation gates
-  are implemented through the backend path.
+- Require post-apply reconciliation evidence before recovery completion.
 
-### Phase 1871 - Route Inventory And OpenAPI Sync
+### Phase 1891 - Readback Evidence
 
-- Update route inventory, capability rows, mutation taxonomy linkage, OpenAPI,
-  and examples.
+- Expose apply, rollback, journal, and post-apply reconciliation readback.
 
-### Phase 1872 - Frontend Schema Sync
+### Phase 1892 - Route Inventory And OpenAPI Sync
 
-- Coordinate generated website schema from backend OpenAPI.
+- Update route inventory, capability rows, models, OpenAPI, and examples.
 
-### Phase 1873 - Frontend Contract Consumption
+### Phase 1893 - Frontend Contract Sync
 
-- Coordinate wrappers, BFF allowlist, mock evidence, runtime snapshots, and
-  no-live smoke coverage.
+- Coordinate website schema, wrappers, BFF allowlists, mocks, runtime
+  evidence, and UI evidence without adding frontend execution controls.
 
-### Phase 1874 - Frontend UI Evidence
+### Phase 1894 - Spot UI Evidence
 
-- Coordinate proof persistence/readback rendering without command authority.
+- Render executor readiness/journal evidence and blocked/live boundaries.
 
-### Phase 1875 - Quality Artifact Alignment
+### Phase 1895 - Safety Tests
 
-- Update release, deployment, runtime, smoke, and autonomous artifacts.
+- Prove `order_id` cannot become recovery identity and browser/BFF code cannot
+  bypass backend gates.
 
-### Phase 1876 - Focused Test Gates
+### Phase 1896 - Backend Focused Tests
 
-- Run backend focused tests and frontend focused tests for the proof evidence.
+- Cover no-live apply/rollback behavior, idempotency, RBAC, audit linkage,
+  rollback safety, and post-apply blockers.
 
-### Phase 1877 - Security Boundary Tests
+### Phase 1897 - Frontend Focused Tests
 
-- Prove browser and BFF code do not become recovery, rollback,
-  reconciliation, exchange-read, proof, guard, or Coinbase executors.
+- Cover wrappers, BFF route coverage, mocks, runtime snapshots, and UI
+  rendering for executor evidence.
 
-### Phase 1878 - Docs And Examples
+### Phase 1898 - Docs And Examples
 
 - Update Admin API, command workflow, Spot trading, examples, matrix,
   inventory, and handoff docs.
 
-### Phase 1879 - Contextless Review And Remediation
+### Phase 1899 - Contextless Review And Remediation
 
 - Run blind/contextless review and fix blockers before final gates.
 
-### Phase 1880 - Final Gates, Push, And Next Range
+### Phase 1900 - Final Gates, Push, And Next Range
 
 - Run backend autonomous check, focused tests, full regression, and frontend
   release gate; report live Coinbase notional `$0`, push both repos, and
-  create the next milestone-linked active range if M54 still has an explicit
-  gap.
+  create the next milestone-linked active range only if M54 still has an
+  explicit gap.
+
+## Completed M54 Spot Recovery Proof Persistence Batch - Phases 1861-1880
+
+- Added append-only local proof persistence for exchange-state and
+  reconciliation proof records, with `spot_recovery:record` separate from
+  `spot_recovery:execute`.
+- Wired proof POST routes to local persistence/audit linkage while apply and
+  rollback execution remain fail-closed.
+- Exposed proof readback through recovery reconciliation-proof evidence and
+  synced route inventory, OpenAPI, docs, website schema, mocks, runtime
+  fixtures, and no-live UI evidence.
+- Live Coinbase execution was not run; submitted/executed notional remained
+  `$0`.
 
 ## Completed M54 Spot Recovery Disabled Command Contract Batch - Phases 1841-1860
 
@@ -156,9 +163,9 @@ execution.
 - Preserved `client_order_id` identity, RBAC, idempotency, audit,
   `AdminApiCommandService` routing, live-disabled responses, route inventory,
   OpenAPI, command-suite evidence, and frontend consumption.
-- Left recovery apply execution, rollback execution, proof persistence,
-  post-apply reconciliation, and reconciliation execution as explicit M54
-  blockers.
+- Left recovery apply execution, rollback execution, post-apply
+  reconciliation, and reconciliation execution as explicit M54 blockers.
+  Durable proof persistence was closed by the following 1861-1880 batch.
 - Live Coinbase execution was not run; submitted/executed notional remained
   `$0`.
 

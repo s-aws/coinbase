@@ -1,0 +1,147 @@
+"""Durable Spot recovery proof helpers for Admin API local evidence."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import os
+from pathlib import Path
+from threading import RLock
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiMutationFamilyType,
+    AdminApiPermission,
+)
+
+
+class SpotRecoveryProofRecord(BaseModel):
+    """Append-only backend Spot recovery proof evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proof_id: str = Field(min_length=1)
+    recorded_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    mutation_family: AdminApiMutationFamilyType
+    client_order_id: str = Field(min_length=1)
+    exchange_state_proof_id: str | None = None
+    reconciliation_proof_id: str | None = None
+    exchange_state_evidence_ref: str | None = None
+    recovery_apply_audit_id: str | None = None
+    reconciliation_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    route: str = Field(min_length=1)
+    method: str = Field(min_length=1)
+    module_id: str = "spot_operations"
+    action_class: AdminApiActionClass = AdminApiActionClass.LOCAL_STATE_MUTATION
+    required_permission: AdminApiPermission = AdminApiPermission.SPOT_RECOVERY_RECORD
+    service_method: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    correlation_id: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str = Field(min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_spot_recovery_proof_log"
+    proof_persisted: bool = True
+    recovery_apply_executed: bool = False
+    rollback_executed: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    coinbase_rest_read_ran: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+
+
+class FileSpotRecoveryProofStore:
+    """Append-only JSONL Spot recovery proof store."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get("COINBASE_ADMIN_API_SPOT_RECOVERY_PROOF_LOG_PATH")
+            or Path("runtime_state") / "admin_api_spot_recovery_proofs.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(self, record: SpotRecoveryProofRecord) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.proof_id
+
+    def read_recent(self, *, limit: int = 100) -> list[SpotRecoveryProofRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[SpotRecoveryProofRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(SpotRecoveryProofRecord.model_validate_json(line))
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def find_by_proof_id(self, proof_id: str) -> SpotRecoveryProofRecord | None:
+        """Return the latest proof record with the given proof id."""
+
+        for record in self.read_recent(limit=500):
+            if record.proof_id == proof_id:
+                return record
+        return None
+
+    def find_by_exchange_state_proof_id(
+        self,
+        exchange_state_proof_id: str,
+    ) -> SpotRecoveryProofRecord | None:
+        """Return the latest exchange-state proof record for the proof id."""
+
+        for record in self.read_recent(limit=500):
+            if record.exchange_state_proof_id == exchange_state_proof_id:
+                return record
+        return None
+
+    def find_by_reconciliation_proof_id(
+        self,
+        reconciliation_proof_id: str,
+    ) -> SpotRecoveryProofRecord | None:
+        """Return the latest reconciliation proof record for the proof id."""
+
+        for record in self.read_recent(limit=500):
+            if record.reconciliation_proof_id == reconciliation_proof_id:
+                return record
+        return None
+
+    def read_for_client_order_id(
+        self,
+        client_order_id: str,
+        *,
+        limit: int = 100,
+    ) -> list[SpotRecoveryProofRecord]:
+        """Return recent proof records for one client order id."""
+
+        records: list[SpotRecoveryProofRecord] = []
+        for record in self.read_recent(limit=500):
+            if record.client_order_id != client_order_id:
+                continue
+            records.append(record)
+            if len(records) >= max(1, min(limit, 500)):
+                break
+        return records

@@ -2534,9 +2534,9 @@ Completed fifteenth-slice scope:
   this route is present, while apply, rollback, and reconciliation proof remain
   blocked.
 
-Active sixteenth-slice scope:
+Completed sixteenth-slice scope:
 
-- Active phases 1821-1840 add the backend-owned contract foundation for Spot
+- Completed phases 1821-1840 added the backend-owned contract foundation for Spot
   recovery apply review, rollback-plan evidence, and reconciliation-proof
   evidence.
 - These contracts must stay fail-closed and no-live. They may describe

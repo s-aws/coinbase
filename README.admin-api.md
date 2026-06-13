@@ -125,8 +125,9 @@ backend-owned `/api/v1/admin/reconciliation/plans` reads for operator triage
 only; it does not execute reconciliation, mutate order or exchange state,
 apply repairs, roll back state, call Coinbase, or create browser
 reconciliation authority. The separate Spot reconciliation workflow remains a
-backend-contract-required gap until execution and durable proof persistence
-contracts exist.
+backend-contract-required gap until reconciliation execution exists. Durable
+proof persistence is backend-owned local evidence and is not reconciliation
+execution.
 
 Spot recovery now has read-only contract evidence routes:
 `GET /api/v1/spot/recovery/preview`,
@@ -138,14 +139,13 @@ The apply-review, rollback-plan, and reconciliation-proof routes expose the
 client-order-id candidate identity, gate chain, rollback prerequisites, and
 proof-field requirements without adding execution authority. They remove the
 read-contract gap, but recovery apply execution, rollback execution,
-post-apply reconciliation, exchange-state proof persistence, and
-reconciliation proof persistence remain implementation/proof-persistence
-blockers. Disabled POST contracts exist for recovery apply, rollback,
-exchange-state proof recording, and reconciliation-proof recording; those
-contracts return fail-closed no-live evidence until backend executors and
-proof persistence are implemented. These routes do not write repair rows, roll
-back state, execute reconciliation, mutate order or exchange state, call
-Coinbase, or authorize browser/BFF recovery.
+post-apply reconciliation, and reconciliation execution remain blockers.
+Disabled POST contracts exist for recovery apply and rollback; proof POST
+contracts persist append-only backend local evidence only after route-bound
+approval, admission audit, cap/guard, reconciliation plan, idempotency, and
+audit prerequisites match. These routes do not write repair rows, roll back
+state, execute reconciliation, mutate order or exchange state, call Coinbase,
+or authorize browser/BFF recovery.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -232,11 +232,11 @@ does not authorize browser-side commands or replace backend guard, wallet,
 margin, approval, audit, cap, or reconciliation gates.
 
 The same response exposes M48 `mutation_taxonomy` evidence. Current taxonomy
-rows cover the six live-disabled HTTP command routes, three legacy dashboard
-WebSocket compatibility command surfaces, and two backend-contract-required
-families for futures/perpetual commands and fill-ledger repair. Every current
-command surface in `ADMIN_API_ROUTE_INVENTORY` must appear in exactly one
-taxonomy row.
+rows cover live-disabled HTTP command routes, backend-owned local-state
+mutation routes, legacy dashboard WebSocket compatibility command surfaces,
+and backend-contract-required families for futures/perpetual commands and
+fill-ledger repair. Every current command surface in
+`ADMIN_API_ROUTE_INVENTORY` must appear in exactly one taxonomy row.
 M49 adds the `admin.approval_lifecycle` taxonomy row for approval request,
 decision, and revoke local-state mutation routes.
 M50 adds the `admin.cap_guard_decisions` taxonomy row for backend-owned
@@ -282,17 +282,20 @@ Current local-state approval lifecycle mutation surfaces are:
 - `POST /api/v1/admin/cap-guard/decisions`
 - `POST /api/v1/admin/reconciliation/plans`
 - `POST /api/v1/spot/pnl/checkpoints`
+- `POST /api/v1/spot/recovery/exchange-state-proofs`
+- `POST /api/v1/spot/recovery/reconciliation-proofs`
 
 These local-state routes are authenticated, authorized, idempotent, and
 audited. They write backend-owned approval lifecycle, admission audit,
-cap/guard decision, reconciliation plan, or Spot P/L checkpoint evidence only;
-they do not submit orders, cancel orders, evaluate browser guards, execute
-reconciliation, prove profitability, create tax lots, mutate order/exchange
-state, or call Coinbase.
+cap/guard decision, reconciliation plan, Spot P/L checkpoint, or Spot recovery
+proof evidence only; they do not submit orders, cancel orders, evaluate
+browser guards, execute recovery, execute reconciliation, prove profitability,
+create tax lots, mutate order/exchange state, or call Coinbase.
 
 See [Admission Audit Records](README.admission-audits.md),
 [Cap/Guard Decision Records](README.cap-guard-decisions.md),
-[Reconciliation Plan Records](README.reconciliation-plans.md), and
+[Reconciliation Plan Records](README.reconciliation-plans.md),
+[Spot Recovery Proof Records](README.spot-recovery-proofs.md), and
 [Admin API Examples](docs/examples/admin-api.md) for record contracts and
 payload examples.
 

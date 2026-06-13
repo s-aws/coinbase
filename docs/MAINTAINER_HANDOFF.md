@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1861-1880`.
+- Active autonomous range: `1881-1900`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -125,10 +125,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   rollback-plan, and reconciliation-proof routes. The completed 1841-1860 range added
   disabled/no-live POST contracts for recovery apply execution, rollback
   execution, exchange-state proof recording, and reconciliation-proof
-  recording. The active 1861-1880 range is the next M54 slice for durable
-  proof persistence and proof traceability. Recovery executor implementation,
-  proof persistence, post-apply reconciliation, and reconciliation execution
-  remain blocked until those backend gates exist. This foundation
+  recording. The completed 1861-1880 range added durable proof persistence,
+  proof readback, and the `spot_recovery:record` permission for proof
+  recording. The active 1881-1900 range is the next M54 slice for no-live
+  recovery apply/rollback executor plumbing and post-apply reconciliation
+  boundaries. Recovery executor implementation, post-apply reconciliation,
+  and reconciliation execution remain blocked until those backend gates
+  exist. This foundation
   must not add a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
   authority, browser recovery authority, browser reconciliation authority,

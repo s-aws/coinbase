@@ -2098,8 +2098,8 @@ X-Admin-Roles: viewer
     {
       "family": "spot_recovery_workflow",
       "status": "blocked",
-      "exposure_status": "backend_contract_required",
-      "command_route": null,
+      "exposure_status": "admin_draft_live_disabled",
+      "command_route": "/api/v1/spot/recovery/apply-executions",
       "current_read_evidence_routes": [
         "GET /api/v1/spot/recovery/preview",
         "GET /api/v1/spot/recovery/apply-review",
@@ -2173,7 +2173,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Read-only recovery reconciliation-proof contract evidence; it does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
+          "detail": "Read-only recovery reconciliation-proof contract evidence; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
         },
         {
           "route": "/api/v1/admin/recovery-gate",
@@ -2206,7 +2206,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery executor implementation, proof persistence, and post-apply reconciliation. Disabled POST command contracts and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
+      "required_backend_contract": "Spot recovery executor implementation and post-apply reconciliation. Proof persistence and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2220,7 +2220,6 @@ X-Admin-Roles: viewer
       "missing_contracts": [
         "spot_recovery_apply_executor_implementation",
         "spot_recovery_rollback_executor_implementation",
-        "spot_recovery_proof_persistence_contract",
         "spot_recovery_post_apply_reconciliation_contract"
       ],
       "backend_owned": true,
@@ -2232,7 +2231,7 @@ X-Admin-Roles: viewer
         "docs/OPERATOR_READ_MODELS.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and disabled recovery POST contracts do not apply recovery, persist proofs, execute reconciliation, mutate order/exchange state, or call Coinbase. Apply execution, rollback execution, proof persistence, and reconciliation execution must stay backend-owned before any recovery action exists."
+      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and recovery POST contracts do not apply recovery, execute reconciliation, mutate order/exchange state, or call Coinbase. Apply execution, rollback execution, and reconciliation execution must stay backend-owned before any recovery action exists."
     },
     {
       "family": "spot_reconciliation_workflow",
@@ -2259,7 +2258,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Existing read-only Admin API recovery reconciliation-proof contract route; it does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
+          "detail": "Existing read-only Admin API recovery reconciliation-proof contract route; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
         },
         {
           "route": "/api/v1/admin/reconciliation/plans",
@@ -2303,8 +2302,6 @@ X-Admin-Roles: viewer
       ],
       "missing_contracts": [
         "spot_reconciliation_execution_contract",
-        "spot_exchange_state_proof_persistence_contract",
-        "spot_reconciliation_proof_persistence_contract",
         "spot_reconciliation_repair_policy_contract"
       ],
       "backend_owned": true,
@@ -2644,8 +2641,11 @@ Direct frontend smoke scripts still accept `ADMIN_API_ACTOR` as a legacy
 fallback, but `ADMIN_API_ACTOR_ID` is the canonical actor variable shared with
 BFF mode.
 
-The command smoke expects `501` live-disabled responses and reports live
-Coinbase execution as not run with notional `$0`.
+The command smoke expects `501` live-disabled responses for live execution
+commands, `400` prerequisite rejections for Spot recovery proof writer probes
+when prerequisite records are absent, and accepted local-state responses for
+checkpoint/proof records when their backend prerequisites are satisfied. It
+reports live Coinbase execution as not run with notional `$0`.
 
 The frontend release artifact bundle includes:
 
@@ -2671,8 +2671,10 @@ npm run smoke:bff
 ```
 
 BFF smoke reads through `/api/admin/api/v1/...` and posts to BFF command
-routes expecting backend `501` live-disabled responses. It must report live
-Coinbase execution as not run with notional `$0`.
+routes expecting backend `501` live-disabled responses for live execution
+commands and backend `400` prerequisite rejections for Spot recovery proof
+writer probes. It must report live Coinbase execution as not run with
+notional `$0`.
 
 The BFF copies only documented response-evidence headers back to browser code:
 `Content-Type`, `X-Correlation-Id`, `X-Request-Id`,
