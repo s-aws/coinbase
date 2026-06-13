@@ -2806,6 +2806,9 @@ class AdminApiReadService:
             documentation_refs: list[str] | None = None,
             required_next_contract: str | None = None,
             blockers: list[str] | None = None,
+            bff_boundary: str | None = None,
+            route_local_boundary: str | None = None,
+            live_adapter_required: bool = True,
         ) -> AdminEnterpriseMutationTaxonomyItem:
             route_row = route_inventory_item(surface)
             return mutation_taxonomy_item(
@@ -2836,7 +2839,19 @@ class AdminApiReadService:
                 required_next_contract=required_next_contract,
                 blockers=blockers,
                 frontend_boundary=frontend_boundary,
+                bff_boundary=bff_boundary
+                or (
+                    "BFF may forward only to backend Admin API with server-held "
+                    "credentials; it must not approve or execute this mutation."
+                ),
+                route_local_boundary=route_local_boundary
+                or (
+                    "FastAPI route adapters must bind auth, RBAC, idempotency, "
+                    "audit, approval, cap/guard, and reconciliation evidence; "
+                    "they must not implement route-local trading behavior."
+                ),
                 spot_rule_boundary=spot_rule_boundary,
+                live_adapter_required=live_adapter_required,
             )
 
         modules = [
@@ -5027,6 +5042,206 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/apply-executions",
+                mutation_id="spot.recovery_apply_execution",
+                mutation_family=AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION,
+                workflow_id="spot.recovery_workflow",
+                related_workflow_ids=["spot.reconciliation_workflow"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot recovery apply execution is a route-bound disabled "
+                    "Admin API command contract keyed by client_order_id."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::execute_spot_recovery_apply",
+                    "application/admin_api/command_service.py::execute_spot_recovery_apply",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotRecoveryApply",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                documentation_refs=["README.spot-trading.md", "docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Backend repair application, rollback persistence, exchange-state "
+                    "proof persistence, and post-apply reconciliation must exist "
+                    "before recovery can mutate state."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "recovery_apply_executor_missing",
+                    "proof_persistence_missing",
+                    "post_apply_reconciliation_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may dry-submit the backend contract only; it must "
+                    "not apply repairs, mutate order state, or create recovery proof."
+                ),
+                route_local_boundary=(
+                    "The route writes command audit/idempotency evidence only; it "
+                    "must not call repair tools, mutate order state, or call Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "Spot recovery is spot-only operational repair evidence and "
+                    "must not become a generic futures/perpetual repair model."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/rollback-executions",
+                mutation_id="spot.recovery_rollback_execution",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+                ),
+                workflow_id="spot.recovery_workflow",
+                related_workflow_ids=["spot.reconciliation_workflow"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot recovery rollback execution is a route-bound disabled "
+                    "Admin API command contract keyed by client_order_id."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::execute_spot_recovery_rollback",
+                    "application/admin_api/command_service.py::execute_spot_recovery_rollback",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotRecoveryRollback",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                documentation_refs=["README.spot-trading.md", "docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Backend rollback implementation and post-rollback "
+                    "reconciliation proof must exist before rollback can mutate state."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "recovery_rollback_executor_missing",
+                    "proof_persistence_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may dry-submit the backend contract only; it must "
+                    "not roll back order state or create recovery proof."
+                ),
+                route_local_boundary=(
+                    "The route writes command audit/idempotency evidence only; it "
+                    "must not call repair tools, mutate order state, or call Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "Spot rollback evidence is spot-only repair posture and must "
+                    "not be copied into non-spot modules without module contracts."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/exchange-state-proofs",
+                mutation_id="spot.recovery_exchange_state_proof",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF
+                ),
+                workflow_id="spot.reconciliation_workflow",
+                related_workflow_ids=["spot.recovery_workflow"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot recovery exchange-state proof writing is a route-bound "
+                    "disabled Admin API command contract keyed by client_order_id."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::record_spot_recovery_exchange_state_proof",
+                    "application/admin_api/command_service.py::record_spot_recovery_exchange_state_proof",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotRecoveryExchangeStateProof",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                documentation_refs=["README.spot-trading.md", "docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Backend exchange-state evidence capture and proof persistence "
+                    "must exist before the proof writer can record exchange truth."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "exchange_state_capture_missing",
+                    "proof_persistence_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may dry-submit the backend contract only; it must "
+                    "not fetch Coinbase, capture exchange truth, or persist proof."
+                ),
+                route_local_boundary=(
+                    "The route writes command audit/idempotency evidence only; it "
+                    "must not fetch Coinbase or mutate exchange/order state."
+                ),
+                spot_rule_boundary=(
+                    "Spot exchange-state proof is a spot recovery contract; "
+                    "futures/perpetual proof must be position/collateral-aware."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/reconciliation-proofs",
+                mutation_id="spot.recovery_reconciliation_proof",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF
+                ),
+                workflow_id="spot.reconciliation_workflow",
+                related_workflow_ids=["spot.recovery_workflow"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot recovery reconciliation-proof writing is a route-bound "
+                    "disabled Admin API command contract keyed by client_order_id."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::record_spot_recovery_reconciliation_proof",
+                    "application/admin_api/command_service.py::record_spot_recovery_reconciliation_proof",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotRecoveryReconciliationProof",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                required_next_contract=(
+                    "Backend reconciliation execution and proof persistence must "
+                    "exist before reconciliation proof can be recorded."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "reconciliation_execution_missing",
+                    "proof_persistence_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may dry-submit the backend contract only; it must "
+                    "not execute reconciliation or create proof authority."
+                ),
+                route_local_boundary=(
+                    "The route writes command audit/idempotency evidence only; it "
+                    "must not execute reconciliation, mutate state, or call Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "Spot reconciliation proof is spot-specific and must not be "
+                    "treated as a platform default for non-spot modules."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/spot/pnl/checkpoints",
                 mutation_id="spot.pnl_checkpoint",
                 mutation_family=AdminApiMutationFamilyType.SPOT_PNL_CHECKPOINT,
@@ -7010,6 +7225,101 @@ class AdminApiReadService:
                     "through backend-owned gates."
                 ),
             },
+            AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION: {
+                "surface": "POST /api/v1/spot/recovery/apply-executions",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::execute_spot_recovery_apply",
+                    "application/admin_api/command_service.py::execute_spot_recovery_apply",
+                    "tools/run_spot_fill_ledger_repair.py",
+                    "tools/run_spot_fill_backfill_recovery.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotRecoveryApply",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-trading.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                "detail": (
+                    "Spot recovery apply is now route-bound as a disabled "
+                    "backend command contract keyed by client_order_id. It does "
+                    "not apply repairs, mutate local order state, or call Coinbase."
+                ),
+            },
+            AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION: {
+                "surface": "POST /api/v1/spot/recovery/rollback-executions",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::execute_spot_recovery_rollback",
+                    "application/admin_api/command_service.py::execute_spot_recovery_rollback",
+                    "tools/run_spot_fill_ledger_repair.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotRecoveryRollback",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-trading.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                "detail": (
+                    "Spot recovery rollback is now route-bound as a disabled "
+                    "backend command contract keyed by client_order_id. It does "
+                    "not roll back local order state or call Coinbase."
+                ),
+            },
+            AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF: {
+                "surface": "POST /api/v1/spot/recovery/exchange-state-proofs",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::record_spot_recovery_exchange_state_proof",
+                    "application/admin_api/command_service.py::record_spot_recovery_exchange_state_proof",
+                    "application/admin_api/read_service.py::build_admin_audit_workbench",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotRecoveryExchangeStateProof",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-trading.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                "detail": (
+                    "Spot recovery exchange-state proof writing is route-bound "
+                    "as a disabled backend command contract keyed by "
+                    "client_order_id. It does not fetch Coinbase or persist proof."
+                ),
+            },
+            AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF: {
+                "surface": "POST /api/v1/spot/recovery/reconciliation-proofs",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::record_spot_recovery_reconciliation_proof",
+                    "application/admin_api/command_service.py::record_spot_recovery_reconciliation_proof",
+                    "application/admin_api/reconciliation.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotRecoveryReconciliationProof",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-trading.md",
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                "detail": (
+                    "Spot recovery reconciliation-proof writing is route-bound "
+                    "as a disabled backend command contract keyed by "
+                    "client_order_id. It does not execute reconciliation or "
+                    "persist proof."
+                ),
+            },
         }
         read_routes = [
             item.surface
@@ -7025,13 +7335,29 @@ class AdminApiReadService:
                 if item.surface == metadata["surface"]
             )
             method, route = _surface_method_and_path(inventory_item.surface)
-            live_path = live_paths[(method, route)]
-            missing_gate_chain = [
-                precondition.precondition.value
-                for precondition in live_path.readiness_preconditions
-                if precondition.blocking
-            ]
-            readiness_preconditions = list(live_path.readiness_preconditions)
+            live_path = live_paths.get((method, route))
+            if live_path is None:
+                missing_gate_chain = [
+                    "approval_snapshot",
+                    "admission_audit",
+                    "cap_guard_decision",
+                    "reconciliation_plan",
+                    "live_execution_disabled",
+                    "proof_persistence",
+                    "recovery_execution_disabled",
+                ]
+                readiness_preconditions = []
+                live_execution_status = AdminApiLiveExecutionStatus.LIVE_DISABLED
+                live_adapter_configured = False
+            else:
+                missing_gate_chain = [
+                    precondition.precondition.value
+                    for precondition in live_path.readiness_preconditions
+                    if precondition.blocking
+                ]
+                readiness_preconditions = list(live_path.readiness_preconditions)
+                live_execution_status = live_path.status
+                live_adapter_configured = live_path.live_execution_adapter.configured
             required_gate_chain = [
                 "idempotency",
                 "operator_intent",
@@ -7055,11 +7381,11 @@ class AdminApiReadService:
                     required_permission=inventory_item.permission,
                     shared_method=inventory_item.shared_method,
                     status=AdminApiGateStatus.BLOCKED,
-                    live_execution_status=live_path.status,
+                    live_execution_status=live_execution_status,
                     live_enabled=False,
                     live_eligible=False,
                     executable=False,
-                    live_adapter_configured=live_path.live_execution_adapter.configured,
+                    live_adapter_configured=live_adapter_configured,
                     approval_required=True,
                     cap_guard_required=True,
                     admission_audit_required=True,
@@ -7250,8 +7576,8 @@ class AdminApiReadService:
             ),
             SpotCommandSuiteCoverageGapItem(
                 family=AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/spot/recovery/apply-executions",
                 current_read_evidence_routes=[
                     "GET /api/v1/spot/recovery/preview",
                     "GET /api/v1/spot/recovery/apply-review",
@@ -7271,11 +7597,11 @@ class AdminApiReadService:
                     ]
                 ),
                 required_backend_contract=(
-                    "Spot recovery apply review, rollback-plan, and "
-                    "reconciliation-proof contracts with RBAC, idempotency, "
-                    "append-only audit linkage, and fail-closed no-live posture. "
-                    "Read-only preview and contract evidence routes are exposed, "
-                    "but recovery execution remains unavailable."
+                    "Spot recovery apply, rollback, exchange-state proof, and "
+                    "reconciliation-proof command contracts with RBAC, "
+                    "idempotency, append-only audit linkage, and fail-closed "
+                    "no-live posture. Route-bound contracts are exposed, but "
+                    "recovery execution and proof persistence remain unavailable."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -7291,9 +7617,9 @@ class AdminApiReadService:
                     "post_apply_reconciliation",
                 ],
                 missing_contracts=[
-                    "spot_recovery_apply_execution_contract",
-                    "spot_recovery_rollback_execution_contract",
-                    "spot_recovery_reconciliation_proof_writer_contract",
+                    "spot_recovery_apply_executor_implementation",
+                    "spot_recovery_rollback_executor_implementation",
+                    "spot_recovery_proof_persistence_contract",
                     "spot_recovery_post_apply_reconciliation_contract",
                 ],
                 spot_rule_boundary=spot_boundary,
@@ -7305,9 +7631,10 @@ class AdminApiReadService:
                 detail=(
                     "Spot recovery preview, recovery-gate, and direct-order audit "
                     "reads plus apply-review, rollback-plan, and reconciliation-proof "
-                    "contract evidence do not create a spot recovery mutation. "
-                    "Execution, rollback execution, and proof writing must stay "
-                    "backend-owned before any recovery action exists."
+                    "contract evidence now have disabled backend command routes. "
+                    "They still do not apply repair actions, roll back state, "
+                    "persist proofs, execute reconciliation, mutate order/exchange "
+                    "state, or call Coinbase."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
@@ -7342,8 +7669,8 @@ class AdminApiReadService:
                 ],
                 missing_contracts=[
                     "spot_reconciliation_execution_contract",
-                    "spot_exchange_state_proof_contract",
-                    "spot_recovery_reconciliation_proof_writer_contract",
+                    "spot_exchange_state_proof_persistence_contract",
+                    "spot_reconciliation_proof_persistence_contract",
                     "spot_reconciliation_repair_policy_contract",
                 ],
                 spot_rule_boundary=spot_boundary,
@@ -7436,7 +7763,7 @@ class AdminApiReadService:
                 "identity_key": "client_order_id",
                 "identity_value": identity_value,
                 "preview_only": True,
-                "required_next_contract": "spot_recovery_apply_execution_contract",
+                "required_next_contract": "spot_recovery_apply_executor_implementation",
             })
 
         direct_order_candidates: list[dict[str, Any]] = []
@@ -7446,7 +7773,7 @@ class AdminApiReadService:
                 "identity_key": "client_order_id",
                 "identity_value": client_order_id,
                 "preview_only": True,
-                "required_next_contract": "spot_recovery_apply_execution_contract",
+                "required_next_contract": "spot_recovery_apply_executor_implementation",
             })
 
         sources = [
@@ -7543,9 +7870,9 @@ class AdminApiReadService:
                 "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
             ],
             missing_contracts=[
-                "spot_recovery_apply_execution_contract",
-                "spot_recovery_rollback_execution_contract",
-                "spot_recovery_reconciliation_proof_writer_contract",
+                "spot_recovery_apply_executor_implementation",
+                "spot_recovery_rollback_executor_implementation",
+                "spot_recovery_proof_persistence_contract",
                 "spot_recovery_post_apply_reconciliation_contract",
             ],
             apply_review_contract_available=True,
@@ -7737,12 +8064,12 @@ class AdminApiReadService:
                 "cap_guard_decision",
                 "rollback_plan_contract",
                 "reconciliation_proof_contract",
-                "recovery_apply_execution_contract",
+                "recovery_apply_executor_implementation",
                 "post_apply_reconciliation",
             ],
             contract_gate_evidence=self._spot_recovery_contract_gate_evidence(),
             missing_contracts=[
-                "spot_recovery_apply_execution_contract",
+                "spot_recovery_apply_executor_implementation",
                 "spot_recovery_post_apply_reconciliation_contract",
             ],
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
@@ -7803,7 +8130,7 @@ class AdminApiReadService:
                 },
             ],
             missing_contracts=[
-                "spot_recovery_rollback_execution_contract",
+                "spot_recovery_rollback_executor_implementation",
                 "spot_recovery_state_repair_contract",
             ],
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
@@ -7858,9 +8185,9 @@ class AdminApiReadService:
                 "audit_id",
             ],
             missing_contracts=[
-                "spot_recovery_reconciliation_proof_writer_contract",
+                "spot_recovery_proof_persistence_contract",
                 "spot_reconciliation_execution_contract",
-                "spot_exchange_state_proof_contract",
+                "spot_exchange_state_proof_persistence_contract",
             ],
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
             detail=(

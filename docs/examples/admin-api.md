@@ -2206,7 +2206,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery execution contracts with RBAC, idempotency, append-only audit, rollback execution, and reconciliation proof writing. Read-only preview, apply-review, rollback-plan, and reconciliation-proof evidence is already exposed.",
+      "required_backend_contract": "Spot recovery executor implementation, proof persistence, and post-apply reconciliation. Disabled POST command contracts and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2218,9 +2218,9 @@ X-Admin-Roles: viewer
         "reconciliation_proof"
       ],
       "missing_contracts": [
-        "spot_recovery_apply_execution_contract",
-        "spot_recovery_rollback_execution_contract",
-        "spot_recovery_reconciliation_proof_writer_contract",
+        "spot_recovery_apply_executor_implementation",
+        "spot_recovery_rollback_executor_implementation",
+        "spot_recovery_proof_persistence_contract",
         "spot_recovery_post_apply_reconciliation_contract"
       ],
       "backend_owned": true,
@@ -2232,7 +2232,7 @@ X-Admin-Roles: viewer
         "docs/OPERATOR_READ_MODELS.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, and direct-order audit reads do not create a spot recovery mutation. Apply execution, rollback execution, and reconciliation proof writing must stay backend-owned before any recovery action exists."
+      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and disabled recovery POST contracts do not apply recovery, persist proofs, execute reconciliation, mutate order/exchange state, or call Coinbase. Apply execution, rollback execution, proof persistence, and reconciliation execution must stay backend-owned before any recovery action exists."
     },
     {
       "family": "spot_reconciliation_workflow",
@@ -2303,8 +2303,8 @@ X-Admin-Roles: viewer
       ],
       "missing_contracts": [
         "spot_reconciliation_execution_contract",
-        "spot_exchange_state_proof_contract",
-        "spot_recovery_reconciliation_proof_writer_contract",
+        "spot_exchange_state_proof_persistence_contract",
+        "spot_reconciliation_proof_persistence_contract",
         "spot_reconciliation_repair_policy_contract"
       ],
       "backend_owned": true,

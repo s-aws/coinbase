@@ -40,6 +40,14 @@ from application.admin_api.models import (
     CancelOrderRequest,
     ManualOrderCommand,
     ManualOrderRequest,
+    SpotRecoveryApplyExecutionCommand,
+    SpotRecoveryApplyExecutionRequest,
+    SpotRecoveryExchangeStateProofCommand,
+    SpotRecoveryExchangeStateProofRequest,
+    SpotRecoveryReconciliationProofRecordCommand,
+    SpotRecoveryReconciliationProofRecordRequest,
+    SpotRecoveryRollbackExecutionCommand,
+    SpotRecoveryRollbackExecutionRequest,
     SpotSweepAutomationRunCommand,
     SpotSweepAutomationRunRequest,
 )
@@ -713,5 +721,285 @@ def run_spot_sweep_automation(
         live_execution_service=live_execution_service,
         command_runner=lambda: service.run_spot_sweep_automation(
             SpotSweepAutomationRunCommand(envelope=envelope, request=body)
+        ),
+    )
+
+
+def _execute_spot_recovery_contract(
+    *,
+    request: Request,
+    body: (
+        SpotRecoveryApplyExecutionRequest
+        | SpotRecoveryRollbackExecutionRequest
+        | SpotRecoveryExchangeStateProofRequest
+        | SpotRecoveryReconciliationProofRecordRequest
+    ),
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+    actor: AdminApiActor,
+    service_method: str,
+    route_template: str,
+    service: AdminApiCommandService,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    approval_store: FileAdminApiApprovalStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
+    reconciliation_store: FileAdminApiReconciliationStore,
+    live_execution_service: AdminApiLiveExecutionService,
+    command_runner: Callable[[AdminApiCommandEnvelope], AdminApiCommandResponse],
+) -> JSONResponse:
+    endpoint = f"{request.method} {request.url.path}"
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method=service_method,
+        route_template=route_template,
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=body.client_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda: command_runner(envelope),
+        client_order_id=body.client_order_id,
+    )
+
+
+@router.post(
+    "/spot/recovery/apply-executions",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Apply a spot recovery plan through the shared command service",
+)
+def execute_spot_recovery_apply(
+    request: Request,
+    body: SpotRecoveryApplyExecutionRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for future spot recovery apply execution."""
+
+    return _execute_spot_recovery_contract(
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        service_method="execute_spot_recovery_apply",
+        route_template="/api/v1/spot/recovery/apply-executions",
+        service=service,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda envelope: service.execute_spot_recovery_apply(
+            SpotRecoveryApplyExecutionCommand(envelope=envelope, request=body)
+        ),
+    )
+
+
+@router.post(
+    "/spot/recovery/rollback-executions",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Rollback a spot recovery apply through the shared command service",
+)
+def execute_spot_recovery_rollback(
+    request: Request,
+    body: SpotRecoveryRollbackExecutionRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for future spot recovery rollback execution."""
+
+    return _execute_spot_recovery_contract(
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        service_method="execute_spot_recovery_rollback",
+        route_template="/api/v1/spot/recovery/rollback-executions",
+        service=service,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda envelope: service.execute_spot_recovery_rollback(
+            SpotRecoveryRollbackExecutionCommand(envelope=envelope, request=body)
+        ),
+    )
+
+
+@router.post(
+    "/spot/recovery/exchange-state-proofs",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Record spot recovery exchange-state proof through the shared command service",
+)
+def record_spot_recovery_exchange_state_proof(
+    request: Request,
+    body: SpotRecoveryExchangeStateProofRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for future spot recovery exchange-state proof writing."""
+
+    return _execute_spot_recovery_contract(
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        service_method="record_spot_recovery_exchange_state_proof",
+        route_template="/api/v1/spot/recovery/exchange-state-proofs",
+        service=service,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda envelope: (
+            service.record_spot_recovery_exchange_state_proof(
+                SpotRecoveryExchangeStateProofCommand(
+                    envelope=envelope,
+                    request=body,
+                )
+            )
+        ),
+    )
+
+
+@router.post(
+    "/spot/recovery/reconciliation-proofs",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Record spot recovery reconciliation proof through the shared command service",
+)
+def record_spot_recovery_reconciliation_proof(
+    request: Request,
+    body: SpotRecoveryReconciliationProofRecordRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for future spot recovery reconciliation-proof writing."""
+
+    return _execute_spot_recovery_contract(
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        service_method="record_spot_recovery_reconciliation_proof",
+        route_template="/api/v1/spot/recovery/reconciliation-proofs",
+        service=service,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda envelope: (
+            service.record_spot_recovery_reconciliation_proof(
+                SpotRecoveryReconciliationProofRecordCommand(
+                    envelope=envelope,
+                    request=body,
+                )
+            )
         ),
     )

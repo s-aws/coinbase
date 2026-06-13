@@ -38,108 +38,137 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Spot Recovery Apply Contract Foundation Batch - Phases 1821-1840
+## Active M54 Spot Recovery Proof Persistence Batch - Phases 1861-1880
 
-This batch directly closes the next M54 planning gap: Spot recovery preview
-exists, but recovery apply review, rollback-plan evidence, and
-reconciliation-proof evidence are still missing backend contracts. The batch
-does not authorize recovery execution, repair apply, rollback execution,
-reconciliation execution, order/exchange-state mutation, browser authority, or
-Coinbase execution.
+This batch directly closes the next M54 planning gap: disabled/no-live
+recovery POST contracts exist, but durable proof persistence and proof
+traceability are still missing. The batch may add backend-owned local proof
+record evidence only. It does not authorize recovery execution, repair apply,
+rollback execution, reconciliation execution, browser authority,
+order/exchange-state mutation outside backend-owned proof records, or Coinbase
+execution.
 
-### Phase 1821 - Advance Active Queue Range
+### Phase 1861 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1801-1820 to active
-  phases 1821-1840 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1841-1860 to active
+  phases 1861-1880 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1822 - Recovery Apply Scope
+### Phase 1862 - Proof Persistence Boundary
 
-- Define fail-closed Spot recovery apply review as backend-owned evidence,
-  not an executor.
+- Define recovery proof persistence as append-only backend-owned local
+  evidence, not an executor, Coinbase reader, or browser proof authority.
 
-### Phase 1823 - Recovery Identity Contract
+### Phase 1863 - Evidence Reference Contract
 
-- Bind recovery candidates to `client_order_id`, preview source, audit
-  correlation, idempotency key, and module id.
+- Bind proof records to `client_order_id`, backend evidence refs, audit ids,
+  reconciliation plan ids, idempotency key, and operator intent.
 
-### Phase 1824 - Recovery Apply Models
+### Phase 1864 - Store Pattern Selection
 
-- Add typed request/response contracts for approval, cap/guard, audit,
-  rollback, reconciliation, and live-disabled blockers.
+- Reuse existing Admin API local-state/audit persistence patterns rather than
+  creating a second recovery store.
 
-### Phase 1825 - Recovery Apply Route Contract
+### Phase 1865 - Exchange-State Proof Record
 
-- Add the route contract through existing Admin API auth/RBAC and shared
-  service boundaries while keeping it live-disabled.
+- Add exchange-state proof attempt records with source refs, actor,
+  correlation, idempotency, no-live posture, and unresolved blockers.
 
-### Phase 1826 - Rollback Plan Contract
+### Phase 1866 - Reconciliation Proof Record
 
-- Add rollback-plan read evidence for recovery candidates without rollback
-  authority.
+- Add reconciliation-proof attempt records linked to exchange-state proof,
+  recovery apply audit, reconciliation plan, and no-live posture.
 
-### Phase 1827 - Reconciliation Proof Contract
+### Phase 1867 - Idempotency And Audit Linkage
 
-- Add reconciliation-proof evidence fields without proof-writing authority.
+- Keep proof-record mutations idempotent, RBAC-gated, audited, and traceable
+  without executing recovery.
 
-### Phase 1828 - Admission Gate Linkage
+### Phase 1868 - Readback Evidence
 
-- Link recovery review to existing approval, cap/guard, audit,
-  reconciliation plan, and live-boundary evidence.
+- Expose proof-record readback through existing Admin API read surfaces or a
+  narrowly scoped backend-owned read route.
 
-### Phase 1829 - No-Live Sentinel Tests
+### Phase 1869 - Command Route Persistence Wiring
 
-- Prove submitted/executed notional remains `$0` and no Coinbase path runs.
+- Wire exchange-state proof and reconciliation-proof POST contracts to local
+  proof persistence only when prerequisites pass; apply and rollback execution
+  remain fail-closed.
 
-### Phase 1830 - Route Inventory And OpenAPI Sync
+### Phase 1870 - Apply And Rollback Blocker Preservation
+
+- Keep recovery apply execution and rollback execution blocked until executor,
+  exchange-truth, rollback persistence, and post-apply reconciliation gates
+  are implemented through the backend path.
+
+### Phase 1871 - Route Inventory And OpenAPI Sync
 
 - Update route inventory, capability rows, mutation taxonomy linkage, OpenAPI,
   and examples.
 
-### Phase 1831 - Command-Suite Gap Update
+### Phase 1872 - Frontend Schema Sync
 
-- Point remaining recovery gaps at the new apply-review, rollback-plan, and
-  reconciliation-proof contracts.
+- Coordinate generated website schema from backend OpenAPI.
 
-### Phase 1832 - Docs And Examples
+### Phase 1873 - Frontend Contract Consumption
+
+- Coordinate wrappers, BFF allowlist, mock evidence, runtime snapshots, and
+  no-live smoke coverage.
+
+### Phase 1874 - Frontend UI Evidence
+
+- Coordinate proof persistence/readback rendering without command authority.
+
+### Phase 1875 - Quality Artifact Alignment
+
+- Update release, deployment, runtime, smoke, and autonomous artifacts.
+
+### Phase 1876 - Focused Test Gates
+
+- Run backend focused tests and frontend focused tests for the proof evidence.
+
+### Phase 1877 - Security Boundary Tests
+
+- Prove browser and BFF code do not become recovery, rollback,
+  reconciliation, exchange-read, proof, guard, or Coinbase executors.
+
+### Phase 1878 - Docs And Examples
 
 - Update Admin API, command workflow, Spot trading, examples, matrix,
   inventory, and handoff docs.
 
-### Phase 1833 - Frontend Schema Sync
-
-- Coordinate generated website schema from backend OpenAPI.
-
-### Phase 1834 - Frontend Contract Consumption
-
-- Coordinate wrappers, BFF allowlist, mock evidence, and runtime snapshots.
-
-### Phase 1835 - Frontend UI Evidence
-
-- Coordinate recovery contract readiness rendering without command authority.
-
-### Phase 1836 - Quality Artifact Alignment
-
-- Update release, deployment, runtime, smoke, and autonomous artifacts.
-
-### Phase 1837 - Focused Test Gates
-
-- Run backend focused tests and frontend focused tests for the new contract
-  evidence.
-
-### Phase 1838 - Contextless Review And Remediation
+### Phase 1879 - Contextless Review And Remediation
 
 - Run blind/contextless review and fix blockers before final gates.
 
-### Phase 1839 - Final Gates
+### Phase 1880 - Final Gates, Push, And Next Range
 
 - Run backend autonomous check, focused tests, full regression, and frontend
-  release gate.
+  release gate; report live Coinbase notional `$0`, push both repos, and
+  create the next milestone-linked active range if M54 still has an explicit
+  gap.
 
-### Phase 1840 - Summary, Push, And Next Range
+## Completed M54 Spot Recovery Disabled Command Contract Batch - Phases 1841-1860
 
-- Report live Coinbase notional `$0`, push both repos, and create the next
-  milestone-linked active range if M54 still has an explicit gap.
+- Added disabled/no-live POST contracts for recovery apply execution,
+  rollback execution, exchange-state proof recording, and reconciliation-proof
+  recording.
+- Preserved `client_order_id` identity, RBAC, idempotency, audit,
+  `AdminApiCommandService` routing, live-disabled responses, route inventory,
+  OpenAPI, command-suite evidence, and frontend consumption.
+- Left recovery apply execution, rollback execution, proof persistence,
+  post-apply reconciliation, and reconciliation execution as explicit M54
+  blockers.
+- Live Coinbase execution was not run; submitted/executed notional remained
+  `$0`.
+
+## Completed M54 Spot Recovery Apply Contract Foundation Batch - Phases 1821-1840
+
+- Added read-only recovery apply-review, rollback-plan, and
+  reconciliation-proof routes as backend-owned evidence.
+- Preserved no-live posture, no browser authority, no recovery execution, no
+  repair apply, no rollback execution, no reconciliation execution, and no
+  Coinbase execution.
 
 ## Completed M54 Spot Recovery Preview Evidence Batch - Phases 1801-1820
 

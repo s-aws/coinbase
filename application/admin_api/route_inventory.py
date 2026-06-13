@@ -259,6 +259,69 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/apply-executions",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required",
+        approval="required",
+        caps="required",
+        audit="required",
+        shared_method="execute_spot_recovery_apply",
+        parity_test=(
+            "spot recovery apply execution remains fail-closed; no repair apply, "
+            "order/exchange-state mutation, Coinbase read, or Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/rollback-executions",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required",
+        approval="required",
+        caps="required",
+        audit="required",
+        shared_method="execute_spot_recovery_rollback",
+        parity_test=(
+            "spot recovery rollback execution remains fail-closed; no rollback "
+            "mutation, order/exchange-state mutation, Coinbase read, or Coinbase "
+            "REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/exchange-state-proofs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required",
+        approval="required",
+        caps="required",
+        audit="required",
+        shared_method="record_spot_recovery_exchange_state_proof",
+        parity_test=(
+            "spot recovery exchange-state proof writing remains fail-closed; no "
+            "proof persistence, order/exchange-state mutation, Coinbase read, or "
+            "Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/reconciliation-proofs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required",
+        approval="required",
+        caps="required",
+        audit="required",
+        shared_method="record_spot_recovery_reconciliation_proof",
+        parity_test=(
+            "spot recovery reconciliation proof writing remains fail-closed; no "
+            "proof persistence, reconciliation execution, order/exchange-state "
+            "mutation, Coinbase read, or Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/pnl/checkpoints",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

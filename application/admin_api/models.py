@@ -277,6 +277,73 @@ class SpotSweepAutomationRunRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class SpotRecoveryApplyExecutionRequest(BaseModel):
+    """Spot recovery apply request keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str = Field(min_length=1)
+    rollback_plan_id: str | None = None
+    approval_snapshot_id: str | None = None
+    admission_audit_id: str | None = None
+    cap_guard_decision_id: str | None = None
+    reconciliation_plan_id: str | None = None
+    exchange_state_proof_id: str | None = None
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class SpotRecoveryRollbackExecutionRequest(BaseModel):
+    """Spot recovery rollback request keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str = Field(min_length=1)
+    rollback_plan_id: str | None = None
+    recovery_apply_audit_id: str | None = None
+    approval_snapshot_id: str | None = None
+    admission_audit_id: str | None = None
+    cap_guard_decision_id: str | None = None
+    reconciliation_plan_id: str | None = None
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class SpotRecoveryExchangeStateProofRequest(BaseModel):
+    """Spot recovery exchange-state proof request keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str = Field(min_length=1)
+    exchange_state_evidence_ref: str | None = None
+    reconciliation_plan_id: str | None = None
+    approval_snapshot_id: str | None = None
+    admission_audit_id: str | None = None
+    cap_guard_decision_id: str | None = None
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
+class SpotRecoveryReconciliationProofRecordRequest(BaseModel):
+    """Spot recovery reconciliation-proof request keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str = Field(min_length=1)
+    exchange_state_proof_id: str | None = None
+    recovery_apply_audit_id: str | None = None
+    reconciliation_plan_id: str | None = None
+    approval_snapshot_id: str | None = None
+    admission_audit_id: str | None = None
+    cap_guard_decision_id: str | None = None
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class ManualOrderCommand(BaseModel):
     """Shared service command for manual placement."""
 
@@ -338,6 +405,46 @@ class SpotSweepAutomationRunCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotSweepAutomationRunRequest
+    allow_live_execution: bool = False
+
+
+class SpotRecoveryApplyExecutionCommand(BaseModel):
+    """Shared service command for disabled spot recovery apply execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotRecoveryApplyExecutionRequest
+    allow_live_execution: bool = False
+
+
+class SpotRecoveryRollbackExecutionCommand(BaseModel):
+    """Shared service command for disabled spot recovery rollback execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotRecoveryRollbackExecutionRequest
+    allow_live_execution: bool = False
+
+
+class SpotRecoveryExchangeStateProofCommand(BaseModel):
+    """Shared service command for disabled spot recovery exchange-state proof."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotRecoveryExchangeStateProofRequest
+    allow_live_execution: bool = False
+
+
+class SpotRecoveryReconciliationProofRecordCommand(BaseModel):
+    """Shared service command for disabled spot recovery reconciliation proof."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotRecoveryReconciliationProofRecordRequest
     allow_live_execution: bool = False
 
 

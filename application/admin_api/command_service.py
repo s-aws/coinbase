@@ -18,6 +18,7 @@ from core.enums import (
     ActionGuardPhase,
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiMutationFamilyType,
     AdminApiPermission,
     EventSourceChannel,
     EventStreamType,
@@ -44,6 +45,10 @@ from .models import (
     CancelOrderCommand,
     ManualOrderCommand,
     MovementRepriceCommand,
+    SpotRecoveryApplyExecutionCommand,
+    SpotRecoveryExchangeStateProofCommand,
+    SpotRecoveryReconciliationProofRecordCommand,
+    SpotRecoveryRollbackExecutionCommand,
     SpotSweepAutomationRunCommand,
     StealthCancelCommand,
 )
@@ -862,6 +867,169 @@ class AdminApiCommandService:
                 "sweep_runner_invoked": False,
             },
             failure_stage="approval",
+        )
+
+    def _disabled_spot_recovery_response(
+        self,
+        *,
+        service_method: str,
+        mutation_family: AdminApiMutationFamilyType,
+        command: (
+            SpotRecoveryApplyExecutionCommand
+            | SpotRecoveryRollbackExecutionCommand
+            | SpotRecoveryExchangeStateProofCommand
+            | SpotRecoveryReconciliationProofRecordCommand
+        ),
+        message: str,
+        flags: dict[str, bool],
+    ) -> AdminApiCommandResponse:
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        request = command.request
+        data: dict[str, Any] = {
+            "mutation_family": mutation_family.value,
+            "client_order_id": request.client_order_id,
+            "rollback_plan_id": getattr(request, "rollback_plan_id", None),
+            "recovery_apply_audit_id": getattr(
+                request,
+                "recovery_apply_audit_id",
+                None,
+            ),
+            "approval_snapshot_id": request.approval_snapshot_id,
+            "admission_audit_id": request.admission_audit_id,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "exchange_state_proof_id": getattr(
+                request,
+                "exchange_state_proof_id",
+                None,
+            ),
+            "exchange_state_evidence_ref": getattr(
+                request,
+                "exchange_state_evidence_ref",
+                None,
+            ),
+            "dry_run": request.dry_run,
+            "operator_reason": request.operator_reason,
+            "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "recovery_apply_executed": False,
+            "rollback_executed": False,
+            "exchange_state_proof_recorded": False,
+            "reconciliation_proof_recorded": False,
+            "reconciliation_executed": False,
+            "coinbase_order_submitted": False,
+            "coinbase_rest_read_ran": False,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "proof_persisted": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        data.update(flags)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+            service_method=service_method,
+            message=message,
+            client_order_id=request.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data=data,
+            failure_stage="approval",
+        )
+
+    def execute_spot_recovery_apply(
+        self,
+        command: SpotRecoveryApplyExecutionCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a future spot recovery apply command through fail-closed gates."""
+
+        return self._disabled_spot_recovery_response(
+            service_method="execute_spot_recovery_apply",
+            mutation_family=AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION,
+            command=command,
+            message=(
+                "Spot recovery apply execution requires backend approval, "
+                "admission audit, cap/guard, rollback, exchange-state proof, "
+                "and reconciliation gates before it can mutate local order state."
+            ),
+            flags={
+                "recovery_apply_executed": False,
+                "order_state_mutated": False,
+                "proof_persisted": False,
+            },
+        )
+
+    def execute_spot_recovery_rollback(
+        self,
+        command: SpotRecoveryRollbackExecutionCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a future spot recovery rollback command through fail-closed gates."""
+
+        return self._disabled_spot_recovery_response(
+            service_method="execute_spot_recovery_rollback",
+            mutation_family=AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION,
+            command=command,
+            message=(
+                "Spot recovery rollback execution requires backend approval, "
+                "admission audit, cap/guard, recovery apply audit evidence, and "
+                "reconciliation gates before it can mutate local order state."
+            ),
+            flags={
+                "rollback_executed": False,
+                "order_state_mutated": False,
+                "proof_persisted": False,
+            },
+        )
+
+    def record_spot_recovery_exchange_state_proof(
+        self,
+        command: SpotRecoveryExchangeStateProofCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a future spot recovery exchange-state proof writer."""
+
+        return self._disabled_spot_recovery_response(
+            service_method="record_spot_recovery_exchange_state_proof",
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF
+            ),
+            command=command,
+            message=(
+                "Spot recovery exchange-state proof writing requires backend "
+                "approval, admission audit, cap/guard, and reconciliation gates "
+                "before exchange evidence can be persisted."
+            ),
+            flags={
+                "exchange_state_proof_recorded": False,
+                "coinbase_rest_read_ran": False,
+                "proof_persisted": False,
+            },
+        )
+
+    def record_spot_recovery_reconciliation_proof(
+        self,
+        command: SpotRecoveryReconciliationProofRecordCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a future spot recovery reconciliation-proof writer."""
+
+        return self._disabled_spot_recovery_response(
+            service_method="record_spot_recovery_reconciliation_proof",
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF
+            ),
+            command=command,
+            message=(
+                "Spot recovery reconciliation proof writing requires backend "
+                "approval, admission audit, cap/guard, exchange-state proof, and "
+                "reconciliation gates before proof can be persisted."
+            ),
+            flags={
+                "reconciliation_proof_recorded": False,
+                "reconciliation_executed": False,
+                "proof_persisted": False,
+            },
         )
 
     def place_hotpoint_test_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:

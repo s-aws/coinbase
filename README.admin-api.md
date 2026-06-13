@@ -125,7 +125,8 @@ backend-owned `/api/v1/admin/reconciliation/plans` reads for operator triage
 only; it does not execute reconciliation, mutate order or exchange state,
 apply repairs, roll back state, call Coinbase, or create browser
 reconciliation authority. The separate Spot reconciliation workflow remains a
-backend-contract-required gap until preview/execution/proof contracts exist.
+backend-contract-required gap until execution and durable proof persistence
+contracts exist.
 
 Spot recovery now has read-only contract evidence routes:
 `GET /api/v1/spot/recovery/preview`,
@@ -137,10 +138,14 @@ The apply-review, rollback-plan, and reconciliation-proof routes expose the
 client-order-id candidate identity, gate chain, rollback prerequisites, and
 proof-field requirements without adding execution authority. They remove the
 read-contract gap, but recovery apply execution, rollback execution,
-post-apply reconciliation, exchange-state proof, and reconciliation proof
-writing remain backend-contract-required gaps. These routes do not write
-repair rows, roll back state, execute reconciliation, mutate order or exchange
-state, call Coinbase, or authorize browser/BFF recovery.
+post-apply reconciliation, exchange-state proof persistence, and
+reconciliation proof persistence remain implementation/proof-persistence
+blockers. Disabled POST contracts exist for recovery apply, rollback,
+exchange-state proof recording, and reconciliation-proof recording; those
+contracts return fail-closed no-live evidence until backend executors and
+proof persistence are implemented. These routes do not write repair rows, roll
+back state, execute reconciliation, mutate order or exchange state, call
+Coinbase, or authorize browser/BFF recovery.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -263,6 +268,10 @@ Current mutating HTTP command surfaces are:
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 - `POST /api/v1/spot/campaign/executions`
 - `POST /api/v1/spot/sweep/automation-runs`
+- `POST /api/v1/spot/recovery/apply-executions`
+- `POST /api/v1/spot/recovery/rollback-executions`
+- `POST /api/v1/spot/recovery/exchange-state-proofs`
+- `POST /api/v1/spot/recovery/reconciliation-proofs`
 
 Current local-state approval lifecycle mutation surfaces are:
 

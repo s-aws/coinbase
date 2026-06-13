@@ -793,6 +793,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     sweep_operation = written["paths"]["/api/v1/spot/sweep/automation-runs"]["post"]
     assert "200" in sweep_operation["responses"]
     assert "501" in sweep_operation["responses"]
+    for recovery_command_path in (
+        "/api/v1/spot/recovery/apply-executions",
+        "/api/v1/spot/recovery/rollback-executions",
+        "/api/v1/spot/recovery/exchange-state-proofs",
+        "/api/v1/spot/recovery/reconciliation-proofs",
+    ):
+        recovery_command_operation = written["paths"][recovery_command_path]["post"]
+        assert "200" in recovery_command_operation["responses"]
+        assert "501" in recovery_command_operation["responses"]
     spot_readiness_operation = written["paths"]["/api/v1/spot/readiness"]["get"]
     assert "200" in spot_readiness_operation["responses"]
     assert "content" in spot_readiness_operation["responses"]["200"]
@@ -954,6 +963,19 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
             "properties"
         ]
         assert "missing_contracts" in written["components"]["schemas"][schema_name][
+            "properties"
+        ]
+    for schema_name in (
+        "SpotRecoveryApplyExecutionRequest",
+        "SpotRecoveryRollbackExecutionRequest",
+        "SpotRecoveryExchangeStateProofRequest",
+        "SpotRecoveryReconciliationProofRecordRequest",
+    ):
+        assert schema_name in written["components"]["schemas"]
+        assert "client_order_id" in written["components"]["schemas"][schema_name][
+            "properties"
+        ]
+        assert "order_id" not in written["components"]["schemas"][schema_name][
             "properties"
         ]
     spot_pnl_schema = written["components"]["schemas"]["SpotSweepPnlResponse"]
@@ -3907,8 +3929,8 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert payload["type"] == "spot_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "spot_operations"
-    assert payload["command_count"] == 4
-    assert payload["blocked_command_count"] == 4
+    assert payload["command_count"] == 8
+    assert payload["blocked_command_count"] == 8
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
     assert payload["coverage_gap_count"] == 3
@@ -3958,13 +3980,21 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert sweep_gap["command_route"] == "/api/v1/spot/sweep/automation-runs"
     assert "GET /api/v1/spot/sweep/status" in sweep_gap["current_read_evidence_routes"]
     assert "enterprise_sweep_scheduler_contract" in sweep_gap["missing_contracts"]
-    for family, gap in coverage_gaps.items():
-        if family != AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION.value:
-            assert gap["command_route"] is None
+    assert (
+        coverage_gaps[AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW.value][
+            "command_route"
+        ]
+        is None
+    )
     assert AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING.value not in coverage_gaps
     recovery_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW.value
     ]
+    assert (
+        recovery_gap["exposure_status"]
+        == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert recovery_gap["command_route"] == "/api/v1/spot/recovery/apply-executions"
     assert "GET /api/v1/spot/recovery/preview" in recovery_gap[
         "current_read_evidence_routes"
     ]
@@ -3986,13 +4016,22 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "spot_recovery_reconciliation_contract" not in recovery_gap[
         "missing_contracts"
     ]
-    assert "spot_recovery_apply_execution_contract" in recovery_gap[
+    assert "spot_recovery_apply_execution_contract" not in recovery_gap[
         "missing_contracts"
     ]
-    assert "spot_recovery_rollback_execution_contract" in recovery_gap[
+    assert "spot_recovery_rollback_execution_contract" not in recovery_gap[
         "missing_contracts"
     ]
-    assert "spot_recovery_reconciliation_proof_writer_contract" in recovery_gap[
+    assert "spot_recovery_reconciliation_proof_writer_contract" not in recovery_gap[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_apply_executor_implementation" in recovery_gap[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_rollback_executor_implementation" in recovery_gap[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_proof_persistence_contract" in recovery_gap[
         "missing_contracts"
     ]
     reconciliation_gap = coverage_gaps[
@@ -4004,6 +4043,12 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "GET /api/v1/admin/reconciliation/plans" in reconciliation_gap[
         "current_read_evidence_routes"
     ]
+    assert "spot_recovery_reconciliation_proof_writer_contract" not in (
+        reconciliation_gap["missing_contracts"]
+    )
+    assert "spot_exchange_state_proof_persistence_contract" in (
+        reconciliation_gap["missing_contracts"]
+    )
 
     commands = {item["mutation_family"]: item for item in payload["commands"]}
     assert set(commands) == {
@@ -4011,6 +4056,10 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value,
         AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value,
         AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION.value,
+        AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION.value,
+        AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION.value,
+        AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF.value,
+        AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF.value,
     }
     manual = commands[AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value]
     assert manual["route"] == "/api/v1/orders"
@@ -4147,6 +4196,47 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         item["command_identity_key"] == "sweep_config_id"
         for item in sweep["proof_routes"]
     )
+    recovery_commands = {
+        AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION.value: (
+            "/api/v1/spot/recovery/apply-executions",
+            "execute_spot_recovery_apply",
+        ),
+        AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION.value: (
+            "/api/v1/spot/recovery/rollback-executions",
+            "execute_spot_recovery_rollback",
+        ),
+        AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF.value: (
+            "/api/v1/spot/recovery/exchange-state-proofs",
+            "record_spot_recovery_exchange_state_proof",
+        ),
+        AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF.value: (
+            "/api/v1/spot/recovery/reconciliation-proofs",
+            "record_spot_recovery_reconciliation_proof",
+        ),
+    }
+    for family, (route, shared_method) in recovery_commands.items():
+        recovery_command = commands[family]
+        assert recovery_command["route"] == route
+        assert recovery_command["method"] == "POST"
+        assert recovery_command["identity_key"] == "client_order_id"
+        assert recovery_command["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        assert (
+            recovery_command["required_permission"]
+            == AdminApiPermission.SPOT_RECOVERY_EXECUTE.value
+        )
+        assert recovery_command["shared_method"] == shared_method
+        assert recovery_command["live_adapter_configured"] is False
+        assert recovery_command["live_enabled"] is False
+        assert recovery_command["executable"] is False
+        assert (
+            recovery_command["live_execution_status"]
+            == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        )
+        assert "spot recovery" in recovery_command["detail"].lower()
+        assert all(
+            item["command_identity_key"] == "client_order_id"
+            for item in recovery_command["proof_routes"]
+        )
 
 
 @pytest.mark.regression
@@ -4540,14 +4630,18 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
     assert not actor_has_permission(viewer, AdminApiPermission.ORDER_CREATE)
     assert not actor_has_permission(viewer, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert not actor_has_permission(viewer, AdminApiPermission.SPOT_PNL_RECORD)
+    assert not actor_has_permission(viewer, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_PAUSE)
     assert actor_has_permission(operator, AdminApiPermission.RUNTIME_RESUME)
     assert not actor_has_permission(operator, AdminApiPermission.ORDER_CANCEL)
     assert not actor_has_permission(operator, AdminApiPermission.SPOT_SWEEP_EXECUTE)
+    assert not actor_has_permission(operator, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.CAMPAIGN_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.SPOT_SWEEP_EXECUTE)
     assert actor_has_permission(trader, AdminApiPermission.SPOT_PNL_RECORD)
+    assert actor_has_permission(trader, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert not actor_has_permission(emergency, AdminApiPermission.ORDER_CANCEL)
+    assert not actor_has_permission(emergency, AdminApiPermission.SPOT_RECOVERY_EXECUTE)
     assert actor_has_permission(emergency, AdminApiPermission.RUNTIME_SHUTDOWN)
 
 
@@ -5596,6 +5690,22 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "POST /api/v1/spot/sweep/automation-runs" in spot_module["command_routes"]
     assert "POST /api/v1/spot/pnl/checkpoints" in spot_module["command_routes"]
     assert "GET /api/v1/spot/command-suite" in spot_module["read_routes"]
+    assert (
+        "POST /api/v1/spot/recovery/apply-executions"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/spot/recovery/rollback-executions"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/spot/recovery/exchange-state-proofs"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/spot/recovery/reconciliation-proofs"
+        in spot_module["command_routes"]
+    )
     assert "GET /api/v1/spot/recovery/apply-review" in spot_module["read_routes"]
     assert "GET /api/v1/spot/recovery/rollback-plan" in spot_module["read_routes"]
     assert (
@@ -5608,7 +5718,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in spot_module["read_routes"]
     )
     assert spot_module["action_posture"]["read_route_count"] == 15
-    assert spot_module["action_posture"]["command_route_count"] == 5
+    assert spot_module["action_posture"]["command_route_count"] == 9
     assert spot_module["action_posture"]["live_route_count"] == 4
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
@@ -5756,7 +5866,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "spot_recovery_apply_contract" not in recovery_preview_payload[
         "missing_contracts"
     ]
-    assert "spot_recovery_apply_execution_contract" in recovery_preview_payload[
+    assert "spot_recovery_apply_executor_implementation" in recovery_preview_payload[
         "missing_contracts"
     ]
     recovery_preview_sources = {
@@ -5844,7 +5954,7 @@ def test_admin_api_spot_recovery_preview_candidates_use_client_order_id(
             "identity_key": "client_order_id",
             "identity_value": "client-order-backfill",
             "preview_only": True,
-            "required_next_contract": "spot_recovery_apply_execution_contract",
+            "required_next_contract": "spot_recovery_apply_executor_implementation",
         }
     ]
     preview_json = json.dumps(response.model_dump(mode="json"))
@@ -6014,7 +6124,7 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
     assert apply_review.status == AdminApiGateStatus.BLOCKED
     assert apply_review.apply_review_contract_available is True
     assert apply_review.recovery_apply_available is False
-    assert "spot_recovery_apply_execution_contract" in apply_review.missing_contracts
+    assert "spot_recovery_apply_executor_implementation" in apply_review.missing_contracts
     assert {gate.name for gate in apply_review.contract_gate_evidence} >= {
         "approval_snapshot",
         "admission_audit",
@@ -6025,14 +6135,14 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
     assert rollback_plan.type == "spot_recovery_rollback_plan"
     assert rollback_plan.rollback_plan_contract_available is True
     assert rollback_plan.rollback_execution_available is False
-    assert "spot_recovery_rollback_execution_contract" in (
+    assert "spot_recovery_rollback_executor_implementation" in (
         rollback_plan.missing_contracts
     )
     assert reconciliation_proof.type == "spot_recovery_reconciliation_proof"
     assert reconciliation_proof.reconciliation_proof_contract_available is True
     assert reconciliation_proof.reconciliation_proof_writer_available is False
     assert "exchange_state_snapshot_id" in reconciliation_proof.required_proof_fields
-    assert "spot_recovery_reconciliation_proof_writer_contract" in (
+    assert "spot_recovery_proof_persistence_contract" in (
         reconciliation_proof.missing_contracts
     )
     for payload in (apply_review, rollback_plan, reconciliation_proof):
@@ -6075,6 +6185,211 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
             candidate["identity_key"] == "client_order_id"
             for candidate in body["candidates"]
         )
+
+
+@pytest.mark.regression
+def test_admin_api_spot_recovery_execution_contracts_are_disabled_and_client_id_bound(
+    monkeypatch,
+):
+    import configuration
+
+    def poison(*_args, **_kwargs):
+        raise AssertionError("recovery command contracts must not contact Coinbase")
+
+    monkeypatch.setattr(configuration, "get_rest_client", poison)
+
+    client = _client(monkeypatch)
+    command_specs = [
+        (
+            "/api/v1/spot/recovery/apply-executions",
+            "spot-recovery-apply-001",
+            "execute_spot_recovery_apply",
+            AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION.value,
+            {
+                "client_order_id": "client-order-preview",
+                "rollback_plan_id": "rollback-plan-001",
+                "approval_snapshot_id": "approval-001",
+                "admission_audit_id": "admission-audit-001",
+                "cap_guard_decision_id": "cap-guard-001",
+                "reconciliation_plan_id": "reconciliation-plan-001",
+                "exchange_state_proof_id": "exchange-state-proof-001",
+                "dry_run": True,
+                "operator_reason": "contract evidence only",
+                "manual_live_acknowledgement": False,
+            },
+            {
+                "recovery_apply_executed": False,
+                "order_state_mutated": False,
+                "proof_persisted": False,
+            },
+        ),
+        (
+            "/api/v1/spot/recovery/rollback-executions",
+            "spot-recovery-rollback-001",
+            "execute_spot_recovery_rollback",
+            AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION.value,
+            {
+                "client_order_id": "client-order-preview",
+                "rollback_plan_id": "rollback-plan-001",
+                "recovery_apply_audit_id": "recovery-apply-audit-001",
+                "approval_snapshot_id": "approval-001",
+                "admission_audit_id": "admission-audit-001",
+                "cap_guard_decision_id": "cap-guard-001",
+                "reconciliation_plan_id": "reconciliation-plan-001",
+                "dry_run": True,
+                "operator_reason": "contract evidence only",
+                "manual_live_acknowledgement": False,
+            },
+            {
+                "rollback_executed": False,
+                "order_state_mutated": False,
+                "proof_persisted": False,
+            },
+        ),
+        (
+            "/api/v1/spot/recovery/exchange-state-proofs",
+            "spot-recovery-exchange-proof-001",
+            "record_spot_recovery_exchange_state_proof",
+            AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF.value,
+            {
+                "client_order_id": "client-order-preview",
+                "exchange_state_evidence_ref": "audit-workbench-ref-001",
+                "reconciliation_plan_id": "reconciliation-plan-001",
+                "approval_snapshot_id": "approval-001",
+                "admission_audit_id": "admission-audit-001",
+                "cap_guard_decision_id": "cap-guard-001",
+                "dry_run": True,
+                "operator_reason": "contract evidence only",
+                "manual_live_acknowledgement": False,
+            },
+            {
+                "exchange_state_proof_recorded": False,
+                "coinbase_rest_read_ran": False,
+                "proof_persisted": False,
+            },
+        ),
+        (
+            "/api/v1/spot/recovery/reconciliation-proofs",
+            "spot-recovery-reconciliation-proof-001",
+            "record_spot_recovery_reconciliation_proof",
+            AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF.value,
+            {
+                "client_order_id": "client-order-preview",
+                "exchange_state_proof_id": "exchange-state-proof-001",
+                "recovery_apply_audit_id": "recovery-apply-audit-001",
+                "reconciliation_plan_id": "reconciliation-plan-001",
+                "approval_snapshot_id": "approval-001",
+                "admission_audit_id": "admission-audit-001",
+                "cap_guard_decision_id": "cap-guard-001",
+                "dry_run": True,
+                "operator_reason": "contract evidence only",
+                "manual_live_acknowledgement": False,
+            },
+            {
+                "reconciliation_proof_recorded": False,
+                "reconciliation_executed": False,
+                "proof_persisted": False,
+            },
+        ),
+    ]
+
+    denied = client.post(
+        command_specs[0][0],
+        json=command_specs[0][4],
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert denied.status_code == 403
+    assert denied.json()["live_coinbase_orders_ran"] is False
+
+    rejected_order_id = client.post(
+        command_specs[0][0],
+        json={**command_specs[0][4], "order_id": "exchange-order-id"},
+        headers=_headers(
+            idempotency_key="spot-recovery-order-id-rejected",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert rejected_order_id.status_code == 422
+
+    for path, idempotency_key, shared_method, mutation_family, body, flags in (
+        command_specs
+    ):
+        response = client.post(
+            path,
+            json=body,
+            headers=_headers(
+                idempotency_key=idempotency_key,
+                operator_intent="spot_recovery_contract_review",
+                roles=AdminApiRole.TRADER.value,
+            ),
+        )
+        assert response.status_code == 501
+        payload = response.json()
+        assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+        assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        assert (
+            payload["required_permission"]
+            == AdminApiPermission.SPOT_RECOVERY_EXECUTE.value
+        )
+        assert payload["service_method"] == shared_method
+        assert payload["client_order_id"] == body["client_order_id"]
+        assert payload["idempotency_key"] == idempotency_key
+        assert payload["live_exchange_submitted"] is False
+        assert payload["failure_stage"] == "approval"
+        assert payload["admission_decision"]["allowed"] is False
+        assert payload["admission_decision"]["identity_key"] == "client_order_id"
+        assert payload["admission_decision"]["identity_value"] == body["client_order_id"]
+        assert payload["admission_decision"]["action_class"] == (
+            AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        )
+        assert payload["data"]["mutation_family"] == mutation_family
+        assert payload["data"]["client_order_id"] == body["client_order_id"]
+        assert payload["data"]["dry_run"] is True
+        assert payload["data"]["manual_live_acknowledgement"] is False
+        assert payload["data"]["coinbase_order_submitted"] is False
+        assert payload["data"]["coinbase_rest_read_ran"] is False
+        assert payload["data"]["order_state_mutated"] is False
+        assert payload["data"]["exchange_state_mutated"] is False
+        assert payload["data"]["browser_authority"] == "display_only"
+        assert payload["data"]["bff_authority"] == "forward_only_no_execution"
+        for flag, value in flags.items():
+            assert payload["data"][flag] is value
+        assert '"order_id"' not in json.dumps(payload)
+
+        replay = client.post(
+            path,
+            json=body,
+            headers=_headers(
+                idempotency_key=idempotency_key,
+                operator_intent="spot_recovery_contract_review",
+                roles=AdminApiRole.TRADER.value,
+            ),
+        )
+        assert replay.status_code == 501
+        assert replay.headers["X-Idempotency-Replayed"] == "true"
+        assert replay.json()["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+        assert replay.json()["service_method"] == shared_method
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=20)
+    assert len(
+        [
+            row
+            for row in audit_rows
+            if row.permission == AdminApiPermission.SPOT_RECOVERY_EXECUTE
+        ]
+    ) == len(command_specs)
+    recovery_audit_rows = [
+        row
+        for row in audit_rows
+        if row.permission == AdminApiPermission.SPOT_RECOVERY_EXECUTE
+    ]
+    assert all(row.status == AdminApiCommandStatus.NOT_IMPLEMENTED for row in recovery_audit_rows)
+    assert all(row.failure_stage == "approval" for row in recovery_audit_rows)
+    assert all(row.coinbase_order_id is None for row in recovery_audit_rows)
+    assert all(
+        row.admission_decision is not None and row.admission_decision.allowed is False
+        for row in recovery_audit_rows
+    )
 
 
 @pytest.mark.regression
@@ -7635,6 +7950,35 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         == AdminApiPermission.AUDIT_READ
     )
     assert "proof writing" in spot_recovery_reconciliation_proof_route.parity_test
+    recovery_command_routes = {
+        "POST /api/v1/spot/recovery/apply-executions": (
+            "execute_spot_recovery_apply",
+            "apply execution remains fail-closed",
+        ),
+        "POST /api/v1/spot/recovery/rollback-executions": (
+            "execute_spot_recovery_rollback",
+            "rollback execution remains fail-closed",
+        ),
+        "POST /api/v1/spot/recovery/exchange-state-proofs": (
+            "record_spot_recovery_exchange_state_proof",
+            "exchange-state proof writing remains fail-closed",
+        ),
+        "POST /api/v1/spot/recovery/reconciliation-proofs": (
+            "record_spot_recovery_reconciliation_proof",
+            "reconciliation proof writing remains fail-closed",
+        ),
+    }
+    for surface, (shared_method, parity_fragment) in recovery_command_routes.items():
+        route = rows[surface]
+        assert route.shared_method == shared_method
+        assert route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
+        assert route.permission == AdminApiPermission.SPOT_RECOVERY_EXECUTE
+        assert route.idempotency == "required"
+        assert route.approval == "required"
+        assert route.caps == "required"
+        assert route.audit == "required"
+        assert parity_fragment in route.parity_test
+        assert "Coinbase" in route.parity_test
     markdown_inventory_rows = {}
     for line in doc.splitlines():
         if not line.startswith("| `"):
@@ -7664,6 +8008,13 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         spot_recovery_rollback_plan_route,
         spot_recovery_reconciliation_proof_route,
     ):
+        doc_row = markdown_inventory_rows[route.surface]
+        assert doc_row[1].strip("`") == route.action_class.value
+        assert doc_row[2].strip("`") == route.permission.value
+        assert doc_row[5] == route.caps
+        assert doc_row[7].strip("`") == route.shared_method
+        assert doc_row[8] == route.parity_test
+    for route in (rows[surface] for surface in recovery_command_routes):
         doc_row = markdown_inventory_rows[route.surface]
         assert doc_row[1].strip("`") == route.action_class.value
         assert doc_row[2].strip("`") == route.permission.value
