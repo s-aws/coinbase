@@ -1037,14 +1037,14 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
       "action_posture": {
         "module_id": "spot_operations",
         "support_status": "command_draft_live_disabled",
-        "read_route_count": 11,
+        "read_route_count": 12,
         "command_route_count": 5,
         "live_route_count": 4,
-        "evidence_route_count": 9,
+        "evidence_route_count": 12,
         "unsupported_action_count": 3,
         "command_gap_count": 2,
         "route_module_id_status": "passed",
-        "route_module_id_detail": "16 route inventory rows are bound to module_id=spot_operations; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "route_module_id_detail": "17 route inventory rows are bound to module_id=spot_operations; enterprise readiness route lists are derived from module_id, not path prefixes.",
         "frontend_authority": "backend_contract_only",
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0"
@@ -2101,10 +2101,27 @@ X-Admin-Roles: viewer
       "exposure_status": "backend_contract_required",
       "command_route": null,
       "current_read_evidence_routes": [
+        "GET /api/v1/spot/recovery/preview",
         "GET /api/v1/admin/recovery-gate",
         "GET /api/v1/spot/direct-orders/{client_order_id}/audit"
       ],
       "current_read_evidence": [
+        {
+          "route": "/api/v1/spot/recovery/preview",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "audit:read",
+          "shared_method": "build_spot_recovery_preview",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.spot-trading.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Existing read-only Admin API recovery preview route; it does not apply recovery, roll back state, execute reconciliation, mutate orders, or call Coinbase."
+        },
         {
           "route": "/api/v1/admin/recovery-gate",
           "method": "GET",
@@ -2136,7 +2153,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery preview/apply contract with RBAC, idempotency, append-only audit, rollback evidence, and reconciliation proof.",
+      "required_backend_contract": "Spot recovery apply contract with RBAC, idempotency, append-only audit, rollback evidence, and reconciliation proof. Read-only preview evidence is exposed by GET /api/v1/spot/recovery/preview.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2148,7 +2165,6 @@ X-Admin-Roles: viewer
         "reconciliation_proof"
       ],
       "missing_contracts": [
-        "spot_recovery_preview_contract",
         "spot_recovery_apply_contract",
         "spot_recovery_rollback_contract",
         "spot_recovery_reconciliation_contract"
@@ -2162,7 +2178,7 @@ X-Admin-Roles: viewer
         "docs/OPERATOR_READ_MODELS.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Recovery-gate and direct-order audit reads do not create a spot recovery mutation. Recovery must stay backend-owned and previewed before any apply path exists."
+      "detail": "Spot recovery preview, recovery-gate, and direct-order audit reads do not create a spot recovery mutation. Apply, rollback, and reconciliation proof must stay backend-owned before any recovery action exists."
     },
     {
       "family": "spot_reconciliation_workflow",

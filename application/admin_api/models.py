@@ -2113,6 +2113,59 @@ class SpotDirectOrderAuditResponse(AdminApiReadPayload):
     message: str | None = None
 
 
+class SpotRecoveryPreviewSourceItem(BaseModel):
+    """One backend-owned read source contributing recovery-preview evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    status: AdminApiGateStatus
+    route: str
+    method: str = "GET"
+    action_class: AdminApiActionClass = AdminApiActionClass.READ_ONLY
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    candidate_count: int = Field(ge=0)
+    candidates: list[FlexibleDict] = Field(default_factory=list)
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class SpotRecoveryPreviewResponse(AdminApiReadPayload):
+    """Read-only spot recovery preview evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "spot_recovery_preview"
+    module_id: str = "spot_operations"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.WARNING
+    filters: FlexibleDict = Field(default_factory=dict)
+    source_count: int = Field(ge=0)
+    candidate_count: int = Field(ge=0)
+    sources: list[SpotRecoveryPreviewSourceItem] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    recovery_apply_available: bool = False
+    rollback_plan_available: bool = False
+    reconciliation_proof_available: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    spot_rule_boundary: str
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class SpotCommandSuiteProofRouteItem(BaseModel):
     """Backend proof route required before a spot command can be executable."""
 

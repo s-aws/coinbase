@@ -657,6 +657,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="GET /api/v1/spot/recovery/preview",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only spot recovery preview evidence",
+        audit="optional read audit",
+        shared_method="build_spot_recovery_preview",
+        parity_test=(
+            "read-only spot recovery preview; no repair apply, rollback, "
+            "reconciliation execution, Coinbase read, or Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/sweep/status",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

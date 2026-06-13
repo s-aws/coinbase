@@ -2486,18 +2486,33 @@ Completed thirteenth-slice scope:
 - The P/L tracking gap remained open for reconciliation-plan read linkage at
   batch completion.
 
-Active fourteenth-slice scope:
+Completed fourteenth-slice scope:
 
-- Active phases 1781-1800 extend the same checkpoint path with explicit
+- Phases 1781-1800 extended the same checkpoint path with explicit
   reconciliation-plan read linkage to `/api/v1/admin/reconciliation/plans`
   and `/api/v1/admin/reconciliation/plans/{plan_id}`.
 - Reconciliation-link evidence must stay operator triage evidence. It must
   not become browser reconciliation authority, reconciliation execution,
   recovery execution, repair apply, rollback, order/exchange-state mutation,
   Coinbase execution evidence, or a generic rule for non-spot modules.
-- The P/L tracking gap closes when this linkage is present; the separate Spot
-  reconciliation workflow gap remains open for backend preview/execution/proof
-  contracts.
+- The P/L tracking gap is closed. The separate Spot recovery workflow and
+  reconciliation workflow gaps remain open for backend apply/rollback and
+  execution/proof contracts.
+
+Active fifteenth-slice scope:
+
+- Active phases 1801-1820 add a spot-scoped
+  `GET /api/v1/spot/recovery/preview` contract that reports backend-owned
+  read-only recovery preview sources, candidate counts, and remaining
+  apply/rollback/reconciliation blockers.
+- Recovery-preview evidence must reuse existing recovery planning helpers and
+  stay operator triage evidence. It must not become browser recovery
+  authority, recovery apply, repair apply, rollback, reconciliation execution,
+  order/exchange-state mutation, Coinbase execution evidence, or a generic
+  rule for non-spot modules.
+- The Spot recovery workflow gap removes the preview-contract blocker when
+  this route is present, while apply, rollback, and reconciliation proof remain
+  blocked.
 
 Current backend evidence:
 
@@ -2510,11 +2525,13 @@ Current backend evidence:
   permission.
 - `api/v1/routes/spot.py` exposes Spot P/L checkpoint list/detail/record
   routes with `analytics:read` and `spot_pnl:record` permissions.
+- `api/v1/routes/spot.py` exposes the Spot recovery-preview read route with
+  `audit:read` permission.
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
   include the command-suite response, proof-route gate linkage, typed
   coverage-gap evidence-route linkage, sweep automation command contract, and
   checkpoint mutation taxonomy, audit-link evidence, recovery-link evidence,
-  and reconciliation-link evidence.
+  reconciliation-link evidence, and recovery-preview evidence.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 

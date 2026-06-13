@@ -60,8 +60,8 @@ readiness, create proof records, enable commands, launch sweep tools, create a
 browser scheduler, or copy spot wallet/no-shorting rules into non-spot modules.
 
 The command-suite response also reports `coverage_gaps` for remaining M54 spot
-families that are not command-complete: sweep automation, P/L tracking,
-recovery workflow, and reconciliation workflow. Gap rows are separate from
+families that are not command-complete: sweep automation, recovery workflow,
+and reconciliation workflow. Gap rows are separate from
 `mutation_family` command rows. They may name current read evidence,
 checkpoint record evidence, missing backend contracts, required gate chains,
 and browser/BFF boundaries, but they must not become command workflow drafts,
@@ -106,6 +106,14 @@ Accepted checkpoint records also expose read-only recovery-link evidence to
 must not be interpreted as recovery execution, repair apply, rollback,
 reconciliation execution, Coinbase execution, browser recovery authority, or a
 separate checkpoint writer.
+The dedicated recovery preview route,
+`GET /api/v1/spot/recovery/preview`, extends that read-only evidence with
+preview candidates from recovery-gate, fill-ledger-health, and optional
+direct-order audit lookup. It closes only the preview contract. Recovery
+apply, rollback, and reconciliation proof remain command-suite coverage gaps,
+and the preview route must not write repair rows, roll back state, execute
+reconciliation, mutate order/exchange state, call Coinbase, or authorize
+browser/BFF recovery.
 Accepted checkpoint records also expose read-only reconciliation-plan link
 evidence to `GET /api/v1/admin/reconciliation/plans` and
 `GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage

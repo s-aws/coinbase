@@ -18,6 +18,7 @@ owners:
       - docs/FRONTEND_ASSOCIATION.md
       - docs/LIVE_ORDER_SURFACES.md
       - docs/COMMAND_WORKFLOWS.md
+      - docs/OPERATOR_READ_MODELS.md
       - docs/ADMIN_PLATFORM_ARCHITECTURE.md
       - docs/ADMIN_MODULE_CAPABILITY_MATRIX.md
       - docs/PUBLIC_ROADMAP.md

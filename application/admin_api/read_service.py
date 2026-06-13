@@ -118,6 +118,8 @@ from .models import (
     SpotCommandSuiteCoverageGapItem,
     SpotCommandSuiteProofRouteItem,
     SpotCommandSuiteResponse,
+    SpotRecoveryPreviewResponse,
+    SpotRecoveryPreviewSourceItem,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
@@ -125,7 +127,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1781-1800"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1801-1820"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -3808,6 +3810,7 @@ class AdminApiReadService:
                     "GET /api/v1/spot/cost-basis/status",
                     "GET /api/v1/spot/campaign/status",
                     "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
+                    "GET /api/v1/spot/recovery/preview",
                 ],
                 identity_keys=["client_order_id", "product_id", "campaign_id"],
                 backend_contract_refs=[
@@ -6768,6 +6771,7 @@ class AdminApiReadService:
                 "admin.recoveryGate": self.build_recovery_gate().model_dump(mode="json"),
                 "admin.fillLedgerHealth": self.build_fill_ledger_health().model_dump(mode="json"),
                 "spot.commandSuite": self.build_spot_command_suite().model_dump(mode="json"),
+                "spot.recoveryPreview": self.build_spot_recovery_preview().model_dump(mode="json"),
             },
         )
 
@@ -7127,6 +7131,11 @@ class AdminApiReadService:
                 "README.spot-trading.md",
                 "docs/OPERATOR_READ_MODELS.md",
             ],
+            "GET /api/v1/spot/recovery/preview": [
+                "README.spot-trading.md",
+                "docs/COMMAND_WORKFLOWS.md",
+                "docs/examples/admin-api.md",
+            ],
             "GET /api/v1/admin/recovery-gate": [
                 "README.admin-api.md",
                 "docs/OPERATOR_READ_MODELS.md",
@@ -7221,18 +7230,22 @@ class AdminApiReadService:
                 exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
                 command_route=None,
                 current_read_evidence_routes=[
+                    "GET /api/v1/spot/recovery/preview",
                     "GET /api/v1/admin/recovery-gate",
                     "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
                 ],
                 current_read_evidence=coverage_gap_evidence_routes(
                     [
+                        "GET /api/v1/spot/recovery/preview",
                         "GET /api/v1/admin/recovery-gate",
                         "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
                     ]
                 ),
                 required_backend_contract=(
-                    "Spot recovery preview/apply contract with RBAC, idempotency, "
-                    "append-only audit, rollback evidence, and reconciliation proof."
+                    "Spot recovery apply contract with RBAC, idempotency, "
+                    "append-only audit, rollback evidence, and reconciliation proof. "
+                    "Read-only preview evidence is exposed by "
+                    "GET /api/v1/spot/recovery/preview."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -7245,7 +7258,6 @@ class AdminApiReadService:
                     "reconciliation_proof",
                 ],
                 missing_contracts=[
-                    "spot_recovery_preview_contract",
                     "spot_recovery_apply_contract",
                     "spot_recovery_rollback_contract",
                     "spot_recovery_reconciliation_contract",
@@ -7257,9 +7269,10 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Recovery-gate and direct-order audit reads do not create a "
-                    "spot recovery mutation. Recovery must stay backend-owned and "
-                    "previewed before any apply path exists."
+                    "Spot recovery preview, recovery-gate, and direct-order audit "
+                    "reads do not create a spot recovery mutation. Apply, rollback, "
+                    "and reconciliation proof must stay backend-owned before any "
+                    "recovery action exists."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
@@ -7332,7 +7345,7 @@ class AdminApiReadService:
                 "M54 starts with read-only spot command-suite coverage before execution.",
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
-                "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; P/L tracking is no longer a current gap after average-cost, audit-link, recovery-read, and reconciliation-plan read-link evidence.",
+                "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview is now a read-only evidence route, while apply, rollback, and reconciliation proof remain blocked.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(
@@ -7349,6 +7362,157 @@ class AdminApiReadService:
         from dashboard_server import _build_spot_readiness_payload
 
         return _build_spot_readiness_payload(product_ids=product_ids)
+
+    def build_spot_recovery_preview(
+        self,
+        *,
+        state_file: str | None = None,
+        run_id: str | None = None,
+        config_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> SpotRecoveryPreviewResponse:
+        """Return read-only spot recovery preview evidence."""
+
+        from business.spot_portfolio_sweep import load_sweep_run_records
+        from tools.run_spot_fill_backfill_recovery import DEFAULT_SWEEP_STATE_FILE
+        from tools.run_spot_sweep_recovery_gate import build_sweep_recovery_gate_plan
+
+        state_path = Path(state_file) if state_file else DEFAULT_SWEEP_STATE_FILE
+        records = load_sweep_run_records(state_path)
+        plan = build_sweep_recovery_gate_plan(
+            records=records,
+            state_file=state_path,
+            run_id=run_id,
+            config_id=config_id,
+        )
+        sweep_candidates: list[dict[str, Any]] = []
+        for order in plan.get("backfill_orders") or []:
+            if not isinstance(order, dict):
+                continue
+            identity_value = _string_or_none(order.get("client_order_id"))
+            if not identity_value:
+                continue
+            sweep_candidates.append({
+                "candidate_type": "fill_backfill",
+                "identity_key": "client_order_id",
+                "identity_value": identity_value,
+                "preview_only": True,
+                "required_next_contract": "spot_recovery_apply_contract",
+            })
+
+        direct_order_candidates: list[dict[str, Any]] = []
+        if client_order_id:
+            direct_order_candidates.append({
+                "candidate_type": "direct_order_audit",
+                "identity_key": "client_order_id",
+                "identity_value": client_order_id,
+                "preview_only": True,
+                "required_next_contract": "spot_recovery_apply_contract",
+            })
+
+        sources = [
+            SpotRecoveryPreviewSourceItem(
+                name="sweep_recovery_gate_plan",
+                status=(
+                    AdminApiGateStatus.WARNING
+                    if sweep_candidates
+                    else AdminApiGateStatus.PASSED
+                ),
+                route="/api/v1/spot/recovery/preview",
+                required_permission=AdminApiPermission.AUDIT_READ,
+                shared_method="build_spot_recovery_preview",
+                candidate_count=len(sweep_candidates),
+                candidates=sweep_candidates,
+                documentation_refs=[
+                    "README.spot-portfolio-sweep.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                detail=(
+                    "Preview-only sweep recovery plan built from durable local "
+                    "sweep records via build_sweep_recovery_gate_plan. Only "
+                    "order-level rows with client_order_id become preview "
+                    "candidates; run_id reconciliation evidence remains route "
+                    "context, not candidate authority. No Coinbase reads, "
+                    "Coinbase orders, repair apply, rollback, or reconciliation "
+                    "execution ran."
+                ),
+            ),
+            SpotRecoveryPreviewSourceItem(
+                name="direct_order_audit_lookup",
+                status=(
+                    AdminApiGateStatus.WARNING
+                    if direct_order_candidates
+                    else AdminApiGateStatus.NOT_APPLICABLE
+                ),
+                route="/api/v1/spot/direct-orders/{client_order_id}/audit",
+                required_permission=AdminApiPermission.AUDIT_READ,
+                shared_method="build_spot_direct_order_audit",
+                candidate_count=len(direct_order_candidates),
+                candidates=direct_order_candidates,
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "docs/OPERATOR_READ_MODELS.md",
+                ],
+                detail=(
+                    "Direct-order recovery preview is keyed by client_order_id "
+                    "and remains an audit lookup only. It does not cancel, "
+                    "replace, backfill, repair, or reconcile orders."
+                ),
+            ),
+            SpotRecoveryPreviewSourceItem(
+                name="fill_ledger_health",
+                status=AdminApiGateStatus.PASSED,
+                route="/api/v1/admin/fill-ledger-health",
+                required_permission=AdminApiPermission.AUDIT_READ,
+                shared_method="build_fill_ledger_health",
+                candidate_count=0,
+                documentation_refs=[
+                    "README.audit-workbench.md",
+                    "docs/OPERATOR_READ_MODELS.md",
+                ],
+                detail=(
+                    "Fill-ledger health is read-only evidence. Repair planning "
+                    "or apply remains outside this preview route."
+                ),
+            ),
+        ]
+        candidate_count = sum(source.candidate_count for source in sources)
+        return SpotRecoveryPreviewResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=(
+                AdminApiGateStatus.WARNING
+                if candidate_count
+                else AdminApiGateStatus.PASSED
+            ),
+            filters={
+                "state_file": str(state_path),
+                "run_id": run_id,
+                "config_id": config_id,
+                "client_order_id": client_order_id,
+            },
+            source_count=len(sources),
+            candidate_count=candidate_count,
+            sources=sources,
+            current_read_evidence_routes=[
+                "GET /api/v1/spot/recovery/preview",
+                "GET /api/v1/admin/recovery-gate",
+                "GET /api/v1/admin/fill-ledger-health",
+                "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
+            ],
+            missing_contracts=[
+                "spot_recovery_apply_contract",
+                "spot_recovery_rollback_contract",
+                "spot_recovery_reconciliation_contract",
+            ],
+            spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
+            detail=(
+                "Spot recovery preview is backend-owned read-only evidence. It "
+                "does not apply recovery, write repair rows, roll back state, "
+                "execute reconciliation, mutate order/exchange state, call "
+                "Coinbase, or authorize browser/BFF recovery."
+            ),
+        )
 
     def build_spot_sweep_status(self, *, state_file: str | None = None) -> dict[str, Any]:
         from dashboard_server import _build_spot_sweep_status_payload

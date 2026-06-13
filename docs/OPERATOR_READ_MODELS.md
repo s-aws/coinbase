@@ -1,0 +1,56 @@
+# Operator Read Models
+
+Operator read models are backend-owned Admin API responses that help humans and
+agents inspect trading state without creating command authority. They are
+evidence surfaces only: a browser, BFF, dashboard panel, or contextless agent
+must not treat a read model as permission to place, cancel, repair, roll back,
+or reconcile exchange state.
+
+## Current Surfaces
+
+- Spot readiness, sweep status, P/L, cost basis, campaign status, direct-order
+  audit, recovery preview, and command-suite reads live under `GET /api/v1/spot/*`.
+- Order, stealth, movement/repricing, futures/perpetuals, guard/risk policy,
+  audit workbench, recovery-gate, fill-ledger health, and reconciliation-plan
+  reads expose cross-module evidence under their Admin API namespaces.
+- P/L checkpoint record routes are local-state review records. Their readbacks
+  can link to audit, recovery, and reconciliation evidence, but those links are
+  not recovery execution, reconciliation execution, Coinbase calls, or sell
+  authority.
+
+## Spot Recovery Preview
+
+`GET /api/v1/spot/recovery/preview` is a read-only operator model for recovery
+triage. It aggregates direct-order audit, recovery-gate, and fill-ledger health
+evidence into candidate rows keyed by `client_order_id` when a candidate
+identity exists.
+
+The recovery preview route does not:
+
+- apply repair rows
+- roll back state
+- execute reconciliation
+- mutate order or exchange state
+- read from Coinbase
+- place or cancel Coinbase orders
+- authorize browser recovery
+- authorize BFF recovery
+
+The route reports this boundary through `read_only`, `backend_owned`,
+`live_coinbase_orders_ran`, `live_coinbase_read_ran`,
+`submitted_notional_usdc`, `executed_notional_usdc`, `browser_authority`, and
+`bff_authority` fields. A consumer should render those fields as evidence, not
+recompute or override them.
+
+## Maintenance Rules
+
+- Add a read model only through the backend Admin API contract and route
+  inventory.
+- Keep `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`, generated OpenAPI artifacts,
+  examples, and frontend generated schema in sync with route changes.
+- Use `client_order_id` for internal order identity. Exchange ids are evidence
+  only unless an exchange endpoint explicitly requires them.
+- Do not copy spot wallet, no-shorting, cost-basis, or average-cost rules into
+  non-spot read models.
+- Add focused tests for dangerous boundaries before exposing a read model to
+  the frontend.

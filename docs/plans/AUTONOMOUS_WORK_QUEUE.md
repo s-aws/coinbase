@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1781-1800**.
+- Approved phase range: **1801-1820**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,7 +46,132 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1781-1800
+## Active Phases 1801-1820
+
+### Phase 1801 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1781-1800 to active
+  phases 1801-1820 while preserving the no-live default and carried Coinbase
+  cap policy.
+
+### Phase 1802 - Recovery Preview Scope
+
+- Define Spot recovery preview as backend-owned read-only evidence, not a
+  recovery apply path, repair apply path, rollback, reconciliation executor,
+  order/exchange-state mutation, or Coinbase path.
+
+### Phase 1803 - Recovery Preview Contract
+
+- Add a typed `GET /api/v1/spot/recovery/preview` response that reports
+  preview sources, candidate counts, missing apply/rollback/reconciliation
+  contracts, and no-browser-authority posture.
+
+### Phase 1804 - Recovery Planning Source
+
+- Reuse the existing sweep recovery-gate planning helper for preview evidence
+  so the route does not create a parallel recovery implementation.
+
+### Phase 1805 - Direct Order Preview Link
+
+- Link direct-order audit identity evidence by `client_order_id` as preview
+  input only, without creating cancel, repair, backfill, or reconciliation
+  authority.
+
+### Phase 1806 - Command-Suite Gap Update
+
+- Remove `spot_recovery_preview_contract` from the recovery workflow gap once
+  the preview route exists, while keeping recovery apply, rollback, and
+  reconciliation proof as blockers.
+
+### Phase 1807 - Route Inventory And Capability Binding
+
+- Add the preview route to backend route inventory, Admin API capabilities,
+  frontend-fixture evidence, and spot module read-route accounting.
+
+### Phase 1808 - Backend OpenAPI Sync
+
+- Regenerate backend OpenAPI and route-inventory artifacts for the new
+  recovery-preview contract.
+
+### Phase 1809 - Backend Focused Tests
+
+- Cover the preview response, route inventory, OpenAPI schema, frontend
+  fixture key, command-suite gap update, and no-live posture.
+
+### Phase 1810 - Backend Docs And Examples
+
+- Update Admin API, Spot trading, command workflows, examples, capability
+  matrix, route inventory, and handoff docs for recovery-preview evidence.
+
+### Phase 1811 - Website Schema Sync
+
+- Regenerate the website schema from backend OpenAPI without hand-editing
+  generated files.
+
+### Phase 1812 - Website Contract Consumption
+
+- Add canonical website wrapper, BFF allowlist, runtime fetch, and read-smoke
+  coverage for `GET /api/v1/spot/recovery/preview`.
+
+### Phase 1813 - Mock And Runtime Evidence
+
+- Update mock backend fixtures, runtime snapshots, route coverage, quality
+  artifacts, and active-range evidence for the preview route.
+
+### Phase 1814 - Spot Recovery UI Evidence
+
+- Render preview source counts, candidate counts, missing contracts, and
+  source-route links in the Spot command suite without adding browser
+  recovery authority.
+
+### Phase 1815 - Command-Suite Gap UI Evidence
+
+- Ensure the recovery workflow gap shows preview evidence present while apply,
+  rollback, and reconciliation proof remain blocked.
+
+### Phase 1816 - Release And Artifact Alignment
+
+- Update release/deployment/autonomous artifacts, smoke catalogs, and quality
+  gates for the 1801-1820 evidence batch.
+
+### Phase 1817 - Focused Website Tests
+
+- Cover generated schema, canonical wrapper, mock route, runtime snapshot,
+  Spot command-suite recovery evidence, and unchanged no-live behavior.
+
+### Phase 1818 - Contextless Review And Remediation
+
+- Run blind/contextless review for whether a fresh agent can explain the
+  recovery-preview path without inventing browser authority, recovery apply,
+  repair apply, rollback, reconciliation execution, order/exchange mutation,
+  or Coinbase execution; remediate blockers.
+
+### Phase 1819 - Final Gates
+
+- Run backend focused checks, backend full regression, website release gate,
+  and autonomous queue checks after recovery-preview changes.
+
+### Phase 1820 - Summary And Push
+
+- Confirm Coinbase submitted/executed notional remains `$0`, then commit and
+  push both repositories.
+
+## Completed Phases 1781-1800
+
+The 1781-1800 range completed Spot P/L checkpoint reconciliation-link
+evidence:
+
+- Checkpoint list/detail read models expose `reconciliation_linked`,
+  `reconciliation_source`, `reconciliation_routes`,
+  `reconciliation_detail`, and `reconciliation_linked_count`.
+- The command-suite P/L gap is closed after average-cost review, audit-link,
+  recovery-read, and reconciliation-plan read-link evidence.
+- Recovery workflow and reconciliation workflow execution remain explicit
+  blockers for the next M54 slices.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed Coinbase notional `$0`.
+
+## Completed Phase Detail 1781-1800
 
 ### Phase 1781 - Advance Active Queue Range
 

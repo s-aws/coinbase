@@ -3538,6 +3538,100 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/preview:
+    get:
+      tags:
+      - spot
+      summary: Preview spot recovery candidates without applying recovery
+      operationId: spot_recovery_preview_api_v1_spot_recovery_preview_get
+      parameters:
+      - name: state_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+      - name: run_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Id
+      - name: config_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Config Id
+      - name: client_order_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotRecoveryPreviewResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/sweep/status:
     get:
       tags:
@@ -11635,6 +11729,194 @@ components:
       type: object
       title: SpotReadinessResponse
       description: Spot readiness response.
+    SpotRecoveryPreviewResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: spot_recovery_preview
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: warning
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: spot_operations
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        filters:
+          additionalProperties: true
+          type: object
+          title: Filters
+        source_count:
+          type: integer
+          minimum: 0.0
+          title: Source Count
+        candidate_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Count
+        sources:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryPreviewSourceItem'
+          type: array
+          title: Sources
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        recovery_apply_available:
+          type: boolean
+          title: Recovery Apply Available
+          default: false
+        rollback_plan_available:
+          type: boolean
+          title: Rollback Plan Available
+          default: false
+        reconciliation_proof_available:
+          type: boolean
+          title: Reconciliation Proof Available
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - source_count
+      - candidate_count
+      - spot_rule_boundary
+      - detail
+      title: SpotRecoveryPreviewResponse
+      description: Read-only spot recovery preview evidence.
+    SpotRecoveryPreviewSourceItem:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: GET
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: read_only
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        candidate_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Count
+        candidates:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Candidates
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - status
+      - route
+      - required_permission
+      - shared_method
+      - candidate_count
+      - detail
+      title: SpotRecoveryPreviewSourceItem
+      description: One backend-owned read source contributing recovery-preview evidence.
     SpotSweepAutomationRunRequest:
       properties:
         sweep_config_id:

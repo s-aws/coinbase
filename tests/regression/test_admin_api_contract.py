@@ -805,6 +805,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "content" in spot_command_suite_operation["responses"]["200"]
     assert "401" in spot_command_suite_operation["responses"]
     assert "403" in spot_command_suite_operation["responses"]
+    spot_recovery_preview_operation = written["paths"][
+        "/api/v1/spot/recovery/preview"
+    ]["get"]
+    assert "200" in spot_recovery_preview_operation["responses"]
+    assert "content" in spot_recovery_preview_operation["responses"]["200"]
+    assert "401" in spot_recovery_preview_operation["responses"]
+    assert "403" in spot_recovery_preview_operation["responses"]
     order_item_schema = written["components"]["schemas"]["AdminOrderReadItem"]
     assert "client_order_id" in order_item_schema["properties"]
     assert "order_id" not in order_item_schema["properties"]
@@ -919,6 +926,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "commands" in spot_command_suite_schema["properties"]
     assert "blocked_command_count" in spot_command_suite_schema["properties"]
     assert "spot_rules_platform_default" in spot_command_suite_schema["properties"]
+    spot_recovery_preview_schema = written["components"]["schemas"][
+        "SpotRecoveryPreviewResponse"
+    ]
+    assert "sources" in spot_recovery_preview_schema["properties"]
+    assert "missing_contracts" in spot_recovery_preview_schema["properties"]
     spot_pnl_schema = written["components"]["schemas"]["SpotSweepPnlResponse"]
     assert "pnl_report" in spot_pnl_schema["properties"]
     for schema_name, component_schema in written["components"]["schemas"].items():
@@ -3928,9 +3940,16 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     recovery_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW.value
     ]
+    assert "GET /api/v1/spot/recovery/preview" in recovery_gap[
+        "current_read_evidence_routes"
+    ]
     assert "GET /api/v1/admin/recovery-gate" in recovery_gap[
         "current_read_evidence_routes"
     ]
+    assert "spot_recovery_preview_contract" not in recovery_gap["missing_contracts"]
+    assert "spot_recovery_apply_contract" in recovery_gap["missing_contracts"]
+    assert "spot_recovery_rollback_contract" in recovery_gap["missing_contracts"]
+    assert "spot_recovery_reconciliation_contract" in recovery_gap["missing_contracts"]
     reconciliation_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW.value
     ]
@@ -4505,6 +4524,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "/api/v1/admin/fill-ledger-health",
         headers=headers,
     )
+    spot_recovery_preview = client.get(
+        "/api/v1/spot/recovery/preview?client_order_id=client-order-mock",
+        headers=headers,
+    )
     frontend_fixtures = client.get(
         "/api/v1/admin/frontend-fixtures",
         headers=headers,
@@ -4536,6 +4559,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     }
     assert route_modules["/api/v1/admin/bootstrap"] == "admin_system_health"
     assert route_modules["/api/v1/spot/readiness"] == "spot_operations"
+    assert route_modules["/api/v1/spot/recovery/preview"] == "spot_operations"
     assert route_modules["/api/v1/futures/account"] == "futures_perpetuals"
     assert route_modules["/api/v1/stealth/orders"] == "stealth_orders"
     assert (
@@ -4598,7 +4622,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1781-1800"
+    assert live_payload["approved_phase_range"] == "1801-1820"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -5157,7 +5181,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1781-1800"
+    assert enterprise_payload["approved_phase_range"] == "1801-1820"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -5529,7 +5553,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
         in spot_module["read_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 11
+    assert spot_module["action_posture"]["read_route_count"] == 12
     assert spot_module["action_posture"]["command_route_count"] == 5
     assert spot_module["action_posture"]["live_route_count"] == 4
     assert spot_module["action_posture"]["command_gap_count"] == 2
@@ -5638,6 +5662,56 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "repair_surface",
         "observed_at",
     }
+    assert spot_recovery_preview.status_code == 200
+    recovery_preview_payload = spot_recovery_preview.json()
+    assert recovery_preview_payload["type"] == "spot_recovery_preview"
+    assert recovery_preview_payload["module_id"] == "spot_operations"
+    assert recovery_preview_payload["approved_phase_range"] == "1801-1820"
+    assert recovery_preview_payload["read_only"] is True
+    assert recovery_preview_payload["backend_owned"] is True
+    assert recovery_preview_payload["browser_authority"] == "display_only"
+    assert recovery_preview_payload["bff_authority"] == "read_only_forward"
+    assert recovery_preview_payload["live_coinbase_orders_ran"] is False
+    assert recovery_preview_payload["live_coinbase_read_ran"] is False
+    assert recovery_preview_payload["recovery_apply_available"] is False
+    assert recovery_preview_payload["rollback_plan_available"] is False
+    assert recovery_preview_payload["reconciliation_proof_available"] is False
+    assert recovery_preview_payload["submitted_notional_usdc"] == "0"
+    assert recovery_preview_payload["executed_notional_usdc"] == "0"
+    assert recovery_preview_payload["source_count"] >= 3
+    assert recovery_preview_payload["candidate_count"] >= 1
+    assert "GET /api/v1/spot/recovery/preview" in recovery_preview_payload[
+        "current_read_evidence_routes"
+    ]
+    assert "spot_recovery_preview_contract" not in recovery_preview_payload[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_apply_contract" in recovery_preview_payload[
+        "missing_contracts"
+    ]
+    recovery_preview_sources = {
+        source["name"]: source for source in recovery_preview_payload["sources"]
+    }
+    assert all(
+        source["live_coinbase_orders_ran"] is False
+        for source in recovery_preview_sources.values()
+    )
+    assert all(
+        source["live_coinbase_read_ran"] is False
+        for source in recovery_preview_sources.values()
+    )
+    assert all(
+        candidate["identity_key"] == "client_order_id"
+        for source in recovery_preview_sources.values()
+        for candidate in source["candidates"]
+    )
+    assert recovery_preview_sources["sweep_recovery_gate_plan"]["shared_method"] == (
+        "build_spot_recovery_preview"
+    )
+    assert recovery_preview_sources["direct_order_audit_lookup"]["candidate_count"] == 1
+    assert recovery_preview_sources["fill_ledger_health"]["route"] == (
+        "/api/v1/admin/fill-ledger-health"
+    )
     assert frontend_fixtures.status_code == 200
     frontend_fixture_payload = frontend_fixtures.json()
     assert frontend_fixture_payload["live_coinbase_orders_ran"] is False
@@ -5647,10 +5721,172 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.recoveryGate",
         "admin.fillLedgerHealth",
         "spot.commandSuite",
+        "spot.recoveryPreview",
     } <= fixture_keys
     assert "release.gate" not in fixture_keys
     assert "recovery.gate" not in fixture_keys
     assert "fillLedger.health" not in fixture_keys
+
+
+@pytest.mark.regression
+def test_admin_api_spot_recovery_preview_candidates_use_client_order_id(
+    monkeypatch, tmp_path
+):
+    import business.spot_portfolio_sweep as spot_sweep_module
+    import tools.run_spot_sweep_recovery_gate as recovery_gate_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    monkeypatch.setattr(
+        spot_sweep_module,
+        "load_sweep_run_records",
+        lambda _state_path: [],
+    )
+    monkeypatch.setattr(
+        recovery_gate_module,
+        "build_sweep_recovery_gate_plan",
+        lambda **_kwargs: {
+            "runs_needing_reconciliation": ["run-level-evidence"],
+            "backfill_orders": [
+                {
+                    "client_order_id": "client-order-backfill",
+                    "order_id": "exchange-order-evidence",
+                },
+                {"order_id": "exchange-order-without-client-id"},
+            ],
+        },
+    )
+
+    response = AdminApiReadService().build_spot_recovery_preview(
+        state_file=str(tmp_path / "spot-sweeps.jsonl"),
+    )
+    sweep_source = next(
+        source for source in response.sources if source.name == "sweep_recovery_gate_plan"
+    )
+
+    assert sweep_source.candidate_count == 1
+    assert sweep_source.candidates == [
+        {
+            "candidate_type": "fill_backfill",
+            "identity_key": "client_order_id",
+            "identity_value": "client-order-backfill",
+            "preview_only": True,
+            "required_next_contract": "spot_recovery_apply_contract",
+        }
+    ]
+    preview_json = json.dumps(response.model_dump(mode="json"))
+    assert '"identity_key": "run_id"' not in preview_json
+    assert '"identity_key": "order_id"' not in preview_json
+    assert "exchange_order_id" not in preview_json
+
+
+@pytest.mark.regression
+def test_admin_api_spot_recovery_preview_does_not_call_live_or_apply_helpers(
+    monkeypatch, tmp_path
+):
+    import business.spot_fill_ledger_health as fill_ledger_health_module
+    import business.spot_portfolio_sweep as spot_sweep_module
+    import configuration
+    import tools.run_spot_fill_backfill_recovery as backfill_recovery_module
+    import tools.run_spot_sweep_recovery_gate as recovery_gate_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    def poison(*_args, **_kwargs):
+        raise AssertionError("recovery preview must not call live/read/apply helpers")
+
+    monkeypatch.setattr(configuration, "get_rest_client", poison)
+    monkeypatch.setattr(spot_sweep_module, "reconcile_sweep_run_record", poison)
+    monkeypatch.setattr(recovery_gate_module, "reconcile_sweep_run_record", poison)
+    monkeypatch.setattr(
+        recovery_gate_module,
+        "backfill_fill_ledger_from_order_reports",
+        poison,
+    )
+    monkeypatch.setattr(
+        backfill_recovery_module,
+        "backfill_fill_ledger_from_order_reports",
+        poison,
+    )
+    monkeypatch.setattr(
+        fill_ledger_health_module,
+        "build_spot_fill_ledger_repair_actions",
+        poison,
+    )
+    monkeypatch.setattr(
+        fill_ledger_health_module,
+        "apply_spot_fill_ledger_repair_actions",
+        poison,
+    )
+
+    state_file = tmp_path / "sweep-runs.jsonl"
+    state_file.write_text(
+        json.dumps({
+            "record_type": "sweep_run",
+            "run_id": "run-needs-recovery",
+            "config_id": "config-needs-recovery",
+            "execution": {
+                "fill_backfill": {
+                    "orders": [
+                        {
+                            "client_order_id": "client-order-preview",
+                            "exchange_order_id": "exchange-order-evidence",
+                            "status": "error",
+                        }
+                    ]
+                }
+            },
+        })
+        + "\n",
+        encoding="utf-8",
+    )
+
+    response = AdminApiReadService().build_spot_recovery_preview(
+        state_file=str(state_file),
+        client_order_id="client-order-preview",
+    )
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is False
+    assert all(source.live_coinbase_orders_ran is False for source in response.sources)
+    assert all(source.live_coinbase_read_ran is False for source in response.sources)
+
+    client = _client(monkeypatch)
+    http_response = client.get(
+        "/api/v1/spot/recovery/preview",
+        params={
+            "state_file": str(state_file),
+            "client_order_id": "client-order-preview",
+        },
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert http_response.status_code == 200
+    payload = http_response.json()
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+
+
+@pytest.mark.regression
+def test_admin_api_spot_recovery_preview_docs_and_inventory_boundaries_exist():
+    from application.admin_api.read_service import AdminApiReadService
+
+    response = AdminApiReadService().build_spot_recovery_preview()
+    documentation_refs = set()
+    for source in response.sources:
+        documentation_refs.update(source.documentation_refs)
+
+    assert "docs/OPERATOR_READ_MODELS.md" in documentation_refs
+    for documentation_ref in documentation_refs:
+        assert (ROOT / documentation_ref).exists(), documentation_ref
+
+    route_inventory_item = next(
+        item
+        for item in ADMIN_API_ROUTE_INVENTORY
+        if item.surface == "GET /api/v1/spot/recovery/preview"
+    )
+    assert "Coinbase read" in route_inventory_item.parity_test
+    assert "Coinbase REST placement" in route_inventory_item.parity_test
 
 
 @pytest.mark.regression
@@ -7149,6 +7385,39 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     enterprise_readiness_route = rows["GET /api/v1/admin/enterprise-readiness"]
     assert enterprise_readiness_route.shared_method == "build_enterprise_readiness"
     assert "structured command-gap" in enterprise_readiness_route.parity_test
+    spot_recovery_preview_route = rows["GET /api/v1/spot/recovery/preview"]
+    assert spot_recovery_preview_route.shared_method == "build_spot_recovery_preview"
+    assert spot_recovery_preview_route.action_class == AdminApiActionClass.READ_ONLY
+    assert spot_recovery_preview_route.permission == AdminApiPermission.AUDIT_READ
+    assert spot_recovery_preview_route.caps == (
+        "read-only spot recovery preview evidence"
+    )
+    assert "Coinbase read" in spot_recovery_preview_route.parity_test
+    assert "Coinbase REST placement" in spot_recovery_preview_route.parity_test
+    markdown_inventory_rows = {}
+    for line in doc.splitlines():
+        if not line.startswith("| `"):
+            continue
+        columns = [column.strip() for column in line.strip().strip("|").split("|")]
+        if len(columns) < 9:
+            continue
+        markdown_inventory_rows[columns[0].strip("`")] = columns
+    spot_recovery_preview_doc_row = markdown_inventory_rows[
+        "GET /api/v1/spot/recovery/preview"
+    ]
+    assert spot_recovery_preview_doc_row[1].strip("`") == (
+        spot_recovery_preview_route.action_class.value
+    )
+    assert spot_recovery_preview_doc_row[2].strip("`") == (
+        spot_recovery_preview_route.permission.value
+    )
+    assert spot_recovery_preview_doc_row[5] == spot_recovery_preview_route.caps
+    assert spot_recovery_preview_doc_row[7].strip("`") == (
+        spot_recovery_preview_route.shared_method
+    )
+    assert spot_recovery_preview_doc_row[8] == (
+        spot_recovery_preview_route.parity_test
+    )
     assert rows["GET /api/v1/admin/admission-audits"].shared_method == (
         "list_admission_audits"
     )

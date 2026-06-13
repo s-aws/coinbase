@@ -29,6 +29,7 @@ from application.admin_api.models import (
     SpotCostBasisStatusResponse,
     SpotDirectOrderAuditResponse,
     SpotReadinessResponse,
+    SpotRecoveryPreviewResponse,
     SpotSweepPnlResponse,
     SpotSweepStatusResponse,
 )
@@ -330,6 +331,32 @@ def spot_command_suite(
     return _read_model_response(
         SpotCommandSuiteResponse,
         service.build_spot_command_suite().model_dump(mode="json"),
+    )
+
+
+@router.get(
+    "/spot/recovery/preview",
+    response_model=SpotRecoveryPreviewResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Preview spot recovery candidates without applying recovery",
+)
+def spot_recovery_preview(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    state_file: str | None = None,
+    run_id: str | None = None,
+    config_id: str | None = None,
+    client_order_id: str | None = None,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_model_response(
+        SpotRecoveryPreviewResponse,
+        service.build_spot_recovery_preview(
+            state_file=state_file,
+            run_id=run_id,
+            config_id=config_id,
+            client_order_id=client_order_id,
+        ).model_dump(mode="json"),
     )
 
 
