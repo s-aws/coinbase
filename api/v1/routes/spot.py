@@ -419,6 +419,9 @@ def list_spot_pnl_checkpoints(
             1 for item in all_checkpoints if item.average_cost_reviewed
         ),
         audit_linked_count=sum(1 for item in all_checkpoints if item.audit_linked),
+        recovery_linked_count=sum(
+            1 for item in all_checkpoints if item.recovery_linked
+        ),
     )
     return JSONResponse(content=payload.model_dump(mode="json"))
 

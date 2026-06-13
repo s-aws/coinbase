@@ -258,6 +258,15 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   only, not recovery execution, reconciliation execution, Coinbase execution,
   or browser authority. A checkpoint with an `audit_id` but no matching audit
   row is reported as unverified and does not increment `audit_linked_count`.
+- Accepted checkpoint records also expose read-only recovery-link evidence
+  through `recovery_linked`, `recovery_source`, `recovery_routes`,
+  `recovery_detail`, and list-level `recovery_linked_count`. This links the
+  checkpoint to `/api/v1/admin/recovery-gate` and
+  `/api/v1/admin/fill-ledger-health` for operator triage only; it does not
+  execute recovery, apply repairs, roll back state, run reconciliation, call
+  Coinbase, or create browser recovery authority.
+  These fields are response/read-model evidence derived from those backend
+  reads, not separately persisted recovery state in the checkpoint ledger.
 
 ## Examples
 

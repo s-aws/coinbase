@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1741-1760**.
+- Approved phase range: **1761-1780**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,7 +46,119 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1741-1760
+## Active Phases 1761-1780
+
+### Phase 1761 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1741-1760 to active
+  phases 1761-1780 while preserving the no-live default and carried Coinbase
+  cap policy.
+
+### Phase 1762 - Recovery-Link Scope
+
+- Define Spot P/L checkpoint recovery linkage as read-only evidence on the
+  existing checkpoint route, recovery gate, and fill-ledger-health read
+  surfaces, not a recovery executor, rollback path, reconciliation executor,
+  or Coinbase path.
+
+### Phase 1763 - Checkpoint Recovery Fields
+
+- Add typed checkpoint list/detail fields for recovery linked-state, recovery
+  source, recovery routes, and no-authority recovery detail.
+
+### Phase 1764 - Recovery Link Counts
+
+- Add aggregate list evidence for how many durable checkpoint records include
+  backend-owned recovery-read linkage.
+
+### Phase 1765 - Command-Suite P/L Gap Update
+
+- Remove `spot_pnl_recovery_link_contract` from the P/L tracking gap once
+  checkpoint read models expose recovery-read linkage, while keeping
+  `spot_pnl_reconciliation_link_contract` open.
+
+### Phase 1766 - Single Path Boundary
+
+- Prove recovery linkage remains on `POST /api/v1/spot/pnl/checkpoints`,
+  `GET /api/v1/admin/recovery-gate`, and `GET /api/v1/admin/fill-ledger-health`
+  without adding browser recovery authority, recovery execution,
+  reconciliation execution, rollback, repair apply, or Coinbase calls.
+
+### Phase 1767 - Backend OpenAPI Sync
+
+- Regenerate backend OpenAPI and route-inventory artifacts for the enhanced
+  checkpoint recovery-link response contract.
+
+### Phase 1768 - Backend Focused Tests
+
+- Cover recovery route linkage, aggregate recovery counts, command-suite gap
+  updates, idempotent replay compatibility, and no-live posture.
+
+### Phase 1769 - Backend Docs And Examples
+
+- Update Admin API, Spot portfolio sweep, command workflow, examples,
+  capability matrix, and handoff docs for checkpoint recovery-link evidence.
+
+### Phase 1770 - Website Schema Sync
+
+- Regenerate the website schema from backend OpenAPI without hand-editing
+  generated files.
+
+### Phase 1771 - Website Contract Consumption
+
+- Consume the checkpoint recovery-link fields through generated types,
+  canonical wrappers, BFF coverage, and mock/runtime fixtures only.
+
+### Phase 1772 - Mock And Runtime Evidence
+
+- Update mock backend, runtime snapshots, route coverage, smoke catalogs, and
+  quality artifacts for recovery-link evidence and the new active range.
+
+### Phase 1773 - Spot P/L UI Evidence
+
+- Render checkpoint recovery-link counts/source/routes in the Spot P/L read
+  panel without browser recovery authority, recovery execution,
+  reconciliation execution, repair apply, rollback, or Coinbase execution
+  authority.
+
+### Phase 1774 - Command-Suite Gap UI Evidence
+
+- Render the updated P/L gap so recovery linkage is no longer listed as
+  missing, while reconciliation linkage remains an explicit blocker.
+
+### Phase 1775 - Release And Artifact Alignment
+
+- Update release/deployment/autonomous artifacts, route coverage, smoke
+  checks, and quality gates for the 1761-1780 evidence batch.
+
+### Phase 1776 - Focused Frontend Tests
+
+- Cover generated schema, mock route, P/L panel recovery metrics,
+  command-suite gap rendering, and unchanged no-live behavior.
+
+### Phase 1777 - Documentation Update
+
+- Update API contract, command workflows, mock API, examples, capability
+  matrix, testing, and handoff docs for contextless recovery-link traceability.
+
+### Phase 1778 - Contextless Review And Remediation
+
+- Run blind/contextless review for whether a fresh agent can explain the
+  checkpoint recovery-link path without inventing browser authority, recovery
+  execution, reconciliation execution, repair apply, rollback, or Coinbase
+  execution; remediate blockers.
+
+### Phase 1779 - Final Gates
+
+- Run backend focused checks, backend full regression, website release gate,
+  and autonomous queue checks after all recovery-link changes.
+
+### Phase 1780 - Summary And Push
+
+- Confirm Coinbase submitted/executed notional remains `$0`, then commit and
+  push both repositories.
+
+## Completed Phases 1741-1760
 
 ### Phase 1741 - Advance Active Queue Range
 
@@ -157,6 +269,18 @@ Stop advancement to the next phase until fixed when any of these occur:
 - Run full backend regression and website release gate, confirm Coinbase
   submitted/executed notional remains `$0`, then commit and push both
   repositories.
+
+The 1741-1760 range completed Spot P/L checkpoint audit-link evidence:
+
+- `POST /api/v1/spot/pnl/checkpoints` remains the single writer for P/L
+  checkpoint, average-cost review, and audit-link evidence.
+- Checkpoint list/detail responses expose verified `audit_id`,
+  `audit_linked`, `audit_source`, `audit_detail`, and `audit_linked_count`.
+- The command-suite P/L gap no longer lists audit linkage as missing, while
+  recovery and reconciliation linkage remained blockers for the next slices.
+- Backend full regression, website release gate, and blind/contextless review
+  passed. Live Coinbase execution was not run; submitted and executed notional
+  stayed `$0`.
 
 ## Completed Phases 1721-1740
 

@@ -107,6 +107,16 @@ link readback for the local-state mutation through `audit_id`, `audit_linked`,
 `audit_source`, `audit_detail`, and list-level `audit_linked_count`. That
 link is operator review evidence only; it does not execute recovery,
 reconciliation, Coinbase orders, or browser authority.
+Accepted checkpoint records also expose read-only recovery-link evidence
+through `recovery_linked`, `recovery_source`, `recovery_routes`,
+`recovery_detail`, and list-level `recovery_linked_count`. This links the
+checkpoint to backend-owned `/api/v1/admin/recovery-gate` and
+`/api/v1/admin/fill-ledger-health` reads for triage only; it does not execute
+recovery, apply repairs, roll back state, run reconciliation, call Coinbase,
+or create browser recovery authority.
+The recovery-link fields are response/read-model evidence derived from those
+backend reads, not separately persisted recovery state in the checkpoint
+ledger.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -211,9 +221,9 @@ checkpoint records. These records are local-state review evidence only; they
 are not live execution, sell eligibility, profitability proof, reconciliation
 execution, or tax accounting.
 The checkpoint path is also the single Admin API average-cost review evidence
-and checkpoint audit-link evidence path when an `average_cost_snapshot` is
-recorded; do not add a parallel average-cost writer or checkpoint audit
-writer.
+checkpoint audit-link evidence path, and checkpoint recovery-link evidence
+path when an `average_cost_snapshot` is recorded; do not add a parallel
+average-cost writer, checkpoint audit writer, or recovery-link writer.
 
 Current mutating HTTP command surfaces are:
 

@@ -38,40 +38,55 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Spot P/L Checkpoint Audit-Link Evidence Batch - Phases 1741-1760
+## Active M54 Spot P/L Checkpoint Recovery-Link Evidence Batch - Phases 1761-1780
 
-### Phase 1741 - Advance Active Queue Range
+### Phase 1761 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1721-1740 to active
-  phases 1741-1760 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1741-1760 to active
+  phases 1761-1780 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1742 - Audit-Link Contract
+### Phase 1762 - Recovery-Link Contract
 
 - Extend the existing Spot P/L checkpoint contract so accepted checkpoint
-  records expose verified append-only Admin API audit-link readback without adding a
-  second writer, recovery executor, reconciliation executor, or Coinbase path.
+  records expose read-only recovery-link evidence to
+  `/api/v1/admin/recovery-gate` and `/api/v1/admin/fill-ledger-health`
+  without adding a second writer, recovery executor, repair apply, rollback,
+  reconciliation executor, or Coinbase path.
 
-### Phase 1743 - Models, Route, And Counts
+### Phase 1763 - Models, Route, And Counts
 
-- Add checkpoint audit-link fields, ensure accepted writes persist the same
-  `audit_id` used by the Admin API audit event, and expose aggregate verified
-  audit-linked counts for verified links in list responses.
+- Add checkpoint recovery-link fields and expose aggregate recovery-linked
+  counts for linked records in list responses.
 
-### Phase 1744 - Command Suite Gap Update
+### Phase 1764 - Command Suite Gap Update
 
-- Update the Spot command-suite P/L gap so checkpoint audit linkage is covered
-  while recovery and reconciliation linkage remain open.
+- Update the Spot command-suite P/L gap so checkpoint recovery-read linkage is
+  covered while reconciliation linkage remains open.
 
-### Phase 1745 - Website Contract Consumption
+### Phase 1765 - Website Contract Consumption
 
 - Regenerate the website schema and update canonical wrappers, mock/runtime
-  fixtures, release artifacts, and the Spot P/L panel for audit-link evidence.
+  fixtures, release artifacts, and the Spot P/L panel for recovery-link
+  evidence.
 
-### Phase 1746 - Tests, Docs, Review, And Push
+### Phase 1766 - Tests, Docs, Review, And Push
 
 - Cover backend/frontend tests, docs, blind/contextless review, full gates, and
   confirm Coinbase submitted/executed notional remains `$0` before pushing.
+
+## Completed M54 Spot P/L Checkpoint Audit-Link Evidence Batch - Phases 1741-1760
+
+- Accepted checkpoint records expose verified append-only Admin API audit-link
+  readback through `audit_id`, `audit_linked`, `audit_source`,
+  `audit_detail`, and list-level `audit_linked_count`.
+- `POST /api/v1/spot/pnl/checkpoints` remains the single writer for P/L
+  checkpoint, average-cost review, and audit-link evidence.
+- The Spot command-suite P/L gap no longer lists audit linkage as missing,
+  while recovery-read linkage and reconciliation linkage remained open at
+  batch completion.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Spot Average-Cost Review Evidence Batch - Phases 1721-1740
 

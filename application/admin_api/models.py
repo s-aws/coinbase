@@ -60,6 +60,11 @@ SPOT_PNL_CHECKPOINT_LEGACY_AUDIT_DETAIL = (
     "Checkpoint does not include a verified Admin API audit link; treat it as "
     "legacy local checkpoint evidence until a linked record is written."
 )
+SPOT_PNL_CHECKPOINT_LEGACY_RECOVERY_DETAIL = (
+    "Checkpoint does not include recovery-link evidence; use backend recovery "
+    "gate and fill-ledger-health reads for operator triage before recording a "
+    "linked checkpoint."
+)
 
 
 DecimalString = Annotated[
@@ -811,6 +816,10 @@ class SpotPnlCheckpointItem(BaseModel):
     audit_linked: bool = False
     audit_source: str | None = None
     audit_detail: str = SPOT_PNL_CHECKPOINT_LEGACY_AUDIT_DETAIL
+    recovery_linked: bool = False
+    recovery_source: str | None = None
+    recovery_routes: list[str] = Field(default_factory=list)
+    recovery_detail: str = SPOT_PNL_CHECKPOINT_LEGACY_RECOVERY_DETAIL
     source: str = "admin_api_spot_pnl_checkpoint_log"
     operator_notes: str
     browser_authority: str = "display_only"
@@ -837,6 +846,7 @@ class SpotPnlCheckpointListResponse(BaseModel):
     warning_count: int = Field(ge=0)
     average_cost_review_count: int = Field(ge=0)
     audit_linked_count: int = Field(ge=0)
+    recovery_linked_count: int = Field(ge=0)
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

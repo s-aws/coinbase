@@ -27,6 +27,12 @@ class SpotPnlCheckpointError(ValueError):
     """Raised when a Spot P/L checkpoint record is invalid."""
 
 
+SPOT_PNL_CHECKPOINT_RECOVERY_ROUTES = [
+    "/api/v1/admin/recovery-gate",
+    "/api/v1/admin/fill-ledger-health",
+]
+
+
 class AdminApiSpotPnlCheckpointService:
     """Service boundary for append-only Spot P/L checkpoint records."""
 
@@ -159,6 +165,15 @@ def _item_from_record(
             "before recording average-cost review evidence."
         )
     )
+    recovery_linked = True
+    recovery_detail = (
+        "Checkpoint read model is linked to backend-owned read-only recovery "
+        "triage evidence through /api/v1/admin/recovery-gate and "
+        "/api/v1/admin/fill-ledger-health. This link is operator evidence "
+        "only and does not execute recovery, apply repairs, roll back state, "
+        "run reconciliation, call Coinbase, or create browser recovery "
+        "authority."
+    )
     detail = (
         "Spot P/L checkpoint is durable operator review evidence only. It is "
         "not tax accounting, sell authority, profitability authority, browser "
@@ -184,6 +199,10 @@ def _item_from_record(
         audit_linked=audit_linked,
         audit_source="admin_api_audit_log" if audit_linked else None,
         audit_detail=audit_detail,
+        recovery_linked=recovery_linked,
+        recovery_source="admin_recovery_gate",
+        recovery_routes=SPOT_PNL_CHECKPOINT_RECOVERY_ROUTES,
+        recovery_detail=recovery_detail,
         source=record.source,
         operator_notes=record.operator_notes,
         detail=detail,

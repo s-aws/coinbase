@@ -11348,6 +11348,26 @@ components:
           title: Audit Detail
           default: Checkpoint does not include a verified Admin API audit link; treat
             it as legacy local checkpoint evidence until a linked record is written.
+        recovery_linked:
+          type: boolean
+          title: Recovery Linked
+          default: false
+        recovery_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Source
+        recovery_routes:
+          items:
+            type: string
+          type: array
+          title: Recovery Routes
+        recovery_detail:
+          type: string
+          title: Recovery Detail
+          default: Checkpoint does not include recovery-link evidence; use backend
+            recovery gate and fill-ledger-health reads for operator triage before
+            recording a linked checkpoint.
         source:
           type: string
           title: Source
@@ -11443,6 +11463,10 @@ components:
           type: integer
           minimum: 0.0
           title: Audit Linked Count
+        recovery_linked_count:
+          type: integer
+          minimum: 0.0
+          title: Recovery Linked Count
         read_only:
           type: boolean
           title: Read Only
@@ -11461,6 +11485,7 @@ components:
       - warning_count
       - average_cost_review_count
       - audit_linked_count
+      - recovery_linked_count
       title: SpotPnlCheckpointListResponse
       description: List backend-owned Spot P/L checkpoint records.
     SpotPnlCheckpointResponse:

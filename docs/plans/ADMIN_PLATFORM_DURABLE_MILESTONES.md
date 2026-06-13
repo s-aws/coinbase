@@ -2464,15 +2464,26 @@ Completed eleventh-slice scope:
 - The P/L tracking gap remained open for audit linkage, recovery, and
   reconciliation proof.
 
-Active twelfth-slice scope:
+Completed twelfth-slice scope:
 
-- Active phases 1741-1760 extend the same checkpoint path with explicit
+- Phases 1741-1760 extended the same checkpoint path with explicit
   append-only Admin API audit-link evidence fields and counts.
 - Audit-link evidence must stay local-state review evidence. It must not
   become a browser audit store, recovery executor, reconciliation executor,
   Coinbase execution evidence, or a generic rule for non-spot modules.
-- The P/L tracking gap remains open for recovery and
-  reconciliation proof.
+- The P/L tracking gap remained open for recovery and reconciliation proof at
+  batch completion.
+
+Active thirteenth-slice scope:
+
+- Active phases 1761-1780 extend the same checkpoint path with explicit
+  recovery-read linkage to `/api/v1/admin/recovery-gate` and
+  `/api/v1/admin/fill-ledger-health`.
+- Recovery-link evidence must stay operator triage evidence. It must not
+  become browser recovery authority, recovery execution, repair apply,
+  rollback, reconciliation execution, Coinbase execution evidence, or a
+  generic rule for non-spot modules.
+- The P/L tracking gap remains open for reconciliation proof.
 
 Current backend evidence:
 
@@ -2488,11 +2499,12 @@ Current backend evidence:
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
   include the command-suite response, proof-route gate linkage, typed
   coverage-gap evidence-route linkage, sweep automation command contract, and
-  checkpoint mutation taxonomy and audit-link evidence.
+  checkpoint mutation taxonomy, audit-link evidence, and recovery-link
+  evidence.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
-- Spot sweep automation, P/L tracking, recovery, reconciliation, and any
+- Spot sweep automation, reconciliation, recovery execution, and any
   eventual live execution screens must prove the full approval, cap/guard,
   admission audit, reconciliation, live service, and adapter chain through
   backend-owned contracts before command UI can exist.

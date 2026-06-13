@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1741-1760",
+  "approved_phase_range": "1761-1780",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1741-1760",
+  "approved_phase_range": "1761-1780",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1714,6 +1714,14 @@ append-only Admin API audit row is verified. List responses include
 but no matching audit row is reported as unverified evidence. The audit link
 does not execute recovery, reconciliation, Coinbase orders, or browser
 authority.
+Accepted checkpoint records also include `recovery_linked=true`,
+`recovery_source=admin_recovery_gate`, `recovery_routes`, and a
+`recovery_detail` warning when the checkpoint is linked to backend-owned
+recovery triage reads. List responses include `recovery_linked_count`.
+Recovery-link evidence points to `/api/v1/admin/recovery-gate` and
+`/api/v1/admin/fill-ledger-health` only; it does not execute recovery, apply
+repairs, roll back state, run reconciliation, call Coinbase, or create browser
+recovery authority.
 
 ```http
 GET /api/v1/spot/pnl/checkpoints?checkpoint_status=passed&limit=25
@@ -1758,7 +1766,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1741-1760",
+  "approved_phase_range": "1761-1780",
   "command_count": 4,
   "blocked_command_count": 4,
   "live_enabled_command_count": 0,

@@ -100,6 +100,12 @@ with a second checkpoint audit writer or interpreted as browser audit
 authority, recovery execution, reconciliation execution, or Coinbase execution
 authority. A checkpoint with an `audit_id` but no matching audit row is
 reported as unverified checkpoint evidence.
+Accepted checkpoint records also expose read-only recovery-link evidence to
+`GET /api/v1/admin/recovery-gate` and
+`GET /api/v1/admin/fill-ledger-health`. That link is triage evidence only; it
+must not be interpreted as recovery execution, repair apply, rollback,
+reconciliation execution, Coinbase execution, browser recovery authority, or a
+separate checkpoint writer.
 The word "operator" in checkpoint text means the human reviewing the evidence;
 the backend RBAC role named `operator` can read checkpoint evidence but cannot
 record it. Recording requires `spot_pnl:record`, currently granted to `trader`

@@ -125,7 +125,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1741-1760"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1761-1780"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -7225,6 +7225,8 @@ class AdminApiReadService:
                     "GET /api/v1/spot/cost-basis/status",
                     "GET /api/v1/spot/pnl/checkpoints",
                     "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}",
+                    "GET /api/v1/admin/recovery-gate",
+                    "GET /api/v1/admin/fill-ledger-health",
                 ],
                 current_read_evidence=coverage_gap_evidence_routes(
                     [
@@ -7232,12 +7234,14 @@ class AdminApiReadService:
                         "GET /api/v1/spot/cost-basis/status",
                         "GET /api/v1/spot/pnl/checkpoints",
                         "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}",
+                        "GET /api/v1/admin/recovery-gate",
+                        "GET /api/v1/admin/fill-ledger-health",
                     ]
                 ),
                 required_backend_contract=(
                     "Durable spot P/L product ledger, average-cost snapshot "
-                    "review evidence, checkpoint audit linkage, and recovery/reconciliation linkage "
-                    "for admin workflows."
+                    "review evidence, checkpoint audit linkage, recovery-read "
+                    "linkage, and reconciliation linkage for admin workflows."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -7247,9 +7251,9 @@ class AdminApiReadService:
                     "checkpoint_persistence",
                     "average_cost_review_checkpoint",
                     "audit_readback",
+                    "recovery_read_linkage",
                 ],
                 missing_contracts=[
-                    "spot_pnl_recovery_link_contract",
                     "spot_pnl_reconciliation_link_contract",
                 ],
                 spot_rule_boundary=spot_boundary,
@@ -7261,9 +7265,10 @@ class AdminApiReadService:
                 detail=(
                     "P/L, average-cost, and checkpoint evidence is exposed as "
                     "operator evidence; the checkpoint route records local P/L, "
-                    "average-cost review, and verified audit-link state only and "
-                    "is not browser profitability, sell authority, tax accounting, "
-                    "recovery, reconciliation, or Coinbase execution evidence."
+                    "average-cost review, verified audit-link state, and "
+                    "read-only recovery-link state only and is not browser "
+                    "profitability, sell authority, tax accounting, recovery "
+                    "execution, reconciliation, or Coinbase execution evidence."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
