@@ -91,11 +91,11 @@ order/exchange-state mutation outside a reviewed backend recovery executor.
 - Add dry-run apply-plan materialization that reports intended local repairs
   without mutating order or exchange state.
 
-### Phase 1886 - No-Live Apply Execution
+### Phase 1886 - No-Live Apply Execution Journal
 
-- Implement the narrow backend apply executor only for approved local repair
-  intents; keep Coinbase placement, cancellation, exchange reads, and browser
-  authority unavailable.
+- Implement the narrow backend apply execution journal only for approved local
+  repair intents; keep actual state repair, Coinbase placement, cancellation,
+  exchange reads, and browser authority unavailable.
 
 ### Phase 1887 - Apply Audit Linkage
 
@@ -107,10 +107,11 @@ order/exchange-state mutation outside a reviewed backend recovery executor.
 - Define rollback evidence that can reverse a local recovery apply through
   the same backend-owned journal path.
 
-### Phase 1889 - No-Live Rollback Execution
+### Phase 1889 - No-Live Rollback Execution Journal
 
-- Implement rollback execution only for journaled local repair attempts, with
-  no Coinbase calls and no frontend state mutation.
+- Implement rollback execution journal evidence only for journaled local repair
+  attempts, with no Coinbase calls, actual state repair, or frontend state
+  mutation.
 
 ### Phase 1890 - Post-Apply Reconciliation Gate
 
@@ -144,13 +145,13 @@ order/exchange-state mutation outside a reviewed backend recovery executor.
 
 ### Phase 1896 - Backend Focused Tests
 
-- Cover no-live apply/rollback executor behavior, idempotency, RBAC, audit
+- Cover no-live apply/rollback journal behavior, idempotency, RBAC, audit
   linkage, rollback safety, and post-apply reconciliation blockers.
 
 ### Phase 1897 - Frontend Focused Tests
 
 - Cover wrappers, BFF route coverage, mocks, runtime snapshots, and UI
-  rendering for executor evidence without live controls.
+  rendering for execution-journal evidence without live controls.
 
 ### Phase 1898 - Documentation Update
 
@@ -160,8 +161,9 @@ order/exchange-state mutation outside a reviewed backend recovery executor.
 ### Phase 1899 - Contextless Review And Remediation
 
 - Run blind/contextless review for whether a fresh agent can explain the
-  recovery executor boundary without inventing browser authority or Coinbase
-  execution; fix blockers before final gates.
+  recovery execution-journal boundary without inventing browser authority,
+  Coinbase execution, or state repair authority; fix blockers before final
+  gates.
 
 ### Phase 1900 - Final Gates, Push, And Next Range
 
@@ -180,8 +182,8 @@ The 1861-1880 range completed durable Spot recovery proof persistence:
 - Added `spot_recovery:record` RBAC for proof persistence while keeping
   `spot_recovery:execute` on apply/rollback execution.
 - Wired exchange-state proof and reconciliation-proof POST contracts to local
-  proof persistence and audit linkage; apply and rollback execution remain
-  fail-closed.
+  proof persistence and audit linkage; apply and rollback execution journal
+  evidence was closed in the following batch.
 - Exposed proof readback through recovery reconciliation-proof evidence,
   updated route inventory/OpenAPI/docs/examples, and coordinated website
   generated schema, mocks, runtime snapshots, quality artifacts, and Spot UI
@@ -200,9 +202,10 @@ The 1841-1860 range completed disabled recovery command contract exposure:
 - The website consumes those contracts through generated schema, canonical
   wrappers, mutation metadata, BFF-derived route coverage, mock fixtures,
   command smoke catalogs, release checks, and documentation.
-- Recovery execution remains fail-closed: apply execution, rollback execution,
-  post-apply reconciliation, and reconciliation execution are still explicit
-  blockers. Durable proof persistence was closed in the following batch.
+- Recovery execution was still fail-closed in this historical range: apply
+  execution journal evidence, rollback execution journal evidence, post-apply
+  reconciliation, and reconciliation execution were explicit blockers. Durable
+  proof persistence was closed in the following batch.
 - Live Coinbase execution was not run; submitted/executed notional remained
   `$0`.
 

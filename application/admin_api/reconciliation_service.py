@@ -135,11 +135,15 @@ class AdminApiReconciliationPlanService:
             )
         if (
             route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
-            and route.permission != AdminApiPermission.SPOT_RECOVERY_RECORD
+            and route.permission
+            not in {
+                AdminApiPermission.SPOT_RECOVERY_RECORD,
+                AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+            }
         ):
             raise ReconciliationPlanError(
                 "Local-state reconciliation plans are only valid for spot "
-                "recovery proof record routes."
+                "recovery proof record and execution routes."
             )
 
     @staticmethod

@@ -53,6 +53,14 @@ from .models import (
     SpotSweepAutomationRunCommand,
     StealthCancelCommand,
 )
+from .spot_recovery_execution import (
+    FileSpotRecoveryExecutionJournalStore,
+    SpotRecoveryExecutionRecord,
+)
+from .spot_recovery_execution_service import (
+    AdminApiSpotRecoveryExecutionService,
+    SpotRecoveryExecutionError,
+)
 from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRecord
 from .spot_recovery_proof_service import (
     AdminApiSpotRecoveryProofService,
@@ -98,9 +106,16 @@ class AdminApiCommandDependencies:
         [],
         FileSpotRecoveryProofStore,
     ] = FileSpotRecoveryProofStore
+    spot_recovery_execution_store_getter: Callable[
+        [],
+        FileSpotRecoveryExecutionJournalStore,
+    ] = FileSpotRecoveryExecutionJournalStore
     audit_store_getter: Callable[[], FileAdminApiAuditStore] = FileAdminApiAuditStore
     spot_recovery_proof_service: AdminApiSpotRecoveryProofService = field(
         default_factory=AdminApiSpotRecoveryProofService
+    )
+    spot_recovery_execution_service: AdminApiSpotRecoveryExecutionService = field(
+        default_factory=AdminApiSpotRecoveryExecutionService
     )
 
 
@@ -247,14 +262,37 @@ def _spot_recovery_proof_response_data(
     data.update({
         "exchange_state_proof_recorded": exchange_state_proof_recorded,
         "reconciliation_proof_recorded": reconciliation_proof_recorded,
+        "execution_journal_accepted": False,
+        "recovery_apply_journal_accepted": False,
+        "rollback_journal_accepted": False,
         "recovery_apply_executed": False,
         "rollback_executed": False,
         "reconciliation_executed": False,
+        "state_repair_executed": False,
         "coinbase_order_submitted": False,
         "coinbase_rest_read_ran": False,
         "order_state_mutated": False,
         "exchange_state_mutated": False,
         "proof_persisted": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _spot_recovery_execution_response_data(
+    record: SpotRecoveryExecutionRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted recovery execution journal."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "proof_persisted": False,
+        "repair_journal_persisted": True,
+        "execution_journal_accepted": True,
+        "state_repair_executed": False,
+        "exchange_state_proof_recorded": False,
+        "reconciliation_proof_recorded": False,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
     })
@@ -923,7 +961,6 @@ class AdminApiCommandService:
         message: str,
         flags: dict[str, bool],
     ) -> AdminApiCommandResponse:
-        gate = evaluate_live_execution_gate(allow_live_execution=False)
         request = command.request
         data: dict[str, Any] = {
             "mutation_family": mutation_family.value,
@@ -951,6 +988,9 @@ class AdminApiCommandService:
             "dry_run": request.dry_run,
             "operator_reason": request.operator_reason,
             "manual_live_acknowledgement": request.manual_live_acknowledgement,
+            "execution_journal_accepted": False,
+            "recovery_apply_journal_accepted": False,
+            "rollback_journal_accepted": False,
             "recovery_apply_executed": False,
             "rollback_executed": False,
             "exchange_state_proof_recorded": False,
@@ -961,12 +1001,17 @@ class AdminApiCommandService:
             "order_state_mutated": False,
             "exchange_state_mutated": False,
             "proof_persisted": False,
+            "repair_journal_persisted": False,
+            "repair_intent_accepted": False,
+            "state_repair_executed": False,
+            "post_apply_reconciliation_required": True,
+            "post_apply_reconciliation_satisfied": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
         }
         data.update(flags)
         return AdminApiCommandResponse(
-            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            status=AdminApiCommandStatus.REJECTED,
             action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
             required_permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
             service_method=service_method,
@@ -975,9 +1020,8 @@ class AdminApiCommandService:
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
             live_exchange_submitted=False,
-            guard=gate.model_dump(),
             data=data,
-            failure_stage="approval",
+            failure_stage="execution_prerequisite",
         )
 
     def _rejected_spot_recovery_proof_response(
@@ -1055,44 +1099,135 @@ class AdminApiCommandService:
         self,
         command: SpotRecoveryApplyExecutionCommand,
     ) -> AdminApiCommandResponse:
-        """Evaluate a future spot recovery apply command through fail-closed gates."""
+        """Record a backend-owned no-live Spot recovery apply journal."""
 
-        return self._disabled_spot_recovery_response(
+        if command.admission_decision is None:
+            return self._disabled_spot_recovery_response(
+                service_method="execute_spot_recovery_apply",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+                ),
+                command=command,
+                message="Spot recovery apply admission evidence is missing.",
+                flags={
+                    "recovery_apply_executed": False,
+                    "order_state_mutated": False,
+                    "repair_journal_persisted": False,
+                },
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.spot_recovery_execution_service.record_apply_execution(
+                execution_store=deps.spot_recovery_execution_store_getter(),
+                proof_store=deps.spot_recovery_proof_store_getter(),
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except SpotRecoveryExecutionError as exc:
+            return self._disabled_spot_recovery_response(
+                service_method="execute_spot_recovery_apply",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+                ),
+                command=command,
+                message=str(exc),
+                flags={
+                    "recovery_apply_executed": False,
+                    "order_state_mutated": False,
+                    "repair_journal_persisted": False,
+                },
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
             service_method="execute_spot_recovery_apply",
-            mutation_family=AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION,
-            command=command,
             message=(
-                "Spot recovery apply execution requires backend approval, "
-                "admission audit, cap/guard, rollback, exchange-state proof, "
-                "and reconciliation gates before it can mutate local order state."
+                "Spot recovery apply journal recorded; local order/exchange "
+                "state was not mutated and post-apply reconciliation remains required."
             ),
-            flags={
-                "recovery_apply_executed": False,
-                "order_state_mutated": False,
-                "proof_persisted": False,
-            },
+            client_order_id=record.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_spot_recovery_execution_response_data(record),
         )
 
     def execute_spot_recovery_rollback(
         self,
         command: SpotRecoveryRollbackExecutionCommand,
     ) -> AdminApiCommandResponse:
-        """Evaluate a future spot recovery rollback command through fail-closed gates."""
+        """Record a backend-owned no-live Spot recovery rollback journal."""
 
-        return self._disabled_spot_recovery_response(
+        if command.admission_decision is None:
+            return self._disabled_spot_recovery_response(
+                service_method="execute_spot_recovery_rollback",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+                ),
+                command=command,
+                message="Spot recovery rollback admission evidence is missing.",
+                flags={
+                    "rollback_executed": False,
+                    "order_state_mutated": False,
+                    "repair_journal_persisted": False,
+                },
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.spot_recovery_execution_service.record_rollback_execution(
+                execution_store=deps.spot_recovery_execution_store_getter(),
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except SpotRecoveryExecutionError as exc:
+            return self._disabled_spot_recovery_response(
+                service_method="execute_spot_recovery_rollback",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+                ),
+                command=command,
+                message=str(exc),
+                flags={
+                    "rollback_executed": False,
+                    "order_state_mutated": False,
+                    "repair_journal_persisted": False,
+                },
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
             service_method="execute_spot_recovery_rollback",
-            mutation_family=AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION,
-            command=command,
             message=(
-                "Spot recovery rollback execution requires backend approval, "
-                "admission audit, cap/guard, recovery apply audit evidence, and "
-                "reconciliation gates before it can mutate local order state."
+                "Spot recovery rollback journal recorded; local order/exchange "
+                "state was not mutated and Coinbase was not contacted."
             ),
-            flags={
-                "rollback_executed": False,
-                "order_state_mutated": False,
-                "proof_persisted": False,
-            },
+            client_order_id=record.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_spot_recovery_execution_response_data(record),
         )
 
     def record_spot_recovery_exchange_state_proof(

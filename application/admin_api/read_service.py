@@ -121,6 +121,7 @@ from .models import (
     SpotRecoveryApplyReviewResponse,
     SpotRecoveryContractCandidateItem,
     SpotRecoveryContractGateItem,
+    SpotRecoveryExecutionRecordItem,
     SpotRecoveryPreviewResponse,
     SpotRecoveryPreviewSourceItem,
     SpotRecoveryProofRecordItem,
@@ -128,6 +129,10 @@ from .models import (
     SpotRecoveryRollbackPlanResponse,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
+from .spot_recovery_execution import (
+    FileSpotRecoveryExecutionJournalStore,
+    SpotRecoveryExecutionRecord,
+)
 from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRecord
 
 
@@ -2402,6 +2407,66 @@ def _spot_recovery_proof_item_from_record(
     )
 
 
+def _spot_recovery_execution_item_from_record(
+    record: SpotRecoveryExecutionRecord,
+) -> SpotRecoveryExecutionRecordItem:
+    return SpotRecoveryExecutionRecordItem(
+        journal_id=record.journal_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        client_order_id=record.client_order_id,
+        rollback_plan_id=record.rollback_plan_id,
+        recovery_apply_audit_id=record.recovery_apply_audit_id,
+        recovery_apply_journal_id=record.recovery_apply_journal_id,
+        exchange_state_proof_id=record.exchange_state_proof_id,
+        reconciliation_proof_id=record.reconciliation_proof_id,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        repair_journal_persisted=record.repair_journal_persisted,
+        execution_journal_accepted=record.execution_journal_accepted,
+        recovery_apply_journal_accepted=record.recovery_apply_journal_accepted,
+        rollback_journal_accepted=record.rollback_journal_accepted,
+        recovery_apply_executed=record.recovery_apply_executed,
+        rollback_executed=record.rollback_executed,
+        post_apply_reconciliation_required=record.post_apply_reconciliation_required,
+        post_apply_reconciliation_satisfied=record.post_apply_reconciliation_satisfied,
+        repair_intent_accepted=record.repair_intent_accepted,
+        state_repair_executed=record.state_repair_executed,
+        order_state_mutated=record.order_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        reconciliation_executed=record.reconciliation_executed,
+        coinbase_order_submitted=record.coinbase_order_submitted,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Spot recovery execution journal is backend-owned append-only "
+            "local repair intent evidence. It is not browser authority, "
+            "reconciliation execution, order/exchange-state mutation, a "
+            "Coinbase read, or Coinbase order submission."
+        ),
+    )
+
+
 class AdminApiReadService:
     """Read-only status service for operator views.
 
@@ -2414,9 +2479,15 @@ class AdminApiReadService:
         self,
         *,
         spot_recovery_proof_store: FileSpotRecoveryProofStore | None = None,
+        spot_recovery_execution_store: (
+            FileSpotRecoveryExecutionJournalStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
+        )
+        self.spot_recovery_execution_store = (
+            spot_recovery_execution_store or FileSpotRecoveryExecutionJournalStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -7698,9 +7769,8 @@ class AdminApiReadService:
                 required_backend_contract=(
                     "Spot recovery apply, rollback, exchange-state proof, and "
                     "reconciliation-proof command contracts with RBAC, "
-                    "idempotency, append-only audit linkage, and fail-closed "
-                    "no-live posture. Route-bound contracts are exposed, but "
-                    "recovery execution remains unavailable."
+                    "idempotency, append-only audit linkage, no-live execution "
+                    "journals, and fail-closed state-repair posture."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -7711,14 +7781,13 @@ class AdminApiReadService:
                     "approval_snapshot",
                     "admission_audit",
                     "rollback_plan_contract",
-                    "reconciliation_proof_contract",
-                    "recovery_apply_executor",
+                    "exchange_state_proof_record",
+                    "recovery_execution_journal",
                     "post_apply_reconciliation",
                 ],
                 missing_contracts=[
-                    "spot_recovery_apply_executor_implementation",
-                    "spot_recovery_rollback_executor_implementation",
-                    "spot_recovery_post_apply_reconciliation_contract",
+                    "spot_recovery_state_repair_contract",
+                    "spot_recovery_post_apply_reconciliation_completion",
                 ],
                 spot_rule_boundary=spot_boundary,
                 documentation_refs=[
@@ -7729,8 +7798,9 @@ class AdminApiReadService:
                 detail=(
                     "Spot recovery preview, recovery-gate, and direct-order audit "
                     "reads plus apply-review, rollback-plan, and reconciliation-proof "
-                    "contract evidence now have backend proof record routes. "
-                    "They still do not apply repair actions, roll back state, "
+                    "contract evidence now have backend proof record and no-live "
+                    "execution journal routes. They still do not apply repair actions, "
+                    "roll back order state, "
                     "execute reconciliation, mutate order/exchange state, or "
                     "call Coinbase."
                 ),
@@ -7807,7 +7877,7 @@ class AdminApiReadService:
                 "M54 starts with read-only spot command-suite coverage before execution.",
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
-                "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview, apply-review, rollback-plan, and reconciliation-proof routes are read-only contract evidence while repair execution and reconciliation execution remain blocked.",
+                "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview, apply-review, rollback-plan, reconciliation-proof, and execution-journal routes are backend-owned evidence while state repair and reconciliation execution remain blocked.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(
@@ -7859,7 +7929,7 @@ class AdminApiReadService:
                 "identity_key": "client_order_id",
                 "identity_value": identity_value,
                 "preview_only": True,
-                "required_next_contract": "spot_recovery_apply_executor_implementation",
+                "required_next_contract": "spot_recovery_execution_journal",
             })
 
         direct_order_candidates: list[dict[str, Any]] = []
@@ -7869,7 +7939,7 @@ class AdminApiReadService:
                 "identity_key": "client_order_id",
                 "identity_value": client_order_id,
                 "preview_only": True,
-                "required_next_contract": "spot_recovery_apply_executor_implementation",
+                "required_next_contract": "spot_recovery_execution_journal",
             })
 
         sources = [
@@ -7966,20 +8036,22 @@ class AdminApiReadService:
                 "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
             ],
             missing_contracts=[
-                "spot_recovery_apply_executor_implementation",
-                "spot_recovery_rollback_executor_implementation",
-                "spot_recovery_post_apply_reconciliation_contract",
+                "spot_recovery_state_repair_contract",
+                "spot_recovery_post_apply_reconciliation_completion",
             ],
             apply_review_contract_available=True,
             rollback_plan_contract_available=True,
             reconciliation_proof_contract_available=True,
+            recovery_apply_available=True,
+            rollback_plan_available=True,
+            reconciliation_proof_available=True,
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
             detail=(
                 "Spot recovery preview is backend-owned read-only evidence. It "
                 "now links to read-only apply-review, rollback-plan, and "
                 "reconciliation-proof contract evidence and backend-owned proof "
-                "record readback, but it does not apply recovery, write repair "
-                "rows, roll back state, execute reconciliation, mutate "
+                "record plus execution-journal readback, but it does not apply "
+                "state repairs, roll back order state, execute reconciliation, mutate "
                 "order/exchange state, call Coinbase, or authorize browser/BFF "
                 "recovery."
             ),
@@ -8056,7 +8128,7 @@ class AdminApiReadService:
                     "docs/examples/admin-api.md",
                 ],
                 detail=(
-                    "Future recovery apply must bind an approval snapshot to the "
+                    "Recovery apply journal acceptance must bind an approval snapshot to the "
                     "exact client_order_id, route, payload hash, actor, and "
                     "operator intent. This route does not approve execution."
                 ),
@@ -8072,8 +8144,8 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Future recovery apply must append admission audit evidence "
-                    "before execution. The audit record cannot mark live admission "
+                    "Recovery apply journal acceptance must append admission audit evidence "
+                    "before a journal row is accepted. The audit record cannot mark live admission "
                     "allowed by itself."
                 ),
             ),
@@ -8088,7 +8160,7 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Future recovery apply must link backend cap/guard evidence. "
+                    "Recovery apply journal acceptance must link backend cap/guard evidence. "
                     "The browser and BFF must not evaluate wallet, inventory, "
                     "profitability, margin, or account limits."
                 ),
@@ -8138,6 +8210,46 @@ class AdminApiReadService:
             records = self.spot_recovery_proof_store.read_recent(limit=20)
         return [_spot_recovery_proof_item_from_record(record) for record in records]
 
+    def _spot_recovery_execution_records(
+        self,
+        *,
+        client_order_id: str | None,
+    ) -> list[SpotRecoveryExecutionRecordItem]:
+        if client_order_id:
+            records = self.spot_recovery_execution_store.read_for_client_order_id(
+                client_order_id,
+                limit=20,
+            )
+        else:
+            records = self.spot_recovery_execution_store.read_recent(limit=20)
+        items = [
+            _spot_recovery_execution_item_from_record(record)
+            for record in records
+        ]
+        proof_records = self._spot_recovery_proof_records(
+            client_order_id=client_order_id
+        )
+        proof_by_apply_audit = {
+            proof.recovery_apply_audit_id: proof
+            for proof in proof_records
+            if proof.recovery_apply_audit_id and proof.reconciliation_proof_id
+        }
+        hydrated: list[SpotRecoveryExecutionRecordItem] = []
+        for item in items:
+            proof = proof_by_apply_audit.get(item.audit_id)
+            if proof is None:
+                hydrated.append(item)
+                continue
+            hydrated.append(
+                item.model_copy(
+                    update={
+                        "reconciliation_proof_id": proof.reconciliation_proof_id,
+                        "post_apply_reconciliation_satisfied": True,
+                    }
+                )
+            )
+        return hydrated
+
     def build_spot_recovery_apply_review(
         self,
         *,
@@ -8155,6 +8267,23 @@ class AdminApiReadService:
             client_order_id=client_order_id,
         )
         candidates = self._spot_recovery_contract_candidates(preview)
+        persisted_executions = self._spot_recovery_execution_records(
+            client_order_id=client_order_id
+        )
+        latest_apply_journal_id = next(
+            (
+                record.journal_id
+                for record in persisted_executions
+                if record.mutation_family
+                == AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+            ),
+            None,
+        )
+        post_apply_satisfied_count = sum(
+            1
+            for record in persisted_executions
+            if record.post_apply_reconciliation_satisfied
+        )
         return SpotRecoveryApplyReviewResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             status=AdminApiGateStatus.BLOCKED,
@@ -8173,21 +8302,24 @@ class AdminApiReadService:
                 "admission_audit",
                 "cap_guard_decision",
                 "rollback_plan_contract",
-                "reconciliation_proof_contract",
-                "recovery_apply_executor_implementation",
+                "exchange_state_proof_record",
+                "recovery_apply_execution_journal",
                 "post_apply_reconciliation",
             ],
             contract_gate_evidence=self._spot_recovery_contract_gate_evidence(),
+            persisted_execution_count=len(persisted_executions),
+            persisted_executions=persisted_executions,
+            latest_apply_journal_id=latest_apply_journal_id,
+            post_apply_reconciliation_satisfied_count=post_apply_satisfied_count,
             missing_contracts=[
-                "spot_recovery_apply_executor_implementation",
-                "spot_recovery_post_apply_reconciliation_contract",
+                "spot_recovery_post_apply_reconciliation_completion",
             ],
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
             detail=(
                 "Spot recovery apply review is a backend-owned contract evidence "
-                "route. It describes required gates for candidate client_order_id "
-                "values but does not apply recovery, write repair rows, roll back "
-                "state, execute reconciliation, mutate order/exchange state, call "
+                "route. It describes required gates and reads append-only apply "
+                "journal rows for candidate client_order_id values, but it does "
+                "not mutate order/exchange state, execute reconciliation, call "
                 "Coinbase, or authorize browser/BFF recovery."
             ),
         )
@@ -8209,6 +8341,18 @@ class AdminApiReadService:
             client_order_id=client_order_id,
         )
         candidates = self._spot_recovery_contract_candidates(preview)
+        persisted_executions = self._spot_recovery_execution_records(
+            client_order_id=client_order_id
+        )
+        latest_rollback_journal_id = next(
+            (
+                record.journal_id
+                for record in persisted_executions
+                if record.mutation_family
+                == AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+            ),
+            None,
+        )
         return SpotRecoveryRollbackPlanResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             status=AdminApiGateStatus.BLOCKED,
@@ -8226,12 +8370,12 @@ class AdminApiReadService:
                     "name": "candidate_identity_snapshot",
                     "status": AdminApiGateStatus.BLOCKED.value,
                     "identity_key": "client_order_id",
-                    "detail": "Snapshot the candidate identity before any future apply executor can run.",
+                    "detail": "Snapshot the candidate identity before any state repair contract can run.",
                 },
                 {
                     "name": "pre_apply_state_snapshot",
-                    "status": AdminApiGateStatus.BLOCKED.value,
-                    "detail": "Capture backend-owned pre-apply state without writing repair rows.",
+                    "status": AdminApiGateStatus.PASSED.value,
+                    "detail": "Capture backend-owned pre-apply intent in the append-only recovery execution journal without mutating order state.",
                 },
                 {
                     "name": "post_apply_reconciliation_requirement",
@@ -8239,17 +8383,19 @@ class AdminApiReadService:
                     "detail": "Require reconciliation proof before a future recovery action can close.",
                 },
             ],
+            persisted_execution_count=len(persisted_executions),
+            persisted_executions=persisted_executions,
+            latest_rollback_journal_id=latest_rollback_journal_id,
             missing_contracts=[
-                "spot_recovery_rollback_executor_implementation",
                 "spot_recovery_state_repair_contract",
             ],
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
             detail=(
                 "Spot recovery rollback-plan evidence is read-only. It describes "
-                "what a future backend-owned rollback executor would need to "
-                "capture, but it does not roll back state, apply repairs, execute "
-                "reconciliation, mutate order/exchange state, call Coinbase, or "
-                "authorize browser/BFF rollback."
+                "what the backend-owned rollback journal captures, but it does "
+                "not roll back order state, apply repairs, execute reconciliation, "
+                "mutate exchange state, call Coinbase, or authorize browser/BFF "
+                "rollback."
             ),
         )
 
@@ -8273,6 +8419,9 @@ class AdminApiReadService:
         persisted_proofs = self._spot_recovery_proof_records(
             client_order_id=client_order_id
         )
+        persisted_executions = self._spot_recovery_execution_records(
+            client_order_id=client_order_id
+        )
         latest_exchange_state_proof_id = next(
             (
                 record.exchange_state_proof_id
@@ -8288,6 +8437,34 @@ class AdminApiReadService:
                 if record.reconciliation_proof_id
             ),
             None,
+        )
+        latest_apply_journal_id = next(
+            (
+                record.journal_id
+                for record in persisted_executions
+                if record.mutation_family
+                == AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+            ),
+            None,
+        )
+        latest_rollback_journal_id = next(
+            (
+                record.journal_id
+                for record in persisted_executions
+                if record.mutation_family
+                == AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+            ),
+            None,
+        )
+        post_apply_required_count = sum(
+            1
+            for record in persisted_executions
+            if record.post_apply_reconciliation_required
+        )
+        post_apply_satisfied_count = sum(
+            1
+            for record in persisted_executions
+            if record.post_apply_reconciliation_satisfied
         )
         return SpotRecoveryReconciliationProofResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
@@ -8315,8 +8492,14 @@ class AdminApiReadService:
             ],
             persisted_proof_count=len(persisted_proofs),
             persisted_proofs=persisted_proofs,
+            persisted_execution_count=len(persisted_executions),
+            persisted_executions=persisted_executions,
             latest_exchange_state_proof_id=latest_exchange_state_proof_id,
             latest_reconciliation_proof_id=latest_reconciliation_proof_id,
+            latest_apply_journal_id=latest_apply_journal_id,
+            latest_rollback_journal_id=latest_rollback_journal_id,
+            post_apply_reconciliation_required_count=post_apply_required_count,
+            post_apply_reconciliation_satisfied_count=post_apply_satisfied_count,
             missing_contracts=[
                 "spot_reconciliation_execution_contract",
             ],

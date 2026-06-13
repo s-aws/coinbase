@@ -15,9 +15,15 @@ read authority, browser proof authority, or order/exchange-state mutation.
 - `POST /api/v1/spot/recovery/reconciliation-proofs`
 - `GET /api/v1/spot/recovery/reconciliation-proof`
 
-The POST routes require `spot_recovery:record`. Apply and rollback execution
-remain separate `spot_recovery:execute` routes and still fail closed until their
-executors are implemented.
+The POST proof routes require `spot_recovery:record`. Apply and rollback
+execution are separate `spot_recovery:execute` routes that persist append-only
+local execution journal evidence after exact backend prerequisites match. They
+do not mutate order/exchange state, read Coinbase, submit Coinbase orders, or
+complete reconciliation.
+Use the explicit `execution_journal_accepted`,
+`recovery_apply_journal_accepted`, `rollback_journal_accepted`, and
+`state_repair_executed=false` fields to distinguish journal acceptance from
+future state repair.
 
 ## Identity And Evidence
 

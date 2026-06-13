@@ -268,8 +268,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="required",
         shared_method="execute_spot_recovery_apply",
         parity_test=(
-            "spot recovery apply execution remains fail-closed; no repair apply, "
-            "order/exchange-state mutation, Coinbase read, or Coinbase REST placement"
+            "spot recovery apply execution persists append-only local repair "
+            "journal evidence only; no order/exchange-state mutation, Coinbase "
+            "read, or Coinbase REST placement"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -283,9 +284,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="required",
         shared_method="execute_spot_recovery_rollback",
         parity_test=(
-            "spot recovery rollback execution remains fail-closed; no rollback "
-            "mutation, order/exchange-state mutation, Coinbase read, or Coinbase "
-            "REST placement"
+            "spot recovery rollback execution persists append-only local repair "
+            "journal evidence only; no order/exchange-state mutation, Coinbase "
+            "read, or Coinbase REST placement"
         ),
     ),
     AdminApiRouteInventoryItem(

@@ -72,10 +72,11 @@ outside a reviewed backend recovery executor.
 
 - Add dry-run apply-plan materialization without mutating state.
 
-### Phase 1886 - No-Live Apply Execution
+### Phase 1886 - No-Live Apply Execution Journal
 
-- Implement the narrow local apply executor only when all backend
-  prerequisites pass; Coinbase calls remain unavailable.
+- Implement the narrow local apply execution journal only when all backend
+  prerequisites pass; actual state repair and Coinbase calls remain
+  unavailable.
 
 ### Phase 1887 - Apply Audit Linkage
 

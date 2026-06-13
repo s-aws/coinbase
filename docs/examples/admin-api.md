@@ -2206,7 +2206,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery executor implementation and post-apply reconciliation. Proof persistence and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
+      "required_backend_contract": "Spot recovery state repair semantics and post-apply reconciliation completion. Proof persistence, execution journal evidence, and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2218,9 +2218,8 @@ X-Admin-Roles: viewer
         "reconciliation_proof"
       ],
       "missing_contracts": [
-        "spot_recovery_apply_executor_implementation",
-        "spot_recovery_rollback_executor_implementation",
-        "spot_recovery_post_apply_reconciliation_contract"
+        "spot_recovery_state_repair_contract",
+        "spot_recovery_post_apply_reconciliation_completion"
       ],
       "backend_owned": true,
       "browser_authority": "display_only",

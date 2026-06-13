@@ -283,12 +283,12 @@ class SpotRecoveryApplyExecutionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_order_id: str = Field(min_length=1)
-    rollback_plan_id: str | None = None
-    approval_snapshot_id: str | None = None
-    admission_audit_id: str | None = None
-    cap_guard_decision_id: str | None = None
-    reconciliation_plan_id: str | None = None
-    exchange_state_proof_id: str | None = None
+    rollback_plan_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    exchange_state_proof_id: str = Field(min_length=1)
     dry_run: bool = True
     operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
@@ -300,12 +300,12 @@ class SpotRecoveryRollbackExecutionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_order_id: str = Field(min_length=1)
-    rollback_plan_id: str | None = None
-    recovery_apply_audit_id: str | None = None
-    approval_snapshot_id: str | None = None
-    admission_audit_id: str | None = None
-    cap_guard_decision_id: str | None = None
-    reconciliation_plan_id: str | None = None
+    rollback_plan_id: str = Field(min_length=1)
+    recovery_apply_audit_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
     dry_run: bool = True
     operator_reason: str | None = None
     manual_live_acknowledgement: bool = False
@@ -417,6 +417,7 @@ class SpotRecoveryApplyExecutionCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotRecoveryApplyExecutionRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 
@@ -427,6 +428,7 @@ class SpotRecoveryRollbackExecutionCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotRecoveryRollbackExecutionRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 
@@ -2333,11 +2335,17 @@ class SpotRecoveryApplyReviewResponse(AdminApiReadPayload):
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     required_gate_chain: list[str] = Field(default_factory=list)
     contract_gate_evidence: list[SpotRecoveryContractGateItem] = Field(default_factory=list)
+    persisted_execution_count: int = Field(default=0, ge=0)
+    persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
+    latest_apply_journal_id: str | None = None
+    execution_journal_available: bool = True
     missing_contracts: list[str] = Field(default_factory=list)
     apply_review_contract_available: bool = True
-    recovery_apply_available: bool = False
+    recovery_apply_available: bool = True
     rollback_plan_required: bool = True
     reconciliation_proof_required: bool = True
+    post_apply_reconciliation_required: bool = True
+    post_apply_reconciliation_satisfied_count: int = Field(default=0, ge=0)
     backend_owned: bool = True
     read_only: bool = True
     browser_authority: str = "display_only"
@@ -2364,10 +2372,14 @@ class SpotRecoveryRollbackPlanResponse(AdminApiReadPayload):
     candidates: list[SpotRecoveryContractCandidateItem] = Field(default_factory=list)
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     rollback_steps: list[FlexibleDict] = Field(default_factory=list)
+    persisted_execution_count: int = Field(default=0, ge=0)
+    persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
+    latest_rollback_journal_id: str | None = None
+    execution_journal_available: bool = True
     missing_contracts: list[str] = Field(default_factory=list)
     rollback_plan_contract_available: bool = True
-    rollback_execution_available: bool = False
-    recovery_apply_available: bool = False
+    rollback_execution_available: bool = True
+    recovery_apply_available: bool = True
     backend_owned: bool = True
     read_only: bool = True
     browser_authority: str = "display_only"
@@ -2426,6 +2438,61 @@ class SpotRecoveryProofRecordItem(BaseModel):
     detail: str
 
 
+class SpotRecoveryExecutionRecordItem(BaseModel):
+    """Read-only Spot recovery apply/rollback journal evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    journal_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    client_order_id: str
+    rollback_plan_id: str
+    recovery_apply_audit_id: str | None = None
+    recovery_apply_journal_id: str | None = None
+    exchange_state_proof_id: str | None = None
+    reconciliation_proof_id: str | None = None
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_spot_recovery_execution_journal"
+    repair_journal_persisted: bool = True
+    execution_journal_accepted: bool = True
+    recovery_apply_journal_accepted: bool = False
+    rollback_journal_accepted: bool = False
+    recovery_apply_executed: bool = False
+    rollback_executed: bool = False
+    post_apply_reconciliation_required: bool = True
+    post_apply_reconciliation_satisfied: bool = False
+    repair_intent_accepted: bool = True
+    state_repair_executed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    reconciliation_executed: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_rest_read_ran: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     """Read-only Spot recovery reconciliation-proof contract evidence."""
 
@@ -2443,14 +2510,21 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     persisted_proof_count: int = Field(default=0, ge=0)
     persisted_proofs: list[SpotRecoveryProofRecordItem] = Field(default_factory=list)
     proof_persistence_available: bool = True
+    execution_journal_available: bool = True
+    persisted_execution_count: int = Field(default=0, ge=0)
+    persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
     latest_exchange_state_proof_id: str | None = None
     latest_reconciliation_proof_id: str | None = None
+    latest_apply_journal_id: str | None = None
+    latest_rollback_journal_id: str | None = None
+    post_apply_reconciliation_required_count: int = Field(default=0, ge=0)
+    post_apply_reconciliation_satisfied_count: int = Field(default=0, ge=0)
     missing_contracts: list[str] = Field(default_factory=list)
     reconciliation_proof_contract_available: bool = True
     exchange_state_proof_writer_available: bool = True
     reconciliation_proof_writer_available: bool = True
     reconciliation_execution_available: bool = False
-    recovery_apply_available: bool = False
+    recovery_apply_available: bool = True
     backend_owned: bool = True
     read_only: bool = True
     browser_authority: str = "display_only"

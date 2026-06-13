@@ -3471,13 +3471,14 @@ paths:
               $ref: '#/components/schemas/SpotRecoveryApplyExecutionRequest'
       responses:
         '200':
-          description: Command accepted or replayed after all backend gates pass.
+          description: Spot recovery execution journal accepted or replayed after
+            all backend prerequisites match.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
         '400':
-          description: Command rejected before live exchange execution.
+          description: Spot recovery execution rejected before local journal persistence.
           content:
             application/json:
               schema:
@@ -3489,19 +3490,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
-          description: Actor lacks the required Admin API permission.
+          description: Actor lacks the required spot recovery execute permission.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '409':
           description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
           content:
             application/json:
               schema:
@@ -3579,13 +3574,14 @@ paths:
               $ref: '#/components/schemas/SpotRecoveryRollbackExecutionRequest'
       responses:
         '200':
-          description: Command accepted or replayed after all backend gates pass.
+          description: Spot recovery execution journal accepted or replayed after
+            all backend prerequisites match.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiCommandResponse'
         '400':
-          description: Command rejected before live exchange execution.
+          description: Spot recovery execution rejected before local journal persistence.
           content:
             application/json:
               schema:
@@ -3597,19 +3593,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
-          description: Actor lacks the required Admin API permission.
+          description: Actor lacks the required spot recovery execute permission.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '409':
           description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
           content:
             application/json:
               schema:
@@ -12448,34 +12438,28 @@ components:
           minLength: 1
           title: Client Order Id
         rollback_plan_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Rollback Plan Id
         approval_snapshot_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Approval Snapshot Id
         admission_audit_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Admission Audit Id
         cap_guard_decision_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Cap Guard Decision Id
         reconciliation_plan_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Reconciliation Plan Id
         exchange_state_proof_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Exchange State Proof Id
         dry_run:
           type: boolean
@@ -12494,6 +12478,12 @@ components:
       type: object
       required:
       - client_order_id
+      - rollback_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - reconciliation_plan_id
+      - exchange_state_proof_id
       title: SpotRecoveryApplyExecutionRequest
       description: Spot recovery apply request keyed by ``client_order_id``.
     SpotRecoveryApplyReviewResponse:
@@ -12544,6 +12534,25 @@ components:
             $ref: '#/components/schemas/SpotRecoveryContractGateItem'
           type: array
           title: Contract Gate Evidence
+        persisted_execution_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Execution Count
+          default: 0
+        persisted_executions:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryExecutionRecordItem'
+          type: array
+          title: Persisted Executions
+        latest_apply_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Apply Journal Id
+        execution_journal_available:
+          type: boolean
+          title: Execution Journal Available
+          default: true
         missing_contracts:
           items:
             type: string
@@ -12556,7 +12565,7 @@ components:
         recovery_apply_available:
           type: boolean
           title: Recovery Apply Available
-          default: false
+          default: true
         rollback_plan_required:
           type: boolean
           title: Rollback Plan Required
@@ -12565,6 +12574,15 @@ components:
           type: boolean
           title: Reconciliation Proof Required
           default: true
+        post_apply_reconciliation_required:
+          type: boolean
+          title: Post Apply Reconciliation Required
+          default: true
+        post_apply_reconciliation_satisfied_count:
+          type: integer
+          minimum: 0.0
+          title: Post Apply Reconciliation Satisfied Count
+          default: 0
         backend_owned:
           type: boolean
           title: Backend Owned
@@ -12786,6 +12804,210 @@ components:
       - cap_guard_decision_id
       title: SpotRecoveryExchangeStateProofRequest
       description: Spot recovery exchange-state proof request keyed by ``client_order_id``.
+    SpotRecoveryExecutionRecordItem:
+      properties:
+        journal_id:
+          type: string
+          title: Journal Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        client_order_id:
+          type: string
+          title: Client Order Id
+        rollback_plan_id:
+          type: string
+          title: Rollback Plan Id
+        recovery_apply_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Apply Audit Id
+        recovery_apply_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Apply Journal Id
+        exchange_state_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange State Proof Id
+        reconciliation_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Proof Id
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        audit_id:
+          type: string
+          title: Audit Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_spot_recovery_execution_journal
+        repair_journal_persisted:
+          type: boolean
+          title: Repair Journal Persisted
+          default: true
+        execution_journal_accepted:
+          type: boolean
+          title: Execution Journal Accepted
+          default: true
+        recovery_apply_journal_accepted:
+          type: boolean
+          title: Recovery Apply Journal Accepted
+          default: false
+        rollback_journal_accepted:
+          type: boolean
+          title: Rollback Journal Accepted
+          default: false
+        recovery_apply_executed:
+          type: boolean
+          title: Recovery Apply Executed
+          default: false
+        rollback_executed:
+          type: boolean
+          title: Rollback Executed
+          default: false
+        post_apply_reconciliation_required:
+          type: boolean
+          title: Post Apply Reconciliation Required
+          default: true
+        post_apply_reconciliation_satisfied:
+          type: boolean
+          title: Post Apply Reconciliation Satisfied
+          default: false
+        repair_intent_accepted:
+          type: boolean
+          title: Repair Intent Accepted
+          default: true
+        state_repair_executed:
+          type: boolean
+          title: State Repair Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - journal_id
+      - recorded_at
+      - mutation_family
+      - client_order_id
+      - rollback_plan_id
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - audit_id
+      - detail
+      title: SpotRecoveryExecutionRecordItem
+      description: Read-only Spot recovery apply/rollback journal evidence.
     SpotRecoveryPreviewResponse:
       properties:
         type:
@@ -13271,6 +13493,20 @@ components:
           type: boolean
           title: Proof Persistence Available
           default: true
+        execution_journal_available:
+          type: boolean
+          title: Execution Journal Available
+          default: true
+        persisted_execution_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Execution Count
+          default: 0
+        persisted_executions:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryExecutionRecordItem'
+          type: array
+          title: Persisted Executions
         latest_exchange_state_proof_id:
           anyOf:
           - type: string
@@ -13281,6 +13517,26 @@ components:
           - type: string
           - type: 'null'
           title: Latest Reconciliation Proof Id
+        latest_apply_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Apply Journal Id
+        latest_rollback_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Rollback Journal Id
+        post_apply_reconciliation_required_count:
+          type: integer
+          minimum: 0.0
+          title: Post Apply Reconciliation Required Count
+          default: 0
+        post_apply_reconciliation_satisfied_count:
+          type: integer
+          minimum: 0.0
+          title: Post Apply Reconciliation Satisfied Count
+          default: 0
         missing_contracts:
           items:
             type: string
@@ -13305,7 +13561,7 @@ components:
         recovery_apply_available:
           type: boolean
           title: Recovery Apply Available
-          default: false
+          default: true
         backend_owned:
           type: boolean
           title: Backend Owned
@@ -13366,34 +13622,28 @@ components:
           minLength: 1
           title: Client Order Id
         rollback_plan_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Rollback Plan Id
         recovery_apply_audit_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Recovery Apply Audit Id
         approval_snapshot_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Approval Snapshot Id
         admission_audit_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Admission Audit Id
         cap_guard_decision_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Cap Guard Decision Id
         reconciliation_plan_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          minLength: 1
           title: Reconciliation Plan Id
         dry_run:
           type: boolean
@@ -13412,6 +13662,12 @@ components:
       type: object
       required:
       - client_order_id
+      - rollback_plan_id
+      - recovery_apply_audit_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - reconciliation_plan_id
       title: SpotRecoveryRollbackExecutionRequest
       description: Spot recovery rollback request keyed by ``client_order_id``.
     SpotRecoveryRollbackPlanResponse:
@@ -13458,6 +13714,25 @@ components:
             type: object
           type: array
           title: Rollback Steps
+        persisted_execution_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Execution Count
+          default: 0
+        persisted_executions:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryExecutionRecordItem'
+          type: array
+          title: Persisted Executions
+        latest_rollback_journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Rollback Journal Id
+        execution_journal_available:
+          type: boolean
+          title: Execution Journal Available
+          default: true
         missing_contracts:
           items:
             type: string
@@ -13470,11 +13745,11 @@ components:
         rollback_execution_available:
           type: boolean
           title: Rollback Execution Available
-          default: false
+          default: true
         recovery_apply_available:
           type: boolean
           title: Recovery Apply Available
-          default: false
+          default: true
         backend_owned:
           type: boolean
           title: Backend Owned

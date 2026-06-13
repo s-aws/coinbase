@@ -2918,7 +2918,7 @@ Review scope:
 Reviewer tasks:
 
 - verify backend Spot recovery proof persistence is append-only local evidence
-  and distinct from disabled recovery apply/rollback execution
+  and distinct from no-live recovery apply/rollback execution journal evidence
 - verify proof writer routes use `client_order_id`, `spot_recovery:record`,
   idempotency, audit, approval, cap/guard, admission-audit, and reconciliation
   prerequisites without Coinbase calls

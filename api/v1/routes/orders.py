@@ -113,6 +113,34 @@ SPOT_RECOVERY_PROOF_ROUTE_RESPONSES = {
     },
 }
 
+SPOT_RECOVERY_EXECUTION_ROUTE_RESPONSES = {
+    200: {
+        "model": AdminApiCommandResponse,
+        "description": (
+            "Spot recovery execution journal accepted or replayed after all "
+            "backend prerequisites match."
+        ),
+    },
+    400: {
+        "model": AdminApiCommandResponse,
+        "description": (
+            "Spot recovery execution rejected before local journal persistence."
+        ),
+    },
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required spot recovery execute permission.",
+    },
+    409: {
+        "model": AdminApiCommandResponse,
+        "description": "Idempotency key conflict.",
+    },
+}
+
 READ_ROUTE_RESPONSES = {
     401: {
         "model": AdminApiErrorResponse,
@@ -844,7 +872,7 @@ def _execute_spot_recovery_contract(
     "/spot/recovery/apply-executions",
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
+    responses=SPOT_RECOVERY_EXECUTION_ROUTE_RESPONSES,
     summary="Apply a spot recovery plan through the shared command service",
 )
 def execute_spot_recovery_apply(
@@ -890,6 +918,15 @@ def execute_spot_recovery_apply(
         command_runner=lambda envelope: service.execute_spot_recovery_apply(
             SpotRecoveryApplyExecutionCommand(envelope=envelope, request=body)
         ),
+        command_runner_with_admission=lambda envelope, admission_decision: (
+            service.execute_spot_recovery_apply(
+                SpotRecoveryApplyExecutionCommand(
+                    envelope=envelope,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
+        ),
     )
 
 
@@ -897,7 +934,7 @@ def execute_spot_recovery_apply(
     "/spot/recovery/rollback-executions",
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
+    responses=SPOT_RECOVERY_EXECUTION_ROUTE_RESPONSES,
     summary="Rollback a spot recovery apply through the shared command service",
 )
 def execute_spot_recovery_rollback(
@@ -942,6 +979,15 @@ def execute_spot_recovery_rollback(
         live_execution_service=live_execution_service,
         command_runner=lambda envelope: service.execute_spot_recovery_rollback(
             SpotRecoveryRollbackExecutionCommand(envelope=envelope, request=body)
+        ),
+        command_runner_with_admission=lambda envelope, admission_decision: (
+            service.execute_spot_recovery_rollback(
+                SpotRecoveryRollbackExecutionCommand(
+                    envelope=envelope,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
         ),
     )
 

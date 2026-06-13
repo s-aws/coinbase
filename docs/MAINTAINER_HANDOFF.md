@@ -128,10 +128,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   recording. The completed 1861-1880 range added durable proof persistence,
   proof readback, and the `spot_recovery:record` permission for proof
   recording. The active 1881-1900 range is the next M54 slice for no-live
-  recovery apply/rollback executor plumbing and post-apply reconciliation
-  boundaries. Recovery executor implementation, post-apply reconciliation,
-  and reconciliation execution remain blocked until those backend gates
-  exist. This foundation
+  recovery apply/rollback execution journal plumbing and post-apply
+  reconciliation boundaries. Recovery apply/rollback now means append-only
+  journal evidence after exact backend prerequisites match; state repair,
+  post-apply reconciliation completion, and reconciliation execution remain
+  blocked until those backend gates exist. This foundation
   must not add a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
   authority, browser recovery authority, browser reconciliation authority,
