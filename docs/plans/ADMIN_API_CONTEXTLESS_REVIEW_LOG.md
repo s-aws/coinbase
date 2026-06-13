@@ -2,6 +2,51 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Spot Command Draft Proof-Route Review - Phases 1561-1580
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- trace backend `GET /api/v1/spot/command-suite` proof routes into website
+  command draft evidence
+- verify manual order, cancel by `client_order_id`, and campaign execution
+  are covered
+- verify stealth cancel and movement reprice do not inherit spot proof-route
+  assumptions
+- verify no browser/BFF live execution, guard, wallet, approval, cap, audit,
+  or reconciliation authority was introduced
+- verify docs/tests are sufficient for the slice
+
+Findings:
+
+- PASS: blind/contextless review found no blockers. It traced proof routes
+  from backend read-service output to `BackendApiClient.getSpotCommandSuite`,
+  runtime state, `AdminShell`, `CommandWorkflowShell`, and command draft
+  evidence rows.
+- PASS: spot manual order, cancel by `client_order_id`, and campaign
+  execution draft cards are covered; stealth cancel and movement reprice are
+  excluded by the explicit frontend spot mutation-family mapping.
+- PASS: no browser/BFF live execution, guard, wallet, approval, cap, audit, or
+  reconciliation authority was introduced.
+- FIXED: the review noted missing AdminShell integration assertion coverage
+  and missing frontend examples documentation for draft proof-route rows. Both
+  were added before final gates.
+
+Status:
+
+- Backend autonomous queue validation passed for `1561-1580`.
+- Backend focused Admin API checks passed with `83 passed, 1 warning`.
+- Backend full regression passed with `810 passed, 1 warning`.
+- Frontend focused command workflow/range checks passed before review.
+- Blind/contextless review passed with no blockers.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Spot Command Suite Proof-Route Review - Phases 1541-1560
 
 Review scope:

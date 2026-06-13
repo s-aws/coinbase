@@ -2353,9 +2353,9 @@ Completed first-slice scope:
   inventory in the browser, or authorize futures/perpetuals or stealth modules
   with spot-specific rules.
 
-Active second-slice scope:
+Completed second-slice scope:
 
-- Active phases 1541-1560 add gate-chain proof-route linkage to the same
+- Phases 1541-1560 added gate-chain proof-route linkage to the same
   command-suite contract.
 - Each command row must name backend-owned local-state proof routes for
   approval request/decision, admission audit records, cap/guard decision
@@ -2365,6 +2365,17 @@ Active second-slice scope:
 - The linkage remains display evidence only. It must not add command
   authority, browser guard evaluation, BFF execution authority, live
   reconciliation execution, or Coinbase calls.
+
+Active third-slice scope:
+
+- Active phases 1561-1580 bind backend command-suite proof routes into the
+  website command draft evidence panels for spot manual order, cancel by
+  `client_order_id`, and campaign execution.
+- The backend remains the proof-route source of truth. The website may display
+  approval, admission audit, cap/guard, and reconciliation route evidence, but
+  it must not evaluate those gates or satisfy them locally.
+- Stealth cancel and movement reprice drafts must not inherit spot proof-route
+  rows or spot wallet/no-shorting rules.
 
 Current backend evidence:
 
