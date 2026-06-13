@@ -3632,6 +3632,288 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/apply-review:
+    get:
+      tags:
+      - spot
+      summary: Review spot recovery apply contract evidence without applying recovery
+      operationId: spot_recovery_apply_review_api_v1_spot_recovery_apply_review_get
+      parameters:
+      - name: state_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+      - name: run_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Id
+      - name: config_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Config Id
+      - name: client_order_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotRecoveryApplyReviewResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/rollback-plan:
+    get:
+      tags:
+      - spot
+      summary: Read spot recovery rollback-plan evidence without rollback authority
+      operationId: spot_recovery_rollback_plan_api_v1_spot_recovery_rollback_plan_get
+      parameters:
+      - name: state_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+      - name: run_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Id
+      - name: config_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Config Id
+      - name: client_order_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotRecoveryRollbackPlanResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/reconciliation-proof:
+    get:
+      tags:
+      - spot
+      summary: Read spot recovery reconciliation-proof evidence without proof writing
+      operationId: spot_recovery_reconciliation_proof_api_v1_spot_recovery_reconciliation_proof_get
+      parameters:
+      - name: state_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State File
+      - name: run_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Id
+      - name: config_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Config Id
+      - name: client_order_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotRecoveryReconciliationProofResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/sweep/status:
     get:
       tags:
@@ -11729,6 +12011,241 @@ components:
       type: object
       title: SpotReadinessResponse
       description: Spot readiness response.
+    SpotRecoveryApplyReviewResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: spot_recovery_apply_review
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: spot_operations
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        filters:
+          additionalProperties: true
+          type: object
+          title: Filters
+        candidate_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Count
+        candidates:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryContractCandidateItem'
+          type: array
+          title: Candidates
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        contract_gate_evidence:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryContractGateItem'
+          type: array
+          title: Contract Gate Evidence
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        apply_review_contract_available:
+          type: boolean
+          title: Apply Review Contract Available
+          default: true
+        recovery_apply_available:
+          type: boolean
+          title: Recovery Apply Available
+          default: false
+        rollback_plan_required:
+          type: boolean
+          title: Rollback Plan Required
+          default: true
+        reconciliation_proof_required:
+          type: boolean
+          title: Reconciliation Proof Required
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - candidate_count
+      - spot_rule_boundary
+      - detail
+      title: SpotRecoveryApplyReviewResponse
+      description: Read-only Spot recovery apply-review contract evidence.
+    SpotRecoveryContractCandidateItem:
+      properties:
+        candidate_type:
+          type: string
+          title: Candidate Type
+        identity_key:
+          type: string
+          title: Identity Key
+          default: client_order_id
+        identity_value:
+          type: string
+          title: Identity Value
+        preview_source:
+          type: string
+          title: Preview Source
+        source_route:
+          type: string
+          title: Source Route
+        apply_review_route:
+          type: string
+          title: Apply Review Route
+          default: /api/v1/spot/recovery/apply-review
+        rollback_plan_route:
+          type: string
+          title: Rollback Plan Route
+          default: /api/v1/spot/recovery/rollback-plan
+        reconciliation_proof_route:
+          type: string
+          title: Reconciliation Proof Route
+          default: /api/v1/spot/recovery/reconciliation-proof
+        preview_only:
+          type: boolean
+          title: Preview Only
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - candidate_type
+      - identity_value
+      - preview_source
+      - source_route
+      - detail
+      title: SpotRecoveryContractCandidateItem
+      description: Spot recovery candidate identity evidence for contract review routes.
+    SpotRecoveryContractGateItem:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: read_only
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          - type: 'null'
+          title: Required Permission
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - detail
+      title: SpotRecoveryContractGateItem
+      description: Backend-owned recovery contract gate evidence.
     SpotRecoveryPreviewResponse:
       properties:
         type:
@@ -11776,6 +12293,18 @@ components:
             type: string
           type: array
           title: Missing Contracts
+        apply_review_contract_available:
+          type: boolean
+          title: Apply Review Contract Available
+          default: false
+        rollback_plan_contract_available:
+          type: boolean
+          title: Rollback Plan Contract Available
+          default: false
+        reconciliation_proof_contract_available:
+          type: boolean
+          title: Reconciliation Proof Contract Available
+          default: false
         recovery_apply_available:
           type: boolean
           title: Recovery Apply Available
@@ -11917,6 +12446,237 @@ components:
       - detail
       title: SpotRecoveryPreviewSourceItem
       description: One backend-owned read source contributing recovery-preview evidence.
+    SpotRecoveryReconciliationProofResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: spot_recovery_reconciliation_proof
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: spot_operations
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        filters:
+          additionalProperties: true
+          type: object
+          title: Filters
+        candidate_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Count
+        candidates:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryContractCandidateItem'
+          type: array
+          title: Candidates
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        required_proof_fields:
+          items:
+            type: string
+          type: array
+          title: Required Proof Fields
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        reconciliation_proof_contract_available:
+          type: boolean
+          title: Reconciliation Proof Contract Available
+          default: true
+        reconciliation_proof_writer_available:
+          type: boolean
+          title: Reconciliation Proof Writer Available
+          default: false
+        reconciliation_execution_available:
+          type: boolean
+          title: Reconciliation Execution Available
+          default: false
+        recovery_apply_available:
+          type: boolean
+          title: Recovery Apply Available
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - candidate_count
+      - spot_rule_boundary
+      - detail
+      title: SpotRecoveryReconciliationProofResponse
+      description: Read-only Spot recovery reconciliation-proof contract evidence.
+    SpotRecoveryRollbackPlanResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: spot_recovery_rollback_plan
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: spot_operations
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        filters:
+          additionalProperties: true
+          type: object
+          title: Filters
+        candidate_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Count
+        candidates:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryContractCandidateItem'
+          type: array
+          title: Candidates
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        rollback_steps:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Rollback Steps
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        rollback_plan_contract_available:
+          type: boolean
+          title: Rollback Plan Contract Available
+          default: true
+        rollback_execution_available:
+          type: boolean
+          title: Rollback Execution Available
+          default: false
+        recovery_apply_available:
+          type: boolean
+          title: Recovery Apply Available
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        spot_rule_boundary:
+          type: string
+          title: Spot Rule Boundary
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - candidate_count
+      - spot_rule_boundary
+      - detail
+      title: SpotRecoveryRollbackPlanResponse
+      description: Read-only Spot recovery rollback-plan contract evidence.
     SpotSweepAutomationRunRequest:
       properties:
         sweep_config_id:

@@ -29,7 +29,10 @@ from application.admin_api.models import (
     SpotCostBasisStatusResponse,
     SpotDirectOrderAuditResponse,
     SpotReadinessResponse,
+    SpotRecoveryApplyReviewResponse,
     SpotRecoveryPreviewResponse,
+    SpotRecoveryReconciliationProofResponse,
+    SpotRecoveryRollbackPlanResponse,
     SpotSweepPnlResponse,
     SpotSweepStatusResponse,
 )
@@ -352,6 +355,84 @@ def spot_recovery_preview(
     return _read_model_response(
         SpotRecoveryPreviewResponse,
         service.build_spot_recovery_preview(
+            state_file=state_file,
+            run_id=run_id,
+            config_id=config_id,
+            client_order_id=client_order_id,
+        ).model_dump(mode="json"),
+    )
+
+
+@router.get(
+    "/spot/recovery/apply-review",
+    response_model=SpotRecoveryApplyReviewResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Review spot recovery apply contract evidence without applying recovery",
+)
+def spot_recovery_apply_review(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    state_file: str | None = None,
+    run_id: str | None = None,
+    config_id: str | None = None,
+    client_order_id: str | None = None,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_model_response(
+        SpotRecoveryApplyReviewResponse,
+        service.build_spot_recovery_apply_review(
+            state_file=state_file,
+            run_id=run_id,
+            config_id=config_id,
+            client_order_id=client_order_id,
+        ).model_dump(mode="json"),
+    )
+
+
+@router.get(
+    "/spot/recovery/rollback-plan",
+    response_model=SpotRecoveryRollbackPlanResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read spot recovery rollback-plan evidence without rollback authority",
+)
+def spot_recovery_rollback_plan(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    state_file: str | None = None,
+    run_id: str | None = None,
+    config_id: str | None = None,
+    client_order_id: str | None = None,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_model_response(
+        SpotRecoveryRollbackPlanResponse,
+        service.build_spot_recovery_rollback_plan(
+            state_file=state_file,
+            run_id=run_id,
+            config_id=config_id,
+            client_order_id=client_order_id,
+        ).model_dump(mode="json"),
+    )
+
+
+@router.get(
+    "/spot/recovery/reconciliation-proof",
+    response_model=SpotRecoveryReconciliationProofResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read spot recovery reconciliation-proof evidence without proof writing",
+)
+def spot_recovery_reconciliation_proof(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    state_file: str | None = None,
+    run_id: str | None = None,
+    config_id: str | None = None,
+    client_order_id: str | None = None,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_model_response(
+        SpotRecoveryReconciliationProofResponse,
+        service.build_spot_recovery_reconciliation_proof(
             state_file=state_file,
             run_id=run_id,
             config_id=config_id,

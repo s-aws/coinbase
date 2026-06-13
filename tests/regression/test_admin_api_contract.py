@@ -812,6 +812,16 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "content" in spot_recovery_preview_operation["responses"]["200"]
     assert "401" in spot_recovery_preview_operation["responses"]
     assert "403" in spot_recovery_preview_operation["responses"]
+    for recovery_contract_path in (
+        "/api/v1/spot/recovery/apply-review",
+        "/api/v1/spot/recovery/rollback-plan",
+        "/api/v1/spot/recovery/reconciliation-proof",
+    ):
+        recovery_contract_operation = written["paths"][recovery_contract_path]["get"]
+        assert "200" in recovery_contract_operation["responses"]
+        assert "content" in recovery_contract_operation["responses"]["200"]
+        assert "401" in recovery_contract_operation["responses"]
+        assert "403" in recovery_contract_operation["responses"]
     order_item_schema = written["components"]["schemas"]["AdminOrderReadItem"]
     assert "client_order_id" in order_item_schema["properties"]
     assert "order_id" not in order_item_schema["properties"]
@@ -931,6 +941,21 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]
     assert "sources" in spot_recovery_preview_schema["properties"]
     assert "missing_contracts" in spot_recovery_preview_schema["properties"]
+    assert "apply_review_contract_available" in spot_recovery_preview_schema[
+        "properties"
+    ]
+    for schema_name in (
+        "SpotRecoveryApplyReviewResponse",
+        "SpotRecoveryRollbackPlanResponse",
+        "SpotRecoveryReconciliationProofResponse",
+    ):
+        assert schema_name in written["components"]["schemas"]
+        assert "candidates" in written["components"]["schemas"][schema_name][
+            "properties"
+        ]
+        assert "missing_contracts" in written["components"]["schemas"][schema_name][
+            "properties"
+        ]
     spot_pnl_schema = written["components"]["schemas"]["SpotSweepPnlResponse"]
     assert "pnl_report" in spot_pnl_schema["properties"]
     for schema_name, component_schema in written["components"]["schemas"].items():
@@ -3943,15 +3968,38 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "GET /api/v1/spot/recovery/preview" in recovery_gap[
         "current_read_evidence_routes"
     ]
+    assert "GET /api/v1/spot/recovery/apply-review" in recovery_gap[
+        "current_read_evidence_routes"
+    ]
+    assert "GET /api/v1/spot/recovery/rollback-plan" in recovery_gap[
+        "current_read_evidence_routes"
+    ]
+    assert "GET /api/v1/spot/recovery/reconciliation-proof" in recovery_gap[
+        "current_read_evidence_routes"
+    ]
     assert "GET /api/v1/admin/recovery-gate" in recovery_gap[
         "current_read_evidence_routes"
     ]
     assert "spot_recovery_preview_contract" not in recovery_gap["missing_contracts"]
-    assert "spot_recovery_apply_contract" in recovery_gap["missing_contracts"]
-    assert "spot_recovery_rollback_contract" in recovery_gap["missing_contracts"]
-    assert "spot_recovery_reconciliation_contract" in recovery_gap["missing_contracts"]
+    assert "spot_recovery_apply_contract" not in recovery_gap["missing_contracts"]
+    assert "spot_recovery_rollback_contract" not in recovery_gap["missing_contracts"]
+    assert "spot_recovery_reconciliation_contract" not in recovery_gap[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_apply_execution_contract" in recovery_gap[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_rollback_execution_contract" in recovery_gap[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_reconciliation_proof_writer_contract" in recovery_gap[
+        "missing_contracts"
+    ]
     reconciliation_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW.value
+    ]
+    assert "GET /api/v1/spot/recovery/reconciliation-proof" in reconciliation_gap[
+        "current_read_evidence_routes"
     ]
     assert "GET /api/v1/admin/reconciliation/plans" in reconciliation_gap[
         "current_read_evidence_routes"
@@ -5548,12 +5596,18 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "POST /api/v1/spot/sweep/automation-runs" in spot_module["command_routes"]
     assert "POST /api/v1/spot/pnl/checkpoints" in spot_module["command_routes"]
     assert "GET /api/v1/spot/command-suite" in spot_module["read_routes"]
+    assert "GET /api/v1/spot/recovery/apply-review" in spot_module["read_routes"]
+    assert "GET /api/v1/spot/recovery/rollback-plan" in spot_module["read_routes"]
+    assert (
+        "GET /api/v1/spot/recovery/reconciliation-proof"
+        in spot_module["read_routes"]
+    )
     assert "GET /api/v1/spot/pnl/checkpoints" in spot_module["read_routes"]
     assert (
         "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
         in spot_module["read_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 12
+    assert spot_module["action_posture"]["read_route_count"] == 15
     assert spot_module["action_posture"]["command_route_count"] == 5
     assert spot_module["action_posture"]["live_route_count"] == 4
     assert spot_module["action_posture"]["command_gap_count"] == 2
@@ -5673,6 +5727,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert recovery_preview_payload["bff_authority"] == "read_only_forward"
     assert recovery_preview_payload["live_coinbase_orders_ran"] is False
     assert recovery_preview_payload["live_coinbase_read_ran"] is False
+    assert recovery_preview_payload["apply_review_contract_available"] is True
+    assert recovery_preview_payload["rollback_plan_contract_available"] is True
+    assert recovery_preview_payload["reconciliation_proof_contract_available"] is True
     assert recovery_preview_payload["recovery_apply_available"] is False
     assert recovery_preview_payload["rollback_plan_available"] is False
     assert recovery_preview_payload["reconciliation_proof_available"] is False
@@ -5683,10 +5740,23 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/spot/recovery/preview" in recovery_preview_payload[
         "current_read_evidence_routes"
     ]
+    assert "GET /api/v1/spot/recovery/apply-review" in recovery_preview_payload[
+        "current_read_evidence_routes"
+    ]
+    assert "GET /api/v1/spot/recovery/rollback-plan" in recovery_preview_payload[
+        "current_read_evidence_routes"
+    ]
+    assert (
+        "GET /api/v1/spot/recovery/reconciliation-proof"
+        in recovery_preview_payload["current_read_evidence_routes"]
+    )
     assert "spot_recovery_preview_contract" not in recovery_preview_payload[
         "missing_contracts"
     ]
-    assert "spot_recovery_apply_contract" in recovery_preview_payload[
+    assert "spot_recovery_apply_contract" not in recovery_preview_payload[
+        "missing_contracts"
+    ]
+    assert "spot_recovery_apply_execution_contract" in recovery_preview_payload[
         "missing_contracts"
     ]
     recovery_preview_sources = {
@@ -5722,6 +5792,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.fillLedgerHealth",
         "spot.commandSuite",
         "spot.recoveryPreview",
+        "spot.recoveryApplyReview",
+        "spot.recoveryRollbackPlan",
+        "spot.recoveryReconciliationProof",
     } <= fixture_keys
     assert "release.gate" not in fixture_keys
     assert "recovery.gate" not in fixture_keys
@@ -5771,7 +5844,7 @@ def test_admin_api_spot_recovery_preview_candidates_use_client_order_id(
             "identity_key": "client_order_id",
             "identity_value": "client-order-backfill",
             "preview_only": True,
-            "required_next_contract": "spot_recovery_apply_contract",
+            "required_next_contract": "spot_recovery_apply_execution_contract",
         }
     ]
     preview_json = json.dumps(response.model_dump(mode="json"))
@@ -5865,6 +5938,143 @@ def test_admin_api_spot_recovery_preview_does_not_call_live_or_apply_helpers(
     assert payload["live_coinbase_read_ran"] is False
     assert payload["submitted_notional_usdc"] == "0"
     assert payload["executed_notional_usdc"] == "0"
+
+
+@pytest.mark.regression
+def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bound(
+    monkeypatch, tmp_path
+):
+    import business.spot_fill_ledger_health as fill_ledger_health_module
+    import business.spot_portfolio_sweep as spot_sweep_module
+    import configuration
+    import tools.run_spot_fill_backfill_recovery as backfill_recovery_module
+    import tools.run_spot_sweep_recovery_gate as recovery_gate_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    def poison(*_args, **_kwargs):
+        raise AssertionError("recovery contract routes must not execute recovery")
+
+    monkeypatch.setattr(configuration, "get_rest_client", poison)
+    monkeypatch.setattr(spot_sweep_module, "reconcile_sweep_run_record", poison)
+    monkeypatch.setattr(recovery_gate_module, "reconcile_sweep_run_record", poison)
+    monkeypatch.setattr(
+        recovery_gate_module,
+        "backfill_fill_ledger_from_order_reports",
+        poison,
+    )
+    monkeypatch.setattr(
+        backfill_recovery_module,
+        "backfill_fill_ledger_from_order_reports",
+        poison,
+    )
+    monkeypatch.setattr(
+        fill_ledger_health_module,
+        "apply_spot_fill_ledger_repair_actions",
+        poison,
+    )
+
+    state_file = tmp_path / "sweep-runs.jsonl"
+    state_file.write_text(
+        json.dumps({
+            "record_type": "sweep_run",
+            "run_id": "run-needs-recovery",
+            "config_id": "config-needs-recovery",
+            "execution": {
+                "fill_backfill": {
+                    "orders": [
+                        {
+                            "client_order_id": "client-order-preview",
+                            "exchange_order_id": "exchange-order-evidence",
+                            "status": "error",
+                        }
+                    ]
+                }
+            },
+        })
+        + "\n",
+        encoding="utf-8",
+    )
+
+    service = AdminApiReadService()
+    apply_review = service.build_spot_recovery_apply_review(
+        state_file=str(state_file),
+        client_order_id="client-order-preview",
+    )
+    rollback_plan = service.build_spot_recovery_rollback_plan(
+        state_file=str(state_file),
+        client_order_id="client-order-preview",
+    )
+    reconciliation_proof = service.build_spot_recovery_reconciliation_proof(
+        state_file=str(state_file),
+        client_order_id="client-order-preview",
+    )
+
+    assert apply_review.type == "spot_recovery_apply_review"
+    assert apply_review.status == AdminApiGateStatus.BLOCKED
+    assert apply_review.apply_review_contract_available is True
+    assert apply_review.recovery_apply_available is False
+    assert "spot_recovery_apply_execution_contract" in apply_review.missing_contracts
+    assert {gate.name for gate in apply_review.contract_gate_evidence} >= {
+        "approval_snapshot",
+        "admission_audit",
+        "cap_guard_decision",
+        "rollback_plan_contract",
+        "reconciliation_proof_contract",
+    }
+    assert rollback_plan.type == "spot_recovery_rollback_plan"
+    assert rollback_plan.rollback_plan_contract_available is True
+    assert rollback_plan.rollback_execution_available is False
+    assert "spot_recovery_rollback_execution_contract" in (
+        rollback_plan.missing_contracts
+    )
+    assert reconciliation_proof.type == "spot_recovery_reconciliation_proof"
+    assert reconciliation_proof.reconciliation_proof_contract_available is True
+    assert reconciliation_proof.reconciliation_proof_writer_available is False
+    assert "exchange_state_snapshot_id" in reconciliation_proof.required_proof_fields
+    assert "spot_recovery_reconciliation_proof_writer_contract" in (
+        reconciliation_proof.missing_contracts
+    )
+    for payload in (apply_review, rollback_plan, reconciliation_proof):
+        assert payload.live_coinbase_orders_ran is False
+        assert payload.live_coinbase_read_ran is False
+        assert payload.submitted_notional_usdc == "0"
+        assert payload.executed_notional_usdc == "0"
+        assert payload.read_only is True
+        assert payload.browser_authority == "display_only"
+        assert payload.bff_authority == "read_only_forward"
+        assert payload.candidate_count >= 1
+        assert all(candidate.identity_key == "client_order_id" for candidate in payload.candidates)
+        serialized = json.dumps(payload.model_dump(mode="json"))
+        assert '"identity_key": "order_id"' not in serialized
+        assert "exchange_order_id" not in serialized
+
+    client = _client(monkeypatch)
+    for path in (
+        "/api/v1/spot/recovery/apply-review",
+        "/api/v1/spot/recovery/rollback-plan",
+        "/api/v1/spot/recovery/reconciliation-proof",
+    ):
+        http_response = client.get(
+            path,
+            params={
+                "state_file": str(state_file),
+                "client_order_id": "client-order-preview",
+            },
+            headers=_headers(roles=AdminApiRole.VIEWER.value),
+        )
+        assert http_response.status_code == 200
+        body = http_response.json()
+        assert body["read_only"] is True
+        assert body["recovery_apply_available"] is False
+        assert body["live_coinbase_orders_ran"] is False
+        assert body["live_coinbase_read_ran"] is False
+        assert body["submitted_notional_usdc"] == "0"
+        assert body["executed_notional_usdc"] == "0"
+        assert all(
+            candidate["identity_key"] == "client_order_id"
+            for candidate in body["candidates"]
+        )
 
 
 @pytest.mark.regression
@@ -7394,6 +7604,37 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     )
     assert "Coinbase read" in spot_recovery_preview_route.parity_test
     assert "Coinbase REST placement" in spot_recovery_preview_route.parity_test
+    spot_recovery_apply_review_route = rows[
+        "GET /api/v1/spot/recovery/apply-review"
+    ]
+    assert spot_recovery_apply_review_route.shared_method == (
+        "build_spot_recovery_apply_review"
+    )
+    assert spot_recovery_apply_review_route.action_class == (
+        AdminApiActionClass.READ_ONLY
+    )
+    assert spot_recovery_apply_review_route.permission == AdminApiPermission.AUDIT_READ
+    assert "recovery apply" in spot_recovery_apply_review_route.parity_test
+    assert "Coinbase REST placement" in spot_recovery_apply_review_route.parity_test
+    spot_recovery_rollback_plan_route = rows[
+        "GET /api/v1/spot/recovery/rollback-plan"
+    ]
+    assert spot_recovery_rollback_plan_route.shared_method == (
+        "build_spot_recovery_rollback_plan"
+    )
+    assert spot_recovery_rollback_plan_route.permission == AdminApiPermission.AUDIT_READ
+    assert "rollback execution" in spot_recovery_rollback_plan_route.parity_test
+    spot_recovery_reconciliation_proof_route = rows[
+        "GET /api/v1/spot/recovery/reconciliation-proof"
+    ]
+    assert spot_recovery_reconciliation_proof_route.shared_method == (
+        "build_spot_recovery_reconciliation_proof"
+    )
+    assert (
+        spot_recovery_reconciliation_proof_route.permission
+        == AdminApiPermission.AUDIT_READ
+    )
+    assert "proof writing" in spot_recovery_reconciliation_proof_route.parity_test
     markdown_inventory_rows = {}
     for line in doc.splitlines():
         if not line.startswith("| `"):
@@ -7418,6 +7659,17 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert spot_recovery_preview_doc_row[8] == (
         spot_recovery_preview_route.parity_test
     )
+    for route in (
+        spot_recovery_apply_review_route,
+        spot_recovery_rollback_plan_route,
+        spot_recovery_reconciliation_proof_route,
+    ):
+        doc_row = markdown_inventory_rows[route.surface]
+        assert doc_row[1].strip("`") == route.action_class.value
+        assert doc_row[2].strip("`") == route.permission.value
+        assert doc_row[5] == route.caps
+        assert doc_row[7].strip("`") == route.shared_method
+        assert doc_row[8] == route.parity_test
     assert rows["GET /api/v1/admin/admission-audits"].shared_method == (
         "list_admission_audits"
     )

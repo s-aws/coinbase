@@ -158,12 +158,16 @@ local order that reveals later under the shared guard path.
   `order_event_stream` submission evidence, websocket/order lifecycle handling,
   fill-ledger rows, and the shared reconciliation/fill-audit paths keyed by
   `client_order_id`.
-  Read-only recovery preview for audited direct orders is available through
-  `GET /api/v1/spot/recovery/preview?client_order_id=<client_order_id>`.
-  That Admin API route only reports recovery candidates and source evidence;
-  it does not apply repair rows, roll back local state, execute
-  reconciliation, mutate order or exchange state, call Coinbase, or authorize
-  browser/BFF recovery.
+  Read-only recovery evidence for audited direct orders is available through
+  `GET /api/v1/spot/recovery/preview?client_order_id=<client_order_id>`,
+  `GET /api/v1/spot/recovery/apply-review?client_order_id=<client_order_id>`,
+  `GET /api/v1/spot/recovery/rollback-plan?client_order_id=<client_order_id>`,
+  and
+  `GET /api/v1/spot/recovery/reconciliation-proof?client_order_id=<client_order_id>`.
+  Those Admin API routes report candidates, gate dependencies, rollback
+  prerequisites, and proof-field requirements; they do not apply repair rows,
+  roll back local state, write proof records, execute reconciliation, mutate
+  order or exchange state, call Coinbase, or authorize browser/BFF recovery.
   Use sweep or campaign execution when the workflow needs a self-contained
   JSONL run ledger, retry plan, and command-line reconciliation wrapper.
   Manual direct-order checklist before sending `place_order`:

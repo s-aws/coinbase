@@ -672,6 +672,54 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="GET /api/v1/spot/recovery/apply-review",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only spot recovery apply-review evidence",
+        audit="optional read audit",
+        shared_method="build_spot_recovery_apply_review",
+        parity_test=(
+            "read-only spot recovery apply-review; no recovery apply, repair "
+            "apply, rollback, reconciliation execution, Coinbase read, or "
+            "Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/recovery/rollback-plan",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only spot recovery rollback-plan evidence",
+        audit="optional read audit",
+        shared_method="build_spot_recovery_rollback_plan",
+        parity_test=(
+            "read-only spot recovery rollback-plan; no rollback execution, "
+            "repair apply, reconciliation execution, Coinbase read, or Coinbase "
+            "REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/recovery/reconciliation-proof",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only spot recovery reconciliation-proof evidence",
+        audit="optional read audit",
+        shared_method="build_spot_recovery_reconciliation_proof",
+        parity_test=(
+            "read-only spot recovery reconciliation-proof; no proof writing, "
+            "reconciliation execution, order/exchange-state mutation, Coinbase "
+            "read, or Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/sweep/status",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

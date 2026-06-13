@@ -106,14 +106,19 @@ Accepted checkpoint records also expose read-only recovery-link evidence to
 must not be interpreted as recovery execution, repair apply, rollback,
 reconciliation execution, Coinbase execution, browser recovery authority, or a
 separate checkpoint writer.
-The dedicated recovery preview route,
-`GET /api/v1/spot/recovery/preview`, extends that read-only evidence with
-preview candidates from recovery-gate, fill-ledger-health, and optional
-direct-order audit lookup. It closes only the preview contract. Recovery
-apply, rollback, and reconciliation proof remain command-suite coverage gaps,
-and the preview route must not write repair rows, roll back state, execute
-reconciliation, mutate order/exchange state, call Coinbase, or authorize
-browser/BFF recovery.
+The dedicated recovery read-contract routes,
+`GET /api/v1/spot/recovery/preview`,
+`GET /api/v1/spot/recovery/apply-review`,
+`GET /api/v1/spot/recovery/rollback-plan`, and
+`GET /api/v1/spot/recovery/reconciliation-proof`, extend that read-only
+evidence with preview candidates from recovery-gate, fill-ledger-health,
+optional direct-order audit lookup, apply-review gate dependencies, rollback
+prerequisites, and reconciliation-proof field requirements. They close the
+read-contract gap only. Recovery apply execution, rollback execution,
+post-apply reconciliation, exchange-state proof, and reconciliation proof
+writing remain command-suite coverage gaps, and these routes must not write
+repair rows, roll back state, execute reconciliation, mutate order/exchange
+state, call Coinbase, or authorize browser/BFF recovery.
 Accepted checkpoint records also expose read-only reconciliation-plan link
 evidence to `GET /api/v1/admin/reconciliation/plans` and
 `GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage

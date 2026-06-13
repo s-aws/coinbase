@@ -2151,9 +2151,143 @@ class SpotRecoveryPreviewResponse(AdminApiReadPayload):
     sources: list[SpotRecoveryPreviewSourceItem] = Field(default_factory=list)
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     missing_contracts: list[str] = Field(default_factory=list)
+    apply_review_contract_available: bool = False
+    rollback_plan_contract_available: bool = False
+    reconciliation_proof_contract_available: bool = False
     recovery_apply_available: bool = False
     rollback_plan_available: bool = False
     reconciliation_proof_available: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    spot_rule_boundary: str
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
+class SpotRecoveryContractCandidateItem(BaseModel):
+    """Spot recovery candidate identity evidence for contract review routes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate_type: str
+    identity_key: str = "client_order_id"
+    identity_value: str
+    preview_source: str
+    source_route: str
+    apply_review_route: str = "/api/v1/spot/recovery/apply-review"
+    rollback_plan_route: str = "/api/v1/spot/recovery/rollback-plan"
+    reconciliation_proof_route: str = "/api/v1/spot/recovery/reconciliation-proof"
+    preview_only: bool = True
+    backend_owned: bool = True
+    detail: str
+
+
+class SpotRecoveryContractGateItem(BaseModel):
+    """Backend-owned recovery contract gate evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    route: str | None = None
+    method: str | None = None
+    action_class: AdminApiActionClass = AdminApiActionClass.READ_ONLY
+    required_permission: AdminApiPermission | str | None = None
+    required: bool = True
+    blocking: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class SpotRecoveryApplyReviewResponse(AdminApiReadPayload):
+    """Read-only Spot recovery apply-review contract evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "spot_recovery_apply_review"
+    module_id: str = "spot_operations"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    filters: FlexibleDict = Field(default_factory=dict)
+    candidate_count: int = Field(ge=0)
+    candidates: list[SpotRecoveryContractCandidateItem] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    required_gate_chain: list[str] = Field(default_factory=list)
+    contract_gate_evidence: list[SpotRecoveryContractGateItem] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    apply_review_contract_available: bool = True
+    recovery_apply_available: bool = False
+    rollback_plan_required: bool = True
+    reconciliation_proof_required: bool = True
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    spot_rule_boundary: str
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
+class SpotRecoveryRollbackPlanResponse(AdminApiReadPayload):
+    """Read-only Spot recovery rollback-plan contract evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "spot_recovery_rollback_plan"
+    module_id: str = "spot_operations"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    filters: FlexibleDict = Field(default_factory=dict)
+    candidate_count: int = Field(ge=0)
+    candidates: list[SpotRecoveryContractCandidateItem] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    rollback_steps: list[FlexibleDict] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    rollback_plan_contract_available: bool = True
+    rollback_execution_available: bool = False
+    recovery_apply_available: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    spot_rule_boundary: str
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
+class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
+    """Read-only Spot recovery reconciliation-proof contract evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "spot_recovery_reconciliation_proof"
+    module_id: str = "spot_operations"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    filters: FlexibleDict = Field(default_factory=dict)
+    candidate_count: int = Field(ge=0)
+    candidates: list[SpotRecoveryContractCandidateItem] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    required_proof_fields: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    reconciliation_proof_contract_available: bool = True
+    reconciliation_proof_writer_available: bool = False
+    reconciliation_execution_available: bool = False
+    recovery_apply_available: bool = False
     backend_owned: bool = True
     read_only: bool = True
     browser_authority: str = "display_only"

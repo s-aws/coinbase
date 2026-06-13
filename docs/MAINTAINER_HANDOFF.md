@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1821-1840`.
+- Active autonomous range: `1841-1860`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -120,11 +120,12 @@ notional, retained inventory, reconciliation result, and audit ids.
   evidence to backend-owned recovery gate and fill-ledger-health reads, and
   read-only reconciliation-plan link evidence to backend-owned reconciliation
   plan reads. P/L tracking is no longer a current command-suite coverage gap.
-  M54 then added the read-only Spot recovery-preview route, which closes only
-  the preview-contract blocker and leaves recovery apply, rollback, and
-  reconciliation proof blocked. The active 1821-1840 range is the next M54
-  contract-foundation slice for recovery apply review, rollback-plan evidence,
-  and reconciliation-proof evidence. It must not add a parallel writer,
+  M54 then added the read-only Spot recovery-preview route, and the 1821-1840
+  range extended that foundation with read-only recovery apply-review,
+  rollback-plan, and reconciliation-proof routes. These close the read-contract
+  blocker only; recovery apply execution, rollback execution, post-apply
+  reconciliation, exchange-state proof, and reconciliation proof writing remain
+  blocked. This foundation must not add a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
   authority, browser recovery authority, browser reconciliation authority,
   recovery execution, repair apply, rollback execution, reconciliation

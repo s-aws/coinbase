@@ -2102,7 +2102,12 @@ X-Admin-Roles: viewer
       "command_route": null,
       "current_read_evidence_routes": [
         "GET /api/v1/spot/recovery/preview",
+        "GET /api/v1/spot/recovery/apply-review",
+        "GET /api/v1/spot/recovery/rollback-plan",
+        "GET /api/v1/spot/recovery/reconciliation-proof",
         "GET /api/v1/admin/recovery-gate",
+        "GET /api/v1/admin/reconciliation/plans",
+        "GET /api/v1/admin/reconciliation/plans/{plan_id}",
         "GET /api/v1/spot/direct-orders/{client_order_id}/audit"
       ],
       "current_read_evidence": [
@@ -2121,6 +2126,54 @@ X-Admin-Roles: viewer
             "docs/examples/admin-api.md"
           ],
           "detail": "Existing read-only Admin API recovery preview route; it does not apply recovery, roll back state, execute reconciliation, mutate orders, or call Coinbase."
+        },
+        {
+          "route": "/api/v1/spot/recovery/apply-review",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "audit:read",
+          "shared_method": "build_spot_recovery_apply_review",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Read-only recovery apply-review contract evidence; it does not apply recovery, write repair rows, execute reconciliation, or call Coinbase."
+        },
+        {
+          "route": "/api/v1/spot/recovery/rollback-plan",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "audit:read",
+          "shared_method": "build_spot_recovery_rollback_plan",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Read-only recovery rollback-plan contract evidence; it does not execute rollback, repair state, mutate orders, or call Coinbase."
+        },
+        {
+          "route": "/api/v1/spot/recovery/reconciliation-proof",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "audit:read",
+          "shared_method": "build_spot_recovery_reconciliation_proof",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Read-only recovery reconciliation-proof contract evidence; it does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
         },
         {
           "route": "/api/v1/admin/recovery-gate",
@@ -2153,7 +2206,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery apply contract with RBAC, idempotency, append-only audit, rollback evidence, and reconciliation proof. Read-only preview evidence is exposed by GET /api/v1/spot/recovery/preview.",
+      "required_backend_contract": "Spot recovery execution contracts with RBAC, idempotency, append-only audit, rollback execution, and reconciliation proof writing. Read-only preview, apply-review, rollback-plan, and reconciliation-proof evidence is already exposed.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2165,9 +2218,10 @@ X-Admin-Roles: viewer
         "reconciliation_proof"
       ],
       "missing_contracts": [
-        "spot_recovery_apply_contract",
-        "spot_recovery_rollback_contract",
-        "spot_recovery_reconciliation_contract"
+        "spot_recovery_apply_execution_contract",
+        "spot_recovery_rollback_execution_contract",
+        "spot_recovery_reconciliation_proof_writer_contract",
+        "spot_recovery_post_apply_reconciliation_contract"
       ],
       "backend_owned": true,
       "browser_authority": "display_only",
@@ -2178,7 +2232,7 @@ X-Admin-Roles: viewer
         "docs/OPERATOR_READ_MODELS.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Spot recovery preview, recovery-gate, and direct-order audit reads do not create a spot recovery mutation. Apply, rollback, and reconciliation proof must stay backend-owned before any recovery action exists."
+      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, and direct-order audit reads do not create a spot recovery mutation. Apply execution, rollback execution, and reconciliation proof writing must stay backend-owned before any recovery action exists."
     },
     {
       "family": "spot_reconciliation_workflow",
@@ -2186,10 +2240,27 @@ X-Admin-Roles: viewer
       "exposure_status": "backend_contract_required",
       "command_route": null,
       "current_read_evidence_routes": [
+        "GET /api/v1/spot/recovery/reconciliation-proof",
         "GET /api/v1/admin/reconciliation/plans",
         "GET /api/v1/admin/reconciliation/plans/{plan_id}"
       ],
       "current_read_evidence": [
+        {
+          "route": "/api/v1/spot/recovery/reconciliation-proof",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "audit:read",
+          "shared_method": "build_spot_recovery_reconciliation_proof",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.admin-api.md",
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Existing read-only Admin API recovery reconciliation-proof contract route; it does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
+        },
         {
           "route": "/api/v1/admin/reconciliation/plans",
           "method": "GET",
@@ -2233,6 +2304,7 @@ X-Admin-Roles: viewer
       "missing_contracts": [
         "spot_reconciliation_execution_contract",
         "spot_exchange_state_proof_contract",
+        "spot_recovery_reconciliation_proof_writer_contract",
         "spot_reconciliation_repair_policy_contract"
       ],
       "backend_owned": true,

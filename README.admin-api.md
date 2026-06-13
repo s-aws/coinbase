@@ -127,14 +127,20 @@ apply repairs, roll back state, call Coinbase, or create browser
 reconciliation authority. The separate Spot reconciliation workflow remains a
 backend-contract-required gap until preview/execution/proof contracts exist.
 
-Spot recovery preview now has its own read-only evidence route:
-`GET /api/v1/spot/recovery/preview`. It aggregates recovery-gate,
-fill-ledger-health, and optional direct-order audit candidates into a
-preview-only response. It removes `spot_recovery_preview_contract` from the
-command-suite missing-contract list, but recovery apply, rollback, and
-reconciliation proof remain backend-contract-required gaps. The route does
-not write repair rows, roll back state, execute reconciliation, mutate order
-or exchange state, call Coinbase, or authorize browser/BFF recovery.
+Spot recovery now has read-only contract evidence routes:
+`GET /api/v1/spot/recovery/preview`,
+`GET /api/v1/spot/recovery/apply-review`,
+`GET /api/v1/spot/recovery/rollback-plan`, and
+`GET /api/v1/spot/recovery/reconciliation-proof`. The preview aggregates
+recovery-gate, fill-ledger-health, and optional direct-order audit candidates.
+The apply-review, rollback-plan, and reconciliation-proof routes expose the
+client-order-id candidate identity, gate chain, rollback prerequisites, and
+proof-field requirements without adding execution authority. They remove the
+read-contract gap, but recovery apply execution, rollback execution,
+post-apply reconciliation, exchange-state proof, and reconciliation proof
+writing remain backend-contract-required gaps. These routes do not write
+repair rows, roll back state, execute reconciliation, mutate order or exchange
+state, call Coinbase, or authorize browser/BFF recovery.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -209,6 +215,9 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
 - `GET /api/v1/spot/command-suite`
 - `GET /api/v1/spot/recovery/preview`
+- `GET /api/v1/spot/recovery/apply-review`
+- `GET /api/v1/spot/recovery/rollback-plan`
+- `GET /api/v1/spot/recovery/reconciliation-proof`
 
 `GET /api/v1/admin/enterprise-readiness` also exposes per-module
 `action_posture` evidence. The posture counts read routes, command routes,

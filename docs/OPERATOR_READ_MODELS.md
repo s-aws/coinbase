@@ -9,7 +9,9 @@ or reconcile exchange state.
 ## Current Surfaces
 
 - Spot readiness, sweep status, P/L, cost basis, campaign status, direct-order
-  audit, recovery preview, and command-suite reads live under `GET /api/v1/spot/*`.
+  audit, recovery preview, recovery apply-review, recovery rollback-plan,
+  recovery reconciliation-proof, and command-suite reads live under
+  `GET /api/v1/spot/*`.
 - Order, stealth, movement/repricing, futures/perpetuals, guard/risk policy,
   audit workbench, recovery-gate, fill-ledger health, and reconciliation-plan
   reads expose cross-module evidence under their Admin API namespaces.
@@ -18,17 +20,26 @@ or reconcile exchange state.
   not recovery execution, reconciliation execution, Coinbase calls, or sell
   authority.
 
-## Spot Recovery Preview
+## Spot Recovery Contracts
 
-`GET /api/v1/spot/recovery/preview` is a read-only operator model for recovery
-triage. It aggregates direct-order audit, recovery-gate, and fill-ledger health
-evidence into candidate rows keyed by `client_order_id` when a candidate
-identity exists.
+The Spot recovery routes are read-only operator models for recovery triage:
 
-The recovery preview route does not:
+- `GET /api/v1/spot/recovery/preview`
+- `GET /api/v1/spot/recovery/apply-review`
+- `GET /api/v1/spot/recovery/rollback-plan`
+- `GET /api/v1/spot/recovery/reconciliation-proof`
+
+The preview route aggregates direct-order audit, recovery-gate, and
+fill-ledger health evidence into candidate rows keyed by `client_order_id`
+when a candidate identity exists. The apply-review, rollback-plan, and
+reconciliation-proof routes expose gate dependencies, rollback prerequisites,
+and required proof fields for those same client-order-id candidates.
+
+The recovery read-contract routes do not:
 
 - apply repair rows
 - roll back state
+- write reconciliation proof records
 - execute reconciliation
 - mutate order or exchange state
 - read from Coinbase
@@ -36,7 +47,7 @@ The recovery preview route does not:
 - authorize browser recovery
 - authorize BFF recovery
 
-The route reports this boundary through `read_only`, `backend_owned`,
+Each route reports this boundary through `read_only`, `backend_owned`,
 `live_coinbase_orders_ran`, `live_coinbase_read_ran`,
 `submitted_notional_usdc`, `executed_notional_usdc`, `browser_authority`, and
 `bff_authority` fields. A consumer should render those fields as evidence, not
