@@ -2474,16 +2474,30 @@ Completed twelfth-slice scope:
 - The P/L tracking gap remained open for recovery and reconciliation proof at
   batch completion.
 
-Active thirteenth-slice scope:
+Completed thirteenth-slice scope:
 
-- Active phases 1761-1780 extend the same checkpoint path with explicit
+- Phases 1761-1780 extended the same checkpoint path with explicit
   recovery-read linkage to `/api/v1/admin/recovery-gate` and
   `/api/v1/admin/fill-ledger-health`.
 - Recovery-link evidence must stay operator triage evidence. It must not
   become browser recovery authority, recovery execution, repair apply,
   rollback, reconciliation execution, Coinbase execution evidence, or a
   generic rule for non-spot modules.
-- The P/L tracking gap remains open for reconciliation proof.
+- The P/L tracking gap remained open for reconciliation-plan read linkage at
+  batch completion.
+
+Active fourteenth-slice scope:
+
+- Active phases 1781-1800 extend the same checkpoint path with explicit
+  reconciliation-plan read linkage to `/api/v1/admin/reconciliation/plans`
+  and `/api/v1/admin/reconciliation/plans/{plan_id}`.
+- Reconciliation-link evidence must stay operator triage evidence. It must
+  not become browser reconciliation authority, reconciliation execution,
+  recovery execution, repair apply, rollback, order/exchange-state mutation,
+  Coinbase execution evidence, or a generic rule for non-spot modules.
+- The P/L tracking gap closes when this linkage is present; the separate Spot
+  reconciliation workflow gap remains open for backend preview/execution/proof
+  contracts.
 
 Current backend evidence:
 
@@ -2499,12 +2513,13 @@ Current backend evidence:
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
   include the command-suite response, proof-route gate linkage, typed
   coverage-gap evidence-route linkage, sweep automation command contract, and
-  checkpoint mutation taxonomy, audit-link evidence, and recovery-link
-  evidence.
+  checkpoint mutation taxonomy, audit-link evidence, recovery-link evidence,
+  and reconciliation-link evidence.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
-- Spot sweep automation, reconciliation, recovery execution, and any
+- Spot sweep automation, reconciliation workflow execution/proof, recovery
+  execution, and any
   eventual live execution screens must prove the full approval, cap/guard,
   admission audit, reconciliation, live service, and adapter chain through
   backend-owned contracts before command UI can exist.

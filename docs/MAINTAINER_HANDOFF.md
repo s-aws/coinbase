@@ -97,7 +97,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1761-1780`.
+- Active autonomous range: `1781-1800`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -107,19 +107,21 @@ notional, retained inventory, reconciliation result, and audit ids.
   `GET /api/v1/spot/command-suite` for manual order, cancel by
   `client_order_id`, and campaign execution readiness, then bound those rows
   into website command workflow draft evidence. M54 then added typed
-  `coverage_gaps` for spot sweep automation, P/L tracking, recovery, and
-  reconciliation so missing spot admin families are explicit before new command
-  routes or live controls exist. M54 then linked those gap rows to typed
-  `current_read_evidence` rows derived from route inventory and added durable
-  Spot P/L checkpoint records at `/api/v1/spot/pnl/checkpoints`. M54 then
-  extended that same checkpoint path with average-cost review evidence and
-  verified append-only Admin API audit-link readback; the active M54 range
-  extends it with read-only recovery-link evidence to backend-owned recovery
-  gate and fill-ledger-health reads.
+  `coverage_gaps` for spot sweep automation, recovery workflow, and
+  reconciliation workflow so missing spot admin families are explicit before
+  new command routes or live controls exist. M54 then linked those gap rows to
+  typed `current_read_evidence` rows derived from route inventory and added
+  durable Spot P/L checkpoint records at `/api/v1/spot/pnl/checkpoints`. M54
+  then extended that same checkpoint path with average-cost review evidence,
+  verified append-only Admin API audit-link readback, read-only recovery-link
+  evidence to backend-owned recovery gate and fill-ledger-health reads, and
+  read-only reconciliation-plan link evidence to backend-owned reconciliation
+  plan reads. P/L tracking is no longer a current command-suite coverage gap.
   The checkpoint path must not add a parallel writer, browser P/L authority,
   sell authority, tax accounting, browser audit authority, browser recovery
-  authority, recovery execution, repair apply, rollback, reconciliation
-  execution, or Coinbase execution. Live Coinbase execution
+  authority, browser reconciliation authority, recovery execution, repair
+  apply, rollback, reconciliation execution, order/exchange-state mutation, or
+  Coinbase execution. Live Coinbase execution
   remains disabled unless a later phase explicitly runs under the carried cap
   policy.
   Browser approval, BFF forwarding, linked snapshots, cap/guard records, audit

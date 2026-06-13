@@ -11368,6 +11368,26 @@ components:
           default: Checkpoint does not include recovery-link evidence; use backend
             recovery gate and fill-ledger-health reads for operator triage before
             recording a linked checkpoint.
+        reconciliation_linked:
+          type: boolean
+          title: Reconciliation Linked
+          default: false
+        reconciliation_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Source
+        reconciliation_routes:
+          items:
+            type: string
+          type: array
+          title: Reconciliation Routes
+        reconciliation_detail:
+          type: string
+          title: Reconciliation Detail
+          default: Checkpoint does not include reconciliation-plan link evidence;
+            use backend reconciliation plan reads for operator triage before recording
+            a linked checkpoint.
         source:
           type: string
           title: Source
@@ -11467,6 +11487,10 @@ components:
           type: integer
           minimum: 0.0
           title: Recovery Linked Count
+        reconciliation_linked_count:
+          type: integer
+          minimum: 0.0
+          title: Reconciliation Linked Count
         read_only:
           type: boolean
           title: Read Only
@@ -11486,6 +11510,7 @@ components:
       - average_cost_review_count
       - audit_linked_count
       - recovery_linked_count
+      - reconciliation_linked_count
       title: SpotPnlCheckpointListResponse
       description: List backend-owned Spot P/L checkpoint records.
     SpotPnlCheckpointResponse:

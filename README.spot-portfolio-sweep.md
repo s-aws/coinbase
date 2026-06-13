@@ -268,6 +268,16 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   These fields are response/read-model evidence derived from those backend
   reads, not separately persisted recovery state in the checkpoint ledger.
 
+- Accepted checkpoint records also expose read-only reconciliation-plan link
+  evidence through `reconciliation_linked`, `reconciliation_source`,
+  `reconciliation_routes`, `reconciliation_detail`, and list-level
+  `reconciliation_linked_count`. This links the checkpoint read model to
+  `/api/v1/admin/reconciliation/plans` for operator triage only; it does not
+  execute reconciliation, mutate order or exchange state, apply repairs, roll
+  back state, call Coinbase, or create browser reconciliation authority. The
+  separate Spot reconciliation workflow remains blocked until backend preview,
+  execution, and proof contracts exist.
+
 ## Examples
 
 See [Spot Portfolio Sweep Examples](docs/examples/spot-portfolio-sweep.md).

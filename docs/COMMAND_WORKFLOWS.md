@@ -106,6 +106,13 @@ Accepted checkpoint records also expose read-only recovery-link evidence to
 must not be interpreted as recovery execution, repair apply, rollback,
 reconciliation execution, Coinbase execution, browser recovery authority, or a
 separate checkpoint writer.
+Accepted checkpoint records also expose read-only reconciliation-plan link
+evidence to `GET /api/v1/admin/reconciliation/plans` and
+`GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage
+evidence only; it must not be interpreted as reconciliation execution,
+order/exchange-state mutation, recovery execution, repair apply, rollback,
+Coinbase execution, browser reconciliation authority, or a separate
+checkpoint writer.
 The word "operator" in checkpoint text means the human reviewing the evidence;
 the backend RBAC role named `operator` can read checkpoint evidence but cannot
 record it. Recording requires `spot_pnl:record`, currently granted to `trader`

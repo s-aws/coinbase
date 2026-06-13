@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1761-1780",
+  "approved_phase_range": "1781-1800",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1761-1780",
+  "approved_phase_range": "1781-1800",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1722,6 +1722,15 @@ Recovery-link evidence points to `/api/v1/admin/recovery-gate` and
 `/api/v1/admin/fill-ledger-health` only; it does not execute recovery, apply
 repairs, roll back state, run reconciliation, call Coinbase, or create browser
 recovery authority.
+Accepted checkpoint records also include `reconciliation_linked=true`,
+`reconciliation_source=admin_reconciliation_plans`, `reconciliation_routes`,
+and a `reconciliation_detail` warning when the checkpoint read model is linked
+to backend-owned reconciliation plan reads. List responses include
+`reconciliation_linked_count`. Reconciliation-link evidence points to
+`/api/v1/admin/reconciliation/plans` and
+`/api/v1/admin/reconciliation/plans/{plan_id}` only; it does not execute
+reconciliation, mutate order or exchange state, apply repairs, roll back
+state, call Coinbase, or create browser reconciliation authority.
 
 ```http
 GET /api/v1/spot/pnl/checkpoints?checkpoint_status=passed&limit=25
@@ -1766,12 +1775,12 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1761-1780",
+  "approved_phase_range": "1781-1800",
   "command_count": 4,
   "blocked_command_count": 4,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
-  "coverage_gap_count": 4,
+  "coverage_gap_count": 3,
   "spot_rules_platform_default": false,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
@@ -2085,6 +2094,141 @@ X-Admin-Roles: viewer
         "docs/COMMAND_WORKFLOWS.md"
       ],
       "detail": "Sweep and campaign evidence is readable, but enterprise admin sweep automation is not command-complete until durable scheduler, run-limit, recovery, and reconciliation contracts exist."
+    },
+    {
+      "family": "spot_recovery_workflow",
+      "status": "blocked",
+      "exposure_status": "backend_contract_required",
+      "command_route": null,
+      "current_read_evidence_routes": [
+        "GET /api/v1/admin/recovery-gate",
+        "GET /api/v1/spot/direct-orders/{client_order_id}/audit"
+      ],
+      "current_read_evidence": [
+        {
+          "route": "/api/v1/admin/recovery-gate",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "audit:read",
+          "shared_method": "build_recovery_gate",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.admin-api.md",
+            "docs/OPERATOR_READ_MODELS.md"
+          ],
+          "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
+        },
+        {
+          "route": "/api/v1/spot/direct-orders/{client_order_id}/audit",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "audit:read",
+          "shared_method": "build_spot_direct_order_audit",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.spot-trading.md",
+            "docs/OPERATOR_READ_MODELS.md"
+          ],
+          "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
+        }
+      ],
+      "required_backend_contract": "Spot recovery preview/apply contract with RBAC, idempotency, append-only audit, rollback evidence, and reconciliation proof.",
+      "required_gate_chain": [
+        "route_inventory_contract",
+        "recovery_preview",
+        "idempotency",
+        "operator_intent",
+        "approval_snapshot",
+        "admission_audit",
+        "rollback_plan",
+        "reconciliation_proof"
+      ],
+      "missing_contracts": [
+        "spot_recovery_preview_contract",
+        "spot_recovery_apply_contract",
+        "spot_recovery_rollback_contract",
+        "spot_recovery_reconciliation_contract"
+      ],
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "spot_rule_boundary": "Spot-only wallet, USDC, no-shorting, inventory, cost-basis, and average-cost rules apply only to spot command authority.",
+      "documentation_refs": [
+        "README.spot-trading.md",
+        "docs/OPERATOR_READ_MODELS.md",
+        "docs/COMMAND_WORKFLOWS.md"
+      ],
+      "detail": "Recovery-gate and direct-order audit reads do not create a spot recovery mutation. Recovery must stay backend-owned and previewed before any apply path exists."
+    },
+    {
+      "family": "spot_reconciliation_workflow",
+      "status": "blocked",
+      "exposure_status": "backend_contract_required",
+      "command_route": null,
+      "current_read_evidence_routes": [
+        "GET /api/v1/admin/reconciliation/plans",
+        "GET /api/v1/admin/reconciliation/plans/{plan_id}"
+      ],
+      "current_read_evidence": [
+        {
+          "route": "/api/v1/admin/reconciliation/plans",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "reconciliation:read",
+          "shared_method": "list_reconciliation_plans",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.reconciliation-plans.md",
+            "docs/examples/reconciliation-plans.md"
+          ],
+          "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
+        },
+        {
+          "route": "/api/v1/admin/reconciliation/plans/{plan_id}",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "reconciliation:read",
+          "shared_method": "get_reconciliation_plan",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.reconciliation-plans.md",
+            "docs/examples/reconciliation-plans.md"
+          ],
+          "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
+        }
+      ],
+      "required_backend_contract": "Spot-specific reconciliation execution/proof contract that can compare backend order state with Coinbase evidence without browser or BFF state mutation.",
+      "required_gate_chain": [
+        "route_inventory_contract",
+        "reconciliation_plan",
+        "exchange_evidence_snapshot",
+        "audit_link",
+        "proof_persistence",
+        "post_live_reconciliation"
+      ],
+      "missing_contracts": [
+        "spot_reconciliation_execution_contract",
+        "spot_exchange_state_proof_contract",
+        "spot_reconciliation_repair_policy_contract"
+      ],
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "spot_rule_boundary": "Spot-only wallet, USDC, no-shorting, inventory, cost-basis, and average-cost rules apply only to spot command authority.",
+      "documentation_refs": [
+        "README.reconciliation-plans.md",
+        "docs/examples/reconciliation-plans.md",
+        "docs/COMMAND_WORKFLOWS.md"
+      ],
+      "detail": "Reconciliation plan records are local-state evidence only. They do not execute reconciliation, mutate exchange/order state, or prove Coinbase state."
     }
   ]
 }

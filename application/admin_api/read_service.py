@@ -125,7 +125,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1761-1780"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1781-1800"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -7217,61 +7217,6 @@ class AdminApiReadService:
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
-                family=AdminApiSpotCommandSuiteGapFamily.SPOT_PNL_TRACKING,
-                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
-                command_route="/api/v1/spot/pnl/checkpoints",
-                current_read_evidence_routes=[
-                    "GET /api/v1/spot/sweep/pnl",
-                    "GET /api/v1/spot/cost-basis/status",
-                    "GET /api/v1/spot/pnl/checkpoints",
-                    "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}",
-                    "GET /api/v1/admin/recovery-gate",
-                    "GET /api/v1/admin/fill-ledger-health",
-                ],
-                current_read_evidence=coverage_gap_evidence_routes(
-                    [
-                        "GET /api/v1/spot/sweep/pnl",
-                        "GET /api/v1/spot/cost-basis/status",
-                        "GET /api/v1/spot/pnl/checkpoints",
-                        "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}",
-                        "GET /api/v1/admin/recovery-gate",
-                        "GET /api/v1/admin/fill-ledger-health",
-                    ]
-                ),
-                required_backend_contract=(
-                    "Durable spot P/L product ledger, average-cost snapshot "
-                    "review evidence, checkpoint audit linkage, recovery-read "
-                    "linkage, and reconciliation linkage for admin workflows."
-                ),
-                required_gate_chain=[
-                    "route_inventory_contract",
-                    "cost_basis_authority",
-                    "fill_ledger_health",
-                    "mark_price_snapshot",
-                    "checkpoint_persistence",
-                    "average_cost_review_checkpoint",
-                    "audit_readback",
-                    "recovery_read_linkage",
-                ],
-                missing_contracts=[
-                    "spot_pnl_reconciliation_link_contract",
-                ],
-                spot_rule_boundary=spot_boundary,
-                documentation_refs=[
-                    "README.spot-trading.md",
-                    "README.spot-portfolio-sweep.md",
-                    "docs/COMMAND_WORKFLOWS.md",
-                ],
-                detail=(
-                    "P/L, average-cost, and checkpoint evidence is exposed as "
-                    "operator evidence; the checkpoint route records local P/L, "
-                    "average-cost review, verified audit-link state, and "
-                    "read-only recovery-link state only and is not browser "
-                    "profitability, sell authority, tax accounting, recovery "
-                    "execution, reconciliation, or Coinbase execution evidence."
-                ),
-            ),
-            SpotCommandSuiteCoverageGapItem(
                 family=AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW,
                 exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
                 command_route=None,
@@ -7387,7 +7332,7 @@ class AdminApiReadService:
                 "M54 starts with read-only spot command-suite coverage before execution.",
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
-                "Sweep automation, P/L tracking, recovery, and reconciliation gaps are explicit backend-owned evidence before more spot command UI exists.",
+                "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; P/L tracking is no longer a current gap after average-cost, audit-link, recovery-read, and reconciliation-plan read-link evidence.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(

@@ -65,6 +65,11 @@ SPOT_PNL_CHECKPOINT_LEGACY_RECOVERY_DETAIL = (
     "gate and fill-ledger-health reads for operator triage before recording a "
     "linked checkpoint."
 )
+SPOT_PNL_CHECKPOINT_LEGACY_RECONCILIATION_DETAIL = (
+    "Checkpoint does not include reconciliation-plan link evidence; use "
+    "backend reconciliation plan reads for operator triage before recording a "
+    "linked checkpoint."
+)
 
 
 DecimalString = Annotated[
@@ -820,6 +825,10 @@ class SpotPnlCheckpointItem(BaseModel):
     recovery_source: str | None = None
     recovery_routes: list[str] = Field(default_factory=list)
     recovery_detail: str = SPOT_PNL_CHECKPOINT_LEGACY_RECOVERY_DETAIL
+    reconciliation_linked: bool = False
+    reconciliation_source: str | None = None
+    reconciliation_routes: list[str] = Field(default_factory=list)
+    reconciliation_detail: str = SPOT_PNL_CHECKPOINT_LEGACY_RECONCILIATION_DETAIL
     source: str = "admin_api_spot_pnl_checkpoint_log"
     operator_notes: str
     browser_authority: str = "display_only"
@@ -847,6 +856,7 @@ class SpotPnlCheckpointListResponse(BaseModel):
     average_cost_review_count: int = Field(ge=0)
     audit_linked_count: int = Field(ge=0)
     recovery_linked_count: int = Field(ge=0)
+    reconciliation_linked_count: int = Field(ge=0)
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

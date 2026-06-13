@@ -31,6 +31,10 @@ SPOT_PNL_CHECKPOINT_RECOVERY_ROUTES = [
     "/api/v1/admin/recovery-gate",
     "/api/v1/admin/fill-ledger-health",
 ]
+SPOT_PNL_CHECKPOINT_RECONCILIATION_ROUTES = [
+    "/api/v1/admin/reconciliation/plans",
+    "/api/v1/admin/reconciliation/plans/{plan_id}",
+]
 
 
 class AdminApiSpotPnlCheckpointService:
@@ -174,6 +178,16 @@ def _item_from_record(
         "run reconciliation, call Coinbase, or create browser recovery "
         "authority."
     )
+    reconciliation_linked = True
+    reconciliation_detail = (
+        "Checkpoint read model is linked to backend-owned read-only "
+        "reconciliation plan evidence through "
+        "/api/v1/admin/reconciliation/plans and "
+        "/api/v1/admin/reconciliation/plans/{plan_id}. This link is "
+        "operator evidence only and does not execute reconciliation, mutate "
+        "order or exchange state, apply repairs, roll back state, call "
+        "Coinbase, or create browser reconciliation authority."
+    )
     detail = (
         "Spot P/L checkpoint is durable operator review evidence only. It is "
         "not tax accounting, sell authority, profitability authority, browser "
@@ -203,6 +217,10 @@ def _item_from_record(
         recovery_source="admin_recovery_gate",
         recovery_routes=SPOT_PNL_CHECKPOINT_RECOVERY_ROUTES,
         recovery_detail=recovery_detail,
+        reconciliation_linked=reconciliation_linked,
+        reconciliation_source="admin_reconciliation_plans",
+        reconciliation_routes=SPOT_PNL_CHECKPOINT_RECONCILIATION_ROUTES,
+        reconciliation_detail=reconciliation_detail,
         source=record.source,
         operator_notes=record.operator_notes,
         detail=detail,

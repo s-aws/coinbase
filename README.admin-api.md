@@ -117,6 +117,15 @@ or create browser recovery authority.
 The recovery-link fields are response/read-model evidence derived from those
 backend reads, not separately persisted recovery state in the checkpoint
 ledger.
+Accepted checkpoint records also expose read-only reconciliation-plan link
+evidence through `reconciliation_linked`, `reconciliation_source`,
+`reconciliation_routes`, `reconciliation_detail`, and list-level
+`reconciliation_linked_count`. This links the checkpoint read model to
+backend-owned `/api/v1/admin/reconciliation/plans` reads for operator triage
+only; it does not execute reconciliation, mutate order or exchange state,
+apply repairs, roll back state, call Coinbase, or create browser
+reconciliation authority. The separate Spot reconciliation workflow remains a
+backend-contract-required gap until preview/execution/proof contracts exist.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -222,8 +231,10 @@ are not live execution, sell eligibility, profitability proof, reconciliation
 execution, or tax accounting.
 The checkpoint path is also the single Admin API average-cost review evidence
 checkpoint audit-link evidence path, and checkpoint recovery-link evidence
-path when an `average_cost_snapshot` is recorded; do not add a parallel
-average-cost writer, checkpoint audit writer, or recovery-link writer.
+path, and checkpoint reconciliation-link evidence path when an
+`average_cost_snapshot` is recorded; do not add a parallel average-cost
+writer, checkpoint audit writer, recovery-link writer, or reconciliation-link
+writer.
 
 Current mutating HTTP command surfaces are:
 

@@ -422,6 +422,9 @@ def list_spot_pnl_checkpoints(
         recovery_linked_count=sum(
             1 for item in all_checkpoints if item.recovery_linked
         ),
+        reconciliation_linked_count=sum(
+            1 for item in all_checkpoints if item.reconciliation_linked
+        ),
     )
     return JSONResponse(content=payload.model_dump(mode="json"))
 
