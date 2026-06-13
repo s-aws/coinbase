@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1481-1500**.
+- Approved phase range: **1501-1520**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -46,127 +46,133 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1481-1500
+## Active Phases 1501-1520
 
-### Phase 1481 - Advance Active Queue Range
+### Phase 1501 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1461-1480 to active
-  phases 1481-1500 while preserving the same no-live frontend posture and
-  carried Coinbase cap policy.
+- Move the durable autonomous queue from completed phases 1481-1500 to active
+  phases 1501-1520 while preserving the no-live default and carried Coinbase
+  cap policy.
 
-### Phase 1482 - M49 Approval Lifecycle Contract
+### Phase 1502 - M53 Pilot Route Selection
 
-- Add backend-owned approval request, review, decision, revoke, expiry, and
-  snapshot-linking contracts through the existing Admin API approval store path.
+- Select exactly one backend route for the controlled live-adapter pilot:
+  `POST /api/v1/orders` mapped to
+  `AdminApiCommandService.place_manual_order`.
 
-### Phase 1483 - Backend Range Evidence
+### Phase 1503 - Pilot Adapter Evidence Contract
 
-- Keep backend enterprise-readiness, autonomous, runtime, and handoff checks
-  reporting the 1481-1500 phase range.
+- Add backend-owned route-bound pilot adapter evidence showing the selected
+  route is configured for dry-run admission only, remains non-executable, and
+  exposes no Coinbase client, submit, create, cancel, or execute method.
 
-### Phase 1484 - Approval Lifecycle Enums And Models
+### Phase 1504 - Live-Enablement Read Model
 
-- Add typed approval lifecycle status/event enums and OpenAPI models without
-  using magic strings or spot-specific identity assumptions.
+- Update `GET /api/v1/admin/live-enablement` so only the pilot route reports
+  configured adapter evidence while all other live-shaped routes remain
+  disabled.
 
-### Phase 1485 - Approval Store Lifecycle Events
+### Phase 1505 - Admission Chain Dry-Run Proof
 
-- Extend the existing append-only approval store with lifecycle events while
-  preserving the existing resolver snapshot record path.
+- Prove the pilot route still requires exact approval snapshot, admission
+  audit, cap/guard decision, reconciliation plan, idempotency, operator
+  intent, payload hash, and live execution service admission.
 
-### Phase 1486 - Approval Request Route
+### Phase 1506 - Command Service Boundary Proof
 
-- Add an authenticated, RBAC-gated, idempotent, audited route for requesting
-  approval against a route-inventory command shape.
+- Prove the pilot route still uses `AdminApiCommandService.place_manual_order`
+  and does not introduce a route-local executor, browser executor, BFF
+  executor, or second Coinbase submission path.
 
-### Phase 1487 - Approval Decision Route
+### Phase 1507 - Live Cap Evidence
 
-- Add an admin-managed approval/rejection decision route that links approved
-  snapshots to payload hash, command idempotency, actor, cap/guard ref, and
-  reconciliation ref without executing commands.
+- Keep submitted notional capped at `3.10` USDC and executed notional capped
+  at `1.00` USDC in live-enablement evidence. Default no-live work remains
+  submitted/executed notional `$0`.
 
-### Phase 1488 - Approval Revoke And Expiry
+### Phase 1508 - Backend Tests
 
-- Add revoke handling and expiry-derived status so revoked or expired
-  snapshots fail closed in the existing approval resolver.
+- Add focused regression coverage for the single-route dry-run pilot adapter,
+  non-pilot disabled routes, live-enablement counts, and no direct Coinbase
+  path.
 
-### Phase 1489 - Approval Lifecycle Reads
+### Phase 1509 - Backend Docs And Examples
 
-- Add list/detail reads for approval lifecycle state keyed by
-  `approval_request_id` and `approval_id` evidence, with no Coinbase calls.
+- Update Admin API docs, examples, durable milestones, route inventory notes,
+  maintainer handoff, and contextless review prompts for M53 pilot evidence.
 
-### Phase 1490 - Route Inventory And Mutation Taxonomy
+### Phase 1510 - Backend Focused Gates
 
-- Add approval lifecycle routes to route inventory and map them to one
-  platform mutation taxonomy row so every mutating surface remains classified.
+- Run focused Admin API regression, autonomous queue validation, ownership
+  validation, OpenAPI freshness checks when schemas change, and no-live
+  command evidence checks.
 
-### Phase 1491 - Audit And Idempotency Proof
+### Phase 1511 - Frontend Schema And Runtime Sync
 
-- Prove approval lifecycle mutations append audit evidence, replay exact
-  idempotency requests, and reject idempotency drift.
+- Regenerate or verify frontend schema/runtime contracts against backend M53
+  live-enablement evidence.
 
-### Phase 1492 - RBAC Separation Proof
+### Phase 1512 - Frontend Live-Enablement UI Evidence
 
-- Prove traders can request approval for commands they are otherwise allowed
-  to submit, but only approval managers/admins can decide or revoke approvals.
+- Render the pilot route as dry-run adapter configured but not live-enabled,
+  with the live execution service and missing proof chain still blocking.
 
-### Phase 1493 - OpenAPI And Backend Examples
+### Phase 1513 - Frontend BFF Boundary Proof
 
-- Regenerate OpenAPI and route inventory artifacts; update Admin API examples
-  and docs for request, decision, revoke, expiry, and snapshot-linking evidence.
+- Prove BFF command forwarding remains forward-only and cannot make the pilot
+  adapter executable or call Coinbase.
 
-### Phase 1494 - Capability Matrix And Handoff Docs
+### Phase 1514 - Frontend Quality Artifacts
 
-- Update capability matrix, maintainer handoff, durable milestones, route
-  inventory, and docs index references for M49.
+- Update mock runtime, quality artifacts, release/deployment/autonomous checks,
+  and tests for the 1501-1520 range and M53 pilot evidence.
 
-### Phase 1495 - Frontend Schema Sync
+### Phase 1515 - Frontend Focused Gates
 
-- Regenerate frontend OpenAPI types from the backend schema and add canonical
-  backend client wrappers for approval lifecycle reads and mutations.
+- Run typecheck, lint, API checks, autonomous validation, command fetch guard,
+  focused unit/component tests, and relevant Playwright coverage.
 
-### Phase 1496 - Frontend BFF Boundary
+### Phase 1516 - Dry-Run Cross-Repo Smoke
 
-- Add BFF allowlist and mutation evidence handling for approval lifecycle
-  routes without creating browser approval authority or command execution.
+- Run dry read, command, BFF, and OIDC smokes proving the M53 pilot route is
+  visible as evidence while frontend and BFF notional remains `$0`.
 
-### Phase 1497 - Frontend Approval Lifecycle Surface
+### Phase 1517 - Blind/Contextless Review
 
-- Add enterprise admin UI for approval list/detail, request, decision, revoke,
-  and expiry evidence using generated contracts and backend decisions only.
+- Run blind/contextless review asking whether a fresh agent can explain the
+  selected pilot route, why it is non-executable, what remains blocking, and
+  why spot-specific rules do not become platform defaults.
 
-### Phase 1498 - Focused Gates
+### Phase 1518 - Remediate Review Findings
 
-- Run focused backend Admin API tests, backend autonomous queue validation,
-  frontend route coverage, unit/component tests, and command-security checks.
+- Treat blocker-level blind-review findings as stop conditions. Fix docs,
+  code organization, or tests before advancing.
 
-### Phase 1499 - Blind/Contextless Review
+### Phase 1519 - Full Gates
 
-- Run blind/contextless review confirming approval lifecycle is a platform
-  primitive, not browser approval, BFF execution authority, or live Coinbase
-  execution.
+- Run backend full regression and frontend `npm run release:gate`.
 
-### Phase 1500 - Full Gates And Summary
+### Phase 1520 - M53 Dry-Run Summary
 
-- Run full backend regression and frontend release gate. Summarize live
-  Coinbase execution status and notional. Default remains no-live with
-  submitted and executed notional `$0`.
+- Summarize pilot route, configured adapter evidence, remaining live blockers,
+  gate results, and Coinbase notional. Unless a later phase explicitly runs
+  live Coinbase execution, submitted and executed notional remain `$0`.
 
-## M50 Closure Inside Active Range
+## Completed Phases 1481-1500
 
-The 1481-1500 range also closes M50 after the M49 approval foundation:
+The 1481-1500 range closed M49-M52:
 
-- Backend cap/guard decision records are persisted through
-  `GET /api/v1/admin/cap-guard/decisions`,
-  `GET /api/v1/admin/cap-guard/decisions/{decision_id}`, and
-  `POST /api/v1/admin/cap-guard/decisions`.
-- The paired website repository at `C:\coinbase-frontend` consumes those
-  routes through generated types, canonical wrappers, BFF allowlist, mocks,
-  quality artifacts, and the Cap/Guard Decisions workbench; verify that claim
-  with `npm run release:gate` in the website repo.
-- The feature remains no-live: no Coinbase calls, no browser guard evaluator,
-  no BFF wallet/margin/profitability/inventory/account-limit authority, and no
-  futures use of spot guard rules.
+- Approval lifecycle request, decision, revoke, expiry, snapshot-linking, and
+  read contracts are backend-owned and frontend-consumed.
+- Cap/guard decision records are persisted and displayed as backend-owned
+  evidence only.
+- Admission audit writer/linkage records are append-only and display/forward
+  only in the website repository.
+- Reconciliation plan records are append-only proof records and cannot execute
+  reconciliation, call Coinbase, or mark exchange/order state reconciled.
+- Backend full regression, frontend release gate, and blind/contextless
+  reviews passed for M49-M52. Live Coinbase execution was not run; submitted
+  and executed notional were `$0`.
 
 ## Completed Phases 1461-1480
 

@@ -160,13 +160,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M8 readiness posture:
+Expected M8-M53 live-enablement posture:
 
 ```json
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1481-1500",
+  "approved_phase_range": "1501-1520",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -202,11 +202,11 @@ Expected M8 readiness posture:
   "cap_guard_requirement_count": 70,
   "cap_guard_missing_requirement_count": 70,
   "live_execution_adapter_required_count": 5,
-  "live_execution_adapter_configured_count": 0,
-  "live_execution_adapter_missing_count": 5,
+  "live_execution_adapter_configured_count": 1,
+  "live_execution_adapter_missing_count": 4,
   "readiness_precondition_count": 45,
-  "blocking_readiness_precondition_count": 30,
-  "passed_readiness_precondition_count": 15,
+  "blocking_readiness_precondition_count": 29,
+  "passed_readiness_precondition_count": 16,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -221,7 +221,7 @@ Expected M8 readiness posture:
       "shared_method": "place_manual_order",
       "live_enabled": false,
       "live_eligible": false,
-      "status": "live_disabled",
+      "status": "approval_required",
       "governance_status": "blocked",
       "approval_required": true,
       "cap_required": true,
@@ -318,8 +318,8 @@ Expected M8 readiness posture:
       "blocking_preflight_check_count": 4,
       "passed_preflight_check_count": 4,
       "readiness_precondition_count": 9,
-      "blocking_readiness_precondition_count": 6,
-      "passed_readiness_precondition_count": 3,
+      "blocking_readiness_precondition_count": 5,
+      "passed_readiness_precondition_count": 4,
       "readiness_preconditions": [
         {
           "precondition": "approval_snapshot",
@@ -671,12 +671,12 @@ Expected M8 readiness posture:
       },
       "live_execution_adapter": {
         "required": true,
-        "configured": false,
+        "configured": true,
         "backend_owned": true,
         "route_bound": true,
-        "status": "live_disabled",
-        "source": "disabled_backend_service",
-        "missing_reason": "live_execution_disabled",
+        "status": "approval_required",
+        "source": "m53_backend_pilot_dry_run",
+        "missing_reason": "pilot_dry_run_only",
         "module_id": "spot_operations",
         "route": "/api/v1/orders",
         "method": "POST",
@@ -695,10 +695,10 @@ Expected M8 readiness posture:
         ],
         "evidence": [
           "Live-shaped route is mapped to the shared backend command service.",
-          "The disabled live execution service descriptor has no executable adapter.",
+          "The M53 pilot adapter is route-bound dry-run evidence only and remains non-executable.",
           "Browser and BFF layers cannot create a route-local execution adapter."
         ],
-        "detail": "POST /api/v1/orders is mapped to AdminApiCommandService.place_manual_order, but the Admin API live execution service remains disabled and non-executable."
+        "detail": "POST /api/v1/orders is mapped to AdminApiCommandService.place_manual_order through the M53 dry-run pilot adapter, but the Admin API live execution service remains disabled and non-executable."
       },
       "browser_authority": "display_only",
       "capability_source": "GET /api/v1/admin/capabilities",
@@ -854,13 +854,13 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50/M51 enterprise readiness posture:
+Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/M39/M40/M41/M42/M43/M44/M45/M46/M47/M48/M49/M50/M51/M52/M53 enterprise readiness posture:
 
 ```json
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1481-1500",
+  "approved_phase_range": "1501-1520",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1821,8 +1821,8 @@ duplicate decision id fails closed as evidence only.
 
 Revoked and expired snapshots fail closed in the existing approval resolver.
 An approved snapshot still does not make a command executable while cap/guard,
-admission audit, reconciliation, disabled live service, and live adapter gates
-remain blocked.
+admission audit, reconciliation, disabled live service, and remaining execution
+gates remain blocked.
 
 ## Reconciliation Plan Records
 

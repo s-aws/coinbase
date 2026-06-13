@@ -38,7 +38,54 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active Approval Lifecycle Batch - Phases 1481-1500
+## Active M53 Pilot Adapter Batch - Phases 1501-1520
+
+### Phase 1501 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1481-1500 to active
+  phases 1501-1520 while preserving the no-live default and carried Coinbase
+  cap policy.
+
+### Phase 1502 - Pilot Route Selection
+
+- Select exactly one pilot route: `POST /api/v1/orders`, mapped to
+  `AdminApiCommandService.place_manual_order`.
+
+### Phase 1503 - Pilot Adapter Evidence
+
+- Add backend-owned dry-run adapter evidence for the selected route only. The
+  contract must remain non-executable and expose no Coinbase client, submit,
+  create, cancel, or execute method.
+
+### Phase 1504 - Live-Enablement Evidence
+
+- Update `GET /api/v1/admin/live-enablement` so the pilot route reports the
+  configured dry-run adapter while all other live-shaped routes remain
+  disabled.
+
+### Phase 1505 - Admission And Cap Proof
+
+- Prove the pilot route still requires exact approval, admission audit,
+  cap/guard, reconciliation, idempotency, operator intent, payload hash, and
+  live execution service admission before execution.
+
+### Phase 1506 - Backend Boundary Tests
+
+- Add focused tests that the pilot remains single-route, dry-run only,
+  backend-owned, and routed through the shared command service.
+
+### Phase 1507 - Frontend Sync
+
+- Sync frontend schema/runtime/mock/UI evidence for M53 without creating a
+  browser live switch, BFF execution authority, or direct Coinbase call.
+
+### Phase 1508 - Gates And Reviews
+
+- Run focused backend/frontend gates, dry smokes, full regression/release gate,
+  and blind/contextless review before any later phase may consider live
+  Coinbase execution.
+
+## Completed Approval Lifecycle Batch - Phases 1481-1500
 
 ### Phase 1481 - Advance Active Queue Range
 

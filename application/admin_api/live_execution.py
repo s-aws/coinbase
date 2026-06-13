@@ -26,6 +26,12 @@ DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS = (
     "submit",
     "coinbase_client",
 )
+M53_PILOT_LIVE_ADAPTER_ROUTE = "/api/v1/orders"
+M53_PILOT_LIVE_ADAPTER_METHOD = "POST"
+M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
+M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD = "place_manual_order"
+M53_PILOT_LIVE_ADAPTER_SOURCE = "m53_backend_pilot_dry_run"
+M53_PILOT_LIVE_ADAPTER_MISSING_REASON = "pilot_dry_run_only"
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +122,88 @@ def build_disabled_live_execution_adapter_contract(
             "non-executable."
         ),
     }
+
+
+def build_m53_pilot_live_execution_adapter_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+) -> dict[str, Any]:
+    """Return the M53 route-bound pilot adapter evidence.
+
+    This contract deliberately stops short of executable live submission. It
+    proves the selected route is mapped to the shared command service and can
+    be dry-run admitted, while the live execution service remains the final
+    backend-only boundary before any Coinbase call is possible.
+    """
+
+    adapter_reference = f"AdminApiCommandService.{service_method}"
+    return {
+        "required": True,
+        "configured": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "status": AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+        "source": M53_PILOT_LIVE_ADAPTER_SOURCE,
+        "missing_reason": M53_PILOT_LIVE_ADAPTER_MISSING_REASON,
+        "module_id": module_id,
+        "route": route,
+        "method": method,
+        "service_method": service_method,
+        "adapter_reference": adapter_reference,
+        "action_class": action_class,
+        "executable": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
+        "evidence": [
+            "M53 pilot maps one route to the shared backend command service.",
+            "Pilot adapter admission is dry-run only and exposes no submit method.",
+            "Live execution service admission remains required before Coinbase submission.",
+            "Browser and BFF layers cannot make the pilot adapter executable.",
+        ],
+        "detail": (
+            f"{method} {route} is configured as the M53 dry-run pilot for "
+            f"{adapter_reference}; it remains non-executable until backend "
+            "live execution service admission, route-bound approvals, caps, "
+            "admission audit, reconciliation proof, and live caps all pass."
+        ),
+    }
+
+
+def build_live_execution_adapter_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+) -> dict[str, Any]:
+    """Return route-specific live adapter evidence for Admin API readiness."""
+
+    if (
+        method == M53_PILOT_LIVE_ADAPTER_METHOD
+        and route == M53_PILOT_LIVE_ADAPTER_ROUTE
+        and module_id == M53_PILOT_LIVE_ADAPTER_MODULE_ID
+        and service_method == M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD
+    ):
+        return build_m53_pilot_live_execution_adapter_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            action_class=action_class,
+        )
+    return build_disabled_live_execution_adapter_contract(
+        method=method,
+        route=route,
+        module_id=module_id,
+        service_method=service_method,
+        action_class=action_class,
+    )
 
 
 def build_disabled_live_execution_intent(

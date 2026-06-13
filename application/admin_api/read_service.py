@@ -56,7 +56,7 @@ from .auth import (
 )
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
-    build_disabled_live_execution_adapter_contract,
+    build_live_execution_adapter_contract,
 )
 from .models import (
     AdminApiActor,
@@ -119,7 +119,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1481-1500"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1501-1520"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -5602,12 +5602,16 @@ class AdminApiReadService:
                 module_id=item.module_id,
                 identity_key=identity_key,
             )
-            live_execution_adapter = build_disabled_live_execution_adapter_contract(
+            live_execution_adapter = build_live_execution_adapter_contract(
                 method=method,
                 route=path,
                 module_id=item.module_id,
                 service_method=item.shared_method,
                 action_class=item.action_class,
+            )
+            path_live_status = live_execution_adapter.get(
+                "status",
+                AdminApiLiveExecutionStatus.LIVE_DISABLED,
             )
             readiness_preconditions = _live_readiness_preconditions(
                 method=method,
@@ -5633,7 +5637,7 @@ class AdminApiReadService:
                     shared_method=item.shared_method,
                     live_enabled=False,
                     live_eligible=False,
-                    status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+                    status=path_live_status,
                     governance_status=AdminApiGateStatus.BLOCKED,
                     approval_required=True,
                     cap_required=True,

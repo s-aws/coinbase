@@ -2383,3 +2383,57 @@ Status:
   Playwright tests.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M53 Controlled Execution Adapter Pilot Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewers.
+
+Reviewer tasks:
+
+- verify the M53 pilot adapter is understandable from repository evidence
+- verify only `POST /api/v1/orders` for `spot_operations` through
+  `place_manual_order` is shown as a configured dry-run-only adapter
+- verify the pilot remains non-executable with browser `display_only` and BFF
+  `forward_only_no_execution`
+- verify non-pilot live-enablement routes remain `live_disabled`
+
+Findings:
+
+- Initial backend blind review blocked on stale example evidence in
+  `docs/examples/admin-api.md`. The live-enablement example had the new
+  `1501-1520` phase range but still showed adapter counts `0/5`, readiness
+  counts `30/15`, and the pilot route adapter as `live_disabled`.
+- Frontend blind review passed with no blockers. It confirmed the website
+  consumes the backend-owned pilot evidence as display-only/forward-only data
+  and does not add browser or BFF execution authority.
+- Follow-up backend blind review passed after remediation. It confirmed the
+  aggregate counts are adapter `1/4`, readiness `29/16`, the pilot path is
+  `POST /api/v1/orders`, and the pilot path readiness is `5/4`.
+
+Resolution:
+
+- Backend examples now show the M53 pilot adapter as configured dry-run
+  evidence with status `approval_required`, source
+  `m53_backend_pilot_dry_run`, missing reason `pilot_dry_run_only`, and
+  `executable=false`.
+- The same example keeps live execution blocked by approval, cap/guard,
+  admission-audit, reconciliation, and disabled-live-service gates.
+- No behavior remediation was required in the frontend.
+
+Status:
+
+- Backend autonomous work queue check passed for approved phases `1501-1520`.
+- Backend ownership check passed.
+- Backend focused Admin API and spot readiness checks passed with `82 passed,
+  1 warning`.
+- Backend full regression passed earlier in the M53 slice with `809 passed,
+  1 warning`.
+- Frontend `npm run release:check` and `npm run autonomous:check` passed.
+- Frontend full `npm run release:gate` passed earlier in the M53 slice with
+  `190` unit tests and `3` Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

@@ -58,6 +58,7 @@ from application.admin_api.live_execution import (
     DisabledAdminApiLiveExecutionService,
     build_disabled_live_execution_adapter_contract,
     build_disabled_live_execution_intent,
+    build_live_execution_adapter_contract,
     get_disabled_live_execution_service,
 )
 from application.admin_api.models import (
@@ -82,6 +83,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiLiveAdmissionBlocker,
+    AdminApiLiveExecutionStatus,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
@@ -3654,6 +3656,51 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only():
 
 
 @pytest.mark.regression
+def test_admin_api_m53_pilot_adapter_is_single_route_dry_run_only():
+    pilot = build_live_execution_adapter_contract(
+        method="POST",
+        route="/api/v1/orders",
+        module_id="spot_operations",
+        service_method="place_manual_order",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+    )
+    non_pilot = build_live_execution_adapter_contract(
+        method="POST",
+        route="/api/v1/orders/{client_order_id}/cancel",
+        module_id="spot_operations",
+        service_method="cancel_order_by_client_order_id",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+    )
+
+    assert pilot["configured"] is True
+    assert pilot["route"] == "/api/v1/orders"
+    assert pilot["method"] == "POST"
+    assert pilot["service_method"] == "place_manual_order"
+    assert pilot["adapter_reference"] == "AdminApiCommandService.place_manual_order"
+    assert pilot["status"] == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+    assert pilot["source"] == "m53_backend_pilot_dry_run"
+    assert pilot["missing_reason"] == "pilot_dry_run_only"
+    assert pilot["executable"] is False
+    assert pilot["browser_authority"] == "display_only"
+    assert pilot["bff_authority"] == "forward_only_no_execution"
+    assert pilot["forbidden_methods"] == [
+        "create_order",
+        "cancel_order",
+        "execute",
+        "submit",
+        "coinbase_client",
+    ]
+    assert any("dry-run only" in item for item in pilot["evidence"])
+    assert "non-executable" in pilot["detail"]
+
+    assert non_pilot["configured"] is False
+    assert non_pilot["status"] == AdminApiLiveExecutionStatus.LIVE_DISABLED
+    assert non_pilot["source"] == "disabled_backend_service"
+    assert non_pilot["missing_reason"] == "live_execution_disabled"
+    assert non_pilot["executable"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates():
     service_source = inspect.getsource(command_service)
     route_source = "\n".join(
@@ -3897,7 +3944,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1481-1500"
+    assert live_payload["approved_phase_range"] == "1501-1520"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -3929,11 +3976,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["cap_guard_requirement_count"] == 70
     assert live_payload["cap_guard_missing_requirement_count"] == 70
     assert live_payload["live_execution_adapter_required_count"] == 5
-    assert live_payload["live_execution_adapter_configured_count"] == 0
-    assert live_payload["live_execution_adapter_missing_count"] == 5
+    assert live_payload["live_execution_adapter_configured_count"] == 1
+    assert live_payload["live_execution_adapter_missing_count"] == 4
     assert live_payload["readiness_precondition_count"] == 45
-    assert live_payload["blocking_readiness_precondition_count"] == 30
-    assert live_payload["passed_readiness_precondition_count"] == 15
+    assert live_payload["blocking_readiness_precondition_count"] == 29
+    assert live_payload["passed_readiness_precondition_count"] == 16
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -3945,7 +3992,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert "/api/v1/spot/campaign/executions" in live_routes
     assert all(item["live_enabled"] is False for item in live_routes.values())
-    assert all(item["status"] == "live_disabled" for item in live_routes.values())
+    assert live_routes["/api/v1/orders"]["status"] == "approval_required"
+    assert all(
+        item["status"] == "live_disabled"
+        for route, item in live_routes.items()
+        if route != "/api/v1/orders"
+    )
     assert all(item["governance_status"] == "blocked" for item in live_routes.values())
     assert all(item["browser_authority"] == "display_only" for item in live_routes.values())
     assert all(item["capability_source"] == "GET /api/v1/admin/capabilities" for item in live_routes.values())
@@ -4105,17 +4157,23 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         len(item["cap_guard_contract"]["requirements"]) == 14
         for item in live_routes.values()
     )
+    assert live_routes["/api/v1/orders"]["live_execution_adapter"]["status"] == (
+        "approval_required"
+    )
     assert all(
         item["live_execution_adapter"]["status"] == "live_disabled"
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route != "/api/v1/orders"
     )
     assert all(
         item["live_execution_adapter"]["required"] is True
         for item in live_routes.values()
     )
+    assert live_routes["/api/v1/orders"]["live_execution_adapter"]["configured"] is True
     assert all(
         item["live_execution_adapter"]["configured"] is False
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route != "/api/v1/orders"
     )
     assert all(
         item["live_execution_adapter"]["backend_owned"] is True
@@ -4137,13 +4195,21 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         item["live_execution_adapter"]["bff_authority"] == "forward_only_no_execution"
         for item in live_routes.values()
     )
+    assert live_routes["/api/v1/orders"]["live_execution_adapter"]["source"] == (
+        "m53_backend_pilot_dry_run"
+    )
+    assert live_routes["/api/v1/orders"]["live_execution_adapter"]["missing_reason"] == (
+        "pilot_dry_run_only"
+    )
     assert all(
         item["live_execution_adapter"]["source"] == "disabled_backend_service"
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route != "/api/v1/orders"
     )
     assert all(
         item["live_execution_adapter"]["missing_reason"] == "live_execution_disabled"
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route != "/api/v1/orders"
     )
     assert all(
         item["live_execution_adapter"]["forbidden_methods"]
@@ -4158,13 +4224,17 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         item["readiness_precondition_count"] == 9
         for item in live_routes.values()
     )
+    assert live_routes["/api/v1/orders"]["blocking_readiness_precondition_count"] == 5
+    assert live_routes["/api/v1/orders"]["passed_readiness_precondition_count"] == 4
     assert all(
         item["blocking_readiness_precondition_count"] == 6
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route != "/api/v1/orders"
     )
     assert all(
         item["passed_readiness_precondition_count"] == 3
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route != "/api/v1/orders"
     )
     assert all(
         precondition["browser_authority"] == "display_only"
@@ -4196,6 +4266,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_adapter["service_method"] == "place_manual_order"
     assert spot_adapter["adapter_reference"] == "AdminApiCommandService.place_manual_order"
     assert spot_adapter["action_class"] == "live_exchange_place"
+    assert spot_adapter["configured"] is True
+    assert spot_adapter["status"] == "approval_required"
+    assert spot_adapter["source"] == "m53_backend_pilot_dry_run"
+    assert spot_adapter["missing_reason"] == "pilot_dry_run_only"
     assert "non-executable" in spot_adapter["detail"]
     spot_readiness = {
         precondition["precondition"]: precondition
@@ -4223,7 +4297,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_readiness["admission_audit_trail"]["blocker"] == "admission_audit_missing"
     assert spot_readiness["cap_guard_contract"]["blocker"] == "cap_guard_missing"
     assert spot_readiness["reconciliation_plan"]["blocker"] == "reconciliation_plan_missing"
-    assert spot_readiness["live_execution_adapter"]["blocker"] == "live_execution_disabled"
+    assert spot_readiness["live_execution_adapter"]["status"] == "passed"
+    assert spot_readiness["live_execution_adapter"]["configured"] is True
+    assert spot_readiness["live_execution_adapter"]["blocking"] is False
+    assert spot_readiness["live_execution_adapter"]["blocker"] is None
     assert spot_readiness["live_execution_adapter"]["expected_source"] == (
         "AdminApiCommandService.place_manual_order"
     )
@@ -4421,7 +4498,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1481-1500"
+    assert enterprise_payload["approved_phase_range"] == "1501-1520"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
