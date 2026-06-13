@@ -114,6 +114,7 @@ from .models import (
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
+    SpotCommandSuiteCoverageGapEvidenceRouteItem,
     SpotCommandSuiteCoverageGapItem,
     SpotCommandSuiteProofRouteItem,
     SpotCommandSuiteResponse,
@@ -124,7 +125,7 @@ from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1641-1660"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1661-1680"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -6958,6 +6959,75 @@ class AdminApiReadService:
             "live_execution_service",
             "post_live_reconciliation",
         ]
+
+        gap_evidence_route_docs = {
+            "GET /api/v1/spot/sweep/status": [
+                "README.spot-portfolio-sweep.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/spot/sweep/pnl": [
+                "README.spot-portfolio-sweep.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/spot/cost-basis/status": [
+                "README.spot-trading.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/spot/campaign/status": [
+                "README.spot-campaign.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/spot/direct-orders/{client_order_id}/audit": [
+                "README.spot-trading.md",
+                "docs/OPERATOR_READ_MODELS.md",
+            ],
+            "GET /api/v1/admin/recovery-gate": [
+                "README.admin-api.md",
+                "docs/OPERATOR_READ_MODELS.md",
+            ],
+            "GET /api/v1/admin/reconciliation/plans": [
+                "README.reconciliation-plans.md",
+                "docs/examples/reconciliation-plans.md",
+            ],
+            "GET /api/v1/admin/reconciliation/plans/{plan_id}": [
+                "README.reconciliation-plans.md",
+                "docs/examples/reconciliation-plans.md",
+            ],
+            "GET /api/v1/spot/command-suite": [
+                "docs/COMMAND_WORKFLOWS.md",
+                "docs/examples/admin-api.md",
+            ],
+        }
+
+        def coverage_gap_evidence_routes(
+            surfaces: list[str],
+        ) -> list[SpotCommandSuiteCoverageGapEvidenceRouteItem]:
+            evidence_routes: list[SpotCommandSuiteCoverageGapEvidenceRouteItem] = []
+            for surface in surfaces:
+                inventory_item = inventory_by_surface[surface]
+                method, route = _surface_method_and_path(inventory_item.surface)
+                evidence_routes.append(
+                    SpotCommandSuiteCoverageGapEvidenceRouteItem(
+                        route=route,
+                        method=method,
+                        action_class=inventory_item.action_class,
+                        required_permission=inventory_item.permission,
+                        shared_method=inventory_item.shared_method,
+                        backend_owned=True,
+                        browser_authority="display_only",
+                        bff_authority="read_only_forward",
+                        documentation_refs=list(
+                            gap_evidence_route_docs.get(surface, ["docs/COMMAND_WORKFLOWS.md"])
+                        ),
+                        detail=(
+                            "Existing read-only Admin API evidence route for a "
+                            "spot command-suite coverage gap; it does not create "
+                            "a command route, execute reconciliation, or call Coinbase."
+                        ),
+                    )
+                )
+            return evidence_routes
+
         coverage_gaps = [
             SpotCommandSuiteCoverageGapItem(
                 family=AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION,
@@ -6968,6 +7038,13 @@ class AdminApiReadService:
                     "GET /api/v1/spot/campaign/status",
                     "GET /api/v1/spot/command-suite",
                 ],
+                current_read_evidence=coverage_gap_evidence_routes(
+                    [
+                        "GET /api/v1/spot/sweep/status",
+                        "GET /api/v1/spot/campaign/status",
+                        "GET /api/v1/spot/command-suite",
+                    ]
+                ),
                 required_backend_contract=(
                     "Durable enterprise sweep scheduling, pause/resume, run-limit, "
                     "retry, execution-record, recovery, and reconciliation contract."
@@ -7001,6 +7078,12 @@ class AdminApiReadService:
                     "GET /api/v1/spot/sweep/pnl",
                     "GET /api/v1/spot/cost-basis/status",
                 ],
+                current_read_evidence=coverage_gap_evidence_routes(
+                    [
+                        "GET /api/v1/spot/sweep/pnl",
+                        "GET /api/v1/spot/cost-basis/status",
+                    ]
+                ),
                 required_backend_contract=(
                     "Durable spot P/L checkpoint, product ledger, average-cost "
                     "snapshot, and operator review contract for admin workflows."
@@ -7038,6 +7121,12 @@ class AdminApiReadService:
                     "GET /api/v1/admin/recovery-gate",
                     "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
                 ],
+                current_read_evidence=coverage_gap_evidence_routes(
+                    [
+                        "GET /api/v1/admin/recovery-gate",
+                        "GET /api/v1/spot/direct-orders/{client_order_id}/audit",
+                    ]
+                ),
                 required_backend_contract=(
                     "Spot recovery preview/apply contract with RBAC, idempotency, "
                     "append-only audit, rollback evidence, and reconciliation proof."
@@ -7078,6 +7167,12 @@ class AdminApiReadService:
                     "GET /api/v1/admin/reconciliation/plans",
                     "GET /api/v1/admin/reconciliation/plans/{plan_id}",
                 ],
+                current_read_evidence=coverage_gap_evidence_routes(
+                    [
+                        "GET /api/v1/admin/reconciliation/plans",
+                        "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+                    ]
+                ),
                 required_backend_contract=(
                     "Spot-specific reconciliation execution/proof contract that "
                     "can compare backend order state with Coinbase evidence without "

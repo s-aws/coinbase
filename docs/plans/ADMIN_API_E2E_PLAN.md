@@ -38,44 +38,53 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Coverage Gap Evidence Batch - Phases 1641-1660
+## Active M54 Coverage Gap Evidence-Route Batch - Phases 1661-1680
 
-### Phase 1641 - Advance Active Queue Range
+### Phase 1661 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1621-1640 to active
-  phases 1641-1660 while preserving the no-live default and carried Coinbase
+- Move the durable autonomous queue from completed phases 1641-1660 to active
+  phases 1661-1680 while preserving the no-live default and carried Coinbase
   cap policy.
 
-### Phase 1642 - Command-Suite Gap Contract
+### Phase 1662 - Command-Suite Evidence-Route Contract
 
-- Extend `GET /api/v1/spot/command-suite` with typed coverage-gap evidence for
-  sweep automation, P/L tracking, recovery, and reconciliation before adding
-  any new spot command routes.
+- Extend command-suite coverage gaps with typed read-route evidence derived
+  from route inventory for sweep, P/L, recovery, and reconciliation surfaces.
 
-### Phase 1643 - Backend Range Evidence
+### Phase 1663 - Backend Range Evidence
 
 - Keep backend live-enablement, enterprise-readiness, autonomous summary, and
-  regression tests reporting `1641-1660`.
+  regression tests reporting `1661-1680`.
 
-### Phase 1644 - Website Gap Rendering
+### Phase 1664 - Website Evidence Navigation
 
-- Sync website generated schema and render command-suite coverage gaps as
-  read-only evidence, not command workflow controls.
+- Sync website generated schema and render evidence-route navigation to
+  existing read-only surfaces, not command workflow controls.
 
-### Phase 1645 - Boundary Evidence
+### Phase 1665 - Boundary Evidence
 
-- Prove command rows and gap rows remain separate, BFF mutation authority does
-  not broaden, and non-spot modules do not inherit spot gap semantics.
+- Prove command rows, gap rows, and evidence-route rows remain separate, BFF
+  mutation authority does not broaden, and non-spot modules do not inherit spot
+  gap semantics.
 
-### Phase 1646 - Tests, Docs, And Review
+### Phase 1666 - Tests, Docs, And Review
 
-- Cover backend/frontend gap evidence in focused tests, update handoff/roadmap
-  docs, and run blind/contextless review before full gates.
+- Cover backend/frontend evidence-route linkage in focused tests, update
+  handoff/roadmap docs, and run blind/contextless review before full gates.
 
-### Phase 1647 - Full Gates And Push
+### Phase 1667 - Full Gates And Push
 
 - Run backend regression, website release gate, then commit and push both
   repositories with no live Coinbase execution.
+
+## Completed M54 Coverage Gap Evidence Batch - Phases 1641-1660
+
+- `GET /api/v1/spot/command-suite` exposes typed `coverage_gaps` for sweep
+  automation, P/L tracking, recovery, and reconciliation without adding
+  command routes.
+- The website renders coverage gaps as missing-contract evidence only.
+- Backend regression, website release gate, and blind/contextless review
+  passed with submitted/executed notional `$0`.
 
 ## Completed M54 Command Workflow Readiness Trace Batch - Phases 1621-1640
 

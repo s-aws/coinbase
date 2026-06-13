@@ -166,7 +166,7 @@ Expected M8-M54 live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "1641-1660",
+  "approved_phase_range": "1661-1680",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -860,7 +860,7 @@ Expected M9/M21/M23/M24/M25/M26/M27/M28/M29/M30/M31/M32/M33/M34/M35/M36/M37/M38/
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "1641-1660",
+  "approved_phase_range": "1661-1680",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1629,7 +1629,9 @@ from live-enablement evidence so operators can see which gates are configured,
 blocking, or passed without treating the browser as a gate evaluator.
 The response also includes `coverage_gaps` for remaining M54 spot families
 that are not command-complete. Gap rows are read-only planning evidence, not
-mutation routes or browser authority.
+mutation routes or browser authority. Each gap row may include typed
+`current_read_evidence` rows for existing read-only evidence routes derived
+from backend route inventory.
 
 ```http
 GET /api/v1/spot/command-suite
@@ -1643,7 +1645,7 @@ X-Admin-Roles: viewer
   "type": "spot_command_suite",
   "module_id": "spot_operations",
   "status": "blocked",
-  "approved_phase_range": "1641-1660",
+  "approved_phase_range": "1661-1680",
   "command_count": 3,
   "blocked_command_count": 3,
   "live_enabled_command_count": 0,
@@ -1875,6 +1877,53 @@ X-Admin-Roles: viewer
         "GET /api/v1/spot/sweep/status",
         "GET /api/v1/spot/campaign/status",
         "GET /api/v1/spot/command-suite"
+      ],
+      "current_read_evidence": [
+        {
+          "route": "/api/v1/spot/sweep/status",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "analytics:read",
+          "shared_method": "build_spot_sweep_status",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.spot-portfolio-sweep.md",
+            "docs/COMMAND_WORKFLOWS.md"
+          ],
+          "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
+        },
+        {
+          "route": "/api/v1/spot/campaign/status",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "analytics:read",
+          "shared_method": "build_spot_campaign_status",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "README.spot-campaign.md",
+            "docs/COMMAND_WORKFLOWS.md"
+          ],
+          "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
+        },
+        {
+          "route": "/api/v1/spot/command-suite",
+          "method": "GET",
+          "action_class": "read_only",
+          "required_permission": "analytics:read",
+          "shared_method": "build_spot_command_suite",
+          "backend_owned": true,
+          "browser_authority": "display_only",
+          "bff_authority": "read_only_forward",
+          "documentation_refs": [
+            "docs/COMMAND_WORKFLOWS.md",
+            "docs/examples/admin-api.md"
+          ],
+          "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
+        }
       ],
       "required_backend_contract": "Durable enterprise sweep scheduling, pause/resume, run-limit, retry, execution-record, recovery, and reconciliation contract.",
       "required_gate_chain": [

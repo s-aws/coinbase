@@ -2,6 +2,63 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## Spot Command Suite Coverage Gap Evidence-Route Review - Phases 1661-1680
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- trace backend `GET /api/v1/spot/command-suite`
+  `coverage_gaps.current_read_evidence` from route inventory/read service
+  through OpenAPI, generated website schema, mock/runtime fixtures, spot
+  adapter/read model, and Spot Command Suite UI evidence links
+- verify evidence routes are backend-owned read-only route evidence derived
+  from route inventory, not ad hoc browser behavior
+- verify UI links are local read-only navigation and do not issue fetches,
+  create commands, or create proof records
+- verify command workflow draft cards do not consume coverage gaps or
+  evidence-route rows
+- verify BFF mutation routes, command dry-submit, and command fetch guards do
+  not gain authority from evidence-route navigation
+- verify active roadmap/validators point to `1661-1680`, with `1641-1660`
+  retained only as completed/history/review context
+
+Findings:
+
+- PASS: blind/contextless review found no blockers.
+- PASS: the reviewer traced `coverage_gaps.current_read_evidence` from
+  `ADMIN_API_ROUTE_INVENTORY` through `read_service.py`, typed models,
+  OpenAPI, generated website schema, mock backend, spot adapter/read model,
+  and `SpotReadOnlyViews`.
+- PASS: evidence links are local hash anchors only; they do not fetch, create
+  proof records, submit commands, execute reconciliation, or call Coinbase.
+- PASS: command workflow draft cards still consume command rows,
+  `proof_routes`, and `readiness_preconditions`, not coverage gaps or
+  evidence-route rows.
+- PASS: BFF mutation routes, mutation contracts, dry-submit helpers, and
+  command fetch guards did not gain authority from evidence-route navigation.
+- PASS: no browser profitability/sell authority, non-spot semantics, or live
+  Coinbase path was introduced.
+
+Status:
+
+- Backend autonomous queue validation passed for `1661-1680`.
+- Backend focused OpenAPI, command-suite, read-contract, and autonomous range
+  checks passed with `4 passed, 1 warning`.
+- Backend ownership check passed.
+- Backend full regression passed with `810 passed, 1 warning`.
+- Frontend focused Spot read-view/runtime/mock/command-workflow/shell/range
+  checks passed with `72 passed`.
+- Frontend generated API, route coverage, typecheck, lint, command-security,
+  autonomous queue, and release gate passed; final release gate included
+  `194` unit tests and `3` Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.
+
 ## Spot Command Suite Coverage Gap Review - Phases 1641-1660
 
 Review scope:

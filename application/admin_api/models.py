@@ -2035,6 +2035,23 @@ class SpotCommandSuiteCommandItem(BaseModel):
     detail: str
 
 
+class SpotCommandSuiteCoverageGapEvidenceRouteItem(BaseModel):
+    """Read route that supplies evidence for a spot command-suite coverage gap."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str
+    method: str = "GET"
+    action_class: AdminApiActionClass = AdminApiActionClass.READ_ONLY
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class SpotCommandSuiteCoverageGapItem(BaseModel):
     """Remaining spot admin suite family that is not yet command-complete."""
 
@@ -2045,6 +2062,9 @@ class SpotCommandSuiteCoverageGapItem(BaseModel):
     exposure_status: AdminApiFunctionalityExposureStatus
     command_route: str | None = None
     current_read_evidence_routes: list[str] = Field(default_factory=list)
+    current_read_evidence: list[SpotCommandSuiteCoverageGapEvidenceRouteItem] = Field(
+        default_factory=list
+    )
     required_backend_contract: str
     required_gate_chain: list[str] = Field(default_factory=list)
     missing_contracts: list[str] = Field(default_factory=list)

@@ -66,6 +66,13 @@ backend contracts, required gate chains, and browser/BFF boundaries, but they
 must not become command workflow drafts, BFF mutation routes, browser
 profitability or sell authority, reconciliation execution, or Coinbase calls.
 
+Gap rows also report typed `current_read_evidence` rows derived from
+`ADMIN_API_ROUTE_INVENTORY`. These rows identify the existing read-only Admin
+API route, method, permission, shared read-service method, documentation refs,
+and display/forward-only boundary that supports the gap. They are navigation
+and traceability evidence only; they do not create command routes or satisfy
+the missing backend contracts.
+
 Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls
 `cancel_order(client_order_id)` because the exchange accepts the client id for

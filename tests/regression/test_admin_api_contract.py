@@ -3831,6 +3831,18 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         assert gap["bff_authority"] == "forward_only_no_execution"
         assert "Spot-only" in gap["spot_rule_boundary"]
         assert gap["current_read_evidence_routes"]
+        assert gap["current_read_evidence"]
+        assert [
+            f"{item['method']} {item['route']}" for item in gap["current_read_evidence"]
+        ] == gap["current_read_evidence_routes"]
+        for evidence_route in gap["current_read_evidence"]:
+            assert evidence_route["method"] == "GET"
+            assert evidence_route["action_class"] == AdminApiActionClass.READ_ONLY.value
+            assert evidence_route["backend_owned"] is True
+            assert evidence_route["browser_authority"] == "display_only"
+            assert evidence_route["bff_authority"] == "read_only_forward"
+            assert evidence_route["shared_method"]
+            assert evidence_route["documentation_refs"]
         assert gap["required_backend_contract"]
         assert gap["required_gate_chain"]
         assert gap["missing_contracts"]
@@ -4172,7 +4184,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1641-1660"
+    assert live_payload["approved_phase_range"] == "1661-1680"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -4726,7 +4738,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1641-1660"
+    assert enterprise_payload["approved_phase_range"] == "1661-1680"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"

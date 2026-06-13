@@ -10475,6 +10475,56 @@ components:
       - detail
       title: SpotCommandSuiteCommandItem
       description: One spot admin command surface and its remaining gate chain.
+    SpotCommandSuiteCoverageGapEvidenceRouteItem:
+      properties:
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: GET
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: read_only
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - route
+      - required_permission
+      - shared_method
+      - detail
+      title: SpotCommandSuiteCoverageGapEvidenceRouteItem
+      description: Read route that supplies evidence for a spot command-suite coverage
+        gap.
     SpotCommandSuiteCoverageGapItem:
       properties:
         family:
@@ -10494,6 +10544,11 @@ components:
             type: string
           type: array
           title: Current Read Evidence Routes
+        current_read_evidence:
+          items:
+            $ref: '#/components/schemas/SpotCommandSuiteCoverageGapEvidenceRouteItem'
+          type: array
+          title: Current Read Evidence
         required_backend_contract:
           type: string
           title: Required Backend Contract

@@ -2413,15 +2413,25 @@ Completed sixth-slice scope:
   enable commands, call Coinbase, or treat spot preconditions as non-spot
   authority.
 
-Active seventh-slice scope:
+Completed seventh-slice scope:
 
-- Active phases 1641-1660 extend the command-suite contract with typed
+- Phases 1641-1660 extended the command-suite contract with typed
   `coverage_gaps` for spot sweep automation, P/L tracking, recovery workflow,
   and reconciliation workflow.
 - Gap rows are not mutation-family rows and must not become command workflow
   drafts. They name current read evidence, missing backend contracts, required
   gate chains, and browser/BFF authority boundaries before any new spot command
   route is introduced.
+
+Active eighth-slice scope:
+
+- Active phases 1661-1680 link those gap rows to typed
+  `current_read_evidence` rows derived from route inventory.
+- Evidence-route rows identify the existing read-only route, method,
+  permission, shared read-service method, docs, and browser/BFF boundary that
+  support each gap. They remain traceability evidence only and must not create
+  command routes, command workflow drafts, reconciliation execution, or
+  Coinbase calls.
 
 Current backend evidence:
 
@@ -2430,7 +2440,8 @@ Current backend evidence:
 - `api/v1/routes/spot.py` exposes the read-only route with
   `analytics:read` permission.
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
-  include the command-suite response and proof-route gate linkage.
+  include the command-suite response, proof-route gate linkage, and typed
+  coverage-gap evidence-route linkage.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
@@ -2440,7 +2451,7 @@ Remaining blockers before M54 can claim full spot command-suite completion:
   backend-owned contracts before command UI can exist.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
-- Live Coinbase execution remains not run for the current M54 coverage-gap
+- Live Coinbase execution remains not run for the current M54 evidence-route
   slice; submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
