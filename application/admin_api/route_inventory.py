@@ -307,6 +307,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/reconciliation-executions",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required",
+        approval="required",
+        caps="required",
+        audit="required",
+        shared_method="execute_spot_recovery_reconciliation",
+        parity_test=(
+            "spot recovery reconciliation execution is route-bound but "
+            "fail-closed; no reconciliation execution, order/exchange-state "
+            "mutation, Coinbase read, or Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/reconciliation-proofs",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.SPOT_RECOVERY_RECORD,

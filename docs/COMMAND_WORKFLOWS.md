@@ -130,10 +130,12 @@ journal, repair-result, approval, admission audit, cap/guard,
 reconciliation-plan, idempotency, operator-intent, and payload-hash evidence
 matches exactly. The reconciliation-proof read route also exposes
 fail-closed reconciliation execution boundary rows keyed by `client_order_id`;
-these rows name the future required inputs and blockers but do not create an
-execution route or service. The read routes and proof POST routes must not
-roll back order state, execute reconciliation, mutate order/exchange state,
-call Coinbase, or authorize browser/BFF recovery.
+these rows name the disabled
+`POST /api/v1/spot/recovery/reconciliation-executions` route, the
+`execute_spot_recovery_reconciliation` service boundary, required inputs, and
+remaining blockers. That route is audited, idempotent, RBAC-protected, and
+fail-closed; it must not roll back order state, execute reconciliation, mutate
+order/exchange state, call Coinbase, or authorize browser/BFF recovery.
 Accepted checkpoint records also expose read-only reconciliation-plan link
 evidence to `GET /api/v1/admin/reconciliation/plans` and
 `GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage

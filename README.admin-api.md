@@ -147,10 +147,14 @@ records. Completion records are append-only backend local evidence created
 only after matching proof, apply journal, repair-result, approval, admission
 audit, cap/guard, reconciliation-plan, idempotency, operator-intent, and
 payload-hash evidence. The reconciliation-proof readback also exposes
-fail-closed reconciliation execution boundary rows that name the future
-required inputs and remaining blockers. Order/exchange-state mutation,
-Coinbase reads, Coinbase submissions, and reconciliation execution remain
-blockers.
+fail-closed reconciliation execution boundary rows that name the route-bound
+POST contract, required inputs, and remaining blockers. The route
+`POST /api/v1/spot/recovery/reconciliation-executions` exists only as a
+disabled shared-command-service boundary: it is idempotent, audited, and
+RBAC-protected, but it returns rejected evidence until the backend
+reconciliation executor and Coinbase evidence snapshot contract exist.
+Order/exchange-state mutation, Coinbase reads, Coinbase submissions, and
+actual reconciliation execution remain blockers.
 Disabled POST contracts exist for recovery apply and rollback; proof POST
 contracts persist append-only backend local evidence only after route-bound
 approval, admission audit, cap/guard, reconciliation plan, idempotency, and

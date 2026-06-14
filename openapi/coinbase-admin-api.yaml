@@ -3610,6 +3610,111 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/reconciliation-executions:
+    post:
+      tags:
+      - orders
+      summary: Attempt spot recovery reconciliation execution through the shared command
+        service
+      description: Route-bound reconciliation execution boundary; executor remains
+        disabled.
+      operationId: execute_spot_recovery_reconciliation_api_v1_spot_recovery_reconciliation_executions_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpotRecoveryReconciliationExecutionRequest'
+      responses:
+        '200':
+          description: Spot recovery execution journal accepted or replayed after
+            all backend prerequisites match.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Spot recovery execution rejected before local journal persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required spot recovery execute permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/recovery/exchange-state-proofs:
     post:
       tags:
@@ -14180,6 +14285,61 @@ components:
       - detail
       title: SpotRecoveryReconciliationExecutionBoundaryItem
       description: Fail-closed boundary for future Spot recovery reconciliation execution.
+    SpotRecoveryReconciliationExecutionRequest:
+      properties:
+        client_order_id:
+          type: string
+          minLength: 1
+          title: Client Order Id
+        reconciliation_plan_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Plan Id
+        reconciliation_proof_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Proof Id
+        completion_id:
+          type: string
+          minLength: 1
+          title: Completion Id
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          minLength: 1
+          title: Cap Guard Decision Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - reconciliation_plan_id
+      - reconciliation_proof_id
+      - completion_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      title: SpotRecoveryReconciliationExecutionRequest
+      description: Spot recovery reconciliation execution request keyed by ``client_order_id``.
     SpotRecoveryReconciliationProofRecordRequest:
       properties:
         client_order_id:

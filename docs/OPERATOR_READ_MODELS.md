@@ -42,14 +42,18 @@ execution boundary: `reconciliation_execution_boundary_available`,
 `reconciliation_execution_boundaries`, and
 `latest_reconciliation_execution_boundary_id`. Completion fields prove only
 that a backend-owned local completion record exists. Boundary fields prove
-only that execution authority is still blocked until the backend execution
-route, service contract, Coinbase evidence snapshot contract, and exact input
-chain exist. Neither field group proves reconciliation execution or
-exchange-state mutation.
+only that execution authority is still blocked. Each boundary row now names
+the disabled command route
+`POST /api/v1/spot/recovery/reconciliation-executions` and service method
+`execute_spot_recovery_reconciliation`, but those are fail-closed boundary
+contracts only. The backend reconciliation executor, Coinbase evidence
+snapshot contract, and exact input chain remain blockers. Neither completion
+fields nor boundary fields prove reconciliation execution or exchange-state
+mutation.
 Within each boundary row, `action_class` and `required_permission` describe
-the current read evidence route; `future_action_class` and
-`future_required_permission` describe the blocked executor contract that does
-not yet exist.
+the disabled command route, while `future_action_class` and
+`future_required_permission` preserve the executor posture for generated
+clients and contextless reviews.
 
 The recovery read-contract routes do not:
 

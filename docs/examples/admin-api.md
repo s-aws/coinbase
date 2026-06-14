@@ -2235,7 +2235,7 @@ X-Admin-Roles: viewer
       "family": "spot_reconciliation_workflow",
       "status": "blocked",
       "exposure_status": "backend_contract_required",
-      "command_route": null,
+      "command_route": "/api/v1/spot/recovery/reconciliation-executions",
       "current_read_evidence_routes": [
         "GET /api/v1/spot/recovery/reconciliation-proof",
         "GET /api/v1/admin/reconciliation/plans",
@@ -2289,7 +2289,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot-specific reconciliation execution contract that can compare backend order state with Coinbase evidence after the execution boundary, route, service, and exchange evidence snapshot contracts exist without browser or BFF state mutation.",
+      "required_backend_contract": "Spot-specific reconciliation execution contract that can compare backend order state with Coinbase evidence after the disabled execution boundary route/service, backend executor, and Coinbase evidence snapshot contracts exist without browser or BFF state mutation.",
       "required_gate_chain": [
         "route_inventory_contract",
         "reconciliation_plan",
@@ -2313,7 +2313,7 @@ X-Admin-Roles: viewer
         "docs/examples/reconciliation-plans.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Reconciliation plan records are local-state evidence only. The recovery reconciliation-proof read now exposes the blocked execution boundary, but plans and boundary evidence do not execute reconciliation, mutate exchange/order state, or prove Coinbase state."
+      "detail": "Reconciliation plan records are local-state evidence only. The recovery reconciliation-proof read now exposes the blocked execution boundary and disabled command route, but plans and boundary evidence do not execute reconciliation, mutate exchange/order state, or prove Coinbase state."
     }
   ]
 }

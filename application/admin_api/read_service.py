@@ -5475,6 +5475,63 @@ class AdminApiReadService:
                 live_adapter_required=False,
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/reconciliation-executions",
+                mutation_id="spot.recovery_reconciliation_execution",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION
+                ),
+                workflow_id="spot.reconciliation_workflow",
+                related_workflow_ids=["spot.recovery_workflow"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot recovery reconciliation execution is a route-bound "
+                    "disabled Admin API command contract keyed by client_order_id."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::execute_spot_recovery_reconciliation",
+                    "application/admin_api/command_service.py::execute_spot_recovery_reconciliation",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotRecoveryReconciliation",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                required_next_contract=(
+                    "Backend reconciliation executor and Coinbase evidence "
+                    "snapshot contracts must exist before reconciliation can "
+                    "mutate local order state or prove exchange truth."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "reconciliation_executor_disabled",
+                    "coinbase_evidence_snapshot_contract_missing",
+                ],
+                frontend_boundary=(
+                    "The browser may dry-submit the backend contract only; it "
+                    "must not execute reconciliation, compare Coinbase evidence, "
+                    "or mutate order/exchange state."
+                ),
+                route_local_boundary=(
+                    "The route writes command audit/idempotency evidence and "
+                    "returns a fail-closed response only; it must not execute "
+                    "reconciliation, mutate state, or call Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "Spot reconciliation execution is spot-specific operational "
+                    "repair authority and must not be copied into non-spot "
+                    "modules without module-specific contracts."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/spot/recovery/reconciliation-proofs",
                 mutation_id="spot.recovery_reconciliation_proof",
                 mutation_family=(
@@ -7582,6 +7639,32 @@ class AdminApiReadService:
                     "not fetch Coinbase or mutate order/exchange state."
                 ),
             },
+            AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION: {
+                "surface": "POST /api/v1/spot/recovery/reconciliation-executions",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::execute_spot_recovery_reconciliation",
+                    "application/admin_api/command_service.py::execute_spot_recovery_reconciliation",
+                    "application/admin_api/reconciliation.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::executeSpotRecoveryReconciliation",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-trading.md",
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                "detail": (
+                    "Spot recovery reconciliation execution is route-bound as "
+                    "a disabled backend command contract keyed by "
+                    "client_order_id. It returns fail-closed evidence and does "
+                    "not execute reconciliation, mutate order/exchange state, "
+                    "or call Coinbase."
+                ),
+            },
             AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF: {
                 "surface": "POST /api/v1/spot/recovery/reconciliation-proofs",
                 "identity_key": "client_order_id",
@@ -7631,6 +7714,17 @@ class AdminApiReadService:
                         "cap_guard_decision",
                         "reconciliation_plan",
                         "exchange_state_capture_missing",
+                    ]
+                elif mutation_family == AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION:
+                    missing_gate_chain = [
+                        "approval_snapshot",
+                        "admission_audit",
+                        "cap_guard_decision",
+                        "reconciliation_plan",
+                        "reconciliation_proof",
+                        "completion_record",
+                        "reconciliation_executor_disabled",
+                        "coinbase_evidence_snapshot_contract_missing",
                     ]
                 elif mutation_family == AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF:
                     missing_gate_chain = [
@@ -7962,7 +8056,7 @@ class AdminApiReadService:
             SpotCommandSuiteCoverageGapItem(
                 family=AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW,
                 exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                command_route="/api/v1/spot/recovery/reconciliation-executions",
                 current_read_evidence_routes=[
                     "GET /api/v1/spot/recovery/reconciliation-proof",
                     "GET /api/v1/admin/reconciliation/plans",
@@ -7978,9 +8072,9 @@ class AdminApiReadService:
                 required_backend_contract=(
                     "Spot-specific reconciliation execution contract that can "
                     "compare backend order state with Coinbase evidence after "
-                    "the execution boundary, route, service, and exchange "
-                    "evidence snapshot contracts exist without browser or BFF "
-                    "state mutation."
+                    "the disabled execution boundary route/service, backend "
+                    "executor, and Coinbase evidence snapshot contracts exist "
+                    "without browser or BFF state mutation."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -8005,10 +8099,10 @@ class AdminApiReadService:
                 detail=(
                     "Reconciliation plan records are local-state evidence only. "
                     "The recovery reconciliation-proof read now exposes the "
-                    "blocked execution boundary, but plans and boundary "
-                    "evidence do not execute reconciliation, mutate "
-                    "exchange/order state, or make browser/BFF evidence "
-                    "authoritative."
+                    "blocked execution boundary and disabled command route, "
+                    "but plans and boundary evidence do not execute "
+                    "reconciliation, mutate exchange/order state, or make "
+                    "browser/BFF evidence authoritative."
                 ),
             ),
         ]
@@ -8038,7 +8132,7 @@ class AdminApiReadService:
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
                 "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview, apply-review, rollback-plan, reconciliation-proof, and execution-journal routes are backend-owned evidence while state repair and reconciliation execution remain blocked.",
-                "Spot recovery reconciliation-proof readback exposes the fail-closed reconciliation execution boundary before any executor route or service exists.",
+                "Spot recovery reconciliation-proof readback exposes the fail-closed reconciliation execution boundary and the disabled backend route/service while the executor and Coinbase evidence snapshot contracts remain blocked.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(
@@ -9036,8 +9130,7 @@ class AdminApiReadService:
             )
             blockers = [
                 "spot_reconciliation_execution_contract_missing",
-                "spot_reconciliation_execution_route_missing",
-                "spot_reconciliation_execution_service_missing",
+                "reconciliation_executor_disabled",
                 "coinbase_evidence_snapshot_contract_missing",
                 "browser_bff_execution_authority_rejected",
             ]
@@ -9046,6 +9139,14 @@ class AdminApiReadService:
                 SpotRecoveryReconciliationExecutionBoundaryItem(
                     boundary_id=boundary_id,
                     client_order_id=client_order_id,
+                    command_route=(
+                        "/api/v1/spot/recovery/reconciliation-executions"
+                    ),
+                    method="POST",
+                    route_inventory_status=AdminApiGateStatus.PASSED,
+                    action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                    required_permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+                    service_method="execute_spot_recovery_reconciliation",
                     reconciliation_plan_id=reconciliation_plan_id,
                     reconciliation_proof_id=reconciliation_proof_id,
                     completion_id=completion_id,
@@ -9063,16 +9164,16 @@ class AdminApiReadService:
                     blockers=blockers,
                     missing_contracts=[
                         "spot_reconciliation_execution_contract",
-                        "spot_reconciliation_execution_route",
-                        "spot_reconciliation_execution_service",
                         "spot_exchange_evidence_snapshot_contract",
                     ],
+                    route_bound=True,
                     detail=(
                         "Spot recovery reconciliation execution is blocked. "
-                        "Completion/proof evidence may exist, but no backend "
-                        "execution route, execution service, Coinbase evidence "
-                        "snapshot contract, or browser/BFF execution authority "
-                        "is available."
+                        "Completion/proof evidence may exist and a backend "
+                        "route/service boundary is now present, but the "
+                        "reconciliation executor, Coinbase evidence snapshot "
+                        "contract, and browser/BFF execution authority remain "
+                        "unavailable."
                     ),
                 )
             )

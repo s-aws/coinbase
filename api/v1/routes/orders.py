@@ -45,6 +45,8 @@ from application.admin_api.models import (
     SpotRecoveryApplyExecutionRequest,
     SpotRecoveryExchangeStateProofCommand,
     SpotRecoveryExchangeStateProofRequest,
+    SpotRecoveryReconciliationExecutionCommand,
+    SpotRecoveryReconciliationExecutionRequest,
     SpotRecoveryReconciliationProofRecordCommand,
     SpotRecoveryReconciliationProofRecordRequest,
     SpotRecoveryRollbackExecutionCommand,
@@ -794,6 +796,7 @@ def _execute_spot_recovery_contract(
         SpotRecoveryApplyExecutionRequest
         | SpotRecoveryRollbackExecutionRequest
         | SpotRecoveryExchangeStateProofRequest
+        | SpotRecoveryReconciliationExecutionRequest
         | SpotRecoveryReconciliationProofRecordRequest
     ),
     idempotency_key: str,
@@ -983,6 +986,74 @@ def execute_spot_recovery_rollback(
         command_runner_with_admission=lambda envelope, admission_decision: (
             service.execute_spot_recovery_rollback(
                 SpotRecoveryRollbackExecutionCommand(
+                    envelope=envelope,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
+        ),
+    )
+
+
+@router.post(
+    "/spot/recovery/reconciliation-executions",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=SPOT_RECOVERY_EXECUTION_ROUTE_RESPONSES,
+    summary=(
+        "Attempt spot recovery reconciliation execution through the shared "
+        "command service"
+    ),
+)
+def execute_spot_recovery_reconciliation(
+    request: Request,
+    body: SpotRecoveryReconciliationExecutionRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route-bound reconciliation execution boundary; executor remains disabled."""
+
+    return _execute_spot_recovery_contract(
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        service_method="execute_spot_recovery_reconciliation",
+        route_template="/api/v1/spot/recovery/reconciliation-executions",
+        service=service,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda envelope: service.execute_spot_recovery_reconciliation(
+            SpotRecoveryReconciliationExecutionCommand(
+                envelope=envelope,
+                request=body,
+            )
+        ),
+        command_runner_with_admission=lambda envelope, admission_decision: (
+            service.execute_spot_recovery_reconciliation(
+                SpotRecoveryReconciliationExecutionCommand(
                     envelope=envelope,
                     request=body,
                     admission_decision=admission_decision,

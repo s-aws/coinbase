@@ -49,6 +49,7 @@ from .models import (
     MovementRepriceCommand,
     SpotRecoveryApplyExecutionCommand,
     SpotRecoveryExchangeStateProofCommand,
+    SpotRecoveryReconciliationExecutionCommand,
     SpotRecoveryReconciliationProofRecordCommand,
     SpotRecoveryRollbackExecutionCommand,
     SpotSweepAutomationRunCommand,
@@ -1000,6 +1001,7 @@ class AdminApiCommandService:
             SpotRecoveryApplyExecutionCommand
             | SpotRecoveryRollbackExecutionCommand
             | SpotRecoveryExchangeStateProofCommand
+            | SpotRecoveryReconciliationExecutionCommand
             | SpotRecoveryReconciliationProofRecordCommand
         ),
         message: str,
@@ -1019,6 +1021,12 @@ class AdminApiCommandService:
             "admission_audit_id": request.admission_audit_id,
             "cap_guard_decision_id": request.cap_guard_decision_id,
             "reconciliation_plan_id": request.reconciliation_plan_id,
+            "reconciliation_proof_id": getattr(
+                request,
+                "reconciliation_proof_id",
+                None,
+            ),
+            "completion_id": getattr(request, "completion_id", None),
             "exchange_state_proof_id": getattr(
                 request,
                 "exchange_state_proof_id",
@@ -1040,6 +1048,10 @@ class AdminApiCommandService:
             "exchange_state_proof_recorded": False,
             "reconciliation_proof_recorded": False,
             "reconciliation_executed": False,
+            "reconciliation_execution_route_bound": False,
+            "reconciliation_execution_service_available": False,
+            "reconciliation_execution_contract_available": False,
+            "coinbase_evidence_snapshot_contract_available": False,
             "coinbase_order_submitted": False,
             "coinbase_rest_read_ran": False,
             "order_state_mutated": False,
@@ -1066,6 +1078,40 @@ class AdminApiCommandService:
             live_exchange_submitted=False,
             data=data,
             failure_stage="execution_prerequisite",
+        )
+
+    def execute_spot_recovery_reconciliation(
+        self,
+        command: SpotRecoveryReconciliationExecutionCommand,
+    ) -> AdminApiCommandResponse:
+        """Reject route-bound Spot recovery reconciliation execution for now."""
+
+        return self._disabled_spot_recovery_response(
+            service_method="execute_spot_recovery_reconciliation",
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION
+            ),
+            command=command,
+            message=(
+                "Spot recovery reconciliation execution is route-bound but "
+                "the backend reconciliation executor and Coinbase evidence "
+                "snapshot contract are disabled."
+            ),
+            flags={
+                "completion_id": command.request.completion_id,
+                "reconciliation_proof_id": command.request.reconciliation_proof_id,
+                "reconciliation_executed": False,
+                "reconciliation_execution_route_bound": True,
+                "reconciliation_execution_service_available": False,
+                "reconciliation_execution_contract_available": False,
+                "coinbase_evidence_snapshot_contract_available": False,
+                "order_state_mutated": False,
+                "exchange_state_mutated": False,
+                "coinbase_rest_read_ran": False,
+                "coinbase_order_submitted": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+            },
         )
 
     def _rejected_spot_recovery_proof_response(

@@ -356,6 +356,23 @@ class SpotRecoveryReconciliationProofRecordRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class SpotRecoveryReconciliationExecutionRequest(BaseModel):
+    """Spot recovery reconciliation execution request keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    reconciliation_proof_id: str = Field(min_length=1)
+    completion_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class ManualOrderCommand(BaseModel):
     """Shared service command for manual placement."""
 
@@ -460,6 +477,17 @@ class SpotRecoveryReconciliationProofRecordCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotRecoveryReconciliationProofRecordRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class SpotRecoveryReconciliationExecutionCommand(BaseModel):
+    """Shared service command for disabled spot recovery reconciliation execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotRecoveryReconciliationExecutionRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
