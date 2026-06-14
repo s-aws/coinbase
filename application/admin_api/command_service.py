@@ -55,6 +55,7 @@ from .models import (
     SpotRecoveryRollbackExecutionCommand,
     SpotSweepAutomationRunCommand,
     StealthCancelCommand,
+    StealthCreateCommand,
 )
 from .spot_recovery_execution import (
     FileSpotRecoveryExecutionJournalStore,
@@ -911,6 +912,61 @@ class AdminApiCommandService:
                 "reason": command.request.reason,
                 "identity_key": "stealth_order_id",
                 "active_placement_client_order_id": None,
+                "exchange_order_id_evidence_only": True,
+            },
+            failure_stage="approval",
+        )
+
+    def create_stealth_order(
+        self,
+        command: StealthCreateCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a route-bound stealth create command through fail-closed gates.
+
+        The Admin API create contract is intentionally not wired to
+        ``StealthOrderManager.create_stealth_order`` yet. Future enablement must
+        pass backend-owned planning guards, audit, cap/guard, reconciliation,
+        and lifecycle-write review before it can create local hidden state.
+        """
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        request = command.request
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="create_stealth_order",
+            message=(
+                "Stealth create requires enterprise auth, idempotency, audit, "
+                "approval, cap/guard planning checks, lifecycle-write review, "
+                "and reconciliation planning before local stealth state can be "
+                "created through the Admin API."
+            ),
+            stealth_order_id=request.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "stealth_order_id": request.stealth_order_id,
+                "identity_key": "stealth_order_id",
+                "product_id": request.product_id,
+                "side": request.side.value if isinstance(request.side, OrderSide) else str(request.side),
+                "total_size": request.total_size,
+                "limit_price": request.limit_price,
+                "reveal_condition": request.reveal_condition,
+                "sizing_strategy": request.sizing_strategy,
+                "parent_order_id": request.parent_order_id,
+                "target_movement": request.target_movement,
+                "target_movement_type": (
+                    request.target_movement_type.value
+                    if hasattr(request.target_movement_type, "value")
+                    else str(request.target_movement_type)
+                ),
+                "manual_live_acknowledgement": request.manual_live_acknowledgement,
+                "stealth_manager_invoked": False,
+                "local_state_mutated": False,
+                "coinbase_order_submitted": False,
                 "exchange_order_id_evidence_only": True,
             },
             failure_stage="approval",

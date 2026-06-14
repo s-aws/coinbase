@@ -38,7 +38,130 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Stealth Command-Suite Readiness Batch - Phases 1981-2000
+## Active M55 Stealth Create Command Contract Batch - Phases 2001-2020
+
+This batch continues M55 after the read-only stealth command-suite readiness
+boundary. The backend may expose a route-bound, live-disabled stealth create
+command draft keyed by `stealth_order_id`, synchronize it into command-suite
+readiness, route inventory, OpenAPI, and frontend dry-submit evidence, and
+document the lifecycle-write blockers that remain. It does not authorize
+stealth create execution, `StealthOrderManager` invocation, Coinbase reads,
+Coinbase order submission, active-placement cancellation, local stealth/order
+state mutation, reconciliation execution, browser stealth authority, or BFF
+execution authority.
+
+### Phase 2001 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1981-2000 to active
+  phases 2001-2020 while preserving no-live defaults and cap policy.
+
+### Phase 2002 - Create Command Scope
+
+- Define stealth create as a backend-owned command draft and lifecycle-write
+  gap, distinct from live execution and legacy dashboard behavior.
+
+### Phase 2003 - Identity Discipline
+
+- Keep the command keyed by `stealth_order_id`; derive missing ids in the
+  backend before admission evidence and exclude `client_order_id` and
+  exchange `order_id` from the create request shape.
+
+### Phase 2004 - Request Model
+
+- Add a typed request model carrying product, side, size, limit price, reveal
+  condition, policy fields, and manual acknowledgement.
+
+### Phase 2005 - Route-Bound POST Contract
+
+- Add `POST /api/v1/stealth/orders` with RBAC, idempotency, operator intent,
+  audit, route inventory, and OpenAPI coverage.
+
+### Phase 2006 - Fail-Closed Service Boundary
+
+- Route through `AdminApiCommandService.create_stealth_order` and return
+  not-implemented/live-disabled evidence without invoking the lifecycle
+  manager or mutating local state.
+
+### Phase 2007 - Command-Suite Linkage
+
+- Link stealth create into `GET /api/v1/stealth/command-suite` with
+  lifecycle-write gates and missing-contract blockers.
+
+### Phase 2008 - Inventory And Taxonomy Sync
+
+- Update enterprise readiness inventory, mutation taxonomy, capability
+  posture, and route inventory for the create command draft.
+
+### Phase 2009 - No-Live/No-State Proof
+
+- Prove no Coinbase reads, Coinbase submissions, local lifecycle writes, order
+  mutations, exchange mutations, or reconciliation execution occur.
+
+### Phase 2010 - Backend Focused Tests
+
+- Cover route behavior, schema, route inventory, command-suite linkage,
+  identity discipline, and no-live posture.
+
+### Phase 2011 - Frontend Schema Sync
+
+- Regenerate the website generated client and route coverage artifacts from
+  backend OpenAPI.
+
+### Phase 2012 - Frontend Wrapper And BFF Dry-Submit
+
+- Add canonical wrapper and BFF allowlist forwarding for the live-disabled
+  route while keeping BFF authority transport-only.
+
+### Phase 2013 - Frontend Command Evidence
+
+- Render stealth create as blocked backend-owned command evidence without
+  browser lifecycle authority.
+
+### Phase 2014 - Browser Authority Guard
+
+- Prove browser/BFF code cannot evaluate guards, create local state, call
+  Coinbase, or treat dry-submit as execution authority.
+
+### Phase 2015 - Documentation Update
+
+- Update Admin API, stealth command-suite, command workflow, examples, module
+  matrix, handoff, and roadmap state.
+
+### Phase 2016 - Contextless Review And Remediation
+
+- Run blind/contextless review and fix blockers before final gates.
+
+### Phase 2017 - Full Backend Gates
+
+- Run autonomous validation, focused Admin API tests, ownership checks, and
+  full regression.
+
+### Phase 2018 - Full Frontend Gates
+
+- Run frontend focused checks and `npm run release:gate`.
+
+### Phase 2019 - Live-Execution Ledger
+
+- Record live Coinbase reads/execution as not run with `$0` notional.
+
+### Phase 2020 - Final Gates, Push, And Next Range
+
+- Mark complete only after gates and contextless review, push synchronized
+  evidence, then create the next milestone-linked range if M55 still has a
+  gap.
+
+## Completed M55 Stealth Command-Suite Readiness Batch - Phases 1981-2000
+
+Completion evidence:
+
+- Added read-only stealth command-suite readiness evidence, existing
+  live-disabled command linkage, and missing-contract blockers for create,
+  cancel, reveal, move, reprice, recovery, and reconciliation.
+- Synchronized backend OpenAPI, route inventory, docs, examples, frontend
+  generated schema, mocks, route coverage, release/deployment evidence, and
+  contextless review.
+- Live Coinbase reads and execution were not run; submitted/executed notional
+  remained `$0`.
 
 This batch starts M55 after the M54 exchange evidence snapshot boundary. The
 backend may expose read-only stealth command-suite readiness, existing

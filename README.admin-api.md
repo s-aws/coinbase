@@ -299,6 +299,7 @@ Current mutating HTTP command surfaces are:
 
 - `POST /api/v1/orders`
 - `POST /api/v1/orders/{client_order_id}/cancel`
+- `POST /api/v1/stealth/orders`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 - `POST /api/v1/spot/campaign/executions`
@@ -308,6 +309,11 @@ Current mutating HTTP command surfaces are:
 - `POST /api/v1/spot/recovery/exchange-state-proofs`
 - `POST /api/v1/spot/recovery/exchange-state-snapshots`
 - `POST /api/v1/spot/recovery/reconciliation-proofs`
+
+`POST /api/v1/stealth/orders` is a live-disabled draft contract keyed by
+`stealth_order_id`. It does not invoke `StealthOrderManager`, create local
+stealth lifecycle state, accept `client_order_id` or exchange `order_id`, or
+submit Coinbase orders.
 
 Current local-state approval lifecycle mutation surfaces are:
 

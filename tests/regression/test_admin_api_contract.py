@@ -1246,6 +1246,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         assert "oidc_jwt" in header_params[header_name]["description"]
     for status_code in ("200", "400", "401", "403", "409", "501"):
         assert status_code in order_operation["responses"]
+    stealth_create_operation = written["paths"]["/api/v1/stealth/orders"]["post"]
+    for status_code in ("200", "400", "401", "403", "409", "501"):
+        assert status_code in stealth_create_operation["responses"]
     cancel_operation = written["paths"]["/api/v1/orders/{client_order_id}/cancel"][
         "post"
     ]
@@ -1341,6 +1344,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "stealth_order_id" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
     assert "AdminLiveAdmissionDecisionEvidence" in written["components"]["schemas"]
+    stealth_create_request_schema = written["components"]["schemas"][
+        "StealthCreateRequest"
+    ]
+    assert "stealth_order_id" in stealth_create_request_schema["properties"]
+    assert "reveal_condition" in stealth_create_request_schema["required"]
+    assert "manual_live_acknowledgement" in stealth_create_request_schema["properties"]
     stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
     assert "pagination" in stealth_list_schema["properties"]
     assert "command_routes_mode" in stealth_list_schema["properties"]
@@ -1520,6 +1529,25 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
     assert command_routes[
         ("POST", "/api/v1/orders/{client_order_id}/cancel")
     ]["module_id"] == "spot_operations"
+    assert command_routes[("POST", "/api/v1/stealth/orders")] == {
+        "module_id": "stealth_orders",
+        "surface": "POST /api/v1/stealth/orders",
+        "method": "POST",
+        "path": "/api/v1/stealth/orders",
+        "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+        "permission": AdminApiPermission.ORDER_CREATE.value,
+        "idempotency": "required",
+        "approval": "required by current HTTP live-disabled gate",
+        "caps": "required for planning guards before lifecycle writes",
+        "audit": "required",
+        "shared_method": "create_stealth_order",
+        "parity_test": (
+            "stealth_order_id identity; no local stealth state mutation until "
+            "lifecycle-write gates are complete"
+        ),
+        "compatibility_mode": None,
+        "command_contract": True,
+    }
     assert command_routes[
         ("POST", "/api/v1/spot/campaign/executions")
     ]["permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
@@ -2339,6 +2367,56 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatch):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/stealth/orders",
+        headers=_headers(idempotency_key="idem-stealth-create"),
+        json={
+            "stealth_order_id": "stealth-create-abc",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "total_size": "0.001",
+            "limit_price": "50000",
+            "reveal_condition": {"type": "time_delay", "delay_seconds": 60},
+            "sizing_strategy": {"type": "fixed"},
+            "target_movement": "0.002",
+            "target_movement_type": "P",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert payload["required_permission"] == AdminApiPermission.ORDER_CREATE.value
+    assert payload["service_method"] == "create_stealth_order"
+    assert payload["client_order_id"] is None
+    assert payload["stealth_order_id"] == "stealth-create-abc"
+    assert payload["coinbase_order_id"] is None
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["guard"]["approval_snapshot_required"] is True
+    assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["admission_decision"]["route"] == "/api/v1/stealth/orders"
+    assert payload["admission_decision"]["module_id"] == "stealth_orders"
+    assert payload["admission_decision"]["identity_key"] == "stealth_order_id"
+    assert payload["admission_decision"]["identity_value"] == "stealth-create-abc"
+    assert payload["admission_decision"]["action_class"] == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    )
+    assert payload["data"]["identity_key"] == "stealth_order_id"
+    assert payload["data"]["product_id"] == "BTC-USDC"
+    assert payload["data"]["side"] == "BUY"
+    assert payload["data"]["stealth_manager_invoked"] is False
+    assert payload["data"]["local_state_mutated"] is False
+    assert payload["data"]["coinbase_order_submitted"] is False
+    assert payload["data"]["exchange_order_id_evidence_only"] is True
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_cancel_contract_is_keyed_by_stealth_order_id(monkeypatch):
     client = _client(monkeypatch)
 
@@ -2737,6 +2815,16 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
     assert "client_order_id" in str(
         schema["paths"]["/api/v1/orders/{client_order_id}/cancel"]["post"]["parameters"]
     )
+
+    stealth_create_body_ref = schema["paths"]["/api/v1/stealth/orders"]["post"][
+        "requestBody"
+    ]["content"]["application/json"]["schema"]["$ref"]
+    stealth_create_model_name = stealth_create_body_ref.rsplit("/", 1)[-1]
+    stealth_create_schema = schema["components"]["schemas"][stealth_create_model_name]
+    assert "stealth_order_id" in stealth_create_schema.get("properties", {})
+    assert "client_order_id" not in stealth_create_schema.get("properties", {})
+    assert "order_id" not in stealth_create_schema.get("properties", {})
+    assert "reveal_condition" in stealth_create_schema.get("required", [])
 
     stealth_cancel_body_ref = schema["paths"][
         "/api/v1/stealth/orders/{stealth_order_id}/cancel"
@@ -4464,9 +4552,9 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "1981-2000"
-    assert payload["command_count"] == 2
-    assert payload["blocked_command_count"] == 2
+    assert payload["approved_phase_range"] == "2001-2020"
+    assert payload["command_count"] == 3
+    assert payload["blocked_command_count"] == 3
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
     assert payload["coverage_gap_count"] == 7
@@ -4480,6 +4568,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
 
     command_routes = {command["route"]: command for command in payload["commands"]}
     assert set(command_routes) == {
+        "/api/v1/stealth/orders",
         "/api/v1/stealth/orders/{stealth_order_id}/cancel",
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
     }
@@ -4488,19 +4577,40 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert command["status"] == AdminApiGateStatus.BLOCKED.value
         assert command["live_enabled"] is False
         assert command["executable"] is False
-        assert command["exchange_truth_required"] is True
-        assert command["active_placement_evidence_required"] is True
         assert command["backend_owned"] is True
         assert command["browser_authority"] == "display_only"
         assert command["bff_authority"] == "forward_only_no_execution"
-        assert "active_placement_exchange_truth" in command["required_gate_chain"]
-        assert "active_placement_exchange_truth" in command["missing_gate_chain"]
         assert command["proof_routes"]
         for proof_route in command["proof_routes"]:
             assert proof_route["command_identity_key"] == "stealth_order_id"
             assert proof_route["backend_owned"] is True
             assert proof_route["browser_authority"] == "display_only"
             assert proof_route["bff_authority"] == "forward_only_no_execution"
+    create_command = command_routes["/api/v1/stealth/orders"]
+    assert create_command["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_CREATE.value
+    )
+    assert create_command["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert create_command["required_permission"] == AdminApiPermission.ORDER_CREATE.value
+    assert create_command["shared_method"] == "create_stealth_order"
+    assert create_command["exchange_truth_required"] is False
+    assert create_command["active_placement_evidence_required"] is False
+    assert "lifecycle_write_guard" in create_command["required_gate_chain"]
+    assert "lifecycle_write_guard" in create_command["missing_gate_chain"]
+    assert "active_placement_exchange_truth" not in create_command["missing_gate_chain"]
+
+    for route in (
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+    ):
+        assert command_routes[route]["exchange_truth_required"] is True
+        assert command_routes[route]["active_placement_evidence_required"] is True
+        assert "active_placement_exchange_truth" in command_routes[route][
+            "required_gate_chain"
+        ]
+        assert "active_placement_exchange_truth" in command_routes[route][
+            "missing_gate_chain"
+        ]
 
     coverage_gaps = {item["family"]: item for item in payload["coverage_gaps"]}
     assert set(coverage_gaps) == {
@@ -4518,7 +4628,11 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         assert gap["browser_authority"] == "display_only"
         assert gap["bff_authority"] == "forward_only_no_execution"
         assert "exchange-reality" in gap["stealth_rule_boundary"]
-        assert "active_placement_exchange_truth" in gap["required_gate_chain"]
+        if gap["family"] == AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW.value:
+            assert "lifecycle_write_guard" in gap["required_gate_chain"]
+            assert "active_placement_exchange_truth" not in gap["required_gate_chain"]
+        else:
+            assert "active_placement_exchange_truth" in gap["required_gate_chain"]
         assert gap["missing_contracts"]
         assert gap["current_read_evidence_routes"]
         assert [
@@ -4531,6 +4645,15 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
             assert evidence_route["bff_authority"] == "read_only_forward"
             assert evidence_route["shared_method"]
             assert evidence_route["documentation_refs"]
+    create_gap = coverage_gaps[
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW.value
+    ]
+    assert create_gap["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert create_gap["command_route"] == "/api/v1/stealth/orders"
+    assert "stealth_create_lifecycle_write_contract" in create_gap["missing_contracts"]
+    assert create_gap["detail"].endswith("mutate local lifecycle state.")
     assert (
         coverage_gaps[
             AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING.value
@@ -5418,7 +5541,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1981-2000"
+    assert live_payload["approved_phase_range"] == "2001-2020"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -5977,7 +6100,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1981-2000"
+    assert enterprise_payload["approved_phase_range"] == "2001-2020"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6023,6 +6146,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.manual_order",
         "spot.order_cancel",
         "spot.campaign_execution",
+        "stealth.create",
         "stealth.cancel",
         "movement.reprice",
         "futures.commands_contract_required",
@@ -6053,6 +6177,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
         "stealth.lifecycle_reads",
+        "stealth.create_command_draft",
         "stealth.cancel_command_draft",
         "movement.repricing_reads",
         "movement.reprice_command_draft",
@@ -6079,6 +6204,26 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         spot_command_inventory["command_routes"]
     )
     assert "no-shorting" in spot_command_inventory["spot_rule_boundary"]
+    stealth_create_inventory = inventory_by_id["stealth.create_command_draft"]
+    assert stealth_create_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert stealth_create_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert stealth_create_inventory["command_capable"] is True
+    assert stealth_create_inventory["live_designated"] is False
+    assert "POST /api/v1/stealth/orders" in stealth_create_inventory["command_routes"]
+    assert "stealth_order_id" in stealth_create_inventory["identity_keys"]
+    stealth_create_taxonomy = taxonomy_by_id["stealth.create"]
+    assert stealth_create_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_CREATE.value
+    )
+    assert stealth_create_taxonomy["action_classes"] == [
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ]
+    assert "POST /api/v1/stealth/orders" in stealth_create_taxonomy["command_surfaces"]
+    assert "stealth_manager_invocation_disabled" in stealth_create_taxonomy["blockers"]
     approval_inventory = inventory_by_id["admin.approval_lifecycle"]
     assert approval_inventory["workflow_type"] == (
         AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
@@ -6492,7 +6637,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "1981-2000"
+    assert recovery_preview_payload["approved_phase_range"] == "2001-2020"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -9897,6 +10042,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     )
     assert rows["GET /api/v1/stealth/orders/{stealth_order_id}"].shared_method == (
         "build_stealth_order_detail"
+    )
+    assert rows["POST /api/v1/stealth/orders"].shared_method == (
+        "create_stealth_order"
+    )
+    assert rows["POST /api/v1/stealth/orders"].action_class == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
     )
     assert rows["POST /api/v1/stealth/orders/{stealth_order_id}/cancel"].shared_method == (
         "cancel_stealth_order_by_stealth_order_id"

@@ -68,6 +68,22 @@
     },
     {
       "module_id": "stealth_orders",
+      "surface": "POST /api/v1/stealth/orders",
+      "method": "POST",
+      "path": "/api/v1/stealth/orders",
+      "action_class": "local_state_mutation",
+      "permission": "order:create",
+      "idempotency": "required",
+      "approval": "required by current HTTP live-disabled gate",
+      "caps": "required for planning guards before lifecycle writes",
+      "audit": "required",
+      "shared_method": "create_stealth_order",
+      "parity_test": "stealth_order_id identity; no local stealth state mutation until lifecycle-write gates are complete",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "stealth_orders",
       "surface": "GET /api/v1/stealth/orders/{stealth_order_id}",
       "method": "GET",
       "path": "/api/v1/stealth/orders/{stealth_order_id}",

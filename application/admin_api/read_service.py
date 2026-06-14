@@ -169,7 +169,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1981-2000"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2001-2020"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -4368,6 +4368,54 @@ class AdminApiReadService:
                 ),
             ),
             functionality_item(
+                workflow_id="stealth.create_command_draft",
+                module_id="stealth_orders",
+                module="Stealth Orders",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth create is exposed as a live-disabled local-state draft "
+                    "keyed by stealth_order_id; it does not invoke the lifecycle "
+                    "manager until planning and reconciliation gates are complete."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=False,
+                command_capable=True,
+                live_designated=False,
+                command_routes=["POST /api/v1/stealth/orders"],
+                identity_keys=["stealth_order_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::create_stealth_order",
+                    "application/admin_api/command_service.py::create_stealth_order",
+                    "core/stealth_order_manager.py::create_stealth_order",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::createStealthOrder",
+                ],
+                documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Backend lifecycle-write contract with planning guards, "
+                    "approval, cap/guard, audit, reconciliation, and recovery "
+                    "evidence before StealthOrderManager can be invoked."
+                ),
+                blockers=[
+                    "lifecycle_write_guard_missing",
+                    "reconciliation_plan_missing",
+                    "frontend_create_draft_missing",
+                ],
+                frontend_boundary=(
+                    "Do not create local stealth state from browser code; the "
+                    "frontend may only display and dry-submit backend contract "
+                    "evidence after generated types are synced."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and no-shorting rules are backend guard inputs "
+                    "only and cannot become generic stealth browser authority."
+                ),
+            ),
+            functionality_item(
                 workflow_id="stealth.cancel_command_draft",
                 module_id="stealth_orders",
                 module="Stealth Orders",
@@ -5775,6 +5823,52 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders",
+                mutation_id="stealth.create",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_CREATE,
+                workflow_id="stealth.create_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth create is a local lifecycle-write draft keyed by "
+                    "stealth_order_id; the current Admin API route is fail-closed "
+                    "and does not create hidden local state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::create_stealth_order",
+                    "application/admin_api/command_service.py::create_stealth_order",
+                    "core/stealth_order_manager.py::create_stealth_order",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::createStealthOrder",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
+                ],
+                required_next_contract=(
+                    "Lifecycle-write gate that proves planning guards, approval, "
+                    "cap/guard, audit, reconciliation, and recovery handling "
+                    "before invoking StealthOrderManager."
+                ),
+                blockers=[
+                    "lifecycle_write_guard_missing",
+                    "reconciliation_plan_missing",
+                    "stealth_manager_invocation_disabled",
+                ],
+                frontend_boundary=(
+                    "Do not create stealth orders or local lifecycle state from "
+                    "browser code."
+                ),
+                spot_rule_boundary=(
+                    "Stealth create is lifecycle authority; spot wallet rules are "
+                    "backend guard evidence only."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
                 mutation_id="stealth.cancel",
                 mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL,
@@ -7121,9 +7215,40 @@ class AdminApiReadService:
             return proof_routes
 
         command_metadata = {
+            AdminApiMutationFamilyType.STEALTH_CREATE: {
+                "surface": "POST /api/v1/stealth/orders",
+                "identity_key": "stealth_order_id",
+                "exchange_truth_required": False,
+                "active_placement_evidence_required": False,
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::create_stealth_order",
+                    "application/admin_api/command_service.py::create_stealth_order",
+                    "bridges/stealth_order_bridge.py",
+                    "core/stealth_order_manager.py::create_stealth_order",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::createStealthOrder",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.admin-api.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Stealth create is route-bound by stealth_order_id and "
+                    "currently live-disabled. The contract records the proposed "
+                    "hidden-order identity and request evidence, but it does "
+                    "not invoke StealthOrderManager or mutate local lifecycle "
+                    "state until backend lifecycle-write gates are complete."
+                ),
+            },
             AdminApiMutationFamilyType.STEALTH_CANCEL: {
                 "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
                 "identity_key": "stealth_order_id",
+                "exchange_truth_required": True,
+                "active_placement_evidence_required": True,
                 "backend_contract_refs": [
                     "api/v1/routes/stealth.py::cancel_stealth_order_by_stealth_order_id",
                     "application/admin_api/command_service.py::cancel_stealth_order_by_stealth_order_id",
@@ -7149,6 +7274,8 @@ class AdminApiReadService:
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: {
                 "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 "identity_key": "stealth_order_id",
+                "exchange_truth_required": True,
+                "active_placement_evidence_required": True,
                 "backend_contract_refs": [
                     "api/v1/routes/movement_repricing.py::reprice_stealth_order_by_stealth_order_id",
                     "application/admin_api/command_service.py::reprice_stealth_order_by_stealth_order_id",
@@ -7190,14 +7317,16 @@ class AdminApiReadService:
             live_path = live_paths.get((method, route))
             if live_path is None:
                 missing_gate_chain = [
-                    "route_bound_live_path",
                     "approval_snapshot",
                     "admission_audit",
                     "cap_guard_decision",
                     "reconciliation_plan",
-                    "active_placement_exchange_truth",
                     "live_execution_disabled",
                 ]
+                if metadata.get("active_placement_evidence_required", True):
+                    missing_gate_chain.insert(4, "active_placement_exchange_truth")
+                else:
+                    missing_gate_chain.insert(4, "lifecycle_write_guard")
                 readiness_preconditions = []
                 live_execution_status = AdminApiLiveExecutionStatus.LIVE_DISABLED
                 live_adapter_configured = False
@@ -7207,7 +7336,10 @@ class AdminApiReadService:
                     for precondition in live_path.readiness_preconditions
                     if precondition.blocking
                 ]
-                if "active_placement_exchange_truth" not in missing_gate_chain:
+                if (
+                    metadata.get("active_placement_evidence_required", True)
+                    and "active_placement_exchange_truth" not in missing_gate_chain
+                ):
                     missing_gate_chain.append("active_placement_exchange_truth")
                 readiness_preconditions = list(live_path.readiness_preconditions)
                 live_execution_status = live_path.status
@@ -7221,12 +7353,17 @@ class AdminApiReadService:
                 "admission_audit",
                 "cap_guard_decision",
                 "reconciliation_plan",
-                "active_placement_exchange_truth",
                 "mutation_claim",
+            ]
+            if metadata.get("active_placement_evidence_required", True):
+                required_gate_chain.append("active_placement_exchange_truth")
+            else:
+                required_gate_chain.append("lifecycle_write_guard")
+            required_gate_chain.extend([
                 "live_execution_adapter",
                 "live_execution_service",
                 "post_live_reconciliation",
-            ]
+            ])
             commands.append(
                 StealthCommandSuiteCommandItem(
                     mutation_family=mutation_family,
@@ -7249,8 +7386,12 @@ class AdminApiReadService:
                     idempotency_required=True,
                     operator_intent_required=True,
                     payload_hash_required=True,
-                    exchange_truth_required=True,
-                    active_placement_evidence_required=True,
+                    exchange_truth_required=bool(
+                        metadata.get("exchange_truth_required", True)
+                    ),
+                    active_placement_evidence_required=bool(
+                        metadata.get("active_placement_evidence_required", True)
+                    ),
                     backend_owned=True,
                     route_bound=True,
                     browser_authority="display_only",
@@ -7302,6 +7443,21 @@ class AdminApiReadService:
             "live_execution_adapter",
             "live_execution_service",
             "post_live_reconciliation",
+        ]
+        stealth_create_gate_chain = [
+            "route_inventory_contract",
+            "idempotency",
+            "operator_intent",
+            "payload_hash",
+            "approval_snapshot",
+            "admission_audit",
+            "cap_guard_decision",
+            "reconciliation_plan",
+            "mutation_claim",
+            "lifecycle_write_guard",
+            "live_execution_adapter",
+            "live_execution_service",
+            "post_write_reconciliation",
         ]
         gap_evidence_route_docs = {
             "GET /api/v1/stealth/orders": [
@@ -7382,21 +7538,22 @@ class AdminApiReadService:
         coverage_gaps = [
             StealthCommandSuiteCoverageGapItem(
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/stealth/orders",
                 current_read_evidence_routes=stealth_read_surfaces,
                 current_read_evidence=coverage_gap_evidence_routes(stealth_read_surfaces),
                 required_backend_contract=(
-                    "Route-bound stealth create contract through the existing "
-                    "StealthOrderManager with admission, cap/guard, audit, "
-                    "idempotency, and policy evidence before any lifecycle write."
+                    "Stealth create has a route-bound Admin API contract, but "
+                    "still needs lifecycle-write admission, planning guard, "
+                    "recovery, and reconciliation contracts before it can "
+                    "invoke StealthOrderManager."
                 ),
-                required_gate_chain=gap_required_gate_chain,
+                required_gate_chain=stealth_create_gate_chain,
                 missing_contracts=[
-                    "stealth_create_admin_route",
                     "stealth_create_guard_contract",
                     "stealth_create_admission_audit",
                     "stealth_create_reconciliation_plan",
+                    "stealth_create_lifecycle_write_contract",
                 ],
                 stealth_rule_boundary=stealth_boundary,
                 documentation_refs=[
@@ -7405,8 +7562,9 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Stealth order reads exist, but enterprise create is not "
-                    "modeled as an Admin API command route yet."
+                    "A live-disabled stealth create command route exists, but "
+                    "it does not invoke StealthOrderManager or mutate local "
+                    "lifecycle state."
                 ),
             ),
             StealthCommandSuiteCoverageGapItem(

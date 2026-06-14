@@ -5278,6 +5278,113 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - stealth
+      summary: Create a stealth order through the shared command service
+      description: Route adapter for live-disabled stealth create by ``stealth_order_id``.
+      operationId: create_stealth_order_api_v1_stealth_orders_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthCreateRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/orders/{stealth_order_id}:
     get:
       tags:
@@ -6311,6 +6418,7 @@ components:
       - spot_recovery_reconciliation_proof
       - spot_recovery_reconciliation_completion
       - spot_recovery_reconciliation_execution
+      - stealth_create
       - stealth_cancel
       - movement_reprice
       - futures_contract_required
@@ -16529,6 +16637,130 @@ components:
       - approved_phase_range
       title: StealthCommandSuiteResponse
       description: Read-only M55 stealth command-suite readiness evidence.
+    StealthCreateRequest:
+      properties:
+        stealth_order_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Stealth Order Id
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+          examples:
+          - BTC-USDC
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        total_size:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Total Size
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        limit_price:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Limit Price
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        reveal_condition:
+          additionalProperties: true
+          type: object
+          title: Reveal Condition
+        sizing_strategy:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Sizing Strategy
+        parent_order_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Parent Order Id
+        follow_up_reveal_direction:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Follow Up Reveal Direction
+        reason:
+          type: string
+          title: Reason
+          default: normal_placement
+        notes:
+          type: string
+          title: Notes
+          default: ''
+        max_order_replacements:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Max Order Replacements
+        target_movement:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Target Movement
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0.0'
+          examples:
+          - '1.00'
+        target_movement_type:
+          $ref: '#/components/schemas/TargetMovementType'
+          default: P
+        reveal_pricing_policy:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reveal Pricing Policy
+        allow_partial_fills:
+          type: boolean
+          title: Allow Partial Fills
+          default: false
+        anchor_repricing_policy:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Anchor Repricing Policy
+        enable_hotpoint_replication:
+          type: boolean
+          title: Enable Hotpoint Replication
+          default: false
+        cancel_reentry_policy:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Cancel Reentry Policy
+        post_fill_retreat_policy:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Post Fill Retreat Policy
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - side
+      - total_size
+      - limit_price
+      - reveal_condition
+      title: StealthCreateRequest
+      description: Stealth create request shape for future gated lifecycle writes.
     StealthMutationKind:
       type: string
       enum:
@@ -16564,6 +16796,18 @@ components:
         repriced again. Callers must release the claim with ``release`` after
 
         both success and failure paths; there is no terminal ``done`` state.'
+    TargetMovementType:
+      type: string
+      enum:
+      - P
+      - A
+      title: TargetMovementType
+      description: 'How profit target is specified.
+
+
+        - PERCENTAGE: As percentage (e.g., 0.004 = 0.4%)
+
+        - ABSOLUTE: As absolute amount (e.g., $500)'
     TimeInForce:
       type: string
       enum:

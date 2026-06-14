@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Request, status
@@ -27,6 +28,8 @@ from application.admin_api.models import (
     StealthCommandSuiteResponse,
     StealthCancelCommand,
     StealthCancelRequest,
+    StealthCreateCommand,
+    StealthCreateRequest,
 )
 from application.admin_api.read_service import AdminApiReadService
 from core.enums import AdminApiActionClass, AdminApiPermission
@@ -73,6 +76,34 @@ def _read_model_response(model: type[TReadModel], payload: object) -> JSONRespon
     return JSONResponse(content=jsonable_encoder(model.model_validate(payload)))
 
 
+def _stealth_create_with_backend_identity(
+    *,
+    body: StealthCreateRequest,
+    actor: AdminApiActor,
+    endpoint: str,
+    idempotency_key: str,
+    payload_hash: str,
+) -> StealthCreateRequest:
+    """Attach a stable backend-owned stealth id before admission checks."""
+
+    if body.stealth_order_id:
+        return body
+
+    material = "|".join(
+        [
+            "coinbase-admin-api",
+            "stealth-create",
+            endpoint,
+            actor.actor_id,
+            idempotency_key,
+            payload_hash,
+        ]
+    )
+    return body.model_copy(
+        update={"stealth_order_id": str(uuid.uuid5(uuid.NAMESPACE_URL, material))}
+    )
+
+
 @router.get(
     "/stealth/orders",
     response_model=AdminStealthOrderListResponse,
@@ -97,6 +128,83 @@ def list_stealth_orders(
             status=stealth_status,
             limit=limit,
             offset=offset,
+        ),
+    )
+
+
+@router.post(
+    "/stealth/orders",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Create a stealth order through the shared command service",
+)
+def create_stealth_order(
+    request: Request,
+    body: StealthCreateRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for live-disabled stealth create by ``stealth_order_id``."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope: AdminApiCommandEnvelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+    body = _stealth_create_with_backend_identity(
+        body=body,
+        actor=actor,
+        endpoint=endpoint,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.ORDER_CREATE,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method="create_stealth_order",
+        route_template="/api/v1/stealth/orders",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=body.stealth_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        stealth_order_id=body.stealth_order_id,
+        command_runner=lambda: service.create_stealth_order(
+            StealthCreateCommand(envelope=envelope, request=body)
         ),
     )
 

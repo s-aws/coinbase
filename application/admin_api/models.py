@@ -57,6 +57,7 @@ from core.enums import (
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthMutationKind,
+    TargetMovementType,
     TimeInForce,
 )
 
@@ -238,6 +239,34 @@ class StealthCancelRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str | None = None
+
+
+class StealthCreateRequest(BaseModel):
+    """Stealth create request shape for future gated lifecycle writes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str | None = Field(default=None, min_length=1)
+    product_id: str = Field(min_length=1, examples=["BTC-USDC"])
+    side: OrderSide
+    total_size: DecimalString
+    limit_price: DecimalString
+    reveal_condition: FlexibleDict
+    sizing_strategy: FlexibleDict | None = None
+    parent_order_id: str | None = Field(default=None, min_length=1)
+    follow_up_reveal_direction: str | None = None
+    reason: str = "normal_placement"
+    notes: str = ""
+    max_order_replacements: int | None = Field(default=None, ge=0)
+    target_movement: DecimalString = "0.0"
+    target_movement_type: TargetMovementType = TargetMovementType.PERCENTAGE
+    reveal_pricing_policy: str | None = None
+    allow_partial_fills: bool = False
+    anchor_repricing_policy: FlexibleDict | None = None
+    enable_hotpoint_replication: bool = False
+    cancel_reentry_policy: FlexibleDict | None = None
+    post_fill_retreat_policy: FlexibleDict | None = None
+    manual_live_acknowledgement: bool = False
 
 
 class MovementRepriceRequest(BaseModel):
@@ -429,6 +458,16 @@ class StealthCancelCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthCancelRequest
+    allow_live_execution: bool = False
+
+
+class StealthCreateCommand(BaseModel):
+    """Shared service command for route-bound stealth create."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: StealthCreateRequest
     allow_live_execution: bool = False
 
 

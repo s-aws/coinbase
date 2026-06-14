@@ -62,6 +62,18 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="POST /api/v1/stealth/orders",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for planning guards before lifecycle writes",
+        audit="required",
+        shared_method="create_stealth_order",
+        parity_test="stealth_order_id identity; no local stealth state mutation until lifecycle-write gates are complete",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders/{stealth_order_id}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
