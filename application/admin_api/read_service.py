@@ -169,7 +169,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2001-2020"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2021-2040"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -4381,7 +4381,7 @@ class AdminApiReadService:
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
-                frontend_exposed=False,
+                frontend_exposed=True,
                 command_capable=True,
                 live_designated=False,
                 command_routes=["POST /api/v1/stealth/orders"],
@@ -4403,12 +4403,12 @@ class AdminApiReadService:
                 blockers=[
                     "lifecycle_write_guard_missing",
                     "reconciliation_plan_missing",
-                    "frontend_create_draft_missing",
+                    "stealth_manager_invocation_disabled",
                 ],
                 frontend_boundary=(
                     "Do not create local stealth state from browser code; the "
                     "frontend may only display and dry-submit backend contract "
-                    "evidence after generated types are synced."
+                    "evidence through the canonical live-disabled wrapper."
                 ),
                 spot_rule_boundary=(
                     "Spot wallet and no-shorting rules are backend guard inputs "
@@ -4452,6 +4452,58 @@ class AdminApiReadService:
                     "from the browser."
                 ),
                 spot_rule_boundary="Stealth identity rules are not spot inventory rules.",
+            ),
+            functionality_item(
+                workflow_id="stealth.reveal_command_draft",
+                module_id="stealth_orders",
+                module="Stealth Orders",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth reveal is exposed as a live-disabled exchange-placement "
+                    "draft keyed by stealth_order_id; it does not invoke the reveal "
+                    "manager path or submit Coinbase orders until trigger, approval, "
+                    "guard, and reconciliation evidence are complete."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                live_enabled=False,
+                command_routes=["POST /api/v1/stealth/orders/{stealth_order_id}/reveal"],
+                identity_keys=["stealth_order_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::reveal_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reveal_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py::reveal_order_slice",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::revealStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Live reveal adapter with trigger evidence, approval, cap/guard, "
+                    "active placement audit, Coinbase placement handling, and "
+                    "post-live reconciliation before reveal_order_slice can run."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "trigger_evidence_missing",
+                    "stealth_reveal_exchange_submission_adapter_missing",
+                    "active_placement_audit_missing",
+                    "reconciliation_proof_missing",
+                ],
+                frontend_boundary=(
+                    "Do not invoke reveal_order_slice, submit Coinbase orders, or "
+                    "mutate lifecycle state from browser code."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and no-shorting rules remain backend guard evidence "
+                    "when the stealth product is spot; they are not browser authority."
+                ),
             ),
             functionality_item(
                 workflow_id="movement.repricing_reads",
@@ -5277,7 +5329,7 @@ class AdminApiReadService:
                     "application/admin_api/command_service.py::place_manual_order",
                 ],
                 frontend_contract_refs=[
-                    "src/shared/api/contracts/backendApiClient.ts::placeManualOrder",
+                    "src/shared/api/contracts/backendApiClient.ts::createManualOrder",
                     "src/features/command-workflows/CommandWorkflowShell.tsx",
                 ],
                 documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
@@ -5911,6 +5963,55 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Stealth authority is lifecycle/exchange-reality based; spot "
                     "wallet rules apply only through backend guards for spot products."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/reveal",
+                mutation_id="stealth.reveal",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+                workflow_id="stealth.reveal_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth reveal is an exchange-placement-shaped draft keyed "
+                    "by stealth_order_id; the current Admin API route is fail-closed "
+                    "and does not call reveal_order_slice, Coinbase, or local "
+                    "lifecycle mutation paths."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::reveal_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reveal_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py::reveal_order_slice",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::revealStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
+                ],
+                required_next_contract=(
+                    "Reveal execution must prove trigger evidence, active placement "
+                    "audit, approval, cap/guard, Coinbase placement handling, and "
+                    "post-live reconciliation before invoking the lifecycle manager."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "trigger_evidence_missing",
+                    "stealth_reveal_exchange_submission_adapter_missing",
+                    "active placement reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not reveal, place exchange orders, or mutate stealth "
+                    "lifecycle state from the browser."
+                ),
+                spot_rule_boundary=(
+                    "Stealth reveal remains lifecycle/exchange-placement authority; "
+                    "spot wallet rules apply only through backend guards for spot products."
                 ),
             ),
             mutation_taxonomy_from_surface(
@@ -7271,6 +7372,35 @@ class AdminApiReadService:
                     "any active Coinbase placement before local state changes."
                 ),
             },
+            AdminApiMutationFamilyType.STEALTH_REVEAL: {
+                "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/reveal",
+                "identity_key": "stealth_order_id",
+                "exchange_truth_required": True,
+                "active_placement_evidence_required": False,
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::reveal_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reveal_stealth_order_by_stealth_order_id",
+                    "bridges/stealth_order_bridge.py",
+                    "core/stealth_order_manager.py::reveal_order_slice",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::revealStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.admin-api.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Stealth reveal is route-bound by stealth_order_id and "
+                    "currently live-disabled. Future execution must prove trigger "
+                    "evidence, submit through the existing reveal path, and "
+                    "reconcile any Coinbase placement before local lifecycle "
+                    "state changes."
+                ),
+            },
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: {
                 "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 "identity_key": "stealth_order_id",
@@ -7341,6 +7471,11 @@ class AdminApiReadService:
                     and "active_placement_exchange_truth" not in missing_gate_chain
                 ):
                     missing_gate_chain.append("active_placement_exchange_truth")
+                if (
+                    not metadata.get("active_placement_evidence_required", True)
+                    and "lifecycle_write_guard" not in missing_gate_chain
+                ):
+                    missing_gate_chain.append("lifecycle_write_guard")
                 readiness_preconditions = list(live_path.readiness_preconditions)
                 live_execution_status = live_path.status
                 live_adapter_configured = live_path.live_execution_adapter.configured
@@ -7569,18 +7704,19 @@ class AdminApiReadService:
             ),
             StealthCommandSuiteCoverageGapItem(
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
                 current_read_evidence_routes=stealth_detail_surfaces,
                 current_read_evidence=coverage_gap_evidence_routes(stealth_detail_surfaces),
                 required_backend_contract=(
-                    "Route-bound reveal contract that submits through the existing "
-                    "stealth reveal path only after trigger, approval, cap/guard, "
-                    "audit, active-placement, and reconciliation evidence pass."
+                    "Stealth reveal has a route-bound Admin API contract, but "
+                    "still needs trigger evidence, exchange submission adapter, "
+                    "active-placement audit, and reconciliation proof before it "
+                    "can invoke the existing reveal path."
                 ),
                 required_gate_chain=gap_required_gate_chain,
                 missing_contracts=[
-                    "stealth_reveal_admin_route",
+                    "stealth_reveal_trigger_guard",
                     "stealth_reveal_exchange_submission_adapter",
                     "stealth_active_placement_audit",
                     "stealth_reveal_reconciliation_proof",
@@ -7592,8 +7728,9 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Reveal remains an existing backend lifecycle behavior, but "
-                    "there is no enterprise Admin API reveal command contract."
+                    "A live-disabled stealth reveal command route exists, but "
+                    "it does not invoke reveal_order_slice, submit Coinbase "
+                    "orders, or mutate lifecycle state."
                 ),
             ),
             StealthCommandSuiteCoverageGapItem(
@@ -8399,7 +8536,7 @@ class AdminApiReadService:
                     "core/action_condition_guard.py",
                 ],
                 "frontend_contract_refs": [
-                    "src/shared/api/contracts/backendApiClient.ts::placeManualOrder",
+                    "src/shared/api/contracts/backendApiClient.ts::createManualOrder",
                     "src/features/command-workflows/CommandWorkflowShell.tsx",
                 ],
                 "documentation_refs": [

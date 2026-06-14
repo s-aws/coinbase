@@ -56,6 +56,7 @@ from .models import (
     SpotSweepAutomationRunCommand,
     StealthCancelCommand,
     StealthCreateCommand,
+    StealthRevealCommand,
 )
 from .spot_recovery_execution import (
     FileSpotRecoveryExecutionJournalStore,
@@ -968,6 +969,53 @@ class AdminApiCommandService:
                 "local_state_mutated": False,
                 "coinbase_order_submitted": False,
                 "exchange_order_id_evidence_only": True,
+            },
+            failure_stage="approval",
+        )
+
+    def reveal_stealth_order_by_stealth_order_id(
+        self,
+        command: StealthRevealCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a route-bound stealth reveal command through fail-closed gates.
+
+        Reveal is exchange-placement shaped, but this Admin API contract is not
+        wired to ``StealthOrderManager.reveal_order_slice`` yet. Future live
+        enablement must prove trigger evidence, approval, cap/guard, audit,
+        active-placement handling, and reconciliation before any Coinbase order
+        placement or local lifecycle mutation can occur.
+        """
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="reveal_stealth_order_by_stealth_order_id",
+            message=(
+                "Stealth reveal requires enterprise auth, idempotency, audit, "
+                "approval, trigger evidence, cap/guard checks, exchange "
+                "placement handling, and reconciliation before live execution."
+            ),
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "stealth_order_id": command.stealth_order_id,
+                "reason": command.request.reason,
+                "manual_live_acknowledgement": (
+                    command.request.manual_live_acknowledgement
+                ),
+                "identity_key": "stealth_order_id",
+                "active_placement_client_order_id": None,
+                "exchange_order_id_evidence_only": True,
+                "requires_trigger_evidence": True,
+                "reveal_order_slice_invoked": False,
+                "stealth_manager_invoked": False,
+                "local_state_mutated": False,
+                "coinbase_order_submitted": False,
             },
             failure_stage="approval",
         )

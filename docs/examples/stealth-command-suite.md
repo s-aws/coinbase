@@ -22,9 +22,9 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2001-2020",
-  "command_count": 3,
-  "blocked_command_count": 3,
+  "approved_phase_range": "2021-2040",
+  "command_count": 4,
+  "blocked_command_count": 4,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
   "exchange_truth_required": true,
@@ -40,6 +40,7 @@ Expected posture:
 The `commands` array includes live-disabled rows for:
 
 - `/api/v1/stealth/orders`
+- `/api/v1/stealth/orders/{stealth_order_id}/reveal`
 - `/api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 
@@ -47,15 +48,22 @@ Each row uses `stealth_order_id` as `identity_key`. Create is a
 `local_state_mutation` draft route with `exchange_truth_required=false`,
 `active_placement_evidence_required=false`, `live_execution_status` set to
 `live_disabled`, and evidence that `StealthOrderManager` was not invoked.
-Cancel and reprice still report `exchange_truth_required=true` and require
-active-placement exchange truth before any lifecycle mutation.
+Reveal is a `live_exchange_place` draft route with
+`exchange_truth_required=true`, `active_placement_evidence_required=false`,
+and evidence that `reveal_order_slice`, `StealthOrderManager`, Coinbase
+submission, and local lifecycle mutation were not invoked. Cancel and reprice
+still report `exchange_truth_required=true` and require active-placement
+exchange truth before any lifecycle mutation.
 
 The `coverage_gaps` array includes blocked workflow families for:
 
 - `stealth_create_workflow` with command route `/api/v1/stealth/orders`,
   still blocked on lifecycle-write, guard, admission, and reconciliation
   contracts
-- `stealth_reveal_workflow`
+- `stealth_reveal_workflow` with command route
+  `/api/v1/stealth/orders/{stealth_order_id}/reveal`, still blocked on
+  trigger guard, exchange submission adapter, active-placement audit, and
+  reconciliation proof
 - `stealth_cancel_exchange_handling`
 - `stealth_move_revealed_workflow`
 - `stealth_reprice_workflow`

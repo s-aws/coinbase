@@ -23,6 +23,8 @@ Current route adapters:
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `GET /api/v1/stealth/command-suite`
+- `POST /api/v1/stealth/orders`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/reveal`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
@@ -60,8 +62,9 @@ Current behavior:
   mutate live exchange state
 - the generated OpenAPI contract includes eventual `200` accepted/replayed
   command response schemas, but the current runtime still returns `501` for
-  create, order cancel, stealth cancel, movement reprice, and campaign
-  execution commands because HTTP live execution is not approved
+  create, order cancel, stealth create, stealth reveal, stealth cancel,
+  movement reprice, and campaign execution commands because HTTP live
+  execution is not approved
 - `X-Operator-Intent` is durable command audit evidence and part of the
   idempotency payload hash
 - `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose

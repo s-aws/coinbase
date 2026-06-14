@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2001-2020**.
+- Approved phase range: **2021-2040**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,126 +53,140 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2001-2020
+## Active Phases 2021-2040
 
-These phases continue M55 after the read-only stealth command-suite readiness
-boundary. The next explicit architecture gap is a route-bound, no-live stealth
-create command contract that is discoverable by the frontend and contextless
-agents without becoming lifecycle authority. This range may expose request
-shape, backend-owned identity, route inventory, command-suite linkage,
-generated schema, BFF forwarding, and dry-submit evidence, but it remains
-no-live by default and must not invoke `StealthOrderManager`, create local
-stealth state, reveal orders, cancel active placements, move/reprice revealed
-orders, mutate order/exchange state, execute reconciliation, read Coinbase, or
-grant browser/BFF stealth command authority.
+These phases continue M55 after the stealth create command draft. The next
+explicit architecture gap is a route-bound, no-live stealth reveal command
+contract keyed by `stealth_order_id`. Reveal is exchange-placement shaped, so
+the route must be classified as `live_exchange_place`, but the implementation
+must remain fail-closed: no `reveal_order_slice`, no `StealthOrderManager`
+invocation, no Coinbase submission, no local lifecycle mutation, no
+reconciliation execution, and no browser/BFF command authority.
 
-### Phase 2001 - Advance Active Queue Range
+### Phase 2021 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 1981-2000 to active
-  phases 2001-2020 while preserving the no-live default, carried Coinbase cap
+- Move the durable autonomous queue from completed phases 2001-2020 to active
+  phases 2021-2040 while preserving the no-live default, carried Coinbase cap
   policy, and milestone-linked phase discipline.
 
-### Phase 2002 - M55 Stealth Create Scope
+### Phase 2022 - M55 Stealth Reveal Scope
 
-- Define stealth create as a backend-owned command draft and lifecycle-write
-  gap, distinct from live create execution and existing dashboard behavior.
+- Define stealth reveal as a backend-owned, exchange-placement-shaped command
+  draft and keep it distinct from live reveal execution and existing dashboard
+  behavior.
 
-### Phase 2003 - Backend Identity Discipline
+### Phase 2023 - Reveal Identity Discipline
 
-- Bind the route to `stealth_order_id`; if the request omits it, derive a
-  backend-owned stable id before admission evidence while keeping
-  `client_order_id` and exchange `order_id` out of the create contract.
+- Bind the route to `stealth_order_id` only; keep `client_order_id` and
+  exchange `order_id` as evidence fields, not reveal command identity.
 
-### Phase 2004 - Request Model Contract
+### Phase 2024 - Reveal Request Model
 
-- Add a typed stealth create request model with product, side, size, limit,
-  reveal condition, policy fields, and explicit manual acknowledgement.
+- Add a typed reveal request body for reason and manual acknowledgement without
+  accepting order ids or active placement ids from the browser.
 
-### Phase 2005 - Route-Bound POST Contract
+### Phase 2025 - Route-Bound Reveal POST
 
-- Add `POST /api/v1/stealth/orders` with auth, RBAC, idempotency, operator
-  intent, audit, route inventory, and typed OpenAPI responses.
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` with auth, RBAC,
+  idempotency, operator intent, audit, route inventory, and typed OpenAPI
+  responses.
 
-### Phase 2006 - Fail-Closed Service Boundary
+### Phase 2026 - Fail-Closed Reveal Service
 
-- Route the command through `AdminApiCommandService.create_stealth_order` while
-  returning live-disabled/not-implemented evidence and proving no lifecycle
-  manager invocation or local state mutation occurs.
+- Route through `AdminApiCommandService.reveal_stealth_order_by_stealth_order_id`
+  and return not-implemented/live-disabled evidence proving no manager,
+  Coinbase, placement, lifecycle, or reconciliation mutation occurs.
 
-### Phase 2007 - Command-Suite Linkage
+### Phase 2027 - Reveal Command-Suite Linkage
 
-- Link stealth create into `GET /api/v1/stealth/command-suite` with
-  lifecycle-write gates, no active-placement requirement, and missing-contract
-  blockers.
+- Link reveal into `GET /api/v1/stealth/command-suite` with placement-shaped
+  exchange-truth requirements, trigger/lifecycle blockers, and no active
+  placement precondition for the draft route.
 
-### Phase 2008 - Inventory And Taxonomy Sync
+### Phase 2028 - Reveal Gap Update
 
-- Update enterprise readiness functionality inventory, mutation taxonomy,
-  capability posture, and route inventory for the create command draft.
+- Convert the `stealth_reveal_workflow` coverage gap from backend-route-missing
+  to admin-draft-live-disabled and leave trigger guard, exchange submission
+  adapter, active-placement audit, and reconciliation proof as blockers.
 
-### Phase 2009 - No-Live/No-State Proof
+### Phase 2029 - Enterprise Inventory Sync
 
-- Prove the create route does not submit Coinbase orders, read Coinbase,
-  mutate stealth/order/exchange state, or bypass lifecycle-write gates.
+- Update functionality inventory, mutation taxonomy, capability posture, and
+  route inventory for the reveal command draft.
 
-### Phase 2010 - Backend Focused Tests
+### Phase 2030 - Backend Focused Reveal Tests
 
-- Cover route behavior, generated schema, route inventory, command-suite
-  linkage, identity discipline, and no-live posture in focused regression.
+- Cover reveal route behavior, generated schema, route inventory,
+  command-suite linkage, identity discipline, and no-live posture in focused
+  regression.
 
-### Phase 2011 - Frontend Schema Sync
+### Phase 2031 - Frontend Schema Sync
 
-- Regenerate the website API client from backend OpenAPI and update frontend
-  route coverage metadata without hand-editing generated files.
+- Regenerate the website API client from backend OpenAPI and update route
+  coverage metadata without hand-editing generated files.
 
-### Phase 2012 - Frontend Wrapper And BFF Dry-Submit
+### Phase 2032 - Frontend Reveal Wrapper
 
-- Add canonical frontend wrapper and BFF allowlist support for the
-  live-disabled stealth create route; keep BFF forwarding transport-only.
+- Add canonical frontend API wrapper and BFF allowlist forwarding for the
+  live-disabled reveal route while keeping BFF authority transport-only.
 
-### Phase 2013 - Frontend Command Evidence
+### Phase 2033 - Frontend Reveal Draft
 
-- Render stealth create draft/readiness evidence in command workflows only as
-  blocked backend-owned evidence with no browser lifecycle authority.
+- Render stealth reveal as blocked backend-owned command evidence in command
+  workflows with request preview and dry-submit only.
 
-### Phase 2014 - Browser Authority Guard
+### Phase 2034 - Browser Authority Guard
 
-- Prove frontend and BFF code cannot evaluate stealth create guards, create
-  local state, call Coinbase, or treat dry-submit as execution authority.
+- Prove frontend and BFF code cannot evaluate reveal triggers, call
+  `reveal_order_slice`, submit Coinbase orders, or mutate lifecycle state.
 
-### Phase 2015 - Documentation Update
+### Phase 2035 - Mock And Smoke Coverage
 
-- Update Admin API, stealth command-suite, command workflow, example, module
-  matrix, handoff, and roadmap docs for stealth create draft semantics.
+- Update frontend mocks, smoke routes, release checks, and deployment
+  readiness artifacts for the reveal route with expected `501` no-live
+  behavior.
 
-### Phase 2016 - Contextless Review And Remediation
+### Phase 2036 - Documentation Update
+
+- Update Admin API, stealth command-suite, command workflow, examples, module
+  matrix, handoff, and roadmap docs for reveal draft semantics.
+
+### Phase 2037 - Contextless Review And Remediation
 
 - Run blind/contextless review for whether a fresh agent can explain how
-  stealth create works, why it remains blocked, and which future gates are
+  stealth reveal works, why it remains blocked, and which future gates are
   required; fix blockers before final gates.
 
-### Phase 2017 - Full Backend Gates
+### Phase 2038 - Full Backend Gates
 
 - Run backend autonomous validation, focused Admin API tests, ownership checks,
   and full regression; confirm submitted/executed notional remains `$0`.
 
-### Phase 2018 - Full Frontend Gates
+### Phase 2039 - Full Frontend Gates
 
 - Run frontend schema checks, focused tests, command security checks, and
   `npm run release:gate`; confirm frontend submitted/executed notional remains
   `$0`.
 
-### Phase 2019 - Live-Execution Ledger
-
-- Record that live Coinbase reads and live Coinbase execution were not run for
-  this range unless a later explicit live phase overrides the default under the
-  carried cap.
-
-### Phase 2020 - Final Gates, Push, And Next Range
+### Phase 2040 - Final Gates, Push, And Next Range
 
 - Mark the range complete only after gates and contextless review pass, push
   synchronized backend/frontend changes, then create the next
   milestone-linked range only if M55 still has an explicit gap.
+
+## Completed Phases 2001-2020
+
+Completion evidence:
+
+- Added `POST /api/v1/stealth/orders` as a route-bound, live-disabled stealth
+  create command draft keyed by `stealth_order_id`.
+- Added backend-owned id derivation for omitted create ids before admission
+  evidence while keeping `client_order_id` and exchange `order_id` out of the
+  create command identity.
+- Synchronized route inventory, OpenAPI, command-suite evidence, enterprise
+  inventory, mutation taxonomy, frontend generated schema, BFF dry-submit,
+  docs, and contextless review with live Coinbase submitted/executed notional
+  `$0`.
 
 ## Completed Phases 1981-2000
 

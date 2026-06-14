@@ -1251,6 +1251,41 @@ and exchange order ids are evidence only. Future live execution must reconcile
 the live placement through the existing stealth lifecycle exchange-handling
 path before local state can change.
 
+## Stealth Reveal By Stealth Order ID
+
+Current live-disabled command shape:
+
+```http
+POST /api/v1/stealth/orders/{stealth_order_id}/reveal
+Authorization: Bearer <backend-verifiable-token>
+Idempotency-Key: 018f1a2b-4b9c-7e20-9d39-7d6c4a5f1084
+X-Correlation-Id: corr-20260610-003
+X-Operator-Intent: operator_stealth_reveal
+X-Admin-Actor: operator-001
+X-Admin-Roles: trader
+X-CSRF-Token: <configured-csrf-token-when-required>
+Content-Type: application/json
+
+{"reason":"trigger_window_open","manual_live_acknowledgement":true}
+```
+
+Current backend behavior:
+
+- parse the request through FastAPI/Pydantic
+- authenticate actor and authorize `order:create`
+- evaluate durable idempotency
+- call the shared command service with HTTP live execution disabled
+- write durable command audit evidence with `stealth_order_id`
+- return `501` with `status: "not_implemented"`
+- never call `reveal_order_slice` or `StealthOrderManager`
+- never submit Coinbase orders
+- never mutate stealth lifecycle state
+
+This command draft is keyed by `stealth_order_id`. Future live execution must
+prove trigger evidence, exchange submission adapter behavior, active-placement
+audit, approval, cap/guard, and reconciliation proof before the existing reveal
+path can place an order or update lifecycle state.
+
 ## Order Reads
 
 Order reads are local/backend evidence routes. They are keyed by
@@ -1292,8 +1327,8 @@ browser.
 Stealth reads are local/backend lifecycle evidence routes. They are keyed by
 `stealth_order_id`. Active placement client ids and exchange order ids are
 evidence fields only. The enterprise Admin API exposes list/detail reads,
-read-only command-suite readiness, and the live-disabled stealth cancel draft
-above. Stealth create, reveal, move, recovery, and reconciliation command
+read-only command-suite readiness, and live-disabled stealth create, reveal,
+and cancel drafts. Stealth create, reveal, move, recovery, and reconciliation
 routes are not modeled as executable Admin API commands.
 
 ```http
@@ -1326,12 +1361,13 @@ state or cancel a live placement.
 
 The command-suite response reports `exchange_truth_required=true`,
 `live_enabled_command_count=0`, `executable_command_count=0`, and
-`live_coinbase_orders_ran=false`. It lists live-disabled stealth cancel and
-movement/reprice command rows plus blocked gap rows for create, reveal, cancel
-exchange handling, move revealed, reprice completion, recovery, and
-reconciliation. It does not create stealth orders, reveal orders, cancel active
-placements, move/reprice revealed orders, execute reconciliation, mutate state,
-read Coinbase, or call Coinbase.
+`live_coinbase_orders_ran=false`. It lists live-disabled stealth create,
+reveal, cancel, and movement/reprice command rows plus blocked gap rows for
+create lifecycle-write, reveal trigger/exchange placement, cancel exchange
+handling, move revealed, reprice completion, recovery, and reconciliation. It
+does not create stealth orders, reveal orders, cancel active placements,
+move/reprice revealed orders, execute reconciliation, mutate state, read
+Coinbase, or call Coinbase.
 
 ## Movement And Repricing
 

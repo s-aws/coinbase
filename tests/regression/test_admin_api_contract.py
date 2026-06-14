@@ -1202,6 +1202,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/stealth/orders" in written["paths"]
     assert "/api/v1/stealth/orders/{stealth_order_id}" in written["paths"]
     assert "/api/v1/stealth/command-suite" in written["paths"]
+    assert "/api/v1/stealth/orders/{stealth_order_id}/reveal" in written["paths"]
     assert "/api/v1/stealth/orders/{stealth_order_id}/cancel" in written["paths"]
     assert "/api/v1/movement-repricing/evidence" in written["paths"]
     assert "/api/v1/movement-repricing/orders/{client_order_id}" in written["paths"]
@@ -1350,6 +1351,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "stealth_order_id" in stealth_create_request_schema["properties"]
     assert "reveal_condition" in stealth_create_request_schema["required"]
     assert "manual_live_acknowledgement" in stealth_create_request_schema["properties"]
+    stealth_reveal_request_schema = written["components"]["schemas"][
+        "StealthRevealRequest"
+    ]
+    assert "reason" in stealth_reveal_request_schema["properties"]
+    assert "manual_live_acknowledgement" in stealth_reveal_request_schema["properties"]
+    assert "order_id" not in stealth_reveal_request_schema["properties"]
     stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
     assert "pagination" in stealth_list_schema["properties"]
     assert "command_routes_mode" in stealth_list_schema["properties"]
@@ -1549,6 +1556,29 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         "command_contract": True,
     }
     assert command_routes[
+        ("POST", "/api/v1/stealth/orders/{stealth_order_id}/reveal")
+    ] == {
+        "module_id": "stealth_orders",
+        "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/reveal",
+        "method": "POST",
+        "path": "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "permission": AdminApiPermission.ORDER_CREATE.value,
+        "idempotency": "required",
+        "approval": "required by current HTTP live-disabled gate",
+        "caps": (
+            "required for trigger, placement, guard, and reconciliation evidence"
+        ),
+        "audit": "required",
+        "shared_method": "reveal_stealth_order_by_stealth_order_id",
+        "parity_test": (
+            "stealth_order_id identity; no reveal placement or lifecycle "
+            "mutation until exchange-submission gates are complete"
+        ),
+        "compatibility_mode": None,
+        "command_contract": True,
+    }
+    assert command_routes[
         ("POST", "/api/v1/spot/campaign/executions")
     ]["permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
     route_modules = {
@@ -1561,6 +1591,9 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
     assert route_modules["/api/v1/admin/audit-workbench"] == "audit_workbench"
     assert route_modules["/api/v1/futures/account"] == "futures_perpetuals"
     assert route_modules["/api/v1/stealth/orders"] == "stealth_orders"
+    assert route_modules["/api/v1/stealth/orders/{stealth_order_id}/reveal"] == (
+        "stealth_orders"
+    )
     assert route_modules["/api/v1/stealth/command-suite"] == "stealth_orders"
     assert (
         route_modules["/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"]
@@ -2414,6 +2447,53 @@ def test_admin_api_stealth_create_contract_is_fail_closed_and_no_live(monkeypatc
     assert payload["data"]["local_state_mutated"] is False
     assert payload["data"]["coinbase_order_submitted"] is False
     assert payload["data"]["exchange_order_id_evidence_only"] is True
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_reveal_contract_is_fail_closed_and_no_live(monkeypatch):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/stealth/orders/stealth-reveal-abc/reveal",
+        headers=_headers(idempotency_key="idem-stealth-reveal"),
+        json={
+            "reason": "trigger_window_open",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    assert payload["required_permission"] == AdminApiPermission.ORDER_CREATE.value
+    assert payload["service_method"] == "reveal_stealth_order_by_stealth_order_id"
+    assert payload["client_order_id"] is None
+    assert payload["stealth_order_id"] == "stealth-reveal-abc"
+    assert payload["coinbase_order_id"] is None
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "approval"
+    assert payload["guard"]["approval_snapshot_required"] is True
+    assert payload["guard"]["cap_evaluation_required"] is True
+    assert payload["admission_decision"]["route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    )
+    assert payload["admission_decision"]["module_id"] == "stealth_orders"
+    assert payload["admission_decision"]["identity_key"] == "stealth_order_id"
+    assert payload["admission_decision"]["identity_value"] == "stealth-reveal-abc"
+    assert payload["admission_decision"]["action_class"] == (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    )
+    assert payload["data"]["identity_key"] == "stealth_order_id"
+    assert payload["data"]["reason"] == "trigger_window_open"
+    assert payload["data"]["manual_live_acknowledgement"] is True
+    assert payload["data"]["requires_trigger_evidence"] is True
+    assert payload["data"]["active_placement_client_order_id"] is None
+    assert payload["data"]["exchange_order_id_evidence_only"] is True
+    assert payload["data"]["reveal_order_slice_invoked"] is False
+    assert payload["data"]["stealth_manager_invoked"] is False
+    assert payload["data"]["local_state_mutated"] is False
+    assert payload["data"]["coinbase_order_submitted"] is False
 
 
 @pytest.mark.regression
@@ -4552,9 +4632,9 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2001-2020"
-    assert payload["command_count"] == 3
-    assert payload["blocked_command_count"] == 3
+    assert payload["approved_phase_range"] == "2021-2040"
+    assert payload["command_count"] == 4
+    assert payload["blocked_command_count"] == 4
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
     assert payload["coverage_gap_count"] == 7
@@ -4569,6 +4649,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     command_routes = {command["route"]: command for command in payload["commands"]}
     assert set(command_routes) == {
         "/api/v1/stealth/orders",
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal",
         "/api/v1/stealth/orders/{stealth_order_id}/cancel",
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
     }
@@ -4598,6 +4679,21 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert "lifecycle_write_guard" in create_command["required_gate_chain"]
     assert "lifecycle_write_guard" in create_command["missing_gate_chain"]
     assert "active_placement_exchange_truth" not in create_command["missing_gate_chain"]
+
+    reveal_command = command_routes[
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    ]
+    assert reveal_command["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value
+    )
+    assert reveal_command["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    assert reveal_command["required_permission"] == AdminApiPermission.ORDER_CREATE.value
+    assert reveal_command["shared_method"] == "reveal_stealth_order_by_stealth_order_id"
+    assert reveal_command["exchange_truth_required"] is True
+    assert reveal_command["active_placement_evidence_required"] is False
+    assert "lifecycle_write_guard" in reveal_command["required_gate_chain"]
+    assert "lifecycle_write_guard" in reveal_command["missing_gate_chain"]
+    assert "active_placement_exchange_truth" not in reveal_command["missing_gate_chain"]
 
     for route in (
         "/api/v1/stealth/orders/{stealth_order_id}/cancel",
@@ -4654,6 +4750,18 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert create_gap["command_route"] == "/api/v1/stealth/orders"
     assert "stealth_create_lifecycle_write_contract" in create_gap["missing_contracts"]
     assert create_gap["detail"].endswith("mutate local lifecycle state.")
+    reveal_gap = coverage_gaps[
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW.value
+    ]
+    assert reveal_gap["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert reveal_gap["command_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    )
+    assert "stealth_reveal_admin_route" not in reveal_gap["missing_contracts"]
+    assert "stealth_reveal_trigger_guard" in reveal_gap["missing_contracts"]
+    assert reveal_gap["detail"].endswith("or mutate lifecycle state.")
     assert (
         coverage_gaps[
             AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING.value
@@ -5541,7 +5649,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2001-2020"
+    assert live_payload["approved_phase_range"] == "2021-2040"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -5549,39 +5657,40 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["max_executed_notional_usdc"] == "1.00"
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 48
-    assert live_payload["blocking_preflight_check_count"] == 24
-    assert live_payload["passed_preflight_check_count"] == 24
-    assert live_payload["approval_snapshot_required_count"] == 6
+    assert live_payload["preflight_check_count"] == 56
+    assert live_payload["blocking_preflight_check_count"] == 28
+    assert live_payload["passed_preflight_check_count"] == 28
+    assert live_payload["approval_snapshot_required_count"] == 7
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 6
-    assert live_payload["approval_snapshot_required_field_count"] == 90
-    assert live_payload["approval_snapshot_missing_field_count"] == 90
-    assert live_payload["approval_store_required_count"] == 6
-    assert live_payload["approval_store_configured_count"] == 6
+    assert live_payload["approval_snapshot_missing_count"] == 7
+    assert live_payload["approval_snapshot_required_field_count"] == 105
+    assert live_payload["approval_snapshot_missing_field_count"] == 105
+    assert live_payload["approval_store_required_count"] == 7
+    assert live_payload["approval_store_configured_count"] == 7
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 72
+    assert live_payload["approval_store_requirement_count"] == 84
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 6
+    assert live_payload["admission_audit_required_count"] == 7
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 6
-    assert live_payload["admission_audit_fact_count"] == 60
-    assert live_payload["admission_audit_missing_fact_count"] == 54
-    assert live_payload["cap_guard_required_count"] == 6
+    assert live_payload["admission_audit_missing_count"] == 7
+    assert live_payload["admission_audit_fact_count"] == 70
+    assert live_payload["admission_audit_missing_fact_count"] == 63
+    assert live_payload["cap_guard_required_count"] == 7
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 6
-    assert live_payload["cap_guard_requirement_count"] == 84
-    assert live_payload["cap_guard_missing_requirement_count"] == 84
-    assert live_payload["live_execution_adapter_required_count"] == 6
+    assert live_payload["cap_guard_missing_count"] == 7
+    assert live_payload["cap_guard_requirement_count"] == 98
+    assert live_payload["cap_guard_missing_requirement_count"] == 98
+    assert live_payload["live_execution_adapter_required_count"] == 7
     assert live_payload["live_execution_adapter_configured_count"] == 1
-    assert live_payload["live_execution_adapter_missing_count"] == 5
-    assert live_payload["readiness_precondition_count"] == 54
-    assert live_payload["blocking_readiness_precondition_count"] == 35
-    assert live_payload["passed_readiness_precondition_count"] == 19
+    assert live_payload["live_execution_adapter_missing_count"] == 6
+    assert live_payload["readiness_precondition_count"] == 63
+    assert live_payload["blocking_readiness_precondition_count"] == 41
+    assert live_payload["passed_readiness_precondition_count"] == 22
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
     assert "/api/v1/orders/{client_order_id}/cancel" in live_routes
+    assert "/api/v1/stealth/orders/{stealth_order_id}/reveal" in live_routes
     assert "/api/v1/stealth/orders/{stealth_order_id}/cancel" in live_routes
     assert (
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
@@ -6100,7 +6209,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2001-2020"
+    assert enterprise_payload["approved_phase_range"] == "2021-2040"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6178,6 +6287,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.sweep_automation_and_live_executor",
         "stealth.lifecycle_reads",
         "stealth.create_command_draft",
+        "stealth.reveal_command_draft",
         "stealth.cancel_command_draft",
         "movement.repricing_reads",
         "movement.reprice_command_draft",
@@ -6212,9 +6322,24 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
     )
     assert stealth_create_inventory["command_capable"] is True
+    assert stealth_create_inventory["frontend_exposed"] is True
     assert stealth_create_inventory["live_designated"] is False
     assert "POST /api/v1/stealth/orders" in stealth_create_inventory["command_routes"]
     assert "stealth_order_id" in stealth_create_inventory["identity_keys"]
+    stealth_reveal_inventory = inventory_by_id["stealth.reveal_command_draft"]
+    assert stealth_reveal_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+    )
+    assert stealth_reveal_inventory["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert stealth_reveal_inventory["command_capable"] is True
+    assert stealth_reveal_inventory["frontend_exposed"] is True
+    assert stealth_reveal_inventory["live_designated"] is True
+    assert "POST /api/v1/stealth/orders/{stealth_order_id}/reveal" in (
+        stealth_reveal_inventory["command_routes"]
+    )
+    assert "stealth_order_id" in stealth_reveal_inventory["identity_keys"]
     stealth_create_taxonomy = taxonomy_by_id["stealth.create"]
     assert stealth_create_taxonomy["mutation_family"] == (
         AdminApiMutationFamilyType.STEALTH_CREATE.value
@@ -6637,7 +6762,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2001-2020"
+    assert recovery_preview_payload["approved_phase_range"] == "2021-2040"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

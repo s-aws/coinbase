@@ -28,19 +28,27 @@ authority for the enterprise Admin API.
 command rows and gap rows from backend route inventory and live-enablement
 evidence:
 
+- `POST /api/v1/stealth/orders` is linked as a live-disabled create command
+  draft and does not invoke `StealthOrderManager` or create local lifecycle
+  state.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` is linked as a
+  live-disabled reveal command draft and does not invoke `reveal_order_slice`,
+  submit Coinbase orders, or mutate lifecycle state.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is linked as a
   live-disabled command row.
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice` is
   linked as a live-disabled movement/repricing command row.
-- Missing workflow gaps remain blocked until backend-owned contracts exist for
-  create, reveal, cancel exchange handling, move revealed, reprice completion,
-  recovery, and reconciliation.
+- Workflow gaps remain blocked until backend-owned contracts exist for create
+  lifecycle writes, reveal trigger/exchange placement, cancel exchange
+  handling, move revealed, reprice completion, recovery, and reconciliation.
 
 Every command row remains `live_enabled=false` and `executable=false`. Required
 gates include idempotency, operator intent, payload hash, approval snapshot,
 approval-store contract, admission audit, cap/guard decision, reconciliation
-plan, mutation claim, active-placement exchange truth, live execution adapter,
-live execution service, and post-live reconciliation.
+plan, mutation claim, live execution adapter, live execution service, and
+post-live reconciliation. Cancel and reprice additionally require
+active-placement exchange truth; create and reveal drafts remain blocked on
+lifecycle/trigger evidence before execution can be considered.
 
 ## Exchange-Truth Boundary
 

@@ -241,6 +241,15 @@ class StealthCancelRequest(BaseModel):
     reason: str | None = None
 
 
+class StealthRevealRequest(BaseModel):
+    """Stealth reveal request body keyed by path ``stealth_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class StealthCreateRequest(BaseModel):
     """Stealth create request shape for future gated lifecycle writes."""
 
@@ -468,6 +477,17 @@ class StealthCreateCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: StealthCreateRequest
+    allow_live_execution: bool = False
+
+
+class StealthRevealCommand(BaseModel):
+    """Shared service command for reveal-by-stealth-order-id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthRevealRequest
     allow_live_execution: bool = False
 
 

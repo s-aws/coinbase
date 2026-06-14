@@ -30,6 +30,8 @@ from application.admin_api.models import (
     StealthCancelRequest,
     StealthCreateCommand,
     StealthCreateRequest,
+    StealthRevealCommand,
+    StealthRevealRequest,
 )
 from application.admin_api.read_service import AdminApiReadService
 from core.enums import AdminApiActionClass, AdminApiPermission
@@ -245,6 +247,82 @@ def stealth_command_suite(
     return _read_model_response(
         StealthCommandSuiteResponse,
         service.build_stealth_command_suite().model_dump(mode="json"),
+    )
+
+
+@router.post(
+    "/stealth/orders/{stealth_order_id}/reveal",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Reveal a stealth order by stealth_order_id through the shared command service",
+)
+def reveal_stealth_order_by_stealth_order_id(
+    request: Request,
+    body: StealthRevealRequest,
+    stealth_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for live-disabled stealth reveal by ``stealth_order_id``."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope: AdminApiCommandEnvelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+        path_params={"stealth_order_id": stealth_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.ORDER_CREATE,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        route_template="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value=stealth_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        stealth_order_id=stealth_order_id,
+        command_runner=lambda: service.reveal_stealth_order_by_stealth_order_id(
+            StealthRevealCommand(
+                envelope=envelope,
+                stealth_order_id=stealth_order_id,
+                request=body,
+            )
+        ),
     )
 
 

@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2001-2020`.
+- Active autonomous range: `2021-2040`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -148,15 +148,19 @@ notional, retained inventory, reconciliation result, and audit ids.
   adding read-only stealth command-suite readiness evidence for create,
   cancel, reveal, move, reprice, recovery, and reconciliation workflows and
   linked existing live-disabled stealth cancel and movement/reprice route
-  evidence without enabling them. The active 2001-2020 range continues M55 by
-  adding a route-bound, live-disabled `POST /api/v1/stealth/orders` create
-  command draft keyed by `stealth_order_id`. It may expose typed request
-  shape, backend-owned identity derivation, route inventory, command-suite
-  linkage, frontend generated types, BFF forwarding, and dry-submit evidence,
-  but it must not invoke `StealthOrderManager`, create local stealth state,
-  reveal orders, cancel active placements, move/reprice revealed orders,
-  mutate stealth/order/exchange state, execute reconciliation, read Coinbase,
-  or grant browser/BFF stealth command authority. This foundation must not add
+  evidence without enabling them. The completed 2001-2020 range added a
+  route-bound, live-disabled `POST /api/v1/stealth/orders` create command draft
+  keyed by `stealth_order_id`, with backend-owned identity derivation, route
+  inventory, command-suite linkage, frontend generated types, BFF forwarding,
+  and dry-submit evidence. The active 2021-2040 range continues M55 by adding
+  a route-bound, live-disabled
+  `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` command draft keyed
+  by `stealth_order_id`. Reveal is `live_exchange_place` shaped, but it must
+  not invoke `reveal_order_slice`, call `StealthOrderManager`, submit Coinbase
+  orders, create or mutate local stealth/order/exchange state, cancel active
+  placements, move/reprice revealed orders, execute reconciliation, read
+  Coinbase, or grant browser/BFF stealth command authority. This foundation
+  must not add
   a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
   authority, browser recovery authority, browser reconciliation authority,
@@ -169,10 +173,10 @@ notional, retained inventory, reconciliation result, and audit ids.
   records, reconciliation plans, command-suite proof routes, command draft
   evidence, or pilot adapter evidence are not sufficient live execution
   authority by themselves.
-  The active 2001-2020 range must keep stealth create as no-live draft
-  evidence before any lifecycle-write, create/reveal/cancel/move/reprice/
-  recovery/reconciliation behavior can be considered through the enterprise
-  Admin API.
+  The active 2021-2040 range must keep stealth reveal as no-live draft
+  evidence before any reveal, placement, lifecycle-write, create/cancel/
+  move/reprice/recovery/reconciliation behavior can be considered through the
+  enterprise Admin API.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

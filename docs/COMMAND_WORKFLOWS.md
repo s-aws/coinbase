@@ -162,19 +162,22 @@ that operation. Do not replace this with an exchange-native `order_id` flow.
 whether stealth create, cancel, reveal, move, reprice, recovery, and
 reconciliation workflows have backend-owned contracts and gate evidence.
 
-The response links existing live-disabled command rows for stealth cancel and
-movement/repricing reprice by `stealth_order_id`. It also reports
-`coverage_gaps` for missing create, reveal, cancel exchange-handling, move
-revealed, reprice completion, recovery, and reconciliation contracts. Gap rows
-identify current read evidence, missing backend contracts, required gate
-chains, and browser/BFF boundaries.
+The response links live-disabled command rows for stealth create, reveal,
+cancel, and movement/repricing reprice by `stealth_order_id`. It also reports
+`coverage_gaps` for create lifecycle-write, reveal trigger/exchange placement,
+cancel exchange-handling, move revealed, reprice completion, recovery, and
+reconciliation contracts. Gap rows identify current read evidence, missing
+backend contracts, required gate chains, and browser/BFF boundaries.
 
-Stealth command rows require active-placement exchange truth and mutation-claim
-evidence in addition to the normal approval, cap/guard, admission audit,
-reconciliation, idempotency, payload-hash, and operator-intent chain. They are
-readiness evidence only. A revealed stealth order cannot be marked hidden,
-cancelled, moved, or repriced by local mutation unless the live placement is
-cancelled, replaced, filled, moved, or reconciled first.
+Stealth command rows require mutation-claim evidence in addition to the normal
+approval, cap/guard, admission audit, reconciliation, idempotency,
+payload-hash, and operator-intent chain. Cancel and reprice also require
+active-placement exchange truth. Create and reveal are command drafts that do
+not require active-placement evidence before the draft response, but they still
+remain blocked until lifecycle/trigger, live adapter, and reconciliation gates
+exist. They are readiness evidence only. A revealed stealth order cannot be
+marked hidden, cancelled, moved, or repriced by local mutation unless the live
+placement is cancelled, replaced, filled, moved, or reconciled first.
 
 The stealth command-suite route does not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute
