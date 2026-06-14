@@ -166,8 +166,10 @@ local order that reveals later under the shared guard path.
   `GET /api/v1/spot/recovery/reconciliation-proof?client_order_id=<client_order_id>`.
   Those Admin API routes report candidates, gate dependencies, rollback
   prerequisites, and proof-field requirements; they do not apply repair rows,
-  roll back local state, write proof records, execute reconciliation, mutate
-  order or exchange state, call Coinbase, or authorize browser/BFF recovery.
+  roll back local state, write proof/snapshot records, execute reconciliation,
+  mutate order or exchange state, call Coinbase, or authorize browser/BFF
+  recovery. Backend-owned proof and snapshot POST contracts are separate
+  local-state evidence routes and remain no-live.
   Use sweep or campaign execution when the workflow needs a self-contained
   JSONL run ledger, retry plan, and command-line reconciliation wrapper.
   Manual direct-order checklist before sending `place_order`:

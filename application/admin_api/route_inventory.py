@@ -307,6 +307,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/exchange-state-snapshots",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
+        idempotency="required",
+        approval="required",
+        caps="required",
+        audit="required",
+        shared_method="record_spot_recovery_exchange_state_snapshot",
+        parity_test=(
+            "spot recovery exchange-state snapshot writing persists append-only "
+            "local snapshot evidence only; no order/exchange-state mutation, "
+            "Coinbase read, or Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/reconciliation-executions",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,

@@ -45,6 +45,8 @@ from application.admin_api.models import (
     SpotRecoveryApplyExecutionRequest,
     SpotRecoveryExchangeStateProofCommand,
     SpotRecoveryExchangeStateProofRequest,
+    SpotRecoveryExchangeStateSnapshotCommand,
+    SpotRecoveryExchangeStateSnapshotRequest,
     SpotRecoveryReconciliationExecutionCommand,
     SpotRecoveryReconciliationExecutionRequest,
     SpotRecoveryReconciliationProofRecordCommand,
@@ -796,6 +798,7 @@ def _execute_spot_recovery_contract(
         SpotRecoveryApplyExecutionRequest
         | SpotRecoveryRollbackExecutionRequest
         | SpotRecoveryExchangeStateProofRequest
+        | SpotRecoveryExchangeStateSnapshotRequest
         | SpotRecoveryReconciliationExecutionRequest
         | SpotRecoveryReconciliationProofRecordRequest
     ),
@@ -1119,6 +1122,73 @@ def record_spot_recovery_exchange_state_proof(
         command_runner_with_admission=lambda envelope, admission_decision: (
             service.record_spot_recovery_exchange_state_proof(
                 SpotRecoveryExchangeStateProofCommand(
+                    envelope=envelope,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
+        ),
+    )
+
+
+@router.post(
+    "/spot/recovery/exchange-state-snapshots",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=SPOT_RECOVERY_PROOF_ROUTE_RESPONSES,
+    summary="Record spot recovery exchange-state snapshot through the shared command service",
+)
+def record_spot_recovery_exchange_state_snapshot(
+    request: Request,
+    body: SpotRecoveryExchangeStateSnapshotRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for backend-owned no-live exchange-state snapshots."""
+
+    return _execute_spot_recovery_contract(
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
+        service_method="record_spot_recovery_exchange_state_snapshot",
+        route_template="/api/v1/spot/recovery/exchange-state-snapshots",
+        service=service,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        command_runner=lambda envelope: (
+            service.record_spot_recovery_exchange_state_snapshot(
+                SpotRecoveryExchangeStateSnapshotCommand(
+                    envelope=envelope,
+                    request=body,
+                )
+            )
+        ),
+        command_runner_with_admission=lambda envelope, admission_decision: (
+            service.record_spot_recovery_exchange_state_snapshot(
+                SpotRecoveryExchangeStateSnapshotCommand(
                     envelope=envelope,
                     request=body,
                     admission_decision=admission_decision,

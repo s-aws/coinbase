@@ -3819,6 +3819,110 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/exchange-state-snapshots:
+    post:
+      tags:
+      - orders
+      summary: Record spot recovery exchange-state snapshot through the shared command
+        service
+      description: Route adapter for backend-owned no-live exchange-state snapshots.
+      operationId: record_spot_recovery_exchange_state_snapshot_api_v1_spot_recovery_exchange_state_snapshots_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpotRecoveryExchangeStateSnapshotRequest'
+      responses:
+        '200':
+          description: Spot recovery proof record accepted or replayed after all backend
+            prerequisites match.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Spot recovery proof record rejected before local proof persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required spot recovery proof-record permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/recovery/reconciliation-proofs:
     post:
       tags:
@@ -6140,6 +6244,7 @@ components:
       - spot_recovery_apply_execution
       - spot_recovery_rollback_execution
       - spot_recovery_exchange_state_proof
+      - spot_recovery_exchange_state_snapshot
       - spot_recovery_reconciliation_proof
       - spot_recovery_reconciliation_completion
       - spot_recovery_reconciliation_execution
@@ -13324,6 +13429,269 @@ components:
       - cap_guard_decision_id
       title: SpotRecoveryExchangeStateProofRequest
       description: Spot recovery exchange-state proof request keyed by ``client_order_id``.
+    SpotRecoveryExchangeStateSnapshotRecordItem:
+      properties:
+        exchange_state_snapshot_id:
+          type: string
+          title: Exchange State Snapshot Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          default: spot_recovery_exchange_state_snapshot
+        client_order_id:
+          type: string
+          title: Client Order Id
+        product_id:
+          type: string
+          title: Product Id
+        source_timestamp:
+          type: string
+          title: Source Timestamp
+        snapshot_source:
+          $ref: '#/components/schemas/SpotRecoveryExchangeStateSnapshotSource'
+        snapshot_evidence_ref:
+          type: string
+          title: Snapshot Evidence Ref
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        reconciliation_proof_id:
+          type: string
+          title: Reconciliation Proof Id
+        completion_id:
+          type: string
+          title: Completion Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        audit_id:
+          type: string
+          title: Audit Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        source:
+          type: string
+          title: Source
+          default: admin_api_spot_recovery_snapshot_log
+        snapshot_recorded:
+          type: boolean
+          title: Snapshot Recorded
+          default: true
+        source_trusted:
+          type: boolean
+          title: Source Trusted
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - exchange_state_snapshot_id
+      - recorded_at
+      - client_order_id
+      - product_id
+      - source_timestamp
+      - snapshot_source
+      - snapshot_evidence_ref
+      - reconciliation_plan_id
+      - reconciliation_proof_id
+      - completion_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - audit_id
+      - detail
+      title: SpotRecoveryExchangeStateSnapshotRecordItem
+      description: Read-only Spot recovery exchange-state snapshot evidence.
+    SpotRecoveryExchangeStateSnapshotRequest:
+      properties:
+        client_order_id:
+          type: string
+          minLength: 1
+          title: Client Order Id
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+          examples:
+          - BTC-USDC
+        exchange_state_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange State Snapshot Id
+        source_timestamp:
+          type: string
+          minLength: 1
+          title: Source Timestamp
+        snapshot_source:
+          $ref: '#/components/schemas/SpotRecoveryExchangeStateSnapshotSource'
+        snapshot_evidence_ref:
+          type: string
+          minLength: 1
+          title: Snapshot Evidence Ref
+        reconciliation_plan_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Plan Id
+        reconciliation_proof_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Proof Id
+        completion_id:
+          type: string
+          minLength: 1
+          title: Completion Id
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          minLength: 1
+          title: Cap Guard Decision Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - product_id
+      - source_timestamp
+      - snapshot_source
+      - snapshot_evidence_ref
+      - reconciliation_plan_id
+      - reconciliation_proof_id
+      - completion_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      title: SpotRecoveryExchangeStateSnapshotRequest
+      description: Spot recovery exchange-state snapshot request keyed by ``client_order_id``.
+    SpotRecoveryExchangeStateSnapshotSource:
+      type: string
+      enum:
+      - manual_import
+      - test_evidence
+      - live_coinbase_disabled
+      title: SpotRecoveryExchangeStateSnapshotSource
+      description: Source posture for backend-owned Spot recovery exchange-state snapshots.
     SpotRecoveryExecutionRecordItem:
       properties:
         journal_id:
@@ -14151,6 +14519,30 @@ components:
           - type: string
           - type: 'null'
           title: Reconciliation Proof Id
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        exchange_state_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange State Snapshot Id
+        source_timestamp:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Timestamp
+        snapshot_source:
+          anyOf:
+          - $ref: '#/components/schemas/SpotRecoveryExchangeStateSnapshotSource'
+          - type: 'null'
+        snapshot_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Snapshot Evidence Ref
         completion_id:
           anyOf:
           - type: string
@@ -14242,6 +14634,22 @@ components:
           type: boolean
           title: Coinbase Order Submission Allowed
           default: false
+        snapshot_recorded:
+          type: boolean
+          title: Snapshot Recorded
+          default: false
+        source_trusted:
+          type: boolean
+          title: Source Trusted
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
         order_state_mutated:
           type: boolean
           title: Order State Mutated
@@ -14291,6 +14699,16 @@ components:
           type: string
           minLength: 1
           title: Client Order Id
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+          examples:
+          - BTC-USDC
+        exchange_state_snapshot_id:
+          type: string
+          minLength: 1
+          title: Exchange State Snapshot Id
         reconciliation_plan_id:
           type: string
           minLength: 1
@@ -14332,6 +14750,8 @@ components:
       type: object
       required:
       - client_order_id
+      - product_id
+      - exchange_state_snapshot_id
       - reconciliation_plan_id
       - reconciliation_proof_id
       - completion_id
@@ -14536,6 +14956,16 @@ components:
             $ref: '#/components/schemas/SpotRecoveryCompletionRecordItem'
           type: array
           title: Persisted Completions
+        persisted_snapshot_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Snapshot Count
+          default: 0
+        persisted_snapshots:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryExchangeStateSnapshotRecordItem'
+          type: array
+          title: Persisted Snapshots
         reconciliation_execution_boundary_available:
           type: boolean
           title: Reconciliation Execution Boundary Available
@@ -14585,6 +15015,11 @@ components:
           - type: string
           - type: 'null'
           title: Latest Completion Id
+        latest_exchange_state_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Exchange State Snapshot Id
         post_apply_reconciliation_required_count:
           type: integer
           minimum: 0.0
@@ -14612,6 +15047,10 @@ components:
         exchange_state_proof_writer_available:
           type: boolean
           title: Exchange State Proof Writer Available
+          default: true
+        exchange_state_snapshot_contract_available:
+          type: boolean
+          title: Exchange State Snapshot Contract Available
           default: true
         reconciliation_proof_writer_available:
           type: boolean

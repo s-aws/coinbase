@@ -116,26 +116,29 @@ optional direct-order audit lookup, apply-review gate dependencies, rollback
 prerequisites, reconciliation-proof field requirements, state-repair taxonomy,
 repair-target evidence, pre-apply snapshots, dry-run repair plans, and
 completion-state evidence. They close the read-contract gap only. POST
-contracts also exist for recovery apply
-execution, rollback execution, exchange-state proof recording, and
+contracts also exist for recovery apply execution, rollback execution,
+exchange-state proof recording, exchange-state snapshot recording, and
 reconciliation-proof recording. Apply and rollback remain fail-closed for
 order/exchange-state mutation, Coinbase activity, and reconciliation
 execution; guarded backend local repair-result journals are allowed only when
-the repair guard matches exactly. The proof POST routes persist append-only
-backend local evidence
-only after approval, admission audit, cap/guard, reconciliation plan,
-idempotency, and audit prerequisites match. Reconciliation-proof POST may also
-persist a guarded post-apply completion record when the existing proof, apply
-journal, repair-result, approval, admission audit, cap/guard,
-reconciliation-plan, idempotency, operator-intent, and payload-hash evidence
-matches exactly. The reconciliation-proof read route also exposes
+the repair guard matches exactly. The proof and snapshot POST routes persist
+append-only backend local evidence only after approval, admission audit,
+cap/guard, reconciliation plan, idempotency, and audit prerequisites match.
+The snapshot route also requires the matching proof and completion chain and
+records `coinbase_read_attempted=false`/`coinbase_read_succeeded=false`.
+Reconciliation-proof POST may also persist a guarded post-apply completion
+record when the existing proof, apply journal, repair-result, approval,
+admission audit, cap/guard, reconciliation-plan, idempotency,
+operator-intent, and payload-hash evidence matches exactly. The
+reconciliation-proof read route also exposes
 fail-closed reconciliation execution boundary rows keyed by `client_order_id`;
 these rows name the disabled
 `POST /api/v1/spot/recovery/reconciliation-executions` route, the
 `execute_spot_recovery_reconciliation` service boundary, required inputs, and
-remaining blockers. That route is audited, idempotent, RBAC-protected, and
-fail-closed; it must not roll back order state, execute reconciliation, mutate
-order/exchange state, call Coinbase, or authorize browser/BFF recovery.
+remaining blockers including `coinbase_live_read_disabled`. That route is
+audited, idempotent, RBAC-protected, and fail-closed; it must not roll back
+order state, execute reconciliation, mutate order/exchange state, call
+Coinbase, or authorize browser/BFF recovery.
 Accepted checkpoint records also expose read-only reconciliation-plan link
 evidence to `GET /api/v1/admin/reconciliation/plans` and
 `GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage

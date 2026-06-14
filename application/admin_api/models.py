@@ -52,6 +52,7 @@ from core.enums import (
     OrderType,
     ProductCapability,
     ProductType,
+    SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthMutationKind,
@@ -338,6 +339,28 @@ class SpotRecoveryExchangeStateProofRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class SpotRecoveryExchangeStateSnapshotRequest(BaseModel):
+    """Spot recovery exchange-state snapshot request keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1, examples=["BTC-USDC"])
+    exchange_state_snapshot_id: str | None = None
+    source_timestamp: str = Field(min_length=1)
+    snapshot_source: SpotRecoveryExchangeStateSnapshotSource
+    snapshot_evidence_ref: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    reconciliation_proof_id: str = Field(min_length=1)
+    completion_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class SpotRecoveryReconciliationProofRecordRequest(BaseModel):
     """Spot recovery reconciliation-proof request keyed by ``client_order_id``."""
 
@@ -362,6 +385,8 @@ class SpotRecoveryReconciliationExecutionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_order_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1, examples=["BTC-USDC"])
+    exchange_state_snapshot_id: str = Field(min_length=1)
     reconciliation_plan_id: str = Field(min_length=1)
     reconciliation_proof_id: str = Field(min_length=1)
     completion_id: str = Field(min_length=1)
@@ -466,6 +491,17 @@ class SpotRecoveryExchangeStateProofCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotRecoveryExchangeStateProofRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    allow_live_execution: bool = False
+
+
+class SpotRecoveryExchangeStateSnapshotCommand(BaseModel):
+    """Shared service command for exchange-state snapshot records."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotRecoveryExchangeStateSnapshotRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
@@ -2716,6 +2752,57 @@ class SpotRecoveryProofRecordItem(BaseModel):
     detail: str
 
 
+class SpotRecoveryExchangeStateSnapshotRecordItem(BaseModel):
+    """Read-only Spot recovery exchange-state snapshot evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    exchange_state_snapshot_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType = (
+        AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT
+    )
+    client_order_id: str
+    product_id: str
+    source_timestamp: str
+    snapshot_source: SpotRecoveryExchangeStateSnapshotSource
+    snapshot_evidence_ref: str
+    reconciliation_plan_id: str
+    reconciliation_proof_id: str
+    completion_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    audit_id: str
+    dry_run: bool = True
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    source: str = "admin_api_spot_recovery_snapshot_log"
+    snapshot_recorded: bool = True
+    source_trusted: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    coinbase_rest_read_ran: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    reconciliation_executed: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class SpotRecoveryExecutionRecordItem(BaseModel):
     """Read-only Spot recovery apply/rollback journal evidence."""
 
@@ -2987,6 +3074,11 @@ class SpotRecoveryReconciliationExecutionBoundaryItem(BaseModel):
     missing_inputs: list[str] = Field(default_factory=list)
     reconciliation_plan_id: str | None = None
     reconciliation_proof_id: str | None = None
+    product_id: str | None = None
+    exchange_state_snapshot_id: str | None = None
+    source_timestamp: str | None = None
+    snapshot_source: SpotRecoveryExchangeStateSnapshotSource | None = None
+    snapshot_evidence_ref: str | None = None
     completion_id: str | None = None
     repair_result_id: str | None = None
     journal_id: str | None = None
@@ -3007,6 +3099,10 @@ class SpotRecoveryReconciliationExecutionBoundaryItem(BaseModel):
     exchange_state_mutation_allowed: bool = False
     coinbase_rest_read_allowed: bool = False
     coinbase_order_submission_allowed: bool = False
+    snapshot_recorded: bool = False
+    source_trusted: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
     order_state_mutated: bool = False
     exchange_state_mutated: bool = False
     reconciliation_executed: bool = False
@@ -3052,6 +3148,10 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     persisted_repair_results: list[SpotRecoveryRepairResultRecordItem] = Field(default_factory=list)
     persisted_completion_count: int = Field(default=0, ge=0)
     persisted_completions: list[SpotRecoveryCompletionRecordItem] = Field(default_factory=list)
+    persisted_snapshot_count: int = Field(default=0, ge=0)
+    persisted_snapshots: list[SpotRecoveryExchangeStateSnapshotRecordItem] = (
+        Field(default_factory=list)
+    )
     reconciliation_execution_boundary_available: bool = True
     reconciliation_execution_boundary_count: int = Field(default=0, ge=0)
     reconciliation_execution_boundaries: list[
@@ -3064,12 +3164,14 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     latest_rollback_journal_id: str | None = None
     latest_repair_result_id: str | None = None
     latest_completion_id: str | None = None
+    latest_exchange_state_snapshot_id: str | None = None
     post_apply_reconciliation_required_count: int = Field(default=0, ge=0)
     post_apply_reconciliation_satisfied_count: int = Field(default=0, ge=0)
     post_apply_reconciliation_completed_count: int = Field(default=0, ge=0)
     missing_contracts: list[str] = Field(default_factory=list)
     reconciliation_proof_contract_available: bool = True
     exchange_state_proof_writer_available: bool = True
+    exchange_state_snapshot_contract_available: bool = True
     reconciliation_proof_writer_available: bool = True
     reconciliation_execution_available: bool = False
     recovery_apply_available: bool = True

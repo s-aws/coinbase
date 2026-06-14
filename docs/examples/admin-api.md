@@ -2173,7 +2173,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Read-only recovery reconciliation-proof contract evidence, including completion-state and fail-closed execution-boundary evidence from backend proof, execution-journal, repair-result, and completion records; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
+          "detail": "Read-only recovery reconciliation-proof contract evidence, including completion-state, snapshot readback, and fail-closed execution-boundary evidence from backend proof, snapshot, execution-journal, repair-result, and completion records; it reads backend proof/snapshot records but does not write records, execute reconciliation, mutate exchange state, or call Coinbase."
         },
         {
           "route": "/api/v1/admin/recovery-gate",
@@ -2289,7 +2289,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot-specific reconciliation execution contract that can compare backend order state with Coinbase evidence after the disabled execution boundary route/service, backend executor, and Coinbase evidence snapshot contracts exist without browser or BFF state mutation.",
+      "required_backend_contract": "Spot-specific reconciliation execution contract that can compare backend order state with Coinbase evidence after the disabled execution boundary route/service, backend executor, and live Coinbase read authority exist without browser or BFF state mutation. The backend snapshot record contract exists as local no-live evidence only.",
       "required_gate_chain": [
         "route_inventory_contract",
         "reconciliation_plan",
@@ -2313,7 +2313,7 @@ X-Admin-Roles: viewer
         "docs/examples/reconciliation-plans.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Reconciliation plan records are local-state evidence only. The recovery reconciliation-proof read now exposes the blocked execution boundary and disabled command route, but plans and boundary evidence do not execute reconciliation, mutate exchange/order state, or prove Coinbase state."
+      "detail": "Reconciliation plan records are local-state evidence only. The recovery reconciliation-proof read now exposes local snapshot readback, the blocked execution boundary, and disabled command route, but plans, snapshots, and boundary evidence do not execute reconciliation, mutate exchange/order state, read Coinbase, or prove live Coinbase state."
     }
   ]
 }
@@ -2642,7 +2642,7 @@ fallback, but `ADMIN_API_ACTOR_ID` is the canonical actor variable shared with
 BFF mode.
 
 The command smoke expects `501` live-disabled responses for live execution
-commands, `400` prerequisite rejections for Spot recovery proof writer probes
+commands, `400` prerequisite rejections for Spot recovery proof/snapshot writer probes
 when prerequisite records are absent, and accepted local-state responses for
 checkpoint/proof records when their backend prerequisites are satisfied. It
 reports live Coinbase execution as not run with notional `$0`.
@@ -2672,8 +2672,8 @@ npm run smoke:bff
 
 BFF smoke reads through `/api/admin/api/v1/...` and posts to BFF command
 routes expecting backend `501` live-disabled responses for live execution
-commands and backend `400` prerequisite rejections for Spot recovery proof
-writer probes. It must report live Coinbase execution as not run with
+commands and backend `400` prerequisite rejections for Spot recovery
+proof/snapshot writer probes. It must report live Coinbase execution as not run with
 notional `$0`.
 
 The BFF copies only documented response-evidence headers back to browser code:

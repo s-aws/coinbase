@@ -152,13 +152,18 @@ POST contract, required inputs, and remaining blockers. The route
 `POST /api/v1/spot/recovery/reconciliation-executions` exists only as a
 disabled shared-command-service boundary: it is idempotent, audited, and
 RBAC-protected, but it returns rejected evidence until the backend
-reconciliation executor and Coinbase evidence snapshot contract exist.
-Order/exchange-state mutation, Coinbase reads, Coinbase submissions, and
-actual reconciliation execution remain blockers.
+reconciliation executor and live Coinbase read authority exist. The backend
+snapshot record contract exists as no-live local evidence through
+`POST /api/v1/spot/recovery/exchange-state-snapshots`; it does not read
+Coinbase or prove live exchange truth. Order/exchange-state mutation,
+Coinbase reads, Coinbase submissions, and actual reconciliation execution
+remain blockers.
 Disabled POST contracts exist for recovery apply and rollback; proof POST
 contracts persist append-only backend local evidence only after route-bound
 approval, admission audit, cap/guard, reconciliation plan, idempotency, and
-audit prerequisites match. Apply/rollback POST routes may persist guarded
+audit prerequisites match. The snapshot POST contract persists append-only
+local snapshot evidence only after the same backend chain plus proof and
+completion evidence match. Apply/rollback POST routes may persist guarded
 local repair-result evidence when the backend repair guard matches exactly.
 Reconciliation-proof POST may also persist a guarded completion record when
 the existing proof, apply journal, and repair-result chain matches exactly.
@@ -290,6 +295,7 @@ Current mutating HTTP command surfaces are:
 - `POST /api/v1/spot/recovery/apply-executions`
 - `POST /api/v1/spot/recovery/rollback-executions`
 - `POST /api/v1/spot/recovery/exchange-state-proofs`
+- `POST /api/v1/spot/recovery/exchange-state-snapshots`
 - `POST /api/v1/spot/recovery/reconciliation-proofs`
 
 Current local-state approval lifecycle mutation surfaces are:
@@ -302,19 +308,21 @@ Current local-state approval lifecycle mutation surfaces are:
 - `POST /api/v1/admin/reconciliation/plans`
 - `POST /api/v1/spot/pnl/checkpoints`
 - `POST /api/v1/spot/recovery/exchange-state-proofs`
+- `POST /api/v1/spot/recovery/exchange-state-snapshots`
 - `POST /api/v1/spot/recovery/reconciliation-proofs`
 
 These local-state routes are authenticated, authorized, idempotent, and
 audited. They write backend-owned approval lifecycle, admission audit,
 cap/guard decision, reconciliation plan, Spot P/L checkpoint, or Spot recovery
-proof evidence only; they do not submit orders, cancel orders, evaluate
-browser guards, execute recovery, execute reconciliation, prove profitability,
-create tax lots, mutate order/exchange state, or call Coinbase.
+proof/snapshot evidence only; they do not submit orders, cancel orders,
+evaluate browser guards, execute recovery, execute reconciliation, prove
+profitability, create tax lots, mutate order/exchange state, or call Coinbase.
 
 See [Admission Audit Records](README.admission-audits.md),
 [Cap/Guard Decision Records](README.cap-guard-decisions.md),
 [Reconciliation Plan Records](README.reconciliation-plans.md),
-[Spot Recovery Proof Records](README.spot-recovery-proofs.md), and
+[Spot Recovery Proof Records](README.spot-recovery-proofs.md),
+[Spot Recovery Snapshot Records](README.spot-recovery-snapshots.md), and
 [Admin API Examples](docs/examples/admin-api.md) for record contracts and
 payload examples.
 

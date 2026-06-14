@@ -66,6 +66,9 @@ from application.admin_api.spot_recovery_proof import (
     FileSpotRecoveryProofStore,
     SpotRecoveryProofRecord,
 )
+from application.admin_api.spot_recovery_snapshot import (
+    FileSpotRecoverySnapshotStore,
+)
 from application.admin_api.spot_recovery_repair import (
     FileSpotRecoveryRepairResultJournalStore,
     build_spot_recovery_repair_ids,
@@ -90,6 +93,7 @@ from application.admin_api.models import (
     ManualOrderRequest,
     SpotRecoveryApplyExecutionRequest,
     SpotRecoveryExchangeStateProofRequest,
+    SpotRecoveryExchangeStateSnapshotRequest,
     SpotRecoveryReconciliationExecutionRequest,
     SpotRecoveryReconciliationProofRecordRequest,
     SpotRecoveryRollbackExecutionRequest,
@@ -119,6 +123,7 @@ from core.enums import (
     AdminApiRole,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
+    SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
 )
@@ -186,6 +191,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     spot_recovery_proof_store = FileSpotRecoveryProofStore(
         store_dir / "spot_recovery_proofs.jsonl"
     )
+    spot_recovery_snapshot_store = FileSpotRecoverySnapshotStore(
+        store_dir / "spot_recovery_snapshots.jsonl"
+    )
     spot_recovery_execution_store = FileSpotRecoveryExecutionJournalStore(
         store_dir / "spot_recovery_execution_journal.jsonl"
     )
@@ -198,6 +206,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     order_command_service = AdminApiCommandService(
         AdminApiCommandDependencies(
             spot_recovery_proof_store_getter=lambda: spot_recovery_proof_store,
+            spot_recovery_snapshot_store_getter=lambda: spot_recovery_snapshot_store,
             spot_recovery_execution_store_getter=lambda: (
                 spot_recovery_execution_store
             ),
@@ -261,6 +270,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[spot_routes.get_read_service] = lambda: (
         spot_routes.AdminApiReadService(
             spot_recovery_proof_store=spot_recovery_proof_store,
+            spot_recovery_snapshot_store=spot_recovery_snapshot_store,
             spot_recovery_execution_store=spot_recovery_execution_store,
             spot_recovery_repair_result_store=spot_recovery_repair_result_store,
             spot_recovery_completion_store=spot_recovery_completion_store,
@@ -275,6 +285,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_reconciliation_store = reconciliation_store
     client.admin_api_test_pnl_checkpoint_store = pnl_checkpoint_store
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
+    client.admin_api_test_spot_recovery_snapshot_store = (
+        spot_recovery_snapshot_store
+    )
     client.admin_api_test_spot_recovery_execution_store = (
         spot_recovery_execution_store
     )
@@ -749,6 +762,25 @@ def _spot_recovery_proof_payload_hash(
         "roles": roles or [AdminApiRole.TRADER.value],
         "operator_intent": operator_intent,
         "body": model.model_validate(body).model_dump(mode="json"),
+        "path_params": {},
+    })
+
+
+def _spot_recovery_snapshot_payload_hash(
+    *,
+    endpoint: str,
+    body: dict,
+    operator_intent: str = "spot_recovery_contract_review",
+    roles: list[str] | None = None,
+) -> str:
+    return make_payload_hash({
+        "endpoint": endpoint,
+        "actor_id": "operator-001",
+        "roles": roles or [AdminApiRole.TRADER.value],
+        "operator_intent": operator_intent,
+        "body": SpotRecoveryExchangeStateSnapshotRequest.model_validate(
+            body
+        ).model_dump(mode="json"),
         "path_params": {},
     })
 
@@ -1242,6 +1274,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         assert "400" in recovery_command_operation["responses"]
         assert "501" not in recovery_command_operation["responses"]
     for recovery_proof_path in (
+        "/api/v1/spot/recovery/exchange-state-snapshots",
         "/api/v1/spot/recovery/exchange-state-proofs",
         "/api/v1/spot/recovery/reconciliation-proofs",
     ):
@@ -1419,6 +1452,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "SpotRecoveryApplyExecutionRequest",
         "SpotRecoveryRollbackExecutionRequest",
         "SpotRecoveryExchangeStateProofRequest",
+        "SpotRecoveryExchangeStateSnapshotRequest",
         "SpotRecoveryReconciliationExecutionRequest",
         "SpotRecoveryReconciliationProofRecordRequest",
     ):
@@ -4410,8 +4444,8 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert payload["type"] == "spot_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "spot_operations"
-    assert payload["command_count"] == 9
-    assert payload["blocked_command_count"] == 9
+    assert payload["command_count"] == 10
+    assert payload["blocked_command_count"] == 10
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
     assert payload["coverage_gap_count"] == 3
@@ -4544,6 +4578,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION.value,
         AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION.value,
         AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF.value,
+        AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT.value,
         AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION.value,
         AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF.value,
     }
@@ -4696,6 +4731,11 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_PROOF.value: (
             "/api/v1/spot/recovery/exchange-state-proofs",
             "record_spot_recovery_exchange_state_proof",
+            AdminApiPermission.SPOT_RECOVERY_RECORD,
+        ),
+        AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT.value: (
+            "/api/v1/spot/recovery/exchange-state-snapshots",
+            "record_spot_recovery_exchange_state_snapshot",
             AdminApiPermission.SPOT_RECOVERY_RECORD,
         ),
         AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION.value: (
@@ -6202,6 +6242,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in spot_module["command_routes"]
     )
     assert (
+        "POST /api/v1/spot/recovery/exchange-state-snapshots"
+        in spot_module["command_routes"]
+    )
+    assert (
         "POST /api/v1/spot/recovery/reconciliation-executions"
         in spot_module["command_routes"]
     )
@@ -6221,7 +6265,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in spot_module["read_routes"]
     )
     assert spot_module["action_posture"]["read_route_count"] == 15
-    assert spot_module["action_posture"]["command_route_count"] == 10
+    assert spot_module["action_posture"]["command_route_count"] == 11
     assert spot_module["action_posture"]["live_route_count"] == 4
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
@@ -7514,6 +7558,202 @@ def test_admin_api_spot_recovery_proof_routes_persist_replay_and_read_back(
 
 
 @pytest.mark.regression
+def test_admin_api_spot_recovery_exchange_state_snapshot_records_are_no_live(
+    monkeypatch,
+):
+    import configuration
+
+    def poison(*_args, **_kwargs):
+        raise AssertionError("snapshot boundary must not contact Coinbase")
+
+    monkeypatch.setattr(configuration, "get_rest_client", poison)
+
+    client = _client(monkeypatch)
+    snapshot_path = "/api/v1/spot/recovery/exchange-state-snapshots"
+    snapshot_body = {
+        "client_order_id": "client-order-snapshot",
+        "product_id": "BTC-USDC",
+        "exchange_state_snapshot_id": "exchange-state-snapshot-001",
+        "source_timestamp": "2026-06-13T00:00:00+00:00",
+        "snapshot_source": SpotRecoveryExchangeStateSnapshotSource.TEST_EVIDENCE.value,
+        "snapshot_evidence_ref": "local-snapshot-evidence-ref-001",
+        "reconciliation_plan_id": "reconciliation-plan-snapshot-001",
+        "reconciliation_proof_id": "reconciliation-proof-snapshot-001",
+        "completion_id": "completion-snapshot-001",
+        "approval_snapshot_id": "approval-snapshot-001",
+        "admission_audit_id": "admission-audit-snapshot-001",
+        "cap_guard_decision_id": "cap-guard-snapshot-001",
+        "dry_run": True,
+        "operator_reason": "snapshot contract evidence only",
+        "manual_live_acknowledgement": False,
+    }
+
+    denied = client.post(
+        snapshot_path,
+        json=snapshot_body,
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert denied.status_code == 403
+    assert denied.json()["live_coinbase_orders_ran"] is False
+
+    rejected_order_id = client.post(
+        snapshot_path,
+        json={**snapshot_body, "order_id": "exchange-order-id"},
+        headers=_headers(
+            idempotency_key="spot-recovery-snapshot-order-id-rejected",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert rejected_order_id.status_code == 422
+
+    missing_prereq = client.post(
+        snapshot_path,
+        json=snapshot_body,
+        headers=_headers(
+            idempotency_key="spot-recovery-snapshot-missing-prereq",
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert missing_prereq.status_code == 400
+    assert missing_prereq.json()["status"] == AdminApiCommandStatus.REJECTED.value
+    assert missing_prereq.json()["data"]["snapshot_recorded"] is False
+    assert missing_prereq.json()["data"]["coinbase_read_attempted"] is False
+    assert client.admin_api_test_spot_recovery_snapshot_store.read_recent() == []
+
+    snapshot_payload_hash = _spot_recovery_snapshot_payload_hash(
+        endpoint=f"POST {snapshot_path}",
+        body=snapshot_body,
+    )
+    _append_spot_recovery_proof_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=snapshot_path,
+        service_method="record_spot_recovery_exchange_state_snapshot",
+        client_order_id=snapshot_body["client_order_id"],
+        idempotency_key="spot-recovery-snapshot-001",
+        operator_intent="spot_recovery_contract_review",
+        payload_hash=snapshot_payload_hash,
+        approval_snapshot_id=snapshot_body["approval_snapshot_id"],
+        admission_audit_id=snapshot_body["admission_audit_id"],
+        cap_guard_decision_id=snapshot_body["cap_guard_decision_id"],
+        reconciliation_plan_id=snapshot_body["reconciliation_plan_id"],
+    )
+    snapshot_created = client.post(
+        snapshot_path,
+        json=snapshot_body,
+        headers=_headers(
+            idempotency_key="spot-recovery-snapshot-001",
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert snapshot_created.status_code == 200
+    snapshot_payload = snapshot_created.json()
+    assert snapshot_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert snapshot_payload["required_permission"] == (
+        AdminApiPermission.SPOT_RECOVERY_RECORD.value
+    )
+    assert snapshot_payload["data"]["exchange_state_snapshot_id"] == (
+        "exchange-state-snapshot-001"
+    )
+    assert snapshot_payload["data"]["product_id"] == "BTC-USDC"
+    assert snapshot_payload["data"]["source_timestamp"] == (
+        "2026-06-13T00:00:00+00:00"
+    )
+    assert snapshot_payload["data"]["snapshot_recorded"] is True
+    assert snapshot_payload["data"]["source_trusted"] is False
+    assert snapshot_payload["data"]["coinbase_read_attempted"] is False
+    assert snapshot_payload["data"]["coinbase_read_succeeded"] is False
+    assert snapshot_payload["data"]["coinbase_rest_read_ran"] is False
+    assert snapshot_payload["data"]["order_state_mutated"] is False
+    assert snapshot_payload["data"]["exchange_state_mutated"] is False
+    assert snapshot_payload["data"]["reconciliation_executed"] is False
+    assert snapshot_payload["live_exchange_submitted"] is False
+    assert '"order_id"' not in json.dumps(snapshot_payload)
+
+    snapshot_replay = client.post(
+        snapshot_path,
+        json=snapshot_body,
+        headers=_headers(
+            idempotency_key="spot-recovery-snapshot-001",
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert snapshot_replay.status_code == 200
+    assert snapshot_replay.headers["X-Idempotency-Replayed"] == "true"
+    assert snapshot_replay.json()["audit_id"] == snapshot_payload["audit_id"]
+
+    snapshot_records = (
+        client.admin_api_test_spot_recovery_snapshot_store.read_recent()
+    )
+    assert [record.exchange_state_snapshot_id for record in snapshot_records] == [
+        "exchange-state-snapshot-001"
+    ]
+    assert snapshot_records[0].client_order_id == "client-order-snapshot"
+    assert snapshot_records[0].product_id == "BTC-USDC"
+    assert snapshot_records[0].coinbase_read_attempted is False
+    assert snapshot_records[0].coinbase_read_succeeded is False
+
+    readback = client.get(
+        "/api/v1/spot/recovery/reconciliation-proof",
+        params={"client_order_id": "client-order-snapshot"},
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["exchange_state_snapshot_contract_available"] is True
+    assert readback_payload["persisted_snapshot_count"] == 1
+    assert readback_payload["latest_exchange_state_snapshot_id"] == (
+        "exchange-state-snapshot-001"
+    )
+    persisted_snapshot = readback_payload["persisted_snapshots"][0]
+    assert persisted_snapshot["client_order_id"] == "client-order-snapshot"
+    assert persisted_snapshot["product_id"] == "BTC-USDC"
+    assert persisted_snapshot["snapshot_source"] == (
+        SpotRecoveryExchangeStateSnapshotSource.TEST_EVIDENCE.value
+    )
+    assert persisted_snapshot["source_trusted"] is False
+    assert persisted_snapshot["coinbase_read_attempted"] is False
+    assert persisted_snapshot["coinbase_read_succeeded"] is False
+    assert persisted_snapshot["coinbase_rest_read_ran"] is False
+    boundary = readback_payload["reconciliation_execution_boundaries"][0]
+    assert boundary["exchange_state_snapshot_id"] == "exchange-state-snapshot-001"
+    assert boundary["product_id"] == "BTC-USDC"
+    assert boundary["source_timestamp"] == "2026-06-13T00:00:00+00:00"
+    assert boundary["snapshot_recorded"] is True
+    assert boundary["source_trusted"] is False
+    assert "exchange_state_snapshot_id_missing" not in boundary["blockers"]
+    assert "coinbase_evidence_snapshot_contract_missing" not in boundary["blockers"]
+    assert "coinbase_live_read_disabled" in boundary["blockers"]
+    assert boundary["coinbase_rest_read_allowed"] is False
+    assert boundary["coinbase_rest_read_ran"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_read_ran"] is False
+    assert '"order_id"' not in json.dumps(readback_payload)
+
+    audit_rows = client.admin_api_test_audit_store.read_recent(limit=40)
+    snapshot_audit_rows = [
+        row
+        for row in audit_rows
+        if row.permission == AdminApiPermission.SPOT_RECOVERY_RECORD
+        and row.endpoint == f"POST {snapshot_path}"
+    ]
+    assert {row.audit_id for row in snapshot_audit_rows} >= {
+        snapshot_payload["audit_id"]
+    }
+    assert all(row.coinbase_order_id is None for row in snapshot_audit_rows)
+    assert all(
+        row.admission_decision is not None
+        and row.admission_decision.live_exchange_submitted is False
+        for row in snapshot_audit_rows
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
     monkeypatch,
 ):
@@ -7738,6 +7978,58 @@ def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
     assert completion_record.exchange_state_mutated is False
     assert completion_record.live_coinbase_orders_ran is False
 
+    snapshot_path = "/api/v1/spot/recovery/exchange-state-snapshots"
+    snapshot_body = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USDC",
+        "exchange_state_snapshot_id": "exchange-state-snapshot-completion-001",
+        "source_timestamp": "2026-06-13T00:00:00+00:00",
+        "snapshot_source": SpotRecoveryExchangeStateSnapshotSource.TEST_EVIDENCE.value,
+        "snapshot_evidence_ref": "local-snapshot-evidence-ref-completion-001",
+        "reconciliation_plan_id": shared_reconciliation_plan_id,
+        "reconciliation_proof_id": reconciliation_body["reconciliation_proof_id"],
+        "completion_id": completion_id,
+        "approval_snapshot_id": shared_approval_id,
+        "admission_audit_id": shared_admission_audit_id,
+        "cap_guard_decision_id": shared_cap_guard_id,
+        "dry_run": True,
+        "operator_reason": "completion snapshot contract evidence only",
+        "manual_live_acknowledgement": False,
+    }
+    snapshot_idempotency_key = "spot-recovery-snapshot-completion-001"
+    snapshot_payload_hash = _spot_recovery_snapshot_payload_hash(
+        endpoint=f"POST {snapshot_path}",
+        body=snapshot_body,
+    )
+    _append_spot_recovery_proof_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=snapshot_path,
+        service_method="record_spot_recovery_exchange_state_snapshot",
+        client_order_id=client_order_id,
+        idempotency_key=snapshot_idempotency_key,
+        operator_intent="spot_recovery_contract_review",
+        payload_hash=snapshot_payload_hash,
+        approval_snapshot_id=shared_approval_id,
+        admission_audit_id=shared_admission_audit_id,
+        cap_guard_decision_id=shared_cap_guard_id,
+        reconciliation_plan_id=shared_reconciliation_plan_id,
+    )
+    snapshot_created = client.post(
+        snapshot_path,
+        json=snapshot_body,
+        headers=_headers(
+            idempotency_key=snapshot_idempotency_key,
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert snapshot_created.status_code == 200
+    assert snapshot_created.json()["data"]["snapshot_recorded"] is True
+    assert snapshot_created.json()["data"]["coinbase_rest_read_ran"] is False
+
     readback = client.get(
         "/api/v1/spot/recovery/reconciliation-proof",
         params={"client_order_id": client_order_id},
@@ -7751,6 +8043,14 @@ def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
     assert readback_payload["post_apply_reconciliation_satisfied_count"] == 1
     assert readback_payload["post_apply_reconciliation_required_count"] == 1
     assert readback_payload["post_apply_reconciliation_completion_available"] is True
+    assert readback_payload["persisted_snapshot_count"] == 1
+    assert readback_payload["exchange_state_snapshot_contract_available"] is True
+    assert readback_payload["latest_exchange_state_snapshot_id"] == (
+        snapshot_body["exchange_state_snapshot_id"]
+    )
+    assert readback_payload["persisted_snapshots"][0][
+        "exchange_state_snapshot_id"
+    ] == snapshot_body["exchange_state_snapshot_id"]
     assert readback_payload["persisted_completions"][0]["completion_id"] == completion_id
     assert readback_payload["persisted_completions"][0]["fully_reconciled"] is True
     assert readback_payload["persisted_completions"][0]["reconciliation_executed"] is False
@@ -7799,17 +8099,27 @@ def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
     assert execution_boundary["reconciliation_plan_id"] == (
         shared_reconciliation_plan_id
     )
+    assert execution_boundary["exchange_state_snapshot_id"] == (
+        snapshot_body["exchange_state_snapshot_id"]
+    )
+    assert execution_boundary["product_id"] == "BTC-USDC"
+    assert execution_boundary["snapshot_recorded"] is True
+    assert execution_boundary["coinbase_read_attempted"] is False
     assert execution_boundary["approval_snapshot_id"] == shared_approval_id
     assert execution_boundary["admission_audit_id"] == shared_admission_audit_id
     assert execution_boundary["cap_guard_decision_id"] == shared_cap_guard_id
-    assert execution_boundary["idempotency_key"] == reconciliation_idempotency_key
-    assert execution_boundary["payload_hash"] == reconciliation_payload_hash
+    assert execution_boundary["idempotency_key"] == snapshot_idempotency_key
+    assert execution_boundary["payload_hash"] == snapshot_payload_hash
     assert execution_boundary["operator_intent"] == "spot_recovery_contract_review"
     assert execution_boundary["missing_inputs"] == []
     assert "spot_reconciliation_execution_contract" in (
         execution_boundary["missing_contracts"]
     )
     assert "reconciliation_executor_disabled" in execution_boundary["blockers"]
+    assert "coinbase_live_read_disabled" in execution_boundary["blockers"]
+    assert "coinbase_evidence_snapshot_contract_missing" not in (
+        execution_boundary["blockers"]
+    )
     assert "spot_reconciliation_execution_route_missing" not in (
         execution_boundary["blockers"]
     )
@@ -7838,6 +8148,8 @@ def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
 
     reconciliation_execution_body = {
         "client_order_id": client_order_id,
+        "product_id": "BTC-USDC",
+        "exchange_state_snapshot_id": snapshot_body["exchange_state_snapshot_id"],
         "reconciliation_plan_id": shared_reconciliation_plan_id,
         "reconciliation_proof_id": reconciliation_body["reconciliation_proof_id"],
         "completion_id": completion_id,
@@ -7933,6 +8245,10 @@ def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
         AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION.value
     )
     assert reconciliation_execution_payload["data"]["completion_id"] == completion_id
+    assert reconciliation_execution_payload["data"]["product_id"] == "BTC-USDC"
+    assert reconciliation_execution_payload["data"]["exchange_state_snapshot_id"] == (
+        snapshot_body["exchange_state_snapshot_id"]
+    )
     assert reconciliation_execution_payload["data"]["reconciliation_proof_id"] == (
         reconciliation_body["reconciliation_proof_id"]
     )
@@ -7947,7 +8263,7 @@ def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
     ] is False
     assert reconciliation_execution_payload["data"][
         "coinbase_evidence_snapshot_contract_available"
-    ] is False
+    ] is True
     assert reconciliation_execution_payload["data"]["reconciliation_executed"] is (
         False
     )
@@ -9583,6 +9899,11 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         "POST /api/v1/spot/recovery/exchange-state-proofs": (
             "record_spot_recovery_exchange_state_proof",
             "exchange-state proof writing persists append-only",
+            AdminApiPermission.SPOT_RECOVERY_RECORD,
+        ),
+        "POST /api/v1/spot/recovery/exchange-state-snapshots": (
+            "record_spot_recovery_exchange_state_snapshot",
+            "exchange-state snapshot writing persists append-only",
             AdminApiPermission.SPOT_RECOVERY_RECORD,
         ),
         "POST /api/v1/spot/recovery/reconciliation-executions": (

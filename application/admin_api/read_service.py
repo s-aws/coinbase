@@ -128,6 +128,7 @@ from .models import (
     SpotRecoveryContractGateItem,
     SpotRecoveryDryRunRepairPlanItem,
     SpotRecoveryExecutionRecordItem,
+    SpotRecoveryExchangeStateSnapshotRecordItem,
     SpotRecoveryPreApplySnapshotItem,
     SpotRecoveryPreviewResponse,
     SpotRecoveryPreviewSourceItem,
@@ -149,6 +150,10 @@ from .spot_recovery_execution import (
     SpotRecoveryExecutionRecord,
 )
 from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRecord
+from .spot_recovery_snapshot import (
+    FileSpotRecoverySnapshotStore,
+    SpotRecoveryExchangeStateSnapshotRecord,
+)
 from .spot_recovery_repair import (
     FileSpotRecoveryRepairResultJournalStore,
     SpotRecoveryRepairResultRecord,
@@ -2431,6 +2436,59 @@ def _spot_recovery_proof_item_from_record(
     )
 
 
+def _spot_recovery_snapshot_item_from_record(
+    record: SpotRecoveryExchangeStateSnapshotRecord,
+) -> SpotRecoveryExchangeStateSnapshotRecordItem:
+    return SpotRecoveryExchangeStateSnapshotRecordItem(
+        exchange_state_snapshot_id=record.exchange_state_snapshot_id,
+        recorded_at=record.recorded_at,
+        mutation_family=record.mutation_family,
+        client_order_id=record.client_order_id,
+        product_id=record.product_id,
+        source_timestamp=record.source_timestamp,
+        snapshot_source=record.snapshot_source,
+        snapshot_evidence_ref=record.snapshot_evidence_ref,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        reconciliation_proof_id=record.reconciliation_proof_id,
+        completion_id=record.completion_id,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        route=record.route,
+        method=record.method,
+        action_class=record.action_class,
+        required_permission=record.required_permission,
+        service_method=record.service_method,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        dry_run=record.dry_run,
+        operator_reason=record.operator_reason,
+        manual_live_acknowledgement=record.manual_live_acknowledgement,
+        source=record.source,
+        snapshot_recorded=record.snapshot_recorded,
+        source_trusted=record.source_trusted,
+        coinbase_read_attempted=record.coinbase_read_attempted,
+        coinbase_read_succeeded=record.coinbase_read_succeeded,
+        coinbase_rest_read_ran=record.coinbase_rest_read_ran,
+        order_state_mutated=record.order_state_mutated,
+        exchange_state_mutated=record.exchange_state_mutated,
+        reconciliation_executed=record.reconciliation_executed,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        browser_authority=record.browser_authority,
+        bff_authority=record.bff_authority,
+        detail=(
+            "Spot recovery exchange-state snapshot is backend-owned append-only "
+            "local evidence. It is not browser exchange truth, a Coinbase read, "
+            "order/exchange-state mutation, or reconciliation execution."
+        ),
+    )
+
+
 def _spot_recovery_execution_item_from_record(
     record: SpotRecoveryExecutionRecord,
 ) -> SpotRecoveryExecutionRecordItem:
@@ -2617,6 +2675,7 @@ class AdminApiReadService:
         self,
         *,
         spot_recovery_proof_store: FileSpotRecoveryProofStore | None = None,
+        spot_recovery_snapshot_store: FileSpotRecoverySnapshotStore | None = None,
         spot_recovery_execution_store: (
             FileSpotRecoveryExecutionJournalStore | None
         ) = None,
@@ -2629,6 +2688,9 @@ class AdminApiReadService:
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
+        )
+        self.spot_recovery_snapshot_store = (
+            spot_recovery_snapshot_store or FileSpotRecoverySnapshotStore()
         )
         self.spot_recovery_execution_store = (
             spot_recovery_execution_store or FileSpotRecoveryExecutionJournalStore()
@@ -5475,6 +5537,71 @@ class AdminApiReadService:
                 live_adapter_required=False,
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/exchange-state-snapshots",
+                mutation_id="spot.recovery_exchange_state_snapshot",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT
+                ),
+                workflow_id="spot.reconciliation_workflow",
+                related_workflow_ids=["spot.recovery_workflow"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot recovery exchange-state snapshot writing is a "
+                    "route-bound Admin API evidence contract keyed by "
+                    "client_order_id."
+                ),
+                identity_keys=[
+                    "client_order_id",
+                    "product_id",
+                    "exchange_state_snapshot_id",
+                ],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::record_spot_recovery_exchange_state_snapshot",
+                    "application/admin_api/command_service.py::record_spot_recovery_exchange_state_snapshot",
+                    "application/admin_api/spot_recovery_snapshot.py",
+                    "application/admin_api/spot_recovery_snapshot_service.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotRecoveryExchangeStateSnapshot",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                documentation_refs=[
+                    "README.spot-trading.md",
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                required_next_contract=(
+                    "Backend live Coinbase read authority and reconciliation "
+                    "executor contracts must exist before a snapshot can prove "
+                    "exchange truth or drive state mutation."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "coinbase_live_read_disabled",
+                    "reconciliation_executor_disabled",
+                ],
+                frontend_boundary=(
+                    "The browser may submit the backend record contract only; "
+                    "it must not fetch Coinbase, trust browser exchange state, "
+                    "or persist snapshot evidence outside the backend route."
+                ),
+                route_local_boundary=(
+                    "The route writes append-only local snapshot evidence, "
+                    "command audit, and idempotency evidence only; it must not "
+                    "read Coinbase, execute reconciliation, or mutate "
+                    "exchange/order state."
+                ),
+                spot_rule_boundary=(
+                    "Spot exchange-state snapshots are spot recovery evidence; "
+                    "futures/perpetual snapshots must be position and "
+                    "collateral aware."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/spot/recovery/reconciliation-executions",
                 mutation_id="spot.recovery_reconciliation_execution",
                 mutation_family=(
@@ -5505,14 +5632,14 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 required_next_contract=(
-                    "Backend reconciliation executor and Coinbase evidence "
-                    "snapshot contracts must exist before reconciliation can "
-                    "mutate local order state or prove exchange truth."
+                    "Backend reconciliation executor and live Coinbase read "
+                    "authority must exist before reconciliation can mutate "
+                    "local order state or prove exchange truth."
                 ),
                 blockers=[
                     "live_execution_disabled",
                     "reconciliation_executor_disabled",
-                    "coinbase_evidence_snapshot_contract_missing",
+                    "coinbase_live_read_disabled",
                 ],
                 frontend_boundary=(
                     "The browser may dry-submit the backend contract only; it "
@@ -7639,6 +7766,33 @@ class AdminApiReadService:
                     "not fetch Coinbase or mutate order/exchange state."
                 ),
             },
+            AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT: {
+                "surface": "POST /api/v1/spot/recovery/exchange-state-snapshots",
+                "identity_key": "client_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/orders.py::record_spot_recovery_exchange_state_snapshot",
+                    "application/admin_api/command_service.py::record_spot_recovery_exchange_state_snapshot",
+                    "application/admin_api/spot_recovery_snapshot.py",
+                    "application/admin_api/spot_recovery_snapshot_service.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotRecoveryExchangeStateSnapshot",
+                    "src/features/spot-ops/SpotReadOnlyViews.tsx",
+                ],
+                "documentation_refs": [
+                    "README.spot-trading.md",
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                "detail": (
+                    "Spot recovery exchange-state snapshot writing is route-bound "
+                    "as append-only backend evidence keyed by client_order_id. "
+                    "It can record manual/test snapshot evidence for future "
+                    "reconciliation review, but it does not read Coinbase, trust "
+                    "browser exchange state, or mutate order/exchange state."
+                ),
+            },
             AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION: {
                 "surface": "POST /api/v1/spot/recovery/reconciliation-executions",
                 "identity_key": "client_order_id",
@@ -7715,6 +7869,16 @@ class AdminApiReadService:
                         "reconciliation_plan",
                         "exchange_state_capture_missing",
                     ]
+                elif mutation_family == AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT:
+                    missing_gate_chain = [
+                        "approval_snapshot",
+                        "admission_audit",
+                        "cap_guard_decision",
+                        "reconciliation_plan",
+                        "reconciliation_proof",
+                        "completion_record",
+                        "coinbase_live_read_disabled",
+                    ]
                 elif mutation_family == AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION:
                     missing_gate_chain = [
                         "approval_snapshot",
@@ -7723,8 +7887,9 @@ class AdminApiReadService:
                         "reconciliation_plan",
                         "reconciliation_proof",
                         "completion_record",
+                        "exchange_state_snapshot",
                         "reconciliation_executor_disabled",
-                        "coinbase_evidence_snapshot_contract_missing",
+                        "coinbase_live_read_disabled",
                     ]
                 elif mutation_family == AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF:
                     missing_gate_chain = [
@@ -8014,11 +8179,11 @@ class AdminApiReadService:
                 ),
                 required_backend_contract=(
                     "Spot recovery apply, rollback, exchange-state proof, "
-                    "reconciliation-proof, and guarded local repair result "
-                    "contracts with RBAC, idempotency, append-only audit "
-                    "linkage, no-live execution journals, guarded post-apply "
-                    "completion evidence, and fail-closed reconciliation "
-                    "execution boundary evidence."
+                    "exchange-state snapshot, reconciliation-proof, and "
+                    "guarded local repair result contracts with RBAC, "
+                    "idempotency, append-only audit linkage, no-live execution "
+                    "journals, guarded post-apply completion evidence, and "
+                    "fail-closed reconciliation execution boundary evidence."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -8030,6 +8195,7 @@ class AdminApiReadService:
                     "admission_audit",
                     "rollback_plan_contract",
                     "exchange_state_proof_record",
+                    "exchange_state_snapshot_record",
                     "recovery_execution_journal",
                     "post_apply_reconciliation",
                     "post_apply_reconciliation_completion",
@@ -8047,7 +8213,8 @@ class AdminApiReadService:
                     "reads plus apply-review, rollback-plan, and reconciliation-proof "
                     "contract evidence now have backend proof record, no-live "
                     "execution journal, guarded local repair-result routes, "
-                    "and guarded post-apply completion evidence. "
+                    "guarded post-apply completion evidence, and exchange-state "
+                    "snapshot records. "
                     "They still do not roll back order state, execute "
                     "reconciliation, mutate order/exchange state, or call "
                     "Coinbase."
@@ -8073,7 +8240,7 @@ class AdminApiReadService:
                     "Spot-specific reconciliation execution contract that can "
                     "compare backend order state with Coinbase evidence after "
                     "the disabled execution boundary route/service, backend "
-                    "executor, and Coinbase evidence snapshot contracts exist "
+                    "executor, and live Coinbase evidence read authority exist "
                     "without browser or BFF state mutation."
                 ),
                 required_gate_chain=[
@@ -8132,7 +8299,7 @@ class AdminApiReadService:
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
                 "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview, apply-review, rollback-plan, reconciliation-proof, and execution-journal routes are backend-owned evidence while state repair and reconciliation execution remain blocked.",
-                "Spot recovery reconciliation-proof readback exposes the fail-closed reconciliation execution boundary and the disabled backend route/service while the executor and Coinbase evidence snapshot contracts remain blocked.",
+                "Spot recovery reconciliation-proof readback exposes fail-closed reconciliation execution boundaries and backend-owned exchange-state snapshot rows while the executor and live Coinbase read authority remain blocked.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(
@@ -8462,6 +8629,23 @@ class AdminApiReadService:
         else:
             records = self.spot_recovery_proof_store.read_recent(limit=20)
         return [_spot_recovery_proof_item_from_record(record) for record in records]
+
+    def _spot_recovery_snapshot_records(
+        self,
+        *,
+        client_order_id: str | None,
+    ) -> list[SpotRecoveryExchangeStateSnapshotRecordItem]:
+        if client_order_id:
+            records = self.spot_recovery_snapshot_store.read_for_client_order_id(
+                client_order_id,
+                limit=20,
+            )
+        else:
+            records = self.spot_recovery_snapshot_store.read_recent(limit=20)
+        return [
+            _spot_recovery_snapshot_item_from_record(record)
+            for record in records
+        ]
 
     def _spot_recovery_execution_records(
         self,
@@ -8987,6 +9171,7 @@ class AdminApiReadService:
         self,
         *,
         candidates: list[SpotRecoveryContractCandidateItem],
+        snapshot_records: list[SpotRecoveryExchangeStateSnapshotRecordItem],
         proof_records: list[SpotRecoveryProofRecordItem],
         execution_records: list[SpotRecoveryExecutionRecordItem],
         repair_result_records: list[SpotRecoveryRepairResultRecordItem],
@@ -8994,6 +9179,9 @@ class AdminApiReadService:
     ) -> list[SpotRecoveryReconciliationExecutionBoundaryItem]:
         required_inputs = [
             "client_order_id",
+            "product_id",
+            "exchange_state_snapshot_id",
+            "source_timestamp",
             "reconciliation_plan_id",
             "reconciliation_proof_id",
             "completion_id",
@@ -9011,7 +9199,11 @@ class AdminApiReadService:
         def attr(record: Any, name: str) -> str | None:
             if record is None:
                 return None
-            return _string_or_none(getattr(record, name, None))
+            value = getattr(record, name, None)
+            enum_value = getattr(value, "value", None)
+            if enum_value is not None:
+                return _string_or_none(enum_value)
+            return _string_or_none(value)
 
         def first_record(
             records: list[Any],
@@ -9030,6 +9222,7 @@ class AdminApiReadService:
             for candidate in candidates
             if candidate.identity_key == "client_order_id"
         }
+        client_order_ids.update(record.client_order_id for record in snapshot_records)
         client_order_ids.update(record.client_order_id for record in proof_records)
         client_order_ids.update(record.client_order_id for record in execution_records)
         client_order_ids.update(
@@ -9047,6 +9240,11 @@ class AdminApiReadService:
             related_proofs = [
                 record
                 for record in proof_records
+                if record.client_order_id == client_order_id
+            ]
+            related_snapshots = [
+                record
+                for record in snapshot_records
                 if record.client_order_id == client_order_id
             ]
             related_executions = [
@@ -9067,6 +9265,10 @@ class AdminApiReadService:
                 related_proofs,
                 preferred="reconciliation_proof_id",
             )
+            latest_snapshot = first_record(
+                related_snapshots,
+                preferred="exchange_state_snapshot_id",
+            )
             latest_execution = next(
                 (
                     record
@@ -9083,12 +9285,18 @@ class AdminApiReadService:
 
             def evidence_value(name: str) -> str | None:
                 return first_present(
+                    attr(latest_snapshot, name),
                     attr(latest_completion, name),
                     attr(latest_proof, name),
                     attr(latest_repair_result, name),
                     attr(latest_execution, name),
                 )
 
+            product_id = evidence_value("product_id")
+            exchange_state_snapshot_id = evidence_value("exchange_state_snapshot_id")
+            source_timestamp = evidence_value("source_timestamp")
+            snapshot_source = attr(latest_snapshot, "snapshot_source")
+            snapshot_evidence_ref = attr(latest_snapshot, "snapshot_evidence_ref")
             reconciliation_plan_id = evidence_value("reconciliation_plan_id")
             reconciliation_proof_id = evidence_value("reconciliation_proof_id")
             approval_snapshot_id = evidence_value("approval_snapshot_id")
@@ -9105,6 +9313,9 @@ class AdminApiReadService:
             )
             input_values = {
                 "client_order_id": client_order_id,
+                "product_id": product_id,
+                "exchange_state_snapshot_id": exchange_state_snapshot_id,
+                "source_timestamp": source_timestamp,
                 "reconciliation_plan_id": reconciliation_plan_id,
                 "reconciliation_proof_id": reconciliation_proof_id,
                 "completion_id": completion_id,
@@ -9127,11 +9338,12 @@ class AdminApiReadService:
                 str(reconciliation_plan_id or ""),
                 str(reconciliation_proof_id or ""),
                 str(completion_id or ""),
+                str(exchange_state_snapshot_id or ""),
             )
             blockers = [
                 "spot_reconciliation_execution_contract_missing",
                 "reconciliation_executor_disabled",
-                "coinbase_evidence_snapshot_contract_missing",
+                "coinbase_live_read_disabled",
                 "browser_bff_execution_authority_rejected",
             ]
             blockers.extend(f"{name}_missing" for name in missing_inputs)
@@ -9147,6 +9359,11 @@ class AdminApiReadService:
                     action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
                     required_permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
                     service_method="execute_spot_recovery_reconciliation",
+                    product_id=product_id,
+                    exchange_state_snapshot_id=exchange_state_snapshot_id,
+                    source_timestamp=source_timestamp,
+                    snapshot_source=snapshot_source,
+                    snapshot_evidence_ref=snapshot_evidence_ref,
                     reconciliation_plan_id=reconciliation_plan_id,
                     reconciliation_proof_id=reconciliation_proof_id,
                     completion_id=completion_id,
@@ -9164,16 +9381,31 @@ class AdminApiReadService:
                     blockers=blockers,
                     missing_contracts=[
                         "spot_reconciliation_execution_contract",
-                        "spot_exchange_evidence_snapshot_contract",
                     ],
                     route_bound=True,
+                    snapshot_recorded=latest_snapshot is not None,
+                    source_trusted=(
+                        latest_snapshot.source_trusted
+                        if latest_snapshot is not None
+                        else False
+                    ),
+                    coinbase_read_attempted=(
+                        latest_snapshot.coinbase_read_attempted
+                        if latest_snapshot is not None
+                        else False
+                    ),
+                    coinbase_read_succeeded=(
+                        latest_snapshot.coinbase_read_succeeded
+                        if latest_snapshot is not None
+                        else False
+                    ),
                     detail=(
                         "Spot recovery reconciliation execution is blocked. "
                         "Completion/proof evidence may exist and a backend "
-                        "route/service boundary is now present, but the "
-                        "reconciliation executor, Coinbase evidence snapshot "
-                        "contract, and browser/BFF execution authority remain "
-                        "unavailable."
+                        "route/service boundary plus snapshot contract are now "
+                        "present, but the reconciliation executor, live Coinbase "
+                        "read authority, and browser/BFF execution authority "
+                        "remain unavailable."
                     ),
                 )
             )
@@ -9419,6 +9651,9 @@ class AdminApiReadService:
         persisted_proofs = self._spot_recovery_proof_records(
             client_order_id=client_order_id
         )
+        persisted_snapshots = self._spot_recovery_snapshot_records(
+            client_order_id=client_order_id
+        )
         persisted_executions = self._spot_recovery_execution_records(
             client_order_id=client_order_id
         )
@@ -9443,6 +9678,7 @@ class AdminApiReadService:
         reconciliation_execution_boundaries = (
             self._spot_recovery_reconciliation_execution_boundaries(
                 candidates=candidates,
+                snapshot_records=persisted_snapshots,
                 proof_records=persisted_proofs,
                 execution_records=persisted_executions,
                 repair_result_records=persisted_repair_results,
@@ -9462,6 +9698,14 @@ class AdminApiReadService:
                 record.reconciliation_proof_id
                 for record in persisted_proofs
                 if record.reconciliation_proof_id
+            ),
+            None,
+        )
+        latest_exchange_state_snapshot_id = next(
+            (
+                record.exchange_state_snapshot_id
+                for record in persisted_snapshots
+                if record.exchange_state_snapshot_id
             ),
             None,
         )
@@ -9538,6 +9782,8 @@ class AdminApiReadService:
             persisted_repair_results=persisted_repair_results,
             persisted_completion_count=len(persisted_completions),
             persisted_completions=persisted_completions,
+            persisted_snapshot_count=len(persisted_snapshots),
+            persisted_snapshots=persisted_snapshots,
             reconciliation_execution_boundary_available=True,
             reconciliation_execution_boundary_count=len(
                 reconciliation_execution_boundaries
@@ -9552,6 +9798,7 @@ class AdminApiReadService:
             ),
             latest_exchange_state_proof_id=latest_exchange_state_proof_id,
             latest_reconciliation_proof_id=latest_reconciliation_proof_id,
+            latest_exchange_state_snapshot_id=latest_exchange_state_snapshot_id,
             latest_apply_journal_id=latest_apply_journal_id,
             latest_rollback_journal_id=latest_rollback_journal_id,
             latest_repair_result_id=(
@@ -9570,12 +9817,14 @@ class AdminApiReadService:
             missing_contracts=[
                 "spot_reconciliation_execution_contract",
             ],
+            exchange_state_snapshot_contract_available=True,
             spot_rule_boundary=_enterprise_module_spot_boundary("spot_operations"),
             detail=(
                 "Spot recovery reconciliation-proof evidence lists required proof "
-                "fields and reads backend-owned append-only proof records. It "
-                "does not execute reconciliation, mutate order/exchange state, "
-                "call Coinbase, or authorize browser/BFF reconciliation."
+                "fields and reads backend-owned append-only proof and snapshot "
+                "records. It does not execute reconciliation, mutate "
+                "order/exchange state, call Coinbase, or authorize browser/BFF "
+                "reconciliation."
             ),
         )
 

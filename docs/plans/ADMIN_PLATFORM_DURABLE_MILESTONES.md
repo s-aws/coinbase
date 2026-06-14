@@ -2593,8 +2593,8 @@ Completed twenty-second-slice scope:
   `POST /api/v1/spot/recovery/reconciliation-executions` contract and
   execution-boundary evidence keyed by `client_order_id`.
 - The route is audited, idempotent, RBAC/proof-gated, and intentionally
-  rejected until backend reconciliation executor and exchange/Coinbase
-  evidence snapshot contracts exist. It does not execute reconciliation,
+  rejected until backend reconciliation executor and live Coinbase read
+  authority exist. Local snapshot records are no-live evidence only. It does not execute reconciliation,
   mutate order/exchange state, read Coinbase, or submit Coinbase orders.
 
 Current backend evidence:

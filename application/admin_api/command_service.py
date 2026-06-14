@@ -49,6 +49,7 @@ from .models import (
     MovementRepriceCommand,
     SpotRecoveryApplyExecutionCommand,
     SpotRecoveryExchangeStateProofCommand,
+    SpotRecoveryExchangeStateSnapshotCommand,
     SpotRecoveryReconciliationExecutionCommand,
     SpotRecoveryReconciliationProofRecordCommand,
     SpotRecoveryRollbackExecutionCommand,
@@ -71,10 +72,18 @@ from .spot_recovery_completion import (
     evaluate_spot_recovery_completion_guard,
 )
 from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRecord
+from .spot_recovery_snapshot import (
+    FileSpotRecoverySnapshotStore,
+    SpotRecoveryExchangeStateSnapshotRecord,
+)
 from .spot_recovery_repair import FileSpotRecoveryRepairResultJournalStore
 from .spot_recovery_proof_service import (
     AdminApiSpotRecoveryProofService,
     SpotRecoveryProofError,
+)
+from .spot_recovery_snapshot_service import (
+    AdminApiSpotRecoverySnapshotService,
+    SpotRecoverySnapshotError,
 )
 
 
@@ -120,6 +129,10 @@ class AdminApiCommandDependencies:
         [],
         FileSpotRecoveryExecutionJournalStore,
     ] = FileSpotRecoveryExecutionJournalStore
+    spot_recovery_snapshot_store_getter: Callable[
+        [],
+        FileSpotRecoverySnapshotStore,
+    ] = FileSpotRecoverySnapshotStore
     spot_recovery_repair_result_store_getter: Callable[
         [],
         FileSpotRecoveryRepairResultJournalStore,
@@ -134,6 +147,9 @@ class AdminApiCommandDependencies:
     )
     spot_recovery_execution_service: AdminApiSpotRecoveryExecutionService = field(
         default_factory=AdminApiSpotRecoveryExecutionService
+    )
+    spot_recovery_snapshot_service: AdminApiSpotRecoverySnapshotService = field(
+        default_factory=AdminApiSpotRecoverySnapshotService
     )
 
 
@@ -338,6 +354,33 @@ def _spot_recovery_execution_response_data(
         "state_repair_executed": record.state_repair_executed,
         "exchange_state_proof_recorded": False,
         "reconciliation_proof_recorded": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    })
+    return data
+
+
+def _spot_recovery_snapshot_response_data(
+    record: SpotRecoveryExchangeStateSnapshotRecord,
+) -> dict[str, Any]:
+    """Return command-response data for a persisted exchange-state snapshot."""
+
+    data = record.model_dump(mode="json")
+    data.update({
+        "proof_persisted": False,
+        "repair_journal_persisted": False,
+        "execution_journal_accepted": False,
+        "exchange_state_proof_recorded": False,
+        "reconciliation_proof_recorded": False,
+        "snapshot_recorded": True,
+        "source_trusted": False,
+        "coinbase_read_attempted": False,
+        "coinbase_read_succeeded": False,
+        "coinbase_rest_read_ran": False,
+        "coinbase_order_submitted": False,
+        "order_state_mutated": False,
+        "exchange_state_mutated": False,
+        "reconciliation_executed": False,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
     })
@@ -1001,6 +1044,7 @@ class AdminApiCommandService:
             SpotRecoveryApplyExecutionCommand
             | SpotRecoveryRollbackExecutionCommand
             | SpotRecoveryExchangeStateProofCommand
+            | SpotRecoveryExchangeStateSnapshotCommand
             | SpotRecoveryReconciliationExecutionCommand
             | SpotRecoveryReconciliationProofRecordCommand
         ),
@@ -1012,6 +1056,19 @@ class AdminApiCommandService:
             "mutation_family": mutation_family.value,
             "client_order_id": request.client_order_id,
             "rollback_plan_id": getattr(request, "rollback_plan_id", None),
+            "product_id": getattr(request, "product_id", None),
+            "exchange_state_snapshot_id": getattr(
+                request,
+                "exchange_state_snapshot_id",
+                None,
+            ),
+            "source_timestamp": getattr(request, "source_timestamp", None),
+            "snapshot_source": getattr(request, "snapshot_source", None),
+            "snapshot_evidence_ref": getattr(
+                request,
+                "snapshot_evidence_ref",
+                None,
+            ),
             "recovery_apply_audit_id": getattr(
                 request,
                 "recovery_apply_audit_id",
@@ -1051,7 +1108,11 @@ class AdminApiCommandService:
             "reconciliation_execution_route_bound": False,
             "reconciliation_execution_service_available": False,
             "reconciliation_execution_contract_available": False,
-            "coinbase_evidence_snapshot_contract_available": False,
+            "coinbase_evidence_snapshot_contract_available": True,
+            "snapshot_recorded": False,
+            "source_trusted": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
             "coinbase_order_submitted": False,
             "coinbase_rest_read_ran": False,
             "order_state_mutated": False,
@@ -1094,8 +1155,8 @@ class AdminApiCommandService:
             command=command,
             message=(
                 "Spot recovery reconciliation execution is route-bound but "
-                "the backend reconciliation executor and Coinbase evidence "
-                "snapshot contract are disabled."
+                "the backend reconciliation executor and live Coinbase read "
+                "authority are disabled."
             ),
             flags={
                 "completion_id": command.request.completion_id,
@@ -1104,7 +1165,7 @@ class AdminApiCommandService:
                 "reconciliation_execution_route_bound": True,
                 "reconciliation_execution_service_available": False,
                 "reconciliation_execution_contract_available": False,
-                "coinbase_evidence_snapshot_contract_available": False,
+                "coinbase_evidence_snapshot_contract_available": True,
                 "order_state_mutated": False,
                 "exchange_state_mutated": False,
                 "coinbase_rest_read_ran": False,
@@ -1121,6 +1182,7 @@ class AdminApiCommandService:
         mutation_family: AdminApiMutationFamilyType,
         command: (
             SpotRecoveryExchangeStateProofCommand
+            | SpotRecoveryExchangeStateSnapshotCommand
             | SpotRecoveryReconciliationProofRecordCommand
         ),
         message: str,
@@ -1154,12 +1216,29 @@ class AdminApiCommandService:
                 "exchange_state_evidence_ref",
                 None,
             ),
+            "product_id": getattr(request, "product_id", None),
+            "exchange_state_snapshot_id": getattr(
+                request,
+                "exchange_state_snapshot_id",
+                None,
+            ),
+            "source_timestamp": getattr(request, "source_timestamp", None),
+            "snapshot_source": getattr(request, "snapshot_source", None),
+            "snapshot_evidence_ref": getattr(
+                request,
+                "snapshot_evidence_ref",
+                None,
+            ),
             "dry_run": request.dry_run,
             "operator_reason": request.operator_reason,
             "manual_live_acknowledgement": request.manual_live_acknowledgement,
             "recovery_apply_executed": False,
             "rollback_executed": False,
             "exchange_state_proof_recorded": False,
+            "snapshot_recorded": False,
+            "source_trusted": False,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
             "reconciliation_proof_recorded": False,
             "reconciliation_executed": False,
             "coinbase_order_submitted": False,
@@ -1392,6 +1471,79 @@ class AdminApiCommandService:
                 exchange_state_proof_recorded=True,
                 reconciliation_proof_recorded=False,
             ),
+        )
+
+    def record_spot_recovery_exchange_state_snapshot(
+        self,
+        command: SpotRecoveryExchangeStateSnapshotCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned exchange-state snapshot evidence when gates match."""
+
+        if command.admission_decision is None:
+            return self._rejected_spot_recovery_proof_response(
+                service_method="record_spot_recovery_exchange_state_snapshot",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT
+                ),
+                command=command,
+                message="Spot recovery exchange-state snapshot admission evidence is missing.",
+                flags={
+                    "snapshot_recorded": False,
+                    "coinbase_read_attempted": False,
+                    "coinbase_read_succeeded": False,
+                    "coinbase_rest_read_ran": False,
+                    "proof_persisted": False,
+                },
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = (
+                deps.spot_recovery_snapshot_service.record_exchange_state_snapshot(
+                    store=deps.spot_recovery_snapshot_store_getter(),
+                    body=command.request,
+                    admission_decision=command.admission_decision,
+                    actor_id=command.envelope.actor.actor_id,
+                    operator_intent=command.envelope.operator_intent,
+                    idempotency_key=command.envelope.idempotency_key,
+                    correlation_id=command.envelope.correlation_id,
+                    payload_hash=command.admission_decision.payload_hash,
+                    audit_id=audit_id,
+                )
+            )
+        except SpotRecoverySnapshotError as exc:
+            return self._rejected_spot_recovery_proof_response(
+                service_method="record_spot_recovery_exchange_state_snapshot",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT
+                ),
+                command=command,
+                message=str(exc),
+                flags={
+                    "snapshot_recorded": False,
+                    "coinbase_read_attempted": False,
+                    "coinbase_read_succeeded": False,
+                    "coinbase_rest_read_ran": False,
+                    "proof_persisted": False,
+                },
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
+            service_method="record_spot_recovery_exchange_state_snapshot",
+            message=(
+                "Spot recovery exchange-state snapshot recorded; Coinbase was "
+                "not read and no order or exchange state was mutated."
+            ),
+            client_order_id=record.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=_spot_recovery_snapshot_response_data(record),
         )
 
     def record_spot_recovery_reconciliation_proof(

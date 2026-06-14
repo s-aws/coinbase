@@ -142,7 +142,9 @@ notional, retained inventory, reconciliation result, and audit ids.
   route-bound fail-closed reconciliation execution boundary at
   `POST /api/v1/spot/recovery/reconciliation-executions`; that route is
   audited, idempotent, RBAC/proof-gated, and rejected until backend executor
-  and exchange/Coinbase evidence snapshot contracts exist. This foundation
+  and live Coinbase read authority exist. The completed 1961-1980 range adds
+  backend-owned no-live snapshot records; those records do not read Coinbase
+  or prove live exchange truth. This foundation
   must not add a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
   authority, browser recovery authority, browser reconciliation authority,

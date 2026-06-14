@@ -46,8 +46,9 @@ only that execution authority is still blocked. Each boundary row now names
 the disabled command route
 `POST /api/v1/spot/recovery/reconciliation-executions` and service method
 `execute_spot_recovery_reconciliation`, but those are fail-closed boundary
-contracts only. The backend reconciliation executor, Coinbase evidence
-snapshot contract, and exact input chain remain blockers. Neither completion
+contracts only. The backend reconciliation executor, live Coinbase read
+authority, and exact input chain remain blockers. Local snapshot records are
+no-live evidence and do not prove live Coinbase state. Neither completion
 fields nor boundary fields prove reconciliation execution or exchange-state
 mutation.
 Within each boundary row, `action_class` and `required_permission` describe

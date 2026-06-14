@@ -251,6 +251,7 @@ class AdminApiMutationFamilyType(str, Enum):
     SPOT_RECOVERY_APPLY_EXECUTION = "spot_recovery_apply_execution"
     SPOT_RECOVERY_ROLLBACK_EXECUTION = "spot_recovery_rollback_execution"
     SPOT_RECOVERY_EXCHANGE_STATE_PROOF = "spot_recovery_exchange_state_proof"
+    SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT = "spot_recovery_exchange_state_snapshot"
     SPOT_RECOVERY_RECONCILIATION_PROOF = "spot_recovery_reconciliation_proof"
     SPOT_RECOVERY_RECONCILIATION_COMPLETION = "spot_recovery_reconciliation_completion"
     SPOT_RECOVERY_RECONCILIATION_EXECUTION = "spot_recovery_reconciliation_execution"
@@ -270,6 +271,14 @@ class AdminApiSpotCommandSuiteGapFamily(str, Enum):
     SPOT_PNL_TRACKING = "spot_pnl_tracking"
     SPOT_RECOVERY_WORKFLOW = "spot_recovery_workflow"
     SPOT_RECONCILIATION_WORKFLOW = "spot_reconciliation_workflow"
+
+
+class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
+    """Source posture for backend-owned Spot recovery exchange-state snapshots."""
+
+    MANUAL_IMPORT = "manual_import"
+    TEST_EVIDENCE = "test_evidence"
+    LIVE_COINBASE_DISABLED = "live_coinbase_disabled"
 
 
 class AdminApiApprovalLifecycleStatus(str, Enum):
