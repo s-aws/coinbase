@@ -34,6 +34,10 @@ evidence:
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` is linked as a
   live-disabled reveal command draft and does not invoke `reveal_order_slice`,
   submit Coinbase orders, or mutate lifecycle state.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/move` is linked as a
+  live-disabled cancel/replace-shaped move command draft and does not invoke
+  `build_stealth_move_plan`, call `execute_stealth_move`, submit/cancel
+  Coinbase orders, perform cancel/replace, or mutate lifecycle state.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is linked as a
   live-disabled command row.
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice` is
@@ -46,7 +50,7 @@ Every command row remains `live_enabled=false` and `executable=false`. Required
 gates include idempotency, operator intent, payload hash, approval snapshot,
 approval-store contract, admission audit, cap/guard decision, reconciliation
 plan, mutation claim, live execution adapter, live execution service, and
-post-live reconciliation. Cancel and reprice additionally require
+post-live reconciliation. Move, cancel, and reprice additionally require
 active-placement exchange truth; create and reveal drafts remain blocked on
 lifecycle/trigger evidence before execution can be considered.
 

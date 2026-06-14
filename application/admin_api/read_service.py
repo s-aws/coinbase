@@ -169,7 +169,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2021-2040"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2041-2060"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -4506,6 +4506,58 @@ class AdminApiReadService:
                 ),
             ),
             functionality_item(
+                workflow_id="stealth.move_command_draft",
+                module_id="stealth_orders",
+                module="Stealth Orders",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth move is exposed as a live-disabled cancel/replace-shaped "
+                    "draft keyed by stealth_order_id; it does not build a move plan, "
+                    "execute cancel/replace, or mutate lifecycle state."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                live_enabled=False,
+                command_routes=["POST /api/v1/stealth/orders/{stealth_order_id}/move"],
+                identity_keys=["stealth_order_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::move_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::move_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py::build_stealth_move_plan",
+                    "core/stealth_order_manager.py::execute_stealth_move",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::moveStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
+                required_next_contract=(
+                    "Live move adapter with mutation-claim ownership, active "
+                    "placement cancel/replace, approval, cap/guard, audit, and "
+                    "post-live reconciliation before execute_stealth_move can run."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "mutation_claim_proof_missing",
+                    "stealth_move_cancel_replace_adapter_missing",
+                    "active_placement_audit_missing",
+                    "reconciliation_proof_missing",
+                ],
+                frontend_boundary=(
+                    "Do not build move plans, execute cancel/replace, resolve active "
+                    "placement ids, or mutate lifecycle state from browser code."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet and no-shorting rules remain backend guard evidence "
+                    "when the stealth product is spot; they are not browser authority."
+                ),
+            ),
+            functionality_item(
                 workflow_id="movement.repricing_reads",
                 module_id="movement_repricing",
                 module="Order Movement / Repricing",
@@ -6015,6 +6067,58 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/stealth/orders/{stealth_order_id}/move",
+                mutation_id="stealth.move",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_MOVE,
+                workflow_id="stealth.move_command_draft",
+                module="Stealth Orders",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Stealth move is a cancel/replace-shaped draft keyed by "
+                    "stealth_order_id; the current Admin API route is fail-closed "
+                    "and does not build a move plan, execute a cancel/replace, "
+                    "or mutate local lifecycle state."
+                ),
+                identity_keys=["stealth_order_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/stealth.py::move_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::move_stealth_order_by_stealth_order_id",
+                    "core/stealth_order_manager.py::build_stealth_move_plan",
+                    "core/stealth_order_manager.py::execute_stealth_move",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::moveStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                documentation_refs=[
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/agents/AGENT_STEALTH_LIFECYCLE.md",
+                ],
+                required_next_contract=(
+                    "Move execution must prove mutation claim ownership, active "
+                    "placement cancel/replace handling, approval, cap/guard, "
+                    "audit, and post-live reconciliation before invoking the "
+                    "lifecycle manager."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "mutation_claim_proof_missing",
+                    "stealth_move_cancel_replace_adapter_missing",
+                    "active placement reconciliation missing",
+                ],
+                frontend_boundary=(
+                    "Do not move revealed stealth placements, resolve active "
+                    "placement ids, or mutate stealth lifecycle state from the browser."
+                ),
+                spot_rule_boundary=(
+                    "Stealth move remains lifecycle/exchange cancel-replace "
+                    "authority; spot wallet rules apply only through backend guards "
+                    "for spot products."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 mutation_id="movement.reprice",
                 mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
@@ -7401,6 +7505,37 @@ class AdminApiReadService:
                     "state changes."
                 ),
             },
+            AdminApiMutationFamilyType.STEALTH_MOVE: {
+                "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/move",
+                "identity_key": "stealth_order_id",
+                "exchange_truth_required": True,
+                "active_placement_evidence_required": True,
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::move_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::move_stealth_order_by_stealth_order_id",
+                    "bridges/stealth_order_bridge.py",
+                    "core/stealth_order_manager.py::build_stealth_move_plan",
+                    "core/stealth_order_manager.py::execute_stealth_move",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::moveStealthOrderByStealthOrderId",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.admin-api.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Stealth move is route-bound by stealth_order_id and "
+                    "currently live-disabled. Future execution must use the "
+                    "existing move plan and execute path, prove mutation-claim "
+                    "ownership, cancel/replace any active Coinbase placement, "
+                    "and reconcile exchange reality before local lifecycle state "
+                    "changes."
+                ),
+            },
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: {
                 "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
                 "identity_key": "stealth_order_id",
@@ -7764,30 +7899,33 @@ class AdminApiReadService:
             ),
             StealthCommandSuiteCoverageGapItem(
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                command_route=None,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/stealth/orders/{stealth_order_id}/move",
                 current_read_evidence_routes=movement_stealth_surfaces,
                 current_read_evidence=coverage_gap_evidence_routes(movement_stealth_surfaces),
                 required_backend_contract=(
-                    "Move-revealed contract through the existing stealth bridge "
-                    "and mutation-claim path, including active placement cancel/"
-                    "replace proof before any local state mutation."
+                    "Move-revealed has a route-bound Admin API contract, but "
+                    "still needs mutation-claim ownership, active placement "
+                    "cancel/replace proof, state-transition audit, and "
+                    "reconciliation proof before it can invoke the existing "
+                    "move path."
                 ),
                 required_gate_chain=gap_required_gate_chain,
                 missing_contracts=[
-                    "stealth_move_revealed_admin_route",
                     "stealth_move_active_placement_cancel_replace_proof",
                     "stealth_move_mutation_claim_audit",
+                    "stealth_move_reconciliation_proof",
                 ],
                 stealth_rule_boundary=stealth_boundary,
                 documentation_refs=[
-                    "README.movement-repricing.md",
+                    "README.admin-api.md",
                     "docs/agents/INVARIANTS.md",
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 detail=(
-                    "Movement evidence is readable, but move-revealed is not "
-                    "complete as an enterprise Admin API command workflow."
+                    "A live-disabled stealth move command route exists, but it "
+                    "does not build a move plan, execute cancel/replace, submit "
+                    "Coinbase orders, or mutate lifecycle state."
                 ),
             ),
             StealthCommandSuiteCoverageGapItem(

@@ -15,8 +15,8 @@ The repository now contains an Admin API contract, generated OpenAPI and
 route-inventory artifacts, fail-closed auth/RBAC bootstrap, durable JSONL
 idempotency/audit stores, structured error payloads, observability headers,
 read-only admin diagnostics, order read routes, read-only stealth lifecycle
-routes, read-only stealth command-suite readiness evidence, a live-disabled
-stealth cancel command contract, movement/repricing evidence routes, a
+routes, read-only stealth command-suite readiness evidence, live-disabled
+stealth create, reveal, move, and cancel command contracts, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
 account and position routes, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
@@ -28,7 +28,8 @@ they do not submit orders, cancel orders, or call Coinbase.
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
 The current runtime still returns `501` for create, order cancel, stealth
-cancel, movement reprice, campaign execution, and spot sweep automation
+create, stealth reveal, stealth move, stealth cancel, movement reprice,
+campaign execution, and spot sweep automation
 commands because HTTP live execution is not approved. Read routes document
 typed `200` payloads plus structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
@@ -174,9 +175,9 @@ or authorize browser/BFF recovery.
 M55 starts the Stealth command-suite with
 `GET /api/v1/stealth/command-suite`, a read-only readiness contract for
 stealth create, cancel, reveal, move, reprice, recovery, and reconciliation
-workflows. The route links existing live-disabled stealth cancel and
-movement/reprice command routes plus live-disabled stealth create and reveal
-draft routes, reports missing workflow contracts, and makes exchange-truth
+workflows. The route links live-disabled stealth create, reveal, move, cancel,
+and movement/reprice command routes, reports missing workflow contracts, and
+makes exchange-truth
 blockers explicit. It does not create stealth orders, reveal orders, cancel
 active placements, move/reprice revealed orders, execute reconciliation,
 mutate stealth/order/exchange state, read Coinbase, call Coinbase, or grant
@@ -302,6 +303,7 @@ Current mutating HTTP command surfaces are:
 - `POST /api/v1/orders/{client_order_id}/cancel`
 - `POST /api/v1/stealth/orders`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/move`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 - `POST /api/v1/spot/campaign/executions`
@@ -320,6 +322,12 @@ submit Coinbase orders.
 exchange-placement draft keyed by `stealth_order_id`. It does not invoke
 `reveal_order_slice`, call `StealthOrderManager`, accept order ids as command
 identity, submit Coinbase orders, or mutate local lifecycle state.
+`POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
+cancel/replace-shaped draft keyed by `stealth_order_id`. It does not invoke
+`build_stealth_move_plan`, call `execute_stealth_move` or
+`StealthOrderManager`, accept active placement ids or exchange ids as command
+identity, submit/cancel Coinbase orders, perform cancel/replace, or mutate
+local lifecycle state.
 
 Current local-state approval lifecycle mutation surfaces are:
 
@@ -435,10 +443,10 @@ The platform/module split is documented in
 - Stealth read rows use `stealth_order_id` for stealth lifecycle identity,
   `active_placement_client_order_id` for active placement evidence, and
   `active_exchange_order_id` as exchange evidence only. The enterprise Admin
-  API has a live-disabled stealth cancel command keyed by `stealth_order_id`;
-  it must not use active placement ids or exchange ids as cancel keys, and it
-  must not mutate lifecycle state until exchange handling and reconciliation
-  are implemented.
+  API has live-disabled stealth reveal, move, and cancel commands keyed by
+  `stealth_order_id`; they must not use active placement ids or exchange ids
+  as command keys, and they must not mutate lifecycle state until exchange
+  handling and reconciliation are implemented.
 - Movement/repricing read rows combine durable `order_moves`,
   `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
   evidence. Runtime mutation claims and pending replacement claims are shown

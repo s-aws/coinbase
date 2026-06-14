@@ -162,7 +162,7 @@ that operation. Do not replace this with an exchange-native `order_id` flow.
 whether stealth create, cancel, reveal, move, reprice, recovery, and
 reconciliation workflows have backend-owned contracts and gate evidence.
 
-The response links live-disabled command rows for stealth create, reveal,
+The response links live-disabled command rows for stealth create, reveal, move,
 cancel, and movement/repricing reprice by `stealth_order_id`. It also reports
 `coverage_gaps` for create lifecycle-write, reveal trigger/exchange placement,
 cancel exchange-handling, move revealed, reprice completion, recovery, and
@@ -171,12 +171,16 @@ backend contracts, required gate chains, and browser/BFF boundaries.
 
 Stealth command rows require mutation-claim evidence in addition to the normal
 approval, cap/guard, admission audit, reconciliation, idempotency,
-payload-hash, and operator-intent chain. Cancel and reprice also require
-active-placement exchange truth. Create and reveal are command drafts that do
-not require active-placement evidence before the draft response, but they still
-remain blocked until lifecycle/trigger, live adapter, and reconciliation gates
-exist. They are readiness evidence only. A revealed stealth order cannot be
-marked hidden, cancelled, moved, or repriced by local mutation unless the live
+payload-hash, and operator-intent chain. Move, cancel, and reprice also
+require active-placement exchange truth before execution can be considered.
+Create and reveal are command drafts that do not require active-placement
+evidence before the draft response, but they still remain blocked until
+lifecycle/trigger, live adapter, and reconciliation gates exist. Move is a
+cancel/replace-shaped draft that returns no-live evidence only; it must not
+call `build_stealth_move_plan`, `execute_stealth_move`, or
+`StealthOrderManager`, submit/cancel Coinbase orders, perform cancel/replace,
+or mutate local lifecycle state. A revealed stealth order cannot be marked
+hidden, cancelled, moved, or repriced by local mutation unless the live
 placement is cancelled, replaced, filled, moved, or reconciled first.
 
 The stealth command-suite route does not create stealth orders, reveal orders,

@@ -113,6 +113,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="POST /api/v1/stealth/orders/{stealth_order_id}/move",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for mutation claims, cancel/replace, guard, and reconciliation evidence",
+        audit="required",
+        shared_method="move_stealth_order_by_stealth_order_id",
+        parity_test=(
+            "stealth_order_id identity; no move plan, cancel/replace, or "
+            "local lifecycle mutation until exchange-handling gates are complete"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,

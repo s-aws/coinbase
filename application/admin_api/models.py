@@ -250,6 +250,16 @@ class StealthRevealRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class StealthMoveRequest(BaseModel):
+    """Stealth move request body keyed by path ``stealth_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    new_limit_price: DecimalString
+    reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class StealthCreateRequest(BaseModel):
     """Stealth create request shape for future gated lifecycle writes."""
 
@@ -488,6 +498,17 @@ class StealthRevealCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     stealth_order_id: str = Field(min_length=1)
     request: StealthRevealRequest
+    allow_live_execution: bool = False
+
+
+class StealthMoveCommand(BaseModel):
+    """Shared service command for move-revealed-by-stealth-order-id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    stealth_order_id: str = Field(min_length=1)
+    request: StealthMoveRequest
     allow_live_execution: bool = False
 
 

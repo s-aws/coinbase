@@ -22,9 +22,9 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2021-2040",
-  "command_count": 4,
-  "blocked_command_count": 4,
+  "approved_phase_range": "2041-2060",
+  "command_count": 5,
+  "blocked_command_count": 5,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
   "exchange_truth_required": true,
@@ -41,6 +41,7 @@ The `commands` array includes live-disabled rows for:
 
 - `/api/v1/stealth/orders`
 - `/api/v1/stealth/orders/{stealth_order_id}/reveal`
+- `/api/v1/stealth/orders/{stealth_order_id}/move`
 - `/api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
 
@@ -53,7 +54,12 @@ Reveal is a `live_exchange_place` draft route with
 and evidence that `reveal_order_slice`, `StealthOrderManager`, Coinbase
 submission, and local lifecycle mutation were not invoked. Cancel and reprice
 still report `exchange_truth_required=true` and require active-placement
-exchange truth before any lifecycle mutation.
+exchange truth before any lifecycle mutation. Move is a
+`live_exchange_cancel` draft route with `exchange_truth_required=true`,
+`active_placement_evidence_required=true`, and evidence that
+`build_stealth_move_plan`, `execute_stealth_move`, `StealthOrderManager`,
+Coinbase cancel/submit, cancel/replace, and local lifecycle mutation were not
+invoked.
 
 The `coverage_gaps` array includes blocked workflow families for:
 
@@ -65,7 +71,10 @@ The `coverage_gaps` array includes blocked workflow families for:
   trigger guard, exchange submission adapter, active-placement audit, and
   reconciliation proof
 - `stealth_cancel_exchange_handling`
-- `stealth_move_revealed_workflow`
+- `stealth_move_revealed_workflow` with command route
+  `/api/v1/stealth/orders/{stealth_order_id}/move`, still blocked on
+  mutation-claim audit, active-placement cancel/replace handling, and
+  reconciliation proof
 - `stealth_reprice_workflow`
 - `stealth_recovery_workflow`
 - `stealth_reconciliation_workflow`

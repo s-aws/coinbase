@@ -240,7 +240,9 @@ Current behavior:
   stealth move audit rows, anchor repricing state, replacement-slot evidence,
   and runtime mutation claim state when safely observable. Movement reprice is
   modeled as a live-disabled Admin API command keyed by `stealth_order_id`;
-  move, premark, and move-revealed command authority is not modeled.
+  stealth move has a live-disabled Admin API draft keyed by `stealth_order_id`;
+  live move execution, premark, and move-revealed command authority is not
+  modeled.
 - Futures/perpetual read routes expose account, margin, collateral, funding,
   liquidation, close/reduce-side, position, and P/L evidence. `position_key`
   is the position read identity. Configured product scope and observed

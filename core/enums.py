@@ -257,6 +257,7 @@ class AdminApiMutationFamilyType(str, Enum):
     SPOT_RECOVERY_RECONCILIATION_EXECUTION = "spot_recovery_reconciliation_execution"
     STEALTH_CREATE = "stealth_create"
     STEALTH_REVEAL = "stealth_reveal"
+    STEALTH_MOVE = "stealth_move"
     STEALTH_CANCEL = "stealth_cancel"
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"

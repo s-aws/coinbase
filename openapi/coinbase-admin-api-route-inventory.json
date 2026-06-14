@@ -132,6 +132,22 @@
     },
     {
       "module_id": "stealth_orders",
+      "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/move",
+      "method": "POST",
+      "path": "/api/v1/stealth/orders/{stealth_order_id}/move",
+      "action_class": "live_exchange_cancel",
+      "permission": "order:cancel",
+      "idempotency": "required",
+      "approval": "required by current HTTP live-disabled gate",
+      "caps": "required for mutation claims, cancel/replace, guard, and reconciliation evidence",
+      "audit": "required",
+      "shared_method": "move_stealth_order_by_stealth_order_id",
+      "parity_test": "stealth_order_id identity; no move plan, cancel/replace, or local lifecycle mutation until exchange-handling gates are complete",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "stealth_orders",
       "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
       "method": "POST",
       "path": "/api/v1/stealth/orders/{stealth_order_id}/cancel",

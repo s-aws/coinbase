@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2021-2040**.
+- Approved phase range: **2041-2060**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,146 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2021-2040
+## Active Phases 2041-2060
+
+These phases continue M55 after the stealth reveal command draft. The next
+explicit architecture gap is a route-bound, no-live stealth move command
+contract keyed by `stealth_order_id`. Move-revealed is cancel/replace shaped,
+so the route must be classified as `live_exchange_cancel`, but the
+implementation must remain fail-closed: no `build_stealth_move_plan`, no
+`execute_stealth_move`, no `StealthOrderManager` invocation, no Coinbase
+submission or cancellation, no cancel/replace, no local lifecycle mutation, no
+reconciliation execution, and no browser/BFF command authority.
+
+### Phase 2041 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2021-2040 to active
+  phases 2041-2060 while preserving the no-live default, carried Coinbase cap
+  policy, and milestone-linked phase discipline.
+
+### Phase 2042 - M55 Stealth Move Scope
+
+- Define stealth move as a backend-owned, cancel/replace-shaped command draft
+  and keep it distinct from live move execution and generic movement/reprice
+  behavior.
+
+### Phase 2043 - Move Identity Discipline
+
+- Bind the route to `stealth_order_id` only; keep `client_order_id`, active
+  placement ids, and exchange `order_id` as evidence fields, not move command
+  identity.
+
+### Phase 2044 - Move Request Model
+
+- Add a typed move request body for new limit price, reason, and manual
+  acknowledgement without accepting order ids or active placement ids from the
+  browser.
+
+### Phase 2045 - Route-Bound Move POST
+
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/move` with auth, RBAC,
+  idempotency, operator intent, audit, route inventory, and typed OpenAPI
+  responses.
+
+### Phase 2046 - Fail-Closed Move Service
+
+- Route through `AdminApiCommandService.move_stealth_order_by_stealth_order_id`
+  and return not-implemented/live-disabled evidence proving no manager,
+  Coinbase, cancel/replace, lifecycle, or reconciliation mutation occurs.
+
+### Phase 2047 - Move Command-Suite Linkage
+
+- Link move into `GET /api/v1/stealth/command-suite` with active-placement
+  exchange-truth requirements, mutation-claim blockers, cancel/replace
+  blockers, and no execution authority.
+
+### Phase 2048 - Move Gap Update
+
+- Convert the `stealth_move_revealed_workflow` coverage gap from
+  backend-route-missing to admin-draft-live-disabled and leave mutation-claim,
+  active-placement cancel/replace, audit, and reconciliation proof as
+  blockers.
+
+### Phase 2049 - Enterprise Inventory Sync
+
+- Update functionality inventory, mutation taxonomy, capability posture, and
+  route inventory for the move command draft.
+
+### Phase 2050 - Backend Focused Move Tests
+
+- Cover move route behavior, generated schema, route inventory,
+  command-suite linkage, identity discipline, and no-live posture in focused
+  Admin API regression tests.
+
+### Phase 2051 - Frontend Schema Sync
+
+- Regenerate the frontend TypeScript API schema from backend OpenAPI and keep
+  generated route coverage fresh without hand-editing generated files.
+
+### Phase 2052 - Frontend Move Wrapper
+
+- Add the canonical frontend API wrapper for the move route and keep all
+  frontend command submission through the shared backend client.
+
+### Phase 2053 - Frontend Move Draft
+
+- Add the move command draft, validation, payload preview, evidence rows, and
+  dry-submit helper as live-disabled command evidence only.
+
+### Phase 2054 - Browser Authority Guard
+
+- Verify the browser and BFF remain display/forward-only and cannot authorize
+  move execution, cancel/replace, lifecycle mutation, reconciliation, or
+  Coinbase calls.
+
+### Phase 2055 - Mock And Smoke Coverage
+
+- Update mock backend fixtures, dry command smoke catalogs, BFF command smoke,
+  route-coverage checks, and quality artifacts for the move draft.
+
+### Phase 2056 - Documentation Update
+
+- Update README, command workflow docs, stealth read docs, examples, route
+  references, roadmap state, and maintainer handoff for the move draft.
+
+### Phase 2057 - Contextless Review
+
+- Run a blind/contextless review asking how to create and dry-submit a stealth
+  move command without chat context, and remediate blocking ambiguity or unsafe
+  execution interpretation before advancing.
+
+### Phase 2058 - Backend Final Gates
+
+- Run focused Admin API regression tests, the autonomous queue validator, and
+  full backend regression before considering backend work complete.
+
+### Phase 2059 - Frontend Final Gates
+
+- Run focused frontend unit/smoke checks and full `npm run release:gate` before
+  considering frontend work complete.
+
+### Phase 2060 - Final Gates, Push, And Next Range
+
+- Mark the range complete only after gates and contextless review pass, push
+  synchronized backend/frontend changes, then create the next
+  milestone-linked range if M55 still has an approved architecture gap.
+
+## Completed Phases 2021-2040
+
+Completion evidence:
+
+- Added route-bound, live-disabled
+  `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` keyed by
+  `stealth_order_id`.
+- Synced reveal OpenAPI, route inventory, command-suite readiness,
+  enterprise-readiness inventory/taxonomy, frontend wrapper, dry-submit
+  workflow evidence, mocks, docs, and tests.
+- Preserved no-live posture: no `reveal_order_slice`, no
+  `StealthOrderManager` invocation, no Coinbase order submission, no local
+  lifecycle mutation, no reconciliation execution, and live Coinbase notional
+  `$0`.
+
+## Completed Phase Detail 2021-2040
 
 These phases continue M55 after the stealth create command draft. The next
 explicit architecture gap is a route-bound, no-live stealth reveal command

@@ -38,7 +38,140 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Stealth Reveal Command Contract Batch - Phases 2021-2040
+## Active M55 Stealth Move Command Contract Batch - Phases 2041-2060
+
+This batch continues M55 after the stealth reveal command draft. The backend
+may expose a route-bound, live-disabled stealth move command draft keyed by
+`stealth_order_id`, synchronize it into command-suite readiness, route
+inventory, OpenAPI, and frontend dry-submit evidence, and document the
+mutation-claim, active-placement, cancel/replace, and reconciliation blockers
+that remain. Move is `live_exchange_cancel` shaped, but this batch does not
+authorize move execution, `build_stealth_move_plan`, `execute_stealth_move`,
+`StealthOrderManager` calls, Coinbase reads, Coinbase order cancellation or
+submission, local stealth/order/exchange state mutation, reconciliation
+execution, browser stealth authority, or BFF execution authority.
+
+### Phase 2041 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2021-2040 to active
+  phases 2041-2060 while preserving no-live defaults and cap policy.
+
+### Phase 2042 - Move Command Scope
+
+- Define stealth move as a backend-owned command draft and cancel/replace gap,
+  distinct from live execution, legacy dashboard behavior, and generic
+  movement/reprice reads.
+
+### Phase 2043 - Identity Discipline
+
+- Keep the command keyed by `stealth_order_id`; exclude `client_order_id`,
+  active placement ids, and exchange `order_id` from the move request shape.
+
+### Phase 2044 - Request Model
+
+- Add a typed request model carrying new limit price, reason, and manual
+  acknowledgement only.
+
+### Phase 2045 - Route-Bound POST Contract
+
+- Add `POST /api/v1/stealth/orders/{stealth_order_id}/move` with RBAC,
+  idempotency, operator intent, audit, route inventory, and OpenAPI coverage.
+
+### Phase 2046 - Fail-Closed Service Boundary
+
+- Route through `AdminApiCommandService.move_stealth_order_by_stealth_order_id`
+  and return not-implemented/live-disabled evidence without invoking the
+  lifecycle manager, cancel/replace adapters, Coinbase orders, or local state
+  mutation.
+
+### Phase 2047 - Command-Suite Linkage
+
+- Link stealth move into `GET /api/v1/stealth/command-suite` with
+  active-placement, exchange-truth, mutation-claim, cancel/replace, and
+  reconciliation blockers.
+
+### Phase 2048 - Move Gap Update
+
+- Convert the move workflow gap from backend-route-missing to
+  admin-draft-live-disabled while leaving mutation-claim, active-placement,
+  cancel/replace, audit, and reconciliation blockers.
+
+### Phase 2049 - Inventory And Taxonomy Sync
+
+- Update enterprise readiness inventory, mutation taxonomy, capability
+  posture, and route inventory for the move command draft.
+
+### Phase 2050 - Backend Focused Tests
+
+- Cover move route behavior, generated schema, route inventory,
+  command-suite linkage, identity discipline, and no-live posture.
+
+### Phase 2051 - Frontend Schema Sync
+
+- Regenerate frontend schema and keep route coverage synchronized from
+  backend OpenAPI.
+
+### Phase 2052 - Frontend Wrapper
+
+- Add the canonical frontend API wrapper for the move route.
+
+### Phase 2053 - Frontend Draft
+
+- Add move command draft validation, payload preview, evidence rows, and
+  dry-submit helper through the shared command workflow harness.
+
+### Phase 2054 - Browser Authority Guard
+
+- Verify browser and BFF remain display/forward-only and cannot authorize
+  move execution, cancel/replace, lifecycle mutation, reconciliation, or
+  Coinbase calls.
+
+### Phase 2055 - Mock And Smoke Coverage
+
+- Update mock fixtures, dry command smoke, BFF command smoke, route coverage,
+  and quality artifacts.
+
+### Phase 2056 - Documentation
+
+- Update README, command workflow docs, stealth docs, examples, handoff, and
+  roadmap state.
+
+### Phase 2057 - Contextless Review
+
+- Run a blind/contextless review for stealth move command discovery and
+  remediate blocking ambiguity.
+
+### Phase 2058 - Backend Final Gates
+
+- Run focused Admin API tests, autonomous queue validator, and full backend
+  regression.
+
+### Phase 2059 - Frontend Final Gates
+
+- Run focused frontend checks and full `npm run release:gate`.
+
+### Phase 2060 - Final Gates, Push, And Next Range
+
+- Mark complete only after gates and contextless review, push synchronized
+  evidence, then create the next milestone-linked range if M55 still has a
+  remaining approved gap.
+
+## Completed M55 Stealth Reveal Command Contract Batch - Phases 2021-2040
+
+Completion evidence:
+
+- Added route-bound, live-disabled
+  `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` keyed by
+  `stealth_order_id`.
+- Synced reveal OpenAPI, route inventory, command-suite readiness,
+  enterprise-readiness inventory/taxonomy, frontend wrapper, dry-submit
+  workflow evidence, mocks, docs, and tests.
+- Preserved no-live posture: no `reveal_order_slice`, no
+  `StealthOrderManager` invocation, no Coinbase order submission, no local
+  lifecycle mutation, no reconciliation execution, and live Coinbase notional
+  `$0`.
+
+## Completed M55 Stealth Reveal Command Contract Detail - Phases 2021-2040
 
 This batch continues M55 after the stealth create command draft. The backend
 may expose a route-bound, live-disabled stealth reveal command draft keyed by

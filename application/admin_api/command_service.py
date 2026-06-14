@@ -56,6 +56,7 @@ from .models import (
     SpotSweepAutomationRunCommand,
     StealthCancelCommand,
     StealthCreateCommand,
+    StealthMoveCommand,
     StealthRevealCommand,
 )
 from .spot_recovery_execution import (
@@ -1014,6 +1015,57 @@ class AdminApiCommandService:
                 "requires_trigger_evidence": True,
                 "reveal_order_slice_invoked": False,
                 "stealth_manager_invoked": False,
+                "local_state_mutated": False,
+                "coinbase_order_submitted": False,
+            },
+            failure_stage="approval",
+        )
+
+    def move_stealth_order_by_stealth_order_id(
+        self,
+        command: StealthMoveCommand,
+    ) -> AdminApiCommandResponse:
+        """Evaluate a route-bound stealth move command through fail-closed gates.
+
+        Move-revealed is cancel/replace-shaped. The Admin API contract is not
+        wired to ``build_stealth_move_plan`` or ``execute_stealth_move`` yet.
+        Future live enablement must prove mutation-claim, active-placement
+        cancel/replace, audit, cap/guard, and reconciliation evidence before
+        any local lifecycle state changes.
+        """
+
+        gate = evaluate_live_execution_gate(allow_live_execution=False)
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method="move_stealth_order_by_stealth_order_id",
+            message=(
+                "Stealth move requires enterprise auth, idempotency, audit, "
+                "approval, cap/rate gates, mutation-claim coordination, active "
+                "placement cancel/replace handling, and reconciliation before "
+                "live execution."
+            ),
+            stealth_order_id=command.stealth_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            guard=gate.model_dump(),
+            data={
+                "stealth_order_id": command.stealth_order_id,
+                "new_limit_price": command.request.new_limit_price,
+                "reason": command.request.reason,
+                "manual_live_acknowledgement": (
+                    command.request.manual_live_acknowledgement
+                ),
+                "identity_key": "stealth_order_id",
+                "mutation_kind": StealthMutationKind.MOVE.value,
+                "active_placement_client_order_id": None,
+                "exchange_order_id_evidence_only": True,
+                "build_stealth_move_plan_invoked": False,
+                "execute_stealth_move_invoked": False,
+                "stealth_manager_invoked": False,
+                "cancel_replace_submitted": False,
                 "local_state_mutated": False,
                 "coinbase_order_submitted": False,
             },

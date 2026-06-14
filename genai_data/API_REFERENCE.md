@@ -25,6 +25,7 @@ Current route adapters:
 - `GET /api/v1/stealth/command-suite`
 - `POST /api/v1/stealth/orders`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/reveal`
+- `POST /api/v1/stealth/orders/{stealth_order_id}/move`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
@@ -62,8 +63,8 @@ Current behavior:
   mutate live exchange state
 - the generated OpenAPI contract includes eventual `200` accepted/replayed
   command response schemas, but the current runtime still returns `501` for
-  create, order cancel, stealth create, stealth reveal, stealth cancel,
-  movement reprice, and campaign execution commands because HTTP live
+  create, order cancel, stealth create, stealth reveal, stealth move,
+  stealth cancel, movement reprice, and campaign execution commands because HTTP live
   execution is not approved
 - `X-Operator-Intent` is durable command audit evidence and part of the
   idempotency payload hash
@@ -76,10 +77,15 @@ Current behavior:
   client ids and exchange ids are evidence only
 - `GET /api/v1/stealth/command-suite` exposes read-only M55 stealth
   command-suite readiness for create, cancel, reveal, move, reprice,
-  recovery, and reconciliation workflows. It links existing live-disabled
-  stealth cancel and movement/reprice routes, reports exchange-truth blockers,
-  and does not create, reveal, cancel, move/reprice, reconcile, mutate state,
-  read Coinbase, or call Coinbase
+  recovery, and reconciliation workflows. It links live-disabled stealth
+  create, reveal, move, cancel, and movement/reprice routes, reports
+  exchange-truth blockers, and does not create, reveal, cancel, move/reprice,
+  reconcile, mutate state, read Coinbase, or call Coinbase
+- `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
+  cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
+  `501`, writes command audit evidence, never calls `build_stealth_move_plan`
+  or `execute_stealth_move`, never calls Coinbase, and must not use active
+  placement ids or exchange ids as command keys
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is a
   live-disabled command draft keyed by `stealth_order_id`; it returns `501`,
   writes command audit evidence, never calls Coinbase, and must not use active
