@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2101-2120",
+  "approved_phase_range": "2121-2140",
   "command_count": 5,
   "blocked_command_count": 5,
   "live_enabled_command_count": 0,
@@ -83,6 +83,13 @@ safely observable runtime mutation-claim snapshot state, active claim count,
 required move/reprice claim contracts, missing claim contracts, and no-live
 Coinbase flags. It is evidence only: it does not acquire, release, clear, or
 prove claims, and command workflows must not use it as mutation authority.
+The same detail payload may include `reveal_trigger_audit`. That panel reports
+local reveal-condition presence, condition type/payload, required
+reveal-trigger guard contracts, missing contracts, and no-live Coinbase flags.
+It is evidence only: it does not evaluate triggers, call
+`should_trigger_reveal`, call `reveal_order_slice`, submit Coinbase orders, or
+prove reveal authority, and command workflows must not use it as browser/BFF
+trigger authority.
 
 The `coverage_gaps` array includes blocked workflow families for:
 

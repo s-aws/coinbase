@@ -11,9 +11,9 @@ platform, not the legacy dashboard command plane.
 - `GET /api/v1/stealth/command-suite`
 
 The list/detail routes read local stealth lifecycle rows and report active
-placement evidence when present. The command-suite route reports M55 readiness
-for stealth create, cancel, reveal, move, reprice, recovery, and reconciliation
-workflows.
+placement evidence, mutation-claim evidence, and reveal-trigger evidence when
+present. The command-suite route reports M55 readiness for stealth create,
+cancel, reveal, move, reprice, recovery, and reconciliation workflows.
 
 ## Identity Rules
 
@@ -53,6 +53,22 @@ plan, mutation claim, live execution adapter, live execution service, and
 post-live reconciliation. Move, cancel, and reprice additionally require
 active-placement exchange truth; create and reveal drafts remain blocked on
 lifecycle/trigger evidence before execution can be considered.
+
+## Detail Audit Semantics
+
+`GET /api/v1/stealth/orders/{stealth_order_id}` may include
+`active_placement_audit`, `mutation_claim_audit`, and `reveal_trigger_audit`.
+These panels are read evidence only:
+
+- `active_placement_audit` reports local active-placement pointers and missing
+  exchange-truth contracts; it is not Coinbase truth or cancel/replace
+  authority.
+- `mutation_claim_audit` reports safely observable runtime mutation-claim
+  snapshots; it does not acquire, release, clear, or prove claims.
+- `reveal_trigger_audit` reports local reveal-condition presence, type, and
+  payload plus missing trigger-guard contracts; it does not evaluate triggers,
+  call `should_trigger_reveal`, call `reveal_order_slice`, submit Coinbase
+  orders, mutate lifecycle state, or authorize browser/BFF reveal execution.
 
 ## Exchange-Truth Boundary
 

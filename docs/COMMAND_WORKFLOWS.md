@@ -175,7 +175,11 @@ payload-hash, and operator-intent chain. Move, cancel, and reprice also
 require active-placement exchange truth before execution can be considered.
 Create and reveal are command drafts that do not require active-placement
 evidence before the draft response, but they still remain blocked until
-lifecycle/trigger, live adapter, and reconciliation gates exist. Move is a
+lifecycle/trigger, live adapter, and reconciliation gates exist. The stealth
+detail route may expose `reveal_trigger_audit` for local reveal-condition
+evidence, but command workflows must not treat that panel as trigger
+evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase
+submission, lifecycle mutation, or browser/BFF reveal authority. Move is a
 cancel/replace-shaped draft that returns no-live evidence only; it must not
 call `build_stealth_move_plan`, `execute_stealth_move`, or
 `StealthOrderManager`, submit/cancel Coinbase orders, perform cancel/replace,

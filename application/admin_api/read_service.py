@@ -117,6 +117,7 @@ from .models import (
     AdminStealthOrderDetailResponse,
     AdminStealthActivePlacementAuditEvidence,
     AdminStealthMutationClaimAuditEvidence,
+    AdminStealthRevealTriggerAuditEvidence,
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
@@ -172,7 +173,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2101-2120"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2121-2140"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1348,6 +1349,48 @@ def _stealth_mutation_claim_audit(
             "local evidence only. It does not acquire or release claims, call "
             "Coinbase, execute cancel/replace, mutate lifecycle state, or "
             "authorize browser/BFF execution."
+        ),
+    )
+
+
+def _stealth_reveal_trigger_audit(
+    item: AdminStealthOrderReadItem,
+) -> AdminStealthRevealTriggerAuditEvidence:
+    required_contracts = ["stealth_reveal_trigger_guard"]
+    reveal_condition_present = bool(
+        item.reveal_condition_type or item.reveal_condition
+    )
+    blockers = ["stealth_reveal_trigger_guard_missing"]
+    if not reveal_condition_present:
+        blockers.insert(0, "reveal_condition_local_evidence_missing")
+
+    return AdminStealthRevealTriggerAuditEvidence(
+        stealth_order_id=item.stealth_order_id,
+        status=AdminApiGateStatus.BLOCKED,
+        reveal_condition_present=reveal_condition_present,
+        reveal_condition_type=item.reveal_condition_type,
+        reveal_condition=item.reveal_condition,
+        trigger_state_source="local_stealth_row_only",
+        trigger_evaluation_ran=False,
+        should_trigger_reveal_called=False,
+        reveal_order_slice_called=False,
+        coinbase_order_submit_ran=False,
+        lifecycle_mutation_allowed=False,
+        required_for_mutation_families=[AdminApiMutationFamilyType.STEALTH_REVEAL],
+        read_evidence_routes=[
+            "/api/v1/stealth/orders/{stealth_order_id}",
+            "/api/v1/stealth/command-suite",
+        ],
+        required_contracts=required_contracts,
+        missing_contracts=list(required_contracts),
+        blockers=blockers,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=(
+            "Reveal-trigger audit reports local reveal condition evidence only. "
+            "It does not evaluate live triggers, call should_trigger_reveal, "
+            "call reveal_order_slice, submit Coinbase orders, mutate lifecycle "
+            "state, or authorize browser/BFF execution."
         ),
     )
 
@@ -7417,6 +7460,9 @@ class AdminApiReadService:
             ),
             mutation_claim_audit=(
                 _stealth_mutation_claim_audit(item.stealth_order_id) if item else None
+            ),
+            reveal_trigger_audit=(
+                _stealth_reveal_trigger_audit(item) if item else None
             ),
         )
 

@@ -194,6 +194,13 @@ snapshot of safely observable runtime mutation claims for move and repricing
 families. It explains active or unavailable claim state without acquiring,
 releasing, or clearing claims, without creating command inputs, and without
 granting browser/BFF lifecycle authority.
+The same detail route also exposes `reveal_trigger_audit` as local
+reveal-condition evidence for the reveal workflow. It reports whether a
+condition is present, the condition type/payload when available, missing
+trigger-guard contracts, and fail-closed no-live flags. It does not evaluate
+triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
+Coinbase orders, mutate lifecycle state, execute reconciliation, or grant
+browser/BFF reveal authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -468,6 +475,11 @@ The platform/module split is documented in
   contracts, missing claim contracts, and no-live Coinbase flags without
   acquiring or releasing claims or turning claim state into browser/BFF command
   authority.
+- Stealth detail rows also include `reveal_trigger_audit` so operators can see
+  local reveal-condition evidence, required reveal-trigger guard contracts,
+  missing trigger contracts, and no-live Coinbase flags without evaluating
+  triggers, calling `should_trigger_reveal`, calling `reveal_order_slice`, or
+  turning condition state into browser/BFF command authority.
 - Movement/repricing read rows combine durable `order_moves`,
   `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
   evidence. Runtime mutation claims and pending replacement claims are shown

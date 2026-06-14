@@ -11851,6 +11851,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminStealthMutationClaimAuditEvidence'
           - type: 'null'
+        reveal_trigger_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminStealthRevealTriggerAuditEvidence'
+          - type: 'null'
         read_only:
           type: boolean
           title: Read Only
@@ -12074,6 +12078,96 @@ components:
       - stealth_order_id
       title: AdminStealthOrderReadItem
       description: Read-only stealth order evidence from ``stealth_orders``.
+    AdminStealthRevealTriggerAuditEvidence:
+      properties:
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        reveal_condition_present:
+          type: boolean
+          title: Reveal Condition Present
+          default: false
+        reveal_condition_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reveal Condition Type
+        reveal_condition:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Reveal Condition
+        trigger_state_source:
+          type: string
+          title: Trigger State Source
+          default: local_stealth_row_only
+        trigger_evaluation_ran:
+          type: boolean
+          title: Trigger Evaluation Ran
+          default: false
+        should_trigger_reveal_called:
+          type: boolean
+          title: Should Trigger Reveal Called
+          default: false
+        reveal_order_slice_called:
+          type: boolean
+          title: Reveal Order Slice Called
+          default: false
+        coinbase_order_submit_ran:
+          type: boolean
+          title: Coinbase Order Submit Ran
+          default: false
+        lifecycle_mutation_allowed:
+          type: boolean
+          title: Lifecycle Mutation Allowed
+          default: false
+        required_for_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Required For Mutation Families
+        read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Read Evidence Routes
+        required_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Contracts
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - detail
+      title: AdminStealthRevealTriggerAuditEvidence
+      description: Read-only reveal-trigger evidence for stealth detail views.
     CampaignExecutionRequest:
       properties:
         campaign_id:

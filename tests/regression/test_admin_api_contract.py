@@ -1365,6 +1365,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "runtime_claims_observed" in mutation_claim_audit_schema["properties"]
     assert "active_claim_count" in mutation_claim_audit_schema["properties"]
     assert "lifecycle_mutation_allowed" in mutation_claim_audit_schema["properties"]
+    assert "reveal_trigger_audit" in stealth_detail_schema["properties"]
+    assert "AdminStealthRevealTriggerAuditEvidence" in written["components"]["schemas"]
+    reveal_trigger_audit_schema = written["components"]["schemas"][
+        "AdminStealthRevealTriggerAuditEvidence"
+    ]
+    assert "reveal_condition_present" in reveal_trigger_audit_schema["properties"]
+    assert "trigger_evaluation_ran" in reveal_trigger_audit_schema["properties"]
+    assert "reveal_order_slice_called" in reveal_trigger_audit_schema["properties"]
+    assert "coinbase_order_submit_ran" in reveal_trigger_audit_schema["properties"]
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
@@ -4709,7 +4718,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2101-2120"
+    assert payload["approved_phase_range"] == "2121-2140"
     assert payload["command_count"] == 5
     assert payload["blocked_command_count"] == 5
     assert payload["live_enabled_command_count"] == 0
@@ -5809,7 +5818,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2101-2120"
+    assert live_payload["approved_phase_range"] == "2121-2140"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6372,7 +6381,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2101-2120"
+    assert enterprise_payload["approved_phase_range"] == "2121-2140"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6955,7 +6964,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2101-2120"
+    assert recovery_preview_payload["approved_phase_range"] == "2121-2140"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -9186,6 +9195,32 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
                 "bff_authority": "forward_only_no_execution",
                 "detail": "Mutation-claim audit remains no-live.",
             },
+            "reveal_trigger_audit": {
+                "stealth_order_id": stealth_order_id,
+                "status": AdminApiGateStatus.BLOCKED.value,
+                "reveal_condition_present": True,
+                "reveal_condition_type": "price_threshold",
+                "reveal_condition": {"type": "price_threshold"},
+                "trigger_state_source": "local_stealth_row_only",
+                "trigger_evaluation_ran": False,
+                "should_trigger_reveal_called": False,
+                "reveal_order_slice_called": False,
+                "coinbase_order_submit_ran": False,
+                "lifecycle_mutation_allowed": False,
+                "required_for_mutation_families": [
+                    AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+                ],
+                "read_evidence_routes": [
+                    "/api/v1/stealth/orders/{stealth_order_id}",
+                    "/api/v1/stealth/command-suite",
+                ],
+                "required_contracts": ["stealth_reveal_trigger_guard"],
+                "missing_contracts": ["stealth_reveal_trigger_guard"],
+                "blockers": ["stealth_reveal_trigger_guard_missing"],
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "detail": "Reveal-trigger audit remains no-live.",
+            },
             "read_only": True,
             "command_routes_mode": AdminApiCommandRoutesMode.LIVE_DISABLED.value,
             "live_coinbase_orders_ran": False,
@@ -9253,6 +9288,21 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
     ]
     assert mutation_claim_audit["required_contracts"] == (
         mutation_claim_audit["missing_contracts"]
+    )
+    reveal_trigger_audit = detail_response.json()["reveal_trigger_audit"]
+    assert reveal_trigger_audit["reveal_condition_present"] is True
+    assert reveal_trigger_audit["reveal_condition_type"] == "price_threshold"
+    assert reveal_trigger_audit["trigger_state_source"] == "local_stealth_row_only"
+    assert reveal_trigger_audit["trigger_evaluation_ran"] is False
+    assert reveal_trigger_audit["should_trigger_reveal_called"] is False
+    assert reveal_trigger_audit["reveal_order_slice_called"] is False
+    assert reveal_trigger_audit["coinbase_order_submit_ran"] is False
+    assert reveal_trigger_audit["lifecycle_mutation_allowed"] is False
+    assert reveal_trigger_audit["required_for_mutation_families"] == [
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+    ]
+    assert reveal_trigger_audit["required_contracts"] == (
+        reveal_trigger_audit["missing_contracts"]
     )
     assert detail_response.json()["live_coinbase_orders_ran"] is False
 
@@ -9379,6 +9429,23 @@ def test_admin_api_stealth_read_service_maps_placement_and_exchange_evidence(mon
     ]
     assert mutation_audit.required_contracts == mutation_audit.missing_contracts
     assert "runtime_mutation_claim_snapshot_unavailable" in mutation_audit.blockers
+    assert detail_response.reveal_trigger_audit is not None
+    trigger_audit = detail_response.reveal_trigger_audit
+    assert trigger_audit.status == AdminApiGateStatus.BLOCKED
+    assert trigger_audit.reveal_condition_present is True
+    assert trigger_audit.reveal_condition_type == "price"
+    assert trigger_audit.reveal_condition == {"price_threshold": "65000.00"}
+    assert trigger_audit.trigger_state_source == "local_stealth_row_only"
+    assert trigger_audit.trigger_evaluation_ran is False
+    assert trigger_audit.should_trigger_reveal_called is False
+    assert trigger_audit.reveal_order_slice_called is False
+    assert trigger_audit.coinbase_order_submit_ran is False
+    assert trigger_audit.lifecycle_mutation_allowed is False
+    assert trigger_audit.required_for_mutation_families == [
+        AdminApiMutationFamilyType.STEALTH_REVEAL,
+    ]
+    assert trigger_audit.required_contracts == trigger_audit.missing_contracts
+    assert "stealth_reveal_trigger_guard_missing" in trigger_audit.blockers
     assert detail_response.live_coinbase_orders_ran is False
 
 
@@ -9442,6 +9509,15 @@ def test_admin_api_stealth_read_service_does_not_promote_historical_reveals_to_a
     assert mutation_audit.runtime_claims_observed is False
     assert mutation_audit.active_claim_count == 0
     assert mutation_audit.lifecycle_mutation_allowed is False
+    assert detail_response.reveal_trigger_audit is not None
+    trigger_audit = detail_response.reveal_trigger_audit
+    assert trigger_audit.reveal_condition_present is False
+    assert trigger_audit.trigger_evaluation_ran is False
+    assert trigger_audit.should_trigger_reveal_called is False
+    assert trigger_audit.reveal_order_slice_called is False
+    assert trigger_audit.coinbase_order_submit_ran is False
+    assert trigger_audit.lifecycle_mutation_allowed is False
+    assert "reveal_condition_local_evidence_missing" in trigger_audit.blockers
 
 
 @pytest.mark.regression

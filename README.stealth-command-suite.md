@@ -25,6 +25,9 @@ The route requires Admin API authentication and `analytics:read`. It returns
 - required gate chains for approval, cap/guard, admission audit,
   reconciliation, mutation claims, active-placement exchange truth, and live
   execution service evidence
+- per-order reveal-trigger audit evidence on the stealth detail route so
+  operators can inspect local reveal-condition evidence without triggering a
+  reveal
 - no-live Coinbase posture with submitted/executed notional `0`
 
 Per-order active-placement audit evidence is exposed by
@@ -48,7 +51,12 @@ or browser/BFF mutation authority.
   move/reprice revealed orders, execute reconciliation, mutate state, read
   Coinbase, or call Coinbase.
 - Browser and BFF consumers may display or forward backend evidence only; they
-  must not evaluate exchange-truth or mutation-claim authority.
+  must not evaluate exchange-truth, mutation-claim, or reveal-trigger
+  authority.
+- `reveal_trigger_audit` is detail-route evidence only. It does not evaluate
+  triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
+  Coinbase orders, mutate lifecycle state, or authorize browser/BFF reveal
+  execution.
 
 ## References
 

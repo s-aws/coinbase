@@ -38,106 +38,121 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Mutation-Claim Audit Batch - Phases 2101-2120
+## Active M55 Reveal-Trigger Audit Batch - Phases 2121-2140
 
-This batch continues M55 after the active-placement audit. The backend may
+This batch continues M55 after the mutation-claim audit. The backend may
 extend the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail
-response with a typed mutation-claim audit block. The audit is read-only local
-runtime evidence from the existing mutation-claim reader. It reports observed
-claim states and missing claim-audit contracts for move/reprice readiness. It
-does not add a new endpoint, acquire claims, release claims, call Coinbase,
-execute cancel/replace, mutate lifecycle state, execute reconciliation,
-authorize browser/BFF execution, or bypass the existing manager claim ledger.
+response with a typed reveal-trigger audit block. The audit is read-only local
+stealth row evidence for reveal-condition presence, condition type, condition
+payload, missing trigger-guard contracts, and no-live boundaries for reveal
+readiness. It does not add a new endpoint, evaluate triggers, call
+`should_trigger_reveal`, call `reveal_order_slice`, call Coinbase, submit
+orders, mutate lifecycle state, execute reconciliation, authorize browser/BFF
+execution, or bypass the existing stealth lifecycle path.
 
-### Phase 2101 - Advance Active Queue Range
+### Phase 2121 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2081-2100 to active
-  phases 2101-2120 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2101-2120 to active
+  phases 2121-2140 while preserving no-live defaults and cap policy.
 
-### Phase 2102 - Detail Audit Scope
+### Phase 2122 - Detail Audit Scope
 
-- Define mutation-claim audit evidence as part of the existing stealth detail
+- Define reveal-trigger audit evidence as part of the existing stealth detail
   read contract.
 
-### Phase 2103 - Typed Audit Model
+### Phase 2123 - Typed Audit Model
 
-- Add a response model for runtime claim rows, observed/unavailable state,
-  active-claim counts, blockers, required contracts, and authority flags.
+- Add a response model for reveal-condition evidence, trigger execution
+  blockers, required contracts, and authority flags.
 
-### Phase 2104 - Runtime Reader Reuse
+### Phase 2124 - Local Evidence Mapping
 
-- Build audit evidence from `_runtime_mutation_claims_for` instead of adding a
-  second claim reader or bypassing manager locks.
+- Populate condition presence/type/payload from the stealth row without
+  invoking trigger evaluation logic.
 
-### Phase 2105 - Runtime Unavailable Handling
+### Phase 2125 - Trigger Guard Flags
 
-- Report unavailable runtime claim snapshots explicitly without treating that
-  as command approval or execution proof.
+- Report trigger evaluation, `should_trigger_reveal`, and
+  `reveal_order_slice` as not run.
 
-### Phase 2106 - Command Family Requirements
+### Phase 2126 - Coinbase Submission Flags
 
-- Link the audit to stealth move and movement/reprice readiness.
+- Report Coinbase submission, lifecycle mutation, and reconciliation execution
+  as not run/not allowed.
 
-### Phase 2107 - No-Mutation Flags
+### Phase 2127 - Command Family Requirements
 
-- Report claim mutation, Coinbase read/cancel, lifecycle mutation, and
-  reconciliation execution as not run/not allowed.
+- Link the audit to stealth reveal readiness.
 
-### Phase 2108 - Contract Matrix
+### Phase 2128 - Contract Matrix
 
-- Expose mutation-claim audit and reprice cooldown-claim contracts.
+- Expose the required reveal-trigger guard contract.
 
-### Phase 2109 - Generated Backend Artifacts
+### Phase 2129 - Missing Contract Matrix
+
+- Keep required reveal-trigger contracts missing until backend-owned executable
+  trigger guard contracts exist.
+
+### Phase 2130 - Generated Backend Artifacts
 
 - Regenerate OpenAPI and route inventory artifacts.
 
-### Phase 2110 - Backend Tests
+### Phase 2131 - Backend Tests
 
-- Cover schema, route serialization, runtime-observed/unavailable claim cases,
-  and no-live/no-mutation posture.
+- Cover schema, route serialization, condition-present/missing cases, and
+  no-live/no-trigger/no-mutation posture.
 
-### Phase 2111 - Frontend Schema Sync
+### Phase 2132 - Frontend Schema Sync
 
 - Regenerate frontend schema from backend OpenAPI.
 
-### Phase 2112 - Frontend Adapter Mapping
+### Phase 2133 - Frontend Adapter Mapping
 
-- Map mutation-claim audit evidence into the stealth detail view model.
+- Map reveal-trigger audit evidence into the stealth detail view model.
 
-### Phase 2113 - Frontend Detail UI
+### Phase 2134 - Frontend Detail UI
 
-- Render the audit in the selected stealth detail and backend detail areas.
+- Render the audit in the selected stealth detail and backend detail areas
+  without adding reveal or trigger controls.
 
-### Phase 2114 - Mock Runtime Fixtures
+### Phase 2135 - Mock Runtime Fixtures
 
-- Update mock fixtures for mutation-claim audit evidence.
+- Update mock fixtures for reveal-trigger audit evidence.
 
-### Phase 2115 - Command Workflow Context
+### Phase 2136 - Command Workflow Context
 
 - Reference audit evidence from command workflow docs without enabling gates.
 
-### Phase 2116 - Quality Artifact Sync
+### Phase 2137 - Quality Artifact Sync
 
-- Update release/deployment/autonomous validators for phases 2101-2120.
+- Update release/deployment/autonomous validators for phases 2121-2140.
 
-### Phase 2117 - Docs And Examples
+### Phase 2138 - Docs And Examples
 
-- Document mutation-claim audit boundaries and no-live/no-mutation posture.
+- Document reveal-trigger audit boundaries and no-live/no-trigger posture.
 
-### Phase 2118 - Drift Scan
-
-- Scan for stale range text, claim command inputs, browser/BFF claim
-  authority, and accidental live enablement.
-
-### Phase 2119 - Blind/Contextless Review
+### Phase 2139 - Blind/Contextless Review
 
 - Run contextless review for the audit contract and remediate blockers.
 
-### Phase 2120 - Final Gates, Push, And Next Range
+### Phase 2140 - Final Gates, Push, And Next Range
 
 - Run backend regression, frontend release gate, smoke checks, and push both
   repos. Create the next M55-linked range only if a concrete approved gap
   remains.
+
+## Completed M55 Mutation-Claim Audit Batch - Phases 2101-2120
+
+Completion evidence:
+
+- Extended `GET /api/v1/stealth/orders/{stealth_order_id}` with a typed
+  mutation-claim audit block.
+- Added generated schema, frontend mock/runtime/UI consumption, docs, tests,
+  quality artifacts, and blind/contextless review with no blockers.
+- Preserved submitted/executed notional `$0` and did not acquire/release
+  claims, bypass manager locks, call Coinbase, execute cancel/replace, mutate
+  lifecycle state, execute reconciliation, add a new endpoint, or grant
+  browser/BFF claim authority.
 
 ## Completed M55 Active-Placement Audit Batch - Phases 2081-2100
 

@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2101-2120**.
+- Approved phase range: **2121-2140**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,116 +53,130 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2101-2120
+## Active Phases 2121-2140
 
-These phases continue M55 after the active-placement audit. The next explicit
-architecture gap is backend-owned mutation-claim audit evidence on the
+These phases continue M55 after the mutation-claim audit. The next explicit
+architecture gap is backend-owned reveal-trigger audit evidence on the
 existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail route. The
-audit must reuse the existing runtime claim reader and may expose local
-process claim state for move/reprice readiness. It must not acquire claims,
-release claims, create a new endpoint, read Coinbase, submit/cancel Coinbase
-orders, execute cancel/replace, mutate lifecycle state, execute
+audit may expose local reveal-condition evidence and blocked trigger
+contracts for reveal readiness. It must not evaluate live triggers, call
+`should_trigger_reveal`, call `reveal_order_slice`, create a new endpoint,
+read Coinbase, submit Coinbase orders, mutate lifecycle state, execute
 reconciliation, or grant browser/BFF authority.
 
-### Phase 2101 - Advance Active Queue Range
+### Phase 2121 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2081-2100 to active
-  phases 2101-2120 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2101-2120 to active
+  phases 2121-2140 while preserving no-live defaults and cap policy.
 
-### Phase 2102 - Mutation Claim Audit Scope
+### Phase 2122 - Reveal Trigger Audit Scope
 
-- Define the audit as detail-route read evidence only, not a claim executor,
-  lifecycle mutation path, exchange proof, or command approval gate.
+- Define the audit as detail-route read evidence only, not a trigger
+  evaluator, reveal executor, exchange submission path, or command approval
+  gate.
 
-### Phase 2103 - Response Model Extension
+### Phase 2123 - Response Model Extension
 
-- Add a typed mutation-claim audit object to the existing stealth detail
+- Add a typed reveal-trigger audit object to the existing stealth detail
   response.
 
-### Phase 2104 - Runtime Claim Reader Reuse
+### Phase 2124 - Local Reveal Evidence Mapping
 
-- Reuse the existing `_runtime_mutation_claims_for` evidence helper instead of
-  creating a second claim reader or bypassing manager locks.
+- Populate reveal-condition presence, condition type, and condition payload
+  from existing stealth row evidence without invoking live trigger logic.
 
-### Phase 2105 - Command Family Linkage
+### Phase 2125 - Trigger Evaluation Guard
 
-- Mark stealth move and movement/reprice as the command families that require
-  mutation-claim evidence.
+- Report trigger evaluation, `should_trigger_reveal`, and
+  `reveal_order_slice` as not run.
 
-### Phase 2106 - No-Mutation Authority Flags
+### Phase 2126 - Coinbase Submission Guard
 
-- Report claim acquisition/release, Coinbase reads, Coinbase cancels,
-  cancel/replace, lifecycle mutation, and reconciliation execution as not
-  run/not allowed.
+- Report Coinbase order submission, live Coinbase reads, lifecycle mutation,
+  and reconciliation execution as not run/not allowed.
 
-### Phase 2107 - Required Contract Matrix
+### Phase 2127 - Command Family Linkage
 
-- Expose required mutation-claim audit and reprice cooldown-claim contracts.
+- Mark stealth reveal as the command family that requires reveal-trigger
+  evidence.
 
-### Phase 2108 - Missing Contract Matrix
+### Phase 2128 - Required Contract Matrix
 
-- Keep required mutation-claim contracts missing until backend-owned
-  executable claim-audit contracts exist.
+- Expose the required reveal-trigger guard contract for future reveal
+  execution readiness.
 
-### Phase 2109 - Generated Backend Artifacts
+### Phase 2129 - Missing Contract Matrix
+
+- Keep required reveal-trigger contracts missing until backend-owned
+  executable trigger guard contracts exist.
+
+### Phase 2130 - Generated Backend Artifacts
 
 - Regenerate OpenAPI and route inventory artifacts after the detail response
   model changes.
 
-### Phase 2110 - Backend Focused Tests
+### Phase 2131 - Backend Focused Tests
 
-- Cover generated schema, runtime-claim observed/unavailable cases, no-live
-  posture, identity discipline, and blocked lifecycle mutation.
+- Cover generated schema, condition-present/missing cases, no-live posture,
+  identity discipline, and blocked lifecycle mutation.
 
-### Phase 2111 - Frontend Schema Intake
+### Phase 2132 - Frontend Schema Intake
 
 - Regenerate frontend TypeScript schema from backend OpenAPI without
   hand-editing generated files.
 
-### Phase 2112 - Frontend Adapter Mapping
+### Phase 2133 - Frontend Adapter Mapping
 
-- Map the detail mutation-claim audit into the stealth read model.
+- Map the detail reveal-trigger audit into the stealth read model.
 
-### Phase 2113 - Frontend Detail Rendering
+### Phase 2134 - Frontend Detail Rendering
 
-- Render the audit in the selected stealth detail area without adding action
-  buttons, claim controls, or active-placement/exchange command inputs.
+- Render the audit in the selected stealth detail area without adding trigger
+  controls, reveal controls, placement controls, or command inputs.
 
-### Phase 2114 - Mock Runtime Sync
+### Phase 2135 - Mock Runtime Sync
 
-- Mirror runtime-observed and runtime-unavailable mutation-claim audit cases
-  in local/mock fixtures.
+- Mirror condition-present and condition-missing reveal-trigger audit cases in
+  local/mock fixtures.
 
-### Phase 2115 - Command Workflow Context
+### Phase 2136 - Command Workflow Context
 
-- Link command workflow text to mutation-claim audit evidence without
-  evaluating claims or command gates in the browser.
+- Link command workflow text to reveal-trigger audit evidence without
+  evaluating triggers or command gates in the browser.
 
-### Phase 2116 - Quality Artifact Sync
+### Phase 2137 - Quality Artifact Sync
 
 - Update autonomous, release, deployment, and runtime evidence for the active
   range and audit contract.
 
-### Phase 2117 - Documentation And Examples
+### Phase 2138 - Documentation And Examples
 
-- Update feature docs and examples for mutation-claim audit evidence and
-  no-live/no-mutation boundaries.
+- Update feature docs and examples for reveal-trigger audit evidence and
+  no-live/no-trigger boundaries.
 
-### Phase 2118 - Drift Scan
-
-- Scan for stale active ranges, browser/BFF claim authority, direct claim
-  mutation, and accidental live enablement.
-
-### Phase 2119 - Blind/Contextless Review
+### Phase 2139 - Blind/Contextless Review
 
 - Run blind/contextless review proving the audit is understandable without
   chat history and does not create unsafe authority.
 
-### Phase 2120 - Final Gates, Push, And Next Range
+### Phase 2140 - Final Gates, Push, And Next Range
 
 - Run backend regression, frontend release gate, required smoke checks, and
   push synchronized repos. Create the next milestone-linked active range only
   if M55 still has an approved gap.
+
+## Completed Phases 2101-2120
+
+Completion evidence:
+
+- Added a backend-owned mutation-claim audit block to
+  `GET /api/v1/stealth/orders/{stealth_order_id}`.
+- Mirrored the audit in frontend schema, mocks, read model UI, docs, tests,
+  quality artifacts, and autonomous validators.
+- Preserved submitted/executed notional `$0` and did not acquire or release
+  claims, bypass manager locks, execute cancel/replace, mutate lifecycle
+  state, execute reconciliation, call Coinbase, add a new endpoint, or grant
+  browser/BFF claim authority.
 
 ## Completed Phases 2081-2100
 
