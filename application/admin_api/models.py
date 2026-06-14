@@ -1750,6 +1750,41 @@ class AdminStealthRevealSubmissionAuditEvidence(BaseModel):
     detail: str
 
 
+class AdminStealthRevealReconciliationAuditEvidence(BaseModel):
+    """Read-only reveal reconciliation-proof evidence for stealth detail views."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    command_route: str = "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    reconciliation_required: bool = True
+    reconciliation_plan_required: bool = True
+    reconciliation_proof_required: bool = True
+    reconciliation_plan_resolved: bool = False
+    reconciliation_proof_resolved: bool = False
+    reconciliation_plan_id: str | None = None
+    reconciliation_proof_id: str | None = None
+    active_placement_client_order_id: str | None = None
+    active_exchange_order_id: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    coinbase_read_ran: bool = False
+    reconciliation_executed: bool = False
+    order_state_mutated: bool = False
+    lifecycle_mutation_allowed: bool = False
+    post_submit_reconciliation_satisfied: bool = False
+    required_for_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    read_evidence_routes: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminStealthOrderDetailResponse(BaseModel):
     """Read-only stealth detail response keyed by ``stealth_order_id``."""
 
@@ -1763,6 +1798,9 @@ class AdminStealthOrderDetailResponse(BaseModel):
     mutation_claim_audit: AdminStealthMutationClaimAuditEvidence | None = None
     reveal_trigger_audit: AdminStealthRevealTriggerAuditEvidence | None = None
     reveal_submission_audit: AdminStealthRevealSubmissionAuditEvidence | None = None
+    reveal_reconciliation_audit: (
+        AdminStealthRevealReconciliationAuditEvidence | None
+    ) = None
     read_only: bool = True
     command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False

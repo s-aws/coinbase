@@ -1389,6 +1389,24 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "reveal_order_slice_called" in reveal_submission_audit_schema["properties"]
     assert "coinbase_order_submit_ran" in reveal_submission_audit_schema["properties"]
     assert "active_placement_created" in reveal_submission_audit_schema["properties"]
+    assert "reveal_reconciliation_audit" in stealth_detail_schema["properties"]
+    assert "AdminStealthRevealReconciliationAuditEvidence" in written[
+        "components"
+    ]["schemas"]
+    reveal_reconciliation_audit_schema = written["components"]["schemas"][
+        "AdminStealthRevealReconciliationAuditEvidence"
+    ]
+    assert "reconciliation_required" in reveal_reconciliation_audit_schema[
+        "properties"
+    ]
+    assert "reconciliation_proof_resolved" in reveal_reconciliation_audit_schema[
+        "properties"
+    ]
+    assert "coinbase_read_ran" in reveal_reconciliation_audit_schema["properties"]
+    assert "reconciliation_executed" in reveal_reconciliation_audit_schema[
+        "properties"
+    ]
+    assert "order_state_mutated" in reveal_reconciliation_audit_schema["properties"]
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
@@ -4733,7 +4751,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2141-2160"
+    assert payload["approved_phase_range"] == "2161-2180"
     assert payload["command_count"] == 5
     assert payload["blocked_command_count"] == 5
     assert payload["live_enabled_command_count"] == 0
@@ -5833,7 +5851,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2141-2160"
+    assert live_payload["approved_phase_range"] == "2161-2180"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6396,7 +6414,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2141-2160"
+    assert enterprise_payload["approved_phase_range"] == "2161-2180"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6979,7 +6997,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2141-2160"
+    assert recovery_preview_payload["approved_phase_range"] == "2161-2180"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -9284,6 +9302,43 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
                 "bff_authority": "forward_only_no_execution",
                 "detail": "Reveal submission-adapter audit remains no-live.",
             },
+            "reveal_reconciliation_audit": {
+                "stealth_order_id": stealth_order_id,
+                "status": AdminApiGateStatus.BLOCKED.value,
+                "command_route": "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+                "reconciliation_required": True,
+                "reconciliation_plan_required": True,
+                "reconciliation_proof_required": True,
+                "reconciliation_plan_resolved": False,
+                "reconciliation_proof_resolved": False,
+                "reconciliation_plan_id": None,
+                "reconciliation_proof_id": None,
+                "active_placement_client_order_id": "placement-client-1",
+                "active_exchange_order_id": "exchange-evidence-1",
+                "exchange_order_id_evidence_only": True,
+                "coinbase_read_ran": False,
+                "reconciliation_executed": False,
+                "order_state_mutated": False,
+                "lifecycle_mutation_allowed": False,
+                "post_submit_reconciliation_satisfied": False,
+                "required_for_mutation_families": [
+                    AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+                ],
+                "read_evidence_routes": [
+                    "/api/v1/stealth/orders/{stealth_order_id}",
+                    "/api/v1/stealth/command-suite",
+                    "/api/v1/admin/reconciliation/plans",
+                ],
+                "required_contracts": ["stealth_reveal_reconciliation_proof"],
+                "missing_contracts": ["stealth_reveal_reconciliation_proof"],
+                "blockers": [
+                    "stealth_reveal_reconciliation_proof_missing",
+                    "coinbase_exchange_truth_read_disabled",
+                ],
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "detail": "Reveal reconciliation audit remains no-live.",
+            },
             "read_only": True,
             "command_routes_mode": AdminApiCommandRoutesMode.LIVE_DISABLED.value,
             "live_coinbase_orders_ran": False,
@@ -9404,6 +9459,41 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
     )
     assert reveal_submission_audit["browser_authority"] == "display_only"
     assert reveal_submission_audit["bff_authority"] == "forward_only_no_execution"
+    reveal_reconciliation_audit = detail_response.json()[
+        "reveal_reconciliation_audit"
+    ]
+    assert reveal_reconciliation_audit["command_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    )
+    assert reveal_reconciliation_audit["reconciliation_required"] is True
+    assert reveal_reconciliation_audit["reconciliation_plan_required"] is True
+    assert reveal_reconciliation_audit["reconciliation_proof_required"] is True
+    assert reveal_reconciliation_audit["reconciliation_plan_resolved"] is False
+    assert reveal_reconciliation_audit["reconciliation_proof_resolved"] is False
+    assert reveal_reconciliation_audit["active_placement_client_order_id"] == (
+        "placement-client-1"
+    )
+    assert reveal_reconciliation_audit["active_exchange_order_id"] == (
+        "exchange-evidence-1"
+    )
+    assert reveal_reconciliation_audit["coinbase_read_ran"] is False
+    assert reveal_reconciliation_audit["reconciliation_executed"] is False
+    assert reveal_reconciliation_audit["order_state_mutated"] is False
+    assert reveal_reconciliation_audit["lifecycle_mutation_allowed"] is False
+    assert reveal_reconciliation_audit["post_submit_reconciliation_satisfied"] is False
+    assert reveal_reconciliation_audit["required_for_mutation_families"] == [
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+    ]
+    assert reveal_reconciliation_audit["required_contracts"] == (
+        reveal_reconciliation_audit["missing_contracts"]
+    )
+    assert "stealth_reveal_reconciliation_proof_missing" in (
+        reveal_reconciliation_audit["blockers"]
+    )
+    assert reveal_reconciliation_audit["browser_authority"] == "display_only"
+    assert reveal_reconciliation_audit["bff_authority"] == (
+        "forward_only_no_execution"
+    )
     assert detail_response.json()["live_coinbase_orders_ran"] is False
 
 
@@ -9579,6 +9669,38 @@ def test_admin_api_stealth_read_service_maps_placement_and_exchange_evidence(mon
     assert "stealth_reveal_exchange_submission_adapter_missing" in (
         submission_audit.blockers
     )
+    assert detail_response.reveal_reconciliation_audit is not None
+    reconciliation_audit = detail_response.reveal_reconciliation_audit
+    assert reconciliation_audit.status == AdminApiGateStatus.BLOCKED
+    assert reconciliation_audit.command_route == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    )
+    assert reconciliation_audit.reconciliation_required is True
+    assert reconciliation_audit.reconciliation_plan_required is True
+    assert reconciliation_audit.reconciliation_proof_required is True
+    assert reconciliation_audit.reconciliation_plan_resolved is False
+    assert reconciliation_audit.reconciliation_proof_resolved is False
+    assert reconciliation_audit.active_placement_client_order_id == (
+        "placement-client-active"
+    )
+    assert reconciliation_audit.active_exchange_order_id == "exchange-active"
+    assert reconciliation_audit.coinbase_read_ran is False
+    assert reconciliation_audit.reconciliation_executed is False
+    assert reconciliation_audit.order_state_mutated is False
+    assert reconciliation_audit.lifecycle_mutation_allowed is False
+    assert reconciliation_audit.post_submit_reconciliation_satisfied is False
+    assert reconciliation_audit.required_for_mutation_families == [
+        AdminApiMutationFamilyType.STEALTH_REVEAL,
+    ]
+    assert reconciliation_audit.required_contracts == (
+        reconciliation_audit.missing_contracts
+    )
+    assert "stealth_reveal_reconciliation_proof_missing" in (
+        reconciliation_audit.blockers
+    )
+    assert "active_placement_local_evidence_missing" not in (
+        reconciliation_audit.blockers
+    )
     assert detail_response.live_coinbase_orders_ran is False
 
 
@@ -9668,6 +9790,19 @@ def test_admin_api_stealth_read_service_does_not_promote_historical_reveals_to_a
     )
     assert "stealth_reveal_exchange_submission_adapter_missing" in (
         submission_audit.blockers
+    )
+    assert detail_response.reveal_reconciliation_audit is not None
+    reconciliation_audit = detail_response.reveal_reconciliation_audit
+    assert reconciliation_audit.active_placement_client_order_id is None
+    assert reconciliation_audit.active_exchange_order_id is None
+    assert reconciliation_audit.coinbase_read_ran is False
+    assert reconciliation_audit.reconciliation_executed is False
+    assert reconciliation_audit.order_state_mutated is False
+    assert reconciliation_audit.lifecycle_mutation_allowed is False
+    assert reconciliation_audit.post_submit_reconciliation_satisfied is False
+    assert "active_placement_local_evidence_missing" in reconciliation_audit.blockers
+    assert "stealth_reveal_reconciliation_proof_missing" in (
+        reconciliation_audit.blockers
     )
 
 

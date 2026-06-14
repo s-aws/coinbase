@@ -119,6 +119,7 @@ from .models import (
     AdminStealthMutationClaimAuditEvidence,
     AdminStealthRevealTriggerAuditEvidence,
     AdminStealthRevealSubmissionAuditEvidence,
+    AdminStealthRevealReconciliationAuditEvidence,
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
@@ -174,7 +175,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2141-2160"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2161-2180"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1449,6 +1450,57 @@ def _stealth_reveal_submission_audit(
             "not call reveal_order_slice, submit Coinbase orders, cancel "
             "placements, create active placements, mutate lifecycle state, "
             "execute reconciliation, or authorize browser/BFF execution."
+        ),
+    )
+
+
+def _stealth_reveal_reconciliation_audit(
+    item: AdminStealthOrderReadItem,
+) -> AdminStealthRevealReconciliationAuditEvidence:
+    required_contracts = ["stealth_reveal_reconciliation_proof"]
+    blockers = [
+        "stealth_reveal_reconciliation_proof_missing",
+        "coinbase_exchange_truth_read_disabled",
+    ]
+    if not item.active_placement_client_order_id:
+        blockers.insert(0, "active_placement_local_evidence_missing")
+
+    return AdminStealthRevealReconciliationAuditEvidence(
+        stealth_order_id=item.stealth_order_id,
+        status=AdminApiGateStatus.BLOCKED,
+        command_route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        reconciliation_required=True,
+        reconciliation_plan_required=True,
+        reconciliation_proof_required=True,
+        reconciliation_plan_resolved=False,
+        reconciliation_proof_resolved=False,
+        reconciliation_plan_id=None,
+        reconciliation_proof_id=None,
+        active_placement_client_order_id=item.active_placement_client_order_id,
+        active_exchange_order_id=item.active_exchange_order_id,
+        exchange_order_id_evidence_only=True,
+        coinbase_read_ran=False,
+        reconciliation_executed=False,
+        order_state_mutated=False,
+        lifecycle_mutation_allowed=False,
+        post_submit_reconciliation_satisfied=False,
+        required_for_mutation_families=[AdminApiMutationFamilyType.STEALTH_REVEAL],
+        read_evidence_routes=[
+            "/api/v1/stealth/orders/{stealth_order_id}",
+            "/api/v1/stealth/command-suite",
+            "/api/v1/admin/reconciliation/plans",
+        ],
+        required_contracts=required_contracts,
+        missing_contracts=list(required_contracts),
+        blockers=blockers,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=(
+            "Reveal reconciliation audit reports missing backend-owned "
+            "post-submit reconciliation proof for the reveal workflow. It "
+            "does not read Coinbase, resolve reconciliation plans, write "
+            "proof records, execute reconciliation, mutate order or lifecycle "
+            "state, or authorize browser/BFF reveal execution."
         ),
     )
 
@@ -7524,6 +7576,9 @@ class AdminApiReadService:
             ),
             reveal_submission_audit=(
                 _stealth_reveal_submission_audit(item) if item else None
+            ),
+            reveal_reconciliation_audit=(
+                _stealth_reveal_reconciliation_audit(item) if item else None
             ),
         )
 

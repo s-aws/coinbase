@@ -185,7 +185,13 @@ reveal route, shared service method, manager method, local active-placement
 evidence, and missing submission/reconciliation contracts, but command
 workflows must not treat that panel as `reveal_order_slice` execution,
 Coinbase submission/cancellation, active-placement creation, reconciliation
-execution, lifecycle mutation, or browser/BFF reveal authority. Move is a
+execution, lifecycle mutation, or browser/BFF reveal authority. The same
+detail route may expose `reveal_reconciliation_audit` for required
+reconciliation plan/proof posture, local active-placement evidence,
+read-evidence routes, and missing proof contracts, but command workflows must
+not treat that panel as Coinbase read authority, proof-writing authority,
+reconciliation execution, order/lifecycle mutation, or browser/BFF reveal
+authority. Move is a
 cancel/replace-shaped draft that returns no-live evidence only; it must not
 call `build_stealth_move_plan`, `execute_stealth_move`, or
 `StealthOrderManager`, submit/cancel Coinbase orders, perform cancel/replace,

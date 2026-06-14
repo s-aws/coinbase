@@ -208,6 +208,12 @@ missing submission/reconciliation contracts, and fail-closed no-live flags. It
 does not call `reveal_order_slice`, create active placements, submit or cancel
 Coinbase orders, read Coinbase, mutate lifecycle state, execute
 reconciliation, or grant browser/BFF reveal authority.
+The same detail route also exposes `reveal_reconciliation_audit` as read-only
+evidence for the future reveal post-submit reconciliation proof. It reports
+required plan/proof posture, local active-placement evidence, read-evidence
+routes, missing proof contracts, and fail-closed no-live flags. It does not
+read Coinbase, resolve or write proof records, execute reconciliation, mutate
+order or lifecycle state, or grant browser/BFF reveal authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -493,6 +499,12 @@ The platform/module split is documented in
   contracts, and no-live Coinbase flags without calling `reveal_order_slice`,
   submitting or cancelling Coinbase orders, creating active placements, or
   turning placement evidence into browser/BFF command authority.
+- Stealth detail rows also include `reveal_reconciliation_audit` so operators
+  can see required reconciliation plan/proof posture, local active-placement
+  evidence, missing proof contracts, read-evidence routes, and no-live flags
+  without reading Coinbase, writing proof records, executing reconciliation,
+  mutating order/lifecycle state, or turning proof evidence into browser/BFF
+  command authority.
 - Movement/repricing read rows combine durable `order_moves`,
   `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
   evidence. Runtime mutation claims and pending replacement claims are shown

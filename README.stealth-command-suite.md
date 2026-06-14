@@ -48,6 +48,12 @@ method, active-placement blockers, and missing submission/reconciliation
 contracts. It does not call `reveal_order_slice`, create active placements,
 submit or cancel Coinbase orders, read Coinbase, execute reconciliation, or
 mutate lifecycle state.
+The detail route also exposes `reveal_reconciliation_audit` as display-only
+evidence for future reveal reconciliation proof. It reports required
+plan/proof posture, local active-placement evidence, read-evidence routes, and
+missing proof contracts. It does not read Coinbase, write proof records,
+execute reconciliation, mutate order/lifecycle state, or grant browser/BFF
+reveal authority.
 
 ## Safety Constraints
 
@@ -70,6 +76,9 @@ mutate lifecycle state.
   `reveal_order_slice`, create active placements, submit or cancel Coinbase
   orders, read Coinbase, execute reconciliation, mutate lifecycle state, or
   authorize browser/BFF reveal execution.
+- `reveal_reconciliation_audit` is detail-route evidence only. It does not
+  read Coinbase, resolve or write proof records, execute reconciliation,
+  mutate order/lifecycle state, or authorize browser/BFF reveal execution.
 
 ## References
 

@@ -11859,6 +11859,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminStealthRevealSubmissionAuditEvidence'
           - type: 'null'
+        reveal_reconciliation_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminStealthRevealReconciliationAuditEvidence'
+          - type: 'null'
         read_only:
           type: boolean
           title: Read Only
@@ -12082,6 +12086,126 @@ components:
       - stealth_order_id
       title: AdminStealthOrderReadItem
       description: Read-only stealth order evidence from ``stealth_orders``.
+    AdminStealthRevealReconciliationAuditEvidence:
+      properties:
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        command_route:
+          type: string
+          title: Command Route
+          default: /api/v1/stealth/orders/{stealth_order_id}/reveal
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        reconciliation_plan_required:
+          type: boolean
+          title: Reconciliation Plan Required
+          default: true
+        reconciliation_proof_required:
+          type: boolean
+          title: Reconciliation Proof Required
+          default: true
+        reconciliation_plan_resolved:
+          type: boolean
+          title: Reconciliation Plan Resolved
+          default: false
+        reconciliation_proof_resolved:
+          type: boolean
+          title: Reconciliation Proof Resolved
+          default: false
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Proof Id
+        active_placement_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Placement Client Order Id
+        active_exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Exchange Order Id
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        coinbase_read_ran:
+          type: boolean
+          title: Coinbase Read Ran
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        lifecycle_mutation_allowed:
+          type: boolean
+          title: Lifecycle Mutation Allowed
+          default: false
+        post_submit_reconciliation_satisfied:
+          type: boolean
+          title: Post Submit Reconciliation Satisfied
+          default: false
+        required_for_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Required For Mutation Families
+        read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Read Evidence Routes
+        required_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Contracts
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - detail
+      title: AdminStealthRevealReconciliationAuditEvidence
+      description: Read-only reveal reconciliation-proof evidence for stealth detail
+        views.
     AdminStealthRevealSubmissionAuditEvidence:
       properties:
         stealth_order_id:

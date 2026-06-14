@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2141-2160",
+  "approved_phase_range": "2161-2180",
   "command_count": 5,
   "blocked_command_count": 5,
   "live_enabled_command_count": 0,
@@ -98,6 +98,12 @@ it does not call `reveal_order_slice`, create active placements, submit or
 cancel Coinbase orders, read Coinbase, execute reconciliation, or prove reveal
 authority, and command workflows must not use it as browser/BFF submission
 authority.
+The same detail payload may include `reveal_reconciliation_audit`. That panel
+reports required reconciliation plan/proof posture, local active-placement
+evidence, read-evidence routes, missing proof contracts, and no-live flags. It
+is evidence only: it does not read Coinbase, write proof records, execute
+reconciliation, mutate order/lifecycle state, or prove reveal authority, and
+command workflows must not use it as browser/BFF reconciliation authority.
 
 The `coverage_gaps` array includes blocked workflow families for:
 

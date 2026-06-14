@@ -75,6 +75,11 @@ These panels are read evidence only:
   `reveal_order_slice`, create active placements, submit or cancel Coinbase
   orders, read Coinbase, execute reconciliation, mutate lifecycle state, or
   authorize browser/BFF reveal execution.
+- `reveal_reconciliation_audit` reports required reveal reconciliation
+  plan/proof posture, local active-placement evidence, read-evidence routes,
+  missing proof contracts, and no-live flags; it does not read Coinbase,
+  resolve or write proof records, execute reconciliation, mutate order or
+  lifecycle state, or authorize browser/BFF reveal execution.
 
 ## Exchange-Truth Boundary
 

@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2141-2160**.
+- Approved phase range: **2161-2180**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,91 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2141-2160
+## Active Phases 2161-2180
+
+These phases continue M55 after the reveal submission-adapter audit. The next explicit architecture gap is backend-owned reveal reconciliation-proof evidence on the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail route. The audit may expose the future reveal command route, required reconciliation plan/proof posture, local active-placement evidence, missing proof contracts, read-evidence routes, and no-live flags. It must not read Coinbase, resolve or write reconciliation proof records, execute reconciliation, call `reveal_order_slice`, submit or cancel Coinbase orders, mutate order or lifecycle state, add a new endpoint, or grant browser/BFF reveal authority.
+
+### Phase 2161 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2141-2160 to active phases 2161-2180 while preserving no-live defaults and cap policy.
+
+### Phase 2162 - Reconciliation Audit Scope
+
+- Define reveal reconciliation-proof evidence as detail-route read evidence only, not a reconciliation executor, proof writer, Coinbase read, or reveal approval gate.
+
+### Phase 2163 - Response Model Extension
+
+- Add a typed reveal reconciliation audit object to the existing stealth detail response.
+
+### Phase 2164 - Local Placement Evidence Mapping
+
+- Populate active-placement client id and exchange-id evidence from existing stealth row state without promoting historical reveals to active placements.
+
+### Phase 2165 - Reconciliation Plan And Proof Flags
+
+- Report reconciliation plan/proof as required and unresolved until backend-owned proof records exist.
+
+### Phase 2166 - Coinbase Read Guard
+
+- Report Coinbase exchange-truth reads as not run and keep missing exchange-truth evidence blocking.
+
+### Phase 2167 - Reconciliation Execution Guard
+
+- Report reconciliation execution and post-submit satisfaction as false.
+
+### Phase 2168 - Lifecycle And Order Mutation Guard
+
+- Report lifecycle and order-state mutation as not allowed from this read route.
+
+### Phase 2169 - Missing Placement Blocker
+
+- Mark missing local active-placement evidence as a blocker without using historical reveal rows as active-placement proof.
+
+### Phase 2170 - Required Contract Matrix
+
+- Expose `stealth_reveal_reconciliation_proof` as the required missing contract for reveal reconciliation readiness.
+
+### Phase 2171 - Generated Backend Artifacts
+
+- Regenerate OpenAPI after the stealth detail response model changes.
+
+### Phase 2172 - Backend Focused Tests
+
+- Cover schema, route serialization, active-placement present/missing cases, no-live Coinbase reads, no reconciliation execution, and no lifecycle/order mutation.
+
+### Phase 2173 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI.
+
+### Phase 2174 - Frontend Adapter Mapping
+
+- Map reveal reconciliation audit evidence into the stealth detail view model.
+
+### Phase 2175 - Frontend Detail UI
+
+- Render the audit in the selected stealth detail and backend detail areas without adding reveal, placement, cancellation, proof-writing, or reconciliation controls.
+
+### Phase 2176 - Mock Runtime Fixtures
+
+- Update mock fixtures for reveal reconciliation audit evidence and nested `stealth_order_id` rewrite.
+
+### Phase 2177 - Documentation And Examples
+
+- Update feature docs and examples for reveal reconciliation audit evidence and no-live/no-reconcile boundaries.
+
+### Phase 2178 - Blind/Contextless Review
+
+- Run contextless review for the audit contract and remediate blockers.
+
+### Phase 2179 - Full Gates
+
+- Run backend regression, frontend release gate, required smoke checks, and confirm no live Coinbase execution and `$0` frontend notional.
+
+### Phase 2180 - Final Gates, Push, And Next Range
+
+- Push synchronized repos after all gates pass and create the next M55-linked range only if a concrete approved gap remains.
+
+## Completed Phases 2141-2160
 
 These phases continue M55 after the reveal-trigger audit. The next explicit
 architecture gap is backend-owned reveal exchange submission-adapter evidence
