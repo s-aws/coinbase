@@ -3522,6 +3522,41 @@ class StealthCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteExchangeTruthItem(BaseModel):
+    """Backend-owned exchange-truth prerequisite for a stealth command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    route: str
+    method: str
+    identity_key: str
+    command_identity_key: str = "stealth_order_id"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    exchange_truth_required: bool = True
+    active_placement_evidence_required: bool = True
+    accepted_command_identity_keys: list[str] = Field(default_factory=list)
+    rejected_command_identity_keys: list[str] = Field(default_factory=list)
+    active_placement_client_order_id_authority: str = "evidence_only"
+    exchange_order_id_authority: str = "evidence_only"
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    current_read_evidence: list[StealthCommandSuiteCoverageGapEvidenceRouteItem] = (
+        Field(default_factory=list)
+    )
+    required_gate_chain: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_enabled: bool = False
+    executable: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    detail: str
+
+
 class StealthCommandSuiteResponse(AdminApiReadPayload):
     """Read-only M55 stealth command-suite readiness evidence."""
 
@@ -3540,6 +3575,12 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     executed_notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    exchange_truth_check_count: int = 0
+    blocking_exchange_truth_check_count: int = 0
+    active_placement_exchange_truth_required_count: int = 0
+    exchange_truth_checks: list[StealthCommandSuiteExchangeTruthItem] = Field(
+        default_factory=list
+    )
     commands: list[StealthCommandSuiteCommandItem] = Field(default_factory=list)
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)

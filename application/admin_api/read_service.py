@@ -143,6 +143,7 @@ from .models import (
     StealthCommandSuiteCommandItem,
     StealthCommandSuiteCoverageGapEvidenceRouteItem,
     StealthCommandSuiteCoverageGapItem,
+    StealthCommandSuiteExchangeTruthItem,
     StealthCommandSuiteProofRouteItem,
     StealthCommandSuiteResponse,
 )
@@ -169,7 +170,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2041-2060"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2061-2080"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -7805,6 +7806,142 @@ class AdminApiReadService:
             "GET /api/v1/stealth/command-suite",
         ]
 
+        exchange_truth_surfaces_by_family = {
+            AdminApiMutationFamilyType.STEALTH_CREATE: stealth_read_surfaces,
+            AdminApiMutationFamilyType.STEALTH_REVEAL: stealth_detail_surfaces,
+            AdminApiMutationFamilyType.STEALTH_CANCEL: stealth_detail_surfaces,
+            AdminApiMutationFamilyType.STEALTH_MOVE: movement_stealth_surfaces,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE: movement_stealth_surfaces,
+        }
+        exchange_truth_contracts_by_family = {
+            AdminApiMutationFamilyType.STEALTH_CREATE: [
+                "stealth_create_guard_contract",
+                "stealth_create_admission_audit",
+                "stealth_create_reconciliation_plan",
+                "stealth_create_lifecycle_write_contract",
+            ],
+            AdminApiMutationFamilyType.STEALTH_REVEAL: [
+                "stealth_reveal_trigger_guard",
+                "stealth_reveal_exchange_submission_adapter",
+                "stealth_active_placement_audit",
+                "stealth_reveal_reconciliation_proof",
+            ],
+            AdminApiMutationFamilyType.STEALTH_CANCEL: [
+                "stealth_cancel_active_placement_cancel_proof",
+                "stealth_cancel_exchange_reconciliation_proof",
+                "stealth_cancel_state_transition_audit",
+            ],
+            AdminApiMutationFamilyType.STEALTH_MOVE: [
+                "stealth_move_active_placement_cancel_replace_proof",
+                "stealth_move_mutation_claim_audit",
+                "stealth_move_reconciliation_proof",
+            ],
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE: [
+                "stealth_reprice_active_placement_cancel_replace_proof",
+                "stealth_reprice_cooldown_claim_contract",
+                "stealth_reprice_reconciliation_proof",
+            ],
+        }
+        exchange_truth_details_by_family = {
+            AdminApiMutationFamilyType.STEALTH_CREATE: (
+                "Create does not consume an active placement, but it still "
+                "needs backend lifecycle-write guard, admission, and "
+                "reconciliation evidence before it can invoke the manager."
+            ),
+            AdminApiMutationFamilyType.STEALTH_REVEAL: (
+                "Reveal creates a placement and therefore needs trigger, "
+                "submission, active-placement audit, and reconciliation "
+                "evidence before it can call the existing reveal path."
+            ),
+            AdminApiMutationFamilyType.STEALTH_CANCEL: (
+                "Cancel must prove active placement reality before any local "
+                "stealth state transition can be recorded."
+            ),
+            AdminApiMutationFamilyType.STEALTH_MOVE: (
+                "Move must prove mutation-claim ownership and active-placement "
+                "cancel/replace exchange truth before it can call the existing "
+                "move plan or execute path."
+            ),
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE: (
+                "Reprice must prove cooldown/claim authority and active-placement "
+                "cancel/replace exchange truth before any repricing execution."
+            ),
+        }
+        exchange_truth_checks: list[StealthCommandSuiteExchangeTruthItem] = []
+        for mutation_family, metadata in command_metadata.items():
+            inventory_item = inventory_by_surface[str(metadata["surface"])]
+            method, route = _surface_method_and_path(inventory_item.surface)
+            active_placement_required = bool(
+                metadata.get("active_placement_evidence_required", True)
+            )
+            required_gate_chain = [
+                "route_inventory_contract",
+                "idempotency",
+                "operator_intent",
+                "payload_hash",
+                "approval_snapshot",
+                "admission_audit",
+                "cap_guard_decision",
+                "reconciliation_plan",
+                "mutation_claim",
+            ]
+            required_gate_chain.append(
+                "active_placement_exchange_truth"
+                if active_placement_required
+                else "lifecycle_write_guard"
+            )
+            required_gate_chain.extend(
+                [
+                    "live_execution_adapter",
+                    "live_execution_service",
+                    "post_live_reconciliation",
+                ]
+            )
+            required_contracts = list(
+                exchange_truth_contracts_by_family[mutation_family]
+            )
+            exchange_truth_checks.append(
+                StealthCommandSuiteExchangeTruthItem(
+                    mutation_family=mutation_family,
+                    route=route,
+                    method=method,
+                    identity_key=str(metadata["identity_key"]),
+                    command_identity_key="stealth_order_id",
+                    status=AdminApiGateStatus.BLOCKED,
+                    exchange_truth_required=bool(
+                        metadata.get("exchange_truth_required", True)
+                    ),
+                    active_placement_evidence_required=active_placement_required,
+                    accepted_command_identity_keys=["stealth_order_id"],
+                    rejected_command_identity_keys=[
+                        "client_order_id",
+                        "active_placement_client_order_id",
+                        "exchange_order_id",
+                        "order_id",
+                    ],
+                    active_placement_client_order_id_authority="evidence_only",
+                    exchange_order_id_authority="evidence_only",
+                    current_read_evidence_routes=list(
+                        exchange_truth_surfaces_by_family[mutation_family]
+                    ),
+                    current_read_evidence=coverage_gap_evidence_routes(
+                        exchange_truth_surfaces_by_family[mutation_family]
+                    ),
+                    required_gate_chain=required_gate_chain,
+                    required_contracts=required_contracts,
+                    missing_contracts=required_contracts,
+                    backend_owned=True,
+                    route_bound=True,
+                    browser_authority="display_only",
+                    bff_authority="forward_only_no_execution",
+                    live_enabled=False,
+                    executable=False,
+                    live_coinbase_orders_ran=False,
+                    live_coinbase_read_ran=False,
+                    detail=exchange_truth_details_by_family[mutation_family],
+                )
+            )
+
         coverage_gaps = [
             StealthCommandSuiteCoverageGapItem(
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
@@ -8035,6 +8172,18 @@ class AdminApiReadService:
             executed_notional_usdc="0",
             live_coinbase_orders_ran=False,
             live_coinbase_read_ran=False,
+            exchange_truth_check_count=len(exchange_truth_checks),
+            blocking_exchange_truth_check_count=sum(
+                1
+                for check in exchange_truth_checks
+                if check.status == AdminApiGateStatus.BLOCKED
+            ),
+            active_placement_exchange_truth_required_count=sum(
+                1
+                for check in exchange_truth_checks
+                if check.active_placement_evidence_required
+            ),
+            exchange_truth_checks=exchange_truth_checks,
             commands=commands,
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,

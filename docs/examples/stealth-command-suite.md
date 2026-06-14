@@ -22,12 +22,15 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2041-2060",
+  "approved_phase_range": "2061-2080",
   "command_count": 5,
   "blocked_command_count": 5,
   "live_enabled_command_count": 0,
   "executable_command_count": 0,
   "exchange_truth_required": true,
+  "exchange_truth_check_count": 5,
+  "blocking_exchange_truth_check_count": 5,
+  "active_placement_exchange_truth_required_count": 3,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
   "submitted_notional_usdc": "0",
@@ -60,6 +63,15 @@ exchange truth before any lifecycle mutation. Move is a
 `build_stealth_move_plan`, `execute_stealth_move`, `StealthOrderManager`,
 Coinbase cancel/submit, cancel/replace, and local lifecycle mutation were not
 invoked.
+
+The `exchange_truth_checks` array mirrors those five command routes as
+read-only prerequisites. Each row accepts only `stealth_order_id` as command
+identity and rejects `client_order_id`, `active_placement_client_order_id`,
+exchange order ids, and `order_id` as command identities. Cancel, move, and
+reprice require active-placement exchange truth before any future executable
+backend path can be considered. The fields are evidence only; they do not
+read Coinbase, cancel/replace active placements, execute reconciliation, or
+grant browser/BFF exchange-truth authority.
 
 The `coverage_gaps` array includes blocked workflow families for:
 

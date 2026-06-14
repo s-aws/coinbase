@@ -15,7 +15,11 @@ contracts still block execution.
 The route requires Admin API authentication and `analytics:read`. It returns
 `StealthCommandSuiteResponse` with:
 
-- existing command rows for live-disabled stealth cancel and movement/reprice
+- blocked command rows for live-disabled stealth create, reveal, move, cancel,
+  and movement reprice
+- exchange-truth prerequisite rows for those same five command routes,
+  including accepted `stealth_order_id` identity, rejected placement/exchange
+  identities, and the three active-placement-required commands
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - required gate chains for approval, cap/guard, admission audit,
