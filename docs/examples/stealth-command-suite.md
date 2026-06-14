@@ -201,6 +201,45 @@ reprice require active-placement exchange truth before any future executable
 backend path can be considered. The fields are evidence only; they do not
 read Coinbase, cancel/replace active placements, execute reconciliation, or
 grant browser/BFF exchange-truth authority.
+Each exchange-truth row also includes typed `current_read_evidence` route
+metadata:
+
+```json
+{
+  "mutation_family": "stealth_move",
+  "route": "/api/v1/stealth/orders/{stealth_order_id}/move",
+  "current_read_evidence_routes": [
+    "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
+    "GET /api/v1/stealth/command-suite"
+  ],
+  "current_read_evidence": [
+    {
+      "route": "/api/v1/movement-repricing/stealth/{stealth_order_id}",
+      "method": "GET",
+      "action_class": "read_only",
+      "required_permission": "audit:read",
+      "shared_method": "build_movement_repricing_stealth_detail",
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "read_only_forward"
+    },
+    {
+      "route": "/api/v1/stealth/command-suite",
+      "method": "GET",
+      "action_class": "read_only",
+      "required_permission": "analytics:read",
+      "shared_method": "build_stealth_command_suite",
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "read_only_forward"
+    }
+  ]
+}
+```
+
+These rows do not run Coinbase reads, prove active-placement exchange truth,
+cancel/replace placements, reveal orders, execute reconciliation, mutate
+state, or authorize browser/BFF command execution.
 For per-order active-placement evidence, read
 `GET /api/v1/stealth/orders/{stealth_order_id}` and inspect
 `active_placement_audit`. That detail payload reports local active placement

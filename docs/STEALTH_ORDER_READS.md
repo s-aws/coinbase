@@ -53,6 +53,13 @@ plan, mutation claim, live execution adapter, live execution service, and
 post-live reconciliation. Move, cancel, and reprice additionally require
 active-placement exchange truth; create and reveal drafts remain blocked on
 lifecycle/trigger evidence before execution can be considered.
+Exchange-truth rows also expose typed `current_read_evidence` metadata for
+the existing read routes behind each blocked prerequisite. Those rows name the
+read route, method, permission, shared read-service method, documentation
+refs, and display/read-only authority. They do not run Coinbase reads, prove
+active-placement exchange truth, cancel/replace placements, reveal orders,
+execute reconciliation, mutate stealth/order/exchange state, create proof
+records, or authorize browser/BFF execution.
 
 ## Detail Audit Semantics
 

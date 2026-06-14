@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2221-2240`.
+- Active autonomous range: `2241-2260`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -231,13 +231,20 @@ notional, retained inventory, reconciliation result, and audit ids.
   must not create proof records, mutate proof stores, evaluate guards, execute
   reconciliation, invoke the manager, write lifecycle state, call Coinbase, add
   a new endpoint, or grant browser/BFF proof or lifecycle-write authority. The
-  active 2221-2240 range links the remaining stealth command-suite coverage
+  completed 2221-2240 range linked the remaining stealth command-suite coverage
   gaps, especially recovery and reconciliation, to typed backend-owned read
   evidence routes. It may show route, method, permission, shared method,
   documentation refs, and display/read-only authority, but it must not create
   recovery/reconciliation commands, write proof records, mutate stealth/order/
   exchange state, execute reconciliation, call Coinbase, trust browser
-  exchange evidence, or grant browser/BFF execution authority.
+  exchange evidence, or grant browser/BFF execution authority. The active
+  2241-2260 range links the stealth command-suite `exchange_truth_checks` to
+  typed backend-owned read evidence rows. It may show route, method,
+  permission, shared method, documentation refs, and display/read-only
+  authority, but it must not claim Coinbase reads ran, prove active-placement
+  exchange truth, cancel/replace placements, reveal orders, execute
+  reconciliation, mutate stealth/order/exchange state, create proof records,
+  or grant browser/BFF execution authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

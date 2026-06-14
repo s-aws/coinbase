@@ -83,6 +83,13 @@ surfaces. They remain backend-owned read evidence only; they must not create
 stealth recovery or reconciliation commands, write proof records, execute
 reconciliation, mutate stealth/order/exchange state, call Coinbase, trust
 browser exchange evidence, or grant browser/BFF execution authority.
+Stealth `exchange_truth_checks` also expose typed `current_read_evidence`
+rows. These rows are read-only traceability for the local evidence currently
+available behind blocked create, reveal, cancel, move, and reprice
+prerequisites. They do not run Coinbase reads, prove active placement exchange
+truth, cancel/replace placements, reveal orders, satisfy missing backend
+contracts, execute reconciliation, mutate state, or grant browser/BFF
+execution authority.
 
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires

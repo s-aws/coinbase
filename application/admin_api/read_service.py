@@ -176,7 +176,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2221-2240"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2241-2260"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -8137,8 +8137,8 @@ class AdminApiReadService:
                             gap_evidence_route_docs.get(surface, ["docs/COMMAND_WORKFLOWS.md"])
                         ),
                         detail=(
-                            "Existing read-only Admin API evidence route for a "
-                            "stealth command-suite coverage gap; it does not "
+                            "Existing read-only Admin API evidence route for "
+                            "stealth command-suite readiness; it does not "
                             "create a command route, cancel placements, reveal "
                             "orders, execute reconciliation, or call Coinbase."
                         ),

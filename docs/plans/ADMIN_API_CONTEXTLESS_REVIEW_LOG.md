@@ -2,6 +2,45 @@
 
 This log records blind reviews for the Admin API/backend association work.
 
+## M55 Exchange-Truth Evidence-Route Linkage Review - Phases 2241-2260
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- No chat history supplied to reviewer.
+
+Reviewer tasks:
+
+- trace backend `GET /api/v1/stealth/command-suite`
+  `exchange_truth_checks.current_read_evidence` from route inventory/read
+  service through tests, docs, mock/runtime fixtures, stealth adapter/read
+  model, and Stealth Command Suite UI evidence rows
+- verify exchange-truth evidence rows remain read-only route evidence and do
+  not create command routes, execute reconciliation, mutate stealth state, call
+  Coinbase, create browser command authority, or create BFF execution authority
+- verify contextless docs explain how typed exchange-truth evidence differs
+  from coverage-gap evidence while sharing the same display-only route model
+
+Findings:
+
+- PASS: blind/contextless review found no blockers.
+- PASS: backend exchange-truth checks expose typed `GET`, `read_only`,
+  `display_only`, `read_only_forward` evidence rows from route
+  inventory/read-service metadata.
+- PASS: tests assert the rows do not create command routes, execute
+  reconciliation, or call Coinbase.
+- PASS: frontend adapter, mock backend, and read model consume/render all five
+  exchange-truth checks as typed display-only evidence without controls.
+- NOTE: the reviewer identified imprecise "coverage gap" wording reused for
+  exchange-truth rows; backend and frontend wording now uses neutral
+  "stealth command-suite readiness" language.
+- NOTE: the reviewer identified missing typed fixture rows for reveal, cancel,
+  and reprice and missing `STEALTH_ORDER_READS.md` wording; both repos now
+  document `exchange_truth_checks.current_read_evidence`, and all fixture rows
+  include typed evidence.
+- Live Coinbase execution: not run; notional `$0`.
+
 ## M55 Coverage-Gap Evidence-Route Linkage Review - Phases 2221-2240
 
 Review scope:

@@ -20,6 +20,8 @@ The route requires Admin API authentication and `analytics:read`. It returns
 - exchange-truth prerequisite rows for those same five command routes,
   including accepted `stealth_order_id` identity, rejected placement/exchange
   identities, and the three active-placement-required commands
+- typed `exchange_truth_checks.current_read_evidence` rows for existing
+  read-only evidence behind blocked exchange-truth prerequisites
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -70,6 +72,11 @@ and browser/BFF authority so operators can trace what evidence already
 exists. They do not create recovery or reconciliation command routes, proof
 writers, exchange-state inputs, reconciliation executors, Coinbase calls, or
 browser/BFF command authority.
+Exchange-truth evidence routes use the same read-only shape for create,
+reveal, cancel, move, and reprice prerequisites. They identify where current
+local read evidence exists, but they do not run Coinbase reads, prove active
+placement exchange truth, cancel/replace placements, reveal orders, execute
+reconciliation, mutate state, or authorize browser/BFF command execution.
 
 ## Safety Constraints
 
@@ -89,6 +96,11 @@ browser/BFF command authority.
   recovery/reconciliation command controls, proof writing, exchange-state
   mutation, reconciliation execution, Coinbase reads, Coinbase submissions, or
   BFF execution authority.
+- `exchange_truth_checks.current_read_evidence` is traceability evidence only.
+  It does not prove exchange truth and must not be converted into Coinbase
+  reads, active-placement truth resolution, cancel/replace behavior, reveal
+  execution, state mutation, reconciliation execution, or BFF execution
+  authority.
 - `reveal_trigger_audit` is detail-route evidence only. It does not evaluate
   triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
   Coinbase orders, mutate lifecycle state, or authorize browser/BFF reveal

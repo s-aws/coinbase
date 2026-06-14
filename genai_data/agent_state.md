@@ -55,17 +55,17 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2221-2240`.
-- Active milestone: M55 - Coverage-Gap Evidence-Route Linkage.
-- Current direction: link remaining stealth command-suite coverage gaps,
-  especially recovery and reconciliation, to backend-owned typed
-  `current_read_evidence` route metadata and consume it in the frontend as
-  display-only evidence. Do not create recovery/reconciliation commands, write
-  proof records, mutate approval/admission-audit/cap-guard/reconciliation
-  stores, invoke `StealthOrderManager`, write stealth/order_parent/lifecycle
-  state, mutate exchange state, call Coinbase, execute reconciliation, add
-  browser proof authority, add BFF execution authority, or enable live
-  commands.
+- Active autonomous range: `2241-2260`.
+- Active milestone: M55 - Exchange-Truth Evidence-Route Linkage.
+- Current direction: link stealth command-suite `exchange_truth_checks` to
+  backend-owned typed `current_read_evidence` route metadata and consume it in
+  the frontend as display-only evidence. Do not claim Coinbase reads ran,
+  prove active-placement exchange truth, cancel/replace placements, reveal
+  orders, create proof records, mutate approval/admission-audit/cap-guard/
+  reconciliation stores, invoke `StealthOrderManager`, write
+  stealth/order_parent/lifecycle state, mutate exchange state, call Coinbase,
+  execute reconciliation, add browser proof authority, add BFF execution
+  authority, or enable live commands.
 
 ## Decisions (Durable)
 
@@ -377,8 +377,8 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Complete synchronized M55 coverage-gap evidence-route linkage for active
-   range `2221-2240`, then rerun focused backend/frontend checks,
+1. Complete synchronized M55 exchange-truth evidence-route linkage for active
+   range `2241-2260`, then rerun focused backend/frontend checks,
    blind/contextless review, full backend regression, and frontend release
    gate.
 2. Preserve stealth create proof-route linkage and coverage-gap read-evidence
@@ -405,9 +405,9 @@ Keep it short. Keep it factual.
   display evidence only. No command controls, guard evaluator, audit storage,
   approval storage, reconciliation execution, BFF mutation broadening,
   Coinbase call, browser approval, or reconciliation behavior is allowed.
-- What is in progress: M55 coverage-gap evidence-route linkage for active
-  approved range `2221-2240`.
+- What is in progress: M55 exchange-truth evidence-route linkage for active
+  approved range `2241-2260`.
 - What is blocked: Nothing currently known.
-- Exact next command: run focused backend/frontend checks for the 2221-2240
-  evidence-route linkage, resolve drift, run blind/contextless review, then
+- Exact next command: run focused backend/frontend checks for the 2241-2260
+  exchange-truth evidence-route linkage, resolve drift, run blind/contextless review, then
   full gates before commit/push.
