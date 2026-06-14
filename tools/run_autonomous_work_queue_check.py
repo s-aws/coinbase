@@ -1,4 +1,4 @@
-﻿"""Validate the durable autonomous work queue contract."""
+"""Validate the durable autonomous work queue contract."""
 
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ ADMIN_API_EXAMPLES_DOC = PROJECT_ROOT / "docs" / "examples" / "admin-api.md"
 DOCS_INDEX = PROJECT_ROOT / "docs" / "README.md"
 MAINTAINER_HANDOFF_DOC = PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASES = tuple(range(1941, 1961))
-APPROVED_PHASE_RANGE = "1941-1960"
+APPROVED_PHASE_RANGE = "1961-1980"
+APPROVED_PHASES = tuple(range(1961, 1981))
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -93,7 +93,7 @@ def _check_phase_range(body: str) -> QueueCheck:
         if f"Phase {phase} -" not in body
     ]
     return QueueCheck(
-        name="approved_phase_range_1941_1960",
+        name=f"approved_phase_range_{APPROVED_PHASE_RANGE.replace('-', '_')}",
         passed=f"Approved phase range: **{APPROVED_PHASE_RANGE}**" in body
         and not missing,
         evidence={

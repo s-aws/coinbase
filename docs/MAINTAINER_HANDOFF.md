@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1941-1960`.
+- Active autonomous range: `1961-1980`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -138,8 +138,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   cap/guard, reconciliation-plan, idempotency, operator-intent, and
   payload-hash evidence. Recovery apply/rollback journal acceptance, guarded
   repair-result evidence, and completion records are durable after exact
-  backend prerequisites match; reconciliation execution remains blocked until
-  that backend gate exists. This foundation
+  backend prerequisites match. The completed 1941-1960 range added the
+  route-bound fail-closed reconciliation execution boundary at
+  `POST /api/v1/spot/recovery/reconciliation-executions`; that route is
+  audited, idempotent, RBAC/proof-gated, and rejected until backend executor
+  and exchange/Coinbase evidence snapshot contracts exist. This foundation
   must not add a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
   authority, browser recovery authority, browser reconciliation authority,
@@ -152,8 +155,8 @@ notional, retained inventory, reconciliation result, and audit ids.
   records, reconciliation plans, command-suite proof routes, command draft
   evidence, or pilot adapter evidence are not sufficient live execution
   authority by themselves.
-  The active 1941-1960 range must define and expose the backend-owned
-  reconciliation execution boundary as fail-closed evidence before any local
+  The active 1961-1980 range must define backend-owned exchange/Coinbase
+  evidence snapshot boundary contracts as no-live evidence before any local
   order-state reconciliation, exchange-state mutation, Coinbase read, or
   Coinbase order behavior can be considered.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.

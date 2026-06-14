@@ -2547,6 +2547,56 @@ Completed sixteenth-slice scope:
 - This slice is directly owned by M54 because the current Spot recovery and
   reconciliation workflow gaps prevent full Spot command-suite completion.
 
+Completed seventeenth-slice scope:
+
+- Phases 1841-1860 added live-disabled recovery apply/rollback execution
+  command contracts and proof-writer route foundations without executing
+  recovery, repair, rollback, reconciliation, Coinbase reads, or Coinbase
+  submissions.
+- These routes are backend-owned, RBAC/idempotency/audit/approval/cap guarded,
+  and keyed by `client_order_id`.
+
+Completed eighteenth-slice scope:
+
+- Phases 1861-1880 added append-only recovery proof persistence contracts for
+  exchange-state proof and reconciliation-proof records.
+- Proof records remain local-state evidence only. They do not capture Coinbase
+  truth, mutate order/exchange state, or prove reconciliation execution.
+
+Completed nineteenth-slice scope:
+
+- Phases 1881-1900 added backend-owned recovery apply/rollback execution
+  journal evidence that can persist only when exact prerequisites match.
+- Execution journals remain no-live evidence and do not apply repair actions,
+  roll back state, execute reconciliation, or call Coinbase.
+
+Completed twentieth-slice scope:
+
+- Phases 1901-1920 added guarded local repair-result evidence for recovery
+  state repair review.
+- Repair-result evidence may record backend local repair review state only. It
+  must not become a browser repair executor, rollback path, reconciliation
+  executor, or Coinbase evidence source.
+
+Completed twenty-first-slice scope:
+
+- Phases 1921-1940 added guarded post-apply reconciliation completion evidence
+  that can prove a repair result and reconciliation proof satisfy the same
+  guarded `client_order_id` chain.
+- Completion evidence remains local evidence only. It does not execute
+  reconciliation, mutate exchange/order state, read Coinbase, or submit
+  Coinbase orders.
+
+Completed twenty-second-slice scope:
+
+- Phases 1941-1960 added the route-bound fail-closed
+  `POST /api/v1/spot/recovery/reconciliation-executions` contract and
+  execution-boundary evidence keyed by `client_order_id`.
+- The route is audited, idempotent, RBAC/proof-gated, and intentionally
+  rejected until backend reconciliation executor and exchange/Coinbase
+  evidence snapshot contracts exist. It does not execute reconciliation,
+  mutate order/exchange state, read Coinbase, or submit Coinbase orders.
+
 Current backend evidence:
 
 - `application/admin_api/read_service.py::build_spot_command_suite` derives
@@ -2560,26 +2610,31 @@ Current backend evidence:
   routes with `analytics:read` and `spot_pnl:record` permissions.
 - `api/v1/routes/spot.py` exposes the Spot recovery-preview read route with
   `audit:read` permission.
+- `api/v1/routes/orders.py` exposes live-disabled Spot recovery apply,
+  rollback, exchange-state-proof, reconciliation-proof, and reconciliation
+  execution-boundary routes keyed by `client_order_id`.
 - OpenAPI, route-inventory artifacts, examples, and Admin API contract tests
   include the command-suite response, proof-route gate linkage, typed
   coverage-gap evidence-route linkage, sweep automation command contract, and
   checkpoint mutation taxonomy, audit-link evidence, recovery-link evidence,
-  reconciliation-link evidence, and recovery-preview evidence.
-- The durable autonomous work queue now advances to phases 1821-1840 for
-  recovery apply review, rollback-plan, and reconciliation-proof contract
-  foundation without adding live execution.
+  reconciliation-link evidence, recovery-preview evidence, recovery execution
+  journals, repair-result evidence, completion evidence, proof writers, and
+  route-bound fail-closed reconciliation execution-boundary evidence.
+- The durable autonomous work queue now advances to phases 1961-1980 for
+  backend-owned exchange/Coinbase evidence snapshot contract boundaries
+  without adding live Coinbase reads or live execution.
 
 Remaining blockers before M54 can claim full spot command-suite completion:
 
-- Spot sweep automation, reconciliation workflow execution/proof, recovery
-  execution, and any
+- Spot sweep automation scheduling/retry, exchange/Coinbase evidence
+  snapshots, reconciliation workflow execution, recovery execution, and any
   eventual live execution screens must prove the full approval, cap/guard,
   admission audit, reconciliation, live service, and adapter chain through
   backend-owned contracts before command UI can exist.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
-- Live Coinbase execution remains not run for the current M54 checkpoint
-  evidence slice; submitted and executed notional remain `$0`.
+- Live Coinbase execution and live Coinbase reads remain not run for the
+  current M54 evidence slices; submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
 

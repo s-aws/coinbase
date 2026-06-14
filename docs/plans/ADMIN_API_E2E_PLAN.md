@@ -38,7 +38,121 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Reconciliation Execution Boundary Batch - Phases 1941-1960
+## Active M54 Exchange Evidence Snapshot Boundary Batch - Phases 1961-1980
+
+This batch follows the route-bound fail-closed reconciliation execution
+boundary. The next M54 gap is backend-owned exchange/Coinbase evidence
+snapshot contracts. The backend may define and persist snapshot evidence, but
+this batch remains no-live by default and does not authorize Coinbase reads,
+Coinbase order submission, order/exchange-state mutation, reconciliation
+execution, browser snapshot authority, or BFF exchange-read authority.
+
+### Phase 1961 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1941-1960 to active
+  phases 1961-1980 while preserving no-live defaults and cap policy.
+
+### Phase 1962 - Snapshot Contract Scope
+
+- Define exchange/Coinbase evidence snapshots as backend-owned contracts
+  distinct from plans, proofs, completion evidence, and reconciliation
+  execution authority.
+
+### Phase 1963 - Snapshot Identity Discipline
+
+- Bind snapshot evidence to `client_order_id`, product id, snapshot id, source
+  timestamp, reconciliation plan, proof, completion id, idempotency, payload
+  hash, and operator intent without accepting exchange `order_id` as internal
+  identity.
+
+### Phase 1964 - Snapshot Source Policy
+
+- Model manual/imported/test source posture and future live Coinbase source
+  posture while keeping live Coinbase reads disabled by default.
+
+### Phase 1965 - Snapshot Evidence Model
+
+- Add typed evidence for snapshot recorded, source trusted, Coinbase read
+  attempted, Coinbase read succeeded, mutation flags, and reconciliation
+  execution flags.
+
+### Phase 1966 - Fail-Closed Snapshot Draft
+
+- Add fail-closed snapshot draft or record evidence that reports why live
+  Coinbase evidence capture remains unavailable until exact backend policy
+  gates exist.
+
+### Phase 1967 - Route Inventory And OpenAPI Sync
+
+- Update route inventory, capability rows, models, OpenAPI, and examples for
+  snapshot evidence without adding Coinbase reads or live execution.
+
+### Phase 1968 - Reconciliation Boundary Linkage
+
+- Link snapshot requirements into reconciliation execution-boundary evidence
+  so missing snapshot contracts are distinct from disabled execution.
+
+### Phase 1969 - Audit And Idempotency Evidence
+
+- Prove snapshot-shaped requests are idempotent, audited, operator-intent
+  bound, payload-hash bound, and replay safe.
+
+### Phase 1970 - No-Live Coinbase Proof
+
+- Prove this boundary does not read Coinbase, submit orders, cancel orders,
+  execute reconciliation, or mutate exchange state.
+
+### Phase 1971 - Frontend Schema Sync
+
+- Coordinate website schema, wrappers, mocks, runtime evidence, and route
+  coverage only from backend OpenAPI changes.
+
+### Phase 1972 - Frontend UI Evidence
+
+- Render snapshot-boundary evidence as read-only blocked state without browser
+  exchange-read, recovery, reconciliation, or Coinbase controls.
+
+### Phase 1973 - Safety Tests
+
+- Prove browser/BFF code cannot bypass approval, cap/guard, admission audit,
+  reconciliation plan, proof, completion, snapshot, idempotency, payload hash,
+  or operator-intent prerequisites.
+
+### Phase 1974 - Backend Focused Tests
+
+- Cover snapshot-boundary contract, no-live posture, identity discipline,
+  OpenAPI output, and reconciliation-boundary blocker updates.
+
+### Phase 1975 - Frontend Focused Tests
+
+- Cover generated schema freshness, mocks, adapters, UI evidence, and
+  no-browser-authority posture where frontend consumes snapshot evidence.
+
+### Phase 1976 - Docs And Examples
+
+- Update Admin API, command workflow, examples, matrix, inventory, and handoff
+  docs for snapshot-boundary semantics.
+
+### Phase 1977 - Contextless Review And Remediation
+
+- Run blind/contextless review and fix blockers before final gates.
+
+### Phase 1978 - Full Gates
+
+- Run backend autonomous check, focused tests, full regression, and frontend
+  release gate; report live Coinbase notional `$0`.
+
+### Phase 1979 - Live-Execution Ledger
+
+- Record live Coinbase execution and live Coinbase reads as not run unless a
+  later explicit live phase overrides the default under the carried cap.
+
+### Phase 1980 - Final Gates, Push, And Next Range
+
+- Push both repos and create the next milestone-linked active range only if
+  M54 still has an explicit gap.
+
+## Completed M54 Reconciliation Execution Boundary Batch - Phases 1941-1960
 
 This batch follows guarded post-apply reconciliation completion evidence. The
 next M54 gap is not another proof readback; it is the backend-owned
@@ -152,6 +266,19 @@ execution.
 
 - Push both repos and create the next milestone-linked active range only if
   M54 still has an explicit gap.
+
+Completion evidence:
+
+- Added the route-bound fail-closed `POST
+  /api/v1/spot/recovery/reconciliation-executions` Admin API contract keyed by
+  `client_order_id` with RBAC, idempotency, audit, approval, cap/guard, and
+  reconciliation prerequisite evidence.
+- Surfaced reconciliation execution-boundary rows, command-suite gap linkage,
+  route inventory, OpenAPI, docs, regression coverage, and frontend schema
+  consumption while keeping execution, Coinbase reads, Coinbase submissions,
+  and order/exchange-state mutation disabled.
+- Backend regression and frontend release gate passed; live Coinbase
+  submitted/executed notional remained `$0`.
 
 ## Completed M54 Post-Apply Reconciliation Completion Batch - Phases 1921-1940
 
