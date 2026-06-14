@@ -1341,6 +1341,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "active_exchange_order_id" in stealth_item_schema["properties"]
     assert "exchange_order_id_evidence_only" in stealth_item_schema["properties"]
     assert "order_id" not in stealth_item_schema["properties"]
+    stealth_detail_schema = written["components"]["schemas"][
+        "AdminStealthOrderDetailResponse"
+    ]
+    assert "active_placement_audit" in stealth_detail_schema["properties"]
+    assert "AdminStealthActivePlacementAuditEvidence" in written["components"]["schemas"]
+    active_placement_audit_schema = written["components"]["schemas"][
+        "AdminStealthActivePlacementAuditEvidence"
+    ]
+    assert "active_placement_client_order_id" in active_placement_audit_schema[
+        "properties"
+    ]
+    assert "exchange_truth_verified" in active_placement_audit_schema["properties"]
+    assert "coinbase_read_ran" in active_placement_audit_schema["properties"]
+    assert "lifecycle_mutation_allowed" in active_placement_audit_schema["properties"]
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
@@ -4685,7 +4699,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2061-2080"
+    assert payload["approved_phase_range"] == "2081-2100"
     assert payload["command_count"] == 5
     assert payload["blocked_command_count"] == 5
     assert payload["live_enabled_command_count"] == 0
@@ -5782,7 +5796,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2061-2080"
+    assert live_payload["approved_phase_range"] == "2081-2100"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6345,7 +6359,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2061-2080"
+    assert enterprise_payload["approved_phase_range"] == "2081-2100"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6928,7 +6942,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2061-2080"
+    assert recovery_preview_payload["approved_phase_range"] == "2081-2100"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -9061,6 +9075,47 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
                 "active_exchange_order_id": "exchange-evidence-1",
                 "exchange_order_id_evidence_only": True,
             },
+            "active_placement_audit": {
+                "stealth_order_id": stealth_order_id,
+                "status": AdminApiGateStatus.BLOCKED.value,
+                "active_placement_present": True,
+                "active_placement_client_order_id": "placement-client-1",
+                "active_exchange_order_id": "exchange-evidence-1",
+                "exchange_order_id_evidence_only": True,
+                "exchange_truth_verified": False,
+                "exchange_truth_source": "local_stealth_state_only",
+                "coinbase_read_required": True,
+                "coinbase_read_ran": False,
+                "coinbase_order_cancel_submitted": False,
+                "lifecycle_mutation_allowed": False,
+                "required_for_mutation_families": [
+                    AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+                    AdminApiMutationFamilyType.STEALTH_MOVE.value,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+                ],
+                "read_evidence_routes": [
+                    "/api/v1/stealth/orders/{stealth_order_id}",
+                    "/api/v1/stealth/command-suite",
+                ],
+                "required_contracts": [
+                    "stealth_active_placement_exchange_truth_read_contract",
+                    "stealth_active_placement_cancel_replace_audit",
+                    "stealth_active_placement_reconciliation_proof",
+                ],
+                "missing_contracts": [
+                    "stealth_active_placement_exchange_truth_read_contract",
+                    "stealth_active_placement_cancel_replace_audit",
+                    "stealth_active_placement_reconciliation_proof",
+                ],
+                "blockers": [
+                    "coinbase_exchange_truth_read_disabled",
+                    "stealth_active_placement_cancel_replace_audit_missing",
+                    "stealth_active_placement_reconciliation_proof_missing",
+                ],
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "detail": "Active placement audit remains no-live.",
+            },
             "read_only": True,
             "command_routes_mode": AdminApiCommandRoutesMode.LIVE_DISABLED.value,
             "live_coinbase_orders_ran": False,
@@ -9096,6 +9151,21 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
     assert detail_response.json()["command_routes_mode"] == (
         AdminApiCommandRoutesMode.LIVE_DISABLED.value
     )
+    audit = detail_response.json()["active_placement_audit"]
+    assert audit["active_placement_present"] is True
+    assert audit["active_placement_client_order_id"] == "placement-client-1"
+    assert audit["active_exchange_order_id"] == "exchange-evidence-1"
+    assert audit["exchange_truth_verified"] is False
+    assert audit["coinbase_read_required"] is True
+    assert audit["coinbase_read_ran"] is False
+    assert audit["coinbase_order_cancel_submitted"] is False
+    assert audit["lifecycle_mutation_allowed"] is False
+    assert audit["required_for_mutation_families"] == [
+        AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+        AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+    ]
+    assert audit["required_contracts"] == audit["missing_contracts"]
     assert detail_response.json()["live_coinbase_orders_ran"] is False
 
 
@@ -9186,6 +9256,25 @@ def test_admin_api_stealth_read_service_maps_placement_and_exchange_evidence(mon
     assert detail_response.found is True
     assert detail_response.order is not None
     assert detail_response.order.stealth_order_id == "stealth-root"
+    assert detail_response.active_placement_audit is not None
+    audit = detail_response.active_placement_audit
+    assert audit.status == AdminApiGateStatus.BLOCKED
+    assert audit.active_placement_present is True
+    assert audit.active_placement_client_order_id == "placement-client-active"
+    assert audit.active_exchange_order_id == "exchange-active"
+    assert audit.exchange_truth_verified is False
+    assert audit.coinbase_read_required is True
+    assert audit.coinbase_read_ran is False
+    assert audit.coinbase_order_cancel_submitted is False
+    assert audit.lifecycle_mutation_allowed is False
+    assert audit.required_for_mutation_families == [
+        AdminApiMutationFamilyType.STEALTH_CANCEL,
+        AdminApiMutationFamilyType.STEALTH_MOVE,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+    ]
+    assert audit.required_contracts == audit.missing_contracts
+    assert "coinbase_exchange_truth_read_disabled" in audit.blockers
+    assert "active_placement_local_evidence_missing" not in audit.blockers
     assert detail_response.live_coinbase_orders_ran is False
 
 
@@ -9235,6 +9324,15 @@ def test_admin_api_stealth_read_service_does_not_promote_historical_reveals_to_a
     assert detail_response.order is not None
     assert detail_response.order.active_placement_client_order_id is None
     assert detail_response.order.active_exchange_order_id is None
+    assert detail_response.active_placement_audit is not None
+    audit = detail_response.active_placement_audit
+    assert audit.active_placement_present is False
+    assert audit.active_placement_client_order_id is None
+    assert audit.active_exchange_order_id is None
+    assert audit.exchange_truth_verified is False
+    assert audit.coinbase_read_ran is False
+    assert audit.lifecycle_mutation_allowed is False
+    assert "active_placement_local_evidence_missing" in audit.blockers
 
 
 @pytest.mark.regression

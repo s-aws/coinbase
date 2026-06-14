@@ -11646,6 +11646,99 @@ components:
       - auth_mode
       title: AdminSessionResponse
       description: Authenticated session/RBAC evidence for the frontend.
+    AdminStealthActivePlacementAuditEvidence:
+      properties:
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        active_placement_present:
+          type: boolean
+          title: Active Placement Present
+          default: false
+        active_placement_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Placement Client Order Id
+        active_exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Exchange Order Id
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        exchange_truth_verified:
+          type: boolean
+          title: Exchange Truth Verified
+          default: false
+        exchange_truth_source:
+          type: string
+          title: Exchange Truth Source
+          default: local_stealth_state_only
+        coinbase_read_required:
+          type: boolean
+          title: Coinbase Read Required
+          default: true
+        coinbase_read_ran:
+          type: boolean
+          title: Coinbase Read Ran
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        lifecycle_mutation_allowed:
+          type: boolean
+          title: Lifecycle Mutation Allowed
+          default: false
+        required_for_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Required For Mutation Families
+        read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Read Evidence Routes
+        required_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Contracts
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - detail
+      title: AdminStealthActivePlacementAuditEvidence
+      description: Read-only active-placement evidence for stealth detail views.
     AdminStealthOrderDetailResponse:
       properties:
         type:
@@ -11661,6 +11754,10 @@ components:
         order:
           anyOf:
           - $ref: '#/components/schemas/AdminStealthOrderReadItem'
+          - type: 'null'
+        active_placement_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminStealthActivePlacementAuditEvidence'
           - type: 'null'
         read_only:
           type: boolean

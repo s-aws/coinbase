@@ -38,113 +38,119 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Stealth Exchange-Truth Ledger Batch - Phases 2061-2080
+## Active M55 Active-Placement Audit Batch - Phases 2081-2100
 
-This batch continues M55 after the stealth move command draft. The backend may
-extend `GET /api/v1/stealth/command-suite` with a typed exchange-truth
-prerequisite ledger for create, reveal, cancel, move, and movement/reprice
-command surfaces. The ledger is read-only evidence for command identity,
-active-placement proof requirements, read evidence routes, required contracts,
-and missing contracts. This batch does not authorize live stealth execution,
-Coinbase reads, Coinbase order submission/cancellation, active-placement
-mutation, lifecycle mutation, reconciliation execution, browser authority, or
-BFF execution authority.
+This batch continues M55 after the exchange-truth ledger. The backend may
+extend the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail
+response with a typed active-placement audit block. The audit is read-only
+local evidence for active placement presence, required command families,
+required/missing contracts, and no-live blockers. This batch does not add a
+new endpoint and does not authorize Coinbase reads, Coinbase cancellation,
+cancel/replace, lifecycle mutation, reconciliation execution, browser
+authority, or BFF execution authority.
 
-### Phase 2061 - Advance Active Queue Range
+### Phase 2081 - Advance Active Queue Range
 
-- Move the durable autonomous queue from completed phases 2041-2060 to active
-  phases 2061-2080 while preserving no-live defaults and cap policy.
+- Move the durable autonomous queue from completed phases 2061-2080 to active
+  phases 2081-2100 while preserving no-live defaults and cap policy.
 
-### Phase 2062 - Exchange-Truth Ledger Scope
+### Phase 2082 - Detail Audit Scope
 
-- Define the ledger as backend-owned evidence within the existing stealth
-  command-suite route, not as a new endpoint or execution path.
+- Define active-placement audit evidence as part of the existing stealth
+  detail read contract.
 
-### Phase 2063 - Command Identity Discipline
+### Phase 2083 - Typed Audit Model
 
-- Report `stealth_order_id` as the accepted command key and reject
-  `client_order_id`, active placement ids, exchange order ids, and `order_id`
-  as command identity.
+- Add a response model for placement presence, exchange evidence, blockers,
+  required contracts, and authority flags.
 
-### Phase 2064 - Active Placement Proof Semantics
+### Phase 2084 - Local Evidence Builder
 
-- Mark cancel, move, and movement/reprice as active-placement proof required,
-  while create/reveal remain blocked on lifecycle-write or trigger/submission
-  proof before active-placement evidence can exist.
+- Build audit evidence from existing stealth row anchor state only.
 
-### Phase 2065 - Evidence Route Mapping
+### Phase 2085 - Missing Placement Handling
 
-- Map each ledger row to existing read-only stealth, movement/repricing, and
-  command-suite routes.
+- Report missing active-placement local evidence without promoting historical
+  revealed order rows.
 
-### Phase 2066 - Required Contract Matrix
+### Phase 2086 - Command Family Requirements
 
-- Expose route-specific required contracts for lifecycle-write, trigger,
-  active-placement, mutation claim, cancel/replace, and reconciliation proof.
+- Link the audit to stealth cancel, stealth move, and movement/reprice.
 
-### Phase 2067 - Missing Contract Matrix
+### Phase 2087 - No-Live Flags
 
-- Keep every required contract reported as missing until backend-owned live
-  execution gates exist.
+- Report Coinbase read/cancel, lifecycle mutation, and reconciliation
+  execution as not run/not allowed.
 
-### Phase 2068 - Typed Backend Models
+### Phase 2088 - Contract Matrix
 
-- Add typed response models and counts for exchange-truth checks.
+- Expose active-placement exchange-truth read, cancel/replace audit, and
+  reconciliation proof contracts.
 
-### Phase 2069 - Read Service Wiring
-
-- Populate the ledger from existing command metadata and route inventory.
-
-### Phase 2070 - Generated Backend Artifacts
+### Phase 2089 - Generated Backend Artifacts
 
 - Regenerate OpenAPI and route inventory artifacts.
 
-### Phase 2071 - Backend Tests
+### Phase 2090 - Backend Tests
 
-- Cover generated schema, command-suite response fields, identity rejection,
-  active-placement counts, and no-live posture.
+- Cover schema, route serialization, active/missing placement cases, and
+  no-live posture.
 
-### Phase 2072 - Frontend Schema Sync
+### Phase 2091 - Frontend Schema Sync
 
-- Regenerate frontend schema from the backend OpenAPI contract.
+- Regenerate frontend schema from backend OpenAPI.
 
-### Phase 2073 - Frontend Runtime Fixture Sync
+### Phase 2092 - Frontend Adapter Mapping
 
-- Mirror the ledger in frontend runtime/mock fixtures without browser
-  authority.
+- Map active-placement audit evidence into the stealth detail view model.
 
-### Phase 2074 - Stealth Read UI
+### Phase 2093 - Frontend Detail UI
 
-- Render exchange-truth ledger evidence in the Stealth Orders read module.
+- Render the audit in the selected stealth detail and backend detail areas.
 
-### Phase 2075 - Command Workflow Linkage
+### Phase 2094 - Mock Runtime Fixtures
 
-- Surface ledger blockers near dry-submit evidence without adding command
-  execution.
+- Update mock fixtures for active placement audit evidence.
 
-### Phase 2076 - Quality And Release Evidence
+### Phase 2095 - Command Workflow Context
 
-- Update quality artifacts, release checks, and autonomous validators for the
-  active range and ledger fields.
+- Reference audit evidence from command workflow docs without enabling gates.
 
-### Phase 2077 - Docs And Examples
+### Phase 2096 - Quality Artifact Sync
 
-- Document the ledger, identity rules, and active-placement boundaries.
+- Update release/deployment/autonomous validators for phases 2081-2100.
 
-### Phase 2078 - Drift Scan
+### Phase 2097 - Docs And Examples
 
-- Scan for stale range text, exchange-id command keys, browser/BFF authority,
-  and accidental live enablement.
+- Document active-placement audit boundaries and no-live posture.
 
-### Phase 2079 - Blind/Contextless Review
+### Phase 2098 - Drift Scan
 
-- Run contextless review for the new evidence contract and remediate blockers.
+- Scan for stale range text, active-placement command inputs, browser/BFF
+  authority, and accidental live enablement.
 
-### Phase 2080 - Final Gates, Push, And Next Range
+### Phase 2099 - Blind/Contextless Review
+
+- Run contextless review for the audit contract and remediate blockers.
+
+### Phase 2100 - Final Gates, Push, And Next Range
 
 - Run backend regression, frontend release gate, smoke checks, and push both
   repos. Create the next M55-linked range only if a concrete approved gap
   remains.
+
+## Completed M55 Stealth Exchange-Truth Ledger Batch - Phases 2061-2080
+
+Completion evidence:
+
+- Extended `GET /api/v1/stealth/command-suite` with a typed exchange-truth
+  prerequisite ledger for create, reveal, cancel, move, and movement/reprice.
+- Added generated schema, frontend mock/runtime/UI consumption, docs, tests,
+  quality artifacts, and blind/contextless review with no blockers.
+- Preserved submitted/executed notional `$0` and did not add live stealth
+  execution, Coinbase reads, Coinbase order submission/cancellation,
+  active-placement mutation, lifecycle mutation, reconciliation execution,
+  browser authority, or BFF execution authority.
 
 ## Completed M55 Stealth Move Command Contract Batch - Phases 2041-2060
 

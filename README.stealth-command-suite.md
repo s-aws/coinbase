@@ -27,6 +27,12 @@ The route requires Admin API authentication and `analytics:read`. It returns
   execution service evidence
 - no-live Coinbase posture with submitted/executed notional `0`
 
+Per-order active-placement audit evidence is exposed by
+`GET /api/v1/stealth/orders/{stealth_order_id}` as
+`active_placement_audit`. The command-suite route points at that read evidence,
+but it does not own per-order Coinbase truth and must not be treated as a
+cancel/replace or reconciliation path.
+
 ## Safety Constraints
 
 - `stealth_order_id` is the command identity.

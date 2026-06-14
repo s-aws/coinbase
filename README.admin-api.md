@@ -182,6 +182,13 @@ blockers explicit. It does not create stealth orders, reveal orders, cancel
 active placements, move/reprice revealed orders, execute reconciliation,
 mutate stealth/order/exchange state, read Coinbase, call Coinbase, or grant
 browser/BFF command authority.
+The per-order stealth detail route
+`GET /api/v1/stealth/orders/{stealth_order_id}` also exposes
+`active_placement_audit` as local evidence for whether the current stealth row
+has an active placement pointer, which mutation families require future
+exchange-truth proof, and which contracts are still missing. That audit is not
+a Coinbase read, cancel/replace attempt, reconciliation run, lifecycle
+mutation, or browser/BFF approval gate.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -447,6 +454,10 @@ The platform/module split is documented in
   `stealth_order_id`; they must not use active placement ids or exchange ids
   as command keys, and they must not mutate lifecycle state until exchange
   handling and reconciliation are implemented.
+- Stealth detail rows include `active_placement_audit` so operators can see
+  local active-placement evidence, required mutation families, missing
+  exchange-truth contracts, and no-live Coinbase flags without turning active
+  placement ids or exchange ids into command inputs.
 - Movement/repricing read rows combine durable `order_moves`,
   `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
   evidence. Runtime mutation claims and pending replacement claims are shown

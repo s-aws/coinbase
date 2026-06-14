@@ -1617,6 +1617,35 @@ class AdminStealthOrderListResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminStealthActivePlacementAuditEvidence(BaseModel):
+    """Read-only active-placement evidence for stealth detail views."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    active_placement_present: bool = False
+    active_placement_client_order_id: str | None = None
+    active_exchange_order_id: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    exchange_truth_verified: bool = False
+    exchange_truth_source: str = "local_stealth_state_only"
+    coinbase_read_required: bool = True
+    coinbase_read_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    lifecycle_mutation_allowed: bool = False
+    required_for_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    read_evidence_routes: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminStealthOrderDetailResponse(BaseModel):
     """Read-only stealth detail response keyed by ``stealth_order_id``."""
 
@@ -1626,6 +1655,7 @@ class AdminStealthOrderDetailResponse(BaseModel):
     stealth_order_id: str
     found: bool
     order: AdminStealthOrderReadItem | None = None
+    active_placement_audit: AdminStealthActivePlacementAuditEvidence | None = None
     read_only: bool = True
     command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False

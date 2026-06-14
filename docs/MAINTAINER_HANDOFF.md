@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2061-2080`.
+- Active autonomous range: `2081-2100`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -178,14 +178,20 @@ notional, retained inventory, reconciliation result, and audit ids.
   records, reconciliation plans, command-suite proof routes, command draft
   evidence, or pilot adapter evidence are not sufficient live execution
   authority by themselves.
-  The active 2061-2080 range adds a read-only exchange-truth prerequisite
+  The completed 2061-2080 range added a read-only exchange-truth prerequisite
   ledger to `GET /api/v1/stealth/command-suite`. The ledger must keep
   `stealth_order_id` as the only accepted command identity, list active
   placement client ids and exchange order ids as evidence-only rejected command
   keys, and show required/missing active-placement, mutation-claim,
   cancel/replace, lifecycle-write, trigger/submission, and reconciliation
   contracts without granting browser, BFF, Coinbase, or local mutation
-  authority.
+  authority. The active 2081-2100 range adds a no-live active-placement audit
+  block to the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail
+  response. The audit may show local active-placement evidence and required
+  contracts for cancel, move, and movement/reprice, but it must not read
+  Coinbase, cancel or replace active placements, mutate lifecycle state,
+  execute reconciliation, add a new endpoint, or grant browser/BFF
+  exchange-truth authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

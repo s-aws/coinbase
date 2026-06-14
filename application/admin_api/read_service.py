@@ -115,6 +115,7 @@ from .models import (
     AdminRiskRejectionCategoryItem,
     AdminSessionResponse,
     AdminStealthOrderDetailResponse,
+    AdminStealthActivePlacementAuditEvidence,
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
@@ -170,7 +171,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2061-2080"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2081-2100"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1238,6 +1239,60 @@ def _stealth_item_from_row(row: dict[str, Any]) -> AdminStealthOrderReadItem:
         anchor_repricing_state=anchor_state,
         created_at=_string_or_none(row.get("created_at")),
         updated_at=_string_or_none(row.get("updated_at")),
+    )
+
+
+def _stealth_active_placement_audit(
+    item: AdminStealthOrderReadItem,
+) -> AdminStealthActivePlacementAuditEvidence:
+    active_placement_present = bool(item.active_placement_client_order_id)
+    required_contracts = [
+        "stealth_active_placement_exchange_truth_read_contract",
+        "stealth_active_placement_cancel_replace_audit",
+        "stealth_active_placement_reconciliation_proof",
+    ]
+    blockers = [
+        "coinbase_exchange_truth_read_disabled",
+        "stealth_active_placement_cancel_replace_audit_missing",
+        "stealth_active_placement_reconciliation_proof_missing",
+    ]
+    if not active_placement_present:
+        blockers.insert(0, "active_placement_local_evidence_missing")
+
+    detail = (
+        "Active placement evidence is local stealth state only. It can explain "
+        "why cancel, move, and reprice remain blocked, but it does not verify "
+        "Coinbase exchange truth, cancel or replace orders, or allow lifecycle "
+        "mutation."
+    )
+    return AdminStealthActivePlacementAuditEvidence(
+        stealth_order_id=item.stealth_order_id,
+        status=AdminApiGateStatus.BLOCKED,
+        active_placement_present=active_placement_present,
+        active_placement_client_order_id=item.active_placement_client_order_id,
+        active_exchange_order_id=item.active_exchange_order_id,
+        exchange_order_id_evidence_only=True,
+        exchange_truth_verified=False,
+        exchange_truth_source="local_stealth_state_only",
+        coinbase_read_required=True,
+        coinbase_read_ran=False,
+        coinbase_order_cancel_submitted=False,
+        lifecycle_mutation_allowed=False,
+        required_for_mutation_families=[
+            AdminApiMutationFamilyType.STEALTH_CANCEL,
+            AdminApiMutationFamilyType.STEALTH_MOVE,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+        ],
+        read_evidence_routes=[
+            "/api/v1/stealth/orders/{stealth_order_id}",
+            "/api/v1/stealth/command-suite",
+        ],
+        required_contracts=required_contracts,
+        missing_contracts=required_contracts,
+        blockers=blockers,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=detail,
     )
 
 
@@ -7286,10 +7341,14 @@ class AdminApiReadService:
             row = get_stealth_order_by_id(stealth_order_id)
         except Exception:
             row = None
+        item = _stealth_item_from_row(row) if row else None
         return AdminStealthOrderDetailResponse(
             stealth_order_id=stealth_order_id,
             found=row is not None,
-            order=_stealth_item_from_row(row) if row else None,
+            order=item,
+            active_placement_audit=(
+                _stealth_active_placement_audit(item) if item else None
+            ),
         )
 
     def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
