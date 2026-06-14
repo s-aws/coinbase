@@ -5,7 +5,7 @@ Keep it short. Keep it factual.
 
 ## Metadata
 
-- Last updated (ET): 2026-06-12
+- Last updated (ET): 2026-06-14
 - Updated by: Codex
 - Branch: main
 - Commit (optional):
@@ -36,39 +36,34 @@ Keep it short. Keep it factual.
 
 ## Latest Completed Scope
 
-- Latest completed autonomous range: `1401-1420`.
-- Latest completed milestone: M45 - Live Execution Intent Envelope Evidence.
-- Completed files: Admin API live execution intent envelope evidence,
-  command admission wiring, OpenAPI, command/audit range evidence, admin
-  platform docs, frontend generated schema, frontend dry-submit and Audit
-  Workbench display evidence, frontend mock/runtime evidence, review logs, and
-  agent context needed for local-agent accuracy.
+- Latest completed autonomous range: `2181-2200`.
+- Latest completed milestone: M54 - Stealth Create Lifecycle Audit Evidence.
+- Completed files: Admin API stealth create lifecycle-write audit evidence,
+  OpenAPI, command-suite docs, frontend generated schema, mock/runtime
+  evidence, Stealth Orders read-model rendering, frontend docs/tests, full
+  backend regression, frontend release gate, and contextless review.
 - Out-of-scope files: product catalogs, local order span JSON artifacts, and
   live Coinbase execution unless an approved phase explicitly requires it.
 - Interfaces or modules that must not change without tests: dashboard
   WebSocket contract, FastAPI Admin API contracts, stealth lifecycle, BFF
   mutation allowlist, command services, and DB write paths.
-- M45 made command admission decisions expose backend-owned live execution
-  intent envelope evidence. It binds route, identity, payload hash,
-  idempotency key, actor, operator intent, and shared
-  `AdminApiCommandService` method while reporting `prepared=false`,
-  `status=live_disabled`, `source=disabled_backend_service`,
-  `missing_reason=live_execution_disabled`, `executable=false`,
-  `browser_authority=display_only`, and
-  `bff_authority=forward_only_no_execution`. It did not add create, cancel,
-  submit, execute, Coinbase, route-local execution, browser approval, BFF
-  execution authority, a live switch, or a parallel command path.
+- M54 made stealth create lifecycle-write audit evidence visible on
+  `GET /api/v1/stealth/command-suite` and in the frontend read model. It did
+  not invoke `StealthOrderManager`, write stealth/order_parent/lifecycle
+  state, call Coinbase, execute reconciliation, create proof records, grant
+  browser/BFF authority, add a live switch, or create a parallel command path.
 
 ## Active Scope
 
-- Active autonomous range: `1421-1440`.
-- Active milestone: M46 - Live Readiness Preconditions Evidence.
-- Current direction: add backend-owned, read-only live readiness precondition
-  checklist evidence to `GET /api/v1/admin/live-enablement` and consume it in
-  the frontend as display-only governance evidence. Do not add executable
-  adapters, browser approval, BFF execution authority, Coinbase calls,
-  route-local execution, command-admission broadening, or command/live
-  execution enablement.
+- Active autonomous range: `2201-2220`.
+- Active milestone: M55 - Create Proof-Route Linkage.
+- Current direction: add backend-owned, read-only proof-route and gate-chain
+  linkage to stealth create lifecycle-write audit evidence and consume it in
+  the frontend as display-only evidence. Do not create proof records, mutate
+  approval/admission-audit/cap-guard/reconciliation stores, invoke
+  `StealthOrderManager`, write stealth/order_parent/lifecycle state, call
+  Coinbase, execute reconciliation, add browser proof authority, add BFF
+  execution authority, or enable live commands.
 
 ## Decisions (Durable)
 
@@ -354,91 +349,60 @@ Keep it short. Keep it factual.
 
 ## Validation Status
 
-- Last backend focused Admin API/readiness run: 2026-06-12
-  `python -m pytest tests\regression\test_admin_api_contract.py tests\regression\test_spot_readiness_gate.py -q --tb=short`
-- Result: Passed for M42 focused checks, 71 tests, 1 warning.
-- Last backend autonomous queue check: 2026-06-12
+- Last backend focused Admin API/readiness run: 2026-06-14
+  `python -m pytest tests\regression\test_admin_api_contract.py::test_admin_api_openapi_schema_file_matches_generated_contract tests\regression\test_admin_api_contract.py::test_admin_api_stealth_command_suite_is_read_only_backend_evidence tests\regression\test_spot_readiness_gate.py::test_autonomous_work_queue_check_covers_approved_20_phase_batch -q --tb=short --basetemp=runtime_state\pytest_tmp`
+- Result: Passed for M55 focused checks, 3 tests, 1 warning.
+- Last backend autonomous queue check: 2026-06-14
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M42 active range `1341-1360` passed. Live Coinbase execution
+- Result: M55 active range `2201-2220` passed. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
-- Last backend full regression: 2026-06-12
-  `python -m pytest tests\regression\ -v --tb=short`
-- Result: Passed, 798 tests, 1 warning.
-- Last frontend focused run: 2026-06-12
-  `npm run api:check`, `npm run autonomous:check`, `npm run lint`,
-  focused Vitest, and
-  `npm run release:gate`.
-- Result: Passed for M42 with `186` unit tests and `3` Playwright tests in
-  the release gate. Focused frontend live-execution-boundary display,
-  runtime, and quality checks passed with `74` tests.
-- Last blind/contextless M42 review: 2026-06-12
-- Result: Passed for command admission live execution service boundary
-  evidence with no blockers. One stale agent-state next-command sentence was
-  remediated.
-- Live Coinbase execution for M42: not run. Submitted notional `0` USDC.
+- Last backend full regression: 2026-06-14
+  `python -m pytest tests\regression\ -v --tb=short --basetemp=runtime_state\pytest_tmp`
+- Result: Passed, 828 tests, 1 warning.
+- Last frontend focused run: 2026-06-14
+  `npm run typecheck`, `npm run api:check`, `npm run autonomous:check`,
+  `npm run security:commands`, `npm run lint`, and focused Vitest.
+- Result: Passed focused M55 frontend checks after updating brittle exact-count
+  assertions for the new proof-route rows. Full frontend release gate passed
+  with 215 unit tests and 3 Playwright tests.
+- Last blind/contextless M55 review: 2026-06-14
+- Result: Passed with no blockers. Reviewer confirmed backend proof-route
+  linkage is read-only, frontend rendering is display-only, no manager/
+  lifecycle/Coinbase/reconciliation/proof-store authority was added, and
+  generated/mock/UI docs align with the durable no-live objective.
+- Live Coinbase execution for M55: not run. Submitted notional `0` USDC.
   Executed notional `0` USDC.
 
 ## Next 3 Actions
 
-1. Finish M43 disabled live execution service foundation, focused gates,
-   blind/contextless review, full backend regression, and frontend release
-   gate.
-2. Preserve controlled live execution final-boundary evidence without
-   browser authority, audit mutation, approval mutation, guard mutation,
-   guard execution, reconciliation execution, reconciliation authority, or
-   unapproved live execution.
+1. Commit and push synchronized M55 proof-route linkage changes after passed
+   backend regression, frontend release gate, and blind/contextless review.
+2. Preserve stealth create proof-route linkage as read-only evidence without
+   proof creation, store mutation, manager invocation, lifecycle writes,
+   Coinbase calls, reconciliation execution, browser authority, BFF execution
+   authority, or unapproved live execution.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
 
 ## Handoff Notes
 
-- What is done through M42: backend live-enablement exposes typed,
-  route-specific approval snapshot, approval-store contract,
-  live-admission audit trail, and cap/guard requirements per live-shaped
-  route. Existing live-disabled command responses now expose typed,
-  fail-closed command admission decision evidence bound to route, identity,
-  actor, payload hash, idempotency key, and operator intent. The same
-  admission decision is persisted on existing Admin API audit events and
-  surfaced through read-only Audit Workbench evidence. M36 adds a backend-owned
-  append-only approval-store foundation and updates live-enablement/frontend
-  evidence to show the store contract as configured and durable while approval
-  snapshots, admission audit, cap/guard, and reconciliation remain blocked.
-  M37 adds backend-only approval snapshot resolver infrastructure that can
-  derive immutable evidence from exact unexpired approval-store records bound
-  to route, method, module, identity, action class, permission, requesting
-  actor, operator intent, idempotency key, and payload hash. M38 wires
-  existing command admission evidence to that resolver so exact unexpired
-  snapshots can be reported on live-disabled command responses. A resolved
-  snapshot removes only `approval_snapshot_missing`; every other live blocker
-  remains. M39 wires existing command admission evidence to the append-only
-  Admin API audit store so exact approval-snapshot-bound audit proofs can be
-  reported on live-disabled command responses. A resolved audit proof removes
-  only `admission_audit_missing`; live-disabled, cap/guard, reconciliation,
-  and browser-authority blockers remain. M40 wires existing command admission
-  evidence to backend-owned append-only cap/guard proof so exact
-  approval-snapshot-bound and admission-audit-bound cap/guard decisions can be
-  reported on live-disabled command responses. A resolved cap/guard proof
-  removes only `cap_guard_missing`; live-disabled, reconciliation, and
-  browser-authority blockers remain. M41 adds backend-owned append-only
-  reconciliation plan proof to the same live-disabled command admission
-  evidence. It requires exact approval snapshot, admission audit, and
-  cap/guard proof first. A resolved reconciliation plan proof may remove only
-  `reconciliation_plan_missing`; live-disabled and browser-authority blockers
-  remain. M42 makes the backend live execution service boundary explicit on
-  the same command admission evidence. The service is required but
-  disabled/unconfigured, and `live_execution_disabled` plus
-  `browser_authority_rejected` remain blockers.
+- What is done through M54: backend and frontend expose live-disabled stealth
+  create lifecycle-write audit evidence as read-only command-suite evidence.
+  The evidence names the existing command route, shared service method,
+  manager method, identity discipline, no-write/no-live posture, and missing
+  lifecycle contracts without creating a second lifecycle path.
 - Admin API/frontend status: backend Admin API mutating routes remain
   auth/RBAC-gated, idempotent, audited, and HTTP-live-disabled. Frontend
   renders approval snapshot, approval-store, admission-audit, cap/guard,
   reconciliation proof, live execution service boundary, command admission
-  decision, and admission audit proof evidence as display evidence only. No
-  command controls, guard evaluator, audit storage, approval storage,
-  reconciliation execution, BFF mutation broadening, Coinbase call, browser
-  approval, or reconciliation behavior is allowed.
-- What is in progress: M46 live readiness precondition evidence for active
-  approved range `1421-1440`.
+  decision, admission audit proof, and stealth command-suite evidence as
+  display evidence only. No command controls, guard evaluator, audit storage,
+  approval storage, reconciliation execution, BFF mutation broadening,
+  Coinbase call, browser approval, or reconciliation behavior is allowed.
+- What is in progress: M55 create proof-route linkage for active approved
+  range `2201-2220`.
 - What is blocked: Nothing currently known.
-- Exact next command: finish M46 backend/frontend contract sync and keep live
-  Coinbase execution disabled unless a later batch explicitly authorizes it.
+- Exact next command: commit and push M55 proof-route linkage, then advance the
+  next milestone-linked approved range only if a concrete architecture gap
+  remains.

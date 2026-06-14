@@ -176,7 +176,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2181-2200"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2201-2220"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1506,7 +1506,12 @@ def _stealth_reveal_reconciliation_audit(
     )
 
 
-def _stealth_create_lifecycle_write_audit() -> StealthCreateLifecycleWriteAuditEvidence:
+def _stealth_create_lifecycle_write_audit(
+    *,
+    required_gate_chain: list[str],
+    missing_gate_chain: list[str],
+    proof_routes: list[StealthCommandSuiteProofRouteItem],
+) -> StealthCreateLifecycleWriteAuditEvidence:
     required_contracts = [
         "stealth_create_guard_contract",
         "stealth_create_admission_audit",
@@ -1536,10 +1541,16 @@ def _stealth_create_lifecycle_write_audit() -> StealthCreateLifecycleWriteAuditE
         required_contracts=required_contracts,
         missing_contracts=list(required_contracts),
         blockers=blockers,
+        required_gate_chain=list(required_gate_chain),
+        missing_gate_chain=list(missing_gate_chain),
+        proof_route_count=len(proof_routes),
+        blocking_proof_route_count=sum(1 for route in proof_routes if route.blocking),
+        proof_routes=proof_routes,
         evidence=[
             "Stealth create is exposed as a live-disabled Admin API command draft.",
             "Future execution must call the existing StealthOrderManager create path.",
             "This audit does not write stealth rows, order_parent rows, lifecycle events, or reconciliation evidence.",
+            "This audit does not create approval, admission-audit, cap/guard, or reconciliation proof records.",
             "Browser and BFF surfaces remain display/forward only and cannot grant lifecycle-write authority.",
         ],
         detail=(
@@ -8066,6 +8077,14 @@ class AdminApiReadService:
             "live_execution_service",
             "post_write_reconciliation",
         ]
+        stealth_create_missing_gate_chain = [
+            "approval_snapshot",
+            "admission_audit",
+            "cap_guard_decision",
+            "reconciliation_plan",
+            "lifecycle_write_guard",
+            "live_execution_disabled",
+        ]
         gap_evidence_route_docs = {
             "GET /api/v1/stealth/orders": [
                 "docs/STEALTH_ORDER_READS.md",
@@ -8523,7 +8542,11 @@ class AdminApiReadService:
             commands=commands,
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,
-            create_lifecycle_write_audit=_stealth_create_lifecycle_write_audit(),
+            create_lifecycle_write_audit=_stealth_create_lifecycle_write_audit(
+                required_gate_chain=stealth_create_gate_chain,
+                missing_gate_chain=stealth_create_missing_gate_chain,
+                proof_routes=proof_routes_for_command("stealth_order_id"),
+            ),
             read_routes=read_routes,
             evidence=[
                 "M55 starts with read-only stealth command-suite coverage before execution.",

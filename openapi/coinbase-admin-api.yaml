@@ -17679,6 +17679,49 @@ components:
             type: string
           type: array
           title: Blockers
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        proof_route_count:
+          type: integer
+          title: Proof Route Count
+          default: 0
+        blocking_proof_route_count:
+          type: integer
+          title: Blocking Proof Route Count
+          default: 0
+        proof_routes:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteProofRouteItem'
+          type: array
+          title: Proof Routes
+        proof_records_created:
+          type: boolean
+          title: Proof Records Created
+          default: false
+        approval_store_mutated:
+          type: boolean
+          title: Approval Store Mutated
+          default: false
+        admission_audit_store_mutated:
+          type: boolean
+          title: Admission Audit Store Mutated
+          default: false
+        cap_guard_store_mutated:
+          type: boolean
+          title: Cap Guard Store Mutated
+          default: false
+        reconciliation_plan_store_mutated:
+          type: boolean
+          title: Reconciliation Plan Store Mutated
+          default: false
         evidence:
           items:
             type: string

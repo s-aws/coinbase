@@ -38,7 +38,91 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Create Lifecycle-Write Audit Batch - Phases 2181-2200
+## Active M55 Create Proof-Route Linkage Batch - Phases 2201-2220
+
+These phases continue M55 after the create lifecycle-write audit. The next explicit architecture gap is structured proof-route and gate-chain linkage inside the existing `create_lifecycle_write_audit` block on `GET /api/v1/stealth/command-suite`. The audit may expose required/missing gate chains, backend proof routes, required permissions, shared service methods, proof-route counts, and no-live/no-write authority flags. It must not create proof records, mutate approval/admission/cap/guard/reconciliation stores, evaluate guards, invoke `StealthOrderManager`, write stealth rows, write `order_parent` rows, dispatch lifecycle events, submit/read Coinbase, execute reconciliation, create a new endpoint, or grant browser/BFF lifecycle-write authority.
+
+### Phase 2201 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2181-2200 to active phases 2201-2220 while preserving no-live defaults and cap policy.
+
+### Phase 2202 - Proof-Route Linkage Scope
+
+- Define create proof-route linkage as command-suite read evidence only, not proof creation, admission approval, guard evaluation, reconciliation execution, or lifecycle writing.
+
+### Phase 2203 - Response Model Extension
+
+- Extend the create lifecycle-write audit model with required/missing gate-chain and proof-route evidence fields.
+
+### Phase 2204 - Required Gate Chain Evidence
+
+- Report idempotency, operator intent, payload hash, approval snapshot, admission audit, cap/guard decision, reconciliation plan, lifecycle-write guard, live adapter/service, and post-write reconciliation as required.
+
+### Phase 2205 - Missing Gate Chain Evidence
+
+- Report the unresolved create-specific gates as missing while preserving live-disabled status.
+
+### Phase 2206 - Backend Proof Routes
+
+- Reuse existing Admin API proof-route inventory for approval, admission audit, cap/guard decision, and reconciliation plan routes.
+
+### Phase 2207 - Proof-Route Authority Flags
+
+- Mark proof routes backend-owned, route-bound, display-only in the browser, and forward-only/no-execution through the BFF.
+
+### Phase 2208 - No Store Mutation Guard
+
+- Prove the command-suite read route does not write approval, admission audit, cap/guard, reconciliation, stealth, order, lifecycle, or exchange state.
+
+### Phase 2209 - Generated Backend Artifacts
+
+- Regenerate OpenAPI after the create audit response model changes.
+
+### Phase 2210 - Backend Focused Tests
+
+- Cover schema, command-suite serialization, proof-route identity, gate chains, no store mutation, no manager invocation, no Coinbase reads/submits, and no reconciliation execution.
+
+### Phase 2211 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI.
+
+### Phase 2212 - Frontend Adapter Mapping
+
+- Map create proof-route and gate-chain evidence into the stealth command-suite view model.
+
+### Phase 2213 - Frontend Command-Suite UI
+
+- Render proof-route linkage in the existing create lifecycle-write audit panel without adding proof creation, create execution, lifecycle-write, DB-write, reconciliation, or Coinbase controls.
+
+### Phase 2214 - Mock Runtime Fixtures
+
+- Update mock fixtures for create proof-route linkage evidence and active phase range.
+
+### Phase 2215 - Documentation And Examples
+
+- Update feature docs and examples for create proof-route linkage and no-live/no-write/no-proof-authority boundaries.
+
+### Phase 2216 - Frontend Focused Tests
+
+- Cover proof-route rendering, required permissions, shared methods, gate chains, authority boundaries, and no action controls.
+
+### Phase 2217 - API And Autonomous Gates
+
+- Run API freshness, autonomous queue, ownership, and command-security checks for the active 2201-2220 range.
+
+### Phase 2218 - Blind/Contextless Review
+
+- Run contextless review for whether the create proof-route linkage is understandable and does not grant proof, lifecycle-write, or execution authority.
+
+### Phase 2219 - Full Gates
+
+- Run backend regression and frontend release gate, confirming no live Coinbase execution and `$0` frontend notional.
+
+### Phase 2220 - Final Gates, Push, And Next Range
+
+- Push synchronized repos after all gates pass and create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed M55 Create Lifecycle-Write Audit Batch - Phases 2181-2200
 
 These phases continue M55 after the reveal reconciliation audit. The next explicit architecture gap is backend-owned stealth create lifecycle-write evidence on the existing `GET /api/v1/stealth/command-suite` read route. The audit may expose the live-disabled create command route, shared service method, existing manager method, accepted/rejected identity keys, required lifecycle-write/admission/reconciliation contracts, missing blockers, and no-live/no-write flags. It must not invoke `StealthOrderManager`, write stealth rows, write `order_parent` rows, dispatch lifecycle events, submit Coinbase orders, read Coinbase, execute reconciliation, create a new endpoint, mutate lifecycle state, or grant browser/BFF lifecycle-write authority.
 

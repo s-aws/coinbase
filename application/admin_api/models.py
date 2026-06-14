@@ -3758,6 +3758,16 @@ class StealthCreateLifecycleWriteAuditEvidence(BaseModel):
     required_contracts: list[str] = Field(default_factory=list)
     missing_contracts: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    proof_route_count: int = 0
+    blocking_proof_route_count: int = 0
+    proof_routes: list[StealthCommandSuiteProofRouteItem] = Field(default_factory=list)
+    proof_records_created: bool = False
+    approval_store_mutated: bool = False
+    admission_audit_store_mutated: bool = False
+    cap_guard_store_mutated: bool = False
+    reconciliation_plan_store_mutated: bool = False
     evidence: list[str] = Field(default_factory=list)
     detail: str
 

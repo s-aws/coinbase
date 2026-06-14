@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2181-2200",
+  "approved_phase_range": "2201-2220",
   "command_count": 5,
   "blocked_command_count": 5,
   "live_enabled_command_count": 0,
@@ -65,6 +65,93 @@ live-disabled create workflow:
   "coinbase_order_submit_ran": false,
   "live_coinbase_read_ran": false,
   "reconciliation_executed": false,
+  "required_gate_chain": [
+    "route_inventory_contract",
+    "idempotency",
+    "operator_intent",
+    "payload_hash",
+    "approval_snapshot",
+    "admission_audit",
+    "cap_guard_decision",
+    "reconciliation_plan",
+    "mutation_claim",
+    "lifecycle_write_guard",
+    "live_execution_adapter",
+    "live_execution_service",
+    "post_write_reconciliation"
+  ],
+  "missing_gate_chain": [
+    "approval_snapshot",
+    "admission_audit",
+    "cap_guard_decision",
+    "reconciliation_plan",
+    "lifecycle_write_guard",
+    "live_execution_disabled"
+  ],
+  "proof_route_count": 5,
+  "blocking_proof_route_count": 5,
+  "proof_records_created": false,
+  "approval_store_mutated": false,
+  "admission_audit_store_mutated": false,
+  "cap_guard_store_mutated": false,
+  "reconciliation_plan_store_mutated": false,
+  "proof_routes": [
+    {
+      "gate": "approval",
+      "route": "/api/v1/admin/approvals/requests",
+      "method": "POST",
+      "required_permission": "approval:request",
+      "shared_method": "create_approval_request",
+      "identity_key": "stealth_order_id",
+      "command_identity_key": "stealth_order_id",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    },
+    {
+      "gate": "approval",
+      "route": "/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+      "method": "POST",
+      "required_permission": "approval:manage",
+      "shared_method": "decide_approval_request",
+      "identity_key": "approval_request_id",
+      "command_identity_key": "stealth_order_id",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    },
+    {
+      "gate": "audit",
+      "route": "/api/v1/admin/admission-audits",
+      "method": "POST",
+      "required_permission": "admission_audit:record",
+      "shared_method": "record_admission_audit",
+      "identity_key": "stealth_order_id",
+      "command_identity_key": "stealth_order_id",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    },
+    {
+      "gate": "cap_guard",
+      "route": "/api/v1/admin/cap-guard/decisions",
+      "method": "POST",
+      "required_permission": "cap_guard:record",
+      "shared_method": "record_cap_guard_decision",
+      "identity_key": "stealth_order_id",
+      "command_identity_key": "stealth_order_id",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    },
+    {
+      "gate": "reconciliation",
+      "route": "/api/v1/admin/reconciliation/plans",
+      "method": "POST",
+      "required_permission": "reconciliation:record",
+      "shared_method": "record_reconciliation_plan",
+      "identity_key": "stealth_order_id",
+      "command_identity_key": "stealth_order_id",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ],
   "required_contracts": [
     "stealth_create_guard_contract",
     "stealth_create_admission_audit",
@@ -88,8 +175,12 @@ Each row uses `stealth_order_id` as `identity_key`. Create is a
 `live_disabled`, and evidence that `StealthOrderManager` was not invoked. The
 create lifecycle-write audit is command-suite evidence only: it does not write
 stealth rows, write `order_parent`, dispatch lifecycle events, execute
-reconciliation, submit Coinbase orders, read Coinbase, or grant browser/BFF
-lifecycle-write authority.
+reconciliation, submit Coinbase orders, read Coinbase, create approval,
+admission-audit, cap/guard, or reconciliation proof records, or grant
+browser/BFF lifecycle-write authority. The audit lists the five backend proof
+routes required before future create execution can be considered:
+approval request, approval decision, admission audit, cap/guard decision, and
+reconciliation plan.
 Reveal is a `live_exchange_place` draft route with
 `exchange_truth_required=true`, `active_placement_evidence_required=false`,
 and evidence that `reveal_order_slice`, `StealthOrderManager`, Coinbase
