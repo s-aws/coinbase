@@ -179,7 +179,13 @@ lifecycle/trigger, live adapter, and reconciliation gates exist. The stealth
 detail route may expose `reveal_trigger_audit` for local reveal-condition
 evidence, but command workflows must not treat that panel as trigger
 evaluation, `should_trigger_reveal`, `reveal_order_slice`, Coinbase
-submission, lifecycle mutation, or browser/BFF reveal authority. Move is a
+submission, lifecycle mutation, or browser/BFF reveal authority. The same
+detail route may expose `reveal_submission_audit` for the future backend
+reveal route, shared service method, manager method, local active-placement
+evidence, and missing submission/reconciliation contracts, but command
+workflows must not treat that panel as `reveal_order_slice` execution,
+Coinbase submission/cancellation, active-placement creation, reconciliation
+execution, lifecycle mutation, or browser/BFF reveal authority. Move is a
 cancel/replace-shaped draft that returns no-live evidence only; it must not
 call `build_stealth_move_plan`, `execute_stealth_move`, or
 `StealthOrderManager`, submit/cancel Coinbase orders, perform cancel/replace,

@@ -1374,6 +1374,21 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "trigger_evaluation_ran" in reveal_trigger_audit_schema["properties"]
     assert "reveal_order_slice_called" in reveal_trigger_audit_schema["properties"]
     assert "coinbase_order_submit_ran" in reveal_trigger_audit_schema["properties"]
+    assert "reveal_submission_audit" in stealth_detail_schema["properties"]
+    assert "AdminStealthRevealSubmissionAuditEvidence" in written["components"][
+        "schemas"
+    ]
+    reveal_submission_audit_schema = written["components"]["schemas"][
+        "AdminStealthRevealSubmissionAuditEvidence"
+    ]
+    assert "command_route" in reveal_submission_audit_schema["properties"]
+    assert "reveal_manager_method" in reveal_submission_audit_schema["properties"]
+    assert "submission_adapter_configured" in reveal_submission_audit_schema[
+        "properties"
+    ]
+    assert "reveal_order_slice_called" in reveal_submission_audit_schema["properties"]
+    assert "coinbase_order_submit_ran" in reveal_submission_audit_schema["properties"]
+    assert "active_placement_created" in reveal_submission_audit_schema["properties"]
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
@@ -4718,7 +4733,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2121-2140"
+    assert payload["approved_phase_range"] == "2141-2160"
     assert payload["command_count"] == 5
     assert payload["blocked_command_count"] == 5
     assert payload["live_enabled_command_count"] == 0
@@ -5818,7 +5833,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2121-2140"
+    assert live_payload["approved_phase_range"] == "2141-2160"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6381,7 +6396,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2121-2140"
+    assert enterprise_payload["approved_phase_range"] == "2141-2160"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6964,7 +6979,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2121-2140"
+    assert recovery_preview_payload["approved_phase_range"] == "2141-2160"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -9221,6 +9236,54 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
                 "bff_authority": "forward_only_no_execution",
                 "detail": "Reveal-trigger audit remains no-live.",
             },
+            "reveal_submission_audit": {
+                "stealth_order_id": stealth_order_id,
+                "status": AdminApiGateStatus.BLOCKED.value,
+                "command_route": "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+                "service_method": "reveal_stealth_order_by_stealth_order_id",
+                "reveal_manager_method": (
+                    "core/stealth_order_manager.py::reveal_order_slice"
+                ),
+                "submission_adapter_configured": False,
+                "route_bound": True,
+                "backend_owned": True,
+                "existing_active_placement_present": True,
+                "active_placement_client_order_id": "placement-client-1",
+                "active_exchange_order_id": "exchange-evidence-1",
+                "exchange_order_id_evidence_only": True,
+                "reveal_order_slice_called": False,
+                "coinbase_order_submit_ran": False,
+                "coinbase_order_cancel_submitted": False,
+                "live_coinbase_read_ran": False,
+                "active_placement_created": False,
+                "lifecycle_mutation_allowed": False,
+                "reconciliation_required": True,
+                "reconciliation_executed": False,
+                "required_for_mutation_families": [
+                    AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+                ],
+                "read_evidence_routes": [
+                    "/api/v1/stealth/orders/{stealth_order_id}",
+                    "/api/v1/stealth/command-suite",
+                ],
+                "required_contracts": [
+                    "stealth_reveal_exchange_submission_adapter",
+                    "stealth_reveal_reconciliation_proof",
+                ],
+                "missing_contracts": [
+                    "stealth_reveal_exchange_submission_adapter",
+                    "stealth_reveal_reconciliation_proof",
+                ],
+                "blockers": [
+                    "existing_active_placement_local_evidence_present",
+                    "stealth_reveal_exchange_submission_adapter_missing",
+                    "stealth_reveal_reconciliation_proof_missing",
+                    "live_execution_disabled",
+                ],
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "detail": "Reveal submission-adapter audit remains no-live.",
+            },
             "read_only": True,
             "command_routes_mode": AdminApiCommandRoutesMode.LIVE_DISABLED.value,
             "live_coinbase_orders_ran": False,
@@ -9304,6 +9367,43 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
     assert reveal_trigger_audit["required_contracts"] == (
         reveal_trigger_audit["missing_contracts"]
     )
+    reveal_submission_audit = detail_response.json()["reveal_submission_audit"]
+    assert reveal_submission_audit["command_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    )
+    assert reveal_submission_audit["service_method"] == (
+        "reveal_stealth_order_by_stealth_order_id"
+    )
+    assert reveal_submission_audit["reveal_manager_method"].endswith(
+        "::reveal_order_slice"
+    )
+    assert reveal_submission_audit["submission_adapter_configured"] is False
+    assert reveal_submission_audit["route_bound"] is True
+    assert reveal_submission_audit["backend_owned"] is True
+    assert reveal_submission_audit["existing_active_placement_present"] is True
+    assert reveal_submission_audit["active_placement_client_order_id"] == (
+        "placement-client-1"
+    )
+    assert reveal_submission_audit["active_exchange_order_id"] == "exchange-evidence-1"
+    assert reveal_submission_audit["reveal_order_slice_called"] is False
+    assert reveal_submission_audit["coinbase_order_submit_ran"] is False
+    assert reveal_submission_audit["coinbase_order_cancel_submitted"] is False
+    assert reveal_submission_audit["live_coinbase_read_ran"] is False
+    assert reveal_submission_audit["active_placement_created"] is False
+    assert reveal_submission_audit["lifecycle_mutation_allowed"] is False
+    assert reveal_submission_audit["reconciliation_required"] is True
+    assert reveal_submission_audit["reconciliation_executed"] is False
+    assert reveal_submission_audit["required_for_mutation_families"] == [
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+    ]
+    assert reveal_submission_audit["required_contracts"] == (
+        reveal_submission_audit["missing_contracts"]
+    )
+    assert "existing_active_placement_local_evidence_present" in (
+        reveal_submission_audit["blockers"]
+    )
+    assert reveal_submission_audit["browser_authority"] == "display_only"
+    assert reveal_submission_audit["bff_authority"] == "forward_only_no_execution"
     assert detail_response.json()["live_coinbase_orders_ran"] is False
 
 
@@ -9446,6 +9546,39 @@ def test_admin_api_stealth_read_service_maps_placement_and_exchange_evidence(mon
     ]
     assert trigger_audit.required_contracts == trigger_audit.missing_contracts
     assert "stealth_reveal_trigger_guard_missing" in trigger_audit.blockers
+    assert detail_response.reveal_submission_audit is not None
+    submission_audit = detail_response.reveal_submission_audit
+    assert submission_audit.status == AdminApiGateStatus.BLOCKED
+    assert submission_audit.command_route == (
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    )
+    assert submission_audit.service_method == "reveal_stealth_order_by_stealth_order_id"
+    assert submission_audit.reveal_manager_method.endswith("::reveal_order_slice")
+    assert submission_audit.submission_adapter_configured is False
+    assert submission_audit.route_bound is True
+    assert submission_audit.backend_owned is True
+    assert submission_audit.existing_active_placement_present is True
+    assert submission_audit.active_placement_client_order_id == "placement-client-active"
+    assert submission_audit.active_exchange_order_id == "exchange-active"
+    assert submission_audit.exchange_order_id_evidence_only is True
+    assert submission_audit.reveal_order_slice_called is False
+    assert submission_audit.coinbase_order_submit_ran is False
+    assert submission_audit.coinbase_order_cancel_submitted is False
+    assert submission_audit.live_coinbase_read_ran is False
+    assert submission_audit.active_placement_created is False
+    assert submission_audit.lifecycle_mutation_allowed is False
+    assert submission_audit.reconciliation_required is True
+    assert submission_audit.reconciliation_executed is False
+    assert submission_audit.required_for_mutation_families == [
+        AdminApiMutationFamilyType.STEALTH_REVEAL,
+    ]
+    assert submission_audit.required_contracts == submission_audit.missing_contracts
+    assert "existing_active_placement_local_evidence_present" in (
+        submission_audit.blockers
+    )
+    assert "stealth_reveal_exchange_submission_adapter_missing" in (
+        submission_audit.blockers
+    )
     assert detail_response.live_coinbase_orders_ran is False
 
 
@@ -9518,6 +9651,24 @@ def test_admin_api_stealth_read_service_does_not_promote_historical_reveals_to_a
     assert trigger_audit.coinbase_order_submit_ran is False
     assert trigger_audit.lifecycle_mutation_allowed is False
     assert "reveal_condition_local_evidence_missing" in trigger_audit.blockers
+    assert detail_response.reveal_submission_audit is not None
+    submission_audit = detail_response.reveal_submission_audit
+    assert submission_audit.existing_active_placement_present is False
+    assert submission_audit.active_placement_client_order_id is None
+    assert submission_audit.active_exchange_order_id is None
+    assert submission_audit.reveal_order_slice_called is False
+    assert submission_audit.coinbase_order_submit_ran is False
+    assert submission_audit.coinbase_order_cancel_submitted is False
+    assert submission_audit.live_coinbase_read_ran is False
+    assert submission_audit.active_placement_created is False
+    assert submission_audit.lifecycle_mutation_allowed is False
+    assert submission_audit.reconciliation_executed is False
+    assert "existing_active_placement_local_evidence_present" not in (
+        submission_audit.blockers
+    )
+    assert "stealth_reveal_exchange_submission_adapter_missing" in (
+        submission_audit.blockers
+    )
 
 
 @pytest.mark.regression

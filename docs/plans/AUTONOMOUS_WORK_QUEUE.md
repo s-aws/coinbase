@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2121-2140**.
+- Approved phase range: **2141-2160**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,116 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2121-2140
+## Active Phases 2141-2160
+
+These phases continue M55 after the reveal-trigger audit. The next explicit
+architecture gap is backend-owned reveal exchange submission-adapter evidence
+on the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail route.
+The audit may expose the future backend reveal route, service method, manager
+method, local active-placement evidence, reconciliation requirement, and
+blocked submission contracts. It must not call `reveal_order_slice`, submit
+Coinbase orders, cancel Coinbase orders, create active placements, read
+Coinbase, mutate lifecycle state, execute reconciliation, or grant browser/BFF
+authority.
+
+### Phase 2141 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2121-2140 to active
+  phases 2141-2160 while preserving no-live defaults and cap policy.
+
+### Phase 2142 - Submission Adapter Audit Scope
+
+- Define reveal submission-adapter evidence as detail-route read evidence
+  only, not a reveal executor, exchange submission path, or approval gate.
+
+### Phase 2143 - Response Model Extension
+
+- Add a typed reveal submission-adapter audit object to the existing stealth
+  detail response.
+
+### Phase 2144 - Local Placement Evidence Mapping
+
+- Populate active-placement presence, placement client id, and exchange-id
+  evidence from existing stealth row evidence without Coinbase reads.
+
+### Phase 2145 - Backend Path Evidence
+
+- Report the route, shared command service method, and existing manager method
+  that future execution must use.
+
+### Phase 2146 - Manager Invocation Guard
+
+- Report `reveal_order_slice` as not called and no active placement created.
+
+### Phase 2147 - Coinbase Submission Guard
+
+- Report Coinbase submit, cancel, and read activity as not run.
+
+### Phase 2148 - Reconciliation And Lifecycle Guard
+
+- Keep reconciliation required but not executed, and lifecycle mutation not
+  allowed.
+
+### Phase 2149 - Existing Placement Blocker
+
+- Mark local active-placement evidence as a blocker for reveal submission
+  readiness so duplicate placement risk is visible.
+
+### Phase 2150 - Required Contract Matrix
+
+- Expose `stealth_reveal_exchange_submission_adapter` and
+  `stealth_reveal_reconciliation_proof` as required missing contracts.
+
+### Phase 2151 - Generated Backend Artifacts
+
+- Regenerate OpenAPI after the stealth detail response model changes.
+
+### Phase 2152 - Backend Focused Tests
+
+- Cover generated schema, route serialization, active-placement present/missing
+  cases, no-live posture, and blocked lifecycle mutation.
+
+### Phase 2153 - Frontend Schema Intake
+
+- Regenerate frontend TypeScript schema from backend OpenAPI without
+  hand-editing generated files.
+
+### Phase 2154 - Frontend Adapter Mapping
+
+- Map reveal submission-adapter audit evidence into the stealth read model.
+
+### Phase 2155 - Frontend Detail Rendering
+
+- Render the audit in the selected stealth detail area without adding reveal,
+  placement, cancellation, or command controls.
+
+### Phase 2156 - Mock Runtime Sync
+
+- Mirror active-placement-present submission audit cases in local/mock
+  fixtures.
+
+### Phase 2157 - Quality Artifact Sync
+
+- Update autonomous, release, deployment, and runtime evidence for phases
+  2141-2160.
+
+### Phase 2158 - Documentation And Examples
+
+- Update feature docs and examples for reveal submission-adapter audit evidence
+  and no-live/no-submit boundaries.
+
+### Phase 2159 - Blind/Contextless Review
+
+- Run blind/contextless review proving the audit is understandable without
+  chat history and does not create unsafe authority.
+
+### Phase 2160 - Final Gates, Push, And Next Range
+
+- Run backend regression, frontend release gate, required smoke checks, and
+  push synchronized repos. Create the next milestone-linked active range only
+  if M55 still has an approved gap.
+
+## Completed Phases 2121-2140
 
 These phases continue M55 after the mutation-claim audit. The next explicit
 architecture gap is backend-owned reveal-trigger audit evidence on the
@@ -164,6 +273,17 @@ reconciliation, or grant browser/BFF authority.
 - Run backend regression, frontend release gate, required smoke checks, and
   push synchronized repos. Create the next milestone-linked active range only
   if M55 still has an approved gap.
+
+Completion evidence:
+
+- Added backend-owned reveal-trigger audit evidence to
+  `GET /api/v1/stealth/orders/{stealth_order_id}`.
+- Mirrored the audit in frontend generated schema, adapter, mocks, selected
+  detail UI, docs, tests, quality artifacts, and autonomous validators.
+- Preserved submitted/executed notional `$0` and did not evaluate triggers,
+  call `should_trigger_reveal`, call `reveal_order_slice`, submit Coinbase
+  orders, mutate lifecycle state, execute reconciliation, add a new endpoint,
+  or grant browser/BFF trigger authority.
 
 ## Completed Phases 2101-2120
 

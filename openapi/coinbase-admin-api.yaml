@@ -11855,6 +11855,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminStealthRevealTriggerAuditEvidence'
           - type: 'null'
+        reveal_submission_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminStealthRevealSubmissionAuditEvidence'
+          - type: 'null'
         read_only:
           type: boolean
           title: Read Only
@@ -12078,6 +12082,132 @@ components:
       - stealth_order_id
       title: AdminStealthOrderReadItem
       description: Read-only stealth order evidence from ``stealth_orders``.
+    AdminStealthRevealSubmissionAuditEvidence:
+      properties:
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        command_route:
+          type: string
+          title: Command Route
+          default: /api/v1/stealth/orders/{stealth_order_id}/reveal
+        service_method:
+          type: string
+          title: Service Method
+          default: reveal_stealth_order_by_stealth_order_id
+        reveal_manager_method:
+          type: string
+          title: Reveal Manager Method
+          default: core/stealth_order_manager.py::reveal_order_slice
+        submission_adapter_configured:
+          type: boolean
+          title: Submission Adapter Configured
+          default: false
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        existing_active_placement_present:
+          type: boolean
+          title: Existing Active Placement Present
+          default: false
+        active_placement_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Placement Client Order Id
+        active_exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Active Exchange Order Id
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        reveal_order_slice_called:
+          type: boolean
+          title: Reveal Order Slice Called
+          default: false
+        coinbase_order_submit_ran:
+          type: boolean
+          title: Coinbase Order Submit Ran
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        active_placement_created:
+          type: boolean
+          title: Active Placement Created
+          default: false
+        lifecycle_mutation_allowed:
+          type: boolean
+          title: Lifecycle Mutation Allowed
+          default: false
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        required_for_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Required For Mutation Families
+        read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Read Evidence Routes
+        required_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Contracts
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - detail
+      title: AdminStealthRevealSubmissionAuditEvidence
+      description: Read-only reveal submission-adapter evidence for stealth detail
+        views.
     AdminStealthRevealTriggerAuditEvidence:
       properties:
         stealth_order_id:

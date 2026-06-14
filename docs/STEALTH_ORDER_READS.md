@@ -69,6 +69,12 @@ These panels are read evidence only:
   payload plus missing trigger-guard contracts; it does not evaluate triggers,
   call `should_trigger_reveal`, call `reveal_order_slice`, submit Coinbase
   orders, mutate lifecycle state, or authorize browser/BFF reveal execution.
+- `reveal_submission_audit` reports the future backend reveal route, shared
+  service method, manager method, local active-placement evidence, missing
+  submission/reconciliation contracts, and no-live flags; it does not call
+  `reveal_order_slice`, create active placements, submit or cancel Coinbase
+  orders, read Coinbase, execute reconciliation, mutate lifecycle state, or
+  authorize browser/BFF reveal execution.
 
 ## Exchange-Truth Boundary
 

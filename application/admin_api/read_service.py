@@ -118,6 +118,7 @@ from .models import (
     AdminStealthActivePlacementAuditEvidence,
     AdminStealthMutationClaimAuditEvidence,
     AdminStealthRevealTriggerAuditEvidence,
+    AdminStealthRevealSubmissionAuditEvidence,
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
@@ -173,7 +174,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2121-2140"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2141-2160"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1391,6 +1392,63 @@ def _stealth_reveal_trigger_audit(
             "It does not evaluate live triggers, call should_trigger_reveal, "
             "call reveal_order_slice, submit Coinbase orders, mutate lifecycle "
             "state, or authorize browser/BFF execution."
+        ),
+    )
+
+
+def _stealth_reveal_submission_audit(
+    item: AdminStealthOrderReadItem,
+) -> AdminStealthRevealSubmissionAuditEvidence:
+    required_contracts = [
+        "stealth_reveal_exchange_submission_adapter",
+        "stealth_reveal_reconciliation_proof",
+    ]
+    existing_active_placement_present = bool(item.active_placement_client_order_id)
+    blockers = [
+        "stealth_reveal_exchange_submission_adapter_missing",
+        "stealth_reveal_reconciliation_proof_missing",
+        "live_execution_disabled",
+    ]
+    if existing_active_placement_present:
+        blockers.insert(0, "existing_active_placement_local_evidence_present")
+
+    return AdminStealthRevealSubmissionAuditEvidence(
+        stealth_order_id=item.stealth_order_id,
+        status=AdminApiGateStatus.BLOCKED,
+        command_route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        service_method="reveal_stealth_order_by_stealth_order_id",
+        reveal_manager_method="core/stealth_order_manager.py::reveal_order_slice",
+        submission_adapter_configured=False,
+        route_bound=True,
+        backend_owned=True,
+        existing_active_placement_present=existing_active_placement_present,
+        active_placement_client_order_id=item.active_placement_client_order_id,
+        active_exchange_order_id=item.active_exchange_order_id,
+        exchange_order_id_evidence_only=True,
+        reveal_order_slice_called=False,
+        coinbase_order_submit_ran=False,
+        coinbase_order_cancel_submitted=False,
+        live_coinbase_read_ran=False,
+        active_placement_created=False,
+        lifecycle_mutation_allowed=False,
+        reconciliation_required=True,
+        reconciliation_executed=False,
+        required_for_mutation_families=[AdminApiMutationFamilyType.STEALTH_REVEAL],
+        read_evidence_routes=[
+            "/api/v1/stealth/orders/{stealth_order_id}",
+            "/api/v1/stealth/command-suite",
+        ],
+        required_contracts=required_contracts,
+        missing_contracts=list(required_contracts),
+        blockers=blockers,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=(
+            "Reveal submission-adapter audit maps the future backend-owned "
+            "reveal path and local active-placement evidence only. It does "
+            "not call reveal_order_slice, submit Coinbase orders, cancel "
+            "placements, create active placements, mutate lifecycle state, "
+            "execute reconciliation, or authorize browser/BFF execution."
         ),
     )
 
@@ -7463,6 +7521,9 @@ class AdminApiReadService:
             ),
             reveal_trigger_audit=(
                 _stealth_reveal_trigger_audit(item) if item else None
+            ),
+            reveal_submission_audit=(
+                _stealth_reveal_submission_audit(item) if item else None
             ),
         )
 

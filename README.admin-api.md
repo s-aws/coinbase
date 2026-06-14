@@ -201,6 +201,13 @@ trigger-guard contracts, and fail-closed no-live flags. It does not evaluate
 triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
 Coinbase orders, mutate lifecycle state, execute reconciliation, or grant
 browser/BFF reveal authority.
+The same detail route also exposes `reveal_submission_audit` as read-only
+evidence for the future backend reveal submission adapter. It reports the
+route, shared service method, manager method, local active-placement evidence,
+missing submission/reconciliation contracts, and fail-closed no-live flags. It
+does not call `reveal_order_slice`, create active placements, submit or cancel
+Coinbase orders, read Coinbase, mutate lifecycle state, execute
+reconciliation, or grant browser/BFF reveal authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -480,6 +487,12 @@ The platform/module split is documented in
   missing trigger contracts, and no-live Coinbase flags without evaluating
   triggers, calling `should_trigger_reveal`, calling `reveal_order_slice`, or
   turning condition state into browser/BFF command authority.
+- Stealth detail rows also include `reveal_submission_audit` so operators can
+  see the future backend reveal route, shared service method, manager method,
+  local active-placement blockers, required submission/reconciliation
+  contracts, and no-live Coinbase flags without calling `reveal_order_slice`,
+  submitting or cancelling Coinbase orders, creating active placements, or
+  turning placement evidence into browser/BFF command authority.
 - Movement/repricing read rows combine durable `order_moves`,
   `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
   evidence. Runtime mutation claims and pending replacement claims are shown

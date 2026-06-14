@@ -1713,6 +1713,43 @@ class AdminStealthRevealTriggerAuditEvidence(BaseModel):
     detail: str
 
 
+class AdminStealthRevealSubmissionAuditEvidence(BaseModel):
+    """Read-only reveal submission-adapter evidence for stealth detail views."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    command_route: str = "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    service_method: str = "reveal_stealth_order_by_stealth_order_id"
+    reveal_manager_method: str = "core/stealth_order_manager.py::reveal_order_slice"
+    submission_adapter_configured: bool = False
+    route_bound: bool = True
+    backend_owned: bool = True
+    existing_active_placement_present: bool = False
+    active_placement_client_order_id: str | None = None
+    active_exchange_order_id: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    reveal_order_slice_called: bool = False
+    coinbase_order_submit_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_coinbase_read_ran: bool = False
+    active_placement_created: bool = False
+    lifecycle_mutation_allowed: bool = False
+    reconciliation_required: bool = True
+    reconciliation_executed: bool = False
+    required_for_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    read_evidence_routes: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminStealthOrderDetailResponse(BaseModel):
     """Read-only stealth detail response keyed by ``stealth_order_id``."""
 
@@ -1725,6 +1762,7 @@ class AdminStealthOrderDetailResponse(BaseModel):
     active_placement_audit: AdminStealthActivePlacementAuditEvidence | None = None
     mutation_claim_audit: AdminStealthMutationClaimAuditEvidence | None = None
     reveal_trigger_audit: AdminStealthRevealTriggerAuditEvidence | None = None
+    reveal_submission_audit: AdminStealthRevealSubmissionAuditEvidence | None = None
     read_only: bool = True
     command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False

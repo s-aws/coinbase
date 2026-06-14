@@ -38,7 +38,114 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Reveal-Trigger Audit Batch - Phases 2121-2140
+## Active M55 Reveal Submission-Adapter Audit Batch - Phases 2141-2160
+
+This batch continues M55 after the reveal-trigger audit. The backend may
+extend the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail
+response with a typed reveal submission-adapter audit block. The audit is
+read-only evidence for the future backend reveal route, shared service method,
+manager method, local active-placement evidence, no-live submission flags,
+required reconciliation proof, and missing adapter contracts. It does not add
+a new endpoint, call `reveal_order_slice`, submit Coinbase orders, cancel
+Coinbase orders, create active placements, read Coinbase, mutate lifecycle
+state, execute reconciliation, authorize browser/BFF execution, or bypass the
+existing stealth lifecycle path.
+
+### Phase 2141 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2121-2140 to active
+  phases 2141-2160 while preserving no-live defaults and cap policy.
+
+### Phase 2142 - Detail Audit Scope
+
+- Define reveal submission-adapter audit evidence as part of the existing
+  stealth detail read contract.
+
+### Phase 2143 - Typed Audit Model
+
+- Add a response model for route/service/manager evidence, local
+  active-placement evidence, missing submission contracts, and authority
+  flags.
+
+### Phase 2144 - Local Evidence Mapping
+
+- Populate existing active placement presence, placement client id, and
+  exchange-id evidence from the stealth row without Coinbase reads.
+
+### Phase 2145 - Backend Path Evidence
+
+- Report the existing HTTP route, shared service method, and manager method
+  that future reveal execution must use.
+
+### Phase 2146 - Manager Invocation Flags
+
+- Report `reveal_order_slice` and active-placement creation as not run.
+
+### Phase 2147 - Coinbase Submission Flags
+
+- Report Coinbase submit, cancel, and read activity as not run.
+
+### Phase 2148 - Reconciliation Flags
+
+- Report reconciliation as required but not executed, and lifecycle mutation as
+  not allowed.
+
+### Phase 2149 - Existing Placement Blocker
+
+- Expose local active-placement evidence as a reveal submission blocker.
+
+### Phase 2150 - Contract Matrix
+
+- Expose required missing `stealth_reveal_exchange_submission_adapter` and
+  `stealth_reveal_reconciliation_proof` contracts.
+
+### Phase 2151 - Generated Backend Artifacts
+
+- Regenerate OpenAPI after the detail response model changes.
+
+### Phase 2152 - Backend Tests
+
+- Cover schema, route serialization, active-placement present/missing cases,
+  and no-live/no-submit/no-mutation posture.
+
+### Phase 2153 - Frontend Schema Sync
+
+- Regenerate frontend schema from backend OpenAPI.
+
+### Phase 2154 - Frontend Adapter Mapping
+
+- Map reveal submission-adapter audit evidence into the stealth detail view
+  model.
+
+### Phase 2155 - Frontend Detail UI
+
+- Render the audit in the selected stealth detail and backend detail areas
+  without adding reveal, placement, cancellation, or command controls.
+
+### Phase 2156 - Mock Runtime Fixtures
+
+- Update mock fixtures for reveal submission-adapter audit evidence.
+
+### Phase 2157 - Command Workflow Context
+
+- Reference audit evidence from command workflow docs without enabling gates.
+
+### Phase 2158 - Docs And Examples
+
+- Document reveal submission-adapter audit boundaries and no-live/no-submit
+  posture.
+
+### Phase 2159 - Blind/Contextless Review
+
+- Run contextless review for the audit contract and remediate blockers.
+
+### Phase 2160 - Final Gates, Push, And Next Range
+
+- Run backend regression, frontend release gate, smoke checks, and push both
+  repos. Create the next M55-linked range only if a concrete approved gap
+  remains.
+
+## Completed M55 Reveal-Trigger Audit Batch - Phases 2121-2140
 
 This batch continues M55 after the mutation-claim audit. The backend may
 extend the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail
@@ -140,6 +247,17 @@ execution, or bypass the existing stealth lifecycle path.
 - Run backend regression, frontend release gate, smoke checks, and push both
   repos. Create the next M55-linked range only if a concrete approved gap
   remains.
+
+Completion evidence:
+
+- Extended `GET /api/v1/stealth/orders/{stealth_order_id}` with a typed
+  reveal-trigger audit block.
+- Added generated schema, frontend mock/runtime/UI consumption, docs, tests,
+  quality artifacts, and autonomous validator updates.
+- Preserved no-live behavior: no trigger evaluation,
+  `should_trigger_reveal`, `reveal_order_slice`, Coinbase submission,
+  lifecycle mutation, reconciliation execution, browser authority, or BFF
+  execution authority.
 
 ## Completed M55 Mutation-Claim Audit Batch - Phases 2101-2120
 

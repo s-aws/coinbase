@@ -28,6 +28,9 @@ The route requires Admin API authentication and `analytics:read`. It returns
 - per-order reveal-trigger audit evidence on the stealth detail route so
   operators can inspect local reveal-condition evidence without triggering a
   reveal
+- per-order reveal submission-adapter audit evidence on the stealth detail
+  route so operators can inspect the future backend reveal path and local
+  placement blockers without submitting orders
 - no-live Coinbase posture with submitted/executed notional `0`
 
 Per-order active-placement audit evidence is exposed by
@@ -39,6 +42,12 @@ The same detail route exposes `mutation_claim_audit` as display-only runtime
 claim evidence for move and repricing families. It does not acquire, release,
 clear, or prove mutation claims, and it must not become a command input source
 or browser/BFF mutation authority.
+The detail route also exposes `reveal_submission_audit` as display-only
+evidence for the future backend reveal route, shared service method, manager
+method, active-placement blockers, and missing submission/reconciliation
+contracts. It does not call `reveal_order_slice`, create active placements,
+submit or cancel Coinbase orders, read Coinbase, execute reconciliation, or
+mutate lifecycle state.
 
 ## Safety Constraints
 
@@ -57,6 +66,10 @@ or browser/BFF mutation authority.
   triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
   Coinbase orders, mutate lifecycle state, or authorize browser/BFF reveal
   execution.
+- `reveal_submission_audit` is detail-route evidence only. It does not call
+  `reveal_order_slice`, create active placements, submit or cancel Coinbase
+  orders, read Coinbase, execute reconciliation, mutate lifecycle state, or
+  authorize browser/BFF reveal execution.
 
 ## References
 
