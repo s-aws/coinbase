@@ -6037,6 +6037,7 @@ components:
       - spot_recovery_exchange_state_proof
       - spot_recovery_reconciliation_proof
       - spot_recovery_reconciliation_completion
+      - spot_recovery_reconciliation_execution
       - stealth_cancel
       - movement_reprice
       - futures_contract_required
@@ -13966,6 +13967,219 @@ components:
       - detail
       title: SpotRecoveryProofRecordItem
       description: Read-only Spot recovery proof record evidence.
+    SpotRecoveryReconciliationExecutionBoundaryItem:
+      properties:
+        boundary_id:
+          type: string
+          title: Boundary Id
+        client_order_id:
+          type: string
+          title: Client Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          default: spot_recovery_reconciliation_execution
+        read_route:
+          type: string
+          title: Read Route
+          default: /api/v1/spot/recovery/reconciliation-proof
+        command_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Command Route
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        route_inventory_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: read_only
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+          default: audit:read
+        future_action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: local_state_mutation
+        future_required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Future Required Permission
+          default: spot_recovery:execute
+        service_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Service Method
+        required_inputs:
+          items:
+            type: string
+          type: array
+          title: Required Inputs
+        present_inputs:
+          items:
+            type: string
+          type: array
+          title: Present Inputs
+        missing_inputs:
+          items:
+            type: string
+          type: array
+          title: Missing Inputs
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Proof Id
+        completion_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Completion Id
+        repair_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Repair Result Id
+        journal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Journal Id
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Id
+        admission_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        payload_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payload Hash
+        operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Intent
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: false
+        noop_review_allowed:
+          type: boolean
+          title: Noop Review Allowed
+          default: true
+        local_state_reconciliation_allowed:
+          type: boolean
+          title: Local State Reconciliation Allowed
+          default: false
+        order_state_mutation_allowed:
+          type: boolean
+          title: Order State Mutation Allowed
+          default: false
+        exchange_state_mutation_allowed:
+          type: boolean
+          title: Exchange State Mutation Allowed
+          default: false
+        coinbase_rest_read_allowed:
+          type: boolean
+          title: Coinbase Rest Read Allowed
+          default: false
+        coinbase_order_submission_allowed:
+          type: boolean
+          title: Coinbase Order Submission Allowed
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - boundary_id
+      - client_order_id
+      - detail
+      title: SpotRecoveryReconciliationExecutionBoundaryItem
+      description: Fail-closed boundary for future Spot recovery reconciliation execution.
     SpotRecoveryReconciliationProofRecordRequest:
       properties:
         client_order_id:
@@ -14162,6 +14376,25 @@ components:
             $ref: '#/components/schemas/SpotRecoveryCompletionRecordItem'
           type: array
           title: Persisted Completions
+        reconciliation_execution_boundary_available:
+          type: boolean
+          title: Reconciliation Execution Boundary Available
+          default: true
+        reconciliation_execution_boundary_count:
+          type: integer
+          minimum: 0.0
+          title: Reconciliation Execution Boundary Count
+          default: 0
+        reconciliation_execution_boundaries:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryReconciliationExecutionBoundaryItem'
+          type: array
+          title: Reconciliation Execution Boundaries
+        latest_reconciliation_execution_boundary_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Reconciliation Execution Boundary Id
         latest_exchange_state_proof_id:
           anyOf:
           - type: string

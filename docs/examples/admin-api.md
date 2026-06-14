@@ -2173,7 +2173,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Read-only recovery reconciliation-proof contract evidence, including completion-state evidence from backend proof and execution-journal records; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
+          "detail": "Read-only recovery reconciliation-proof contract evidence, including completion-state and fail-closed execution-boundary evidence from backend proof, execution-journal, repair-result, and completion records; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
         },
         {
           "route": "/api/v1/admin/recovery-gate",
@@ -2206,7 +2206,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery post-apply reconciliation completion evidence exists. Proof persistence, execution journal evidence, guarded local repair-result evidence, state-repair taxonomy, repair-target evidence, pre-apply snapshots, dry-run repair plans, completion-state evidence, and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
+      "required_backend_contract": "Spot recovery post-apply reconciliation completion evidence and fail-closed execution-boundary evidence exist. Proof persistence, execution journal evidence, guarded local repair-result evidence, state-repair taxonomy, repair-target evidence, pre-apply snapshots, dry-run repair plans, completion-state evidence, execution-boundary evidence, and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2216,7 +2216,8 @@ X-Admin-Roles: viewer
         "admission_audit",
         "rollback_plan",
         "reconciliation_proof",
-        "post_apply_reconciliation_completion"
+        "post_apply_reconciliation_completion",
+        "reconciliation_execution_boundary"
       ],
       "missing_contracts": [],
       "backend_owned": true,
@@ -2228,7 +2229,7 @@ X-Admin-Roles: viewer
         "docs/OPERATOR_READ_MODELS.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and recovery POST contracts do not execute reconciliation, mutate order/exchange state, or call Coinbase. State-repair taxonomy, repair targets, pre-apply snapshots, dry-run repair plans, guarded repair-result journals, completion states, and guarded post-apply completion records are backend evidence only. Reconciliation execution must stay backend-owned before any recovery action can be considered exchange-complete."
+      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and recovery POST contracts do not execute reconciliation, mutate order/exchange state, or call Coinbase. State-repair taxonomy, repair targets, pre-apply snapshots, dry-run repair plans, guarded repair-result journals, completion states, guarded post-apply completion records, and execution-boundary rows are backend evidence only. Reconciliation execution must stay backend-owned before any recovery action can be considered exchange-complete."
     },
     {
       "family": "spot_reconciliation_workflow",
@@ -2255,7 +2256,7 @@ X-Admin-Roles: viewer
             "docs/COMMAND_WORKFLOWS.md",
             "docs/examples/admin-api.md"
           ],
-          "detail": "Existing read-only Admin API recovery reconciliation-proof contract route; it reads backend proof records but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
+          "detail": "Existing read-only Admin API recovery reconciliation-proof contract route; it reads backend proof and execution-boundary evidence but does not write proof records, execute reconciliation, mutate exchange state, or call Coinbase."
         },
         {
           "route": "/api/v1/admin/reconciliation/plans",
@@ -2288,10 +2289,12 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot-specific reconciliation execution/proof contract that can compare backend order state with Coinbase evidence without browser or BFF state mutation.",
+      "required_backend_contract": "Spot-specific reconciliation execution contract that can compare backend order state with Coinbase evidence after the execution boundary, route, service, and exchange evidence snapshot contracts exist without browser or BFF state mutation.",
       "required_gate_chain": [
         "route_inventory_contract",
         "reconciliation_plan",
+        "reconciliation_proof_contract",
+        "reconciliation_execution_boundary",
         "exchange_evidence_snapshot",
         "audit_link",
         "proof_persistence",
@@ -2310,7 +2313,7 @@ X-Admin-Roles: viewer
         "docs/examples/reconciliation-plans.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Reconciliation plan records are local-state evidence only. They do not execute reconciliation, mutate exchange/order state, or prove Coinbase state."
+      "detail": "Reconciliation plan records are local-state evidence only. The recovery reconciliation-proof read now exposes the blocked execution boundary, but plans and boundary evidence do not execute reconciliation, mutate exchange/order state, or prove Coinbase state."
     }
   ]
 }

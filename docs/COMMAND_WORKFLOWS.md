@@ -128,9 +128,12 @@ idempotency, and audit prerequisites match. Reconciliation-proof POST may also
 persist a guarded post-apply completion record when the existing proof, apply
 journal, repair-result, approval, admission audit, cap/guard,
 reconciliation-plan, idempotency, operator-intent, and payload-hash evidence
-matches exactly. The read routes and proof POST routes must not roll back
-order state, execute reconciliation, mutate order/exchange state, call
-Coinbase, or authorize browser/BFF recovery.
+matches exactly. The reconciliation-proof read route also exposes
+fail-closed reconciliation execution boundary rows keyed by `client_order_id`;
+these rows name the future required inputs and blockers but do not create an
+execution route or service. The read routes and proof POST routes must not
+roll back order state, execute reconciliation, mutate order/exchange state,
+call Coinbase, or authorize browser/BFF recovery.
 Accepted checkpoint records also expose read-only reconciliation-plan link
 evidence to `GET /api/v1/admin/reconciliation/plans` and
 `GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage

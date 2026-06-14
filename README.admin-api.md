@@ -146,8 +146,11 @@ repair-result journals and guarded post-apply reconciliation completion
 records. Completion records are append-only backend local evidence created
 only after matching proof, apply journal, repair-result, approval, admission
 audit, cap/guard, reconciliation-plan, idempotency, operator-intent, and
-payload-hash evidence. Order/exchange-state mutation, Coinbase reads,
-Coinbase submissions, and reconciliation execution remain blockers.
+payload-hash evidence. The reconciliation-proof readback also exposes
+fail-closed reconciliation execution boundary rows that name the future
+required inputs and remaining blockers. Order/exchange-state mutation,
+Coinbase reads, Coinbase submissions, and reconciliation execution remain
+blockers.
 Disabled POST contracts exist for recovery apply and rollback; proof POST
 contracts persist append-only backend local evidence only after route-bound
 approval, admission audit, cap/guard, reconciliation plan, idempotency, and
@@ -155,8 +158,9 @@ audit prerequisites match. Apply/rollback POST routes may persist guarded
 local repair-result evidence when the backend repair guard matches exactly.
 Reconciliation-proof POST may also persist a guarded completion record when
 the existing proof, apply journal, and repair-result chain matches exactly.
-These routes do not roll back order state, execute reconciliation, mutate
-order or exchange state, call Coinbase, or authorize browser/BFF recovery.
+These routes and their execution-boundary readback do not roll back order
+state, execute reconciliation, mutate order or exchange state, call Coinbase,
+or authorize browser/BFF recovery.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to

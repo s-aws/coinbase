@@ -6640,6 +6640,46 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
     assert reconciliation_proof.proof_persistence_available is True
     assert reconciliation_proof.persisted_proof_count == 0
     assert "exchange_state_snapshot_id" in reconciliation_proof.required_proof_fields
+    assert reconciliation_proof.reconciliation_execution_available is False
+    assert reconciliation_proof.reconciliation_execution_boundary_available is True
+    assert reconciliation_proof.reconciliation_execution_boundary_count >= 1
+    execution_boundary = reconciliation_proof.reconciliation_execution_boundaries[0]
+    assert execution_boundary.client_order_id == "client-order-preview"
+    assert execution_boundary.status == AdminApiGateStatus.BLOCKED
+    assert execution_boundary.mutation_family == (
+        AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION
+    )
+    assert execution_boundary.command_route is None
+    assert execution_boundary.service_method is None
+    assert execution_boundary.action_class == AdminApiActionClass.READ_ONLY
+    assert execution_boundary.required_permission == (
+        AdminApiPermission.AUDIT_READ
+    )
+    assert execution_boundary.future_action_class == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    assert execution_boundary.future_required_permission == (
+        AdminApiPermission.SPOT_RECOVERY_EXECUTE
+    )
+    assert "client_order_id" in execution_boundary.present_inputs
+    assert "completion_id" in execution_boundary.missing_inputs
+    assert "spot_reconciliation_execution_contract" in (
+        execution_boundary.missing_contracts
+    )
+    assert "spot_reconciliation_execution_contract_missing" in (
+        execution_boundary.blockers
+    )
+    assert execution_boundary.noop_review_allowed is True
+    assert execution_boundary.local_state_reconciliation_allowed is False
+    assert execution_boundary.order_state_mutation_allowed is False
+    assert execution_boundary.exchange_state_mutation_allowed is False
+    assert execution_boundary.coinbase_rest_read_allowed is False
+    assert execution_boundary.coinbase_order_submission_allowed is False
+    assert execution_boundary.reconciliation_executed is False
+    assert execution_boundary.coinbase_rest_read_ran is False
+    assert execution_boundary.live_coinbase_orders_ran is False
+    assert execution_boundary.browser_authority == "display_only"
+    assert execution_boundary.bff_authority == "forward_only_no_execution"
     assert "spot_reconciliation_execution_contract" in (
         reconciliation_proof.missing_contracts
     )
@@ -6737,6 +6777,16 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
             candidate["identity_key"] == "client_order_id"
             for candidate in body["candidates"]
         )
+        if path.endswith("/reconciliation-proof"):
+            assert body["reconciliation_execution_available"] is False
+            assert body["reconciliation_execution_boundary_available"] is True
+            assert body["reconciliation_execution_boundary_count"] >= 1
+            assert body["reconciliation_execution_boundaries"][0][
+                "client_order_id"
+            ] == "client-order-preview"
+            assert body["reconciliation_execution_boundaries"][0][
+                "reconciliation_executed"
+            ] is False
 
 
 @pytest.mark.regression
@@ -7675,6 +7725,58 @@ def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
     assert readback_payload["completion_states"][0]["fully_reconciled"] is True
     assert readback_payload["completion_states"][0]["state"] == (
         SpotRecoveryCompletionState.FULLY_RECONCILED.value
+    )
+    assert readback_payload["reconciliation_execution_available"] is False
+    assert readback_payload["reconciliation_execution_boundary_available"] is True
+    assert readback_payload["reconciliation_execution_boundary_count"] == 1
+    execution_boundary = readback_payload["reconciliation_execution_boundaries"][0]
+    assert execution_boundary["client_order_id"] == client_order_id
+    assert execution_boundary["status"] == AdminApiGateStatus.BLOCKED.value
+    assert execution_boundary["mutation_family"] == (
+        AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION.value
+    )
+    assert execution_boundary["completion_id"] == completion_id
+    assert execution_boundary["action_class"] == AdminApiActionClass.READ_ONLY.value
+    assert execution_boundary["required_permission"] == (
+        AdminApiPermission.AUDIT_READ.value
+    )
+    assert execution_boundary["future_action_class"] == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    )
+    assert execution_boundary["future_required_permission"] == (
+        AdminApiPermission.SPOT_RECOVERY_EXECUTE.value
+    )
+    assert execution_boundary["reconciliation_proof_id"] == (
+        reconciliation_body["reconciliation_proof_id"]
+    )
+    assert execution_boundary["reconciliation_plan_id"] == (
+        shared_reconciliation_plan_id
+    )
+    assert execution_boundary["approval_snapshot_id"] == shared_approval_id
+    assert execution_boundary["admission_audit_id"] == shared_admission_audit_id
+    assert execution_boundary["cap_guard_decision_id"] == shared_cap_guard_id
+    assert execution_boundary["idempotency_key"] == reconciliation_idempotency_key
+    assert execution_boundary["payload_hash"] == reconciliation_payload_hash
+    assert execution_boundary["operator_intent"] == "spot_recovery_contract_review"
+    assert execution_boundary["missing_inputs"] == []
+    assert "spot_reconciliation_execution_contract" in (
+        execution_boundary["missing_contracts"]
+    )
+    assert "spot_reconciliation_execution_route_missing" in (
+        execution_boundary["blockers"]
+    )
+    assert execution_boundary["route_bound"] is False
+    assert execution_boundary["read_only"] is True
+    assert execution_boundary["local_state_reconciliation_allowed"] is False
+    assert execution_boundary["order_state_mutation_allowed"] is False
+    assert execution_boundary["exchange_state_mutation_allowed"] is False
+    assert execution_boundary["coinbase_rest_read_allowed"] is False
+    assert execution_boundary["coinbase_order_submission_allowed"] is False
+    assert execution_boundary["reconciliation_executed"] is False
+    assert execution_boundary["coinbase_rest_read_ran"] is False
+    assert execution_boundary["live_coinbase_orders_ran"] is False
+    assert readback_payload["latest_reconciliation_execution_boundary_id"] == (
+        execution_boundary["boundary_id"]
     )
     assert "spot_reconciliation_execution_contract" in (
         readback_payload["missing_contracts"]

@@ -778,9 +778,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="optional read audit",
         shared_method="build_spot_recovery_reconciliation_proof",
         parity_test=(
-            "read-only spot recovery reconciliation-proof; no proof writing, "
-            "reconciliation execution, order/exchange-state mutation, Coinbase "
-            "read, or Coinbase REST placement"
+            "read-only spot recovery reconciliation-proof and execution "
+            "boundary evidence; no proof writing, reconciliation execution, "
+            "order/exchange-state mutation, Coinbase read, or Coinbase REST "
+            "placement"
         ),
     ),
     AdminApiRouteInventoryItem(

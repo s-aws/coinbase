@@ -132,6 +132,7 @@ from .models import (
     SpotRecoveryPreviewResponse,
     SpotRecoveryPreviewSourceItem,
     SpotRecoveryProofRecordItem,
+    SpotRecoveryReconciliationExecutionBoundaryItem,
     SpotRecoveryReconciliationProofResponse,
     SpotRecoveryRepairResultRecordItem,
     SpotRecoveryRepairTargetItem,
@@ -7923,7 +7924,7 @@ class AdminApiReadService:
                     "contracts with RBAC, idempotency, append-only audit "
                     "linkage, no-live execution journals, guarded post-apply "
                     "completion evidence, and fail-closed reconciliation "
-                    "execution posture."
+                    "execution boundary evidence."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
@@ -7938,6 +7939,7 @@ class AdminApiReadService:
                     "recovery_execution_journal",
                     "post_apply_reconciliation",
                     "post_apply_reconciliation_completion",
+                    "reconciliation_execution_boundary",
                 ],
                 missing_contracts=[],
                 spot_rule_boundary=spot_boundary,
@@ -7974,14 +7976,17 @@ class AdminApiReadService:
                     ]
                 ),
                 required_backend_contract=(
-                    "Spot-specific reconciliation execution/proof contract that "
-                    "can compare backend order state with Coinbase evidence without "
-                    "browser or BFF state mutation."
+                    "Spot-specific reconciliation execution contract that can "
+                    "compare backend order state with Coinbase evidence after "
+                    "the execution boundary, route, service, and exchange "
+                    "evidence snapshot contracts exist without browser or BFF "
+                    "state mutation."
                 ),
                 required_gate_chain=[
                     "route_inventory_contract",
                     "reconciliation_plan",
                     "reconciliation_proof_contract",
+                    "reconciliation_execution_boundary",
                     "exchange_evidence_snapshot",
                     "audit_link",
                     "proof_persistence",
@@ -7999,8 +8004,11 @@ class AdminApiReadService:
                 ],
                 detail=(
                     "Reconciliation plan records are local-state evidence only. "
-                    "They do not execute reconciliation, mutate exchange/order "
-                    "state, or make browser/BFF evidence authoritative."
+                    "The recovery reconciliation-proof read now exposes the "
+                    "blocked execution boundary, but plans and boundary "
+                    "evidence do not execute reconciliation, mutate "
+                    "exchange/order state, or make browser/BFF evidence "
+                    "authoritative."
                 ),
             ),
         ]
@@ -8030,6 +8038,7 @@ class AdminApiReadService:
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
                 "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview, apply-review, rollback-plan, reconciliation-proof, and execution-journal routes are backend-owned evidence while state repair and reconciliation execution remain blocked.",
+                "Spot recovery reconciliation-proof readback exposes the fail-closed reconciliation execution boundary before any executor route or service exists.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(
@@ -8880,6 +8889,195 @@ class AdminApiReadService:
             )
         return targets, snapshots, dry_run_plans, completion_states
 
+    def _spot_recovery_reconciliation_execution_boundaries(
+        self,
+        *,
+        candidates: list[SpotRecoveryContractCandidateItem],
+        proof_records: list[SpotRecoveryProofRecordItem],
+        execution_records: list[SpotRecoveryExecutionRecordItem],
+        repair_result_records: list[SpotRecoveryRepairResultRecordItem],
+        completion_records: list[SpotRecoveryCompletionRecordItem],
+    ) -> list[SpotRecoveryReconciliationExecutionBoundaryItem]:
+        required_inputs = [
+            "client_order_id",
+            "reconciliation_plan_id",
+            "reconciliation_proof_id",
+            "completion_id",
+            "approval_snapshot_id",
+            "admission_audit_id",
+            "cap_guard_decision_id",
+            "idempotency_key",
+            "payload_hash",
+            "operator_intent",
+        ]
+
+        def first_present(*values: str | None) -> str | None:
+            return next((value for value in values if value), None)
+
+        def attr(record: Any, name: str) -> str | None:
+            if record is None:
+                return None
+            return _string_or_none(getattr(record, name, None))
+
+        def first_record(
+            records: list[Any],
+            *,
+            preferred: str | None = None,
+        ) -> Any | None:
+            if preferred is None:
+                return records[0] if records else None
+            return next(
+                (record for record in records if bool(getattr(record, preferred))),
+                records[0] if records else None,
+            )
+
+        client_order_ids = {
+            candidate.identity_value
+            for candidate in candidates
+            if candidate.identity_key == "client_order_id"
+        }
+        client_order_ids.update(record.client_order_id for record in proof_records)
+        client_order_ids.update(record.client_order_id for record in execution_records)
+        client_order_ids.update(
+            record.client_order_id for record in repair_result_records
+        )
+        client_order_ids.update(record.client_order_id for record in completion_records)
+
+        boundaries: list[SpotRecoveryReconciliationExecutionBoundaryItem] = []
+        for client_order_id in sorted(client_order_ids):
+            related_completions = [
+                record
+                for record in completion_records
+                if record.client_order_id == client_order_id
+            ]
+            related_proofs = [
+                record
+                for record in proof_records
+                if record.client_order_id == client_order_id
+            ]
+            related_executions = [
+                record
+                for record in execution_records
+                if record.client_order_id == client_order_id
+            ]
+            related_repair_results = [
+                record
+                for record in repair_result_records
+                if record.client_order_id == client_order_id
+            ]
+            latest_completion = first_record(
+                related_completions,
+                preferred="post_apply_reconciliation_completed",
+            )
+            latest_proof = first_record(
+                related_proofs,
+                preferred="reconciliation_proof_id",
+            )
+            latest_execution = next(
+                (
+                    record
+                    for record in related_executions
+                    if record.mutation_family
+                    == AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+                ),
+                related_executions[0] if related_executions else None,
+            )
+            latest_repair_result = first_record(
+                related_repair_results,
+                preferred="repair_applied",
+            )
+
+            def evidence_value(name: str) -> str | None:
+                return first_present(
+                    attr(latest_completion, name),
+                    attr(latest_proof, name),
+                    attr(latest_repair_result, name),
+                    attr(latest_execution, name),
+                )
+
+            reconciliation_plan_id = evidence_value("reconciliation_plan_id")
+            reconciliation_proof_id = evidence_value("reconciliation_proof_id")
+            approval_snapshot_id = evidence_value("approval_snapshot_id")
+            admission_audit_id = evidence_value("admission_audit_id")
+            cap_guard_decision_id = evidence_value("cap_guard_decision_id")
+            idempotency_key = evidence_value("idempotency_key")
+            payload_hash = evidence_value("payload_hash")
+            operator_intent = evidence_value("operator_intent")
+            completion_id = attr(latest_completion, "completion_id")
+            repair_result_id = attr(latest_repair_result, "repair_result_id")
+            journal_id = first_present(
+                attr(latest_completion, "journal_id"),
+                attr(latest_execution, "journal_id"),
+            )
+            input_values = {
+                "client_order_id": client_order_id,
+                "reconciliation_plan_id": reconciliation_plan_id,
+                "reconciliation_proof_id": reconciliation_proof_id,
+                "completion_id": completion_id,
+                "approval_snapshot_id": approval_snapshot_id,
+                "admission_audit_id": admission_audit_id,
+                "cap_guard_decision_id": cap_guard_decision_id,
+                "idempotency_key": idempotency_key,
+                "payload_hash": payload_hash,
+                "operator_intent": operator_intent,
+            }
+            present_inputs = [
+                name for name in required_inputs if input_values.get(name)
+            ]
+            missing_inputs = [
+                name for name in required_inputs if name not in present_inputs
+            ]
+            boundary_id = _stable_read_id(
+                "spot-recovery-reconciliation-execution-boundary",
+                client_order_id,
+                str(reconciliation_plan_id or ""),
+                str(reconciliation_proof_id or ""),
+                str(completion_id or ""),
+            )
+            blockers = [
+                "spot_reconciliation_execution_contract_missing",
+                "spot_reconciliation_execution_route_missing",
+                "spot_reconciliation_execution_service_missing",
+                "coinbase_evidence_snapshot_contract_missing",
+                "browser_bff_execution_authority_rejected",
+            ]
+            blockers.extend(f"{name}_missing" for name in missing_inputs)
+            boundaries.append(
+                SpotRecoveryReconciliationExecutionBoundaryItem(
+                    boundary_id=boundary_id,
+                    client_order_id=client_order_id,
+                    reconciliation_plan_id=reconciliation_plan_id,
+                    reconciliation_proof_id=reconciliation_proof_id,
+                    completion_id=completion_id,
+                    repair_result_id=repair_result_id,
+                    journal_id=journal_id,
+                    approval_snapshot_id=approval_snapshot_id,
+                    admission_audit_id=admission_audit_id,
+                    cap_guard_decision_id=cap_guard_decision_id,
+                    idempotency_key=idempotency_key,
+                    payload_hash=payload_hash,
+                    operator_intent=operator_intent,
+                    required_inputs=required_inputs,
+                    present_inputs=present_inputs,
+                    missing_inputs=missing_inputs,
+                    blockers=blockers,
+                    missing_contracts=[
+                        "spot_reconciliation_execution_contract",
+                        "spot_reconciliation_execution_route",
+                        "spot_reconciliation_execution_service",
+                        "spot_exchange_evidence_snapshot_contract",
+                    ],
+                    detail=(
+                        "Spot recovery reconciliation execution is blocked. "
+                        "Completion/proof evidence may exist, but no backend "
+                        "execution route, execution service, Coinbase evidence "
+                        "snapshot contract, or browser/BFF execution authority "
+                        "is available."
+                    ),
+                )
+            )
+        return boundaries
+
     def build_spot_recovery_apply_review(
         self,
         *,
@@ -9141,6 +9339,15 @@ class AdminApiReadService:
             repair_result_records=persisted_repair_results,
             completion_records=persisted_completions,
         )
+        reconciliation_execution_boundaries = (
+            self._spot_recovery_reconciliation_execution_boundaries(
+                candidates=candidates,
+                proof_records=persisted_proofs,
+                execution_records=persisted_executions,
+                repair_result_records=persisted_repair_results,
+                completion_records=persisted_completions,
+            )
+        )
         latest_exchange_state_proof_id = next(
             (
                 record.exchange_state_proof_id
@@ -9230,6 +9437,18 @@ class AdminApiReadService:
             persisted_repair_results=persisted_repair_results,
             persisted_completion_count=len(persisted_completions),
             persisted_completions=persisted_completions,
+            reconciliation_execution_boundary_available=True,
+            reconciliation_execution_boundary_count=len(
+                reconciliation_execution_boundaries
+            ),
+            reconciliation_execution_boundaries=(
+                reconciliation_execution_boundaries
+            ),
+            latest_reconciliation_execution_boundary_id=(
+                reconciliation_execution_boundaries[0].boundary_id
+                if reconciliation_execution_boundaries
+                else None
+            ),
             latest_exchange_state_proof_id=latest_exchange_state_proof_id,
             latest_reconciliation_proof_id=latest_reconciliation_proof_id,
             latest_apply_journal_id=latest_apply_journal_id,

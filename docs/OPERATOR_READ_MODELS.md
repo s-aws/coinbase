@@ -36,9 +36,20 @@ reconciliation-proof routes expose gate dependencies, rollback prerequisites,
 and required proof fields for those same client-order-id candidates. The
 reconciliation-proof route also reads guarded post-apply completion evidence:
 `persisted_completion_count`, `persisted_completions`, `latest_completion_id`,
-and post-apply satisfied/completed counts. Those fields prove only that a
-backend-owned local completion record exists; they do not prove reconciliation
-execution or exchange-state mutation.
+post-apply satisfied/completed counts, and the fail-closed reconciliation
+execution boundary: `reconciliation_execution_boundary_available`,
+`reconciliation_execution_boundary_count`,
+`reconciliation_execution_boundaries`, and
+`latest_reconciliation_execution_boundary_id`. Completion fields prove only
+that a backend-owned local completion record exists. Boundary fields prove
+only that execution authority is still blocked until the backend execution
+route, service contract, Coinbase evidence snapshot contract, and exact input
+chain exist. Neither field group proves reconciliation execution or
+exchange-state mutation.
+Within each boundary row, `action_class` and `required_permission` describe
+the current read evidence route; `future_action_class` and
+`future_required_permission` describe the blocked executor contract that does
+not yet exist.
 
 The recovery read-contract routes do not:
 

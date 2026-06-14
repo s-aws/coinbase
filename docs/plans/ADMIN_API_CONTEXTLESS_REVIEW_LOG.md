@@ -3010,3 +3010,58 @@ Status:
   rerun after remediation before closeout.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## M54 Reconciliation Execution Boundary Review
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewers were not given chat history.
+
+Reviewer tasks:
+
+- verify guarded post-apply completion evidence is distinguishable from
+  reconciliation execution
+- verify execution-boundary rows are backend-owned, read-only, no-live, and
+  no-mutation evidence
+- verify browser/BFF code cannot treat boundary rows as reconciliation
+  authority
+- verify internal identity remains `client_order_id`
+
+Findings:
+
+- Backend blind review passed with no blockers. It confirmed boundary rows
+  are blocked evidence with no command route, no service method, no Coinbase
+  activity, no order/exchange-state mutation, and `client_order_id` identity.
+- Backend residual ambiguity was identified: `action_class` and
+  `required_permission` could be misread as current execution authority if not
+  separated from future executor metadata.
+- Frontend blind review initially found one blocker: the adapter no-live
+  predicate checked Coinbase/order/exchange flags but did not check
+  `live_exchange_submitted=false` before rendering no-live verified text.
+- Frontend re-review passed after remediation.
+
+Resolution:
+
+- Backend boundary rows now use `action_class=read_only` and
+  `required_permission=audit:read` for the current read evidence route, with
+  `future_action_class=local_state_mutation` and
+  `future_required_permission=spot_recovery:execute` for the blocked executor
+  contract.
+- Frontend adapter no-live verification now also requires
+  `live_exchange_submitted=false`.
+- Frontend tests now include a negative boundary row with
+  `live_exchange_submitted=true` and require the UI metric to downgrade to
+  `risk`.
+
+Status:
+
+- Backend autonomous queue check passed for approved phases `1941-1960`.
+- Backend focused recovery boundary checks passed.
+- Backend full regression passed with `820 passed, 1 warning`.
+- Frontend focused mock/adapter/UI checks passed with `20` tests.
+- Frontend full `npm run release:gate` passed with `203` unit tests and `3`
+  Playwright tests.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

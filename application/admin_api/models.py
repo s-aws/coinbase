@@ -2928,6 +2928,68 @@ class SpotRecoveryCompletionRecordItem(BaseModel):
     detail: str
 
 
+class SpotRecoveryReconciliationExecutionBoundaryItem(BaseModel):
+    """Fail-closed boundary for future Spot recovery reconciliation execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    boundary_id: str
+    client_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    mutation_family: AdminApiMutationFamilyType = (
+        AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION
+    )
+    read_route: str = "/api/v1/spot/recovery/reconciliation-proof"
+    command_route: str | None = None
+    method: str | None = None
+    route_inventory_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    action_class: AdminApiActionClass = AdminApiActionClass.READ_ONLY
+    required_permission: AdminApiPermission | str = (
+        AdminApiPermission.AUDIT_READ
+    )
+    future_action_class: AdminApiActionClass = (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    future_required_permission: AdminApiPermission | str = (
+        AdminApiPermission.SPOT_RECOVERY_EXECUTE
+    )
+    service_method: str | None = None
+    required_inputs: list[str] = Field(default_factory=list)
+    present_inputs: list[str] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)
+    reconciliation_plan_id: str | None = None
+    reconciliation_proof_id: str | None = None
+    completion_id: str | None = None
+    repair_result_id: str | None = None
+    journal_id: str | None = None
+    approval_snapshot_id: str | None = None
+    admission_audit_id: str | None = None
+    cap_guard_decision_id: str | None = None
+    idempotency_key: str | None = None
+    payload_hash: str | None = None
+    operator_intent: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    route_bound: bool = False
+    noop_review_allowed: bool = True
+    local_state_reconciliation_allowed: bool = False
+    order_state_mutation_allowed: bool = False
+    exchange_state_mutation_allowed: bool = False
+    coinbase_rest_read_allowed: bool = False
+    coinbase_order_submission_allowed: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    reconciliation_executed: bool = False
+    coinbase_rest_read_ran: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     """Read-only Spot recovery reconciliation-proof contract evidence."""
 
@@ -2962,6 +3024,12 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     persisted_repair_results: list[SpotRecoveryRepairResultRecordItem] = Field(default_factory=list)
     persisted_completion_count: int = Field(default=0, ge=0)
     persisted_completions: list[SpotRecoveryCompletionRecordItem] = Field(default_factory=list)
+    reconciliation_execution_boundary_available: bool = True
+    reconciliation_execution_boundary_count: int = Field(default=0, ge=0)
+    reconciliation_execution_boundaries: list[
+        SpotRecoveryReconciliationExecutionBoundaryItem
+    ] = Field(default_factory=list)
+    latest_reconciliation_execution_boundary_id: str | None = None
     latest_exchange_state_proof_id: str | None = None
     latest_reconciliation_proof_id: str | None = None
     latest_apply_journal_id: str | None = None
