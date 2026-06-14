@@ -1431,6 +1431,30 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]
     assert "commands" in stealth_command_suite_schema["properties"]
     assert "coverage_gaps" in stealth_command_suite_schema["properties"]
+    assert "create_lifecycle_write_audit" in stealth_command_suite_schema["properties"]
+    assert "StealthCreateLifecycleWriteAuditEvidence" in written["components"][
+        "schemas"
+    ]
+    create_lifecycle_write_audit_schema = written["components"]["schemas"][
+        "StealthCreateLifecycleWriteAuditEvidence"
+    ]
+    assert "manager_method" in create_lifecycle_write_audit_schema["properties"]
+    assert (
+        "lifecycle_write_contract_configured"
+        in create_lifecycle_write_audit_schema["properties"]
+    )
+    assert "manager_invocation_ran" in create_lifecycle_write_audit_schema[
+        "properties"
+    ]
+    assert "stealth_row_write_ran" in create_lifecycle_write_audit_schema[
+        "properties"
+    ]
+    assert "order_parent_write_ran" in create_lifecycle_write_audit_schema[
+        "properties"
+    ]
+    assert "local_lifecycle_mutation_ran" in create_lifecycle_write_audit_schema[
+        "properties"
+    ]
     assert "exchange_truth_required" in stealth_command_suite_schema["properties"]
     assert "exchange_truth_checks" in stealth_command_suite_schema["properties"]
     assert "exchange_truth_check_count" in stealth_command_suite_schema["properties"]
@@ -4751,7 +4775,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2161-2180"
+    assert payload["approved_phase_range"] == "2181-2200"
     assert payload["command_count"] == 5
     assert payload["blocked_command_count"] == 5
     assert payload["live_enabled_command_count"] == 0
@@ -4767,6 +4791,57 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["live_coinbase_read_ran"] is False
     assert payload["submitted_notional_usdc"] == "0"
     assert payload["executed_notional_usdc"] == "0"
+    create_lifecycle_write_audit = payload["create_lifecycle_write_audit"]
+    assert create_lifecycle_write_audit["mutation_family"] == (
+        AdminApiMutationFamilyType.STEALTH_CREATE.value
+    )
+    assert create_lifecycle_write_audit["command_route"] == "/api/v1/stealth/orders"
+    assert create_lifecycle_write_audit["service_method"] == "create_stealth_order"
+    assert create_lifecycle_write_audit["manager_method"] == (
+        "core/stealth_order_manager.py::create_stealth_order"
+    )
+    assert create_lifecycle_write_audit["identity_key"] == "stealth_order_id"
+    assert create_lifecycle_write_audit["accepted_command_identity_keys"] == [
+        "stealth_order_id"
+    ]
+    assert "order_id" in create_lifecycle_write_audit[
+        "rejected_command_identity_keys"
+    ]
+    assert create_lifecycle_write_audit["lifecycle_write_required"] is True
+    assert (
+        create_lifecycle_write_audit["lifecycle_write_contract_configured"] is False
+    )
+    assert create_lifecycle_write_audit["lifecycle_write_guard_resolved"] is False
+    assert create_lifecycle_write_audit["manager_invocation_allowed"] is False
+    assert create_lifecycle_write_audit["manager_invocation_ran"] is False
+    assert create_lifecycle_write_audit["stealth_row_write_allowed"] is False
+    assert create_lifecycle_write_audit["stealth_row_write_ran"] is False
+    assert create_lifecycle_write_audit["order_parent_write_allowed"] is False
+    assert create_lifecycle_write_audit["order_parent_write_ran"] is False
+    assert create_lifecycle_write_audit["lifecycle_event_dispatch_allowed"] is False
+    assert create_lifecycle_write_audit["lifecycle_event_dispatch_ran"] is False
+    assert create_lifecycle_write_audit["local_lifecycle_mutation_allowed"] is False
+    assert create_lifecycle_write_audit["local_lifecycle_mutation_ran"] is False
+    assert create_lifecycle_write_audit["coinbase_order_submit_ran"] is False
+    assert create_lifecycle_write_audit["live_coinbase_read_ran"] is False
+    assert create_lifecycle_write_audit["reconciliation_required"] is True
+    assert create_lifecycle_write_audit["reconciliation_executed"] is False
+    assert (
+        create_lifecycle_write_audit["post_write_reconciliation_satisfied"] is False
+    )
+    assert "stealth_create_lifecycle_write_contract" in create_lifecycle_write_audit[
+        "required_contracts"
+    ]
+    assert create_lifecycle_write_audit["required_contracts"] == (
+        create_lifecycle_write_audit["missing_contracts"]
+    )
+    assert "stealth_create_lifecycle_write_contract_missing" in (
+        create_lifecycle_write_audit["blockers"]
+    )
+    assert create_lifecycle_write_audit["browser_authority"] == "display_only"
+    assert create_lifecycle_write_audit["bff_authority"] == (
+        "forward_only_no_execution"
+    )
 
     command_routes = {command["route"]: command for command in payload["commands"]}
     assert set(command_routes) == {
@@ -5851,7 +5926,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2161-2180"
+    assert live_payload["approved_phase_range"] == "2181-2200"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6414,7 +6489,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2161-2180"
+    assert enterprise_payload["approved_phase_range"] == "2181-2200"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6997,7 +7072,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2161-2180"
+    assert recovery_preview_payload["approved_phase_range"] == "2181-2200"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2161-2180",
+  "approved_phase_range": "2181-2200",
   "command_count": 5,
   "blocked_command_count": 5,
   "live_enabled_command_count": 0,
@@ -40,6 +40,40 @@ Expected posture:
 }
 ```
 
+The response also includes `create_lifecycle_write_audit` for the
+live-disabled create workflow:
+
+```json
+{
+  "command_route": "/api/v1/stealth/orders",
+  "service_method": "create_stealth_order",
+  "manager_method": "core/stealth_order_manager.py::create_stealth_order",
+  "identity_key": "stealth_order_id",
+  "accepted_command_identity_keys": ["stealth_order_id"],
+  "rejected_command_identity_keys": [
+    "client_order_id",
+    "active_placement_client_order_id",
+    "exchange_order_id",
+    "order_id"
+  ],
+  "lifecycle_write_required": true,
+  "lifecycle_write_contract_configured": false,
+  "manager_invocation_ran": false,
+  "stealth_row_write_ran": false,
+  "order_parent_write_ran": false,
+  "local_lifecycle_mutation_ran": false,
+  "coinbase_order_submit_ran": false,
+  "live_coinbase_read_ran": false,
+  "reconciliation_executed": false,
+  "required_contracts": [
+    "stealth_create_guard_contract",
+    "stealth_create_admission_audit",
+    "stealth_create_reconciliation_plan",
+    "stealth_create_lifecycle_write_contract"
+  ]
+}
+```
+
 The `commands` array includes live-disabled rows for:
 
 - `/api/v1/stealth/orders`
@@ -51,7 +85,11 @@ The `commands` array includes live-disabled rows for:
 Each row uses `stealth_order_id` as `identity_key`. Create is a
 `local_state_mutation` draft route with `exchange_truth_required=false`,
 `active_placement_evidence_required=false`, `live_execution_status` set to
-`live_disabled`, and evidence that `StealthOrderManager` was not invoked.
+`live_disabled`, and evidence that `StealthOrderManager` was not invoked. The
+create lifecycle-write audit is command-suite evidence only: it does not write
+stealth rows, write `order_parent`, dispatch lifecycle events, execute
+reconciliation, submit Coinbase orders, read Coinbase, or grant browser/BFF
+lifecycle-write authority.
 Reveal is a `live_exchange_place` draft route with
 `exchange_truth_required=true`, `active_placement_evidence_required=false`,
 and evidence that `reveal_order_slice`, `StealthOrderManager`, Coinbase

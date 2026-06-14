@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2161-2180`.
+- Active autonomous range: `2181-2200`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -210,13 +210,22 @@ notional, retained inventory, reconciliation result, and audit ids.
   submission/reconciliation contracts, and no-live flags, but it must not call
   `reveal_order_slice`, create active placements, submit or cancel Coinbase
   orders, read Coinbase, mutate lifecycle state, execute reconciliation, add a
-  new endpoint, or grant browser/BFF reveal authority. The active 2161-2180
-  range adds no-live reveal reconciliation audit evidence to that same detail
+  new endpoint, or grant browser/BFF reveal authority. The completed 2161-2180
+  range added no-live reveal reconciliation audit evidence to that same detail
   route. The audit may show required reconciliation plan/proof posture, local
   active-placement evidence, missing proof contracts, read-evidence routes,
   and no-live flags, but it must not read Coinbase, resolve or write proof
   records, execute reconciliation, mutate order or lifecycle state, add a new
-  endpoint, or grant browser/BFF reveal authority.
+  endpoint, or grant browser/BFF reveal authority. The active 2181-2200 range
+  adds read-only stealth create lifecycle-write audit evidence to the existing
+  `GET /api/v1/stealth/command-suite` route. That audit may show the
+  live-disabled create route, shared service method, existing manager method,
+  accepted/rejected identity keys, required lifecycle-write/admission/
+  reconciliation contracts, blockers, and no-live/no-write flags, but it must
+  not invoke `StealthOrderManager`, write stealth rows, write `order_parent`
+  rows, dispatch lifecycle events, submit Coinbase orders, read Coinbase,
+  execute reconciliation, mutate lifecycle state, add a new endpoint, or grant
+  browser/BFF lifecycle-write authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

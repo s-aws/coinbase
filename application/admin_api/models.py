@@ -3721,6 +3721,47 @@ class StealthCommandSuiteExchangeTruthItem(BaseModel):
     detail: str
 
 
+class StealthCreateLifecycleWriteAuditEvidence(BaseModel):
+    """Read-only lifecycle-write evidence for stealth create readiness."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType = AdminApiMutationFamilyType.STEALTH_CREATE
+    command_route: str = "/api/v1/stealth/orders"
+    service_method: str = "create_stealth_order"
+    manager_method: str = "core/stealth_order_manager.py::create_stealth_order"
+    identity_key: str = "stealth_order_id"
+    accepted_command_identity_keys: list[str] = Field(default_factory=list)
+    rejected_command_identity_keys: list[str] = Field(default_factory=list)
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    lifecycle_write_required: bool = True
+    lifecycle_write_contract_configured: bool = False
+    lifecycle_write_guard_resolved: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    stealth_row_write_allowed: bool = False
+    stealth_row_write_ran: bool = False
+    order_parent_write_allowed: bool = False
+    order_parent_write_ran: bool = False
+    lifecycle_event_dispatch_allowed: bool = False
+    lifecycle_event_dispatch_ran: bool = False
+    local_lifecycle_mutation_allowed: bool = False
+    local_lifecycle_mutation_ran: bool = False
+    coinbase_order_submit_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    reconciliation_required: bool = True
+    reconciliation_executed: bool = False
+    post_write_reconciliation_satisfied: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    read_evidence_routes: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class StealthCommandSuiteResponse(AdminApiReadPayload):
     """Read-only M55 stealth command-suite readiness evidence."""
 
@@ -3748,6 +3789,7 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     commands: list[StealthCommandSuiteCommandItem] = Field(default_factory=list)
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)
+    create_lifecycle_write_audit: StealthCreateLifecycleWriteAuditEvidence | None = None
     read_routes: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     message: str | None = None

@@ -149,6 +149,7 @@ from .models import (
     StealthCommandSuiteCoverageGapEvidenceRouteItem,
     StealthCommandSuiteCoverageGapItem,
     StealthCommandSuiteExchangeTruthItem,
+    StealthCreateLifecycleWriteAuditEvidence,
     StealthCommandSuiteProofRouteItem,
     StealthCommandSuiteResponse,
 )
@@ -175,7 +176,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2161-2180"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2181-2200"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1501,6 +1502,51 @@ def _stealth_reveal_reconciliation_audit(
             "does not read Coinbase, resolve reconciliation plans, write "
             "proof records, execute reconciliation, mutate order or lifecycle "
             "state, or authorize browser/BFF reveal execution."
+        ),
+    )
+
+
+def _stealth_create_lifecycle_write_audit() -> StealthCreateLifecycleWriteAuditEvidence:
+    required_contracts = [
+        "stealth_create_guard_contract",
+        "stealth_create_admission_audit",
+        "stealth_create_reconciliation_plan",
+        "stealth_create_lifecycle_write_contract",
+    ]
+    blockers = [
+        "stealth_create_lifecycle_write_contract_missing",
+        "stealth_create_guard_contract_missing",
+        "stealth_create_admission_audit_missing",
+        "stealth_create_reconciliation_plan_missing",
+        "live_execution_disabled",
+    ]
+    return StealthCreateLifecycleWriteAuditEvidence(
+        accepted_command_identity_keys=["stealth_order_id"],
+        rejected_command_identity_keys=[
+            "client_order_id",
+            "active_placement_client_order_id",
+            "exchange_order_id",
+            "order_id",
+        ],
+        read_evidence_routes=[
+            "/api/v1/stealth/orders",
+            "/api/v1/stealth/command-suite",
+            "/api/v1/admin/reconciliation/plans",
+        ],
+        required_contracts=required_contracts,
+        missing_contracts=list(required_contracts),
+        blockers=blockers,
+        evidence=[
+            "Stealth create is exposed as a live-disabled Admin API command draft.",
+            "Future execution must call the existing StealthOrderManager create path.",
+            "This audit does not write stealth rows, order_parent rows, lifecycle events, or reconciliation evidence.",
+            "Browser and BFF surfaces remain display/forward only and cannot grant lifecycle-write authority.",
+        ],
+        detail=(
+            "Create lifecycle-write evidence is read-only command-suite "
+            "evidence. It records the missing backend contracts required "
+            "before POST /api/v1/stealth/orders can invoke the existing "
+            "StealthOrderManager create path or mutate local lifecycle state."
         ),
     )
 
@@ -8477,6 +8523,7 @@ class AdminApiReadService:
             commands=commands,
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,
+            create_lifecycle_write_audit=_stealth_create_lifecycle_write_audit(),
             read_routes=read_routes,
             evidence=[
                 "M55 starts with read-only stealth command-suite coverage before execution.",

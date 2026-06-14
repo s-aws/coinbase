@@ -38,7 +38,91 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M55 Reveal Reconciliation Audit Batch - Phases 2161-2180
+## Active M55 Create Lifecycle-Write Audit Batch - Phases 2181-2200
+
+These phases continue M55 after the reveal reconciliation audit. The next explicit architecture gap is backend-owned stealth create lifecycle-write evidence on the existing `GET /api/v1/stealth/command-suite` read route. The audit may expose the live-disabled create command route, shared service method, existing manager method, accepted/rejected identity keys, required lifecycle-write/admission/reconciliation contracts, missing blockers, and no-live/no-write flags. It must not invoke `StealthOrderManager`, write stealth rows, write `order_parent` rows, dispatch lifecycle events, submit Coinbase orders, read Coinbase, execute reconciliation, create a new endpoint, mutate lifecycle state, or grant browser/BFF lifecycle-write authority.
+
+### Phase 2181 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2161-2180 to active phases 2181-2200 while preserving no-live defaults and cap policy.
+
+### Phase 2182 - Create Lifecycle-Write Audit Scope
+
+- Define create lifecycle-write audit evidence as command-suite read evidence only, not a stealth create executor, lifecycle writer, DB writer, manager invocation, or approval gate.
+
+### Phase 2183 - Response Model Extension
+
+- Add a typed create lifecycle-write audit object to the stealth command-suite response.
+
+### Phase 2184 - Command Identity Evidence
+
+- Report `stealth_order_id` as the only accepted command identity and keep `client_order_id`, active-placement ids, exchange ids, and `order_id` rejected for the create command.
+
+### Phase 2185 - Backend Path Evidence
+
+- Report the live-disabled command route, shared service method, and existing `StealthOrderManager.create_stealth_order` method that future execution must use.
+
+### Phase 2186 - Lifecycle-Write Guard Flags
+
+- Report lifecycle-write contracts and guard resolution as required but not configured or resolved.
+
+### Phase 2187 - Manager Invocation Guard
+
+- Report manager invocation as not allowed and not run.
+
+### Phase 2188 - Local Write Guards
+
+- Report stealth-row writes, `order_parent` writes, lifecycle event dispatch, and local lifecycle mutation as not allowed and not run.
+
+### Phase 2189 - Coinbase And Reconciliation Guards
+
+- Report Coinbase submission/read and reconciliation execution as not run, with post-write reconciliation unsatisfied.
+
+### Phase 2190 - Required Contract Matrix
+
+- Expose create guard, admission audit, reconciliation plan, and lifecycle-write contracts as required and missing.
+
+### Phase 2191 - Command-Suite Gap Linkage
+
+- Keep the existing `stealth_create_workflow` coverage gap blocked and aligned to the new create lifecycle-write audit evidence.
+
+### Phase 2192 - Generated Backend Artifacts
+
+- Regenerate OpenAPI after the command-suite response model changes.
+
+### Phase 2193 - Backend Focused Tests
+
+- Cover schema, command-suite serialization, identity discipline, no manager invocation, no local writes, no Coinbase reads/submits, and no reconciliation execution.
+
+### Phase 2194 - Frontend Schema Sync
+
+- Regenerate frontend TypeScript schema from backend OpenAPI.
+
+### Phase 2195 - Frontend Adapter Mapping
+
+- Map create lifecycle-write audit evidence into the stealth command-suite view model.
+
+### Phase 2196 - Frontend Command-Suite UI
+
+- Render the audit in the existing stealth command-suite panel without adding create execution, lifecycle-write, DB-write, reconciliation, or Coinbase controls.
+
+### Phase 2197 - Mock Runtime Fixtures
+
+- Update mock fixtures for create lifecycle-write audit evidence and active phase range.
+
+### Phase 2198 - Documentation And Examples
+
+- Update feature docs and examples for create lifecycle-write audit evidence and no-live/no-write boundaries.
+
+### Phase 2199 - Blind/Contextless Review
+
+- Run contextless review for the audit contract and remediate blockers.
+
+### Phase 2200 - Final Gates, Push, And Next Range
+
+- Run backend regression, frontend release gate, required smoke checks, confirm no live Coinbase execution and `$0` frontend notional, push synchronized repos, and create the next M55-linked range only if a concrete approved gap remains.
+
+## Completed M55 Reveal Reconciliation Audit Batch - Phases 2161-2180
 
 These phases continue M55 after the reveal submission-adapter audit. The next explicit architecture gap is backend-owned reveal reconciliation-proof evidence on the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail route. The audit may expose the future reveal command route, required reconciliation plan/proof posture, local active-placement evidence, missing proof contracts, read-evidence routes, and no-live flags. It must not read Coinbase, resolve or write reconciliation proof records, execute reconciliation, call `reveal_order_slice`, submit or cancel Coinbase orders, mutate order or lifecycle state, add a new endpoint, or grant browser/BFF reveal authority.
 
