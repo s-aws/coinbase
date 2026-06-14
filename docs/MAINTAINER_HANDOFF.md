@@ -1,4 +1,4 @@
-# Maintainer Handoff
+﻿# Maintainer Handoff
 
 This guide is the backend entry point for maintainers and contextless agents
 working on the enterprise admin platform.
@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1901-1920`.
+- Active autonomous range: `1921-1940`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -129,11 +129,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   proof readback, and the `spot_recovery:record` permission for proof
   recording. The completed 1881-1900 range added no-live recovery
   apply/rollback execution journal plumbing and post-apply reconciliation
-  boundaries. The active 1901-1920 range is the next M54 slice for
-  backend-owned state repair semantics and post-apply reconciliation
-  completion evidence. Recovery apply/rollback journal acceptance is durable
-  evidence after exact backend prerequisites match; state repair,
-  post-apply reconciliation completion, and reconciliation execution remain
+  boundaries. The completed 1901-1920 range added guarded local repair-result
+  evidence and clarified that recovery-state evidence is not order/exchange
+  mutation, Coinbase activity, or browser authority. The active 1921-1940
+  range is the next M54 slice for backend-owned post-apply reconciliation
+  completion evidence. Recovery apply/rollback journal acceptance and guarded
+  repair-result evidence are durable after exact backend prerequisites match;
+  post-apply reconciliation completion and reconciliation execution remain
   blocked until those backend gates exist. This foundation
   must not add a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
