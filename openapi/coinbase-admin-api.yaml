@@ -11739,6 +11739,94 @@ components:
       - detail
       title: AdminStealthActivePlacementAuditEvidence
       description: Read-only active-placement evidence for stealth detail views.
+    AdminStealthMutationClaimAuditEvidence:
+      properties:
+        stealth_order_id:
+          type: string
+          title: Stealth Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        runtime_claims:
+          items:
+            $ref: '#/components/schemas/AdminMutationClaimEvidence'
+          type: array
+          title: Runtime Claims
+        runtime_claims_observed:
+          type: boolean
+          title: Runtime Claims Observed
+          default: false
+        runtime_claim_count:
+          type: integer
+          title: Runtime Claim Count
+          default: 0
+        active_claim_count:
+          type: integer
+          title: Active Claim Count
+          default: 0
+        claim_reader_source:
+          type: string
+          title: Claim Reader Source
+          default: stealth_manager.snapshot_mutation_claims
+        claim_reader_ran:
+          type: boolean
+          title: Claim Reader Ran
+          default: false
+        coinbase_read_ran:
+          type: boolean
+          title: Coinbase Read Ran
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        lifecycle_mutation_allowed:
+          type: boolean
+          title: Lifecycle Mutation Allowed
+          default: false
+        required_for_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Required For Mutation Families
+        read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Read Evidence Routes
+        required_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Contracts
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - detail
+      title: AdminStealthMutationClaimAuditEvidence
+      description: Read-only mutation-claim evidence for stealth detail views.
     AdminStealthOrderDetailResponse:
       properties:
         type:
@@ -11758,6 +11846,10 @@ components:
         active_placement_audit:
           anyOf:
           - $ref: '#/components/schemas/AdminStealthActivePlacementAuditEvidence'
+          - type: 'null'
+        mutation_claim_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminStealthMutationClaimAuditEvidence'
           - type: 'null'
         read_only:
           type: boolean

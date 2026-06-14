@@ -69,7 +69,7 @@ Example evidence item:
       "kind": "reprice",
       "state": "processing",
       "runtime_observed": true,
-      "source": "stealth_manager._mutation_claims"
+      "source": "stealth_manager.snapshot_mutation_claims"
     }
   ]
 }

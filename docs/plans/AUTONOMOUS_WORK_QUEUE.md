@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2081-2100**.
+- Approved phase range: **2101-2120**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,128 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2081-2100
+## Active Phases 2101-2120
+
+These phases continue M55 after the active-placement audit. The next explicit
+architecture gap is backend-owned mutation-claim audit evidence on the
+existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail route. The
+audit must reuse the existing runtime claim reader and may expose local
+process claim state for move/reprice readiness. It must not acquire claims,
+release claims, create a new endpoint, read Coinbase, submit/cancel Coinbase
+orders, execute cancel/replace, mutate lifecycle state, execute
+reconciliation, or grant browser/BFF authority.
+
+### Phase 2101 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2081-2100 to active
+  phases 2101-2120 while preserving no-live defaults and cap policy.
+
+### Phase 2102 - Mutation Claim Audit Scope
+
+- Define the audit as detail-route read evidence only, not a claim executor,
+  lifecycle mutation path, exchange proof, or command approval gate.
+
+### Phase 2103 - Response Model Extension
+
+- Add a typed mutation-claim audit object to the existing stealth detail
+  response.
+
+### Phase 2104 - Runtime Claim Reader Reuse
+
+- Reuse the existing `_runtime_mutation_claims_for` evidence helper instead of
+  creating a second claim reader or bypassing manager locks.
+
+### Phase 2105 - Command Family Linkage
+
+- Mark stealth move and movement/reprice as the command families that require
+  mutation-claim evidence.
+
+### Phase 2106 - No-Mutation Authority Flags
+
+- Report claim acquisition/release, Coinbase reads, Coinbase cancels,
+  cancel/replace, lifecycle mutation, and reconciliation execution as not
+  run/not allowed.
+
+### Phase 2107 - Required Contract Matrix
+
+- Expose required mutation-claim audit and reprice cooldown-claim contracts.
+
+### Phase 2108 - Missing Contract Matrix
+
+- Keep required mutation-claim contracts missing until backend-owned
+  executable claim-audit contracts exist.
+
+### Phase 2109 - Generated Backend Artifacts
+
+- Regenerate OpenAPI and route inventory artifacts after the detail response
+  model changes.
+
+### Phase 2110 - Backend Focused Tests
+
+- Cover generated schema, runtime-claim observed/unavailable cases, no-live
+  posture, identity discipline, and blocked lifecycle mutation.
+
+### Phase 2111 - Frontend Schema Intake
+
+- Regenerate frontend TypeScript schema from backend OpenAPI without
+  hand-editing generated files.
+
+### Phase 2112 - Frontend Adapter Mapping
+
+- Map the detail mutation-claim audit into the stealth read model.
+
+### Phase 2113 - Frontend Detail Rendering
+
+- Render the audit in the selected stealth detail area without adding action
+  buttons, claim controls, or active-placement/exchange command inputs.
+
+### Phase 2114 - Mock Runtime Sync
+
+- Mirror runtime-observed and runtime-unavailable mutation-claim audit cases
+  in local/mock fixtures.
+
+### Phase 2115 - Command Workflow Context
+
+- Link command workflow text to mutation-claim audit evidence without
+  evaluating claims or command gates in the browser.
+
+### Phase 2116 - Quality Artifact Sync
+
+- Update autonomous, release, deployment, and runtime evidence for the active
+  range and audit contract.
+
+### Phase 2117 - Documentation And Examples
+
+- Update feature docs and examples for mutation-claim audit evidence and
+  no-live/no-mutation boundaries.
+
+### Phase 2118 - Drift Scan
+
+- Scan for stale active ranges, browser/BFF claim authority, direct claim
+  mutation, and accidental live enablement.
+
+### Phase 2119 - Blind/Contextless Review
+
+- Run blind/contextless review proving the audit is understandable without
+  chat history and does not create unsafe authority.
+
+### Phase 2120 - Final Gates, Push, And Next Range
+
+- Run backend regression, frontend release gate, required smoke checks, and
+  push synchronized repos. Create the next milestone-linked active range only
+  if M55 still has an approved gap.
+
+## Completed Phases 2081-2100
+
+Completion evidence:
+
+- Added a backend-owned active-placement audit block to
+  `GET /api/v1/stealth/orders/{stealth_order_id}`.
+- Mirrored the audit in frontend schema, mocks, read model UI, docs, tests,
+  quality artifacts, and autonomous validators.
+- Preserved submitted/executed notional `$0` and did not add Coinbase reads,
+  Coinbase order submission/cancellation, cancel/replace, lifecycle mutation,
+  reconciliation execution, a new endpoint, or browser/BFF authority.
 
 These phases continue M55 after the exchange-truth ledger. The next explicit
 architecture gap is a backend-owned active-placement audit block on the

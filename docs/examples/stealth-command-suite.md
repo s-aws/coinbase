@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2081-2100",
+  "approved_phase_range": "2101-2120",
   "command_count": 5,
   "blocked_command_count": 5,
   "live_enabled_command_count": 0,
@@ -78,6 +78,11 @@ For per-order active-placement evidence, read
 presence, active placement client id, exchange-id evidence, required mutation
 families, missing contracts, and no-live Coinbase flags. It is not a command
 input source and does not prove exchange truth by itself.
+The same detail payload may include `mutation_claim_audit`. That panel reports
+safely observable runtime mutation-claim snapshot state, active claim count,
+required move/reprice claim contracts, missing claim contracts, and no-live
+Coinbase flags. It is evidence only: it does not acquire, release, clear, or
+prove claims, and command workflows must not use it as mutation authority.
 
 The `coverage_gaps` array includes blocked workflow families for:
 

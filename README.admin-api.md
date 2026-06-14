@@ -189,6 +189,11 @@ has an active placement pointer, which mutation families require future
 exchange-truth proof, and which contracts are still missing. That audit is not
 a Coinbase read, cancel/replace attempt, reconciliation run, lifecycle
 mutation, or browser/BFF approval gate.
+The same detail route exposes `mutation_claim_audit` as a backend-owned
+snapshot of safely observable runtime mutation claims for move and repricing
+families. It explains active or unavailable claim state without acquiring,
+releasing, or clearing claims, without creating command inputs, and without
+granting browser/BFF lifecycle authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
@@ -458,6 +463,11 @@ The platform/module split is documented in
   local active-placement evidence, required mutation families, missing
   exchange-truth contracts, and no-live Coinbase flags without turning active
   placement ids or exchange ids into command inputs.
+- Stealth detail rows also include `mutation_claim_audit` so operators can see
+  runtime mutation-claim snapshot status, required move/reprice claim
+  contracts, missing claim contracts, and no-live Coinbase flags without
+  acquiring or releasing claims or turning claim state into browser/BFF command
+  authority.
 - Movement/repricing read rows combine durable `order_moves`,
   `stealth_order_moves`, and `stealth_orders.anchor_repricing_state_json`
   evidence. Runtime mutation claims and pending replacement claims are shown

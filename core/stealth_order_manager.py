@@ -335,6 +335,29 @@ class StealthOrderManager:
     # repeatable.  Both success and failure paths must call
     # :meth:`release_mutation`.
 
+    def snapshot_mutation_claims(self, stealth_order_id: str) -> Dict[Any, Optional[str]]:
+        """Return read-only runtime mutation claim state for one stealth order.
+
+        This is evidence only for Admin API/read-model consumers. It does not
+        acquire, release, clear, or complete claims; mutation ownership still
+        flows exclusively through :meth:`try_claim_mutation` and
+        :meth:`release_mutation`.
+        """
+        from core.enums import StealthMutationKind
+
+        lock = getattr(self, "_mutation_check_lock", None)
+        if lock is None:
+            import threading
+
+            lock = threading.RLock()
+            self._mutation_check_lock = lock
+
+        with lock:
+            return {
+                kind: self._mutation_claims.state(kind, stealth_order_id)
+                for kind in StealthMutationKind
+            }
+
     def try_claim_mutation(self, kind, stealth_order_id: str) -> bool:
         """Atomically claim mutation rights for one stealth order.
 

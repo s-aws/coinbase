@@ -215,6 +215,21 @@ class TestStealthMutationClaims:
         # Critical: a successful move must leave the slot free for a future move.
         assert mgr.try_claim_mutation(StealthMutationKind.MOVE, "sid_1") is True
 
+    def test_snapshot_mutation_claims_is_read_only(self):
+        from core.enums import StealthMutationKind
+
+        mgr = self._bare_manager()
+        assert mgr.try_claim_mutation(StealthMutationKind.MOVE, "sid_1") is True
+
+        snapshot = mgr.snapshot_mutation_claims("sid_1")
+
+        assert snapshot[StealthMutationKind.MOVE] == "processing"
+        assert snapshot[StealthMutationKind.REPRICE] is None
+        assert snapshot[StealthMutationKind.RETREAT] is None
+        assert mgr.try_claim_mutation(StealthMutationKind.REPRICE, "sid_1") is False
+        mgr.release_mutation(StealthMutationKind.MOVE, "sid_1")
+        assert mgr.try_claim_mutation(StealthMutationKind.REPRICE, "sid_1") is True
+
     def test_no_complete_mutation_method_exists(self):
         """Mutations are repeatable — a terminal ``done`` state would be a
         bug. Pin this by asserting the API surface."""

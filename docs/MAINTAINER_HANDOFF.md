@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `2081-2100`.
+- Active autonomous range: `2101-2120`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -185,13 +185,19 @@ notional, retained inventory, reconciliation result, and audit ids.
   keys, and show required/missing active-placement, mutation-claim,
   cancel/replace, lifecycle-write, trigger/submission, and reconciliation
   contracts without granting browser, BFF, Coinbase, or local mutation
-  authority. The active 2081-2100 range adds a no-live active-placement audit
+  authority. The completed 2081-2100 range added a no-live active-placement audit
   block to the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail
   response. The audit may show local active-placement evidence and required
   contracts for cancel, move, and movement/reprice, but it must not read
   Coinbase, cancel or replace active placements, mutate lifecycle state,
   execute reconciliation, add a new endpoint, or grant browser/BFF
-  exchange-truth authority.
+  exchange-truth authority. The active 2101-2120 range adds no-live
+  mutation-claim audit evidence to that same existing detail route. The audit
+  may reuse existing runtime mutation-claim snapshots for move/reprice
+  readiness, but it must not acquire claims, release claims, bypass manager
+  locks, execute cancel/replace, mutate lifecycle state, execute
+  reconciliation, call Coinbase, add a new endpoint, or grant browser/BFF
+  claim authority.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

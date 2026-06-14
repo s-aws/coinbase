@@ -1646,6 +1646,45 @@ class AdminStealthActivePlacementAuditEvidence(BaseModel):
     detail: str
 
 
+class AdminMutationClaimEvidence(BaseModel):
+    """Runtime claim evidence for repeatable stealth mutations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: StealthMutationKind
+    state: str | None = None
+    runtime_observed: bool = False
+    source: str
+
+
+class AdminStealthMutationClaimAuditEvidence(BaseModel):
+    """Read-only mutation-claim evidence for stealth detail views."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stealth_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    runtime_claims: list[AdminMutationClaimEvidence] = Field(default_factory=list)
+    runtime_claims_observed: bool = False
+    runtime_claim_count: int = 0
+    active_claim_count: int = 0
+    claim_reader_source: str = "stealth_manager.snapshot_mutation_claims"
+    claim_reader_ran: bool = False
+    coinbase_read_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    lifecycle_mutation_allowed: bool = False
+    required_for_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    read_evidence_routes: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminStealthOrderDetailResponse(BaseModel):
     """Read-only stealth detail response keyed by ``stealth_order_id``."""
 
@@ -1656,20 +1695,10 @@ class AdminStealthOrderDetailResponse(BaseModel):
     found: bool
     order: AdminStealthOrderReadItem | None = None
     active_placement_audit: AdminStealthActivePlacementAuditEvidence | None = None
+    mutation_claim_audit: AdminStealthMutationClaimAuditEvidence | None = None
     read_only: bool = True
     command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False
-
-
-class AdminMutationClaimEvidence(BaseModel):
-    """Runtime claim evidence for repeatable stealth mutations."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    kind: StealthMutationKind
-    state: str | None = None
-    runtime_observed: bool = False
-    source: str
 
 
 class AdminReplacementSlotEvidence(BaseModel):

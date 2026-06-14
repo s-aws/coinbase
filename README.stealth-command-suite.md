@@ -32,6 +32,10 @@ Per-order active-placement audit evidence is exposed by
 `active_placement_audit`. The command-suite route points at that read evidence,
 but it does not own per-order Coinbase truth and must not be treated as a
 cancel/replace or reconciliation path.
+The same detail route exposes `mutation_claim_audit` as display-only runtime
+claim evidence for move and repricing families. It does not acquire, release,
+clear, or prove mutation claims, and it must not become a command input source
+or browser/BFF mutation authority.
 
 ## Safety Constraints
 

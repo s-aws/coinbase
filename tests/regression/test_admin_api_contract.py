@@ -124,6 +124,7 @@ from core.enums import (
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
+    StealthMutationKind,
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
@@ -1355,6 +1356,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "exchange_truth_verified" in active_placement_audit_schema["properties"]
     assert "coinbase_read_ran" in active_placement_audit_schema["properties"]
     assert "lifecycle_mutation_allowed" in active_placement_audit_schema["properties"]
+    assert "mutation_claim_audit" in stealth_detail_schema["properties"]
+    assert "AdminStealthMutationClaimAuditEvidence" in written["components"]["schemas"]
+    mutation_claim_audit_schema = written["components"]["schemas"][
+        "AdminStealthMutationClaimAuditEvidence"
+    ]
+    assert "runtime_claims" in mutation_claim_audit_schema["properties"]
+    assert "runtime_claims_observed" in mutation_claim_audit_schema["properties"]
+    assert "active_claim_count" in mutation_claim_audit_schema["properties"]
+    assert "lifecycle_mutation_allowed" in mutation_claim_audit_schema["properties"]
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
@@ -4699,7 +4709,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2081-2100"
+    assert payload["approved_phase_range"] == "2101-2120"
     assert payload["command_count"] == 5
     assert payload["blocked_command_count"] == 5
     assert payload["live_enabled_command_count"] == 0
@@ -4907,7 +4917,10 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     )
     assert move_gap["command_route"] == "/api/v1/stealth/orders/{stealth_order_id}/move"
     assert "stealth_move_revealed_admin_route" not in move_gap["missing_contracts"]
-    assert "stealth_move_mutation_claim_audit" in move_gap["missing_contracts"]
+    assert (
+        "stealth_move_mutation_claim_snapshot_contract"
+        in move_gap["missing_contracts"]
+    )
     assert move_gap["detail"].endswith("or mutate lifecycle state.")
     assert (
         coverage_gaps[
@@ -5796,7 +5809,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2081-2100"
+    assert live_payload["approved_phase_range"] == "2101-2120"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6359,7 +6372,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2081-2100"
+    assert enterprise_payload["approved_phase_range"] == "2101-2120"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6942,7 +6955,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2081-2100"
+    assert recovery_preview_payload["approved_phase_range"] == "2101-2120"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -9116,6 +9129,63 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
                 "bff_authority": "forward_only_no_execution",
                 "detail": "Active placement audit remains no-live.",
             },
+            "mutation_claim_audit": {
+                "stealth_order_id": stealth_order_id,
+                "status": AdminApiGateStatus.BLOCKED.value,
+                "runtime_claims": [
+                    {
+                        "kind": StealthMutationKind.MOVE.value,
+                        "state": None,
+                        "runtime_observed": False,
+                        "source": "runtime_stealth_manager_unavailable",
+                    },
+                    {
+                        "kind": StealthMutationKind.REPRICE.value,
+                        "state": None,
+                        "runtime_observed": False,
+                        "source": "runtime_stealth_manager_unavailable",
+                    },
+                    {
+                        "kind": StealthMutationKind.RETREAT.value,
+                        "state": None,
+                        "runtime_observed": False,
+                        "source": "runtime_stealth_manager_unavailable",
+                    },
+                ],
+                "runtime_claims_observed": False,
+                "runtime_claim_count": 3,
+                "active_claim_count": 0,
+                "claim_reader_source": "runtime_stealth_manager_unavailable",
+                "claim_reader_ran": False,
+                "coinbase_read_ran": False,
+                "coinbase_order_cancel_submitted": False,
+                "lifecycle_mutation_allowed": False,
+                "required_for_mutation_families": [
+                    AdminApiMutationFamilyType.STEALTH_MOVE.value,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+                ],
+                "read_evidence_routes": [
+                    "/api/v1/stealth/orders/{stealth_order_id}",
+                    "/api/v1/movement-repricing/stealth/{stealth_order_id}",
+                    "/api/v1/stealth/command-suite",
+                ],
+                "required_contracts": [
+                    "stealth_move_mutation_claim_snapshot_contract",
+                    "stealth_reprice_cooldown_claim_contract",
+                ],
+                "missing_contracts": [
+                    "stealth_move_mutation_claim_snapshot_contract",
+                    "stealth_reprice_cooldown_claim_contract",
+                ],
+                "blockers": [
+                    "runtime_mutation_claim_snapshot_unavailable",
+                    "stealth_move_mutation_claim_snapshot_contract_missing",
+                    "stealth_reprice_cooldown_claim_contract_missing",
+                ],
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "detail": "Mutation-claim audit remains no-live.",
+            },
             "read_only": True,
             "command_routes_mode": AdminApiCommandRoutesMode.LIVE_DISABLED.value,
             "live_coinbase_orders_ran": False,
@@ -9166,6 +9236,24 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
         AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
     ]
     assert audit["required_contracts"] == audit["missing_contracts"]
+    mutation_claim_audit = detail_response.json()["mutation_claim_audit"]
+    assert mutation_claim_audit["runtime_claims_observed"] is False
+    assert mutation_claim_audit["runtime_claim_count"] == 3
+    assert mutation_claim_audit["active_claim_count"] == 0
+    assert mutation_claim_audit["claim_reader_source"] == (
+        "runtime_stealth_manager_unavailable"
+    )
+    assert mutation_claim_audit["claim_reader_ran"] is False
+    assert mutation_claim_audit["coinbase_read_ran"] is False
+    assert mutation_claim_audit["coinbase_order_cancel_submitted"] is False
+    assert mutation_claim_audit["lifecycle_mutation_allowed"] is False
+    assert mutation_claim_audit["required_for_mutation_families"] == [
+        AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+    ]
+    assert mutation_claim_audit["required_contracts"] == (
+        mutation_claim_audit["missing_contracts"]
+    )
     assert detail_response.json()["live_coinbase_orders_ran"] is False
 
 
@@ -9275,6 +9363,22 @@ def test_admin_api_stealth_read_service_maps_placement_and_exchange_evidence(mon
     assert audit.required_contracts == audit.missing_contracts
     assert "coinbase_exchange_truth_read_disabled" in audit.blockers
     assert "active_placement_local_evidence_missing" not in audit.blockers
+    assert detail_response.mutation_claim_audit is not None
+    mutation_audit = detail_response.mutation_claim_audit
+    assert mutation_audit.status == AdminApiGateStatus.BLOCKED
+    assert mutation_audit.runtime_claims_observed is False
+    assert mutation_audit.runtime_claim_count == 3
+    assert mutation_audit.active_claim_count == 0
+    assert mutation_audit.claim_reader_source == "runtime_stealth_manager_unavailable"
+    assert mutation_audit.coinbase_read_ran is False
+    assert mutation_audit.coinbase_order_cancel_submitted is False
+    assert mutation_audit.lifecycle_mutation_allowed is False
+    assert mutation_audit.required_for_mutation_families == [
+        AdminApiMutationFamilyType.STEALTH_MOVE,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+    ]
+    assert mutation_audit.required_contracts == mutation_audit.missing_contracts
+    assert "runtime_mutation_claim_snapshot_unavailable" in mutation_audit.blockers
     assert detail_response.live_coinbase_orders_ran is False
 
 
@@ -9333,6 +9437,130 @@ def test_admin_api_stealth_read_service_does_not_promote_historical_reveals_to_a
     assert audit.coinbase_read_ran is False
     assert audit.lifecycle_mutation_allowed is False
     assert "active_placement_local_evidence_missing" in audit.blockers
+    assert detail_response.mutation_claim_audit is not None
+    mutation_audit = detail_response.mutation_claim_audit
+    assert mutation_audit.runtime_claims_observed is False
+    assert mutation_audit.active_claim_count == 0
+    assert mutation_audit.lifecycle_mutation_allowed is False
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_detail_mutation_claim_audit_uses_runtime_snapshot(monkeypatch):
+    import dashboard_server
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    row = {
+        "stealth_order_id": "stealth-claim-root",
+        "product_id": "BTC-USDC",
+        "status": "REVEALED",
+        "anchor_repricing_state_json": {
+            "active_placement_client_order_id": "placement-claim",
+            "active_exchange_order_id": "exchange-claim",
+        },
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_order_by_id",
+        lambda stealth_order_id: row
+        if stealth_order_id == "stealth-claim-root"
+        else None,
+    )
+
+    observed: list[tuple[StealthMutationKind, str]] = []
+
+    class RuntimeManager:
+        def snapshot_mutation_claims(self, stealth_order_id):
+            states = {}
+            for kind in StealthMutationKind:
+                observed.append((kind, stealth_order_id))
+                states[kind] = self._state(kind, stealth_order_id)
+            return states
+
+        def _state(self, kind, stealth_order_id):
+            if kind == StealthMutationKind.MOVE and stealth_order_id == "stealth-claim-root":
+                return "processing"
+            return None
+
+    runtime_bridge = SimpleNamespace(stealth_manager=RuntimeManager())
+    monkeypatch.setattr(dashboard_server, "stealth_order_bridge", runtime_bridge)
+
+    detail_response = AdminApiReadService().build_stealth_order_detail(
+        stealth_order_id="stealth-claim-root"
+    )
+
+    assert detail_response.mutation_claim_audit is not None
+    audit = detail_response.mutation_claim_audit
+    assert audit.runtime_claims_observed is True
+    assert audit.runtime_claim_count == 3
+    assert audit.active_claim_count == 1
+    assert audit.claim_reader_source == "stealth_manager.snapshot_mutation_claims"
+    assert audit.claim_reader_ran is True
+    assert audit.coinbase_read_ran is False
+    assert audit.coinbase_order_cancel_submitted is False
+    assert audit.lifecycle_mutation_allowed is False
+    assert audit.required_for_mutation_families == [
+        AdminApiMutationFamilyType.STEALTH_MOVE,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+    ]
+    claims_by_kind = {claim.kind: claim for claim in audit.runtime_claims}
+    assert claims_by_kind[StealthMutationKind.MOVE].state == "processing"
+    assert claims_by_kind[StealthMutationKind.MOVE].runtime_observed is True
+    assert claims_by_kind[StealthMutationKind.REPRICE].state is None
+    assert "runtime_mutation_claim_snapshot_unavailable" not in audit.blockers
+    assert "stealth_move_mutation_claim_snapshot_contract_missing" in audit.blockers
+    assert observed == [
+        (StealthMutationKind.MOVE, "stealth-claim-root"),
+        (StealthMutationKind.REPRICE, "stealth-claim-root"),
+        (StealthMutationKind.RETREAT, "stealth-claim-root"),
+    ]
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_detail_mutation_claim_audit_reports_snapshot_errors(
+    monkeypatch,
+):
+    import dashboard_server
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    row = {
+        "stealth_order_id": "stealth-claim-error",
+        "product_id": "BTC-USDC",
+        "status": "REVEALED",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_order_by_id",
+        lambda stealth_order_id: row
+        if stealth_order_id == "stealth-claim-error"
+        else None,
+    )
+
+    class RuntimeManager:
+        def snapshot_mutation_claims(self, stealth_order_id):
+            raise RuntimeError(f"snapshot unavailable for {stealth_order_id}")
+
+    monkeypatch.setattr(
+        dashboard_server,
+        "stealth_order_bridge",
+        SimpleNamespace(stealth_manager=RuntimeManager()),
+    )
+
+    detail_response = AdminApiReadService().build_stealth_order_detail(
+        stealth_order_id="stealth-claim-error"
+    )
+
+    assert detail_response.mutation_claim_audit is not None
+    audit = detail_response.mutation_claim_audit
+    assert audit.runtime_claims_observed is False
+    assert audit.claim_reader_source == "stealth_manager.snapshot_mutation_claims_error"
+    assert audit.claim_reader_ran is True
+    assert "runtime_mutation_claim_snapshot_unavailable" in audit.blockers
+    assert all(claim.runtime_observed is False for claim in audit.runtime_claims)
+    assert all(claim.state == "unavailable:RuntimeError" for claim in audit.runtime_claims)
 
 
 @pytest.mark.regression
@@ -9369,7 +9597,7 @@ def test_admin_api_movement_repricing_read_routes_use_read_service_without_comma
                             "kind": "move",
                             "state": "processing",
                             "runtime_observed": True,
-                            "source": "stealth_manager._mutation_claims",
+                            "source": "stealth_manager.snapshot_mutation_claims",
                         }
                     ],
                     "replacement_slots": [
@@ -9555,13 +9783,19 @@ def test_admin_api_movement_repricing_read_service_maps_durable_and_runtime_evid
             return stealth_rows
         return []
 
-    class ClaimSnapshot:
-        def state(self, kind, stealth_order_id):
+    class RuntimeManager:
+        def snapshot_mutation_claims(self, stealth_order_id):
+            return {
+                kind: self._state(kind, stealth_order_id)
+                for kind in StealthMutationKind
+            }
+
+        def _state(self, kind, stealth_order_id):
             if kind == StealthMutationKind.REPRICE and stealth_order_id == "stealth-root":
                 return "processing"
             return None
 
-    runtime_manager = SimpleNamespace(_mutation_claims=ClaimSnapshot())
+    runtime_manager = RuntimeManager()
     class RuntimeLock:
         def __enter__(self):
             return None

@@ -116,6 +116,7 @@ from .models import (
     AdminSessionResponse,
     AdminStealthOrderDetailResponse,
     AdminStealthActivePlacementAuditEvidence,
+    AdminStealthMutationClaimAuditEvidence,
     AdminStealthOrderListResponse,
     AdminStealthOrderReadItem,
     SpotCommandSuiteCommandItem,
@@ -171,7 +172,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2081-2100"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2101-2120"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -1296,6 +1297,61 @@ def _stealth_active_placement_audit(
     )
 
 
+def _stealth_mutation_claim_audit(
+    stealth_order_id: str,
+) -> AdminStealthMutationClaimAuditEvidence:
+    claims = _runtime_mutation_claims_for(stealth_order_id)
+    runtime_claims_observed = any(claim.runtime_observed for claim in claims)
+    active_claim_count = sum(1 for claim in claims if claim.state == "processing")
+    claim_reader_source = (
+        claims[0].source if claims else "runtime_stealth_manager_unavailable"
+    )
+    required_contracts = [
+        "stealth_move_mutation_claim_snapshot_contract",
+        "stealth_reprice_cooldown_claim_contract",
+    ]
+    blockers = [
+        "stealth_move_mutation_claim_snapshot_contract_missing",
+        "stealth_reprice_cooldown_claim_contract_missing",
+    ]
+    if not runtime_claims_observed:
+        blockers.insert(0, "runtime_mutation_claim_snapshot_unavailable")
+
+    return AdminStealthMutationClaimAuditEvidence(
+        stealth_order_id=stealth_order_id,
+        status=AdminApiGateStatus.BLOCKED,
+        runtime_claims=claims,
+        runtime_claims_observed=runtime_claims_observed,
+        runtime_claim_count=len(claims),
+        active_claim_count=active_claim_count,
+        claim_reader_source=claim_reader_source,
+        claim_reader_ran=claim_reader_source != "runtime_stealth_manager_unavailable",
+        coinbase_read_ran=False,
+        coinbase_order_cancel_submitted=False,
+        lifecycle_mutation_allowed=False,
+        required_for_mutation_families=[
+            AdminApiMutationFamilyType.STEALTH_MOVE,
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+        ],
+        read_evidence_routes=[
+            "/api/v1/stealth/orders/{stealth_order_id}",
+            "/api/v1/movement-repricing/stealth/{stealth_order_id}",
+            "/api/v1/stealth/command-suite",
+        ],
+        required_contracts=required_contracts,
+        missing_contracts=list(required_contracts),
+        blockers=blockers,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=(
+            "Mutation-claim audit reuses the existing runtime claim reader as "
+            "local evidence only. It does not acquire or release claims, call "
+            "Coinbase, execute cancel/replace, mutate lifecycle state, or "
+            "authorize browser/BFF execution."
+        ),
+    )
+
+
 def _int_or_none(value: Any) -> int | None:
     if value is None:
         return None
@@ -1871,8 +1927,10 @@ def _runtime_mutation_claims_for(
         return []
     bridge = _runtime_bridge()
     manager = getattr(bridge, "stealth_manager", None) if bridge else None
-    claim_ledger = getattr(manager, "_mutation_claims", None) if manager else None
-    if claim_ledger is None:
+    snapshot_mutation_claims = (
+        getattr(manager, "snapshot_mutation_claims", None) if manager else None
+    )
+    if not callable(snapshot_mutation_claims):
         return [
             AdminMutationClaimEvidence(
                 kind=kind,
@@ -1882,18 +1940,26 @@ def _runtime_mutation_claims_for(
             )
             for kind in StealthMutationKind
         ]
+    try:
+        claim_states = snapshot_mutation_claims(stealth_order_id)
+    except Exception as exc:
+        return [
+            AdminMutationClaimEvidence(
+                kind=kind,
+                state=f"unavailable:{type(exc).__name__}",
+                runtime_observed=False,
+                source="stealth_manager.snapshot_mutation_claims_error",
+            )
+            for kind in StealthMutationKind
+        ]
     claims: list[AdminMutationClaimEvidence] = []
     for kind in StealthMutationKind:
-        try:
-            state = _string_or_none(claim_ledger.state(kind, stealth_order_id))
-        except Exception as exc:
-            state = f"unavailable:{type(exc).__name__}"
         claims.append(
             AdminMutationClaimEvidence(
                 kind=kind,
-                state=state,
+                state=_string_or_none(claim_states.get(kind)),
                 runtime_observed=True,
-                source="stealth_manager._mutation_claims",
+                source="stealth_manager.snapshot_mutation_claims",
             )
         )
     return claims
@@ -7349,6 +7415,9 @@ class AdminApiReadService:
             active_placement_audit=(
                 _stealth_active_placement_audit(item) if item else None
             ),
+            mutation_claim_audit=(
+                _stealth_mutation_claim_audit(item.stealth_order_id) if item else None
+            ),
         )
 
     def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
@@ -7892,7 +7961,7 @@ class AdminApiReadService:
             ],
             AdminApiMutationFamilyType.STEALTH_MOVE: [
                 "stealth_move_active_placement_cancel_replace_proof",
-                "stealth_move_mutation_claim_audit",
+                "stealth_move_mutation_claim_snapshot_contract",
                 "stealth_move_reconciliation_proof",
             ],
             AdminApiMutationFamilyType.MOVEMENT_REPRICE: [
@@ -8109,7 +8178,7 @@ class AdminApiReadService:
                 required_gate_chain=gap_required_gate_chain,
                 missing_contracts=[
                     "stealth_move_active_placement_cancel_replace_proof",
-                    "stealth_move_mutation_claim_audit",
+                    "stealth_move_mutation_claim_snapshot_contract",
                     "stealth_move_reconciliation_proof",
                 ],
                 stealth_rule_boundary=stealth_boundary,
