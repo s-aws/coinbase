@@ -100,7 +100,7 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Active autonomous range: `1921-1940`.
+- Active autonomous range: `1941-1960`.
 - M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
   M52 reconciliation plan records are complete. M53 closed with a single
   dry-run pilot adapter for `POST /api/v1/orders` through
@@ -131,12 +131,15 @@ notional, retained inventory, reconciliation result, and audit ids.
   apply/rollback execution journal plumbing and post-apply reconciliation
   boundaries. The completed 1901-1920 range added guarded local repair-result
   evidence and clarified that recovery-state evidence is not order/exchange
-  mutation, Coinbase activity, or browser authority. The active 1921-1940
-  range is the next M54 slice for backend-owned post-apply reconciliation
-  completion evidence. Recovery apply/rollback journal acceptance and guarded
-  repair-result evidence are durable after exact backend prerequisites match;
-  post-apply reconciliation completion and reconciliation execution remain
-  blocked until those backend gates exist. This foundation
+  mutation, Coinbase activity, or browser authority. The completed 1921-1940 range adds
+  backend-owned post-apply reconciliation completion evidence: reconciliation
+  proof recording can append a guarded local completion record only after
+  matching proof, apply journal, repair-result, approval, admission audit,
+  cap/guard, reconciliation-plan, idempotency, operator-intent, and
+  payload-hash evidence. Recovery apply/rollback journal acceptance, guarded
+  repair-result evidence, and completion records are durable after exact
+  backend prerequisites match; reconciliation execution remains blocked until
+  that backend gate exists. This foundation
   must not add a parallel writer,
   browser P/L authority, sell authority, tax accounting, browser audit
   authority, browser recovery authority, browser reconciliation authority,
@@ -149,6 +152,10 @@ notional, retained inventory, reconciliation result, and audit ids.
   records, reconciliation plans, command-suite proof routes, command draft
   evidence, or pilot adapter evidence are not sufficient live execution
   authority by themselves.
+  The active 1941-1960 range must define and expose the backend-owned
+  reconciliation execution boundary as fail-closed evidence before any local
+  order-state reconciliation, exchange-state mutation, Coinbase read, or
+  Coinbase order behavior can be considered.
 - M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
   The existing `GET /api/v1/admin/enterprise-readiness` route reports
   backend-owned `mutation_taxonomy` rows that map every current command route,

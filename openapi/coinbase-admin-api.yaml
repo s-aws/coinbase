@@ -6036,6 +6036,7 @@ components:
       - spot_recovery_rollback_execution
       - spot_recovery_exchange_state_proof
       - spot_recovery_reconciliation_proof
+      - spot_recovery_reconciliation_completion
       - stealth_cancel
       - movement_reprice
       - futures_contract_required
@@ -12719,6 +12720,169 @@ components:
       - detail
       title: SpotRecoveryApplyReviewResponse
       description: Read-only Spot recovery apply-review contract evidence.
+    SpotRecoveryCompletionRecordItem:
+      properties:
+        completion_id:
+          type: string
+          title: Completion Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        completion_state:
+          $ref: '#/components/schemas/SpotRecoveryCompletionState'
+        client_order_id:
+          type: string
+          title: Client Order Id
+        repair_result_id:
+          type: string
+          title: Repair Result Id
+        journal_id:
+          type: string
+          title: Journal Id
+        audit_id:
+          type: string
+          title: Audit Id
+        reconciliation_proof_id:
+          type: string
+          title: Reconciliation Proof Id
+        proof_id:
+          type: string
+          title: Proof Id
+        proof_audit_id:
+          type: string
+          title: Proof Audit Id
+        reconciliation_plan_id:
+          type: string
+          title: Reconciliation Plan Id
+        approval_snapshot_id:
+          type: string
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          title: Cap Guard Decision Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        actor_id:
+          type: string
+          title: Actor Id
+        operator_intent:
+          type: string
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        correlation_id:
+          type: string
+          title: Correlation Id
+        payload_hash:
+          type: string
+          title: Payload Hash
+        guard_passed:
+          type: boolean
+          title: Guard Passed
+          default: true
+        guard_failures:
+          items:
+            type: string
+          type: array
+          title: Guard Failures
+        post_apply_reconciliation_completed:
+          type: boolean
+          title: Post Apply Reconciliation Completed
+          default: true
+        reconciliation_proof_satisfied:
+          type: boolean
+          title: Reconciliation Proof Satisfied
+          default: true
+        fully_reconciled:
+          type: boolean
+          title: Fully Reconciled
+          default: true
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        coinbase_rest_read_ran:
+          type: boolean
+          title: Coinbase Rest Read Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - completion_id
+      - recorded_at
+      - mutation_family
+      - completion_state
+      - client_order_id
+      - repair_result_id
+      - journal_id
+      - audit_id
+      - reconciliation_proof_id
+      - proof_id
+      - proof_audit_id
+      - reconciliation_plan_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - route
+      - method
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - correlation_id
+      - payload_hash
+      - detail
+      title: SpotRecoveryCompletionRecordItem
+      description: Read-only Spot recovery post-apply completion evidence.
     SpotRecoveryCompletionState:
       type: string
       enum:
@@ -12741,6 +12905,11 @@ components:
           title: Target Id
         state:
           $ref: '#/components/schemas/SpotRecoveryCompletionState'
+        completion_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Completion Id
         journal_accepted:
           type: boolean
           title: Journal Accepted
@@ -12756,6 +12925,10 @@ components:
         reconciliation_proof_satisfied:
           type: boolean
           title: Reconciliation Proof Satisfied
+          default: false
+        post_apply_reconciliation_completed:
+          type: boolean
+          title: Post Apply Reconciliation Completed
           default: false
         fully_reconciled:
           type: boolean
@@ -13979,6 +14152,16 @@ components:
             $ref: '#/components/schemas/SpotRecoveryRepairResultRecordItem'
           type: array
           title: Persisted Repair Results
+        persisted_completion_count:
+          type: integer
+          minimum: 0.0
+          title: Persisted Completion Count
+          default: 0
+        persisted_completions:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryCompletionRecordItem'
+          type: array
+          title: Persisted Completions
         latest_exchange_state_proof_id:
           anyOf:
           - type: string
@@ -14004,6 +14187,11 @@ components:
           - type: string
           - type: 'null'
           title: Latest Repair Result Id
+        latest_completion_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Completion Id
         post_apply_reconciliation_required_count:
           type: integer
           minimum: 0.0
@@ -14013,6 +14201,11 @@ components:
           type: integer
           minimum: 0.0
           title: Post Apply Reconciliation Satisfied Count
+          default: 0
+        post_apply_reconciliation_completed_count:
+          type: integer
+          minimum: 0.0
+          title: Post Apply Reconciliation Completed Count
           default: 0
         missing_contracts:
           items:
@@ -14332,6 +14525,11 @@ components:
             type: string
           type: array
           title: Repair Result Ids
+        completion_ids:
+          items:
+            type: string
+          type: array
+          title: Completion Ids
         latest_apply_journal_id:
           anyOf:
           - type: string
@@ -14375,6 +14573,14 @@ components:
           title: Dry Run Repair Plan Id
         completion_state:
           $ref: '#/components/schemas/SpotRecoveryCompletionState'
+        post_apply_reconciliation_completed:
+          type: boolean
+          title: Post Apply Reconciliation Completed
+          default: false
+        fully_reconciled:
+          type: boolean
+          title: Fully Reconciled
+          default: false
         state_repair_available:
           type: boolean
           title: State Repair Available

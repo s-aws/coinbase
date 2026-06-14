@@ -59,6 +59,9 @@ from application.admin_api.pnl_checkpoint import (
 from application.admin_api.spot_recovery_execution import (
     FileSpotRecoveryExecutionJournalStore,
 )
+from application.admin_api.spot_recovery_completion import (
+    FileSpotRecoveryCompletionJournalStore,
+)
 from application.admin_api.spot_recovery_proof import (
     FileSpotRecoveryProofStore,
     SpotRecoveryProofRecord,
@@ -188,6 +191,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     spot_recovery_repair_result_store = FileSpotRecoveryRepairResultJournalStore(
         store_dir / "spot_recovery_repair_results.jsonl"
     )
+    spot_recovery_completion_store = FileSpotRecoveryCompletionJournalStore(
+        store_dir / "spot_recovery_completion.jsonl"
+    )
     order_command_service = AdminApiCommandService(
         AdminApiCommandDependencies(
             spot_recovery_proof_store_getter=lambda: spot_recovery_proof_store,
@@ -196,6 +202,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             ),
             spot_recovery_repair_result_store_getter=lambda: (
                 spot_recovery_repair_result_store
+            ),
+            spot_recovery_completion_store_getter=lambda: (
+                spot_recovery_completion_store
             ),
             audit_store_getter=lambda: audit_store,
         )
@@ -253,6 +262,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             spot_recovery_proof_store=spot_recovery_proof_store,
             spot_recovery_execution_store=spot_recovery_execution_store,
             spot_recovery_repair_result_store=spot_recovery_repair_result_store,
+            spot_recovery_completion_store=spot_recovery_completion_store,
         )
     )
     client = TestClient(app)
@@ -269,6 +279,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client.admin_api_test_spot_recovery_repair_result_store = (
         spot_recovery_repair_result_store
+    )
+    client.admin_api_test_spot_recovery_completion_store = (
+        spot_recovery_completion_store
     )
     return client
 
@@ -4430,7 +4443,8 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
             assert evidence_route["documentation_refs"]
         assert gap["required_backend_contract"]
         assert gap["required_gate_chain"]
-        assert gap["missing_contracts"]
+        if gap["family"] != AdminApiSpotCommandSuiteGapFamily.SPOT_RECOVERY_WORKFLOW.value:
+            assert gap["missing_contracts"]
         assert "docs/COMMAND_WORKFLOWS.md" in gap["documentation_refs"]
     sweep_gap = coverage_gaps[
         AdminApiSpotCommandSuiteGapFamily.SPOT_SWEEP_AUTOMATION.value
@@ -4490,8 +4504,11 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "spot_recovery_state_repair_contract" not in recovery_gap[
         "missing_contracts"
     ]
-    assert "spot_recovery_post_apply_reconciliation_completion" in recovery_gap[
+    assert "spot_recovery_post_apply_reconciliation_completion" not in recovery_gap[
         "missing_contracts"
+    ]
+    assert "post_apply_reconciliation_completion" in recovery_gap[
+        "required_gate_chain"
     ]
     assert "spot_recovery_proof_persistence_contract" not in recovery_gap[
         "missing_contracts"
@@ -5234,7 +5251,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1921-1940"
+    assert live_payload["approved_phase_range"] == "1941-1960"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -5793,7 +5810,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1921-1940"
+    assert enterprise_payload["approved_phase_range"] == "1941-1960"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6300,7 +6317,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "1921-1940"
+    assert recovery_preview_payload["approved_phase_range"] == "1941-1960"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"
@@ -6339,7 +6356,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "spot_recovery_state_repair_contract" not in recovery_preview_payload[
         "missing_contracts"
     ]
-    assert "spot_recovery_post_apply_reconciliation_completion" in (
+    assert "spot_recovery_post_apply_reconciliation_completion" not in (
         recovery_preview_payload["missing_contracts"]
     )
     recovery_preview_sources = {
@@ -6597,7 +6614,7 @@ def test_admin_api_spot_recovery_contract_routes_are_read_only_and_client_id_bou
     assert apply_review.status == AdminApiGateStatus.BLOCKED
     assert apply_review.apply_review_contract_available is True
     assert apply_review.recovery_apply_available is True
-    assert "spot_recovery_post_apply_reconciliation_completion" in (
+    assert "spot_recovery_post_apply_reconciliation_completion" not in (
         apply_review.missing_contracts
     )
     assert "spot_recovery_state_repair_contract" not in (
@@ -7345,6 +7362,16 @@ def test_admin_api_spot_recovery_proof_routes_persist_replay_and_read_back(
     )
     assert reconciliation_payload["data"]["proof_id"] == "reconciliation-proof-001"
     assert reconciliation_payload["data"]["reconciliation_proof_recorded"] is True
+    assert (
+        reconciliation_payload["data"][
+            "post_apply_reconciliation_completion_recorded"
+        ]
+        is False
+    )
+    assert reconciliation_payload["data"]["completion_guard_passed"] is False
+    assert "apply_execution_journal_missing" in (
+        reconciliation_payload["data"]["completion_guard_failures"]
+    )
     assert reconciliation_payload["data"]["reconciliation_executed"] is False
     assert reconciliation_payload["data"]["proof_persisted"] is True
     assert reconciliation_payload["data"]["coinbase_rest_read_ran"] is False
@@ -7356,6 +7383,7 @@ def test_admin_api_spot_recovery_proof_routes_persist_replay_and_read_back(
         "reconciliation-proof-001",
         "exchange-state-proof-001",
     ]
+    assert client.admin_api_test_spot_recovery_completion_store.read_recent() == []
     readback = client.get(
         "/api/v1/spot/recovery/reconciliation-proof",
         params={"client_order_id": "client-order-preview"},
@@ -7364,6 +7392,9 @@ def test_admin_api_spot_recovery_proof_routes_persist_replay_and_read_back(
     assert readback.status_code == 200
     readback_payload = readback.json()
     assert readback_payload["persisted_proof_count"] == 2
+    assert readback_payload["persisted_completion_count"] == 0
+    assert readback_payload["post_apply_reconciliation_completion_available"] is True
+    assert readback_payload["latest_completion_id"] is None
     assert readback_payload["latest_exchange_state_proof_id"] == (
         "exchange-state-proof-001"
     )
@@ -7398,6 +7429,269 @@ def test_admin_api_spot_recovery_proof_routes_persist_replay_and_read_back(
         and row.admission_decision.live_exchange_submitted is False
         for row in proof_audit_rows
     )
+
+
+@pytest.mark.regression
+def test_admin_api_spot_recovery_reconciliation_proof_records_completion(
+    monkeypatch,
+):
+    import configuration
+
+    def poison(*_args, **_kwargs):
+        raise AssertionError("recovery completion must not contact Coinbase")
+
+    monkeypatch.setattr(configuration, "get_rest_client", poison)
+
+    client = _client(monkeypatch)
+    client_order_id = "client-order-completion"
+    exchange_path = "/api/v1/spot/recovery/exchange-state-proofs"
+    apply_path = "/api/v1/spot/recovery/apply-executions"
+    proof_path = "/api/v1/spot/recovery/reconciliation-proofs"
+    shared_approval_id = "approval-completion-001"
+    shared_admission_audit_id = "admission-audit-completion-001"
+    shared_cap_guard_id = "cap-guard-completion-001"
+    shared_reconciliation_plan_id = "reconciliation-plan-completion-001"
+
+    exchange_body = {
+        "client_order_id": client_order_id,
+        "exchange_state_proof_id": "exchange-state-proof-completion-001",
+        "exchange_state_evidence_ref": "audit-workbench-ref-completion-001",
+        "reconciliation_plan_id": shared_reconciliation_plan_id,
+        "approval_snapshot_id": shared_approval_id,
+        "admission_audit_id": shared_admission_audit_id,
+        "cap_guard_decision_id": shared_cap_guard_id,
+        "dry_run": True,
+        "operator_reason": "completion contract evidence only",
+        "manual_live_acknowledgement": False,
+    }
+    exchange_idempotency_key = "spot-recovery-exchange-completion-001"
+    exchange_payload_hash = _spot_recovery_proof_payload_hash(
+        endpoint=f"POST {exchange_path}",
+        body=exchange_body,
+        model=SpotRecoveryExchangeStateProofRequest,
+    )
+    _append_spot_recovery_proof_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=exchange_path,
+        service_method="record_spot_recovery_exchange_state_proof",
+        client_order_id=client_order_id,
+        idempotency_key=exchange_idempotency_key,
+        operator_intent="spot_recovery_contract_review",
+        payload_hash=exchange_payload_hash,
+        approval_snapshot_id=shared_approval_id,
+        admission_audit_id=shared_admission_audit_id,
+        cap_guard_decision_id=shared_cap_guard_id,
+        reconciliation_plan_id=shared_reconciliation_plan_id,
+    )
+    exchange_created = client.post(
+        exchange_path,
+        json=exchange_body,
+        headers=_headers(
+            idempotency_key=exchange_idempotency_key,
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert exchange_created.status_code == 200
+
+    apply_body = {
+        "client_order_id": client_order_id,
+        "rollback_plan_id": "rollback-plan-completion-001",
+        "approval_snapshot_id": shared_approval_id,
+        "admission_audit_id": shared_admission_audit_id,
+        "cap_guard_decision_id": shared_cap_guard_id,
+        "reconciliation_plan_id": shared_reconciliation_plan_id,
+        "exchange_state_proof_id": exchange_body["exchange_state_proof_id"],
+        "state_repair_requested": True,
+        "dry_run": True,
+        "operator_reason": "completion contract evidence only",
+        "manual_live_acknowledgement": False,
+    }
+    repair_ids = build_spot_recovery_repair_ids(
+        client_order_id=client_order_id,
+        mutation_family=(
+            AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION
+        ),
+        rollback_plan_id=apply_body["rollback_plan_id"],
+        evidence_id=apply_body["exchange_state_proof_id"],
+        reconciliation_plan_id=apply_body["reconciliation_plan_id"],
+    )
+    apply_body.update({
+        "repair_target_id": repair_ids.repair_target_id,
+        "pre_apply_snapshot_id": repair_ids.pre_apply_snapshot_id,
+        "dry_run_repair_plan_id": repair_ids.dry_run_repair_plan_id,
+    })
+    apply_idempotency_key = "spot-recovery-apply-completion-001"
+    apply_payload_hash = _spot_recovery_execution_payload_hash(
+        endpoint=f"POST {apply_path}",
+        body=apply_body,
+        model=SpotRecoveryApplyExecutionRequest,
+    )
+    _append_spot_recovery_execution_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=apply_path,
+        service_method="execute_spot_recovery_apply",
+        client_order_id=client_order_id,
+        idempotency_key=apply_idempotency_key,
+        operator_intent="spot_recovery_contract_review",
+        payload_hash=apply_payload_hash,
+        approval_snapshot_id=shared_approval_id,
+        admission_audit_id=shared_admission_audit_id,
+        cap_guard_decision_id=shared_cap_guard_id,
+        reconciliation_plan_id=shared_reconciliation_plan_id,
+    )
+    apply_created = client.post(
+        apply_path,
+        json=apply_body,
+        headers=_headers(
+            idempotency_key=apply_idempotency_key,
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert apply_created.status_code == 200
+    apply_payload = apply_created.json()
+    assert apply_payload["data"]["repair_result_id"] == repair_ids.repair_result_id
+    assert apply_payload["data"]["repair_result_journal_persisted"] is True
+    assert apply_payload["data"]["state_repair_executed"] is True
+    assert apply_payload["data"]["reconciliation_executed"] is False
+
+    reconciliation_body = {
+        "client_order_id": client_order_id,
+        "exchange_state_proof_id": exchange_body["exchange_state_proof_id"],
+        "reconciliation_proof_id": "reconciliation-proof-completion-001",
+        "recovery_apply_audit_id": apply_payload["audit_id"],
+        "reconciliation_plan_id": shared_reconciliation_plan_id,
+        "approval_snapshot_id": shared_approval_id,
+        "admission_audit_id": shared_admission_audit_id,
+        "cap_guard_decision_id": shared_cap_guard_id,
+        "dry_run": True,
+        "operator_reason": "completion contract evidence only",
+        "manual_live_acknowledgement": False,
+    }
+    reconciliation_idempotency_key = "spot-recovery-proof-completion-001"
+    reconciliation_payload_hash = _spot_recovery_proof_payload_hash(
+        endpoint=f"POST {proof_path}",
+        body=reconciliation_body,
+        model=SpotRecoveryReconciliationProofRecordRequest,
+    )
+    _append_spot_recovery_proof_admission_chain(
+        approval_store=client.admin_api_test_approval_store,
+        audit_store=client.admin_api_test_audit_store,
+        cap_guard_store=client.admin_api_test_cap_guard_store,
+        reconciliation_store=client.admin_api_test_reconciliation_store,
+        route=proof_path,
+        service_method="record_spot_recovery_reconciliation_proof",
+        client_order_id=client_order_id,
+        idempotency_key=reconciliation_idempotency_key,
+        operator_intent="spot_recovery_contract_review",
+        payload_hash=reconciliation_payload_hash,
+        approval_snapshot_id=shared_approval_id,
+        admission_audit_id=shared_admission_audit_id,
+        cap_guard_decision_id=shared_cap_guard_id,
+        reconciliation_plan_id=shared_reconciliation_plan_id,
+    )
+    reconciliation_created = client.post(
+        proof_path,
+        json=reconciliation_body,
+        headers=_headers(
+            idempotency_key=reconciliation_idempotency_key,
+            operator_intent="spot_recovery_contract_review",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert reconciliation_created.status_code == 200
+    reconciliation_payload = reconciliation_created.json()
+    completion_id = reconciliation_payload["data"]["completion_id"]
+    assert reconciliation_payload["data"]["reconciliation_proof_recorded"] is True
+    assert (
+        reconciliation_payload["data"][
+            "post_apply_reconciliation_completion_recorded"
+        ]
+        is True
+    )
+    assert reconciliation_payload["data"]["completion_guard_passed"] is True
+    assert reconciliation_payload["data"]["completion_guard_failures"] == []
+    assert reconciliation_payload["data"]["post_apply_reconciliation_completed"] is True
+    assert reconciliation_payload["data"]["fully_reconciled"] is True
+    assert reconciliation_payload["data"]["reconciliation_executed"] is False
+    assert reconciliation_payload["data"]["order_state_mutated"] is False
+    assert reconciliation_payload["data"]["exchange_state_mutated"] is False
+    assert reconciliation_payload["data"]["coinbase_rest_read_ran"] is False
+
+    completion_records = (
+        client.admin_api_test_spot_recovery_completion_store.read_recent(limit=20)
+    )
+    assert len(completion_records) == 1
+    completion_record = completion_records[0]
+    assert completion_record.completion_id == completion_id
+    assert completion_record.mutation_family == (
+        AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_COMPLETION
+    )
+    assert completion_record.completion_state == (
+        SpotRecoveryCompletionState.FULLY_RECONCILED
+    )
+    assert completion_record.client_order_id == client_order_id
+    assert completion_record.repair_result_id == repair_ids.repair_result_id
+    assert completion_record.journal_id == apply_payload["data"]["journal_id"]
+    assert completion_record.audit_id == apply_payload["audit_id"]
+    assert completion_record.reconciliation_proof_id == (
+        reconciliation_body["reconciliation_proof_id"]
+    )
+    assert completion_record.proof_audit_id == reconciliation_payload["audit_id"]
+    assert completion_record.post_apply_reconciliation_completed is True
+    assert completion_record.reconciliation_proof_satisfied is True
+    assert completion_record.fully_reconciled is True
+    assert completion_record.reconciliation_executed is False
+    assert completion_record.order_state_mutated is False
+    assert completion_record.exchange_state_mutated is False
+    assert completion_record.live_coinbase_orders_ran is False
+
+    readback = client.get(
+        "/api/v1/spot/recovery/reconciliation-proof",
+        params={"client_order_id": client_order_id},
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["persisted_completion_count"] == 1
+    assert readback_payload["latest_completion_id"] == completion_id
+    assert readback_payload["post_apply_reconciliation_completed_count"] == 1
+    assert readback_payload["post_apply_reconciliation_satisfied_count"] == 1
+    assert readback_payload["post_apply_reconciliation_required_count"] == 1
+    assert readback_payload["post_apply_reconciliation_completion_available"] is True
+    assert readback_payload["persisted_completions"][0]["completion_id"] == completion_id
+    assert readback_payload["persisted_completions"][0]["fully_reconciled"] is True
+    assert readback_payload["persisted_completions"][0]["reconciliation_executed"] is False
+    assert readback_payload["repair_targets"][0]["completion_ids"] == [completion_id]
+    assert readback_payload["repair_targets"][0]["fully_reconciled"] is True
+    assert readback_payload["completion_states"][0]["completion_id"] == completion_id
+    assert readback_payload["completion_states"][0]["fully_reconciled"] is True
+    assert readback_payload["completion_states"][0]["state"] == (
+        SpotRecoveryCompletionState.FULLY_RECONCILED.value
+    )
+    assert "spot_reconciliation_execution_contract" in (
+        readback_payload["missing_contracts"]
+    )
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_read_ran"] is False
+    assert '"order_id"' not in json.dumps(readback_payload)
+
+    apply_review = client.get(
+        "/api/v1/spot/recovery/apply-review",
+        params={"client_order_id": client_order_id},
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert apply_review.status_code == 200
+    apply_review_payload = apply_review.json()
+    assert apply_review_payload["missing_contracts"] == []
+    assert apply_review_payload["completion_states"][0]["fully_reconciled"] is True
 
 
 @pytest.mark.regression

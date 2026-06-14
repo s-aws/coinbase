@@ -2367,6 +2367,7 @@ class SpotRecoveryRepairTargetItem(BaseModel):
     categories: list[SpotRecoveryRepairCategory] = Field(default_factory=list)
     execution_journal_ids: list[str] = Field(default_factory=list)
     repair_result_ids: list[str] = Field(default_factory=list)
+    completion_ids: list[str] = Field(default_factory=list)
     latest_apply_journal_id: str | None = None
     latest_rollback_journal_id: str | None = None
     exchange_state_proof_ids: list[str] = Field(default_factory=list)
@@ -2377,6 +2378,8 @@ class SpotRecoveryRepairTargetItem(BaseModel):
     pre_apply_snapshot_id: str
     dry_run_repair_plan_id: str
     completion_state: SpotRecoveryCompletionState
+    post_apply_reconciliation_completed: bool = False
+    fully_reconciled: bool = False
     state_repair_available: bool = Field(
         default=False,
         description=(
@@ -2487,10 +2490,12 @@ class SpotRecoveryCompletionStateItem(BaseModel):
     client_order_id: str
     target_id: str
     state: SpotRecoveryCompletionState
+    completion_id: str | None = None
     journal_accepted: bool = False
     repair_applied: bool = False
     rollback_applied: bool = False
     reconciliation_proof_satisfied: bool = False
+    post_apply_reconciliation_completed: bool = False
     fully_reconciled: bool = False
     backend_owned: bool = True
     browser_authority: str = "display_only"
@@ -2877,6 +2882,52 @@ class SpotRecoveryRepairResultRecordItem(BaseModel):
     detail: str
 
 
+class SpotRecoveryCompletionRecordItem(BaseModel):
+    """Read-only Spot recovery post-apply completion evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    completion_id: str
+    recorded_at: str
+    mutation_family: AdminApiMutationFamilyType
+    completion_state: SpotRecoveryCompletionState
+    client_order_id: str
+    repair_result_id: str
+    journal_id: str
+    audit_id: str
+    reconciliation_proof_id: str
+    proof_id: str
+    proof_audit_id: str
+    reconciliation_plan_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    actor_id: str
+    operator_intent: str
+    idempotency_key: str
+    correlation_id: str
+    payload_hash: str
+    guard_passed: bool = True
+    guard_failures: list[str] = Field(default_factory=list)
+    post_apply_reconciliation_completed: bool = True
+    reconciliation_proof_satisfied: bool = True
+    fully_reconciled: bool = True
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    reconciliation_executed: bool = False
+    coinbase_rest_read_ran: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     """Read-only Spot recovery reconciliation-proof contract evidence."""
 
@@ -2909,13 +2960,17 @@ class SpotRecoveryReconciliationProofResponse(AdminApiReadPayload):
     persisted_executions: list[SpotRecoveryExecutionRecordItem] = Field(default_factory=list)
     persisted_repair_result_count: int = Field(default=0, ge=0)
     persisted_repair_results: list[SpotRecoveryRepairResultRecordItem] = Field(default_factory=list)
+    persisted_completion_count: int = Field(default=0, ge=0)
+    persisted_completions: list[SpotRecoveryCompletionRecordItem] = Field(default_factory=list)
     latest_exchange_state_proof_id: str | None = None
     latest_reconciliation_proof_id: str | None = None
     latest_apply_journal_id: str | None = None
     latest_rollback_journal_id: str | None = None
     latest_repair_result_id: str | None = None
+    latest_completion_id: str | None = None
     post_apply_reconciliation_required_count: int = Field(default=0, ge=0)
     post_apply_reconciliation_satisfied_count: int = Field(default=0, ge=0)
+    post_apply_reconciliation_completed_count: int = Field(default=0, ge=0)
     missing_contracts: list[str] = Field(default_factory=list)
     reconciliation_proof_contract_available: bool = True
     exchange_state_proof_writer_available: bool = True

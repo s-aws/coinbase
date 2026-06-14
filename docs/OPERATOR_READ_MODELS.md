@@ -33,7 +33,12 @@ The preview route aggregates direct-order audit, recovery-gate, and
 fill-ledger health evidence into candidate rows keyed by `client_order_id`
 when a candidate identity exists. The apply-review, rollback-plan, and
 reconciliation-proof routes expose gate dependencies, rollback prerequisites,
-and required proof fields for those same client-order-id candidates.
+and required proof fields for those same client-order-id candidates. The
+reconciliation-proof route also reads guarded post-apply completion evidence:
+`persisted_completion_count`, `persisted_completions`, `latest_completion_id`,
+and post-apply satisfied/completed counts. Those fields prove only that a
+backend-owned local completion record exists; they do not prove reconciliation
+execution or exchange-state mutation.
 
 The recovery read-contract routes do not:
 

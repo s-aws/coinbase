@@ -38,7 +38,122 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Post-Apply Reconciliation Completion Batch - Phases 1921-1940
+## Active M54 Reconciliation Execution Boundary Batch - Phases 1941-1960
+
+This batch follows guarded post-apply reconciliation completion evidence. The
+next M54 gap is not another proof readback; it is the backend-owned
+reconciliation execution boundary. The backend must make execution authority,
+input evidence, mutation posture, audit/idempotency requirements, and
+remaining blockers explicit before any local order-state reconciliation or
+live Coinbase behavior can be enabled. This batch remains no-live by default
+and does not authorize browser reconciliation authority, BFF execution
+authority, Coinbase reads, Coinbase order submission, or route-local
+execution.
+
+### Phase 1941 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1921-1940 to active
+  phases 1941-1960 while preserving no-live defaults and cap policy.
+
+### Phase 1942 - Reconciliation Execution Contract Scope
+
+- Define reconciliation execution as a backend-owned contract distinct from
+  plans, proofs, repair results, and completion records.
+
+### Phase 1943 - Execution Authority Boundary
+
+- Model the backend authority boundary and required ownership for any future
+  reconciliation executor without adding a browser or BFF executor.
+
+### Phase 1944 - Execution Input Evidence
+
+- Bind execution-shaped evidence to `client_order_id`, reconciliation plan,
+  reconciliation proof, completion id, approval snapshot, admission audit,
+  cap/guard decision, idempotency key, payload hash, and operator intent.
+
+### Phase 1945 - Mutation Posture Taxonomy
+
+- Add typed evidence distinguishing no-op review, local-state reconciliation,
+  order-state mutation, exchange-state mutation, Coinbase reads, and Coinbase
+  order submission.
+
+### Phase 1946 - Fail-Closed Execution Draft
+
+- Add fail-closed execution-boundary evidence that reports why reconciliation
+  execution remains unavailable until exact backend prerequisites and policy
+  gates exist.
+
+### Phase 1947 - Route Inventory And OpenAPI Sync
+
+- Update route inventory, capability rows, models, OpenAPI, and examples for
+  execution-boundary evidence without adding live execution.
+
+### Phase 1948 - Command-Suite Gap Update
+
+- Point the remaining reconciliation workflow gap at the execution boundary
+  instead of stale completion-evidence blockers.
+
+### Phase 1949 - Audit And Idempotency Evidence
+
+- Prove execution-shaped requests are idempotent, audited, operator-intent
+  bound, payload-hash bound, and replay safe before any future mutation.
+
+### Phase 1950 - No-Live Coinbase Proof
+
+- Prove this boundary does not read Coinbase, submit orders, cancel orders,
+  execute reconciliation, or mutate exchange state.
+
+### Phase 1951 - Frontend Schema Sync
+
+- Coordinate website schema, wrappers, mocks, runtime evidence, and route
+  coverage only from backend OpenAPI changes.
+
+### Phase 1952 - Frontend UI Evidence
+
+- Render execution-boundary evidence as read-only blocked state without
+  browser recovery, reconciliation, or Coinbase controls.
+
+### Phase 1953 - Safety Tests
+
+- Prove browser/BFF code cannot bypass approval, cap/guard, admission audit,
+  reconciliation plan, proof, completion, idempotency, payload hash, or
+  operator-intent prerequisites.
+
+### Phase 1954 - Backend Focused Tests
+
+- Cover execution-boundary contract, no-live posture, identity discipline,
+  OpenAPI output, and command-suite gap updates.
+
+### Phase 1955 - Frontend Focused Tests
+
+- Cover generated schema freshness, mocks, adapters, UI evidence, and
+  no-browser-authority posture where frontend consumes the boundary.
+
+### Phase 1956 - Docs And Examples
+
+- Update Admin API, command workflow, examples, matrix, inventory, and handoff
+  docs for execution-boundary semantics.
+
+### Phase 1957 - Contextless Review And Remediation
+
+- Run blind/contextless review and fix blockers before final gates.
+
+### Phase 1958 - Full Gates
+
+- Run backend autonomous check, focused tests, full regression, and frontend
+  release gate; report live Coinbase notional `$0`.
+
+### Phase 1959 - Live-Execution Ledger
+
+- Record live Coinbase execution as not run unless a later explicit live
+  phase overrides the default under the carried cap.
+
+### Phase 1960 - Final Gates, Push, And Next Range
+
+- Push both repos and create the next milestone-linked active range only if
+  M54 still has an explicit gap.
+
+## Completed M54 Post-Apply Reconciliation Completion Batch - Phases 1921-1940
 
 This batch directly follows guarded local repair-result evidence. The next
 M54 gap is post-apply reconciliation completion evidence: the backend must
@@ -46,6 +161,19 @@ prove that a reconciliation proof satisfies the same guarded repair chain
 before any recovery can be called complete. This batch does not authorize
 full reconciliation execution, live Coinbase execution, browser
 reconciliation authority, exchange reads, or order/exchange-state mutation.
+
+Completion evidence:
+
+- Added guarded post-apply reconciliation completion records that persist only
+  after matching proof, apply journal, repair result, approval snapshot,
+  admission audit, cap/guard decision, reconciliation plan, idempotency,
+  payload hash, and operator intent evidence.
+- Completion readback now exposes completion ids, guard state, completion
+  counts, and fully reconciled local evidence while preserving the separate
+  reconciliation execution blocker.
+- OpenAPI, frontend generated schema, mocks, adapter metrics, UI evidence,
+  docs, focused tests, and no-live evidence were synchronized with live
+  Coinbase submitted/executed notional `$0`.
 
 ### Phase 1921 - Advance Active Queue Range
 

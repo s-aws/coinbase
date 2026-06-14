@@ -124,9 +124,13 @@ execution; guarded backend local repair-result journals are allowed only when
 the repair guard matches exactly. The proof POST routes persist append-only
 backend local evidence
 only after approval, admission audit, cap/guard, reconciliation plan,
-idempotency, and audit prerequisites match. The read routes and proof POST
-routes must not roll back order state, execute reconciliation, mutate
-order/exchange state, call Coinbase, or authorize browser/BFF recovery.
+idempotency, and audit prerequisites match. Reconciliation-proof POST may also
+persist a guarded post-apply completion record when the existing proof, apply
+journal, repair-result, approval, admission audit, cap/guard,
+reconciliation-plan, idempotency, operator-intent, and payload-hash evidence
+matches exactly. The read routes and proof POST routes must not roll back
+order state, execute reconciliation, mutate order/exchange state, call
+Coinbase, or authorize browser/BFF recovery.
 Accepted checkpoint records also expose read-only reconciliation-plan link
 evidence to `GET /api/v1/admin/reconciliation/plans` and
 `GET /api/v1/admin/reconciliation/plans/{plan_id}`. That link is triage

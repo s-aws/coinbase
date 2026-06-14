@@ -2206,7 +2206,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Spot recovery post-apply reconciliation completion. Proof persistence, execution journal evidence, guarded local repair-result evidence, state-repair taxonomy, repair-target evidence, pre-apply snapshots, dry-run repair plans, completion-state evidence, and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
+      "required_backend_contract": "Spot recovery post-apply reconciliation completion evidence exists. Proof persistence, execution journal evidence, guarded local repair-result evidence, state-repair taxonomy, repair-target evidence, pre-apply snapshots, dry-run repair plans, completion-state evidence, and read-only preview/apply-review/rollback-plan/reconciliation-proof evidence are already exposed.",
       "required_gate_chain": [
         "route_inventory_contract",
         "recovery_preview",
@@ -2215,11 +2215,10 @@ X-Admin-Roles: viewer
         "approval_snapshot",
         "admission_audit",
         "rollback_plan",
-        "reconciliation_proof"
+        "reconciliation_proof",
+        "post_apply_reconciliation_completion"
       ],
-      "missing_contracts": [
-        "spot_recovery_post_apply_reconciliation_completion"
-      ],
+      "missing_contracts": [],
       "backend_owned": true,
       "browser_authority": "display_only",
       "bff_authority": "forward_only_no_execution",
@@ -2229,7 +2228,7 @@ X-Admin-Roles: viewer
         "docs/OPERATOR_READ_MODELS.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and recovery POST contracts do not execute reconciliation, mutate order/exchange state, or call Coinbase. State-repair taxonomy, repair targets, pre-apply snapshots, dry-run repair plans, guarded repair-result journals, and completion states are backend evidence only. Post-apply reconciliation completion and reconciliation execution must stay backend-owned before any recovery action can be considered complete."
+      "detail": "Spot recovery preview, apply-review, rollback-plan, reconciliation-proof, recovery-gate, reconciliation-plan, direct-order audit reads, and recovery POST contracts do not execute reconciliation, mutate order/exchange state, or call Coinbase. State-repair taxonomy, repair targets, pre-apply snapshots, dry-run repair plans, guarded repair-result journals, completion states, and guarded post-apply completion records are backend evidence only. Reconciliation execution must stay backend-owned before any recovery action can be considered exchange-complete."
     },
     {
       "family": "spot_reconciliation_workflow",

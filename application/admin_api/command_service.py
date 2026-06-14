@@ -18,6 +18,7 @@ from core.enums import (
     ActionGuardPhase,
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiGateStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
     EventSourceChannel,
@@ -60,6 +61,13 @@ from .spot_recovery_execution import (
 from .spot_recovery_execution_service import (
     AdminApiSpotRecoveryExecutionService,
     SpotRecoveryExecutionError,
+)
+from .spot_recovery_completion import (
+    FileSpotRecoveryCompletionJournalStore,
+    SpotRecoveryCompletionGuardResult,
+    SpotRecoveryCompletionRecord,
+    build_spot_recovery_completion_record,
+    evaluate_spot_recovery_completion_guard,
 )
 from .spot_recovery_proof import FileSpotRecoveryProofStore, SpotRecoveryProofRecord
 from .spot_recovery_repair import FileSpotRecoveryRepairResultJournalStore
@@ -115,6 +123,10 @@ class AdminApiCommandDependencies:
         [],
         FileSpotRecoveryRepairResultJournalStore,
     ] = FileSpotRecoveryRepairResultJournalStore
+    spot_recovery_completion_store_getter: Callable[
+        [],
+        FileSpotRecoveryCompletionJournalStore,
+    ] = FileSpotRecoveryCompletionJournalStore
     audit_store_getter: Callable[[], FileAdminApiAuditStore] = FileAdminApiAuditStore
     spot_recovery_proof_service: AdminApiSpotRecoveryProofService = field(
         default_factory=AdminApiSpotRecoveryProofService
@@ -260,19 +272,46 @@ def _spot_recovery_proof_response_data(
     *,
     exchange_state_proof_recorded: bool,
     reconciliation_proof_recorded: bool,
+    completion_guard: SpotRecoveryCompletionGuardResult | None = None,
+    completion_record: SpotRecoveryCompletionRecord | None = None,
 ) -> dict[str, Any]:
     """Return command-response data for a persisted recovery proof record."""
 
     data = record.model_dump(mode="json")
+    completion_guard_passed = (
+        completion_guard.guard_passed if completion_guard is not None else False
+    )
+    completion_recorded = completion_record is not None
     data.update({
         "exchange_state_proof_recorded": exchange_state_proof_recorded,
         "reconciliation_proof_recorded": reconciliation_proof_recorded,
+        "post_apply_reconciliation_completion_recorded": completion_recorded,
+        "completion_guard_passed": completion_guard_passed,
+        "completion_guard_status": (
+            completion_guard.guard_status.value
+            if completion_guard is not None
+            else AdminApiGateStatus.BLOCKED.value
+        ),
+        "completion_guard_failures": (
+            completion_guard.guard_failures if completion_guard is not None else []
+        ),
+        "completion_id": (
+            completion_record.completion_id
+            if completion_record is not None
+            else (
+                completion_guard.completion_id
+                if completion_guard is not None
+                else None
+            )
+        ),
         "execution_journal_accepted": False,
         "recovery_apply_journal_accepted": False,
         "rollback_journal_accepted": False,
         "recovery_apply_executed": False,
         "rollback_executed": False,
         "reconciliation_executed": False,
+        "post_apply_reconciliation_completed": completion_recorded,
+        "fully_reconciled": completion_recorded,
         "state_repair_executed": False,
         "coinbase_order_submitted": False,
         "coinbase_rest_read_ran": False,
@@ -1332,8 +1371,11 @@ class AdminApiCommandService:
 
         deps = self.dependencies
         audit_id = deps.uuid_factory()
+        completion_guard: SpotRecoveryCompletionGuardResult | None = None
+        completion_record: SpotRecoveryCompletionRecord | None = None
         try:
-            recovery_apply_audit = deps.audit_store_getter().find_by_audit_id(
+            audit_store = deps.audit_store_getter()
+            recovery_apply_audit = audit_store.find_by_audit_id(
                 str(command.request.recovery_apply_audit_id)
             )
             if (
@@ -1349,8 +1391,9 @@ class AdminApiCommandService:
                 raise SpotRecoveryProofError(
                     "Referenced recovery apply audit was not found."
                 )
+            proof_store = deps.spot_recovery_proof_store_getter()
             record = deps.spot_recovery_proof_service.record_reconciliation_proof(
-                store=deps.spot_recovery_proof_store_getter(),
+                store=proof_store,
                 body=command.request,
                 admission_decision=command.admission_decision,
                 actor_id=command.envelope.actor.actor_id,
@@ -1360,6 +1403,52 @@ class AdminApiCommandService:
                 payload_hash=command.admission_decision.payload_hash,
                 audit_id=audit_id,
             )
+            execution_store = deps.spot_recovery_execution_store_getter()
+            apply_record = execution_store.find_by_audit_id(
+                str(command.request.recovery_apply_audit_id)
+            )
+            repair_result = None
+            repair_store = deps.spot_recovery_repair_result_store_getter()
+            if apply_record is not None and apply_record.repair_result_id:
+                repair_result = repair_store.find_by_repair_result_id(
+                    apply_record.repair_result_id
+                )
+            if repair_result is None and apply_record is not None:
+                repair_result = repair_store.find_by_journal_id(
+                    apply_record.journal_id
+                )
+            completion_guard = evaluate_spot_recovery_completion_guard(
+                proof_record=record,
+                apply_record=apply_record,
+                repair_result=repair_result,
+                recovery_apply_audit=recovery_apply_audit,
+                admission_decision=command.admission_decision,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                payload_hash=command.admission_decision.payload_hash,
+            )
+            completion_store = deps.spot_recovery_completion_store_getter()
+            if completion_guard.guard_passed:
+                completion_record = (
+                    completion_store.find_by_completion_id(
+                        completion_guard.completion_id
+                    )
+                    or build_spot_recovery_completion_record(
+                        guard=completion_guard,
+                        actor_id=command.envelope.actor.actor_id,
+                        operator_intent=command.envelope.operator_intent,
+                        idempotency_key=command.envelope.idempotency_key,
+                        correlation_id=command.envelope.correlation_id,
+                        payload_hash=command.admission_decision.payload_hash,
+                    )
+                )
+                if (
+                    completion_store.find_by_completion_id(
+                        completion_record.completion_id
+                    )
+                    is None
+                ):
+                    completion_store.append(completion_record)
         except SpotRecoveryProofError as exc:
             return self._rejected_spot_recovery_proof_response(
                 service_method="record_spot_recovery_reconciliation_proof",
@@ -1390,6 +1479,8 @@ class AdminApiCommandService:
                 record,
                 exchange_state_proof_recorded=False,
                 reconciliation_proof_recorded=True,
+                completion_guard=completion_guard,
+                completion_record=completion_record,
             ),
         )
 
