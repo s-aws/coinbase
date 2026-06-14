@@ -24,6 +24,7 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminStealthOrderDetailResponse,
     AdminStealthOrderListResponse,
+    StealthCommandSuiteResponse,
     StealthCancelCommand,
     StealthCancelRequest,
 )
@@ -117,6 +118,25 @@ def get_stealth_order_by_stealth_order_id(
     return _read_model_response(
         AdminStealthOrderDetailResponse,
         service.build_stealth_order_detail(stealth_order_id=stealth_order_id),
+    )
+
+
+@router.get(
+    "/stealth/command-suite",
+    response_model=StealthCommandSuiteResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth command-suite readiness coverage",
+)
+def stealth_command_suite(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read M55 stealth command readiness without mutating lifecycle state."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        StealthCommandSuiteResponse,
+        service.build_stealth_command_suite().model_dump(mode="json"),
     )
 
 

@@ -19,6 +19,7 @@ owners:
       - docs/LIVE_ORDER_SURFACES.md
       - docs/COMMAND_WORKFLOWS.md
       - docs/OPERATOR_READ_MODELS.md
+      - docs/STEALTH_ORDER_READS.md
       - docs/ADMIN_PLATFORM_ARCHITECTURE.md
       - docs/ADMIN_MODULE_CAPABILITY_MATRIX.md
       - docs/PUBLIC_ROADMAP.md
@@ -67,6 +68,7 @@ owners:
       - README.spot-portfolio-sweep.md
       - README.spot-recovery-snapshots.md
       - README.spot-trading.md
+      - README.stealth-command-suite.md
       - docs/PUBLIC_RELEASE_READINESS.md
       - .gitignore
       - .vscode/settings.json

@@ -161,8 +161,8 @@ not independent roadmaps.
 | M51 - Admission Audit Writer And Linkage | Complete | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
 | M52 - Reconciliation Plan And Proof Records | Complete | Add backend-owned reconciliation plan record and proof contracts for admitted commands without browser reconciliation authority or reconciliation execution. |
 | M53 - Controlled Execution Adapter Pilot | Complete | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
-| M54 - Spot Full Admin Command Suite | In Progress | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
-| M55 - Stealth Full Admin Command Suite | Approved; not started | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
+| M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
+| M55 - Stealth Full Admin Command Suite | In Progress | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
 | M57 - Futures/Perpetuals Contract Foundation And Commands | Approved; not started | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
@@ -2620,21 +2620,22 @@ Current backend evidence:
   reconciliation-link evidence, recovery-preview evidence, recovery execution
   journals, repair-result evidence, completion evidence, proof writers, and
   route-bound fail-closed reconciliation execution-boundary evidence.
-- The durable autonomous work queue now advances to phases 1961-1980 for
+- The durable autonomous work queue completed phases 1961-1980 for
   backend-owned exchange/Coinbase evidence snapshot contract boundaries
-  without adding live Coinbase reads or live execution.
+  without adding live Coinbase reads or live execution, and now advances to
+  phases 1981-2000 for M55 stealth command-suite readiness.
 
-Remaining blockers before M54 can claim full spot command-suite completion:
+Remaining blockers before M55 can claim full stealth command-suite completion:
 
-- Spot sweep automation scheduling/retry, exchange/Coinbase evidence
-  snapshots, reconciliation workflow execution, recovery execution, and any
-  eventual live execution screens must prove the full approval, cap/guard,
-  admission audit, reconciliation, live service, and adapter chain through
-  backend-owned contracts before command UI can exist.
+- Stealth create, reveal, cancel exchange handling, move revealed, reprice,
+  recovery, reconciliation, and any eventual live execution screens must prove
+  the full approval, cap/guard, admission audit, reconciliation, mutation
+  claim, active-placement exchange truth, live service, and adapter chain
+  through backend-owned contracts before command UI can exist.
 - Backend regression, frontend release gate, and blind/contextless review must
   pass for each broadened execution slice.
 - Live Coinbase execution and live Coinbase reads remain not run for the
-  current M54 evidence slices; submitted and executed notional remain `$0`.
+  current M55 evidence slices; submitted and executed notional remain `$0`.
 
 ## M24 - Enterprise Module Catalog
 

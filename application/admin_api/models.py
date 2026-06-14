@@ -42,6 +42,7 @@ from core.enums import (
     AdminApiRole,
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     AdminFuturesPositionSide,
     AdminRiskEvidenceSource,
@@ -3320,6 +3321,148 @@ class SpotCommandSuiteResponse(AdminApiReadPayload):
     commands: list[SpotCommandSuiteCommandItem] = Field(default_factory=list)
     coverage_gap_count: int = 0
     coverage_gaps: list[SpotCommandSuiteCoverageGapItem] = Field(default_factory=list)
+    read_routes: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    message: str | None = None
+
+
+class StealthCommandSuiteProofRouteItem(BaseModel):
+    """Backend proof route required before a stealth command can be executable."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    gate: AdminApiLivePreflightCategory
+    route: str
+    method: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    required: bool = True
+    blocking: bool = True
+    identity_key: str
+    command_identity_key: str
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteCommandItem(BaseModel):
+    """One stealth admin command surface and its remaining gate chain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    route: str
+    method: str
+    identity_key: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    live_execution_status: AdminApiLiveExecutionStatus = (
+        AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    live_enabled: bool = False
+    live_eligible: bool = False
+    executable: bool = False
+    live_adapter_configured: bool = False
+    approval_required: bool = True
+    cap_guard_required: bool = True
+    admission_audit_required: bool = True
+    reconciliation_required: bool = True
+    idempotency_required: bool = True
+    operator_intent_required: bool = True
+    payload_hash_required: bool = True
+    exchange_truth_required: bool = True
+    active_placement_evidence_required: bool = True
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    product_scope: str = "stealth command scope"
+    stealth_rule_boundary: str
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    readiness_preconditions: list[AdminLiveReadinessPreconditionItem] = Field(
+        default_factory=list
+    )
+    readiness_precondition_count: int = 0
+    blocking_readiness_precondition_count: int = 0
+    passed_readiness_precondition_count: int = 0
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    proof_routes: list[StealthCommandSuiteProofRouteItem] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteCoverageGapEvidenceRouteItem(BaseModel):
+    """Read route that supplies evidence for a stealth command-suite coverage gap."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    route: str
+    method: str = "GET"
+    action_class: AdminApiActionClass = AdminApiActionClass.READ_ONLY
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteCoverageGapItem(BaseModel):
+    """Remaining stealth admin suite family that is not yet command-complete."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    family: AdminApiStealthCommandSuiteGapFamily
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    exposure_status: AdminApiFunctionalityExposureStatus
+    command_route: str | None = None
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    current_read_evidence: list[StealthCommandSuiteCoverageGapEvidenceRouteItem] = Field(
+        default_factory=list
+    )
+    required_backend_contract: str
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    stealth_rule_boundary: str
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteResponse(AdminApiReadPayload):
+    """Read-only M55 stealth command-suite readiness evidence."""
+
+    type: str = "stealth_command_suite"
+    module_id: str = "stealth_orders"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    approved_phase_range: str
+    command_count: int = 0
+    blocked_command_count: int = 0
+    live_enabled_command_count: int = 0
+    executable_command_count: int = 0
+    exchange_truth_required: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    commands: list[StealthCommandSuiteCommandItem] = Field(default_factory=list)
+    coverage_gap_count: int = 0
+    coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)
     read_routes: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     message: str | None = None

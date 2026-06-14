@@ -273,6 +273,18 @@ class AdminApiSpotCommandSuiteGapFamily(str, Enum):
     SPOT_RECONCILIATION_WORKFLOW = "spot_reconciliation_workflow"
 
 
+class AdminApiStealthCommandSuiteGapFamily(str, Enum):
+    """Stealth command-suite families that still require admin contract work."""
+
+    STEALTH_CREATE_WORKFLOW = "stealth_create_workflow"
+    STEALTH_REVEAL_WORKFLOW = "stealth_reveal_workflow"
+    STEALTH_CANCEL_EXCHANGE_HANDLING = "stealth_cancel_exchange_handling"
+    STEALTH_MOVE_REVEALED_WORKFLOW = "stealth_move_revealed_workflow"
+    STEALTH_REPRICE_WORKFLOW = "stealth_reprice_workflow"
+    STEALTH_RECOVERY_WORKFLOW = "stealth_recovery_workflow"
+    STEALTH_RECONCILIATION_WORKFLOW = "stealth_reconciliation_workflow"
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 

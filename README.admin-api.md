@@ -15,7 +15,7 @@ The repository now contains an Admin API contract, generated OpenAPI and
 route-inventory artifacts, fail-closed auth/RBAC bootstrap, durable JSONL
 idempotency/audit stores, structured error payloads, observability headers,
 read-only admin diagnostics, order read routes, read-only stealth lifecycle
-routes, a live-disabled
+routes, read-only stealth command-suite readiness evidence, a live-disabled
 stealth cancel command contract, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
 account and position routes, read-only guard/risk policy evidence, read-only
@@ -171,6 +171,16 @@ These routes and their execution-boundary readback do not roll back order
 state, execute reconciliation, mutate order or exchange state, call Coinbase,
 or authorize browser/BFF recovery.
 
+M55 starts the Stealth command-suite with
+`GET /api/v1/stealth/command-suite`, a read-only readiness contract for
+stealth create, cancel, reveal, move, reprice, recovery, and reconciliation
+workflows. The route links existing live-disabled stealth cancel and
+movement/reprice command routes, reports missing workflow contracts, and makes
+exchange-truth blockers explicit. It does not create stealth orders, reveal
+orders, cancel active placements, move/reprice revealed orders, execute
+reconciliation, mutate stealth/order/exchange state, read Coinbase, call
+Coinbase, or grant browser/BFF command authority.
+
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages now delegate to
 `application.admin_api.command_service.AdminApiCommandService` as compatibility
@@ -228,6 +238,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `GET /api/v1/stealth/command-suite`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`

@@ -39,6 +39,7 @@ from core.enums import (
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     OrderSide,
     ProductCapability,
@@ -139,6 +140,11 @@ from .models import (
     SpotRecoveryRepairTargetItem,
     SpotRecoveryRollbackPlanResponse,
     SpotRecoveryStateRepairTaxonomyItem,
+    StealthCommandSuiteCommandItem,
+    StealthCommandSuiteCoverageGapEvidenceRouteItem,
+    StealthCommandSuiteCoverageGapItem,
+    StealthCommandSuiteProofRouteItem,
+    StealthCommandSuiteResponse,
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .spot_recovery_completion import (
@@ -163,7 +169,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "1961-1980"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "1981-2000"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -6986,6 +6992,633 @@ class AdminApiReadService:
             order=_stealth_item_from_row(row) if row else None,
         )
 
+    def build_stealth_command_suite(self) -> StealthCommandSuiteResponse:
+        """Return read-only M55 stealth command-suite readiness evidence."""
+
+        live_enablement = self.build_live_enablement()
+        live_paths = {
+            (path.method, path.route): path
+            for path in live_enablement.paths
+            if path.module_id in {"stealth_orders", "movement_repricing"}
+        }
+        inventory_by_surface = {
+            item.surface: item for item in ADMIN_API_ROUTE_INVENTORY
+        }
+        proof_route_specs = (
+            (
+                AdminApiLivePreflightCategory.APPROVAL,
+                "POST /api/v1/admin/approvals/requests",
+                None,
+                [
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                (
+                    "Create a backend-owned approval request bound to the exact "
+                    "stealth route, method, actor, idempotency key, payload hash, "
+                    "and command identity."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.APPROVAL,
+                "POST /api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+                "approval_request_id",
+                [
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admin-api.md",
+                ],
+                (
+                    "Record the backend approval decision. Browser approval "
+                    "remains insufficient and does not execute the stealth command."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.AUDIT,
+                "POST /api/v1/admin/admission-audits",
+                None,
+                [
+                    "README.admission-audits.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/admission-audits.md",
+                ],
+                (
+                    "Append exact admission audit evidence for the route-bound "
+                    "stealth command. The writer cannot mark live admission allowed."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.CAP_GUARD,
+                "POST /api/v1/admin/cap-guard/decisions",
+                None,
+                [
+                    "README.cap-guard-decisions.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/cap-guard-decisions.md",
+                ],
+                (
+                    "Record backend cap/guard evidence. The browser and BFF "
+                    "must not evaluate stealth lifecycle, active placement, "
+                    "or exchange-reality predicates."
+                ),
+            ),
+            (
+                AdminApiLivePreflightCategory.RECONCILIATION,
+                "POST /api/v1/admin/reconciliation/plans",
+                None,
+                [
+                    "README.reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                    "docs/examples/reconciliation-plans.md",
+                ],
+                (
+                    "Record backend reconciliation requirements. This does not "
+                    "execute reconciliation, cancel active placements, or mutate "
+                    "stealth/order/exchange state."
+                ),
+            ),
+        )
+
+        def proof_routes_for_command(
+            command_identity_key: str,
+        ) -> list[StealthCommandSuiteProofRouteItem]:
+            proof_routes: list[StealthCommandSuiteProofRouteItem] = []
+            for (
+                gate,
+                surface,
+                route_identity_key,
+                documentation_refs,
+                detail,
+            ) in proof_route_specs:
+                item = inventory_by_surface[surface]
+                method, route = _surface_method_and_path(item.surface)
+                proof_routes.append(
+                    StealthCommandSuiteProofRouteItem(
+                        gate=gate,
+                        route=route,
+                        method=method,
+                        action_class=item.action_class,
+                        required_permission=item.permission,
+                        shared_method=item.shared_method,
+                        status=AdminApiGateStatus.BLOCKED,
+                        required=True,
+                        blocking=True,
+                        identity_key=(
+                            command_identity_key
+                            if route_identity_key is None
+                            else route_identity_key
+                        ),
+                        command_identity_key=command_identity_key,
+                        backend_owned=True,
+                        route_bound=True,
+                        browser_authority="display_only",
+                        bff_authority="forward_only_no_execution",
+                        documentation_refs=list(documentation_refs),
+                        detail=detail,
+                    )
+                )
+            return proof_routes
+
+        command_metadata = {
+            AdminApiMutationFamilyType.STEALTH_CANCEL: {
+                "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
+                "identity_key": "stealth_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::cancel_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::cancel_stealth_order_by_stealth_order_id",
+                    "bridges/stealth_order_bridge.py",
+                    "core/stealth_order_manager.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::cancelStealthOrder",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.admin-api.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Stealth cancel is route-bound by stealth_order_id and "
+                    "currently live-disabled. Future execution must account for "
+                    "any active Coinbase placement before local state changes."
+                ),
+            },
+            AdminApiMutationFamilyType.MOVEMENT_REPRICE: {
+                "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+                "identity_key": "stealth_order_id",
+                "backend_contract_refs": [
+                    "api/v1/routes/movement_repricing.py::reprice_stealth_order_by_stealth_order_id",
+                    "application/admin_api/command_service.py::reprice_stealth_order_by_stealth_order_id",
+                    "bridges/stealth_order_bridge.py",
+                    "core/stealth_order_manager.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::repriceStealthOrder",
+                    "src/features/command-workflows/CommandWorkflowShell.tsx",
+                ],
+                "documentation_refs": [
+                    "README.movement-repricing.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                "detail": (
+                    "Stealth reprice is exposed through the movement/repricing "
+                    "module as a live-disabled cancel/replace-shaped command. "
+                    "It must not clear cooldowns, move live revealed placements, "
+                    "or bypass mutation claims."
+                ),
+            },
+        }
+        read_routes = [
+            item.surface
+            for item in ADMIN_API_ROUTE_INVENTORY
+            if item.action_class == AdminApiActionClass.READ_ONLY
+            and item.module_id in {"stealth_orders", "movement_repricing"}
+            and (
+                item.module_id == "stealth_orders"
+                or "stealth/{stealth_order_id}" in item.surface
+            )
+        ]
+
+        commands: list[StealthCommandSuiteCommandItem] = []
+        for mutation_family, metadata in command_metadata.items():
+            inventory_item = inventory_by_surface[str(metadata["surface"])]
+            method, route = _surface_method_and_path(inventory_item.surface)
+            live_path = live_paths.get((method, route))
+            if live_path is None:
+                missing_gate_chain = [
+                    "route_bound_live_path",
+                    "approval_snapshot",
+                    "admission_audit",
+                    "cap_guard_decision",
+                    "reconciliation_plan",
+                    "active_placement_exchange_truth",
+                    "live_execution_disabled",
+                ]
+                readiness_preconditions = []
+                live_execution_status = AdminApiLiveExecutionStatus.LIVE_DISABLED
+                live_adapter_configured = False
+            else:
+                missing_gate_chain = [
+                    precondition.precondition.value
+                    for precondition in live_path.readiness_preconditions
+                    if precondition.blocking
+                ]
+                if "active_placement_exchange_truth" not in missing_gate_chain:
+                    missing_gate_chain.append("active_placement_exchange_truth")
+                readiness_preconditions = list(live_path.readiness_preconditions)
+                live_execution_status = live_path.status
+                live_adapter_configured = live_path.live_execution_adapter.configured
+            required_gate_chain = [
+                "idempotency",
+                "operator_intent",
+                "payload_hash",
+                "approval_snapshot",
+                "approval_store_contract",
+                "admission_audit",
+                "cap_guard_decision",
+                "reconciliation_plan",
+                "active_placement_exchange_truth",
+                "mutation_claim",
+                "live_execution_adapter",
+                "live_execution_service",
+                "post_live_reconciliation",
+            ]
+            commands.append(
+                StealthCommandSuiteCommandItem(
+                    mutation_family=mutation_family,
+                    route=route,
+                    method=method,
+                    identity_key=str(metadata["identity_key"]),
+                    action_class=inventory_item.action_class,
+                    required_permission=inventory_item.permission,
+                    shared_method=inventory_item.shared_method,
+                    status=AdminApiGateStatus.BLOCKED,
+                    live_execution_status=live_execution_status,
+                    live_enabled=False,
+                    live_eligible=False,
+                    executable=False,
+                    live_adapter_configured=live_adapter_configured,
+                    approval_required=True,
+                    cap_guard_required=True,
+                    admission_audit_required=True,
+                    reconciliation_required=True,
+                    idempotency_required=True,
+                    operator_intent_required=True,
+                    payload_hash_required=True,
+                    exchange_truth_required=True,
+                    active_placement_evidence_required=True,
+                    backend_owned=True,
+                    route_bound=True,
+                    browser_authority="display_only",
+                    bff_authority="forward_only_no_execution",
+                    product_scope="stealth command scope",
+                    stealth_rule_boundary=_enterprise_module_spot_boundary(
+                        "stealth_orders"
+                    ),
+                    required_gate_chain=required_gate_chain,
+                    missing_gate_chain=missing_gate_chain,
+                    readiness_preconditions=readiness_preconditions,
+                    readiness_precondition_count=len(readiness_preconditions),
+                    blocking_readiness_precondition_count=sum(
+                        1
+                        for precondition in readiness_preconditions
+                        if precondition.blocking
+                    ),
+                    passed_readiness_precondition_count=sum(
+                        1
+                        for precondition in readiness_preconditions
+                        if precondition.status == AdminApiGateStatus.PASSED
+                    ),
+                    backend_contract_refs=list(metadata["backend_contract_refs"]),
+                    frontend_contract_refs=list(metadata["frontend_contract_refs"]),
+                    documentation_refs=list(metadata["documentation_refs"]),
+                    proof_routes=proof_routes_for_command(str(metadata["identity_key"])),
+                    evidence=[
+                        "Derived from ADMIN_API_ROUTE_INVENTORY and live-enablement readiness evidence.",
+                        "Stealth command execution must use the existing stealth manager, bridge, mutation claims, and exchange-reality reconciliation path.",
+                        "No browser, BFF, route-local, or Coinbase execution authority is added.",
+                        "Exchange order ids are evidence only; stealth_order_id remains the command identity for these routes.",
+                    ],
+                    detail=str(metadata["detail"]),
+                )
+            )
+
+        stealth_boundary = _enterprise_module_spot_boundary("stealth_orders")
+        gap_required_gate_chain = [
+            "route_inventory_contract",
+            "idempotency",
+            "operator_intent",
+            "payload_hash",
+            "approval_snapshot",
+            "admission_audit",
+            "cap_guard_decision",
+            "reconciliation_plan",
+            "mutation_claim",
+            "active_placement_exchange_truth",
+            "live_execution_adapter",
+            "live_execution_service",
+            "post_live_reconciliation",
+        ]
+        gap_evidence_route_docs = {
+            "GET /api/v1/stealth/orders": [
+                "docs/STEALTH_ORDER_READS.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/stealth/orders/{stealth_order_id}": [
+                "docs/STEALTH_ORDER_READS.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/stealth/command-suite": [
+                "docs/STEALTH_ORDER_READS.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/movement-repricing/stealth/{stealth_order_id}": [
+                "README.movement-repricing.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
+            "GET /api/v1/admin/reconciliation/plans": [
+                "README.reconciliation-plans.md",
+                "docs/examples/reconciliation-plans.md",
+            ],
+            "GET /api/v1/admin/reconciliation/plans/{plan_id}": [
+                "README.reconciliation-plans.md",
+                "docs/examples/reconciliation-plans.md",
+            ],
+        }
+
+        def coverage_gap_evidence_routes(
+            surfaces: list[str],
+        ) -> list[StealthCommandSuiteCoverageGapEvidenceRouteItem]:
+            evidence_routes: list[StealthCommandSuiteCoverageGapEvidenceRouteItem] = []
+            for surface in surfaces:
+                inventory_item = inventory_by_surface[surface]
+                method, route = _surface_method_and_path(inventory_item.surface)
+                evidence_routes.append(
+                    StealthCommandSuiteCoverageGapEvidenceRouteItem(
+                        route=route,
+                        method=method,
+                        action_class=inventory_item.action_class,
+                        required_permission=inventory_item.permission,
+                        shared_method=inventory_item.shared_method,
+                        backend_owned=True,
+                        browser_authority="display_only",
+                        bff_authority="read_only_forward",
+                        documentation_refs=list(
+                            gap_evidence_route_docs.get(surface, ["docs/COMMAND_WORKFLOWS.md"])
+                        ),
+                        detail=(
+                            "Existing read-only Admin API evidence route for a "
+                            "stealth command-suite coverage gap; it does not "
+                            "create a command route, cancel placements, reveal "
+                            "orders, execute reconciliation, or call Coinbase."
+                        ),
+                    )
+                )
+            return evidence_routes
+
+        stealth_read_surfaces = [
+            "GET /api/v1/stealth/orders",
+            "GET /api/v1/stealth/orders/{stealth_order_id}",
+            "GET /api/v1/stealth/command-suite",
+        ]
+        stealth_detail_surfaces = [
+            "GET /api/v1/stealth/orders/{stealth_order_id}",
+            "GET /api/v1/stealth/command-suite",
+        ]
+        movement_stealth_surfaces = [
+            "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
+            "GET /api/v1/stealth/command-suite",
+        ]
+        reconciliation_surfaces = [
+            "GET /api/v1/admin/reconciliation/plans",
+            "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+            "GET /api/v1/stealth/command-suite",
+        ]
+
+        coverage_gaps = [
+            StealthCommandSuiteCoverageGapItem(
+                family=AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=stealth_read_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(stealth_read_surfaces),
+                required_backend_contract=(
+                    "Route-bound stealth create contract through the existing "
+                    "StealthOrderManager with admission, cap/guard, audit, "
+                    "idempotency, and policy evidence before any lifecycle write."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "stealth_create_admin_route",
+                    "stealth_create_guard_contract",
+                    "stealth_create_admission_audit",
+                    "stealth_create_reconciliation_plan",
+                ],
+                stealth_rule_boundary=stealth_boundary,
+                documentation_refs=[
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Stealth order reads exist, but enterprise create is not "
+                    "modeled as an Admin API command route yet."
+                ),
+            ),
+            StealthCommandSuiteCoverageGapItem(
+                family=AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=stealth_detail_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(stealth_detail_surfaces),
+                required_backend_contract=(
+                    "Route-bound reveal contract that submits through the existing "
+                    "stealth reveal path only after trigger, approval, cap/guard, "
+                    "audit, active-placement, and reconciliation evidence pass."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "stealth_reveal_admin_route",
+                    "stealth_reveal_exchange_submission_adapter",
+                    "stealth_active_placement_audit",
+                    "stealth_reveal_reconciliation_proof",
+                ],
+                stealth_rule_boundary=stealth_boundary,
+                documentation_refs=[
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Reveal remains an existing backend lifecycle behavior, but "
+                    "there is no enterprise Admin API reveal command contract."
+                ),
+            ),
+            StealthCommandSuiteCoverageGapItem(
+                family=AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/stealth/orders/{stealth_order_id}/cancel",
+                current_read_evidence_routes=stealth_detail_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(stealth_detail_surfaces),
+                required_backend_contract=(
+                    "Live stealth cancel must cancel or reconcile any active "
+                    "Coinbase placement through the existing cancel/move/reconcile "
+                    "path before local stealth state changes."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "stealth_cancel_active_placement_cancel_proof",
+                    "stealth_cancel_exchange_reconciliation_proof",
+                    "stealth_cancel_state_transition_audit",
+                ],
+                stealth_rule_boundary=stealth_boundary,
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "A live-disabled cancel command exists, but live cancel "
+                    "cannot mark revealed orders cancelled until active exchange "
+                    "placement reality is handled."
+                ),
+            ),
+            StealthCommandSuiteCoverageGapItem(
+                family=AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=movement_stealth_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(movement_stealth_surfaces),
+                required_backend_contract=(
+                    "Move-revealed contract through the existing stealth bridge "
+                    "and mutation-claim path, including active placement cancel/"
+                    "replace proof before any local state mutation."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "stealth_move_revealed_admin_route",
+                    "stealth_move_active_placement_cancel_replace_proof",
+                    "stealth_move_mutation_claim_audit",
+                ],
+                stealth_rule_boundary=stealth_boundary,
+                documentation_refs=[
+                    "README.movement-repricing.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Movement evidence is readable, but move-revealed is not "
+                    "complete as an enterprise Admin API command workflow."
+                ),
+            ),
+            StealthCommandSuiteCoverageGapItem(
+                family=AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                command_route="/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+                current_read_evidence_routes=movement_stealth_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(movement_stealth_surfaces),
+                required_backend_contract=(
+                    "Reprice completion requires the movement/repricing claim, "
+                    "cooldown, cancel/replace, active-placement audit, recovery, "
+                    "and reconciliation contracts owned by M56."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "stealth_reprice_active_placement_cancel_replace_proof",
+                    "stealth_reprice_cooldown_claim_contract",
+                    "stealth_reprice_reconciliation_proof",
+                ],
+                stealth_rule_boundary=stealth_boundary,
+                documentation_refs=[
+                    "README.movement-repricing.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "A live-disabled repricing command exists, but full reprice "
+                    "completion belongs to the movement/repricing claim and "
+                    "cancel/replace workflow."
+                ),
+            ),
+            StealthCommandSuiteCoverageGapItem(
+                family=AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=stealth_detail_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(stealth_detail_surfaces),
+                required_backend_contract=(
+                    "Stealth recovery must define backend-owned preview, proof, "
+                    "repair, rollback, audit, active-placement, and reconciliation "
+                    "contracts before any repair action can be exposed."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "stealth_recovery_preview_contract",
+                    "stealth_recovery_proof_writer",
+                    "stealth_recovery_repair_result_contract",
+                    "stealth_recovery_rollback_contract",
+                ],
+                stealth_rule_boundary=stealth_boundary,
+                documentation_refs=[
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/agents/INVARIANTS.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Spot recovery contracts do not generalize to stealth. "
+                    "Stealth recovery needs exchange-reality-specific contracts."
+                ),
+            ),
+            StealthCommandSuiteCoverageGapItem(
+                family=AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW,
+                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
+                command_route=None,
+                current_read_evidence_routes=reconciliation_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(reconciliation_surfaces),
+                required_backend_contract=(
+                    "Stealth-specific reconciliation execution contract that can "
+                    "compare local stealth lifecycle state with active Coinbase "
+                    "placement evidence without browser or BFF state mutation."
+                ),
+                required_gate_chain=gap_required_gate_chain,
+                missing_contracts=[
+                    "stealth_reconciliation_plan_contract",
+                    "stealth_exchange_evidence_snapshot_contract",
+                    "stealth_reconciliation_executor",
+                ],
+                stealth_rule_boundary=stealth_boundary,
+                documentation_refs=[
+                    "README.reconciliation-plans.md",
+                    "docs/examples/reconciliation-plans.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                detail=(
+                    "Generic reconciliation plan records exist, but stealth "
+                    "reconciliation execution is not modeled until active "
+                    "placement evidence and lifecycle repair policy exist."
+                ),
+            ),
+        ]
+
+        return StealthCommandSuiteResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.BLOCKED,
+            command_count=len(commands),
+            blocked_command_count=sum(
+                1 for command in commands if command.status == AdminApiGateStatus.BLOCKED
+            ),
+            live_enabled_command_count=sum(
+                1 for command in commands if command.live_enabled
+            ),
+            executable_command_count=sum(1 for command in commands if command.executable),
+            exchange_truth_required=True,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            commands=commands,
+            coverage_gap_count=len(coverage_gaps),
+            coverage_gaps=coverage_gaps,
+            read_routes=read_routes,
+            evidence=[
+                "M55 starts with read-only stealth command-suite coverage before execution.",
+                "Stealth create, reveal, cancel, move, reprice, recovery, and reconciliation remain backend-owned workflows.",
+                "Revealed stealth orders cannot be marked hidden, cancelled, or moved by local mutation alone.",
+                "No browser, BFF, route-local, or Coinbase execution authority is added.",
+                "Live Coinbase execution and live Coinbase reads were not run for this evidence route.",
+            ],
+            message=(
+                "Stealth command-suite coverage is backend-owned readiness evidence; "
+                "live Coinbase execution remains disabled."
+            ),
+        )
+
     def build_movement_repricing_evidence(
         self,
         *,
@@ -7460,6 +8093,7 @@ class AdminApiReadService:
                 "admin.releaseGate": self.build_release_gate().model_dump(mode="json"),
                 "admin.recoveryGate": self.build_recovery_gate().model_dump(mode="json"),
                 "admin.fillLedgerHealth": self.build_fill_ledger_health().model_dump(mode="json"),
+                "stealth.commandSuite": self.build_stealth_command_suite().model_dump(mode="json"),
                 "spot.commandSuite": self.build_spot_command_suite().model_dump(mode="json"),
                 "spot.recoveryPreview": self.build_spot_recovery_preview().model_dump(mode="json"),
                 "spot.recoveryApplyReview": self.build_spot_recovery_apply_review().model_dump(mode="json"),

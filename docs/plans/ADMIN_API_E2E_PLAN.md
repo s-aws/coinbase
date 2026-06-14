@@ -38,7 +38,111 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Active M54 Exchange Evidence Snapshot Boundary Batch - Phases 1961-1980
+## Active M55 Stealth Command-Suite Readiness Batch - Phases 1981-2000
+
+This batch starts M55 after the M54 exchange evidence snapshot boundary. The
+backend may expose read-only stealth command-suite readiness, existing
+live-disabled command linkage, and missing-contract blockers for create,
+cancel, reveal, move, reprice, recovery, and reconciliation. It does not
+authorize stealth create/reveal/cancel/move/reprice execution, Coinbase reads,
+Coinbase order submission, active-placement cancellation, local stealth/order
+state mutation, reconciliation execution, browser stealth authority, or BFF
+execution authority.
+
+### Phase 1981 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1961-1980 to active
+  phases 1981-2000 while preserving no-live defaults and cap policy.
+
+### Phase 1982 - M55 Command-Suite Scope
+
+- Define the stealth command-suite readiness contract as backend-owned
+  evidence over existing stealth lifecycle and movement/repricing surfaces.
+
+### Phase 1983 - Identity Discipline
+
+- Keep command readiness keyed by `stealth_order_id`; active placement client
+  ids and exchange ids remain evidence only.
+
+### Phase 1984 - Exchange-Truth Blockers
+
+- Model active-placement, mutation-claim, cancel/replace, recovery, and
+  reconciliation blockers for every M55 workflow family.
+
+### Phase 1985 - Read-Only Route Contract
+
+- Add `GET /api/v1/stealth/command-suite` with RBAC, route inventory, OpenAPI,
+  and no-live posture.
+
+### Phase 1986 - Existing Command Linkage
+
+- Link live-disabled stealth cancel and movement/reprice routes without
+  enabling them.
+
+### Phase 1987 - Missing Workflow Gap Ledger
+
+- Expose create, reveal, cancel exchange-handling, move, reprice, recovery,
+  and reconciliation missing contracts as structured backend evidence.
+
+### Phase 1988 - Capability And Inventory Sync
+
+- Update capability, route inventory, matrix, docs, and examples for the M55
+  readiness surface.
+
+### Phase 1989 - No-Live Coinbase Proof
+
+- Prove this route does not read Coinbase, submit/cancel orders, reveal orders,
+  execute reconciliation, or mutate state.
+
+### Phase 1990 - Backend Focused Tests
+
+- Cover route, schema, inventory, identity, blockers, and no-live behavior.
+
+### Phase 1991 - Frontend Schema Sync
+
+- Regenerate website schema and consume the contract only through canonical
+  wrappers, mocks, and route coverage.
+
+### Phase 1992 - Frontend UI Evidence
+
+- Render blocked readiness only; no browser command controls are added.
+
+### Phase 1993 - Browser Authority Guard
+
+- Prove browser/BFF code cannot bypass exchange-truth, locks, approval,
+  cap/guard, audit, reconciliation, idempotency, or operator intent.
+
+### Phase 1994 - Documentation Update
+
+- Update Admin API docs, stealth reads, command workflows, examples, handoff,
+  and roadmap state.
+
+### Phase 1995 - Contextless Review And Remediation
+
+- Run blind/contextless review and fix blockers before final gates.
+
+### Phase 1996 - Full Backend Gates
+
+- Run autonomous validation, focused Admin API tests, and full regression.
+
+### Phase 1997 - Full Frontend Gates
+
+- Run frontend focused checks and `npm run release:gate`.
+
+### Phase 1998 - Live-Execution Ledger
+
+- Record live Coinbase reads/execution as not run with `$0` notional.
+
+### Phase 1999 - Push And Evidence Sync
+
+- Commit and push synchronized backend/frontend evidence.
+
+### Phase 2000 - Final Gates, Push, And Next Range
+
+- Mark complete only after gates and contextless review, then create the next
+  milestone-linked range if M55 still has a gap.
+
+## Completed M54 Exchange Evidence Snapshot Boundary Batch - Phases 1961-1980
 
 This batch follows the route-bound fail-closed reconciliation execution
 boundary. The next M54 gap is backend-owned exchange/Coinbase evidence

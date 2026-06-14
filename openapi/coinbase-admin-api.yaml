@@ -5348,6 +5348,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/command-suite:
+    get:
+      tags:
+      - stealth
+      summary: Read stealth command-suite readiness coverage
+      description: Read M55 stealth command readiness without mutating lifecycle state.
+      operationId: stealth_command_suite_api_v1_stealth_command_suite_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthCommandSuiteResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/orders/{stealth_order_id}/cancel:
     post:
       tags:
@@ -6345,6 +6408,19 @@ components:
       - spot_reconciliation_workflow
       title: AdminApiSpotCommandSuiteGapFamily
       description: Spot command-suite families that still require admin contract work.
+    AdminApiStealthCommandSuiteGapFamily:
+      type: string
+      enum:
+      - stealth_create_workflow
+      - stealth_reveal_workflow
+      - stealth_cancel_exchange_handling
+      - stealth_move_revealed_workflow
+      - stealth_reprice_workflow
+      - stealth_recovery_workflow
+      - stealth_reconciliation_workflow
+      title: AdminApiStealthCommandSuiteGapFamily
+      description: Stealth command-suite families that still require admin contract
+        work.
     AdminApiVerifierReadinessStatus:
       type: string
       enum:
@@ -15980,6 +16056,479 @@ components:
       type: object
       title: StealthCancelRequest
       description: Stealth cancel request body keyed by path ``stealth_order_id``.
+    StealthCommandSuiteCommandItem:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        live_eligible:
+          type: boolean
+          title: Live Eligible
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        live_adapter_configured:
+          type: boolean
+          title: Live Adapter Configured
+          default: false
+        approval_required:
+          type: boolean
+          title: Approval Required
+          default: true
+        cap_guard_required:
+          type: boolean
+          title: Cap Guard Required
+          default: true
+        admission_audit_required:
+          type: boolean
+          title: Admission Audit Required
+          default: true
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: true
+        idempotency_required:
+          type: boolean
+          title: Idempotency Required
+          default: true
+        operator_intent_required:
+          type: boolean
+          title: Operator Intent Required
+          default: true
+        payload_hash_required:
+          type: boolean
+          title: Payload Hash Required
+          default: true
+        exchange_truth_required:
+          type: boolean
+          title: Exchange Truth Required
+          default: true
+        active_placement_evidence_required:
+          type: boolean
+          title: Active Placement Evidence Required
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        product_scope:
+          type: string
+          title: Product Scope
+          default: stealth command scope
+        stealth_rule_boundary:
+          type: string
+          title: Stealth Rule Boundary
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        readiness_preconditions:
+          items:
+            $ref: '#/components/schemas/AdminLiveReadinessPreconditionItem'
+          type: array
+          title: Readiness Preconditions
+        readiness_precondition_count:
+          type: integer
+          title: Readiness Precondition Count
+          default: 0
+        blocking_readiness_precondition_count:
+          type: integer
+          title: Blocking Readiness Precondition Count
+          default: 0
+        passed_readiness_precondition_count:
+          type: integer
+          title: Passed Readiness Precondition Count
+          default: 0
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        proof_routes:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteProofRouteItem'
+          type: array
+          title: Proof Routes
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - route
+      - method
+      - identity_key
+      - action_class
+      - required_permission
+      - shared_method
+      - stealth_rule_boundary
+      - detail
+      title: StealthCommandSuiteCommandItem
+      description: One stealth admin command surface and its remaining gate chain.
+    StealthCommandSuiteCoverageGapEvidenceRouteItem:
+      properties:
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: GET
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: read_only
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - route
+      - required_permission
+      - shared_method
+      - detail
+      title: StealthCommandSuiteCoverageGapEvidenceRouteItem
+      description: Read route that supplies evidence for a stealth command-suite coverage
+        gap.
+    StealthCommandSuiteCoverageGapItem:
+      properties:
+        family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+        command_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Command Route
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        current_read_evidence:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteCoverageGapEvidenceRouteItem'
+          type: array
+          title: Current Read Evidence
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        stealth_rule_boundary:
+          type: string
+          title: Stealth Rule Boundary
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - family
+      - exposure_status
+      - required_backend_contract
+      - stealth_rule_boundary
+      - detail
+      title: StealthCommandSuiteCoverageGapItem
+      description: Remaining stealth admin suite family that is not yet command-complete.
+    StealthCommandSuiteProofRouteItem:
+      properties:
+        gate:
+          $ref: '#/components/schemas/AdminApiLivePreflightCategory'
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        identity_key:
+          type: string
+          title: Identity Key
+        command_identity_key:
+          type: string
+          title: Command Identity Key
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - gate
+      - route
+      - method
+      - action_class
+      - required_permission
+      - shared_method
+      - identity_key
+      - command_identity_key
+      - detail
+      title: StealthCommandSuiteProofRouteItem
+      description: Backend proof route required before a stealth command can be executable.
+    StealthCommandSuiteResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_command_suite
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        command_count:
+          type: integer
+          title: Command Count
+          default: 0
+        blocked_command_count:
+          type: integer
+          title: Blocked Command Count
+          default: 0
+        live_enabled_command_count:
+          type: integer
+          title: Live Enabled Command Count
+          default: 0
+        executable_command_count:
+          type: integer
+          title: Executable Command Count
+          default: 0
+        exchange_truth_required:
+          type: boolean
+          title: Exchange Truth Required
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        commands:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteCommandItem'
+          type: array
+          title: Commands
+        coverage_gap_count:
+          type: integer
+          title: Coverage Gap Count
+          default: 0
+        coverage_gaps:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteCoverageGapItem'
+          type: array
+          title: Coverage Gaps
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+      additionalProperties: true
+      type: object
+      required:
+      - approved_phase_range
+      title: StealthCommandSuiteResponse
+      description: Read-only M55 stealth command-suite readiness evidence.
     StealthMutationKind:
       type: string
       enum:

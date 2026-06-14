@@ -1291,9 +1291,10 @@ browser.
 
 Stealth reads are local/backend lifecycle evidence routes. They are keyed by
 `stealth_order_id`. Active placement client ids and exchange order ids are
-evidence fields only. The current enterprise Admin API exposes only the
-live-disabled stealth cancel draft above; stealth create, reveal, hide, move,
-and reprice command routes are not modeled.
+evidence fields only. The enterprise Admin API exposes list/detail reads,
+read-only command-suite readiness, and the live-disabled stealth cancel draft
+above. Stealth create, reveal, move, recovery, and reconciliation command
+routes are not modeled as executable Admin API commands.
 
 ```http
 GET /api/v1/stealth/orders?product_id=BTC-USDC&stealth_status=REVEALED&limit=50&offset=0
@@ -1309,12 +1310,28 @@ X-Admin-Actor: auditor-001
 X-Admin-Roles: auditor
 ```
 
+```http
+GET /api/v1/stealth/command-suite
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
 Response rows include lifecycle and policy evidence such as `status`,
 `revealed_orders`, `active_placement_client_order_id`,
 `active_exchange_order_id`, `cancel_reentry_state`, and
 `anchor_repricing_state`. These fields are display evidence for the admin
 platform. They must not be used by a frontend to mutate stealth lifecycle
 state or cancel a live placement.
+
+The command-suite response reports `exchange_truth_required=true`,
+`live_enabled_command_count=0`, `executable_command_count=0`, and
+`live_coinbase_orders_ran=false`. It lists live-disabled stealth cancel and
+movement/reprice command rows plus blocked gap rows for create, reveal, cancel
+exchange handling, move revealed, reprice completion, recovery, and
+reconciliation. It does not create stealth orders, reveal orders, cancel active
+placements, move/reprice revealed orders, execute reconciliation, mutate state,
+read Coinbase, or call Coinbase.
 
 ## Movement And Repricing
 
@@ -1647,6 +1664,7 @@ Current read-only routes:
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `GET /api/v1/stealth/command-suite`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`

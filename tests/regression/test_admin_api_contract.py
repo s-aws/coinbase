@@ -122,6 +122,7 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRole,
     AdminApiSpotCommandSuiteGapFamily,
+    AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
@@ -1200,6 +1201,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/orders/{client_order_id}/cancel" in written["paths"]
     assert "/api/v1/stealth/orders" in written["paths"]
     assert "/api/v1/stealth/orders/{stealth_order_id}" in written["paths"]
+    assert "/api/v1/stealth/command-suite" in written["paths"]
     assert "/api/v1/stealth/orders/{stealth_order_id}/cancel" in written["paths"]
     assert "/api/v1/movement-repricing/evidence" in written["paths"]
     assert "/api/v1/movement-repricing/orders/{client_order_id}" in written["paths"]
@@ -1254,6 +1256,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]["post"]
     assert "200" in stealth_cancel_operation["responses"]
     assert "501" in stealth_cancel_operation["responses"]
+    stealth_command_suite_operation = written["paths"]["/api/v1/stealth/command-suite"][
+        "get"
+    ]
+    assert "200" in stealth_command_suite_operation["responses"]
+    assert "content" in stealth_command_suite_operation["responses"]["200"]
+    assert "401" in stealth_command_suite_operation["responses"]
+    assert "403" in stealth_command_suite_operation["responses"]
     movement_reprice_operation = written["paths"][
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
     ]["post"]
@@ -1335,6 +1344,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
     assert "pagination" in stealth_list_schema["properties"]
     assert "command_routes_mode" in stealth_list_schema["properties"]
+    stealth_command_suite_schema = written["components"]["schemas"][
+        "StealthCommandSuiteResponse"
+    ]
+    assert "commands" in stealth_command_suite_schema["properties"]
+    assert "coverage_gaps" in stealth_command_suite_schema["properties"]
+    assert "exchange_truth_required" in stealth_command_suite_schema["properties"]
     movement_item_schema = written["components"]["schemas"][
         "AdminMovementRepricingEvidenceItem"
     ]
@@ -1518,6 +1533,7 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
     assert route_modules["/api/v1/admin/audit-workbench"] == "audit_workbench"
     assert route_modules["/api/v1/futures/account"] == "futures_perpetuals"
     assert route_modules["/api/v1/stealth/orders"] == "stealth_orders"
+    assert route_modules["/api/v1/stealth/command-suite"] == "stealth_orders"
     assert (
         route_modules["/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"]
         == "movement_repricing"
@@ -4406,6 +4422,10 @@ def test_admin_api_read_only_spot_routes_are_auth_gated(monkeypatch):
 
     assert response.status_code == 401
 
+    response = client.get("/api/v1/stealth/command-suite")
+
+    assert response.status_code == 401
+
 
 @pytest.mark.regression
 def test_admin_api_read_only_spot_readiness_uses_read_service(monkeypatch):
@@ -4428,6 +4448,101 @@ def test_admin_api_read_only_spot_readiness_uses_read_service(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["products"] == ["BTC-USDC"]
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypatch):
+    client = _client(monkeypatch)
+
+    response = client.get(
+        "/api/v1/stealth/command-suite",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "stealth_command_suite"
+    assert payload["status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["module_id"] == "stealth_orders"
+    assert payload["approved_phase_range"] == "1981-2000"
+    assert payload["command_count"] == 2
+    assert payload["blocked_command_count"] == 2
+    assert payload["live_enabled_command_count"] == 0
+    assert payload["executable_command_count"] == 0
+    assert payload["coverage_gap_count"] == 7
+    assert payload["exchange_truth_required"] is True
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "forward_only_no_execution"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+
+    command_routes = {command["route"]: command for command in payload["commands"]}
+    assert set(command_routes) == {
+        "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+    }
+    for command in command_routes.values():
+        assert command["identity_key"] == "stealth_order_id"
+        assert command["status"] == AdminApiGateStatus.BLOCKED.value
+        assert command["live_enabled"] is False
+        assert command["executable"] is False
+        assert command["exchange_truth_required"] is True
+        assert command["active_placement_evidence_required"] is True
+        assert command["backend_owned"] is True
+        assert command["browser_authority"] == "display_only"
+        assert command["bff_authority"] == "forward_only_no_execution"
+        assert "active_placement_exchange_truth" in command["required_gate_chain"]
+        assert "active_placement_exchange_truth" in command["missing_gate_chain"]
+        assert command["proof_routes"]
+        for proof_route in command["proof_routes"]:
+            assert proof_route["command_identity_key"] == "stealth_order_id"
+            assert proof_route["backend_owned"] is True
+            assert proof_route["browser_authority"] == "display_only"
+            assert proof_route["bff_authority"] == "forward_only_no_execution"
+
+    coverage_gaps = {item["family"]: item for item in payload["coverage_gaps"]}
+    assert set(coverage_gaps) == {
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW.value,
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW.value,
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING.value,
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW.value,
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW.value,
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW.value,
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW.value,
+    }
+    for gap in coverage_gaps.values():
+        assert gap["status"] == AdminApiGateStatus.BLOCKED.value
+        assert gap["backend_owned"] is True
+        assert gap["browser_authority"] == "display_only"
+        assert gap["bff_authority"] == "forward_only_no_execution"
+        assert "exchange-reality" in gap["stealth_rule_boundary"]
+        assert "active_placement_exchange_truth" in gap["required_gate_chain"]
+        assert gap["missing_contracts"]
+        assert gap["current_read_evidence_routes"]
+        assert [
+            f"{item['method']} {item['route']}" for item in gap["current_read_evidence"]
+        ] == gap["current_read_evidence_routes"]
+        for evidence_route in gap["current_read_evidence"]:
+            assert evidence_route["action_class"] == AdminApiActionClass.READ_ONLY.value
+            assert evidence_route["backend_owned"] is True
+            assert evidence_route["browser_authority"] == "display_only"
+            assert evidence_route["bff_authority"] == "read_only_forward"
+            assert evidence_route["shared_method"]
+            assert evidence_route["documentation_refs"]
+    assert (
+        coverage_gaps[
+            AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING.value
+        ]["command_route"]
+        == "/api/v1/stealth/orders/{stealth_order_id}/cancel"
+    )
+    assert (
+        coverage_gaps[AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW.value][
+            "command_route"
+        ]
+        == "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    )
 
 
 @pytest.mark.regression
@@ -5303,7 +5418,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "1961-1980"
+    assert live_payload["approved_phase_range"] == "1981-2000"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -5862,7 +5977,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "1961-1980"
+    assert enterprise_payload["approved_phase_range"] == "1981-2000"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -6377,7 +6492,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "1961-1980"
+    assert recovery_preview_payload["approved_phase_range"] == "1981-2000"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

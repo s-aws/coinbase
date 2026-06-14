@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **1961-1980**.
+- Approved phase range: **1981-2000**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,129 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 1961-1980
+## Active Phases 1981-2000
+
+These phases start M55 after the M54 exchange evidence snapshot boundary. The
+next explicit architecture gap is backend-owned stealth command-suite readiness
+for create, cancel, reveal, move, reprice, recovery, and reconciliation
+workflows. This range may expose readiness, route inventory, missing contracts,
+and exchange-truth blockers, but it remains no-live by default and must not
+create stealth orders, reveal orders, cancel active placements, move/reprice
+revealed orders, mutate stealth/order/exchange state, execute reconciliation,
+read Coinbase, or grant browser/BFF stealth command authority.
+
+### Phase 1981 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 1961-1980 to active
+  phases 1981-2000 while preserving the no-live default, carried Coinbase cap
+  policy, and milestone-linked phase discipline.
+
+### Phase 1982 - M55 Command-Suite Scope
+
+- Define the stealth command-suite readiness contract as backend-owned evidence
+  over existing stealth lifecycle and movement/repricing surfaces, distinct
+  from command execution.
+
+### Phase 1983 - Stealth Identity Discipline
+
+- Keep stealth command readiness keyed by `stealth_order_id`; active placement
+  client ids and exchange ids remain evidence only and must not become internal
+  command identity.
+
+### Phase 1984 - Exchange-Truth Blockers
+
+- Model exchange-truth, active-placement, mutation-claim, cancel/replace, and
+  reconciliation blockers for create, cancel, reveal, move, reprice, recovery,
+  and reconciliation workflows.
+
+### Phase 1985 - Read-Only Route Contract
+
+- Add `GET /api/v1/stealth/command-suite` as read-only Admin API evidence with
+  route inventory, OpenAPI, RBAC, and no-live posture.
+
+### Phase 1986 - Existing Command Linkage
+
+- Link the existing live-disabled stealth cancel and movement/reprice command
+  routes into the command-suite readiness evidence without enabling them.
+
+### Phase 1987 - Missing Workflow Gap Ledger
+
+- Expose missing contracts for stealth create, reveal, cancel exchange
+  handling, move revealed, reprice, recovery, and reconciliation.
+
+### Phase 1988 - Capability And Inventory Sync
+
+- Update capability rows, route inventory, module capability matrix, and
+  operator docs so the new readiness surface is discoverable by contextless
+  maintainers.
+
+### Phase 1989 - No-Live Coinbase Proof
+
+- Prove the command-suite evidence route does not read Coinbase, submit orders,
+  cancel orders, reveal orders, execute reconciliation, or mutate local state.
+
+### Phase 1990 - Backend Focused Tests
+
+- Cover the stealth command-suite contract, route inventory, OpenAPI schema,
+  identity discipline, exchange-truth blockers, and no-live posture.
+
+### Phase 1991 - Frontend Schema Sync
+
+- Regenerate the website schema from backend OpenAPI and consume the stealth
+  command-suite contract through canonical wrappers, mocks, and route coverage
+  only if backend OpenAPI changes.
+
+### Phase 1992 - Frontend UI Evidence
+
+- Render stealth command-suite readiness as read-only blocked evidence without
+  adding create, reveal, cancel, move, reprice, recovery, reconciliation, or
+  Coinbase controls.
+
+### Phase 1993 - Browser Authority Guard
+
+- Prove browser/BFF code cannot bypass exchange-truth, mutation-claim,
+  approval, cap/guard, admission audit, reconciliation, idempotency, payload
+  hash, or operator-intent prerequisites.
+
+### Phase 1994 - Documentation Update
+
+- Update Admin API docs, command workflows, stealth reads, examples,
+  capability matrix, handoff docs, and roadmap state for M55 readiness
+  semantics.
+
+### Phase 1995 - Contextless Review And Remediation
+
+- Run blind/contextless review for whether a fresh agent can explain stealth
+  command readiness, why execution remains blocked, and how exchange-truth
+  invariants prevent local-only mutation; fix blockers before final gates.
+
+### Phase 1996 - Full Backend Gates
+
+- Run backend autonomous validation, focused Admin API tests, and full
+  regression; confirm submitted/executed notional remains `$0`.
+
+### Phase 1997 - Full Frontend Gates
+
+- Run frontend schema checks, focused UI/runtime tests, and `npm run
+  release:gate`; confirm frontend submitted/executed notional remains `$0`.
+
+### Phase 1998 - Live-Execution Ledger
+
+- Record that live Coinbase execution and live Coinbase reads were not run for
+  this range unless a later explicit live phase overrides the default under the
+  carried cap.
+
+### Phase 1999 - Push And Evidence Sync
+
+- Commit and push backend and frontend changes, keeping OpenAPI, generated
+  schema, docs, tests, and route inventories in sync.
+
+### Phase 2000 - Final Gates, Push, And Next Range
+
+- Mark the range complete only after gates and contextless review pass, then
+  create the next milestone-linked range only if M55 still has an explicit gap.
+
+## Completed Phases 1961-1980
 
 These phases continue M54 after the route-bound fail-closed reconciliation
 execution boundary. The next explicit architecture gap is backend-owned
@@ -61,6 +183,19 @@ exchange/Coinbase evidence snapshot contracts. This range may define and
 persist snapshot evidence contracts, but it remains no-live by default and
 must not read Coinbase, submit Coinbase orders, mutate order/exchange state,
 execute reconciliation, or grant browser/BFF snapshot authority.
+
+Completion evidence:
+
+- Added the backend-owned append-only `POST
+  /api/v1/spot/recovery/exchange-state-snapshots` contract keyed by
+  `client_order_id` with idempotency, audit, prerequisite checks, and
+  fail-closed no-live Coinbase posture.
+- Surfaced exchange-state snapshot readback through recovery
+  reconciliation-proof evidence and command-suite gap linkage without
+  executing reconciliation or mutating local/exchange state.
+- Synchronized backend OpenAPI, route inventory, docs, examples, frontend
+  generated schema, mocks, release/deployment checks, and contextless review
+  with live Coinbase submitted/executed notional `$0`.
 
 ### Phase 1961 - Advance Active Queue Range
 

@@ -156,6 +156,31 @@ project-specific exception where the backend wrapper calls
 `cancel_order(client_order_id)` because the exchange accepts the client id for
 that operation. Do not replace this with an exchange-native `order_id` flow.
 
+## Stealth Command Suite
+
+`GET /api/v1/stealth/command-suite` is read-only M55 evidence. It reports
+whether stealth create, cancel, reveal, move, reprice, recovery, and
+reconciliation workflows have backend-owned contracts and gate evidence.
+
+The response links existing live-disabled command rows for stealth cancel and
+movement/repricing reprice by `stealth_order_id`. It also reports
+`coverage_gaps` for missing create, reveal, cancel exchange-handling, move
+revealed, reprice completion, recovery, and reconciliation contracts. Gap rows
+identify current read evidence, missing backend contracts, required gate
+chains, and browser/BFF boundaries.
+
+Stealth command rows require active-placement exchange truth and mutation-claim
+evidence in addition to the normal approval, cap/guard, admission audit,
+reconciliation, idempotency, payload-hash, and operator-intent chain. They are
+readiness evidence only. A revealed stealth order cannot be marked hidden,
+cancelled, moved, or repriced by local mutation unless the live placement is
+cancelled, replaced, filled, moved, or reconciled first.
+
+The stealth command-suite route does not create stealth orders, reveal orders,
+cancel active placements, move/reprice revealed orders, execute
+reconciliation, mutate local state, read Coinbase, call Coinbase, or authorize
+browser/BFF command execution.
+
 ## Boundaries
 
 - Spot-only wallet, USDC, no-shorting, cost-basis, and average-cost rules must

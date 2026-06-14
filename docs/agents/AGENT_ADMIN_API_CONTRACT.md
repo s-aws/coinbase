@@ -73,7 +73,8 @@ automation command contract keyed by `sweep_config_id`.
 Read-only Admin API routes currently cover backend bootstrap, health,
 session/RBAC evidence, capabilities, guard/risk policy evidence, audit
 workbench evidence, release/spot-direct-order recovery gates, fill-ledger health, frontend
-fixtures, order list/detail, stealth lifecycle list/detail,
+fixtures, order list/detail, stealth lifecycle list/detail, stealth
+command-suite readiness,
 movement/repricing evidence, futures/perpetual account and position evidence,
 spot readiness, sweep status, sweep P/L, cost-basis status, campaign status,
 and direct order audit.

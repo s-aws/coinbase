@@ -74,6 +74,18 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/command-suite",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only stealth command-suite evidence",
+        audit="optional read audit",
+        shared_method="build_stealth_command_suite",
+        parity_test="M55 read-only stealth command coverage; no exchange mutation",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="POST /api/v1/stealth/orders/{stealth_order_id}/cancel",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,

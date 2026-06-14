@@ -22,6 +22,7 @@ Current route adapters:
 - `GET /api/v1/orders/{client_order_id}`
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
+- `GET /api/v1/stealth/command-suite`
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
@@ -70,6 +71,12 @@ Current behavior:
   `GET /api/v1/stealth/orders/{stealth_order_id}` expose read-only local
   stealth lifecycle evidence keyed by `stealth_order_id`; active placement
   client ids and exchange ids are evidence only
+- `GET /api/v1/stealth/command-suite` exposes read-only M55 stealth
+  command-suite readiness for create, cancel, reveal, move, reprice,
+  recovery, and reconciliation workflows. It links existing live-disabled
+  stealth cancel and movement/reprice routes, reports exchange-truth blockers,
+  and does not create, reveal, cancel, move/reprice, reconcile, mutate state,
+  read Coinbase, or call Coinbase
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is a
   live-disabled command draft keyed by `stealth_order_id`; it returns `501`,
   writes command audit evidence, never calls Coinbase, and must not use active
