@@ -176,7 +176,7 @@ from .spot_recovery_repair import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "2201-2220"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "2221-2240"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -8098,6 +8098,10 @@ class AdminApiReadService:
                 "docs/STEALTH_ORDER_READS.md",
                 "docs/COMMAND_WORKFLOWS.md",
             ],
+            "GET /api/v1/admin/recovery-gate": [
+                "README.admin-api.md",
+                "docs/COMMAND_WORKFLOWS.md",
+            ],
             "GET /api/v1/movement-repricing/stealth/{stealth_order_id}": [
                 "README.movement-repricing.md",
                 "docs/COMMAND_WORKFLOWS.md",
@@ -8153,6 +8157,11 @@ class AdminApiReadService:
         ]
         movement_stealth_surfaces = [
             "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
+            "GET /api/v1/stealth/command-suite",
+        ]
+        recovery_surfaces = [
+            "GET /api/v1/admin/recovery-gate",
+            "GET /api/v1/stealth/orders/{stealth_order_id}",
             "GET /api/v1/stealth/command-suite",
         ]
         reconciliation_surfaces = [
@@ -8453,8 +8462,8 @@ class AdminApiReadService:
                 family=AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
                 exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
                 command_route=None,
-                current_read_evidence_routes=stealth_detail_surfaces,
-                current_read_evidence=coverage_gap_evidence_routes(stealth_detail_surfaces),
+                current_read_evidence_routes=recovery_surfaces,
+                current_read_evidence=coverage_gap_evidence_routes(recovery_surfaces),
                 required_backend_contract=(
                     "Stealth recovery must define backend-owned preview, proof, "
                     "repair, rollback, audit, active-placement, and reconciliation "

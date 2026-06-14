@@ -74,6 +74,15 @@ API route, method, permission, shared read-service method, documentation refs,
 and display/forward-only boundary that supports the gap. They are navigation
 and traceability evidence only; they do not create command routes or satisfy
 the missing backend contracts.
+The stealth command-suite uses the same pattern for blocked recovery and
+reconciliation gaps. Those rows may point to
+`GET /api/v1/admin/recovery-gate`,
+`GET /api/v1/admin/reconciliation/plans`,
+`GET /api/v1/admin/reconciliation/plans/{plan_id}`, and stealth read
+surfaces. They remain backend-owned read evidence only; they must not create
+stealth recovery or reconciliation commands, write proof records, execute
+reconciliation, mutate stealth/order/exchange state, call Coinbase, trust
+browser exchange evidence, or grant browser/BFF execution authority.
 
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires

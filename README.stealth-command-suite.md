@@ -22,6 +22,9 @@ The route requires Admin API authentication and `analytics:read`. It returns
   identities, and the three active-placement-required commands
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
+- typed `coverage_gaps.current_read_evidence` rows for existing read-only
+  evidence behind blocked gaps, including recovery-gate, reconciliation-plan,
+  stealth order detail, movement/repricing detail, and command-suite reads
 - required gate chains for approval, cap/guard, admission audit,
   reconciliation, mutation claims, active-placement exchange truth, and live
   execution service evidence
@@ -55,6 +58,19 @@ missing proof contracts. It does not read Coinbase, write proof records,
 execute reconciliation, mutate order/lifecycle state, or grant browser/BFF
 reveal authority.
 
+Coverage-gap evidence routes are also display-only. Recovery gaps may point to
+`GET /api/v1/admin/recovery-gate`,
+`GET /api/v1/stealth/orders/{stealth_order_id}`, and
+`GET /api/v1/stealth/command-suite`. Reconciliation gaps may point to
+`GET /api/v1/admin/reconciliation/plans`,
+`GET /api/v1/admin/reconciliation/plans/{plan_id}`, and
+`GET /api/v1/stealth/command-suite`. These rows name route, method, action
+class, required permission, shared read-service method, documentation refs,
+and browser/BFF authority so operators can trace what evidence already
+exists. They do not create recovery or reconciliation command routes, proof
+writers, exchange-state inputs, reconciliation executors, Coinbase calls, or
+browser/BFF command authority.
+
 ## Safety Constraints
 
 - `stealth_order_id` is the command identity.
@@ -68,6 +84,11 @@ reveal authority.
 - Browser and BFF consumers may display or forward backend evidence only; they
   must not evaluate exchange-truth, mutation-claim, or reveal-trigger
   authority.
+- `coverage_gaps.current_read_evidence` is traceability evidence only. It
+  does not close missing backend contracts and must not be converted into
+  recovery/reconciliation command controls, proof writing, exchange-state
+  mutation, reconciliation execution, Coinbase reads, Coinbase submissions, or
+  BFF execution authority.
 - `reveal_trigger_audit` is detail-route evidence only. It does not evaluate
   triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
   Coinbase orders, mutate lifecycle state, or authorize browser/BFF reveal

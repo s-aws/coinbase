@@ -4781,7 +4781,7 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert payload["type"] == "stealth_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "stealth_orders"
-    assert payload["approved_phase_range"] == "2201-2220"
+    assert payload["approved_phase_range"] == "2221-2240"
     assert payload["command_count"] == 5
     assert payload["blocked_command_count"] == 5
     assert payload["live_enabled_command_count"] == 0
@@ -5045,12 +5045,16 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
             f"{item['method']} {item['route']}" for item in gap["current_read_evidence"]
         ] == gap["current_read_evidence_routes"]
         for evidence_route in gap["current_read_evidence"]:
+            assert evidence_route["method"] == "GET"
             assert evidence_route["action_class"] == AdminApiActionClass.READ_ONLY.value
             assert evidence_route["backend_owned"] is True
             assert evidence_route["browser_authority"] == "display_only"
             assert evidence_route["bff_authority"] == "read_only_forward"
             assert evidence_route["shared_method"]
             assert evidence_route["documentation_refs"]
+            assert "does not create a command route" in evidence_route["detail"]
+            assert "execute reconciliation" in evidence_route["detail"]
+            assert "call Coinbase" in evidence_route["detail"]
     create_gap = coverage_gaps[
         AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW.value
     ]
@@ -5097,6 +5101,70 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
         ]
         == "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
     )
+    recovery_gap = coverage_gaps[
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW.value
+    ]
+    assert (
+        recovery_gap["exposure_status"]
+        == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+    )
+    assert recovery_gap["command_route"] is None
+    assert recovery_gap["current_read_evidence_routes"] == [
+        "GET /api/v1/admin/recovery-gate",
+        "GET /api/v1/stealth/orders/{stealth_order_id}",
+        "GET /api/v1/stealth/command-suite",
+    ]
+    recovery_evidence = {
+        f"{item['method']} {item['route']}": item
+        for item in recovery_gap["current_read_evidence"]
+    }
+    assert recovery_evidence["GET /api/v1/admin/recovery-gate"][
+        "required_permission"
+    ] == AdminApiPermission.AUDIT_READ.value
+    assert recovery_evidence["GET /api/v1/admin/recovery-gate"][
+        "shared_method"
+    ] == "build_recovery_gate"
+    assert recovery_evidence["GET /api/v1/stealth/orders/{stealth_order_id}"][
+        "shared_method"
+    ] == "build_stealth_order_detail"
+    assert recovery_evidence["GET /api/v1/stealth/command-suite"][
+        "required_permission"
+    ] == AdminApiPermission.ANALYTICS_READ.value
+    assert "stealth_recovery_repair_result_contract" in recovery_gap[
+        "missing_contracts"
+    ]
+    reconciliation_gap = coverage_gaps[
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW.value
+    ]
+    assert (
+        reconciliation_gap["exposure_status"]
+        == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+    )
+    assert reconciliation_gap["command_route"] is None
+    assert reconciliation_gap["current_read_evidence_routes"] == [
+        "GET /api/v1/admin/reconciliation/plans",
+        "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+        "GET /api/v1/stealth/command-suite",
+    ]
+    reconciliation_evidence = {
+        f"{item['method']} {item['route']}": item
+        for item in reconciliation_gap["current_read_evidence"]
+    }
+    assert reconciliation_evidence["GET /api/v1/admin/reconciliation/plans"][
+        "required_permission"
+    ] == AdminApiPermission.RECONCILIATION_READ.value
+    assert reconciliation_evidence["GET /api/v1/admin/reconciliation/plans"][
+        "shared_method"
+    ] == "list_reconciliation_plans"
+    assert reconciliation_evidence[
+        "GET /api/v1/admin/reconciliation/plans/{plan_id}"
+    ]["shared_method"] == "get_reconciliation_plan"
+    assert reconciliation_evidence["GET /api/v1/stealth/command-suite"][
+        "shared_method"
+    ] == "build_stealth_command_suite"
+    assert "stealth_reconciliation_executor" in reconciliation_gap[
+        "missing_contracts"
+    ]
 
 
 @pytest.mark.regression
@@ -5972,7 +6040,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     live_payload = live_enablement.json()
     assert live_payload["type"] == "admin_live_enablement"
     assert live_payload["status"] == "live_disabled"
-    assert live_payload["approved_phase_range"] == "2201-2220"
+    assert live_payload["approved_phase_range"] == "2221-2240"
     assert live_payload["default_live_coinbase_execution"] == "not_run"
     assert live_payload["submitted_notional_usdc"] == "0"
     assert live_payload["executed_notional_usdc"] == "0"
@@ -6535,7 +6603,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     enterprise_payload = enterprise_readiness.json()
     assert enterprise_payload["type"] == "admin_enterprise_readiness"
     assert enterprise_payload["candidate"] == "enterprise_admin_m9"
-    assert enterprise_payload["approved_phase_range"] == "2201-2220"
+    assert enterprise_payload["approved_phase_range"] == "2221-2240"
     assert enterprise_payload["status"] == AdminApiGateStatus.WARNING.value
     assert enterprise_payload["frontend_authority"] == "backend_contract_only"
     assert enterprise_payload["live_posture"] == "live_disabled"
@@ -7118,7 +7186,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     recovery_preview_payload = spot_recovery_preview.json()
     assert recovery_preview_payload["type"] == "spot_recovery_preview"
     assert recovery_preview_payload["module_id"] == "spot_operations"
-    assert recovery_preview_payload["approved_phase_range"] == "2201-2220"
+    assert recovery_preview_payload["approved_phase_range"] == "2221-2240"
     assert recovery_preview_payload["read_only"] is True
     assert recovery_preview_payload["backend_owned"] is True
     assert recovery_preview_payload["browser_authority"] == "display_only"

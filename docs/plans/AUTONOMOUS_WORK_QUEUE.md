@@ -6,7 +6,7 @@ without relying on chat history.
 
 ## Active Approval
 
-- Approved phase range: **2201-2220**.
+- Approved phase range: **2221-2240**.
 - Work may continue through the approved range without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -53,7 +53,91 @@ Stop advancement to the next phase until fixed when any of these occur:
 - A requested change would create a parallel implementation for existing
   behavior.
 
-## Active Phases 2201-2220
+## Active Phases 2221-2240
+
+These phases continue M55 after create proof-route linkage. The next explicit architecture gap is typed read-evidence route linkage for the remaining stealth command-suite coverage gaps, especially stealth recovery and reconciliation. The existing `GET /api/v1/stealth/command-suite` response may expose route, method, action class, required permission, shared service method, documentation refs, and display/read-only authority for the current read evidence behind each blocked gap. It must not create recovery or reconciliation commands, write proof records, mutate stealth/order/exchange state, execute reconciliation, call Coinbase, trust browser exchange evidence, or grant browser/BFF execution authority.
+
+### Phase 2221 - Advance Active Queue Range
+
+- Move the durable autonomous queue from completed phases 2201-2220 to active phases 2221-2240 while preserving no-live defaults and cap policy.
+
+### Phase 2222 - Coverage-Gap Linkage Scope
+
+- Define coverage-gap evidence-route linkage as read-only traceability for blocked stealth workflows, not command creation, proof creation, recovery execution, reconciliation execution, or exchange-truth proof.
+
+### Phase 2223 - Backend Gap Evidence Contract Audit
+
+- Verify the coverage-gap response model and builder expose typed current read evidence routes for create, reveal, cancel, move, reprice, recovery, and reconciliation gaps.
+
+### Phase 2224 - Recovery Gap Evidence Routes
+
+- Ensure the stealth recovery gap links to backend-owned recovery/readiness evidence routes with method, permission, shared method, documentation refs, and no-write authority.
+
+### Phase 2225 - Reconciliation Gap Evidence Routes
+
+- Ensure the stealth reconciliation gap links to backend-owned reconciliation read routes with method, permission, shared method, documentation refs, and no-execution authority.
+
+### Phase 2226 - Exchange-Truth Evidence Routes
+
+- Ensure exchange-truth prerequisite rows expose typed current read evidence without claiming Coinbase reads or active-placement truth resolution.
+
+### Phase 2227 - Backend No-Mutation Assertions
+
+- Cover that typed coverage-gap evidence does not create command routes, call recovery/reconciliation writers, invoke stealth manager methods, call Coinbase, or mutate local/exchange state.
+
+### Phase 2228 - Generated Backend Artifacts
+
+- Regenerate OpenAPI only if the backend contract changes, and keep route inventory aligned.
+
+### Phase 2229 - Backend Focused Tests
+
+- Add or extend Admin API regression coverage for typed current read evidence, recovery/reconciliation gap route metadata, authority flags, and no-live posture.
+
+### Phase 2230 - Frontend Schema Sync
+
+- Regenerate frontend schema if backend OpenAPI changes and keep generated files unedited by hand.
+
+### Phase 2231 - Frontend Adapter Mapping
+
+- Map coverage-gap `current_read_evidence` rows into the stealth command-suite view model.
+
+### Phase 2232 - Frontend Gap UI Rendering
+
+- Render typed evidence routes in the existing stealth command-suite gap table or adjacent read-only panel without adding command controls.
+
+### Phase 2233 - Mock Runtime Fixtures
+
+- Update mock coverage gaps to include backend-like typed read evidence for recovery and reconciliation gaps.
+
+### Phase 2234 - Documentation And Examples
+
+- Update API contract, stealth reads, command workflows, examples, handoff, and roadmap docs for coverage-gap evidence-route linkage.
+
+### Phase 2235 - Frontend Focused Tests
+
+- Cover gap evidence route rendering, permissions, shared methods, documentation refs, browser/BFF authority, and no action controls.
+
+### Phase 2236 - API And Autonomous Gates
+
+- Run API freshness, autonomous queue, ownership, and command-security checks for the active 2221-2240 range.
+
+### Phase 2237 - Blind/Contextless Review
+
+- Run contextless review for whether a fresh agent can explain recovery/reconciliation gap evidence-route linkage without inferring execution authority.
+
+### Phase 2238 - Full Gates
+
+- Run backend regression and frontend release gate, confirming no live Coinbase execution and `$0` frontend notional.
+
+### Phase 2239 - Cross-Repo Drift Scan
+
+- Scan backend/frontend docs, mocks, generated schema, and validators for stale active range or coverage-gap authority drift.
+
+### Phase 2240 - Final Gates, Push, And Next Range
+
+- Push synchronized repos after all gates pass and create the next milestone-linked range only if a concrete approved M55 gap remains.
+
+## Completed Phases 2201-2220
 
 These phases continue M55 after the create lifecycle-write audit. The next explicit architecture gap is structured proof-route and gate-chain linkage inside the existing `create_lifecycle_write_audit` block on `GET /api/v1/stealth/command-suite`. The audit may expose required/missing gate chains, backend proof routes, required permissions, shared service methods, proof-route counts, and no-live/no-write authority flags. It must not create proof records, mutate approval/admission/cap/guard/reconciliation stores, evaluate guards, invoke `StealthOrderManager`, write stealth rows, write `order_parent` rows, dispatch lifecycle events, submit/read Coinbase, execute reconciliation, create a new endpoint, or grant browser/BFF lifecycle-write authority.
 

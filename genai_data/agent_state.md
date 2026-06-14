@@ -55,15 +55,17 @@ Keep it short. Keep it factual.
 
 ## Active Scope
 
-- Active autonomous range: `2201-2220`.
-- Active milestone: M55 - Create Proof-Route Linkage.
-- Current direction: add backend-owned, read-only proof-route and gate-chain
-  linkage to stealth create lifecycle-write audit evidence and consume it in
-  the frontend as display-only evidence. Do not create proof records, mutate
-  approval/admission-audit/cap-guard/reconciliation stores, invoke
-  `StealthOrderManager`, write stealth/order_parent/lifecycle state, call
-  Coinbase, execute reconciliation, add browser proof authority, add BFF
-  execution authority, or enable live commands.
+- Active autonomous range: `2221-2240`.
+- Active milestone: M55 - Coverage-Gap Evidence-Route Linkage.
+- Current direction: link remaining stealth command-suite coverage gaps,
+  especially recovery and reconciliation, to backend-owned typed
+  `current_read_evidence` route metadata and consume it in the frontend as
+  display-only evidence. Do not create recovery/reconciliation commands, write
+  proof records, mutate approval/admission-audit/cap-guard/reconciliation
+  stores, invoke `StealthOrderManager`, write stealth/order_parent/lifecycle
+  state, mutate exchange state, call Coinbase, execute reconciliation, add
+  browser proof authority, add BFF execution authority, or enable live
+  commands.
 
 ## Decisions (Durable)
 
@@ -354,7 +356,7 @@ Keep it short. Keep it factual.
 - Result: Passed for M55 focused checks, 3 tests, 1 warning.
 - Last backend autonomous queue check: 2026-06-14
   `python tools\run_autonomous_work_queue_check.py --summary-only`
-- Result: M55 active range `2201-2220` passed. Live Coinbase execution
+- Result: M55 completed range `2201-2220` passed. Live Coinbase execution
   `not_run`, submitted/executed notional `0` USDC.
 - Last backend full regression: 2026-06-14
   `python -m pytest tests\regression\ -v --tb=short --basetemp=runtime_state\pytest_tmp`
@@ -375,12 +377,15 @@ Keep it short. Keep it factual.
 
 ## Next 3 Actions
 
-1. Commit and push synchronized M55 proof-route linkage changes after passed
-   backend regression, frontend release gate, and blind/contextless review.
-2. Preserve stealth create proof-route linkage as read-only evidence without
-   proof creation, store mutation, manager invocation, lifecycle writes,
-   Coinbase calls, reconciliation execution, browser authority, BFF execution
-   authority, or unapproved live execution.
+1. Complete synchronized M55 coverage-gap evidence-route linkage for active
+   range `2221-2240`, then rerun focused backend/frontend checks,
+   blind/contextless review, full backend regression, and frontend release
+   gate.
+2. Preserve stealth create proof-route linkage and coverage-gap read-evidence
+   linkage as read-only evidence without proof creation, store mutation,
+   manager invocation, lifecycle writes, Coinbase calls, reconciliation
+   execution, browser authority, BFF execution authority, or unapproved live
+   execution.
 3. Keep contextless blind-review in the release loop for new spot order,
    campaign, live-action, approval-snapshot, approval-store, admission-audit,
    or cap/guard behavior.
@@ -400,9 +405,9 @@ Keep it short. Keep it factual.
   display evidence only. No command controls, guard evaluator, audit storage,
   approval storage, reconciliation execution, BFF mutation broadening,
   Coinbase call, browser approval, or reconciliation behavior is allowed.
-- What is in progress: M55 create proof-route linkage for active approved
-  range `2201-2220`.
+- What is in progress: M55 coverage-gap evidence-route linkage for active
+  approved range `2221-2240`.
 - What is blocked: Nothing currently known.
-- Exact next command: commit and push M55 proof-route linkage, then advance the
-  next milestone-linked approved range only if a concrete architecture gap
-  remains.
+- Exact next command: run focused backend/frontend checks for the 2221-2240
+  evidence-route linkage, resolve drift, run blind/contextless review, then
+  full gates before commit/push.

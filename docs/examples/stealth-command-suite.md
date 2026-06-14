@@ -22,7 +22,7 @@ Expected posture:
   "type": "stealth_command_suite",
   "module_id": "stealth_orders",
   "status": "blocked",
-  "approved_phase_range": "2201-2220",
+  "approved_phase_range": "2221-2240",
   "command_count": 5,
   "blocked_command_count": 5,
   "live_enabled_command_count": 0,
@@ -251,6 +251,101 @@ The `coverage_gaps` array includes blocked workflow families for:
 - `stealth_reprice_workflow`
 - `stealth_recovery_workflow`
 - `stealth_reconciliation_workflow`
+
+Coverage gaps also include typed `current_read_evidence` rows. For the
+recovery and reconciliation gaps, the current read evidence is existing
+backend read-only route evidence only:
+
+```json
+[
+  {
+    "family": "stealth_recovery_workflow",
+    "command_route": null,
+    "current_read_evidence_routes": [
+      "GET /api/v1/admin/recovery-gate",
+      "GET /api/v1/stealth/orders/{stealth_order_id}",
+      "GET /api/v1/stealth/command-suite"
+    ],
+    "current_read_evidence": [
+      {
+        "route": "/api/v1/admin/recovery-gate",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "audit:read",
+        "shared_method": "build_recovery_gate",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      },
+      {
+        "route": "/api/v1/stealth/orders/{stealth_order_id}",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "audit:read",
+        "shared_method": "build_stealth_order_detail",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      },
+      {
+        "route": "/api/v1/stealth/command-suite",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "analytics:read",
+        "shared_method": "build_stealth_command_suite",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      }
+    ]
+  },
+  {
+    "family": "stealth_reconciliation_workflow",
+    "command_route": null,
+    "current_read_evidence_routes": [
+      "GET /api/v1/admin/reconciliation/plans",
+      "GET /api/v1/admin/reconciliation/plans/{plan_id}",
+      "GET /api/v1/stealth/command-suite"
+    ],
+    "current_read_evidence": [
+      {
+        "route": "/api/v1/admin/reconciliation/plans",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "reconciliation:read",
+        "shared_method": "list_reconciliation_plans",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      },
+      {
+        "route": "/api/v1/admin/reconciliation/plans/{plan_id}",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "reconciliation:read",
+        "shared_method": "get_reconciliation_plan",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      },
+      {
+        "route": "/api/v1/stealth/command-suite",
+        "method": "GET",
+        "action_class": "read_only",
+        "required_permission": "analytics:read",
+        "shared_method": "build_stealth_command_suite",
+        "backend_owned": true,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward"
+      }
+    ]
+  }
+]
+```
+
+These evidence rows do not create recovery or reconciliation command routes,
+write proof records, execute reconciliation, trust browser exchange evidence,
+mutate stealth/order/exchange state, or call Coinbase.
 
 Do not treat this response as command approval. It is readiness evidence only.
 It does not create stealth orders, reveal orders, cancel active placements,
